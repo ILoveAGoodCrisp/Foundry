@@ -25,6 +25,8 @@ class Granny:
         self._define_granny_functions()
         self.file_info_type = POINTER(GrannyDataTypeDefinition).in_dll(self.dll, "GrannyFileInfoType")
         self.magic_value = POINTER(GrannyFileMagic).in_dll(self.dll, "GrannyGRNFileMV_ThisPlatform")
+        self.keyframe_type = POINTER(GrannyDataTypeDefinition).in_dll(self.dll, "GrannyCurveDataDaKeyframes32fType")
+        self.curve_type = POINTER(GrannyDataTypeDefinition).in_dll(self.dll, "GrannyCurveDataDaK32fC32fType")
         self._create_callback()
         self.filename = ""
         
@@ -124,6 +126,16 @@ class Granny:
             1e-5,
             3, # 3 represents the flags GrannyRenormalizeNormals & GrannyReorderTriangleIndices
         )
+        
+    def create_track_groups(self, export_track_group):
+        track_groups = (POINTER(GrannyTrackGroup))(export_track_group)
+        self.file_info.track_group_count = 1
+        self.file_info.track_groups = pointer(export_track_group)
+        
+    def create_animations(self, export_animation):
+        animations = (POINTER(GrannyAnimation))(export_animation)
+        self.file_info.animation_count = 1
+        self.file_info.animations = pointer(export_animation)
                 
     def create_materials(self):
         num_materials = len(self.export_materials)
@@ -423,6 +435,66 @@ class Granny:
     def _free_texture(self, texture: c_void_p):
         "Frees the texture from memory"
         self.dll.GrannyFreeBuilderResult(texture)
+        
+    def _begin_track_group(self, name: c_char_p, vector_track_count: c_int, transform_track_count: c_int, text_track_count: c_int, include_lod_error_space: c_bool) -> POINTER(GrannyTrackGroupBuilder):
+        return self.dll.GrannyBeginTrackGroup(name, vector_track_count, transform_track_count, text_track_count, include_lod_error_space)
+    
+    def _begin_transform_track(self, builder: POINTER(GrannyTrackGroupBuilder), name: c_char_p, flags: c_int):
+        self.dll.GrannyBeginTransformTrack(builder, name, flags)
+        
+    def _initialise_curve_format(self, curve: POINTER(GrannyCurve2)):
+        self.dll.GrannyCurveInitializeFormat(curve)
+        
+    def _set_transform_track_position(self, builder: POINTER(GrannyTrackGroupBuilder), source_curve: POINTER(GrannyCurve2)):
+        self.dll.GrannySetTransformTrackPositionCurve(builder, source_curve)
+        
+    def _set_transform_track_orientation(self, builder: POINTER(GrannyTrackGroupBuilder), source_curve: POINTER(GrannyCurve2)):
+        self.dll.GrannySetTransformTrackOrientationCurve(builder, source_curve)
+        
+    def _set_transform_track_scale(self, builder: POINTER(GrannyTrackGroupBuilder), source_curve: POINTER(GrannyCurve2)):
+        self.dll.GrannySetTransformTrackScaleShearCurve(builder, source_curve)
+        
+    def _end_transform_track(self, builder: POINTER(GrannyTrackGroupBuilder)):
+        self.dll.GrannyEndTransformTrack(builder)
+        
+    def _end_track_group(self, builder: POINTER(GrannyTrackGroupBuilder)) -> POINTER(GrannyTrackGroup):
+        return self.dll.GrannyEndTrackGroup(builder)
+    
+    def _curve_format_is_initialized_correctly(self, curve: POINTER(GrannyCurve2), check_types: c_bool) -> c_bool:
+        return self.dll.GrannyCurveFormatIsInitializedCorrectly(curve, check_types)
+    
+    def _begin_sampled_animation(self, transform_curve_count: c_int, sample_count: c_int) -> POINTER(GrannyTrackGroupSampler):
+        return self.dll.GrannyBeginSampledAnimation(transform_curve_count, sample_count)
+    
+    def _set_transform_sample(self, sampler: POINTER(GrannyTrackGroupSampler), track_index: c_int, sample_index: c_int, position3: POINTER(c_float), orientation4: POINTER(c_float), scale_shear3x3: POINTER(c_float)):
+        self.dll.GrannySetTransformSample(sampler, track_index, sample_index, position3, orientation4, scale_shear3x3)
+        
+    def _fit_bspline_to_samples(self, solver: POINTER(GrannyBSplineSolver), solver_flags: c_uint32, degree: c_int, error_threshold: c_float, c0_threshold: c_float, c1_threshold: c_float, samples: POINTER(c_float), dimension: c_int, sample_count: c_int, dt: c_float, curve_data_type: POINTER(GrannyDataTypeDefinition), maximum_curve_size_in_bytes: c_int, achieved_tolerance: c_bool, curve_size_in_bytes: c_int) -> POINTER(GrannyCurve2):
+        return self.dll.GrannyFitBSplineToSamples(solver, solver_flags, degree, error_threshold, c0_threshold, c1_threshold, samples, dimension, sample_count, dt, curve_data_type, maximum_curve_size_in_bytes, achieved_tolerance, curve_size_in_bytes)
+
+    def _allocate_bspline_solver(self, max_degree: c_int, max_sample_count: c_int, max_dimension: c_int) -> POINTER(GrannyBSplineSolver):
+        return self.dll.GrannyAllocateBSplineSolver(max_degree, max_sample_count, max_dimension)
+    
+    def _get_position_samples(self, sampler: POINTER(GrannyTrackGroupSampler), track_index: c_int) -> POINTER(c_float):
+        return self.dll.GrannyGetPositionSamples(sampler, track_index)
+    
+    def _get_orientation_samples(self, sampler: POINTER(GrannyTrackGroupSampler), track_index: c_int) -> POINTER(c_float):
+        return self.dll.GrannyGetOrientationSamples(sampler, track_index)
+    
+    def _get_scale_shear_samples(self, sampler: POINTER(GrannyTrackGroupSampler), track_index: c_int) -> POINTER(c_float):
+        return self.dll.GrannyGetScaleShearSamples(sampler, track_index)
+    
+    def _compress_curve(self, solver: POINTER(GrannyBSplineSolver), solver_flags: c_uint32, params: POINTER(GrannyCompressCurveParameters), samples: POINTER(c_float), dimension: c_int, frame_count: c_int, dt: c_float, curve_achieved_tolerance: c_bool) -> POINTER(GrannyCurve2):
+        return self.dll.GrannyCompressCurve(solver, solver_flags, params, samples, dimension, frame_count, dt, curve_achieved_tolerance)
+    
+    def _begin_curve(self, type_definition: POINTER(GrannyDataTypeDefinition), degree: c_int, dimension: c_int, knot_count: c_int) -> POINTER(GrannyCurveBuilder):
+        return self.dll.GrannyBeginCurve(type_definition, degree, dimension, knot_count)
+    
+    def _push_control_array(self, builder: POINTER(GrannyCurveBuilder), control_array: POINTER(c_float)):
+        self.dll.GrannyPushCurveControlArray(builder, control_array)
+        
+    def _end_curve(self, builder: POINTER(GrannyCurveBuilder)) -> POINTER(GrannyCurve2):
+        return self.dll.GrannyEndCurve(builder)
 
     def _define_granny_functions(self):
         # Get version
@@ -473,3 +545,53 @@ class Granny:
         self.dll.GrannyEndTexture.restype=POINTER(GrannyTexture)
         # Free texture builder
         self.dll.GrannyFreeBuilderResult.argtypes=[c_void_p]
+        # Begin track group
+        self.dll.GrannyBeginTrackGroup.argtypes=[c_char_p, c_int, c_int, c_int, c_bool]
+        self.dll.GrannyBeginTrackGroup.restype=POINTER(GrannyTrackGroupBuilder)
+        # Begin transform track
+        self.dll.GrannyBeginTransformTrack.argtypes=[POINTER(GrannyTrackGroupBuilder), c_char_p, c_int]
+        # Initialse curve format
+        self.dll.GrannyCurveInitializeFormat.argtypes=[POINTER(GrannyCurve2)]
+        # Set position curve
+        self.dll.GrannySetTransformTrackPositionCurve.argtypes=[POINTER(GrannyTrackGroupBuilder), POINTER(GrannyCurve2)]
+        # Set orientation curve
+        self.dll.GrannySetTransformTrackOrientationCurve.argtypes=[POINTER(GrannyTrackGroupBuilder), POINTER(GrannyCurve2)]
+        # Set scale shear curve
+        self.dll.GrannySetTransformTrackScaleShearCurve.argtypes=[POINTER(GrannyTrackGroupBuilder), POINTER(GrannyCurve2)]
+        # End transform track
+        self.dll.GrannyEndTransformTrack.argtypes=[POINTER(GrannyTrackGroupBuilder)]
+        # End track group
+        self.dll.GrannyEndTrackGroup.argtypes=[POINTER(GrannyTrackGroupBuilder)]
+        self.dll.GrannyEndTrackGroup.restype=POINTER(GrannyTrackGroup)
+        # Get animation sampler
+        self.dll.GrannyBeginSampledAnimation.argtypes=[c_int, c_int]
+        self.dll.GrannyBeginSampledAnimation.restype=POINTER(GrannyTrackGroupSampler)
+        # Set transform sample
+        self.dll.GrannySetTransformSample.argtypes=[POINTER(GrannyTrackGroupSampler), c_int, c_int, POINTER(c_float), POINTER(c_float), POINTER(c_float)]
+        # Fit b spline to samples
+        self.dll.GrannyFitBSplineToSamples.argtypes=[POINTER(GrannyBSplineSolver), c_uint32, c_int, c_float, c_float, c_float, POINTER(c_float), c_int, c_int, c_float, POINTER(GrannyDataTypeDefinition), c_int, c_bool, c_int]
+        self.dll.GrannyFitBSplineToSamples.restype=POINTER(GrannyCurve2)
+        # Allocate bspline solver
+        self.dll.GrannyAllocateBSplineSolver.argtypes=[c_int, c_int, c_int]
+        self.dll.GrannyAllocateBSplineSolver.restype=POINTER(GrannyBSplineSolver)
+        # Get position samples
+        self.dll.GrannyGetPositionSamples.argtypes=[POINTER(GrannyTrackGroupSampler), c_int]
+        self.dll.GrannyGetPositionSamples.restype=POINTER(c_float)
+        # Get orientation samples
+        self.dll.GrannyGetOrientationSamples.argtypes=[POINTER(GrannyTrackGroupSampler), c_int]
+        self.dll.GrannyGetOrientationSamples.restype=POINTER(c_float)
+        # Get scale_shear samples
+        self.dll.GrannyGetScaleShearSamples.argtypes=[POINTER(GrannyTrackGroupSampler), c_int]
+        self.dll.GrannyGetScaleShearSamples.restype=POINTER(c_float)
+        # Compress Curve
+        self.dll.GrannyCompressCurve.argtypes=[POINTER(GrannyBSplineSolver), c_uint32, POINTER(GrannyCompressCurveParameters), POINTER(c_float), c_int, c_int, c_float, c_bool]
+        self.dll.GrannyCompressCurve.restype=POINTER(GrannyCurve2)
+        # Begin Curve
+        self.dll.GrannyBeginCurve.argtypes=[POINTER(GrannyDataTypeDefinition), c_int, c_int, c_int]
+        self.dll.GrannyBeginCurve.restype=POINTER(GrannyCurveBuilder)
+        # Push control array
+        self.dll.GrannyPushCurveControlArray.argtypes=[POINTER(GrannyCurveBuilder), POINTER(c_float)]
+        # End Curve
+        self.dll.GrannyEndCurve.argtypes=[POINTER(GrannyCurveBuilder)]
+        self.dll.GrannyEndCurve.restype=POINTER(GrannyCurve2)
+        

@@ -3412,7 +3412,7 @@ def disable_excluded_collections(context) -> set[bpy.types.Collection]:
         
     return hidden_colls
 
-def hide_excluded_recursively(layer, hidden_colls: set[bpy.types.Collection]):
+def hide_excluded_recursively(layer: bpy.types.Collection, hidden_colls: set[bpy.types.Collection]):
     if layer.collection.nwo.type == 'exclude' and layer.is_visible:
         layer.exclude = True
         hidden_colls.add(layer)

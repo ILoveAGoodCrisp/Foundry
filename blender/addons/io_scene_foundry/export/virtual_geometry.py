@@ -2,7 +2,7 @@
 
 from collections import defaultdict
 import csv
-from ctypes import Array, Structure, c_char_p, c_float, c_int, POINTER, c_ubyte, c_void_p, cast, create_string_buffer, memmove, pointer, sizeof
+from ctypes import Array, Structure, c_char_p, c_float, c_int, c_uint, POINTER, c_ubyte, c_void_p, cast, create_string_buffer, memmove, pointer, sizeof
 import logging
 from math import degrees
 from pathlib import Path
@@ -16,7 +16,7 @@ from ..managed_blam.shader import ShaderTag
 
 from ..managed_blam.bitmap import BitmapTag
 
-from ..granny.formats import GrannyBone, GrannyDataTypeDefinition, GrannyMaterial, GrannyMaterialMap, GrannyMemberType, GrannyTransform, GrannyTriAnnotationSet, GrannyTriMaterialGroup, GrannyTriTopology, GrannyVertexData
+from ..granny.formats import GrannyAnimation, GrannyBone, GrannyCompressCurveParameters, GrannyCurve2, GrannyCurveDataDaKeyframes32f, GrannyDataTypeDefinition, GrannyMaterial, GrannyMaterialMap, GrannyMemberType, GrannyTrackGroup, GrannyTransform, GrannyTransformTrack, GrannyTriAnnotationSet, GrannyTriMaterialGroup, GrannyTriTopology, GrannyVertexData
 from ..granny import Granny
 
 from .export_info import ExportInfo, FaceDrawDistance, FaceMode, FaceSides, FaceType, LightmapType
@@ -29,7 +29,7 @@ from ..tools.asset_types import AssetType
 
 from ..constants import IDENTITY_MATRIX, RENDER_MESH_TYPES, VALID_MESHES
 NORMAL_FIX_MATRIX = Matrix(((1, 0, 0), (0, -1, 0), (0, 0, -1)))
-logging.basicConfig(level=logging.ERROR)
+logging.basicConfig(level=logging.DEBUG)
 
 # PEDESTAL_MATRIX_X_POSITIVE = Matrix(((1.0, 0.0, 0.0, 0.0),
 #                                 (0.0, 1.0, 0.0, 0.0),
@@ -67,6 +67,263 @@ def read_frame_id_list() -> list:
         frame_ids = [row for row in csv_reader]
 
     return frame_ids
+            
+class TransformTrack:
+    def __init__(self, name: str):
+        self.name = name
+        self.position_data: GrannyCurveDataDaKeyframes32f = GrannyCurveDataDaKeyframes32f()
+        self.orientation_data: GrannyCurveDataDaKeyframes32f = GrannyCurveDataDaKeyframes32f()
+        self.scale_data: GrannyCurveDataDaKeyframes32f = GrannyCurveDataDaKeyframes32f()
+    
+class TrackGroup:
+    def __init__(self, name: str):
+        self.name = name
+        self.transform_tracks: list[TransformTrack] = []
+        self.granny = None
+
+class VirtualAnimation:
+    def __init__(self, action: bpy.types.Action, scene: 'VirtualScene'):
+        nwo = action.nwo
+        self.name = nwo.name_override.strip() if nwo.name_override.strip() else action.name
+        self.frame_count: int = int(action.frame_end) - int(action.frame_start) + 1
+        self.frame_range: tuple[int, int] = (int(action.frame_start), int(action.frame_end))
+        self.granny_animation = None
+        self.granny_track_group = None
+        
+        self.track_group = self.create_track_group(scene.animated_bones, scene)
+        # self.to_granny_track_group(scene)
+        self.to_granny_animation(scene)
+        return
+        bones = scene.animated_bones
+        num_transform_tracks = len(bones)
+        sampler = scene.granny._begin_sampled_animation(num_transform_tracks, self.frame_count)
+        
+        for frame_idx, frame in enumerate(range(*self.frame_range)):
+            bpy.context.scene.frame_set(frame)
+            for idx, bone in enumerate(bones):
+                bone: bpy.types.PoseBone
+                loc, rot, sca = bone.matrix.decompose()
+                position = (c_float * 3)(loc.x, loc.y, loc.z)
+                orientation = (c_float * 4)(rot.x, rot.y, rot.z, rot.w)
+                scale_shear = (c_float * 9)(sca.x, 0.0, 0.0, 0.0, sca.y, 0.0, 0.0, 0.0, sca.z)
+                scene.granny._set_transform_sample(sampler, idx, frame_idx, position, orientation, scale_shear)
+                
+        max_degree = 0
+        max_dimension = 9
+        max_sample_count = self.frame_count
+        
+        solver = scene.granny._allocate_bspline_solver(max_degree, max_sample_count, max_dimension)
+        # builder = scene.granny._begin_track_group(create_string_buffer(scene.skeleton_node.name.encode()), 0, num_transform_tracks, 0, False)
+        tracks = []
+        curves = []
+        for idx, bone in enumerate(bones):
+            position_samples = scene.granny._get_position_samples(sampler, idx)
+            orientation_samples = scene.granny._get_orientation_samples(sampler, idx)
+            scale_shear_samples = scene.granny._get_scale_shear_samples(sampler, idx)
+            
+            curve_format = pointer(scene.granny.curve_type)
+            
+            # 0x30
+            curve_parameters = GrannyCompressCurveParameters()
+            curve_parameters.desired_degree = 0
+            curve_parameters.allow_degree_reduction = False
+            curve_parameters.error_tolerance = 0.0
+            curve_parameters.c0_threshold = 0.0
+            curve_parameters.c1_threshold = 0.0
+            curve_parameters.possible_compression_types = curve_format
+            curve_parameters.possible_compression_types_count = 1
+            curve_parameters.constant_compression_type = None
+            curve_parameters.identity_compression_type = None
+            curve_parameters.identity_vector = None
+            
+            position_curve = scene.granny._compress_curve(solver, 0x30, curve_parameters, position_samples, 3, self.frame_count, scene.time_step, False)
+            orientation_curve = scene.granny._compress_curve(solver, 0x30, curve_parameters, orientation_samples, 4, self.frame_count, scene.time_step, False)
+            scale_shear_curve = scene.granny._compress_curve(solver, 0x30, curve_parameters, scale_shear_samples, 9, self.frame_count, scene.time_step, False)
+            
+            track = GrannyTransformTrack()
+            
+            track.name = bone.name.encode()
+            track.position_curve = position_curve.contents
+            track.orientation_curve = orientation_curve.contents
+            track.scale_shear_curve = scale_shear_curve.contents
+            tracks.append(track)
+            # track.initial_placement = GrannyTransform(flags=7, position=(c_float * 3)(0, 0, 0), orientation=(c_float * 4)(0, 0, 0, 1), scale_shear=(c_float * 3 * 3)((1, 0, 0), (0.0, 1, 0), (0.0, 0.0, 1)))
+            # curves.append((position_curve, orientation_curve, scale_shear_curve))
+
+        # for idx, (p, o, s) in enumerate(curves):
+        #     # scene.granny._begin_transform_track(builder, create_string_buffer(b""), 0)
+        #     # scene.granny._set_transform_track_position(builder, p)
+        #     # scene.granny._set_transform_track_orientation(builder, o)
+        #     # scene.granny._set_transform_track_scale(builder, s)
+        #     # scene.granny._end_transform_track(builder)
+
+        #     track = GrannyTransformTrack()
+        #     track.name = bone.name.encode()
+        #     track.position_curve = p.contents
+        #     track.orientation_curve = o.contents
+        #     track.scale_shear_curve = s.contents
+        #     tracks.append(track)
+        
+        # self.granny_track_group = scene.granny._end_track_group(builder)
+        # self.granny_track_group.contents.name = scene.skeleton_node.name.encode()
+        granny_track_group = GrannyTrackGroup()
+        granny_track_group.name = scene.skeleton_node.name.encode()
+        granny_track_group.transform_track_count = len(tracks)
+        granny_track_group.transform_tracks = (GrannyTransformTrack * len(tracks))(*tracks)
+        granny_track_group.flags = 2
+        granny_track_group.initial_placement = GrannyTransform(flags=7, position=(c_float * 3)(0, 0, 0), orientation=(c_float * 4)(0, 0, 0, 1), scale_shear=(c_float * 3 * 3)((1, 0, 0), (0.0, 1, 0), (0.0, 0.0, 1)))
+        self.granny_track_group = pointer(granny_track_group)
+        self.to_granny_animation(scene)
+            
+        
+    def create_track_group(self, bones: list[bpy.types.PoseBone], scene: 'VirtualScene') -> TrackGroup:
+        positions = defaultdict(list)
+        orientations = defaultdict(list)
+        scales = defaultdict(list)
+        tracks = []
+        for frame_idx, frame in enumerate(range(*self.frame_range)):
+            bpy.context.scene.frame_set(frame)
+            for idx, bone in enumerate(bones):
+                bone: bpy.types.PoseBone
+                loc, rot, sca = bone.matrix.decompose()
+                position = (c_float * 3)(loc.x, loc.y, loc.z)
+                orientation = (c_float * 4)(rot.x, rot.y, rot.z, rot.w)
+                scale_shear = (c_float * 9)(sca.x, 0.0, 0.0, 0.0, sca.y, 0.0, 0.0, 0.0, sca.z)
+                positions[bone].extend(position)
+                orientations[bone].extend(orientation)
+                scales[bone].extend(scale_shear)
+        
+        for bone in bones:
+            track = (c_float * (self.frame_count * 3))(*positions[bone])
+            tracks.append(track)
+            
+            track = (c_float * (self.frame_count * 4))(*orientations[bone])
+            tracks.append(track)
+            
+            track = (c_float * (self.frame_count * 9))(*scales[bone])
+            tracks.append(track)
+            
+        num_transform_tracks = int(len(tracks) / 3)
+        granny_transform_tracks = (GrannyTransformTrack * num_transform_tracks)()
+        for bone_idx, i in enumerate(range(0, len(tracks), 3)):
+            granny_transform_tracks[bone_idx].name = bones[bone_idx].name.encode()
+            
+            position_curve = GrannyCurve2()
+            builder = scene.granny._begin_curve(scene.granny.keyframe_type, 0, 3, self.frame_count)
+            scene.granny._push_control_array(builder, tracks[i])
+            position_curve = scene.granny._end_curve(builder)
+            # position_curve.curve_data.type = scene.granny.keyframe_type
+            # position_curve.curve_data.object = cast(pointer(tracks[i]), c_void_p)
+            
+            orientation_curve = GrannyCurve2()
+            builder = scene.granny._begin_curve(scene.granny.keyframe_type, 0, 4, self.frame_count)
+            scene.granny._push_control_array(builder, tracks[i + 1])
+            orientation_curve = scene.granny._end_curve(builder)
+            # orientation_curve.curve_data.type = scene.granny.keyframe_type.contents
+            # orientation_curve.curve_data.object = cast(pointer(tracks[i + 1]), c_void_p)
+            
+            
+            scale_curve = GrannyCurve2()
+            builder = scene.granny._begin_curve(scene.granny.keyframe_type, 0, 9, self.frame_count)
+            scene.granny._push_control_array(builder, tracks[i + 2])
+            scale_curve = scene.granny._end_curve(builder)
+            # scale_curve.curve_data.type = scene.granny.keyframe_type.contents
+            # scale_curve.curve_data.object = cast(pointer(tracks[i + 2]), c_void_p)
+            
+            # scene.granny._initialise_curve_format(position_curve)
+            # scene.granny._initialise_curve_format(orientation_curve)
+            # scene.granny._initialise_curve_format(scale_curve)
+            
+            granny_transform_tracks[bone_idx].position_curve = position_curve.contents
+            granny_transform_tracks[bone_idx].orientation_curve = orientation_curve.contents
+            granny_transform_tracks[bone_idx].scale_shear_curve = scale_curve.contents
+            
+        granny_track_group = GrannyTrackGroup()
+        granny_track_group.name = scene.skeleton_node.name.encode()
+        granny_track_group.transform_track_count = num_transform_tracks
+        granny_track_group.transform_tracks = granny_transform_tracks
+        self.granny_track_group = pointer(granny_track_group)
+
+
+    def to_granny_track_group(self, scene: 'VirtualScene'):
+        num_transform_tracks = len(self.track_group.transform_tracks)
+        granny_transform_tracks = (GrannyTransformTrack * num_transform_tracks)()
+        for i in range(num_transform_tracks):
+            transform_track = GrannyTransformTrack()
+            granny_transform_tracks[i].name = self.track_group.transform_tracks[i].name.encode()
+            transform_track.name = self.track_group.transform_tracks[i].name.encode()
+            
+            position_curve = GrannyCurve2()
+            position_curve.curve_data.type = scene.granny.keyframe_type
+            position_curve.curve_data.object = cast(pointer(self.track_group.transform_tracks[i].position_data), c_void_p)
+            
+            orientation_curve = GrannyCurve2()
+            orientation_curve.curve_data.type = scene.granny.keyframe_type
+            orientation_curve.curve_data.object = cast(pointer(self.track_group.transform_tracks[i].orientation_data), c_void_p)
+            
+            
+            scale_curve = GrannyCurve2()
+            scale_curve.curve_data.type = scene.granny.keyframe_type
+            scale_curve.curve_data.object = cast(pointer(self.track_group.transform_tracks[i].scale_data), c_void_p)
+            
+            scene.granny._initialise_curve_format(position_curve)
+            scene.granny._initialise_curve_format(orientation_curve)
+            scene.granny._initialise_curve_format(scale_curve)
+            
+            transform_track.position_curve = position_curve
+            transform_track.orientation_curve = orientation_curve
+            transform_track.scale_shear_curve = scale_curve
+            
+            
+            granny_transform_tracks[i].position_curve = position_curve
+            granny_transform_tracks[i].orientation_curve = orientation_curve
+            granny_transform_tracks[i].scale_shear_curve = scale_curve
+            
+        granny_track_group = GrannyTrackGroup()
+        granny_track_group.name = scene.skeleton_node.name.encode()
+        granny_track_group.transform_track_count = num_transform_tracks
+        granny_track_group.transform_tracks = granny_transform_tracks
+        self.granny_track_group = pointer(granny_track_group)
+        
+        
+        # builder = scene.granny._begin_track_group(self.name.encode(), 0, len(self.track_group.transform_tracks), 0, False)
+        # for track in self.track_group.transform_tracks:
+        #     scene.granny._begin_transform_track(builder, track.name.encode(), 0)
+
+        #     position_curve = GrannyCurve2()
+        #     position_curve.curve_data.type = scene.granny.keyframe_type
+        #     position_curve.curve_data.object = cast(pointer(track.position_data), c_void_p)
+            
+        #     orientation_curve = GrannyCurve2()
+        #     orientation_curve.curve_data.type = scene.granny.keyframe_type
+        #     orientation_curve.curve_data.object = cast(pointer(track.orientation_data), c_void_p)
+            
+        #     scale_curve = GrannyCurve2()
+        #     scale_curve.curve_data.type = scene.granny.keyframe_type
+        #     scale_curve.curve_data.object = cast(pointer(track.scale_data), c_void_p)
+            
+        #     scene.granny._initialise_curve_format(position_curve)
+        #     scene.granny._initialise_curve_format(orientation_curve)
+        #     scene.granny._initialise_curve_format(scale_curve)
+            
+        #     scene.granny._set_transform_track_position(builder, position_curve)
+        #     scene.granny._set_transform_track_orientation(builder, orientation_curve)
+        #     scene.granny._set_transform_track_scale(builder, scale_curve)
+            
+        #     scene.granny._end_transform_track(builder)
+            
+        # self.granny_track_group = scene.granny._end_track_group(builder)
+        
+    def to_granny_animation(self, scene: 'VirtualScene'):
+        granny_animation = GrannyAnimation()
+        granny_animation.name = self.name.encode()
+        granny_animation.duration = scene.time_step * self.frame_count
+        granny_animation.time_step = scene.time_step
+        granny_animation.oversampling = 1
+        granny_animation.track_group_count = 1
+        granny_animation.track_groups = pointer(self.granny_track_group)
+        
+        self.granny_animation = pointer(granny_animation)
 
 class MaterialExtendedData(Structure):
     _pack_ = 1
@@ -898,9 +1155,8 @@ class VirtualSkeleton:
         
     def _get_bones(self, ob, scene: 'VirtualScene'):
         if ob.type == 'ARMATURE':
-            valid_bones = [pbone for pbone in ob.pose.bones if ob.data.bones[pbone.name].use_deform]
+            valid_bones = [pbone for pbone in ob.original.pose.bones if ob.original.data.bones[pbone.name].use_deform]
             list_bones = [pbone.name for pbone in valid_bones]
-            granny_bones = []
             for idx, bone in enumerate(valid_bones):
                 bone: bpy.types.PoseBone
                 b = VirtualBone(bone)
@@ -920,7 +1176,7 @@ class VirtualSkeleton:
                     
                 b.to_granny_data()
                 self.bones.append(b)
-                granny_bones.append(b)
+                scene.animated_bones.append(bone)
                 
             child_index = 0
             for child in scene.get_immediate_children(ob):
@@ -994,7 +1250,7 @@ class VirtualModel:
                     scene.skeleton_node = self.node
             
 class VirtualScene:
-    def __init__(self, asset_type: AssetType, depsgraph: bpy.types.Depsgraph, corinth: bool, tags_dir: Path, granny: Granny, export_settings):
+    def __init__(self, asset_type: AssetType, depsgraph: bpy.types.Depsgraph, corinth: bool, tags_dir: Path, granny: Granny, export_settings, fps: int):
         self.nodes: dict[VirtualNode] = {}
         self.meshes: dict[VirtualMesh] = {}
         self.materials: dict[VirtualMaterial] = {}
@@ -1013,6 +1269,7 @@ class VirtualScene:
         self.global_materials: list = []
         self.global_materials_set: set()
         self.skeleton_node: VirtualNode = None
+        self.time_step = 1.0 / fps
         self.corinth = corinth
         self.export_info: ExportInfo = None
         self.valid_bones = []
@@ -1021,6 +1278,8 @@ class VirtualScene:
         self.design = set()
         self.bsps_with_structure = set()
         self.warnings = []
+        self.animated_bones = []
+        self.animations = []
         
         self.object_parent_dict: dict[bpy.types.Object: bpy.types.Object] = {}
         self.object_halo_data: dict[bpy.types.Object: tuple[dict, str, str, list]] = {}
@@ -1039,12 +1298,16 @@ class VirtualScene:
         self.template_node_order = {}
         
     def _create_material_extended_data_type(self):
-        material_extended_data_type = (GrannyDataTypeDefinition * 3)()
-        material_extended_data_type[0] = GrannyDataTypeDefinition(member_type=GrannyMemberType.granny_string_member, name=b"bungie_shader_path")
-        material_extended_data_type[1] = GrannyDataTypeDefinition(member_type=GrannyMemberType.granny_string_member, name=b"bungie_shader_type")
-        material_extended_data_type[2] = GrannyDataTypeDefinition(GrannyMemberType.granny_end_member.value)
+        material_extended_data_type = (GrannyDataTypeDefinition * 3)(
+            GrannyDataTypeDefinition(member_type=GrannyMemberType.granny_string_member, name=b"bungie_shader_path"),
+            GrannyDataTypeDefinition(member_type=GrannyMemberType.granny_string_member, name=b"bungie_shader_type"),
+            GrannyDataTypeDefinition(GrannyMemberType.granny_end_member.value)
+        )
         
         return material_extended_data_type
+    
+    def _create_curve_data_type(self):
+        pass
         
         
     def add(self, id: bpy.types.Object, props: dict, region: str = None, permutation: str = None, fp_defaults: dict = None, proxies: list = None, template_node: VirtualNode = None, bones: list[str] = []) -> VirtualNode:
@@ -1068,6 +1331,13 @@ class VirtualScene:
             self.models[ob.name] = model
         else:
             del model
+            
+    def add_animation(self, action: bpy.types.Action):
+        animation = VirtualAnimation(action, self)
+        if animation.granny_animation:
+            self.animations.append(animation)
+        else:
+            del animation
         
     def _get_material(self, material: bpy.types.Material, scene: 'VirtualScene'):
         if material is None:

@@ -26,7 +26,7 @@ from ..props.mesh import NWO_MeshPropertiesGroup
 
 from ..props.object import NWO_ObjectPropertiesGroup
 
-from .virtual_geometry import VirtualMaterial, VirtualMesh, VirtualNode, VirtualScene
+from .virtual_geometry import VirtualAnimation, VirtualMaterial, VirtualMesh, VirtualNode, VirtualScene
 
 from ..granny import Granny
 from .. import utils
@@ -133,6 +133,7 @@ class ExportScene:
         self.context.view_layer.update()
         utils.set_object_mode(self.context)
         self.disabled_collections = utils.disable_excluded_collections(self.context)
+        self.current_frame = self.context.scene.frame_current
         
     def get_initial_export_objects(self):
         self.depsgraph = self.context.evaluated_depsgraph_get()
@@ -141,7 +142,7 @@ class ExportScene:
         else:
             self.export_objects = {ob.evaluated_get(self.depsgraph) for ob in self.context.view_layer.objects if ob.nwo.export_this and ob.type in VALID_OBJECTS}
         
-        self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir, self.granny, self.export_settings)
+        self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir, self.granny, self.export_settings, self.context.scene.render.fps)
         
     def create_instance_proxies(self, ob: bpy.types.Object, ob_halo_data: dict, region: str, permutation: str):
         self.processed_poop_meshes.add(ob.data)
@@ -223,10 +224,14 @@ class ExportScene:
         num_export_objects = len(self.export_objects)
         self.collection_map = create_parent_mapping(self.depsgraph)
         self.forced_render_only = {}
+        self.armature_poses = {}
         object_parent_dict = {}
         with utils.Spinner():
             utils.update_job_count(process, "", 0, num_export_objects)
             for idx, ob in enumerate(self.export_objects):
+                if ob.type == 'ARMATURE':
+                    self.armature_poses[ob.original.data] = ob.original.data.pose_position
+                    ob.original.data.pose_position = 'REST'
                 result = self.get_halo_props(ob)
                 if result is None:
                     continue
@@ -261,6 +266,8 @@ class ExportScene:
         self.virtual_scene.global_materials_set = set(self.global_materials_list)
         self.virtual_scene.object_parent_dict = object_parent_dict
         self.virtual_scene.object_halo_data = self.ob_halo_data
+        
+        self.context.view_layer.update()
             
     def get_halo_props(self, ob: bpy.types.Object):
         props = {}
@@ -980,6 +987,25 @@ class ExportScene:
                 utils.update_job_count(process, "", idx, num_no_parents)
             utils.update_job_count(process, "", num_no_parents, num_no_parents)
             
+    def sample_animations(self):
+        if not self.asset_type in {AssetType.MODEL, AssetType.ANIMATION}:
+            return
+        valid_actions = [action for action in bpy.data.actions if action.use_frame_range]
+        if not valid_actions:
+            return
+        process = "--- Sampling Animations"
+        num_animations = len(valid_actions)
+        for armature in self.armature_poses.keys():
+            armature.pose_position = 'POSE'
+        self.context.view_layer.update()
+        with utils.Spinner():
+            utils.update_job_count(process, "", 0, num_animations)
+            for idx, action in enumerate(valid_actions):
+                self.virtual_scene.add_animation(action)
+                utils.update_job_count(process, "", idx, num_animations)
+            utils.update_job_count(process, "", num_animations, num_animations)
+        
+            
     def report_warnings(self):
         if not (self.virtual_scene.warnings or self.warnings):
             return
@@ -1033,11 +1059,27 @@ class ExportScene:
             if not self.animations_export_dir.exists():
                 self.animations_export_dir.mkdir(parents=True, exist_ok=True)
                 
-        self._process_animations()
         self._process_models()
+        self._export_animations()
                 
-    def _process_animations(self):
-        pass
+    def _export_animations(self):
+        if not (self.virtual_scene.skeleton_node or self.virtual_scene.animations): return
+        
+        print("\n\nExporting Animations")
+        print("-----------------------------------------------------------------------\n")
+        for animation in self.virtual_scene.animations:
+            granny_path = self._get_export_path(animation.name, True)
+            self.sidecar.add_file_data("animation", "default", "default", granny_path, bpy.data.filepath)
+            # if not self.export_settings.selected_perms or perm in self.export_settings.selected_perms:
+            job = f"--- {animation.name}"
+            utils.update_job(job, 0)
+            if self.export_settings.granny_animations_mesh:
+                nodes_dict = {node.name: node for node in list(self.virtual_scene.nodes.values()) + [self.virtual_scene.skeleton_node]}
+            else:
+                nodes_dict = {node.name: node for node in [self.virtual_scene.skeleton_node]}
+                
+            self._export_granny_file(granny_path, nodes_dict, animation)
+            utils.update_job(job, 1)
     
     def _process_models(self):
         self._create_export_groups()
@@ -1066,7 +1108,7 @@ class ExportScene:
                 nodes_dict = {node.name: node for node in nodes + [self.virtual_scene.skeleton_node]}
             else:
                 nodes_dict = {node.name: node for node in nodes}
-            self._export_granny_file(granny_path, nodes_dict, False)
+            self._export_granny_file(granny_path, nodes_dict)
             utils.update_job(job, 1)
             
                 
@@ -1088,11 +1130,11 @@ class ExportScene:
         #             else:
         #                 export_obs = [ob for ob in objects]
         
-    def _export_granny_file(self, filepath: Path, virtual_objects: list[VirtualNode], animation: bool):
+    def _export_granny_file(self, filepath: Path, virtual_objects: list[VirtualNode], animation: VirtualAnimation = None):
         self.granny.new(filepath, self.forward, self.scale, self.mirror)
         self.granny.from_tree(self.virtual_scene, virtual_objects)
         
-        if not animation or self.export_settings.granny_animations_mesh:
+        if animation is None or self.export_settings.granny_animations_mesh:
             if self.export_settings.granny_textures:
                 self.granny.create_textures()
             self.granny.create_materials()
@@ -1103,15 +1145,15 @@ class ExportScene:
         self.granny.create_skeletons(export_info=self.export_info)
         self.granny.create_models()
         
-        if animation: ...
-            # self.granny.create_track_groups()
-            # self.granny.create_animations()
+        if animation is not None:
+            self.granny.create_track_groups(animation.granny_track_group)
+            self.granny.create_animations(animation.granny_animation)
             
-        self.granny.transform()
+        # self.granny.transform()
         self.granny.save()
         
-        # if filepath.exists():
-        #     os.startfile(r"F:\Modding\granny\granny_common_2_9_12_0_release\bin\win32\gr2_viewer.exe", arguments=str(filepath))
+        if filepath.exists():
+            os.startfile(r"F:\Modding\granny\granny_common_2_9_12_0_release\bin\win32\gr2_viewer.exe", arguments='"' + str(filepath) + '"')
         
             
     def _get_export_path(self, name: str, animation=False):
@@ -1149,6 +1191,17 @@ class ExportScene:
         self.sidecar.structure = self.virtual_scene.structure
         self.sidecar.design = self.virtual_scene.design
         self.sidecar.build()
+        
+    def restore_scene(self):
+        for armature, pose in self.armature_poses.items():
+            armature.pose_position = pose
+            
+        for collection in self.disabled_collections:
+            collection.exclude = False
+            
+        self.context.scene.frame_current = self.current_frame
+        self.context.view_layer.update()
+        
         
     def preprocess_tags(self):
         """ManagedBlam tasks to run before tool import is called"""

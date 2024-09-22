@@ -80,6 +80,18 @@ class GrannyDataTypeDefinition(Structure):
 class GrannyTextureBuilder(Structure):
     pass
 
+class GrannyTrackGroupBuilder(Structure):
+    pass
+
+class GrannyTrackGroupSampler(Structure):
+    pass
+
+class GrannyBSplineSolver(Structure):
+    pass
+
+class GrannyCurveBuilder(Structure):
+    pass
+
 GrannyDataTypeDefinition._pack_ = 1
 GrannyDataTypeDefinition._fields_ = [
                 ('member_type',c_int), # GrannyMemberType
@@ -342,7 +354,23 @@ GrannyModelInstance._fields_ = [
 class GrannyCurve2(Structure):
     _pack_ = 1
     _fields_ = [
-                ('curve_data',GrannyVariant)]  
+                ('curve_data', GrannyVariant)]  
+    
+class GrannyCompressCurveParameters(Structure):
+    _pack_ = 1
+    _fields_ = [
+                ('desired_degree', c_int),
+                ('allow_degree_reduction', c_bool),
+                ('allow_reduction_on_missed_tolerance', c_bool),
+                ('error_tolerance', c_float),
+                ('c0_threshold', c_float),
+                ('c1_threshold', c_float),
+                ('possible_compression_types', POINTER(POINTER(GrannyDataTypeDefinition))),
+                ('possible_compression_types_count', c_int),
+                ('constant_compression_type', POINTER(GrannyDataTypeDefinition)),
+                ('identity_compression_type', POINTER(GrannyDataTypeDefinition)),
+                ('identity_vector', POINTER(c_float)),
+                ]  
 
 class GrannyVectorTrack(Structure):
     _pack_ = 1
@@ -383,7 +411,7 @@ class GrannyPeriodicLoop(Structure):
                 ('d_z',c_float),
                 ('basis_x',c_float * 3),
                 ('basis_y',c_float * 3),
-                ('axis',c_float * 3),]  
+                ('axis',c_float * 3),]
 
 class GrannyTrackGroup(Structure):
     _pack_ = 1
@@ -392,7 +420,7 @@ class GrannyTrackGroup(Structure):
                 ('vector_track_count',c_int),
                 ('vector_tracks',POINTER(GrannyVectorTrack)),
                 ('transform_track_count',c_int),
-                ('morph_targets',POINTER(GrannyTransformTrack)),
+                ('transform_tracks',POINTER(GrannyTransformTrack)),
                 ('transform_lod_error_count',c_int),
                 ('tranform_lod_errors',POINTER(c_float)),
                 ('text_track_count',c_int),
@@ -411,7 +439,7 @@ class GrannyAnimation(Structure):
                 ('time_step',c_float),
                 ('oversampling',c_float),
                 ('track_group_count',c_int),
-                ('track_groups',POINTER(GrannyTrackGroup)),
+                ('track_groups', POINTER(POINTER(GrannyTrackGroup))),
                 ('default_loop_count',c_int),
                 ('flags',c_int),
                 ('extended_data',GrannyVariant)]  
@@ -605,3 +633,19 @@ class GrannyFileDataTreeWriter(Structure):
         ('written_type_registry',GrannyWrittenTypeRegistry),
         ('source_file_for_sectioning',POINTER(GrannyFile)),
         ('source_file_for_formats',POINTER(GrannyFile))]
+    
+class GrannyCurveDataHeader(Structure):
+    _pack_ = 1
+    _fields_ = [
+        ('format', c_uint),
+        ('degree', c_uint)
+    ]
+    
+class GrannyCurveDataDaKeyframes32f(Structure):
+    _pack_ = 1
+    _fields_ = [
+        ('curve_data_header', GrannyCurveDataHeader),
+        ('dimension', c_int),
+        ('control_count', c_int),
+        ('controls', POINTER(c_float)),
+    ]
