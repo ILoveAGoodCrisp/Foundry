@@ -1060,7 +1060,7 @@ class ExportScene:
         context.view_layer.objects.active = None
             
     def sample_animations(self):
-        if not self.asset_type in {AssetType.MODEL, AssetType.ANIMATION}:
+        if self.asset_type not in {AssetType.MODEL, AssetType.ANIMATION}:
             return
         valid_actions = [action for action in bpy.data.actions if action.use_frame_range]
         if not valid_actions:

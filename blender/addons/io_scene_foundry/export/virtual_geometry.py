@@ -1163,7 +1163,7 @@ class VirtualSkeleton:
             own_bone.props = own_bone.node.props
             
         own_bone.matrix_world = own_bone.node.matrix_world
-        own_bone.matrix_local = own_bone.node.matrix_local
+        own_bone.matrix_local = IDENTITY_MATRIX
         self.skeleton_matrix_world = own_bone.matrix_world.copy()
         own_bone.to_granny_data()
         self.bones: list[VirtualBone] = [own_bone]
