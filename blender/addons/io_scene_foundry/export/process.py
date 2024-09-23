@@ -361,7 +361,7 @@ class ExportScene:
             props = self._setup_instanced_object_props(nwo, props, region)
         elif mesh_type == '_connected_geometry_mesh_type_poop':
             props, mesh_props = self._setup_poop_props(ob, nwo, data_nwo, props, mesh_props)
-        elif mesh_type == '_connected_geometry_mesh_type_default' and self.corinth and self.asset_type == 'scenario':
+        elif mesh_type == '_connected_geometry_mesh_type_default' and self.corinth and self.asset_type == AssetType.SCENARIO:
             props["bungie_face_type"] = '_connected_geometry_face_type_sky'
         elif mesh_type == '_connected_geometry_mesh_type_seam':
             props["bungie_mesh_seam_associated_bsp"] = (f"{self.asset_name}_{region}")
