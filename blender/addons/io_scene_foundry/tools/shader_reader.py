@@ -1,7 +1,7 @@
 from pathlib import Path
 import bpy
 from ..managed_blam.material import MaterialTag
-from ..managed_blam.shader import ShaderTag
+from ..managed_blam.shader import ShaderDecalTag, ShaderTag
 from .. import utils
 
 class NWO_ShaderToNodes(bpy.types.Operator):
@@ -38,5 +38,14 @@ def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str):
         with MaterialTag(path=tag_path) as material:
             material.to_nodes(mat)
     else:
-        with ShaderTag(path=tag_path) as shader:
-            shader.to_nodes(mat)
+        shader_type = Path(tag_path).suffix[1:]
+        print(shader_type)
+        match shader_type:
+            case 'shader':
+                with ShaderTag(path=tag_path) as shader:
+                    print(shader.tag_path.RelativePathWithExtension)
+                    shader.to_nodes(mat)
+            case 'shader_decal':
+                with ShaderDecalTag(path=tag_path) as shader:
+                    print(shader.tag_path.RelativePathWithExtension)
+                    shader.to_nodes(mat)

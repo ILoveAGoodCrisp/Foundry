@@ -3,36 +3,20 @@ from enum import Enum
 from math import degrees
 import os
 from pathlib import Path
-import tempfile
-import time
 import bpy
-from mathutils import Matrix
 
 from ..managed_blam.render_model import RenderModelTag
-
 from ..managed_blam.animation import AnimationTag
-
 from ..managed_blam.model import ModelTag
-
 from .import_sidecar import SidecarImport
-
-from .tag_builder import build_tags
-
 from .build_sidecar_granny import Sidecar
-
 from .export_info import ExportInfo, FaceDrawDistance, FaceMode, FaceSides, LightmapType, MeshTessellationDensity
-
 from ..props.mesh import NWO_MeshPropertiesGroup
-
 from ..props.object import NWO_ObjectPropertiesGroup
-
-from .virtual_geometry import VirtualAnimation, VirtualMaterial, VirtualMesh, VirtualNode, VirtualScene
-
+from .virtual_geometry import VirtualAnimation, VirtualNode, VirtualScene
 from ..granny import Granny
 from .. import utils
-from ..ui.bar import NWO_HaloExportPropertiesGroup
-from ..props.scene import NWO_ScenePropertiesGroup
-from ..constants import GameVersion, VALID_MESHES, VALID_OBJECTS
+from ..constants import VALID_MESHES, VALID_OBJECTS
 from ..tools.asset_types import AssetType
 
 face_prop_defaults = {
@@ -91,7 +75,6 @@ class ExportScene:
         self.corinth = corinth
         self.tags_dir = Path(utils.get_tags_path())
         self.data_dir = Path(utils.get_data_path())
-        self.root_dir = self.data_dir.parent
         self.depsgraph: bpy.types.Depsgraph = None
         self.virtual_scene: VirtualScene = None
         self.no_parent_objects = []
@@ -117,7 +100,7 @@ class ExportScene:
         self.scene_settings = scene_settings
         self.sidecar = Sidecar(sidecar_path_full, sidecar_path, asset_path, asset_name, self.asset_type, scene_settings, corinth, context)
         
-        self.project_root = Path(utils.get_tags_path()).parent
+        self.project_root = self.tags_dir.parent
         self.warnings = []
         os.chdir(self.project_root)
         self.granny = Granny(Path(self.project_root, "granny2_x64.dll"))

@@ -380,11 +380,11 @@ class NWO_Import(bpy.types.Operator):
                         print('Building Blender materials from material tags')
                     else:
                         print('Building Blender materials from shader tags')
-                    with utils.MutePrints():
-                        for mat in new_materials:
-                            shader_path = mat.nwo.shader_path
-                            if shader_path:
-                                tag_to_nodes(corinth, mat, shader_path)
+                    #with utils.MutePrints():
+                    for mat in new_materials:
+                        shader_path = mat.nwo.shader_path
+                        if shader_path:
+                            tag_to_nodes(corinth, mat, shader_path)
                         
                 if 'bitmap' in importer.extensions:
                     bitmap_files = importer.sorted_filepaths["bitmap"]
@@ -858,7 +858,6 @@ class NWOImporter:
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_render")
         model_collection.children.link(collection)
         with utils.TagImportMover(self.project.tags_directory, file) as mover:
-            print(mover.tag_path, mover.temp_file)
             with RenderModelTag(path=mover.tag_path) as render_model:
                 render_model_objects, armature = render_model.to_blend_objects(collection, self.tag_render, self.tag_markers, model_collection, existing_armature)
             

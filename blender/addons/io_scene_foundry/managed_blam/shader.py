@@ -192,7 +192,6 @@ class ShaderTag(Tag):
             specular_mask.SetStringData('-1')
             
         if si_alpha_from_diffuse:
-            print("AYYY")
             self_illumination.SetStringData('4') # self illum mask from diffuse
         elif map.get('self_illum', 0):
             si_enum = int(self_illumination.GetStringData())
@@ -705,3 +704,6 @@ class BSDFParameter():
                 mapping_node.inputs[2].default_value = scale_y
                 
             self.tree.links.new(input=data_node.inputs[0], output=mapping_node.outputs[0])
+
+class ShaderDecalTag(ShaderTag):
+    tag_ext = 'shader_decal'

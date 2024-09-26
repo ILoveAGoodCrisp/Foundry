@@ -14,7 +14,7 @@ import clr
 
 from ..managed_blam.material import MaterialTag
 
-from ..managed_blam.shader import ShaderTag
+from ..managed_blam.shader import ShaderDecalTag, ShaderTag
 
 from ..granny.formats import GrannyAnimation, GrannyBone, GrannyCompressCurveParameters, GrannyCurve2, GrannyCurveDataDaKeyframes32f, GrannyDataTypeDefinition, GrannyMaterial, GrannyMaterialMap, GrannyMemberType, GrannyTrackGroup, GrannyTransform, GrannyTransformTrack, GrannyTriAnnotationSet, GrannyTriMaterialGroup, GrannyTriTopology, GrannyVertexData
 from ..granny import Granny
@@ -389,8 +389,13 @@ class VirtualMaterial:
             with MaterialTag(path=shader_path) as shader:
                 bitmap_data = shader.get_diffuse_bitmap_data_for_granny()
         else:
-            with ShaderTag(path=shader_path) as shader:
-                bitmap_data = shader.get_diffuse_bitmap_data_for_granny()
+            match self.shader_type:
+                case 'shader':
+                    with ShaderTag(path=shader_path) as shader:
+                        bitmap_data = shader.get_diffuse_bitmap_data_for_granny()
+                case 'shader_decal':
+                    with ShaderDecalTag(path=shader_path) as shader:
+                        bitmap_data = shader.get_diffuse_bitmap_data_for_granny()
             
         if not bitmap_data:
             return
@@ -724,7 +729,7 @@ class VirtualMesh:
 
         if self.bone_weights is not None:
             self.bone_weights = self.bone_weights[new_indices, :]
-            self.bone_indices = self.bone_weights[new_indices, :]
+            self.bone_indices = self.bone_indices[new_indices, :]
 
         if num_materials > 1:
             material_indices = np.empty(num_polygons, dtype=np.int32)
