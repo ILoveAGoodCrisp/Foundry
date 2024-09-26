@@ -93,8 +93,8 @@ class MeshTessellationDensity(BungieEnum):
     
 class ExportInfo:
     def __init__(self, regions, global_materials):
-        self.export_user = getuser()
-        self.export_machine = gethostname()
+        self.export_user = getuser()[:19]
+        self.export_machine = gethostname()[:11]
         self.export_toolset = "bungie"
         time = datetime.today()
         self.export_date = time.strftime("%Y-%m-%d")

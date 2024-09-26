@@ -1102,7 +1102,6 @@ class ProcessScene:
         self.running_check -= 1
 
 def patch_granny(gr2):
-    return
     replacement_data = b'H'
     header_size = 0x94
     with open(gr2, 'r+b') as file:
