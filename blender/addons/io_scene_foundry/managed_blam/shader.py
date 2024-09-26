@@ -753,4 +753,4 @@ class ShaderDecalTag(ShaderTag):
         if specular:
             specular.build(Vector((-300, -200)))
 
-        blender_material.surface_render_method = 'BLENDED'
+        self._set_alpha(alpha_type, blender_material)
