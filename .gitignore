@@ -17,3 +17,4 @@ copy to add-ons.bat
 *.user
 *.vsidx
 *.lock
+*.csproj
