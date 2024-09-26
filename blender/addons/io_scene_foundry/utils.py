@@ -1306,6 +1306,8 @@ def setup_projects_list(skip_registry_check=False, report=None):
         except:
             pass
 
+    return []
+
 def update_tables_from_objects(context):
     regions_table = context.scene.nwo.regions_table
     region_names = [e.name for e in regions_table]

@@ -13,7 +13,7 @@ from .. import startup
 
 import blf
 
-def display_fading_text(text, position=(200, 200), size=150, fade_in_start=1, fade_in_end=100, display_start=51, fade_out_start=150, fade_out_end=249):
+def display_fading_text(text, position=(200, 200), size=50, fade_in_start=1, fade_in_end=100, display_start=51, fade_out_start=150, fade_out_end=249):
     def smooth_step(t):
         import math
         return 0.5 - 0.5 * math.cos(t * math.pi)
@@ -69,7 +69,7 @@ class NWO_OT_StartFoundry(bpy.types.Operator):
         context.space_data.show_region_ui = True
         bpy.app.timers.register(utils.set_foundry_panel_active, first_interval=0.01)
         # self.report({'INFO'}, "Welcome to Foundry!")
-        display_fading_text("Welcome to Foundry")
+        display_fading_text("Foundry Loaded")
         return {"FINISHED"}
 
 class NWO_MT_ProjectChooserMenu(bpy.types.Menu):

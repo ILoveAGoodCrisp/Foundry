@@ -282,11 +282,11 @@ class VertexData:
         )
 
         if node.matrix_world == identity_matrix:
-            self.vertices = [Vertex(i, mesh, mesh.positions, mesh.normals) for i in range(mesh.num_loops)]
+            self.vertices = [Vertex(i, mesh, mesh.positions, mesh.normals) for i in range(mesh.num_vertices)]
         else:
             transformed_positions = mesh.positions @ node.matrix_world.to_3x3()
             transformed_normals = mesh.normals @ node.matrix_world.to_3x3()
-            self.vertices = [Vertex(i, mesh, transformed_positions, transformed_normals) for i in range(mesh.num_loops)]
+            self.vertices = [Vertex(i, mesh, transformed_positions, transformed_normals) for i in range(mesh.num_vertices)]
             
         self.granny = None
     
