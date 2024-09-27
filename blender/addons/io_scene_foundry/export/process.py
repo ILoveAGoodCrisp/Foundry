@@ -1121,23 +1121,22 @@ class ExportScene:
         self._export_animations()
                 
     def _export_animations(self):
-        if not (self.virtual_scene.skeleton_node or self.virtual_scene.animations): return
-        
-        print("\n\nExporting Animations")
-        print("-----------------------------------------------------------------------\n")
-        for animation in self.virtual_scene.animations:
-            granny_path = self._get_export_path(animation.name, True)
-            self.sidecar.add_animation_file_data(granny_path, bpy.data.filepath, animation.name, animation.compression, animation.animation_type, animation.movement, animation.space, animation.pose_overlay)
-            # if not self.export_settings.selected_perms or perm in self.export_settings.selected_perms:
-            job = f"--- {animation.name}"
-            utils.update_job(job, 0)
-            if self.export_settings.granny_animations_mesh:
-                nodes_dict = {node.name: node for node in list(self.virtual_scene.nodes.values()) + [self.virtual_scene.skeleton_node]}
-            else:
-                nodes_dict = {node.name: node for node in [self.virtual_scene.skeleton_node]}
-                
-            self._export_granny_file(granny_path, nodes_dict, animation)
-            utils.update_job(job, 1)
+        if self.virtual_scene.skeleton_node and self.virtual_scene.animations:
+            print("\n\nExporting Animations")
+            print("-----------------------------------------------------------------------\n")
+            for animation in self.virtual_scene.animations:
+                granny_path = self._get_export_path(animation.name, True)
+                self.sidecar.add_animation_file_data(granny_path, bpy.data.filepath, animation.name, animation.compression, animation.animation_type, animation.movement, animation.space, animation.pose_overlay)
+                # if not self.export_settings.selected_perms or perm in self.export_settings.selected_perms:
+                job = f"--- {animation.name}"
+                utils.update_job(job, 0)
+                if self.export_settings.granny_animations_mesh:
+                    nodes_dict = {node.name: node for node in list(self.virtual_scene.nodes.values()) + [self.virtual_scene.skeleton_node]}
+                else:
+                    nodes_dict = {node.name: node for node in [self.virtual_scene.skeleton_node]}
+                    
+                self._export_granny_file(granny_path, nodes_dict, animation)
+                utils.update_job(job, 1)
     
     def _process_models(self):
         self._create_export_groups()

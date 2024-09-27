@@ -59,6 +59,13 @@ DESIGN_MESH_TYPES = {
     "_connected_geometry_mesh_type_poop_vertical_rain_sheet",
 }
 
+FACE_PROP_TYPES = {
+    "_connected_geometry_mesh_type_default",
+    "_connected_geometry_mesh_type_poop",
+    "_connected_geometry_mesh_type_collision",
+    "_connected_geometry_mesh_type_poop_collision",
+}
+
 def read_frame_id_list() -> list:
     filepath = Path(utils.addon_root(), "export", "frameidlist.csv")
     frame_ids = []
@@ -731,7 +738,7 @@ class VirtualMesh:
             self.bone_weights = self.bone_weights[new_indices, :]
             self.bone_indices = self.bone_indices[new_indices, :]
 
-        if num_materials > 1:
+        if num_materials > 1 and scene.supports_multiple_materials(props):
             material_indices = np.empty(num_polygons, dtype=np.int32)
             mesh.polygons.foreach_get("material_index", material_indices)
             sorted_order = np.argsort(material_indices)
@@ -746,7 +753,7 @@ class VirtualMesh:
                 virtual_mat = scene._get_material(mat, scene)
                 self.materials[virtual_mat] = None
                 self.groups.append((virtual_mat, unique_materials.index(mat), mat_index_counts[idx]))
-        elif num_materials == 1:
+        elif num_materials >= 1:
             virtual_mat = scene._get_material(mesh.materials[0], scene)
             self.materials[virtual_mat] = None
             self.groups.append((virtual_mat, 0, (0, num_polygons)))
@@ -757,7 +764,7 @@ class VirtualMesh:
         
         self.num_indices = len(self.indices)
         self.num_vertices = len(self.positions)
-        if ob.original.data.nwo.face_props or special_mats_dict:
+        if (ob.original.data.nwo.face_props or special_mats_dict) and props.get("bungie_mesh_type") in FACE_PROP_TYPES:
             self.face_properties = gather_face_props(ob.original.data.nwo, mesh, num_polygons, scene, sorted_order, special_mats_dict, fp_defaults, props)
     
 class VirtualNode:
@@ -1213,6 +1220,22 @@ class VirtualScene:
         if self.structure == self.bsps_with_structure:
             return
         no_bsp_structure = self.structure.difference(self.bsps_with_structure)
+
+    def supports_multiple_materials(self, ob: bpy.types.Object, props: dict) -> bool:
+        mesh_type = props.get("bungie_mesh_type")
+        if mesh_type in {
+            "_connected_geometry_mesh_type_default",
+            "_connected_geometry_mesh_type_poop",
+            "_connected_geometry_mesh_type_poop_collision",
+            "_connected_geometry_mesh_type_poop_physics",
+            "_connected_geometry_mesh_type_water_surface",
+        }:
+            return True
+        
+        if mesh_type == "_connected_geometry_mesh_type_object_instance":
+            self.warnings.append(f"{ob.name}] has more than one material. Instanced Objects only support a single material. Ignoring additional materials")
+
+        return False
                 
 def has_armature_deform_mod(ob: bpy.types.Object):
     for mod in ob.modifiers:

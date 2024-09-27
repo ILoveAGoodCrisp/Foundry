@@ -380,11 +380,11 @@ class NWO_Import(bpy.types.Operator):
                         print('Building Blender materials from material tags')
                     else:
                         print('Building Blender materials from shader tags')
-                    #with utils.MutePrints():
-                    for mat in new_materials:
-                        shader_path = mat.nwo.shader_path
-                        if shader_path:
-                            tag_to_nodes(corinth, mat, shader_path)
+                    with utils.MutePrints():
+                        for mat in new_materials:
+                            shader_path = mat.nwo.shader_path
+                            if shader_path:
+                                tag_to_nodes(corinth, mat, shader_path)
                         
                 if 'bitmap' in importer.extensions:
                     bitmap_files = importer.sorted_filepaths["bitmap"]

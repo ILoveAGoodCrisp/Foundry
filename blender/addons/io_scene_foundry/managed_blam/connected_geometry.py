@@ -1658,7 +1658,8 @@ class Mesh:
             for subpart in self.subparts:
                 subpart.create(ob, self.tris, self.face_transparent, self.face_draw_distance, self.face_tesselation, self.face_no_shadow, self.face_lightmap_only, water_surface_parts)
 
-        self._set_two_sided(mesh)
+
+        self._set_two_sided(mesh, bool(subpart))
         utils.loop_normal_magic(mesh)
         
         if mesh.nwo.face_props:
@@ -1668,12 +1669,12 @@ class Mesh:
                 face_layer.face_count = utils.layer_face_count(bm, bm.faces.layers.int.get(face_layer.layer_name))
             bm.free()
 
-        if not subpart and mean(ob.dimensions.to_tuple()) < 20:
+        if mean(ob.dimensions.to_tuple()) < 20:
             mesh.nwo.precise_position = True
 
         return ob
 
-    def _set_two_sided(self, mesh):
+    def _set_two_sided(self, mesh, is_io: bool):
         bm = bmesh.new()
         bm.from_mesh(mesh)
         bm.faces.ensure_lookup_table()
@@ -1696,12 +1697,14 @@ class Mesh:
         if to_remove:
             if len(bm.faces) == len(to_remove):
                 mesh.nwo.face_two_sided = True
+            elif is_io:
+                return bm.free()
             else:
                 layer = utils.add_face_layer(bm, mesh, "two_sided", True)
                 for face in bm.faces:
                     if face.index in two_sided:
                         face[layer] = 1
-
+            
             bmesh.ops.delete(bm, geom=[bm.faces[i] for i in to_remove], context='FACES')
             
         bm.to_mesh(mesh)

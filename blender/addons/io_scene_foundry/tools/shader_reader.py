@@ -39,13 +39,10 @@ def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str):
             material.to_nodes(mat)
     else:
         shader_type = Path(tag_path).suffix[1:]
-        print(shader_type)
         match shader_type:
             case 'shader':
                 with ShaderTag(path=tag_path) as shader:
-                    print(shader.tag_path.RelativePathWithExtension)
                     shader.to_nodes(mat)
             case 'shader_decal':
                 with ShaderDecalTag(path=tag_path) as shader:
-                    print(shader.tag_path.RelativePathWithExtension)
                     shader.to_nodes(mat)
