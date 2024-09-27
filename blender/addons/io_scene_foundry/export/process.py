@@ -5,6 +5,8 @@ import os
 from pathlib import Path
 import bpy
 
+from ..tools.scenario.lightmap import run_lightmapper
+
 from ..tools.light_exporter import export_lights
 
 from ..managed_blam.scenario_structure_lighting_info import ScenarioStructureLightingInfoTag
@@ -1400,6 +1402,21 @@ class ExportScene:
                                           self.scene_settings.template_collision_model,
                                           self.scene_settings.template_model_animation_graph,
                                           self.scene_settings.template_physics_model)
+                
+    def lightmap(self):
+        if self.export_settings.lightmap_structure and (self.asset_type == AssetType.SCENARIO or (self.corinth and self.asset_type in {AssetType.MODEL, AssetType.SKY})):
+            run_lightmapper(
+                self.corinth,
+                [],
+                self.asset_name,
+                self.export_settings.lightmap_quality,
+                self.export_settings.lightmap_quality_h4,
+                self.export_settings.lightmap_all_bsps,
+                self.export_settings.lightmap_specific_bsp,
+                self.export_settings.lightmap_region,
+                self.asset_type in {AssetType.MODEL, AssetType.SKY} and self.corinth,
+                self.export_settings.lightmap_threads,
+                self.virtual_scene.structure)
     
     def get_marker_sphere_size(self, ob):
         scale = ob.matrix_world.to_scale()

@@ -669,3 +669,4 @@ def export_asset_granny(context, sidecar_path_full, sidecar_path, asset_name, as
         export_scene.preprocess_tags()
         export_scene.invoke_tool_import()
         export_scene.postprocess_tags()
+        export_scene.lightmap()
