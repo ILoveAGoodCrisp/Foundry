@@ -60,8 +60,6 @@ class Tag():
         self.corinth = is_corinth(self.context) # bool to check whether the game is H4+
         self.unit_scale = self.context.scene.unit_settings.scale_length
         
-        
-        
         # Tag Info
         self.path = path
         self.tag_is_new = False

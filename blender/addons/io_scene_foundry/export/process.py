@@ -5,8 +5,8 @@ import os
 from pathlib import Path
 import bpy
 
-from blender.addons.io_scene_foundry.managed_blam import Tag
-from blender.addons.io_scene_foundry.managed_blam.scenario import ScenarioTag
+from ..managed_blam import Tag
+from ..managed_blam.scenario import ScenarioTag
 
 from ..managed_blam.render_model import RenderModelTag
 from ..managed_blam.animation import AnimationTag
@@ -1299,7 +1299,7 @@ class ExportScene:
                     
         if setup_scenario:
             with ScenarioTag(hide_prints=True) as scenario:
-                scenario.create_default_spawn()
+                scenario.create_default_profile()
                 if self.scene_settings.scenario_type != 'solo':
                     scenario.tag.SelectField('type').SetValue(self.scene_settings.scenario_type)
                 

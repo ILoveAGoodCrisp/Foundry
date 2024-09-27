@@ -1,4 +1,6 @@
 from pathlib import Path
+
+from .globals import GlobalsTag
 from ..managed_blam import Tag
 import os
 from .. import utils
@@ -128,3 +130,44 @@ class ScenarioTag(Tag):
             full_path = reference.Path.Filename
             if Path(full_path).exists:
                 return full_path
+            
+    def create_default_profile(self):
+        '''Creates a default player starting profile & location'''
+        self.tag.SelectField("Block:player starting locations").AddElement()
+        element = self.tag.SelectField("Block:player starting profile").AddElement()
+        element.SelectField("name").SetStringData("default_single")
+        primary = None
+        secondary = None
+        equipment = None
+
+        with Tag(path=r"multiplayer\globals.multiplayer_object_type_list", tag_must_exist=True, raise_on_error=False) as mp_globals:
+            for mp_element in mp_globals.tag.SelectField("Block:object types").Elements:
+                print(mp_element.Fields[1].GetStringData())
+                match mp_element.Fields[1].GetStringData():
+                    case 'assault_rifle':
+                        path = mp_element.Fields[2].Path
+                        if path:
+                            primary = path.RelativePathWithExtension
+                    case 'magnum':
+                        path = mp_element.Fields[2].Path
+                        if path:
+                            secondary = path.RelativePathWithExtension
+                    case 'sprint_equipment':
+                        path = mp_element.Fields[2].Path
+                        if path:
+                            equipment = path.RelativePathWithExtension
+        
+        if primary is not None:
+            element.SelectField("Reference:primary weapon").Path = self._TagPath_from_string(primary)
+            element.SelectField("ShortInteger:primaryrounds loaded").Data = -1
+            element.SelectField("ShortInteger:primaryrounds total").Data = -1
+        if secondary is not None:
+            element.SelectField("Reference:secondary weapon").Path = self._TagPath_from_string(secondary)
+            element.SelectField("ShortInteger:secondaryrounds loaded").Data = -1
+            element.SelectField("ShortInteger:secondaryrounds total").Data = -1
+        if not self.corinth and equipment is not None:
+            element.SelectField("Reference:starting equipment").Path = self._TagPath_from_string(equipment)
+
+        
+
+        self.tag_has_changes = True
