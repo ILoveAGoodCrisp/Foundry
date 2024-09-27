@@ -738,7 +738,7 @@ class VirtualMesh:
             self.bone_weights = self.bone_weights[new_indices, :]
             self.bone_indices = self.bone_indices[new_indices, :]
 
-        if num_materials > 1 and scene.supports_multiple_materials(props):
+        if num_materials > 1 and scene.supports_multiple_materials(ob, props):
             material_indices = np.empty(num_polygons, dtype=np.int32)
             mesh.polygons.foreach_get("material_index", material_indices)
             sorted_order = np.argsort(material_indices)
@@ -1233,7 +1233,7 @@ class VirtualScene:
             return True
         
         if mesh_type == "_connected_geometry_mesh_type_object_instance":
-            self.warnings.append(f"{ob.name}] has more than one material. Instanced Objects only support a single material. Ignoring additional materials")
+            self.warnings.append(f"{ob.name}] has more than one material. Instanced Objects only support a single material. Ignoring materials after {ob.data.materials[0].name}")
 
         return False
                 

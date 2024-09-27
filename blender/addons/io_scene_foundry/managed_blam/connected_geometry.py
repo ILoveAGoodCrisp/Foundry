@@ -1726,7 +1726,7 @@ class InstancePlacement:
     
     def __init__(self, element: TagFieldBlockElement, nodes: list[Node]):
         self.index = element.ElementIndex
-        self.name = element.SelectField("name").GetStringData()
+        self.name = utils.any_partition(element.SelectField("name").GetStringData(), "__", False)
         self.node_index = element.SelectField("node_index").Value
         self.bone = ""
         if self.node_index > -1:
