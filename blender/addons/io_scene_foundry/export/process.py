@@ -5,6 +5,9 @@ import os
 from pathlib import Path
 import bpy
 
+from blender.addons.io_scene_foundry.managed_blam import Tag
+from blender.addons.io_scene_foundry.managed_blam.scenario import ScenarioTag
+
 from ..managed_blam.render_model import RenderModelTag
 from ..managed_blam.animation import AnimationTag
 from ..managed_blam.model import ModelTag
@@ -108,6 +111,8 @@ class ExportScene:
         self.forward = scene_settings.forward_direction
         self.scale = 1 if scene_settings.scale == 'max' else 0.03048
         self.mirror = export_settings.granny_mirror
+        self.has_animations = False
+        self.exported_actions = []
         
     def ready_scene(self):
         print("\n\nProcessing Scene")
@@ -1054,12 +1059,14 @@ class ExportScene:
             armature.pose_position = 'POSE'
         self.context.view_layer.update()
         animated_objects = utils.get_animated_objects(self.context)
+        self.has_animations = True
         with utils.Spinner():
             utils.update_job_count(process, "", 0, num_animations)
             for idx, action in enumerate(valid_actions):
                 for ob in animated_objects:
                     ob.animation_data.action = action
                 self.virtual_scene.add_animation(action)
+                self.exported_actions.append(action)
                 utils.update_job_count(process, "", idx, num_animations)
             utils.update_job_count(process, "", num_animations, num_animations)
         
@@ -1262,7 +1269,74 @@ class ExportScene:
         
     def preprocess_tags(self):
         """ManagedBlam tasks to run before tool import is called"""
-        
+        node_usage_set = self.has_animations and self.any_node_usage_override()
+        # print("\n--- Foundry Tags Pre-Process\n")
+        if node_usage_set or self.scene_settings.ik_chains or self.has_animations:
+            with AnimationTag(hide_prints=False) as animation:
+                if self.scene_settings.parent_animation_graph:
+                    animation.set_parent_graph(self.scene_settings.parent_animation_graph)
+                    # print("--- Set Parent Animation Graph")
+                if self.virtual_scene.animations:
+                    animation.validate_compression(self.exported_actions, self.scene_settings.default_animation_compression)
+                    # print("--- Validated Animation Compression")
+                if node_usage_set:
+                    animation.set_node_usages(self.virtual_scene.animated_bones, True)
+                    #print("--- Updated Animation Node Usages")
+                if self.scene_settings.ik_chains:
+                    animation.write_ik_chains(self.scene_settings.ik_chains, self.virtual_scene.animated_bones, True)
+                    # print("--- Updated Animation IK Chains")
+                    
+                if animation.tag_has_changes and (node_usage_set or self.scene_settings.ik_chains):
+                    # Graph should be data driven if ik chains or overlay groups in use.
+                    # Node usages are a sign the user intends to create overlays group
+                    animation.tag.SelectField("Struct:definitions[0]/ByteFlags:private flags").SetBit('uses data driven animation', True)
+
+        setup_scenario = False
+        if self.asset_type == AssetType.SCENARIO:
+            scenario_path = Path(self.asset_path, f"{self.asset_name}.scenario")
+            if not scenario_path.exists():
+                setup_scenario = True
+                    
+        if setup_scenario:
+            with ScenarioTag(hide_prints=True) as scenario:
+                scenario.create_default_spawn()
+                if self.scene_settings.scenario_type != 'solo':
+                    scenario.tag.SelectField('type').SetValue(self.scene_settings.scenario_type)
+                
+        if self.asset_type == AssetType.PARTICLE_MODEL and self.scene_settings.particle_uses_custom_points:
+            emitter_path = Path(self.asset_path, self.asset_name).with_suffix(".particle_emitter_custom_points")
+            if not emitter_path.exists():
+                with Tag(path=str(emitter_path)) as _: pass
+
+    def any_node_usage_override(self):
+        if not self.corinth and self.asset_type == AssetType.ANIMATION and self.scene_settings.asset_animation_type == 'first_person':
+            return False # Don't want to set node usages for reach fp animations, it breaks them
+        return (self.scene_settings.node_usage_physics_control
+                or self.scene_settings.node_usage_camera_control
+                or self.scene_settings.node_usage_origin_marker
+                or self.scene_settings.node_usage_left_clavicle
+                or self.scene_settings.node_usage_left_upperarm
+                or self.scene_settings.node_usage_pose_blend_pitch
+                or self.scene_settings.node_usage_pose_blend_yaw
+                or self.scene_settings.node_usage_pedestal
+                or self.scene_settings.node_usage_pelvis
+                or self.scene_settings.node_usage_left_foot
+                or self.scene_settings.node_usage_right_foot
+                or self.scene_settings.node_usage_damage_root_gut
+                or self.scene_settings.node_usage_damage_root_chest
+                or self.scene_settings.node_usage_damage_root_head
+                or self.scene_settings.node_usage_damage_root_left_shoulder
+                or self.scene_settings.node_usage_damage_root_left_arm
+                or self.scene_settings.node_usage_damage_root_left_leg
+                or self.scene_settings.node_usage_damage_root_left_foot
+                or self.scene_settings.node_usage_damage_root_right_shoulder
+                or self.scene_settings.node_usage_damage_root_right_arm
+                or self.scene_settings.node_usage_damage_root_right_leg
+                or self.scene_settings.node_usage_damage_root_right_foot
+                or self.scene_settings.node_usage_left_hand
+                or self.scene_settings.node_usage_right_hand
+                or self.scene_settings.node_usage_weapon_ik
+                )
     
     def invoke_tool_import(self):
         sidecar_importer = SidecarImport(self.asset_path, self.asset_name, self.asset_type, self.sidecar_path, self.scene_settings, self.export_settings, self.selected_bsps, self.corinth, self.virtual_scene.structure, self.tags_dir)

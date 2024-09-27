@@ -60,12 +60,23 @@ class AnimationTag(Tag):
                 new_node.SelectField('name').SetStringData(n)
                 
         return node_index_list
+    
+    def _node_index_list_granny(self, bones):
+        # Have to set up the skeleton nodes block. If we end up with any node usages that point to non-existant nodes, the importer will crash
+        node_index_list = [b.name for b in bones]
+        if self._needs_skeleton_update(node_index_list):
+            self.block_skeleton_nodes.RemoveAllElements()
+            for n in node_index_list:
+                new_node = self.block_skeleton_nodes.AddElement()
+                new_node.SelectField('name').SetStringData(n)
+                
+        return node_index_list
                 
     def _needs_skeleton_update(self, node_index_list):
         graph_nodes = [e.SelectField('name').GetStringData() for e in self.block_skeleton_nodes.Elements]
         return node_index_list != graph_nodes
     
-    def set_node_usages(self, bones):
+    def set_node_usages(self, bones, granny: bool = False):
         def _node_usage_dict(nwo):
             node_usage_dict = {}
             if nwo.node_usage_pedestal:
@@ -123,7 +134,10 @@ class AnimationTag(Tag):
             return node_usage_dict
         
         # Establish a list of node indexes. These are needed when we write the node usage data
-        node_index_list = self._node_index_list(bones)
+        if granny:
+            node_index_list = self._node_index_list_granny(bones)
+        else:
+            node_index_list = self._node_index_list(bones)
         node_usage_dict = _node_usage_dict(self.context.scene.nwo)
         self.block_node_usages.RemoveAllElements()
         node_targets = [n for n in node_index_list if n in node_usage_dict.keys()]
@@ -157,8 +171,11 @@ class AnimationTag(Tag):
             print(e.SelectField('label').GetStringData())
         print('\n\n\n')
         
-    def write_ik_chains(self, ik_chains: list, bones: list):
-        skeleton_nodes = self._node_index_list(bones)
+    def write_ik_chains(self, ik_chains: list, bones: list, granny: bool = False):
+        if granny:
+            skeleton_nodes = self._node_index_list_granny(bones)
+        else:
+            skeleton_nodes = self._node_index_list(bones)
         valid_ik_chains = [chain for chain in ik_chains if chain.start_node in skeleton_nodes and chain.effector_node in skeleton_nodes]
         # Check if we need to write to the block
         chain_names = [chain.name for chain in valid_ik_chains]
