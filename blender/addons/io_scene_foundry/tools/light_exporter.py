@@ -199,11 +199,12 @@ class NWO_OT_ExportLights(bpy.types.Operator):
 def gather_lights(context):
     return [ob for ob in context.scene.objects if ob.type == 'LIGHT' and ob.data.type != 'AREA' and ob.nwo.exportable]
 
-def export_lights():
+def export_lights(light_objects = None):
     context = bpy.context
     asset_path, asset_name = utils.get_asset_info()
     asset_type = context.scene.nwo.asset_type
-    light_objects = gather_lights(context)
+    if light_objects is None:
+        light_objects = gather_lights(context)
     lights = [BlamLightInstance(ob, utils.true_region(ob.nwo)) for ob in light_objects]
     if asset_type == 'scenario':
         bsps = [r.name for r in context.scene.nwo.regions_table if r.name.lower() != 'shared']

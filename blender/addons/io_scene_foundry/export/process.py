@@ -5,6 +5,12 @@ import os
 from pathlib import Path
 import bpy
 
+from ..tools.light_exporter import export_lights
+
+from ..managed_blam.scenario_structure_lighting_info import ScenarioStructureLightingInfoTag
+
+from ..tools.scenario.zone_sets import write_zone_sets_to_scenario
+
 from ..managed_blam import Tag
 from ..managed_blam.scenario import ScenarioTag
 
@@ -113,6 +119,8 @@ class ExportScene:
         self.mirror = export_settings.granny_mirror
         self.has_animations = False
         self.exported_actions = []
+        self.setup_scenario = False
+        self.lights = []
         
     def ready_scene(self):
         print("\n\nProcessing Scene")
@@ -224,6 +232,11 @@ class ExportScene:
                 if ob.type == 'ARMATURE':
                     self.armature_poses[ob.original.data] = ob.original.data.pose_position
                     ob.original.data.pose_position = 'REST'
+                elif ob.type == 'LIGHT':
+                    if ob.data.type != 'AREA':
+                        self.lights.append(ob)
+                    continue
+
                 result = self.get_halo_props(ob)
                 if result is None:
                     continue
@@ -274,7 +287,6 @@ class ExportScene:
             return 
         
         props["bungie_object_type"] = object_type
-        is_light = ob.type == 'LIGHT'
         is_mesh = ob.type == 'MESH'
         instanced_object = (object_type == '_connected_geometry_object_type_mesh' and nwo.mesh_type == '_connected_geometry_mesh_type_object_instance')
         tmp_region, tmp_permutation = nwo.region_name, nwo.permutation_name
@@ -288,7 +300,7 @@ class ExportScene:
                 tmp_region = coll_permutation
                 
         if self.asset_type.supports_permutations:
-            if not instanced_object and (is_mesh or is_light or self.asset_type.supports_bsp or nwo.marker_uses_regions):
+            if not instanced_object and (is_mesh or self.asset_type.supports_bsp or nwo.marker_uses_regions):
                 if tmp_region in self.regions:
                     region = tmp_region
                 else:
@@ -1269,6 +1281,7 @@ class ExportScene:
         
     def preprocess_tags(self):
         """ManagedBlam tasks to run before tool import is called"""
+        print("--- Tags Pre-Process")
         node_usage_set = self.has_animations and self.any_node_usage_override()
         # print("\n--- Foundry Tags Pre-Process\n")
         if node_usage_set or self.scene_settings.ik_chains or self.has_animations:
@@ -1291,13 +1304,12 @@ class ExportScene:
                     # Node usages are a sign the user intends to create overlays group
                     animation.tag.SelectField("Struct:definitions[0]/ByteFlags:private flags").SetBit('uses data driven animation', True)
 
-        setup_scenario = False
         if self.asset_type == AssetType.SCENARIO:
             scenario_path = Path(self.asset_path, f"{self.asset_name}.scenario")
             if not scenario_path.exists():
-                setup_scenario = True
+                self.setup_scenario = True
                     
-        if setup_scenario:
+        if self.setup_scenario:
             with ScenarioTag(hide_prints=True) as scenario:
                 scenario.create_default_profile()
                 if self.scene_settings.scenario_type != 'solo':
@@ -1353,6 +1365,27 @@ class ExportScene:
         """ManagedBlam tasks to run after tool import is called"""
         print("--- Tags Post-Process")
         self._setup_model_overrides()
+
+        if self.sidecar.reach_world_animations or self.sidecar.pose_overlays:
+            with AnimationTag(hide_prints=False) as animation:
+                if self.sidecar.reach_world_animations:
+                    animation.set_world_animations(self.sidecar.reach_world_animations)
+                if self.sidecar.pose_overlays:
+                    animation.setup_blend_screens(self.sidecar.pose_overlays)
+            # print("--- Setup World Animations")
+            
+        if self.asset_type == AssetType.SCENARIO and self.setup_scenario:
+            lm_value = 6 if self.corinth else 3
+            with ScenarioTag(hide_prints=True) as scenario:
+                for bsp in self.virtual_scene.structure:
+                    scenario.set_bsp_lightmap_res(bsp, lm_value, 0)
+            # print("--- Set Lightmapper size class to 1k")
+            
+        if self.asset_type == AssetType.SCENARIO and self.scene_settings.zone_sets:
+            write_zone_sets_to_scenario(self.scene_settings, self.asset_name)
+
+        if self.lights:   
+            export_lights(self.lights)
         
     def _setup_model_overrides(self):
         model_override = self.asset_type == AssetType.MODEL and any((

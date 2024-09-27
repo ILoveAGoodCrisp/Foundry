@@ -1115,10 +1115,10 @@ class VirtualScene:
         self.tags_dir = tags_dir
         self.granny = granny
         self.regions: list = []
-        self.regions_set: set()
+        self.regions_set = set()
         self.permutations: list = []
         self.global_materials: list = []
-        self.global_materials_set: set()
+        self.global_materials_set = set()
         self.skeleton_node: VirtualNode = None
         self.time_step = 1.0 / fps
         self.corinth = corinth
