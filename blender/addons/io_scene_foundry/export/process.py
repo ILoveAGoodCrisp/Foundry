@@ -987,9 +987,9 @@ class ExportScene:
         process = "--- Building Geometry Tree"
         num_no_parents = len(self.no_parent_objects)
         # Only need to transform scene for armatures
-        if self.scene_settings.forward_direction != 'x' and self.armature_poses:
-            utils.transform_scene(self.context, 1, utils.blender_halo_rotation_diff(self.scene_settings.forward_direction), self.scene_settings.forward_direction, 'x', skip_data=True)
-            self.forward = 'x'
+        # if self.scene_settings.forward_direction != 'x' and self.armature_poses:
+        #     utils.transform_scene(self.context, 1, utils.blender_halo_rotation_diff(self.scene_settings.forward_direction), self.scene_settings.forward_direction, 'x', skip_data=True)
+        #     self.forward = 'x'
             
         with utils.Spinner():
             utils.update_job_count(process, "", 0, num_no_parents)

@@ -108,7 +108,7 @@ class VirtualAnimation:
         self.granny_animation = None
         self.granny_track_group = None
         
-        self.track_group = self.create_track_group(sorted(scene.animated_bones, key=lambda bone: bone.name), scene)
+        self.track_group = self.create_track_group(scene.animated_bones, scene)
         # self.to_granny_track_group(scene)
         self.to_granny_animation(scene)
         return
@@ -199,22 +199,20 @@ class VirtualAnimation:
         orientations = defaultdict(list)
         scales = defaultdict(list)
         tracks = []
-        yaw_index = 0
         for frame_idx, frame in enumerate(range(self.frame_range[0], self.frame_range[1] + 1)):
             bpy.context.scene.frame_set(frame)
             for idx, bone in enumerate(bones):
                 bone: bpy.types.PoseBone
                 if bone.parent:
-                    loc, rot, sca = utils.get_bone_matrix_local(bone).decompose()
+                    if bone.parent == scene.root_bone:
+                        loc, rot, sca = bone.matrix.decompose()
+                    else:
+                        loc, rot, sca = (bone.parent.matrix.inverted() @ bone.matrix).decompose()
                 else:
-                    loc, rot, sca = (IDENTITY_MATRIX).decompose()
+                    loc, rot, sca = (scene.root_bone_inverse_matrix @ bone.matrix).decompose()
                 
-                i = round(rot[1], 7)
-                j = round(rot[2], 7)
-                k = round(rot[3], 7)
-                w = round(rot[0], 7)
                 position = (c_float * 3)(loc.x, loc.y, loc.z)
-                orientation = (c_float * 4)(i, j, k, w)
+                orientation = (c_float * 4)(rot.x, rot.y, rot.z, rot.w)
                 scale_shear = (c_float * 9)(sca.x, 0.0, 0.0, 0.0, sca.y, 0.0, 0.0, 0.0, sca.z)
                 positions[bone].extend(position)
                 orientations[bone].extend(orientation)
@@ -230,13 +228,13 @@ class VirtualAnimation:
             track = (c_float * (self.frame_count * 9))(*scales[bone])
             tracks.append(track)
             
-        num_transform_tracks = len(bones)
+        num_transform_tracks = len(bones) + 1 # Add one for armature
         granny_transform_tracks = (GrannyTransformTrack * num_transform_tracks)()
         
         # group_builder = scene.granny._begin_track_group(self.name.encode(), 0, num_transform_tracks, 0)
         
         for bone_idx, i in enumerate(range(0, len(tracks), 3)):
-            granny_transform_tracks[bone_idx].name = bones[bone_idx].name.encode()
+            granny_transform_tracks[bone_idx + 1].name = bones[bone_idx].name.encode()
             
             builder = scene.granny._begin_curve(scene.granny.keyframe_type, 0, 3, self.frame_count)
             scene.granny._push_control_array(builder, tracks[i])
@@ -250,9 +248,49 @@ class VirtualAnimation:
             scene.granny._push_control_array(builder, tracks[i + 2])
             scale_curve = scene.granny._end_curve(builder)
             
-            granny_transform_tracks[bone_idx].position_curve = position_curve.contents
-            granny_transform_tracks[bone_idx].orientation_curve = orientation_curve.contents
-            granny_transform_tracks[bone_idx].scale_shear_curve = scale_curve.contents
+            granny_transform_tracks[bone_idx + 1].position_curve = position_curve.contents
+            granny_transform_tracks[bone_idx + 1].orientation_curve = orientation_curve.contents
+            granny_transform_tracks[bone_idx + 1].scale_shear_curve = scale_curve.contents
+
+
+        granny_transform_tracks[0].name = scene.skeleton_node.name.encode()
+        arm_tracks = []
+        loc, rot, sca = IDENTITY_MATRIX.decompose()
+        positions = []
+        orientations = []
+        scales = []
+        for frame in range(self.frame_count):
+            position = (c_float * 3)(loc.x, loc.y, loc.z)
+            orientation = (c_float * 4)(rot.x, rot.y, rot.z, rot.w)
+            scale_shear = (c_float * 9)(sca.x, 0.0, 0.0, 0.0, sca.y, 0.0, 0.0, 0.0, sca.z)
+            positions.extend(position)
+            orientations.extend(orientation)
+            scales.extend(scale_shear)
+
+        track = (c_float * (self.frame_count * 3))(*positions)
+        arm_tracks.append(track)
+        
+        track = (c_float * (self.frame_count * 4))(*orientations)
+        arm_tracks.append(track)
+        
+        track = (c_float * (self.frame_count * 9))(*scales)
+        arm_tracks.append(track)
+
+        builder = scene.granny._begin_curve(scene.granny.keyframe_type, 0, 3, self.frame_count)
+        scene.granny._push_control_array(builder, arm_tracks[0])
+        position_curve = scene.granny._end_curve(builder)
+        
+        builder = scene.granny._begin_curve(scene.granny.keyframe_type, 0, 4, self.frame_count)
+        scene.granny._push_control_array(builder, arm_tracks[1])
+        orientation_curve = scene.granny._end_curve(builder)
+        
+        builder = scene.granny._begin_curve(scene.granny.keyframe_type, 0, 9, self.frame_count)
+        scene.granny._push_control_array(builder, arm_tracks[2])
+        scale_curve = scene.granny._end_curve(builder)
+
+        granny_transform_tracks[0].position_curve = position_curve.contents
+        granny_transform_tracks[0].orientation_curve = orientation_curve.contents
+        granny_transform_tracks[0].scale_shear_curve = scale_curve.contents
             
         granny_track_group = GrannyTrackGroup()
         granny_track_group.name = scene.skeleton_node.name.encode()
@@ -768,7 +806,7 @@ class VirtualMesh:
             self.face_properties = gather_face_props(ob.original.data.nwo, mesh, num_polygons, scene, sorted_order, special_mats_dict, fp_defaults, props)
     
 class VirtualNode:
-    def __init__(self, id: bpy.types.Object | bpy.types.PoseBone, props: dict, region: str = None, permutation: str = None, fp_defaults: dict = None, scene: 'VirtualScene' = None, proxies = [], template_node: 'VirtualNode' = None, bones: list[str] = []):
+    def __init__(self, id: bpy.types.Object | bpy.types.PoseBone, props: dict, region: str = None, permutation: str = None, fp_defaults: dict = None, scene: 'VirtualScene' = None, proxies = [], template_node: 'VirtualNode' = None, bones: list[str] = [], parent_matrix: Matrix = IDENTITY_MATRIX):
         self.name: str = "object"
         self.matrix_world: Matrix = IDENTITY_MATRIX
         self.matrix_local: Matrix = IDENTITY_MATRIX
@@ -787,15 +825,19 @@ class VirtualNode:
         self.bone_bindings: list[str] = []
         self.granny_vertex_data = None
         if not self.invalid:
-            self._setup(id, scene, fp_defaults, proxies, template_node, bones)
+            self._setup(id, scene, fp_defaults, proxies, template_node, bones, parent_matrix)
         
-    def _setup(self, id: bpy.types.Object | bpy.types.PoseBone, scene: 'VirtualScene', fp_defaults: dict, proxies: list, template_node: 'VirtualNode', bones: list[str]):
+    def _setup(self, id: bpy.types.Object | bpy.types.PoseBone, scene: 'VirtualScene', fp_defaults: dict, proxies: list, template_node: 'VirtualNode', bones: list[str], parent_matrix: Matrix):
         self.name = id.name
         if isinstance(id, bpy.types.Object):
             self.selected = id.original.select_get()
             if template_node is None:
-                self.matrix_world = id.original.matrix_world.copy()
-                self.matrix_local = id.original.matrix_local.copy()
+                if id.type == 'ARMATURE' and not id.parent:
+                    self.matrix_world = IDENTITY_MATRIX
+                    self.matrix_local = IDENTITY_MATRIX
+                else:
+                    self.matrix_world = id.original.matrix_world.copy()
+                    self.matrix_local = parent_matrix.inverted() @ self.matrix_world
             else:
                 self.matrix_world = template_node.matrix_world.copy()
                 # self.matrix_local = IDENTITY_MATRIX
@@ -979,6 +1021,7 @@ class VirtualSkeleton:
     '''Describes a list of bones'''
     def __init__(self, ob: bpy.types.Object, scene: 'VirtualScene', node: VirtualNode):
         self.name: str = ob.name
+        self.root_matrix = IDENTITY_MATRIX
         self.node = node
         own_bone = VirtualBone(ob)
         own_bone.node = node
@@ -994,7 +1037,7 @@ class VirtualSkeleton:
             
         own_bone.matrix_world = own_bone.node.matrix_world
         own_bone.matrix_local = IDENTITY_MATRIX
-        self.skeleton_matrix_world = own_bone.matrix_world.copy()
+        self.skeleton_matrix_world = IDENTITY_MATRIX
         own_bone.to_granny_data()
         self.bones: list[VirtualBone] = [own_bone]
         self._get_bones(ob, scene)
@@ -1004,6 +1047,7 @@ class VirtualSkeleton:
             valid_bones = [pbone for pbone in ob.original.pose.bones if ob.original.data.bones[pbone.name].use_deform]
             list_bones = [pbone.name for pbone in valid_bones]
             dict_bones = {v: i for i, v in enumerate(list_bones)}
+            root_bone = None
             for idx, bone in enumerate(valid_bones):
                 bone: bpy.types.PoseBone
                 b = VirtualBone(bone)
@@ -1012,23 +1056,44 @@ class VirtualSkeleton:
                     frame_ids_index = idx
                 b.create_bone_props(bone, scene.frame_ids[frame_ids_index])
                 # b.properties = utils.get_halo_props_for_granny(ob.data.bones[idx])
-                b.matrix_world = self.skeleton_matrix_world @ bone.matrix
+                
                 if bone.parent:
                     # Add one to this since the root is the armature
                     b.parent_index = list_bones.index(bone.parent.name) + 1
-                    b.matrix_local = utils.get_bone_matrix_local(bone)
+                    if bone.parent == root_bone:
+                        b.matrix_local = bone.matrix.copy()
+                    else:
+                        b.matrix_local = bone.parent.matrix.inverted() @ bone.matrix
+                    b.matrix_world = bone.matrix
                 else:
+                    root_bone = bone
                     b.parent_index = 0
                     b.matrix_local = IDENTITY_MATRIX
                     b.matrix_world = IDENTITY_MATRIX
-                    
+                    self.root_matrix = bone.matrix
+                
+                scene.root_bone = root_bone
+                scene.root_bone_inverse_matrix = root_bone.matrix.inverted()
                 b.to_granny_data()
                 self.bones.append(b)
                 scene.animated_bones.append(bone)
                 
             child_index = 0
             for child in scene.get_immediate_children(ob):
-                node = scene.add(child, *scene.object_halo_data[child], bones=list_bones)
+                bone_parented = child.parent_type == 'BONE' and child.parent_bone
+                parent_matrix = IDENTITY_MATRIX
+                parent_index = 0
+                if bone_parented:
+                    bone_index = dict_bones.get(child.parent_bone)
+                    if bone_index is None:
+                        scene.warnings.append(f"{child.name} is parented to non-existant bone: {child.parent_bone}. Parenting to {list_bones[0]}")
+                        bone_index = 0
+                    parent_bone = valid_bones[bone_index]
+                    parent_index = bone_index + 1
+                    if parent_bone != scene.root_bone:
+                        parent_matrix = bone.matrix
+
+                node = scene.add(child, *scene.object_halo_data[child], bones=list_bones, parent_matrix=parent_matrix)
                 if not node: continue
                 child_index += 1
                 if not node or node.invalid: continue
@@ -1037,19 +1102,9 @@ class VirtualSkeleton:
                 if child.type != 'MESH':
                     b.props = b.node.props
                 b.matrix_world = node.matrix_world.copy()
-                if child.parent_type == 'BONE':
-                    # Can't just use an objects matrix_local here as this gets a matrix relative to a bone's tail
-                    # the below gets the matrix relative to bone head
-                    bone_index = dict_bones.get(child.parent_bone)
-                    if bone_index is None:
-                        scene.warnings.append(f"{child.name} is parented to non-existant bone: {child.parent_bone}. Parenting to {list_bones[0]}")
-                        bone_index = 0
-                    bone = valid_bones[bone_index]
-                    b.matrix_local = (self.skeleton_matrix_world @ bone.matrix).inverted() @ b.matrix_world
-                    b.parent_index = bone_index + 1
-                else:
-                    b.matrix_local = node.matrix_local.copy()
-                    b.parent_index = 0
+                b.matrix_local = node.matrix_local.copy()
+                b.parent_index = parent_index
+
                 b.to_granny_data()
                 self.bones.append(b)
                 self.find_children(child, scene, child_index)
@@ -1060,7 +1115,7 @@ class VirtualSkeleton:
     def find_children(self, ob: bpy.types.Object, scene: 'VirtualScene', parent_index=0):
         child_index = parent_index
         for child in scene.get_immediate_children(ob):
-            node = scene.add(child, *scene.object_halo_data[child])
+            node = scene.add(child, *scene.object_halo_data[child], parent_matrix=ob.matrix_world)
             if not node or node.invalid: continue
             child_index += 1
             b = VirtualBone(child)
@@ -1138,6 +1193,9 @@ class VirtualScene:
         self.mesh_object_map: dict[tuple[bpy.types.Mesh, bool]: list[bpy.types.Object]] = {}
         
         self.material_extended_data_type = self._create_material_extended_data_type()
+        self.correction_matrix = IDENTITY_MATRIX
+        self.root_bone = None
+        self.root_bone_inverse_matrix = IDENTITY_MATRIX
         
         # Create default material
         if corinth:
@@ -1162,9 +1220,9 @@ class VirtualScene:
         pass
         
         
-    def add(self, id: bpy.types.Object, props: dict, region: str = None, permutation: str = None, fp_defaults: dict = None, proxies: list = None, template_node: VirtualNode = None, bones: list[str] = []) -> VirtualNode:
+    def add(self, id: bpy.types.Object, props: dict, region: str = None, permutation: str = None, fp_defaults: dict = None, proxies: list = None, template_node: VirtualNode = None, bones: list[str] = [], parent_matrix: Matrix = IDENTITY_MATRIX) -> VirtualNode:
         '''Creates a new node with the given parameters and appends it to the virtual scene'''
-        node = VirtualNode(id, props, region, permutation, fp_defaults, self, proxies, template_node, bones)
+        node = VirtualNode(id, props, region, permutation, fp_defaults, self, proxies, template_node, bones, parent_matrix)
         if not node.invalid:
             self.nodes[node.name] = node
             if node.new_mesh:
