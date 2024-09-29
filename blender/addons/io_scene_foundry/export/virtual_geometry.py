@@ -118,15 +118,16 @@ class VirtualAnimation:
         tracks = []
         for frame_idx, frame in enumerate(range(self.frame_range[0], self.frame_range[1] + 1)):
             bpy.context.scene.frame_set(frame)
+            matrices = {}
             for idx, bone in enumerate(bones):
                 bone: bpy.types.PoseBone
                 if bone.parent:
-                    if bone.parent == scene.root_bone:
-                        loc, rot, sca = bone.matrix.decompose()
-                    else:
-                        loc, rot, sca = (bone.parent.matrix.inverted() @ bone.matrix).decompose()
+                    matrix = matrices[bone.parent].inverted() @ bone.matrix
                 else:
-                    loc, rot, sca = (scene.root_bone_inverse_matrix @ bone.matrix).decompose()
+                    matrix = bone.matrix @ scene.root_bone_inverse_matrix
+                    
+                matrices[bone] = matrix
+                loc, rot, sca = matrix.decompose()
                 
                 position = (c_float * 3)(loc.x, loc.y, loc.z)
                 orientation = (c_float * 4)(rot.x, rot.y, rot.z, rot.w)
@@ -193,7 +194,7 @@ class VirtualAnimation:
         
         track = (c_float * (self.frame_count * 4))(*orientations)
         arm_tracks.append(track)
-        
+
         track = (c_float * (self.frame_count * 9))(*scales)
         arm_tracks.append(track)
 
@@ -214,7 +215,7 @@ class VirtualAnimation:
         granny_track.scale_shear_curve = scale_curve.contents
 
         granny_tracks.append(granny_track)
-        
+
         granny_tracks.sort(key=lambda track: track.name)
         granny_transform_tracks = (GrannyTransformTrack * len(granny_tracks))(*granny_tracks)
             
@@ -1041,7 +1042,10 @@ class VirtualSkeleton:
     def find_children(self, ob: bpy.types.Object, scene: 'VirtualScene', parent_index=0):
         child_index = parent_index
         for child in scene.get_immediate_children(ob):
-            node = scene.add(child, *scene.object_halo_data[child], parent_matrix=ob.matrix_world)
+            parent_node = scene.nodes.get(ob.name)
+            if parent_node is None:
+                continue
+            node = scene.add(child, *scene.object_halo_data[child], parent_matrix=parent_node.matrix_world)
             if not node or node.invalid: continue
             child_index += 1
             b = VirtualBone(child)
