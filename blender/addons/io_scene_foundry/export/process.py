@@ -226,7 +226,8 @@ class ExportScene:
         object_parent_dict = {}
         
         if self.asset_type in (AssetType.MODEL, AssetType.ANIMATION) and self.scene_settings.main_armature and any((self.scene_settings.support_armature_a, self.scene_settings.support_armature_b, self.scene_settings.support_armature_c)):
-            self._consolidate_rig()
+            pass # TODO Implement non-destructive rig consolidation in virtual_geometry
+            # self._consolidate_rig()
         
         with utils.Spinner():
             utils.update_job_count(process, "", 0, num_export_objects)
