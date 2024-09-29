@@ -109,90 +109,7 @@ class VirtualAnimation:
         self.granny_track_group = None
         
         self.track_group = self.create_track_group(scene.animated_bones, scene)
-        # self.to_granny_track_group(scene)
         self.to_granny_animation(scene)
-        return
-        bones = scene.animated_bones
-        num_transform_tracks = len(bones)
-        sampler = scene.granny._begin_sampled_animation(num_transform_tracks, self.frame_count)
-        
-        for frame_idx, frame in enumerate(range(*self.frame_range)):
-            bpy.context.scene.frame_set(frame)
-            for idx, bone in enumerate(bones):
-                bone: bpy.types.PoseBone
-                loc, rot, sca = bone.matrix.decompose()
-                position = (c_float * 3)(loc.x, loc.y, loc.z)
-                orientation = (c_float * 4)(rot.x, rot.y, rot.z, rot.w)
-                scale_shear = (c_float * 9)(sca.x, 0.0, 0.0, 0.0, sca.y, 0.0, 0.0, 0.0, sca.z)
-                scene.granny._set_transform_sample(sampler, idx, frame_idx, position, orientation, scale_shear)
-                
-        max_degree = 0
-        max_dimension = 9
-        max_sample_count = self.frame_count
-        
-        solver = scene.granny._allocate_bspline_solver(max_degree, max_sample_count, max_dimension)
-        # builder = scene.granny._begin_track_group(create_string_buffer(scene.skeleton_node.name.encode()), 0, num_transform_tracks, 0, False)
-        tracks = []
-        curves = []
-        for idx, bone in enumerate(bones):
-            position_samples = scene.granny._get_position_samples(sampler, idx)
-            orientation_samples = scene.granny._get_orientation_samples(sampler, idx)
-            scale_shear_samples = scene.granny._get_scale_shear_samples(sampler, idx)
-            
-            curve_format = pointer(scene.granny.curve_type)
-            
-            # 0x30
-            curve_parameters = GrannyCompressCurveParameters()
-            curve_parameters.desired_degree = 0
-            curve_parameters.allow_degree_reduction = False
-            curve_parameters.error_tolerance = 0.0
-            curve_parameters.c0_threshold = 0.0
-            curve_parameters.c1_threshold = 0.0
-            curve_parameters.possible_compression_types = curve_format
-            curve_parameters.possible_compression_types_count = 1
-            curve_parameters.constant_compression_type = None
-            curve_parameters.identity_compression_type = None
-            curve_parameters.identity_vector = None
-            
-            position_curve = scene.granny._compress_curve(solver, 0x30, curve_parameters, position_samples, 3, self.frame_count, scene.time_step, False)
-            orientation_curve = scene.granny._compress_curve(solver, 0x30, curve_parameters, orientation_samples, 4, self.frame_count, scene.time_step, False)
-            scale_shear_curve = scene.granny._compress_curve(solver, 0x30, curve_parameters, scale_shear_samples, 9, self.frame_count, scene.time_step, False)
-            
-            track = GrannyTransformTrack()
-            
-            track.name = bone.name.encode()
-            track.position_curve = position_curve.contents
-            track.orientation_curve = orientation_curve.contents
-            track.scale_shear_curve = scale_shear_curve.contents
-            tracks.append(track)
-            # track.initial_placement = GrannyTransform(flags=7, position=(c_float * 3)(0, 0, 0), orientation=(c_float * 4)(0, 0, 0, 1), scale_shear=(c_float * 3 * 3)((1, 0, 0), (0.0, 1, 0), (0.0, 0.0, 1)))
-            # curves.append((position_curve, orientation_curve, scale_shear_curve))
-
-        # for idx, (p, o, s) in enumerate(curves):
-        #     # scene.granny._begin_transform_track(builder, create_string_buffer(b""), 0)
-        #     # scene.granny._set_transform_track_position(builder, p)
-        #     # scene.granny._set_transform_track_orientation(builder, o)
-        #     # scene.granny._set_transform_track_scale(builder, s)
-        #     # scene.granny._end_transform_track(builder)
-
-        #     track = GrannyTransformTrack()
-        #     track.name = bone.name.encode()
-        #     track.position_curve = p.contents
-        #     track.orientation_curve = o.contents
-        #     track.scale_shear_curve = s.contents
-        #     tracks.append(track)
-        
-        # self.granny_track_group = scene.granny._end_track_group(builder)
-        # self.granny_track_group.contents.name = scene.skeleton_node.name.encode()
-        granny_track_group = GrannyTrackGroup()
-        granny_track_group.name = scene.skeleton_node.name.encode()
-        granny_track_group.transform_track_count = len(tracks)
-        granny_track_group.transform_tracks = (GrannyTransformTrack * len(tracks))(*tracks)
-        granny_track_group.flags = 2
-        granny_track_group.initial_placement = GrannyTransform(flags=7, position=(c_float * 3)(0, 0, 0), orientation=(c_float * 4)(0, 0, 0, 1), scale_shear=(c_float * 3 * 3)((1, 0, 0), (0.0, 1, 0), (0.0, 0.0, 1)))
-        self.granny_track_group = pointer(granny_track_group)
-        self.to_granny_animation(scene)
-            
         
     def create_track_group(self, bones: list[bpy.types.PoseBone], scene: 'VirtualScene') -> TrackGroup:
         positions = defaultdict(list)
@@ -228,13 +145,10 @@ class VirtualAnimation:
             track = (c_float * (self.frame_count * 9))(*scales[bone])
             tracks.append(track)
             
-        num_transform_tracks = len(bones) + 1 # Add one for armature
-        granny_transform_tracks = (GrannyTransformTrack * num_transform_tracks)()
-        
-        # group_builder = scene.granny._begin_track_group(self.name.encode(), 0, num_transform_tracks, 0)
-        
+        granny_tracks = []
         for bone_idx, i in enumerate(range(0, len(tracks), 3)):
-            granny_transform_tracks[bone_idx + 1].name = bones[bone_idx].name.encode()
+            granny_track = GrannyTransformTrack()
+            granny_track.name = bones[bone_idx].name.encode()
             
             builder = scene.granny._begin_curve(scene.granny.keyframe_type, 0, 3, self.frame_count)
             scene.granny._push_control_array(builder, tracks[i])
@@ -248,24 +162,31 @@ class VirtualAnimation:
             scene.granny._push_control_array(builder, tracks[i + 2])
             scale_curve = scene.granny._end_curve(builder)
             
-            granny_transform_tracks[bone_idx + 1].position_curve = position_curve.contents
-            granny_transform_tracks[bone_idx + 1].orientation_curve = orientation_curve.contents
-            granny_transform_tracks[bone_idx + 1].scale_shear_curve = scale_curve.contents
+            granny_track.position_curve = position_curve.contents
+            granny_track.orientation_curve = orientation_curve.contents
+            granny_track.scale_shear_curve = scale_curve.contents
+
+            granny_tracks.append(granny_track)
 
 
-        granny_transform_tracks[0].name = scene.skeleton_node.name.encode()
+        granny_track = GrannyTransformTrack()
+        granny_track.name = scene.skeleton_node.name.encode()
         arm_tracks = []
         loc, rot, sca = IDENTITY_MATRIX.decompose()
         positions = []
         orientations = []
         scales = []
         for frame in range(self.frame_count):
-            position = (c_float * 3)(loc.x, loc.y, loc.z)
-            orientation = (c_float * 4)(rot.x, rot.y, rot.z, rot.w)
-            scale_shear = (c_float * 9)(sca.x, 0.0, 0.0, 0.0, sca.y, 0.0, 0.0, 0.0, sca.z)
+            position = (c_float * 3)(0, 0, 0)
+            orientation = (c_float * 4)(0, 0, 0, 1)
+            scale_shear = (c_float * 9)(1, 0.0, 0.0, 0.0, 1, 0.0, 0.0, 0.0, 1)
             positions.extend(position)
             orientations.extend(orientation)
             scales.extend(scale_shear)
+
+        # positions = [(c_float * 3)(0, 0, 0)] * self.frame_count
+        # orientations = [(c_float * 4)(0, 0, 0, 1)] * self.frame_count
+        # scales = [(c_float * 9)(1, 0.0, 0.0, 0.0, 1, 0.0, 0.0, 0.0, 1)] * self.frame_count
 
         track = (c_float * (self.frame_count * 3))(*positions)
         arm_tracks.append(track)
@@ -288,13 +209,18 @@ class VirtualAnimation:
         scene.granny._push_control_array(builder, arm_tracks[2])
         scale_curve = scene.granny._end_curve(builder)
 
-        granny_transform_tracks[0].position_curve = position_curve.contents
-        granny_transform_tracks[0].orientation_curve = orientation_curve.contents
-        granny_transform_tracks[0].scale_shear_curve = scale_curve.contents
+        granny_track.position_curve = position_curve.contents
+        granny_track.orientation_curve = orientation_curve.contents
+        granny_track.scale_shear_curve = scale_curve.contents
+
+        granny_tracks.append(granny_track)
+        
+        granny_tracks.sort(key=lambda track: track.name)
+        granny_transform_tracks = (GrannyTransformTrack * len(granny_tracks))(*granny_tracks)
             
         granny_track_group = GrannyTrackGroup()
         granny_track_group.name = scene.skeleton_node.name.encode()
-        granny_track_group.transform_track_count = num_transform_tracks
+        granny_track_group.transform_track_count = len(granny_tracks)
         granny_track_group.transform_tracks = granny_transform_tracks
         granny_track_group.flags = 2
         self.granny_track_group = pointer(granny_track_group)
