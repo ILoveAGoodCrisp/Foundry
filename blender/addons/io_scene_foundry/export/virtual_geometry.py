@@ -118,15 +118,24 @@ class VirtualAnimation:
         tracks = []
         for frame_idx, frame in enumerate(range(self.frame_range[0], self.frame_range[1] + 1)):
             bpy.context.scene.frame_set(frame)
-            matrices = {}
+            frame_root_bone_inverse: Matrix = None
             for idx, bone in enumerate(bones):
                 bone: bpy.types.PoseBone
-                if bone.parent:
-                    matrix = matrices[bone.parent].inverted() @ bone.matrix
+                is_aim_bone = bone == scene.aim_pitch or bone == scene.aim_yaw
+                if bone.parent and not is_aim_bone:
+                    if bone.parent == scene.root_bone:
+                        matrix = frame_root_bone_inverse @ bone.matrix
+                    else:
+                        matrix = bone.parent.matrix.inverted() @ bone.matrix
                 else:
-                    matrix = bone.matrix @ scene.root_bone_inverse_matrix
+                    if bone == scene.aim_pitch:
+                        matrix = bone.matrix @ scene.aim_pitch_matrix_inverse
+                    elif bone == scene.aim_yaw:
+                        matrix = bone.matrix @ scene.aim_yaw_matrix_inverse
+                    else:
+                        matrix = bone.matrix @ scene.root_bone_inverse_matrix
+                        frame_root_bone_inverse = matrix.inverted()
                     
-                matrices[bone] = matrix
                 loc, rot, sca = matrix.decompose()
                 
                 position = (c_float * 3)(loc.x, loc.y, loc.z)
@@ -948,7 +957,6 @@ class VirtualSkeleton:
     '''Describes a list of bones'''
     def __init__(self, ob: bpy.types.Object, scene: 'VirtualScene', node: VirtualNode):
         self.name: str = ob.name
-        self.root_matrix = IDENTITY_MATRIX
         self.node = node
         own_bone = VirtualBone(ob)
         own_bone.node = node
@@ -974,7 +982,11 @@ class VirtualSkeleton:
             valid_bones = [pbone for pbone in ob.original.pose.bones if ob.original.data.bones[pbone.name].use_deform]
             list_bones = [pbone.name for pbone in valid_bones]
             dict_bones = {v: i for i, v in enumerate(list_bones)}
+            aim_pitch = dict_bones.get(bpy.context.scene.nwo.node_usage_pose_blend_pitch)
+            aim_yaw = dict_bones.get(bpy.context.scene.nwo.node_usage_pose_blend_yaw)
+
             root_bone = None
+            root_bone_found = False
             for idx, bone in enumerate(valid_bones):
                 bone: bpy.types.PoseBone
                 b = VirtualBone(bone)
@@ -983,8 +995,8 @@ class VirtualSkeleton:
                     frame_ids_index = idx
                 b.create_bone_props(bone, scene.frame_ids[frame_ids_index])
                 # b.properties = utils.get_halo_props_for_granny(ob.data.bones[idx])
-                
-                if bone.parent:
+                is_aim_bone = bone.name == aim_pitch or bone.name == aim_yaw
+                if bone.parent and not is_aim_bone:
                     # Add one to this since the root is the armature
                     b.parent_index = list_bones.index(bone.parent.name) + 1
                     if bone.parent == root_bone:
@@ -992,12 +1004,24 @@ class VirtualSkeleton:
                     else:
                         b.matrix_local = bone.parent.matrix.inverted() @ bone.matrix
                     b.matrix_world = bone.matrix
+                elif is_aim_bone:
+                    b.parent_index = 1
+                    b.matrix_local = IDENTITY_MATRIX
+                    b.matrix_world = IDENTITY_MATRIX
+                    if bone.name == aim_pitch:
+                        scene.aim_pitch_matrix_inverse = bone.matrix.inverted()
+                        scene.aim_pitch = bone
+                    else:
+                        scene.aim_yaw_matrix_inverse = bone.matrix.inverted()
+                        scene.aim_yaw = bone
                 else:
+                    if root_bone_found:
+                        raise RuntimeError(f"Armature {ob.name} has multiple root bones. This must be fixed before export can proceed")
+                    root_bone_found = True
                     root_bone = bone
                     b.parent_index = 0
                     b.matrix_local = IDENTITY_MATRIX
                     b.matrix_world = IDENTITY_MATRIX
-                    self.root_matrix = bone.matrix
                 
                 scene.root_bone = root_bone
                 scene.root_bone_inverse_matrix = root_bone.matrix.inverted()
@@ -1125,7 +1149,11 @@ class VirtualScene:
         self.material_extended_data_type = self._create_material_extended_data_type()
         self.correction_matrix = IDENTITY_MATRIX
         self.root_bone = None
+        self.aim_pitch = None
+        self.aim_yaw = None
         self.root_bone_inverse_matrix = IDENTITY_MATRIX
+        self.aim_pitch_matrix_inverse = IDENTITY_MATRIX
+        self.aim_yaw_matrix_inverse = IDENTITY_MATRIX
         
         # Create default material
         if corinth:

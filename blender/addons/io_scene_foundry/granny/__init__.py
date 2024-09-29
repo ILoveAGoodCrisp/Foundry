@@ -51,6 +51,9 @@ class Granny:
                 self.right_vector = (c_float * 3)(0, 1 if mirror else -1, 0)
             case _:
                 raise(f"Invalid forward provided: {forward}")
+            
+        # self.back_vector = (c_float * 3)(-1, 0, 0)
+        # self.right_vector = (c_float * 3)(0, 1 if mirror else -1, 0)
         
         # File Info
         self.granny_export_info = None
