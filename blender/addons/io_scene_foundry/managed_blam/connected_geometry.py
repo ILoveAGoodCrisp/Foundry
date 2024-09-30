@@ -1064,10 +1064,10 @@ class BSP:
                     mesh.nwo.face_global_material = surface.material.name
                     
                 
-        if split_two_sided:
-            layer_two_sided = utils.add_face_layer(bm, mesh, "two_sided", True)
-        else:
-            mesh.nwo.face_two_sided = surface.two_sided
+        # if split_two_sided:
+        #     layer_two_sided = utils.add_face_layer(bm, mesh, "two_sided", True)
+        # else:
+        #     mesh.nwo.face_two_sided = surface.two_sided
             
         if split_ladder:
             layer_ladder = utils.add_face_layer(bm, mesh, "ladder", True)
@@ -1092,8 +1092,12 @@ class BSP:
                 # if split_negated and map_negated[idx]:
                 #     to_remove.append(face)
                 #     continue
-                if split_material and self.uses_materials:
-                    face.material_index = material_indices[idx]
+                if split_material:
+                    if self.uses_materials:
+                        face.material_index = material_indices[idx]
+                    else:
+                        for mat, layer in layer_materials.items():
+                            face[layer] =  int(map_material[idx] == mat)
                 # if layer_two_sided:
                 #     face[layer_two_sided] = map_two_sided[idx]
                 if layer_ladder:
@@ -1102,26 +1106,35 @@ class BSP:
                     face[layer_breakable] = map_breakable[idx]
                 if layer_slip:
                     face[layer_slip] = map_slip[idx]
+
                     
         if to_remove:
             bmesh.ops.delete(bm, geom=to_remove, context='FACES')
             bm.faces.ensure_lookup_table()
         
         # This deletes duplicate faces resulting from the two-sided prop
-        if mesh.nwo.face_two_sided or split_two_sided:
-            face_map = {}
-            duplicates = []
-            for face in bm.faces:
-                key = tuple(sorted(v.index for v in face.verts))
-                if key in face_map:
-                    duplicates.append(face)
-                    if split_two_sided:
-                        face_map[key][layer_two_sided] = 1
-                else:
-                    face_map[key] = face
+        # if mesh.nwo.face_two_sided or split_two_sided:
+        face_map = {}
+        duplicates = []
+        make_two_sided = []
+        for face in bm.faces:
+            key = tuple(sorted(v.index for v in face.verts))
+            if key in face_map:
+                duplicates.append(face)
+                make_two_sided.append(face_map[key])
+            else:
+                face_map[key] = face
         
             bmesh.ops.delete(bm, geom=duplicates, context='FACES')
             bm.faces.ensure_lookup_table()
+        
+        if make_two_sided:
+            if len(bm.faces) == len(make_two_sided):
+                mesh.nwo.face_two_sided = True
+            else:
+                layer_two_sided = utils.add_face_layer(bm, mesh, "two_sided", True)
+                for face in make_two_sided:
+                    face[layer_two_sided] = 1
             
         # Remove any degenerate faces
         bmesh.ops.dissolve_degenerate(bm, dist=0.1, edges=bm.edges)

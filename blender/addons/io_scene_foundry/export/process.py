@@ -132,6 +132,13 @@ class ExportScene:
         utils.set_object_mode(self.context)
         self.disabled_collections = utils.disable_excluded_collections(self.context)
         self.current_frame = self.context.scene.frame_current
+        self.current_action = None
+        self.animated_objects = []
+        if self.asset_type in {AssetType.MODEL, AssetType.ANIMATION}:
+            action_index = self.context.scene.nwo.active_action_index
+            if action_index > -1:
+                self.current_action = bpy.data.actions[action_index]
+            self.animated_objects = utils.reset_to_basis(self.context)
         
     def get_initial_export_objects(self):
         self.depsgraph = self.context.evaluated_depsgraph_get()
@@ -225,7 +232,7 @@ class ExportScene:
         self.armature_poses = {}
         object_parent_dict = {}
         
-        if self.asset_type in (AssetType.MODEL, AssetType.ANIMATION) and self.scene_settings.main_armature and any((self.scene_settings.support_armature_a, self.scene_settings.support_armature_b, self.scene_settings.support_armature_c)):
+        if self.asset_type in {AssetType.MODEL, AssetType.ANIMATION} and self.scene_settings.main_armature and any((self.scene_settings.support_armature_a, self.scene_settings.support_armature_b, self.scene_settings.support_armature_c)):
             pass # TODO Implement non-destructive rig consolidation in virtual_geometry
             # self._consolidate_rig()
         
@@ -1073,12 +1080,11 @@ class ExportScene:
         for armature in self.armature_poses.keys():
             armature.pose_position = 'POSE'
         self.context.view_layer.update()
-        animated_objects = utils.get_animated_objects(self.context)
         self.has_animations = True
         with utils.Spinner():
             utils.update_job_count(process, "", 0, num_animations)
             for idx, action in enumerate(valid_actions):
-                for ob in animated_objects:
+                for ob in self.animated_objects:
                     ob.animation_data.action = action
                 self.virtual_scene.add_animation(action)
                 self.exported_actions.append(action)
@@ -1279,6 +1285,8 @@ class ExportScene:
             collection.exclude = False
             
         self.context.scene.frame_current = self.current_frame
+        for ob in self.animated_objects:
+            ob.animation_data.action = self.current_action
         self.context.view_layer.update()
         
         

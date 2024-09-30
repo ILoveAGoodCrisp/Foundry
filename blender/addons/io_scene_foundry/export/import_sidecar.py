@@ -53,16 +53,20 @@ class SidecarImport:
     def _set_template(self, tag_type: str):
         if tag_type.endswith('model') or tag_type == 'model_animation_graph' or getattr(self.scene_settings, 'output_' + tag_type):
             template_path = getattr(self.scene_settings, 'template_' + tag_type)
+            print("template path", template_path)
             if not template_path:
                 return
             relative_template_path = utils.relative_path(template_path)
+            print("relative path", relative_template_path)
             expected_asset_path = Path(self.tags_dir, self.relative_asset_path, f'{self.asset_name}.{tag_type}')
+            print("expected path", expected_asset_path)
             if expected_asset_path.exists():
                 return
             asset_folder = expected_asset_path.parent
             if not asset_folder.exists():
                 asset_folder.mkdir(parents=True, exist_ok=True)
             full_path = Path(self.tags_dir, relative_template_path)
+            print("full path", full_path)
             if full_path.exists():
                 utils.copy_file(full_path, expected_asset_path)
                 print(f'- Loaded {tag_type} tag template')
