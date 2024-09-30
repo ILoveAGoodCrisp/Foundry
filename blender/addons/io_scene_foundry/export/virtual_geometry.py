@@ -6,6 +6,7 @@ from ctypes import Array, Structure, c_char_p, c_float, c_int, c_uint, POINTER, 
 import logging
 from math import degrees
 from pathlib import Path
+import random
 import bmesh
 import bpy
 from mathutils import Euler, Matrix, Quaternion, Vector
@@ -982,8 +983,8 @@ class VirtualSkeleton:
             valid_bones = [pbone for pbone in ob.original.pose.bones if ob.original.data.bones[pbone.name].use_deform]
             list_bones = [pbone.name for pbone in valid_bones]
             dict_bones = {v: i for i, v in enumerate(list_bones)}
-            aim_pitch = dict_bones.get(bpy.context.scene.nwo.node_usage_pose_blend_pitch)
-            aim_yaw = dict_bones.get(bpy.context.scene.nwo.node_usage_pose_blend_yaw)
+            aim_pitch = bpy.context.scene.nwo.node_usage_pose_blend_pitch
+            aim_yaw = bpy.context.scene.nwo.node_usage_pose_blend_yaw
 
             root_bone = None
             root_bone_found = False
@@ -1009,10 +1010,10 @@ class VirtualSkeleton:
                     b.matrix_local = IDENTITY_MATRIX
                     b.matrix_world = IDENTITY_MATRIX
                     if bone.name == aim_pitch:
-                        scene.aim_pitch_matrix_inverse = bone.matrix.inverted()
+                        scene.aim_pitch_matrix_inverse = bone.matrix.inverted() @ IDENTITY_MATRIX
                         scene.aim_pitch = bone
                     else:
-                        scene.aim_yaw_matrix_inverse = bone.matrix.inverted()
+                        scene.aim_yaw_matrix_inverse = bone.matrix.inverted() @ IDENTITY_MATRIX
                         scene.aim_yaw = bone
                 else:
                     if root_bone_found:
@@ -1024,7 +1025,7 @@ class VirtualSkeleton:
                     b.matrix_world = IDENTITY_MATRIX
                 
                 scene.root_bone = root_bone
-                scene.root_bone_inverse_matrix = root_bone.matrix.inverted()
+                scene.root_bone_inverse_matrix = root_bone.matrix.inverted() @ IDENTITY_MATRIX
                 b.to_granny_data()
                 self.bones.append(b)
                 scene.animated_bones.append(bone)

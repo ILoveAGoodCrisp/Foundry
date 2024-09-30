@@ -18,6 +18,11 @@ CG_PROP_PREFIX = "bungie_"
 
 IDENTITY_MATRIX = Matrix.Identity(4)
 
+# IDENTITY_MATRIX = Matrix(((1.0, 2.384185791015625e-07, 0.0, 0.0),
+#         (-2.384185791015625e-05, 1.0, 0.0, 0.0),
+#         (0.0, 0.0, 1.0, 0.0),
+#         (0.0, 0.0, 0.0, 1.0)))
+
 class object_type(Enum):
     _connected_geometry_object_type_none = auto()
     _connected_geometry_object_type_frame = auto()
