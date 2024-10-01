@@ -1038,9 +1038,9 @@ class VirtualSkeleton:
                     b.matrix_world = scene.rotation_matrix @ bone.matrix
                     b.matrix_local = b.matrix_world.copy()
                     bone_inverse_matrices[bone] = b.matrix_world.inverted()
+                    # scene.root_bone = root_bone
+                    # scene.root_bone_inverse_matrix = bone.matrix.inverted() @ IDENTITY_MATRIX
                 
-                # scene.root_bone = root_bone
-                # scene.root_bone_inverse_matrix = root_bone.matrix.inverted() @ IDENTITY_MATRIX
                 b.to_granny_data()
                 self.bones.append(b)
                 scene.animated_bones.append(bone)
@@ -1057,8 +1057,6 @@ class VirtualSkeleton:
                         bone_index = 0
                     parent_bone = valid_bones[bone_index]
                     parent_index = bone_index + 1
-                    # if parent_bone != scene.root_bone:
-                    #     parent_matrix = parent_bone.matrix
                     parent_matrix = bone_inverse_matrices[parent_bone]
 
                 node = scene.add(child, *scene.object_halo_data[child], bones=list_bones, parent_matrix=parent_matrix)
