@@ -3763,11 +3763,8 @@ def cut_out_mesh(ob: bpy.types.Object, cutter: bpy.types.Object):
     bm.to_mesh(ob.data)
     bm.free()
     
-def get_halo_props_for_granny(id) -> dict:
-    halo_props = {k: v.encode() for k, v in id.items() if type(k) == str}
-    if isinstance(id, bpy.types.Object):
-        halo_props["bungie_object_ID"] = id.nwo.ObjectID.encode()
-        
+def get_halo_props_for_granny(props) -> dict:
+    halo_props = {k: v.encode() for k, v in props.items() if type(k) == str}
     return halo_props
 
 def get_bone_matrix_local(bone: bpy.types.PoseBone) -> Matrix:

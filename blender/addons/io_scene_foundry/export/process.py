@@ -309,6 +309,7 @@ class ExportScene:
             return 
         
         props["bungie_object_type"] = object_type
+        props["bungie_object_ID"] = str(nwo.ObjectID)
         is_mesh = ob.type == 'MESH'
         instanced_object = (object_type == '_connected_geometry_object_type_mesh' and nwo.mesh_type == '_connected_geometry_mesh_type_object_instance')
         tmp_region, tmp_permutation = nwo.region_name, nwo.permutation_name
