@@ -106,7 +106,10 @@ class Tag():
     def __exit__(self, exc_type, exc_value, traceback):
         if self.tag:
             if self.tag_has_changes:
-                self.tag.Save()
+                try:
+                    self.tag.Save()
+                except:
+                    pass
             self.tag.Dispose()
         if self.hide_prints:
             enable_prints()

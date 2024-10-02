@@ -2170,7 +2170,8 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
             actions = bpy.data.actions
             
         if keep_marker_axis is None:
-            keep_marker_axis = context.scene.nwo.maintain_marker_axis
+            # keep_marker_axis = context.scene.nwo.maintain_marker_axis
+            keep_marker_axis = False
 
         armatures = [ob for ob in objects if ob.type == 'ARMATURE']
         parented_armatures = [ob for ob in armatures if ob.parent]

@@ -142,11 +142,15 @@ class ExportScene:
             self.animated_objects = utils.reset_to_basis(self.context)
         
     def get_initial_export_objects(self):
+        self.main_armature = self.context.scene.nwo.main_armature
+        self.support_armatures = {}
+        if self.main_armature:
+            self.support_armatures = {self.context.scene.nwo.support_armature_a, self.context.scene.nwo.support_armature_b, self.context.scene.nwo.support_armature_c}
         self.depsgraph = self.context.evaluated_depsgraph_get()
         if self.asset_type == AssetType.ANIMATION and not self.export_settings.granny_animations_mesh:
-            self.export_objects = {ob.evaluated_get(self.depsgraph) for ob in self.context.view_layer.objects if ob.nwo.export_this and ob.type == "ARMATURE"}
+            self.export_objects = {ob.evaluated_get(self.depsgraph) for ob in self.context.view_layer.objects if ob.nwo.export_this and (ob.type == "ARMATURE" and ob not in self.support_armatures)}
         else:
-            self.export_objects = {ob.evaluated_get(self.depsgraph) for ob in self.context.view_layer.objects if ob.nwo.export_this and ob.type in VALID_OBJECTS}
+            self.export_objects = {ob.evaluated_get(self.depsgraph) for ob in self.context.view_layer.objects if ob.nwo.export_this and ob.type in VALID_OBJECTS and ob not in self.support_armatures}
         
         self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir, self.granny, self.export_settings, self.context.scene.render.fps, self.scene_settings.default_animation_compression, utils.blender_halo_rotation_diff(self.forward))
         
@@ -232,6 +236,10 @@ class ExportScene:
         self.forced_render_only = {}
         self.armature_poses = {}
         object_parent_dict = {}
+        evaluated_support_armatures = set()
+        for ob in self.support_armatures:
+            if ob is not None:
+                evaluated_support_armatures.add(ob.evaluated_get(self.depsgraph))
         
         if self.asset_type in {AssetType.MODEL, AssetType.ANIMATION} and self.scene_settings.main_armature and any((self.scene_settings.support_armature_a, self.scene_settings.support_armature_b, self.scene_settings.support_armature_c)):
             pass # TODO Implement non-destructive rig consolidation in virtual_geometry
@@ -255,7 +263,10 @@ class ExportScene:
                 parent = ob.parent
                 proxies = tuple()
                 if parent:
-                    object_parent_dict[ob] = parent
+                    if parent in evaluated_support_armatures:
+                        object_parent_dict[ob] = self.main_armature.evaluated_get(self.depsgraph)
+                    else:
+                        object_parent_dict[ob] = parent
                 else:
                     self.no_parent_objects.append(ob)
                     
