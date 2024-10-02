@@ -656,6 +656,7 @@ def export_asset(context, sidecar_path_full, asset_name, asset_path, scene_setti
 def export_asset_granny(context, sidecar_path_full, sidecar_path, asset_name, asset_path, scene_settings, export_settings, corinth):
     asset_type = scene_settings.asset_type
     export_scene = ExportScene(context, sidecar_path_full, sidecar_path, asset_type, asset_name, asset_path, corinth, export_settings, scene_settings)
+    # try:
     if export_settings.export_mode in {'FULL', 'GRANNY'}:
         export_scene.ready_scene()
         export_scene.get_initial_export_objects()
@@ -672,3 +673,7 @@ def export_asset_granny(context, sidecar_path_full, sidecar_path, asset_name, as
         export_scene.invoke_tool_import()
         export_scene.postprocess_tags()
         export_scene.lightmap()
+    # finally:
+    #     if export_scene.virtual_scene is not None:
+    #         del export_scene.virtual_scene
+    #         del export_scene

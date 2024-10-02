@@ -1,5 +1,5 @@
 from collections import defaultdict
-from ctypes import CDLL, byref, c_uint32, cast, cdll, create_string_buffer, pointer, sizeof, string_at
+from ctypes import CDLL, byref, c_uint32, cast, cdll, create_string_buffer, pointer, sizeof, string_at, windll
 from pathlib import Path
 import struct
 import time
@@ -22,6 +22,7 @@ GrannyCallbackType = CFUNCTYPE(
 class Granny:
     def __init__(self, granny_dll_path: str | Path):
         self.dll = cdll.LoadLibrary(str(granny_dll_path))
+        self.file_info = None
         self._define_granny_functions()
         self.file_info_type = POINTER(GrannyDataTypeDefinition).in_dll(self.dll, "GrannyFileInfoType")
         self.magic_value = POINTER(GrannyFileMagic).in_dll(self.dll, "GrannyGRNFileMV_ThisPlatform")
@@ -29,6 +30,14 @@ class Granny:
         self.curve_type = POINTER(GrannyDataTypeDefinition).in_dll(self.dll, "GrannyCurveDataDaK32fC32fType")
         self._create_callback()
         self.filename = ""
+
+    # def __del__(self):
+    #     if self.dll is None:
+    #         return
+    #     libHandle = self.dll._handle
+    #     del self.dll
+    #     windll.kernel32.FreeLibrary(libHandle)
+    
         
     def new(self, filepath: Path, forward: str, scale: float, mirror: bool):
         self.filename = str(filepath)

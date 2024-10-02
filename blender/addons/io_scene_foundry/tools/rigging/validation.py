@@ -203,6 +203,7 @@ class NWO_ValidateRig(bpy.types.Operator):
             scene_nwo.node_usage_damage_root_right_foot = ""
             
     def execute(self, context):
+        # NOTE 2024-10-01 No longer requiring specific root transforms for root bone or armature as this is managed with the new granny pipeline
         self.old_mode = context.mode
         self.old_active = context.object
         self.rig_was_unselectable = False
@@ -213,6 +214,16 @@ class NWO_ValidateRig(bpy.types.Operator):
         self.rig = utils.get_rig(context, True)
         multi_rigs = type(self.rig) == list
         no_rig = self.rig is None
+
+        scene_nwo.multiple_root_bones = False
+        scene_nwo.invalid_root_bone = False
+        scene_nwo.needs_pose_bones = False
+        scene_nwo.armature_bad_transforms = False
+        scene_nwo.armature_has_parent = False
+        scene_nwo.too_many_bones = False
+        scene_nwo.bone_names_too_long = False
+        scene_nwo.pose_bones_bad_transforms = False
+
         if no_rig or multi_rigs:
             if multi_rigs:
                 self.report({'WARNING'}, 'Multiple armatures in scene. Please declare the main armature in the Asset Editor')
@@ -237,11 +248,11 @@ class NWO_ValidateRig(bpy.types.Operator):
         else:
             scene_nwo.armature_has_parent = False
         
-        if self.armature_transforms_valid(self.rig):
-            scene_nwo.armature_bad_transforms = False
-        else:
-            scene_nwo.armature_bad_transforms = True
-            self.report({'WARNING'}, 'Rig has bad transforms')
+        # if self.armature_transforms_valid(self.rig):
+        #     scene_nwo.armature_bad_transforms = False
+        # else:
+        #     scene_nwo.armature_bad_transforms = True
+        #     self.report({'WARNING'}, 'Rig has bad transforms')
         
         self.rig_was_unselectable = self.rig.hide_select
         self.rig_was_hidden = self.rig.hide_get()
@@ -261,11 +272,12 @@ class NWO_ValidateRig(bpy.types.Operator):
         else:
             scene_nwo.multiple_root_bones = False
         
-        if self.validate_root_rot(self.rig, root_bone_name, scene):
-            scene_nwo.invalid_root_bone = False
-        else:
-            self.report({'WARNING'}, f'Root bone [{root_bone_name}] has non-standard transforms. This may cause issues at export')
-            scene_nwo.invalid_root_bone = True
+        
+        # if self.validate_root_rot(self.rig, root_bone_name, scene):
+        #     scene_nwo.invalid_root_bone = False
+        # else:
+        #     self.report({'WARNING'}, f'Root bone [{root_bone_name}] has non-standard transforms. This may cause issues at export')
+        #     scene_nwo.invalid_root_bone = True
             
         if self.needs_pose_bones(scene_nwo):
             scene_nwo.needs_pose_bones = True

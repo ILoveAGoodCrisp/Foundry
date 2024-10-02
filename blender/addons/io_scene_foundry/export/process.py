@@ -1289,7 +1289,6 @@ class ExportScene:
             ob.animation_data.action = self.current_action
         self.context.view_layer.update()
         
-        
     def preprocess_tags(self):
         """ManagedBlam tasks to run before tool import is called"""
         print("--- Tags Pre-Process")
@@ -1362,7 +1361,11 @@ class ExportScene:
                 )
     
     def invoke_tool_import(self):
-        sidecar_importer = SidecarImport(self.asset_path, self.asset_name, self.asset_type, self.sidecar_path, self.scene_settings, self.export_settings, self.selected_bsps, self.corinth, self.virtual_scene.structure, self.tags_dir)
+        if self.virtual_scene is None:
+            structure = [region.name for region in self.context.scene.nwo.regions_table]
+        else:
+            structure = self.virtual_scene.structure
+        sidecar_importer = SidecarImport(self.asset_path, self.asset_name, self.asset_type, self.sidecar_path, self.scene_settings, self.export_settings, self.selected_bsps, self.corinth, structure, self.tags_dir)
         if self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB}:
             sidecar_importer.save_lighting_infos()
         sidecar_importer.setup_templates()

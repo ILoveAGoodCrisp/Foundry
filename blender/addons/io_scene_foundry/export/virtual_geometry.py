@@ -111,38 +111,54 @@ class VirtualAnimation:
         
         self.track_group = self.create_track_group(scene.animated_bones, scene)
         self.to_granny_animation(scene)
+
+    # def __del__(self):
+    #     if self.granny_animation is None:
+    #         return
+    #     self.granny_animation.name = None
+    #     self.granny_animation.duration = 0
+    #     self.granny_animation.time_step = 0
+    #     self.granny_animation.oversampling = 0
+    #     self.granny_animation.track_group_count = 0
+    #     for track_group in self.granny_animation.track_groups.contents:
+    #         track_group.name = None
+    #         track_group.vector_track_count = 0
+    #         track_group.vector_tracks = None
+    #         track_group.transform_track_count = 0
+    #         for track in track_group.transform_tracks.contents:
+    #             track.name = None
+    #             track.flags = 0
+    #             track.orientation_curve = None
+    #             track.position_curve = None
+    #             track.scale_shear_curve = None
+
+    #         track_group.transform_tracks = None
+    #         track_group.transform_lod_error_count = 0
+    #         track_group.tranform_lod_errors = 0
+    #         track_group.text_track_count = 0
+    #         track_group.text_tracks
+    #         track_group.initial_placement = None
+    #         track_group.flags = 0
+    #         track_group.loop_translation = 0
+    #         track_group.periodic_loop = 0
         
     def create_track_group(self, bones: list[bpy.types.PoseBone], scene: 'VirtualScene') -> TrackGroup:
         positions = defaultdict(list)
         orientations = defaultdict(list)
         scales = defaultdict(list)
         tracks = []
+        scale_matrix = Matrix.Diagonal(scene.armature_matrix.to_scale()).to_4x4()
         for frame_idx, frame in enumerate(range(self.frame_range[0], self.frame_range[1] + 1)):
             bpy.context.scene.frame_set(frame)
-            frame_root_bone_inverse: Matrix = None
             bone_inverse_matrices = {}
             for idx, bone in enumerate(bones):
                 bone: bpy.types.PoseBone
-                # is_aim_bone = bone == scene.aim_pitch or bone == scene.aim_yaw
-                # if bone.parent and not is_aim_bone:
-                #     if bone.parent == scene.root_bone:
-                #         matrix = frame_root_bone_inverse @ bone.matrix
-                #     else:
-                #         matrix = bone.parent.matrix.inverted() @ bone.matrix
-                # else:
-                #     if bone == scene.aim_pitch:
-                #         matrix = bone.matrix @ scene.aim_pitch_matrix_inverse
-                #     elif bone == scene.aim_yaw:
-                #         matrix = bone.matrix @ scene.aim_yaw_matrix_inverse
-                #     else:
-                #         matrix = bone.matrix @ scene.root_bone_inverse_matrix
-                #         frame_root_bone_inverse = matrix.inverted()
                 if bone.parent:
-                    matrix_world = scene.rotation_matrix @ bone.matrix
+                    matrix_world = scene.rotation_matrix @ scale_matrix @ bone.matrix
                     bone_inverse_matrices[bone] = matrix_world.inverted()
                     matrix = bone_inverse_matrices[bone.parent] @ matrix_world
                 else:
-                    matrix = scene.rotation_matrix @ bone.matrix
+                    matrix = scene.rotation_matrix @ scale_matrix @ bone.matrix
                     bone_inverse_matrices[bone] = matrix.inverted()
 
                 loc, rot, sca = matrix.decompose()
@@ -155,14 +171,9 @@ class VirtualAnimation:
                 scales[bone].extend(scale_shear)
         
         for bone in bones:
-            track = (c_float * (self.frame_count * 3))(*positions[bone])
-            tracks.append(track)
-            
-            track = (c_float * (self.frame_count * 4))(*orientations[bone])
-            tracks.append(track)
-            
-            track = (c_float * (self.frame_count * 9))(*scales[bone])
-            tracks.append(track)
+            tracks.append((c_float * (self.frame_count * 3))(*positions[bone]))
+            tracks.append((c_float * (self.frame_count * 4))(*orientations[bone]))
+            tracks.append((c_float * (self.frame_count * 9))(*scales[bone]))
             
         granny_tracks = []
         for bone_idx, i in enumerate(range(0, len(tracks), 3)):
@@ -185,6 +196,10 @@ class VirtualAnimation:
             granny_track.orientation_curve = orientation_curve.contents
             granny_track.scale_shear_curve = scale_curve.contents
 
+            del position_curve
+            del orientation_curve
+            del scale_curve
+
             granny_tracks.append(granny_track)
 
 
@@ -203,18 +218,9 @@ class VirtualAnimation:
             orientations.extend(orientation)
             scales.extend(scale_shear)
 
-        # positions = [(c_float * 3)(0, 0, 0)] * self.frame_count
-        # orientations = [(c_float * 4)(0, 0, 0, 1)] * self.frame_count
-        # scales = [(c_float * 9)(1, 0.0, 0.0, 0.0, 1, 0.0, 0.0, 0.0, 1)] * self.frame_count
-
-        track = (c_float * (self.frame_count * 3))(*positions)
-        arm_tracks.append(track)
-        
-        track = (c_float * (self.frame_count * 4))(*orientations)
-        arm_tracks.append(track)
-
-        track = (c_float * (self.frame_count * 9))(*scales)
-        arm_tracks.append(track)
+        arm_tracks.append((c_float * (self.frame_count * 3))(*positions))
+        arm_tracks.append((c_float * (self.frame_count * 4))(*orientations))
+        arm_tracks.append((c_float * (self.frame_count * 9))(*scales))
 
         builder = scene.granny._begin_curve(scene.granny.keyframe_type, 0, 3, self.frame_count)
         scene.granny._push_control_array(builder, arm_tracks[0])
@@ -232,6 +238,10 @@ class VirtualAnimation:
         granny_track.orientation_curve = orientation_curve.contents
         granny_track.scale_shear_curve = scale_curve.contents
 
+        del position_curve
+        del orientation_curve
+        del scale_curve
+
         granny_tracks.append(granny_track)
 
         granny_tracks.sort(key=lambda track: track.name)
@@ -243,9 +253,7 @@ class VirtualAnimation:
         granny_track_group.transform_tracks = granny_transform_tracks
         granny_track_group.flags = 2
         self.granny_track_group = pointer(granny_track_group)
-        # self.granny_track_group = scene.granny._end_track_group(group_builder)
-        
-
+        # self.granny_track_group = scene.granny._end_track_group(group_builder) 
 
     def to_granny_track_group(self, scene: 'VirtualScene'):
         num_transform_tracks = len(self.track_group.transform_tracks)
@@ -287,35 +295,6 @@ class VirtualAnimation:
         granny_track_group.transform_tracks = granny_transform_tracks
         self.granny_track_group = pointer(granny_track_group)
         
-        
-        # builder = scene.granny._begin_track_group(self.name.encode(), 0, len(self.track_group.transform_tracks), 0, False)
-        # for track in self.track_group.transform_tracks:
-        #     scene.granny._begin_transform_track(builder, track.name.encode(), 0)
-
-        #     position_curve = GrannyCurve2()
-        #     position_curve.curve_data.type = scene.granny.keyframe_type
-        #     position_curve.curve_data.object = cast(pointer(track.position_data), c_void_p)
-            
-        #     orientation_curve = GrannyCurve2()
-        #     orientation_curve.curve_data.type = scene.granny.keyframe_type
-        #     orientation_curve.curve_data.object = cast(pointer(track.orientation_data), c_void_p)
-            
-        #     scale_curve = GrannyCurve2()
-        #     scale_curve.curve_data.type = scene.granny.keyframe_type
-        #     scale_curve.curve_data.object = cast(pointer(track.scale_data), c_void_p)
-            
-        #     scene.granny._initialise_curve_format(position_curve)
-        #     scene.granny._initialise_curve_format(orientation_curve)
-        #     scene.granny._initialise_curve_format(scale_curve)
-            
-        #     scene.granny._set_transform_track_position(builder, position_curve)
-        #     scene.granny._set_transform_track_orientation(builder, orientation_curve)
-        #     scene.granny._set_transform_track_scale(builder, scale_curve)
-            
-        #     scene.granny._end_transform_track(builder)
-            
-        # self.granny_track_group = scene.granny._end_track_group(builder)
-        
     def to_granny_animation(self, scene: 'VirtualScene'):
         granny_animation = GrannyAnimation()
         granny_animation.name = self.name.encode()
@@ -338,6 +317,7 @@ class VirtualMaterial:
         self.shader_path = "override"
         self.shader_type = "override"
         self.granny_texture = None
+        self.scene = scene
         if shader_path is not None:
             if not str(shader_path).strip() or str(shader_path) == '.':
                 return self.set_invalid(scene)
@@ -353,6 +333,22 @@ class VirtualMaterial:
         self.to_granny_data(scene)
         if scene.uses_textures:
             self.make_granny_texture(scene)
+
+    # def __del__(self):
+    #     if self.granny_material is not None:
+    #         del self.granny_material.name
+    #         del self.granny_material.map_count
+    #         del self.granny_material.maps.contents
+    #         del self.granny_material.maps
+    #         for texture in self.granny_material.texture:
+    #             self.scene.granny._free_texture(texture)
+
+    #         del self.granny_material.texture
+    #         del self.granny_material.extended_data.type.contents
+    #         del self.granny_material.extended_data.type
+    #         del self.granny_material.extended_data.object
+    #         del self.granny_material.extended_data
+
         
     def set_invalid(self, scene: 'VirtualScene'):
         self.shader_path = r"shaders\invalid"
@@ -456,6 +452,60 @@ class VirtualMesh:
         del self.lighting_texcoords
         del self.vertex_colors
         del self.indices
+
+    # def __del__(self):
+    #     del self.granny_tri_topology.group_count
+    #     for group in self.granny_tri_topology.groups.contents:
+    #         del group.material_index
+    #         del group.tri_first
+    #         del group.tri_count
+    #         del group
+            
+    #     del self.granny_tri_topology.groups
+    #     del self.granny_tri_topology.index_count
+    #     for index in self.granny_tri_topology.indices.contents:
+    #         del index
+    #     del self.granny_tri_topology.indices
+    #     del self.granny_tri_topology.index16_count
+    #     for index in self.granny_tri_topology.indices16.contents:
+    #         del index
+    #     del self.granny_tri_topology.vertex_to_vertex_count
+    #     del self.granny_tri_topology.vertex_to_vertex_map
+    #     del self.granny_tri_topology.vertex_to_triangle_count
+    #     del self.granny_tri_topology.vertex_to_triangle_map
+    #     del self.granny_tri_topology.side_to_neighbor_count
+    #     del self.granny_tri_topology.side_to_neighbor_map
+    #     del self.granny_tri_topology.bones_for_triangle_count
+    #     del self.granny_tri_topology.bones_for_triangle
+    #     del self.granny_tri_topology.triangle_to_bone_count
+    #     del self.granny_tri_topology.triangle_to_bone_indices
+    #     del self.granny_tri_topology.tri_annotation_set_count
+    #     for annotation_set in self.granny_tri_topology.tri_annotation_sets:
+    #         del annotation_set.name
+    #         definition = annotation_set.tri_annotation_type.contents
+    #         del definition.member_type
+    #         del definition.name
+    #         del definition.reference_type
+    #         del definition.array_width
+    #         del definition.extra
+    #         del definition.unused_or_ignored
+    #         del definition
+    #         del annotation_set.tri_annotation_type
+    #         del annotation_set.tri_annotation_count
+    #         for tri_anno in annotation_set.contents:
+    #             del tri_anno
+    #         del annotation_set.tri_annotations
+    #         del annotation_set.indices_map_from_tri_to_annotation
+    #         del annotation_set.tri_annotation_index_count
+    #         del annotation_set.tri_annotation_indices
+    #         del annotation_set
+
+    #     del self.granny_tri_topology
+
+    #     del self.vertex_array
+    
+    
+    
         
     def to_granny_data(self, scene: 'VirtualScene'):
         self._granny_tri_topology(scene)
@@ -832,7 +882,25 @@ class VirtualNode:
                 
                 self.granny_vertex_data.vertices = cast(vertex_array, POINTER(c_ubyte))
                 self.granny_vertex_data.vertex_count = self.mesh.num_vertices
-                self.granny_vertex_data = pointer(self.granny_vertex_data)         
+                self.granny_vertex_data = pointer(self.granny_vertex_data)   
+
+    # def __del__(self):
+    #     definition = self.granny_vertex_data.vertex_type
+    #     del definition.member_type
+    #     del definition.name
+    #     del definition.reference_type
+    #     del definition.array_width
+    #     del definition.extra
+    #     del definition.unused_or_ignored
+    #     del definition
+    #     del self.granny_vertex_data.vertex_count
+    #     del self.granny_vertex_data.vertices.contents
+    #     del self.granny_vertex_data.vertices
+    #     del self.granny_vertex_data.vertex_component_name_count
+    #     del self.granny_vertex_data.vertex_component_names.contents
+    #     del self.granny_vertex_data.vertex_component_names
+    #     del self.granny_vertex_data.vertex_annotation_set_count
+    #     del self.granny_vertex_data.vertex_annotation_sets
             
     def _set_group(self, scene: 'VirtualScene'):
         match scene.asset_type:
@@ -970,6 +1038,7 @@ class VirtualSkeleton:
         own_bone = VirtualBone(ob)
         own_bone.node = node
         if ob.type == 'ARMATURE':
+            scene.armature_matrix = ob.matrix_world.copy()
             own_bone.props = {
                     "bungie_frame_world": "1",
                     "bungie_frame_ID1": "8078",
@@ -981,10 +1050,30 @@ class VirtualSkeleton:
             
         own_bone.matrix_world = own_bone.node.matrix_world
         own_bone.matrix_local = IDENTITY_MATRIX
-        self.skeleton_matrix_world = IDENTITY_MATRIX
+        
         own_bone.to_granny_data()
         self.bones: list[VirtualBone] = [own_bone]
         self._get_bones(ob, scene)
+
+    # def __del__(self):
+    #     for vbone in self.bones:
+    #         granny_bone = vbone.granny_bone
+    #         granny_bone.name = None
+    #         granny_bone.parent_index = None
+    #         granny_bone.local_transform = None
+    #         granny_bone.inverse_world_4x4 = None
+    #         granny_bone.lod_error = None
+    #         definition = granny_bone.extended_data.type
+    #         del definition.member_type
+    #         del definition.name
+    #         del definition.reference_type
+    #         del definition.array_width
+    #         del definition.extra
+    #         del definition.unused_or_ignored
+    #         del definition
+    #         del granny_bone.extended_data.object
+    #         del granny_bone.extended_data
+    #         del granny_bone
         
     def _get_bones(self, ob, scene: 'VirtualScene'):
         if ob.type == 'ARMATURE':
@@ -1115,6 +1204,7 @@ class VirtualModel:
     def __init__(self, ob: bpy.types.Object, scene: 'VirtualScene'):
         self.name: str = ob.name
         self.node = None
+        self.skeleton = None
         node = scene.add(ob, *scene.object_halo_data[ob])
         if node and not node.invalid:
             self.node = node
@@ -1123,6 +1213,10 @@ class VirtualModel:
             if ob.type == 'ARMATURE':
                 if not scene.skeleton_node:
                     scene.skeleton_node = self.node
+
+    # def __del__(self):
+    #     if self.skeleton is not None:
+    #         del self.skeleton
             
 class VirtualScene:
     def __init__(self, asset_type: AssetType, depsgraph: bpy.types.Depsgraph, corinth: bool, tags_dir: Path, granny: Granny, export_settings, fps: int, animation_compression: str, rotation: float):
@@ -1171,6 +1265,7 @@ class VirtualScene:
         self.aim_yaw_matrix_inverse = IDENTITY_MATRIX
 
         self.rotation_matrix = Matrix.Rotation(rotation, 4, Vector((0, 0, 1)))
+        self.armature_matrix = IDENTITY_MATRIX
         
         # Create default material
         if corinth:
@@ -1269,6 +1364,22 @@ class VirtualScene:
             self.warnings.append(f"{ob.name}] has more than one material. Instanced Objects only support a single material. Ignoring materials after {ob.data.materials[0].name}")
 
         return False
+    
+    # def __del__(self):
+    #     for animation in self.animations:
+    #         del animation
+
+    #     for node in self.nodes.values():
+    #         del node
+
+    #     for mesh in self.meshes.values():
+    #         del mesh
+
+    #     for material in self.materials.values():
+    #         del material
+
+    #     for model in self.models:
+    #         del model
                 
 def has_armature_deform_mod(ob: bpy.types.Object):
     for mod in ob.modifiers:
