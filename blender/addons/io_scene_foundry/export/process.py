@@ -118,6 +118,7 @@ class ExportScene:
         
         self.forward = scene_settings.forward_direction
         self.scale = 1 if scene_settings.scale == 'max' else 0.03048
+        self.inverse_scale = 1 if scene_settings.scale == 'blender' else 1 / 0.03048
         self.mirror = export_settings.granny_mirror
         self.has_animations = False
         self.exported_actions = []
@@ -1005,6 +1006,9 @@ class ExportScene:
                 self.virtual_scene.add_model(ob)
                 utils.update_job_count(process, "", idx, num_no_parents)
             utils.update_job_count(process, "", num_no_parents, num_no_parents)
+
+        if self.asset_type == AssetType.SCENARIO:
+            self.virtual_scene.add_automatic_structure(self.default_permutation, self.inverse_scale)
             
     def _consolidate_rig(self):
         context = self.context

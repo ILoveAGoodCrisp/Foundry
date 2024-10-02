@@ -805,6 +805,7 @@ class VirtualNode:
         self.name: str = "object"
         self.matrix_world: Matrix = IDENTITY_MATRIX
         self.matrix_local: Matrix = IDENTITY_MATRIX
+        self.original = id.original
         self.mesh: VirtualMesh | None = None
         self.new_mesh = False
         self.skeleton: VirtualSkeleton = None
@@ -825,13 +826,13 @@ class VirtualNode:
     def _setup(self, id: bpy.types.Object | bpy.types.PoseBone, scene: 'VirtualScene', fp_defaults: dict, proxies: list, template_node: 'VirtualNode', bones: list[str], parent_matrix: Matrix):
         self.name = id.name
         if isinstance(id, bpy.types.Object):
-            self.selected = id.original.select_get()
+            self.selected = self.original.select_get()
             if template_node is None:
                 if id.type == 'ARMATURE' and not id.parent:
                     self.matrix_world = IDENTITY_MATRIX
                     self.matrix_local = IDENTITY_MATRIX
                 else:
-                    self.matrix_world = scene.rotation_matrix @ id.original.matrix_world
+                    self.matrix_world = scene.rotation_matrix @ self.original.matrix_world
                     self.matrix_local = parent_matrix @ self.matrix_world
             else:
                 self.matrix_world = template_node.matrix_world.copy()
@@ -843,7 +844,6 @@ class VirtualNode:
                     
                 if existing_mesh:
                     self.mesh = existing_mesh
-                    
                 else:
                     vertex_weighted = id.vertex_groups and id.parent and id.parent.type == 'ARMATURE' and id.parent_type != "BONE" and has_armature_deform_mod(id)
                     mesh = VirtualMesh(vertex_weighted, scene, default_bone_bindings, id, fp_defaults, is_rendered(self.props), proxies, self.props, negative_scaling, bones)
@@ -1201,11 +1201,14 @@ class VirtualSkeleton:
     
 class VirtualModel:
     '''Describes a blender object which has no parent'''
-    def __init__(self, ob: bpy.types.Object, scene: 'VirtualScene'):
+    def __init__(self, ob: bpy.types.Object, scene: 'VirtualScene', props=None, region=None, permutation=None):
         self.name: str = ob.name
         self.node = None
         self.skeleton = None
-        node = scene.add(ob, *scene.object_halo_data[ob])
+        if props is None:
+            node = scene.add(ob, *scene.object_halo_data[ob])
+        else:
+            node = scene.add(ob, props, region, permutation)
         if node and not node.invalid:
             self.node = node
             self.skeleton: VirtualSkeleton = VirtualSkeleton(ob, scene, self.node)
@@ -1290,7 +1293,7 @@ class VirtualScene:
         pass
         
         
-    def add(self, id: bpy.types.Object, props: dict, region: str = None, permutation: str = None, fp_defaults: dict = None, proxies: list = None, template_node: VirtualNode = None, bones: list[str] = [], parent_matrix: Matrix = IDENTITY_MATRIX) -> VirtualNode:
+    def add(self, id: bpy.types.Object, props: dict, region: str = None, permutation: str = None, fp_defaults: dict = None, proxies: list = [], template_node: VirtualNode = None, bones: list[str] = [], parent_matrix: Matrix = IDENTITY_MATRIX) -> VirtualNode:
         '''Creates a new node with the given parameters and appends it to the virtual scene'''
         node = VirtualNode(id, props, region, permutation, fp_defaults, self, proxies, template_node, bones, parent_matrix)
         if not node.invalid:
@@ -1344,10 +1347,76 @@ class VirtualScene:
                 node.mesh and 
                 node.props.get("bungie_mesh_type") == "_connected_geometry_mesh_type_poop")
         
-    def add_automatic_structure(self):
+    def add_automatic_structure(self, default_permutation, scalar):
+        def wrap_bounding_box(nodes, padding):
+            min_x, min_y, min_z, max_x, max_y, max_z = (i * scalar for i in (-10, -10, 0, 10, 10, 30))
+            for node in nodes:
+                if node.original.type == 'MESH':
+                    bbox = node.original.bound_box
+                    for co in bbox:
+                        bounds = node.matrix_world @ Vector((co[0], co[1], co[2]))
+                        min_x = min(min_x, bounds.x - padding)
+                        min_y = min(min_y, bounds.y - padding)
+                        min_z = min(min_z, bounds.z - padding)
+                        max_x = max(max_x, bounds.x + padding)
+                        max_y = max(max_y, bounds.y + padding)
+                        max_z = max(max_z, bounds.z + padding)
+                else:
+                    bounds = node.matrix_world.to_translation()
+                    min_x = min(min_x, bounds.x - padding)
+                    min_y = min(min_y, bounds.y - padding)
+                    min_z = min(min_z, bounds.z - padding)
+                    max_x = max(max_x, bounds.x + padding)
+                    max_y = max(max_y, bounds.y + padding)
+                    max_z = max(max_z, bounds.z + padding)
+        
+            # Create the box with bmesh
+            bm = bmesh.new()
+            xyz = bm.verts.new(Vector((min_x, min_y, min_z)))
+            xyz = bm.verts.new(Vector((min_x, min_y, min_z)))
+            xYz = bm.verts.new(Vector((min_x, max_y, min_z)))
+            xYZ = bm.verts.new(Vector((min_x, max_y, max_z)))
+            xyZ = bm.verts.new(Vector((min_x, min_y, max_z)))
+            
+            Xyz = bm.verts.new(Vector((max_x, min_y, min_z)))
+            XYz = bm.verts.new(Vector((max_x, max_y, min_z)))
+            XYZ = bm.verts.new(Vector((max_x, max_y, max_z)))
+            XyZ = bm.verts.new(Vector((max_x, min_y, max_z)))
+            
+            bm.faces.new([xyz, xYz, xYZ, xyZ]) # Create the minimum x face
+            bm.faces.new([Xyz, XYz, XYZ, XyZ]) # Create the maximum x face
+            
+            bm.faces.new([xyz, Xyz, XyZ, xyZ]) # Create the minimum y face
+            bm.faces.new([xYz, xYZ, XYZ, XYz]) # Create the maximum y face
+            
+            bm.faces.new([xyz, xYz, XYz, Xyz]) # Create the minimum z face
+            bm.faces.new([xyZ, xYZ, XYZ, XyZ]) # Create the maximum z face
+            
+            # Calculate consistent faces
+            bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+            # Flip em since bmesh by default calculates outside normals
+            bmesh.ops.reverse_faces(bm, faces=bm.faces)
+            bmesh.ops.triangulate(bm, faces=bm.faces, quad_method='FIXED')
+            
+            # Create the mesh and object
+            structure_mesh = bpy.data.meshes.new('autogenerated_structure')
+            bm.to_mesh(structure_mesh)
+            structure_ob = bpy.data.objects.new('autogenerated_structure', structure_mesh)
+            props = {}
+            props["bungie_object_type"] = '_connected_geometry_object_type_mesh'
+            props["bungie_mesh_type"] = '_connected_geometry_mesh_type_default'
+            props["bungie_face_type"] = '_connected_geometry_face_type_sky'
+            
+            return structure_ob, props
+        
+
         if self.structure == self.bsps_with_structure:
             return
         no_bsp_structure = self.structure.difference(self.bsps_with_structure)
+        print(f"--- Adding Structure Geometry For BSPs: {[bsp for bsp in no_bsp_structure]}")
+        for bsp in no_bsp_structure:
+            ob, props = wrap_bounding_box([node for node in self.nodes.values() if node.region == bsp], 0 if self.corinth else 1 * scalar)
+            self.models[ob.name] = VirtualModel(ob, self, props, bsp, default_permutation)
 
     def supports_multiple_materials(self, ob: bpy.types.Object, props: dict) -> bool:
         mesh_type = props.get("bungie_mesh_type")
