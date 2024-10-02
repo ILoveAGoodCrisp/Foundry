@@ -642,8 +642,7 @@ class VirtualMesh:
         num_vertices = len(mesh.vertices)
         num_polygons = len(mesh.polygons)
         
-        self.normals = np.empty((num_loops, 3), dtype=np.single)
-        mesh.corner_normals.foreach_get("vector", self.normals.ravel())
+        self.normals = np.zeros((num_loops, 3), dtype=np.single)
         
         sorted_order = None
         
@@ -713,6 +712,7 @@ class VirtualMesh:
         
         if render_mesh:
             # We only care about writing this data if the in game mesh will have a render definition
+            mesh.corner_normals.foreach_get("vector", self.normals.ravel())
             for idx, layer in enumerate(mesh.uv_layers):
                 if len(self.texcoords) >= 4:
                     break
