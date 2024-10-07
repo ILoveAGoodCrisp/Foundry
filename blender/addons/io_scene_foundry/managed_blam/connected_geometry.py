@@ -1120,25 +1120,26 @@ class BSP:
         for face in bm.faces:
             key = tuple(sorted(v.index for v in face.verts))
             if key in face_map:
-                duplicates.append(face)
-                make_two_sided.append(face_map[key])
+                duplicates.append(face.index)
+                make_two_sided.append(face_map[key].index)
             else:
                 face_map[key] = face
-        
-            bmesh.ops.delete(bm, geom=duplicates, context='FACES')
-            bm.faces.ensure_lookup_table()
         
         if make_two_sided:
             if len(bm.faces) == len(make_two_sided):
                 mesh.nwo.face_two_sided = True
             else:
+                bm.faces.ensure_lookup_table()
                 layer_two_sided = utils.add_face_layer(bm, mesh, "two_sided", True)
-                for face in make_two_sided:
-                    face[layer_two_sided] = 1
-            
+                for idx in make_two_sided:
+                    bm.faces[idx][layer_two_sided] = 1
+        
+        if duplicates:
+            bmesh.ops.delete(bm, geom=[bm.faces[i] for i in  duplicates], context='FACES')
         # Remove any degenerate faces
         bmesh.ops.dissolve_degenerate(bm, dist=0.1, edges=bm.edges)
         bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.1)
+        bm.faces.ensure_lookup_table()
         # bmesh.ops.triangulate(bm, faces=bm.faces)
         # edges_to_dissolve = set()
         # for edge in bm.edges:
