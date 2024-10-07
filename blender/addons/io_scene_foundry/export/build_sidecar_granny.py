@@ -47,7 +47,8 @@ class Sidecar:
         self.asset_type = asset_type
         self.sidecar_path = sidecar_path
         self.sidecar_path_full = sidecar_path_full
-        self.relative_blend = str(Path(bpy.data.filepath).relative_to(get_data_path()))
+        self.relative_blend = bpy.data.filepath
+        self.relative_blend = str(Path(bpy.data.filepath).relative_to(get_data_path())) if Path(bpy.data.filepath).is_relative_to(get_data_path()) else bpy.data.filepath
         self.external_blend = self.relative_blend == bpy.data.filepath
         self.scene_settings = scene_settings
         self.corinth = corinth
