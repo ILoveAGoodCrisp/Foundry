@@ -249,6 +249,7 @@ class NWO_MeshToMarker(bpy.types.Operator):
             if self.maintain_mesh and ob.instance_type == 'COLLECTION':
                 ob.empty_display_type = 'PLAIN_AXES'
                 ob.empty_display_size = 0.01
+                ob.nwo.marker_instance = True
         
         bpy.ops.object.delete()
         

@@ -78,7 +78,7 @@ class ExportTagType(Enum):
         
 class ExportScene:
     '''Scene to hold all the export objects'''
-    def __init__(self, context, sidecar_path_full, sidecar_path, asset_type, asset_name, asset_path, corinth, export_settings, scene_settings):
+    def __init__(self, context: bpy.types.Context, sidecar_path_full, sidecar_path, asset_type, asset_name, asset_path, corinth, export_settings, scene_settings):
         self.context = context
         self.asset_type = AssetType[asset_type.upper()]
         self.supports_bsp = self.asset_type.supports_bsp
@@ -126,6 +126,7 @@ class ExportScene:
         self.exported_actions = []
         self.setup_scenario = False
         self.lights = []
+        self.temp_objects = {}
         
     def ready_scene(self):
         print("\n\nProcessing Scene")
@@ -144,15 +145,37 @@ class ExportScene:
             self.animated_objects = utils.reset_to_basis(self.context)
         
     def get_initial_export_objects(self):
+        self.temp_objects = set()
         self.main_armature = self.context.scene.nwo.main_armature
         self.support_armatures = {}
+        self.export_objects = []
+        
+        instancers = [ob for ob in self.context.view_layer.objects if ob.is_instancer and ob.instance_collection and ob.instance_collection.objects and not ob.nwo.marker_instance]
+        skip_obs = set()
+        if instancers:
+            for ob in instancers:
+                ob: bpy.types.Object
+                skip_obs.add(ob)
+                users_collection = ob.users_collection
+                for source_ob in ob.instance_collection.objects:
+                    source_ob: bpy.types.Object
+                    temp_ob = source_ob.copy()
+                    temp_ob.matrix_world = ob.matrix_world
+                    for collection in users_collection:
+                        collection.objects.link(temp_ob)
+                    self.temp_objects.add(temp_ob)
+                    
+            # self.context.view_layer.update()
+            
         if self.main_armature:
             self.support_armatures = {self.context.scene.nwo.support_armature_a, self.context.scene.nwo.support_armature_b, self.context.scene.nwo.support_armature_c}
+            
         self.depsgraph = self.context.evaluated_depsgraph_get()
+        
         if self.asset_type == AssetType.ANIMATION and not self.export_settings.granny_animations_mesh:
-            self.export_objects = {ob.evaluated_get(self.depsgraph) for ob in self.context.view_layer.objects if ob.nwo.export_this and (ob.type == "ARMATURE" and ob not in self.support_armatures)}
-        else:
-            self.export_objects = {ob.evaluated_get(self.depsgraph) for ob in self.context.view_layer.objects if ob.nwo.export_this and ob.type in VALID_OBJECTS and ob not in self.support_armatures}
+            self.export_objects = [ob.evaluated_get(self.depsgraph) for ob in self.context.view_layer.objects if ob.nwo.export_this and (ob.type == "ARMATURE" and ob not in self.support_armatures) and ob not in skip_obs]
+        else:    
+            self.export_objects = [ob.evaluated_get(self.depsgraph) for ob in self.context.view_layer.objects if ob.nwo.export_this and ob.type in VALID_OBJECTS and ob not in self.support_armatures and ob not in skip_obs]
         
         self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir, self.granny, self.export_settings, self.context.scene.render.fps, self.scene_settings.default_animation_compression, utils.blender_halo_rotation_diff(self.forward))
         
@@ -250,6 +273,7 @@ class ExportScene:
         with utils.Spinner():
             utils.update_job_count(process, "", 0, num_export_objects)
             for idx, ob in enumerate(self.export_objects):
+                ob: bpy.types.Object
                 if ob.type == 'ARMATURE':
                     self.armature_poses[ob.original.data] = ob.original.data.pose_position
                     ob.original.data.pose_position = 'REST'
@@ -312,7 +336,7 @@ class ExportScene:
         
         props["bungie_object_type"] = ObjectType[object_type[32:]].value
         # props["bungie_object_type"] = object_type
-        is_mesh = ob.type == 'MESH'
+        is_mesh = ob.type in VALID_MESHES or ob.is_instancer
         instanced_object = (object_type == '_connected_geometry_object_type_mesh' and nwo.mesh_type == '_connected_geometry_mesh_type_object_instance')
         tmp_region, tmp_permutation = nwo.region_name, nwo.permutation_name
         collection = bpy.data.collections.get(ob.nwo.export_collection)
@@ -1322,6 +1346,9 @@ class ExportScene:
         self.sidecar.build()
         
     def restore_scene(self):
+        for ob in self.temp_objects:
+            bpy.data.objects.remove(ob)
+        
         for armature, pose in self.armature_poses.items():
             armature.pose_position = pose
             
