@@ -1534,7 +1534,7 @@ class Mesh:
         
         return Vector((u, 1-v)) # 1-v to correct UV for Blender
     
-    def create(self, render_model, temp_meshes: TagFieldBlock, nodes=[], parent: bpy.types.Object | None = None, instances: list['InstancePlacement'] = [], name="blam"):
+    def create(self, render_model, temp_meshes: TagFieldBlock, nodes=[], parent: bpy.types.Object | None = None, instances: list['InstancePlacement'] = [], name="blam", is_io=False):
         if not self.valid:
             return [bpy.data.objects.new(name, None)]
 
@@ -1564,7 +1564,7 @@ class Mesh:
         if instances:
             for instance in instances:
                 subpart = self.subparts[instance.index]
-                ob = self._create_mesh(instance.name, parent, nodes, subpart, instance.bone, instance.matrix)
+                ob = self._create_mesh(instance.name, parent, nodes, subpart, instance.bone, instance.matrix, is_io)
                 ob.scale = Vector.Fill(3, instance.scale)
                 instance.ob = ob
                 objects.append(ob)
@@ -1575,7 +1575,7 @@ class Mesh:
 
         return objects
 
-    def _create_mesh(self, name, parent, nodes, subpart: MeshSubpart | None, parent_bone=None, local_matrix=None):
+    def _create_mesh(self, name, parent, nodes, subpart: MeshSubpart | None, parent_bone=None, local_matrix=None, is_io=False):
         matrix = local_matrix or (parent.matrix_world if parent else Matrix.Identity(4))
 
         indices = [t.indices for t in self.tris if not subpart or t.subpart == subpart]
@@ -1673,7 +1673,7 @@ class Mesh:
                 subpart.create(ob, self.tris, self.face_transparent, self.face_draw_distance, self.face_tesselation, self.face_no_shadow, self.face_lightmap_only, water_surface_parts)
 
 
-        self._set_two_sided(mesh, bool(subpart))
+        self._set_two_sided(mesh, is_io)
         utils.loop_normal_magic(mesh)
         
         if mesh.nwo.face_props:
@@ -1712,6 +1712,7 @@ class Mesh:
             if len(bm.faces) == len(to_remove):
                 mesh.nwo.face_two_sided = True
             elif is_io:
+                print(mesh)
                 return bm.free()
             else:
                 layer = utils.add_face_layer(bm, mesh, "two_sided", True)
