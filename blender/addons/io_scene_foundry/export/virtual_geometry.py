@@ -55,18 +55,18 @@ logging.basicConfig(level=logging.DEBUG)
 #                                     (0.0, 0.0, 0.0, 1.0)))
 
 DESIGN_MESH_TYPES = {
-    "_connected_geometry_mesh_type_planar_fog_volume",
-    "_connected_geometry_mesh_type_boundary_surface",
-    "_connected_geometry_mesh_type_water_physics_volume",
-    "_connected_geometry_mesh_type_poop_rain_blocker",
-    "_connected_geometry_mesh_type_poop_vertical_rain_sheet",
+    MeshType.planar_fog_volume.value,
+    MeshType.boundary_surface.value,
+    MeshType.water_physics.value,
+    MeshType.poop_rain_blocker.value,
+    MeshType.poop_verticle_rain_sheet.value
 }
 
 FACE_PROP_TYPES = {
-    "_connected_geometry_mesh_type_default",
-    "_connected_geometry_mesh_type_poop",
-    "_connected_geometry_mesh_type_collision",
-    "_connected_geometry_mesh_type_poop_collision",
+    MeshType.default.value,
+    MeshType.poop.value,
+    MeshType.collision.value,
+    MeshType.poop_collision.value,
 }
 
 def read_frame_id_list() -> list:
@@ -609,9 +609,7 @@ class VirtualMesh:
                 if vg_bone_index is not None:
                     vgroup_remap[vg_bone_index] = idx
 
-            for loop_index, loop in enumerate(mesh.loops):
-                vertex_index = loop.vertex_index
-                vertex = mesh.vertices[vertex_index]
+            for idx, vertex in enumerate(mesh.vertices):
                 groups = vertex.groups
 
                 if groups:
@@ -631,8 +629,8 @@ class VirtualMesh:
 
                     top_bone_indices[top_weights == 0] = 0
                     
-                    bone_weights[loop_index] = np.pad((top_weights * 255), (0, 4 - len(top_weights)))
-                    bone_indices[loop_index] = np.pad(top_bone_indices, (0, 4 - len(top_bone_indices)))
+                    bone_weights[idx] = np.pad((top_weights * 255), (0, 4 - len(top_weights)))
+                    bone_indices[idx] = np.pad(top_bone_indices, (0, 4 - len(top_bone_indices)))
 
                     unique_bone_indices.update(top_bone_indices)
                     
@@ -646,8 +644,8 @@ class VirtualMesh:
 
             bone_indices = np.clip(mapping_array[bone_indices], 0, max_index - 1)
 
-            self.bone_weights = bone_weights.astype(np.byte)
-            self.bone_indices = bone_indices.astype(np.byte)
+            self.bone_weights = bone_weights.astype(np.byte)[loop_vertex_indices]
+            self.bone_indices = bone_indices.astype(np.byte)[loop_vertex_indices]
         
         if render_mesh:
             # We only care about writing this data if the in game mesh will have a render definition
@@ -824,24 +822,6 @@ class VirtualNode:
                 self.granny_vertex_data.vertices = cast(vertex_array, POINTER(c_ubyte))
                 self.granny_vertex_data.vertex_count = self.mesh.num_vertices
                 self.granny_vertex_data = pointer(self.granny_vertex_data)   
-
-    # def __del__(self):
-    #     definition = self.granny_vertex_data.vertex_type
-    #     del definition.member_type
-    #     del definition.name
-    #     del definition.reference_type
-    #     del definition.array_width
-    #     del definition.extra
-    #     del definition.unused_or_ignored
-    #     del definition
-    #     del self.granny_vertex_data.vertex_count
-    #     del self.granny_vertex_data.vertices.contents
-    #     del self.granny_vertex_data.vertices
-    #     del self.granny_vertex_data.vertex_component_name_count
-    #     del self.granny_vertex_data.vertex_component_names.contents
-    #     del self.granny_vertex_data.vertex_component_names
-    #     del self.granny_vertex_data.vertex_annotation_set_count
-    #     del self.granny_vertex_data.vertex_annotation_sets
             
     def _set_group(self, scene: 'VirtualScene'):
         match scene.asset_type:
@@ -849,11 +829,11 @@ class VirtualNode:
                 mesh_type = self.props.get("bungie_mesh_type")
                 if mesh_type:
                     match mesh_type:
-                        case '_connected_geometry_mesh_type_default' | '_connected_geometry_mesh_type_object_instance':
+                        case MeshType.default.value | MeshType.object_instance.value:
                             self.tag_type = 'render'
-                        case '_connected_geometry_mesh_type_collision':
+                        case MeshType.collision.value:
                             self.tag_type = 'collision'
-                        case '_connected_geometry_mesh_type_physics':
+                        case MeshType.physics.value:
                             self.tag_type = 'physics'
                     
                     self.group = f'{self.tag_type}_{self.permutation}'
@@ -883,7 +863,7 @@ class VirtualNode:
                 else:
                     self.tag_type = 'structure'
                     scene.structure.add(self.region)
-                    if mesh_type == '_connected_geometry_mesh_type_default':
+                    if mesh_type == MeshType.default.value:
                         scene.bsps_with_structure.add(self.region)
                     
                 self.group = f'{self.tag_type}_{self.region}_{self.permutation}'

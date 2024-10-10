@@ -1009,7 +1009,7 @@ class ExportScene:
                     
     def create_virtual_tree(self):
         '''Creates a tree of object relations'''
-        process = "--- Building Geometry Tree"
+        process = "--- Building Models"
         num_no_parents = len(self.no_parent_objects)
         # Only need to transform scene for armatures
         # if self.scene_settings.forward_direction != 'x' and self.armature_poses:
