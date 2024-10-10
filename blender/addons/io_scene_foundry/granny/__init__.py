@@ -198,10 +198,8 @@ class Granny:
         granny_bone.parent_index = -1
         granny_bone.local_transform = granny_transform_default
         granny_bone.inverse_world_4x4 = granny_inverse_transform_default
-        
-        props = Properties()
-        props.properties = export_info
-        props.create_properties(granny_bone)
+
+        create_extended_data(export_info, granny_bone)
         
         granny_skeleton.bone_count = 1
         granny_skeleton.bones = cast(bones, POINTER(GrannyBone))
@@ -233,7 +231,7 @@ class Granny:
 
     def _populate_mesh(self, granny_mesh, export_mesh: Mesh):
         granny_mesh.name = export_mesh.name
-        export_mesh.create_properties(granny_mesh)
+        create_extended_data(export_mesh.props, granny_mesh)
         granny_mesh.primary_vertex_data = export_mesh.primary_vertex_data
         granny_mesh.primary_topology = export_mesh.primary_topology
         

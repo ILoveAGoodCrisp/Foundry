@@ -42,13 +42,15 @@ class MeshType(BungieEnum):
     poop_physics = 6
     poop_marker = 7
     poop_rain_blocker = 8
-    poop_verticle_rain_shee = 9
+    poop_verticle_rain_sheet = 9
     decorator = 10
     object_instance = 11
     physics = 12
     portal = 13
     seam = 14
     planar_fog_volume = 15
+    cookie_cutter = 16
+    water_surface = 17
     
 class MarkerType(BungieEnum): ...
 
@@ -100,8 +102,8 @@ class ExportInfo:
         self.export_date = time.strftime("%Y-%m-%d")
         self.export_time = time.strftime("%H:%M:%S")
         
-        # self.object_type = ObjectType
-        # self.mesh_type = MeshType
+        self.object_type = ObjectType
+        self.mesh_type = MeshType
         self.face_type = FaceType
         self.face_mode = FaceMode
         self.face_sides = FaceSides

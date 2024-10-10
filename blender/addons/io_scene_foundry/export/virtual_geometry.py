@@ -9,9 +9,11 @@ from pathlib import Path
 import random
 import bmesh
 import bpy
-from mathutils import Euler, Matrix, Quaternion, Vector
+from mathutils import Matrix, Vector
 import numpy as np
 import clr
+
+from ..granny.export_classes import create_extended_data
 
 from ..managed_blam.material import MaterialTag
 
@@ -20,7 +22,7 @@ from ..managed_blam.shader import ShaderDecalTag, ShaderTag
 from ..granny.formats import GrannyAnimation, GrannyBone, GrannyCompressCurveParameters, GrannyCurve2, GrannyCurveDataDaKeyframes32f, GrannyDataTypeDefinition, GrannyMaterial, GrannyMaterialMap, GrannyMemberType, GrannyTrackGroup, GrannyTransform, GrannyTransformTrack, GrannyTriAnnotationSet, GrannyTriMaterialGroup, GrannyTriTopology, GrannyVertexData
 from ..granny import Granny
 
-from .export_info import ExportInfo, FaceDrawDistance, FaceMode, FaceSides, FaceType, LightmapType
+from .export_info import ExportInfo, FaceDrawDistance, FaceMode, FaceSides, FaceType, LightmapType, MeshType, ObjectType
 
 from ..props.mesh import NWO_FaceProperties_ListItems, NWO_MeshPropertiesGroup
 
@@ -28,7 +30,7 @@ from .. import utils
 
 from ..tools.asset_types import AssetType
 
-from ..constants import IDENTITY_MATRIX, RENDER_MESH_TYPES, VALID_MESHES
+from ..constants import IDENTITY_MATRIX, VALID_MESHES
 NORMAL_FIX_MATRIX = Matrix(((1, 0, 0), (0, -1, 0), (0, 0, -1)))
 logging.basicConfig(level=logging.DEBUG)
 
@@ -919,15 +921,15 @@ class VirtualNode:
                     
                 else:
                     object_type = self.props.get("bungie_object_type")
-                    if not object_type:
+                    if object_type is None:
                         self.invalid = True
                         scene.warnings.append(f"Object [{self.name}] has no Halo object type")
                         return
                     
                     match object_type:
-                        case '_connected_geometry_object_type_marker':
+                        case ObjectType.marker.value:
                             self.tag_type = 'markers'
-                        case '_connected_geometry_object_type_frame':
+                        case ObjectType.frame.value:
                             self.tag_type = 'skeleton'
                             
                     self.group = self.tag_type
@@ -971,34 +973,6 @@ def granny_transform_parts(matrix_local: Matrix):
     scale_shear = (c_float * 3 * 3)((scale[0], 0.0, 0.0), (0.0, scale[1], 0.0), (0.0, 0.0, scale[2]))
     
     return position, orientation, scale_shear
-
-        
-def create_extended_data(props, granny):
-    granny_props = utils.get_halo_props_for_granny(props)
-    if not granny_props: return
-    
-    ExtendedDataType = (GrannyDataTypeDefinition * (len(granny_props) + 1))()
-    
-    for i, key in enumerate(granny_props):
-        ExtendedDataType[i] = GrannyDataTypeDefinition(
-            member_type=8,
-            name=key.encode()
-        )
-    
-    ExtendedDataType[-1] = GrannyDataTypeDefinition(member_type=0)
-    data = extended_data_create(granny_props)
-
-    granny.extended_data.object = cast(pointer(data), c_void_p)
-    granny.extended_data.type = ExtendedDataType
-    
-def extended_data_create(properties):
-    fields = [(key, c_char_p) for key in properties.keys()]
-
-    class ExtendedData(Structure):
-        _pack_ = 1
-        _fields_ = fields
-    
-    return ExtendedData(**properties)
     
 class VirtualBone:
     '''Describes an blender object/bone which is a child'''
@@ -1012,10 +986,10 @@ class VirtualBone:
         self.granny_bone = GrannyBone()
         
     def create_bone_props(self, bone, frame_ids):
-        self.props["bungie_frame_ID1"] = frame_ids[0]
-        self.props["bungie_frame_ID2"] = frame_ids[1]
-        self.props["bungie_object_animates"] = "1"
-        self.props["bungie_object_type"] = "_connected_geometry_object_type_frame"
+        self.props["bungie_frame_ID1"] = int(frame_ids[0])
+        self.props["bungie_frame_ID2"] = int(frame_ids[1])
+        self.props["bungie_object_animates"] = 1
+        self.props["bungie_object_type"] = ObjectType.frame.value
         
     def to_granny_data(self):
         self.granny_bone.name = self.name.encode()
@@ -1048,10 +1022,10 @@ class VirtualSkeleton:
         if ob.type == 'ARMATURE':
             scene.armature_matrix = ob.matrix_world.copy()
             own_bone.props = {
-                    "bungie_frame_world": "1",
-                    "bungie_frame_ID1": "8078",
-                    "bungie_frame_ID2": "378163771",
-                    "bungie_object_type": "_connected_geometry_object_type_frame",
+                    "bungie_frame_world": 1,
+                    "bungie_frame_ID1": 8078,
+                    "bungie_frame_ID2": 378163771,
+                    "bungie_object_type": ObjectType.frame.value,
                 }
         elif own_bone.node and not own_bone.node.mesh:
             own_bone.props = own_bone.node.props
@@ -1441,9 +1415,9 @@ class VirtualScene:
             bm.to_mesh(structure_mesh)
             structure_ob = bpy.data.objects.new('autogenerated_structure', structure_mesh)
             props = {}
-            props["bungie_object_type"] = '_connected_geometry_object_type_mesh'
-            props["bungie_mesh_type"] = '_connected_geometry_mesh_type_default'
-            props["bungie_face_type"] = '_connected_geometry_face_type_sky'
+            props["bungie_object_type"] = ObjectType.mesh.value
+            props["bungie_mesh_type"] = MeshType.default.value
+            props["bungie_face_type"] = FaceType.sky.value
             
             return structure_ob, props
         
@@ -1459,11 +1433,11 @@ class VirtualScene:
     def supports_multiple_materials(self, ob: bpy.types.Object, props: dict) -> bool:
         mesh_type = props.get("bungie_mesh_type")
         if mesh_type in {
-            "_connected_geometry_mesh_type_default",
-            "_connected_geometry_mesh_type_poop",
-            "_connected_geometry_mesh_type_poop_collision",
-            "_connected_geometry_mesh_type_poop_physics",
-            "_connected_geometry_mesh_type_water_surface",
+            MeshType.default.value,
+            MeshType.poop.value,
+            MeshType.poop_collision.value,
+            MeshType.poop_physics.value,
+            MeshType.water_surface.value,
         }:
             return True
         
@@ -1700,7 +1674,7 @@ def is_rendered(props: dict) -> bool:
         # returning true since the absence of a mesh type means the game will use the default mesh type - _connected_geometry_mesh_type_default
         return True 
     
-    return mesh_type in RENDER_MESH_TYPES
+    return mesh_type in {MeshType.default.value, MeshType.poop.value, MeshType.object_instance.value, MeshType.water_surface.value}
 
 def deep_copy_granny_tri_topology(original):
     copy = GrannyTriTopology()

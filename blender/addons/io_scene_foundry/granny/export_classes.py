@@ -7,7 +7,7 @@ import bpy
 from mathutils import Euler, Matrix, Quaternion, Vector
 import numpy as np
 
-from .formats import GrannyDataTypeDefinition, GrannyTransform
+from .formats import GrannyDataTypeDefinition, GrannyMemberType, GrannyTransform
 
 from .. import utils
 from ..export.export_info import *
@@ -50,43 +50,10 @@ def granny_transform_parts(matrix_local: Matrix):
     scale_shear = (c_float * 3 * 3)((scale[0], 0.0, 0.0), (0.0, scale[1], 0.0), (0.0, 0.0, scale[2]))
     
     return position, orientation, scale_shear
-    
-class Properties:
-    properties = {}
-    def __init__(self, virtual_id = None):
-        if virtual_id: self.properties = utils.get_halo_props_for_granny(virtual_id.props)
-        
-    def create_properties(self, granny):
-        
-        if not self.properties: return
-        
-        ExtendedDataType = (GrannyDataTypeDefinition * (len(self.properties) + 1))()
-        
-        for i, key in enumerate(self.properties):
-            ExtendedDataType[i] = GrannyDataTypeDefinition(
-                member_type=8,
-                name=key.encode()
-            )
-        
-        ExtendedDataType[-1] = GrannyDataTypeDefinition(member_type=0)
-        data = self._extended_data_create()
 
-        granny.extended_data.object = cast(pointer(data), c_void_p)
-        granny.extended_data.type = ExtendedDataType
-        
-    def _extended_data_create(self):
-        fields = [(key, c_char_p) for key in self.properties.keys()]
-
-        class ExtendedData(Structure):
-            _pack_ = 1
-            _fields_ = fields
-        
-        return ExtendedData(**self.properties)
-
-class Material(Properties):
+class Material():
     name: bytes
     def __init__(self, material):
-        super().__init__(material)
         self.name = material.name.encode()
         self.name_str = material.name
         self.granny = None
@@ -117,9 +84,8 @@ class BoneType(Enum):
     MESH = 2
     LIGHT = 3
     
-class Bone(Properties):
+class Bone():
     def __init__(self, bone):
-        super().__init__(bone)
         self.name = bone.name.encode()
         self.parent_index = bone.parent_index
         self.lod_error = 0.0
@@ -345,11 +311,11 @@ class BoneBinding:
     def __init__(self, name: str):
         self.name = name.encode()
     
-class Mesh(Properties):
+class Mesh():
     def __init__(self, node):
-        super().__init__(node)
         self.granny = None
         self.name = node.name.encode()
+        self.props = node.props
         mesh = node.mesh
         self.primary_vertex_data = node.granny_vertex_data
         self.primary_topology = node.mesh.granny_tri_topology
@@ -370,4 +336,58 @@ class Model:
         self.initial_placement = GrannyTransform(flags=7, position=position, orientation=orientation, scale_shear=scale_shear)
         self.mesh_bindings = mesh_binding_indexes
         
-        
+def create_extended_data(props, granny):
+    granny_props = utils.get_halo_props_for_granny(props)
+    if not granny_props: return
+    
+    ExtendedDataType = (GrannyDataTypeDefinition * (len(granny_props) + 1))()
+    
+    for i, (key, value) in enumerate(granny_props.items()):
+        if isinstance(value, int):
+            if value < 256:
+                mtype = GrannyMemberType.granny_uint8_member.value
+            else:
+                mtype = GrannyMemberType.granny_int32_member.value
+        elif isinstance(value, float):
+            mtype = GrannyMemberType.granny_real32_member.value
+        elif isinstance(value, bytes):
+            mtype = GrannyMemberType.granny_string_member.value
+        else:
+            mtype = GrannyMemberType.granny_real32_member.value
+                
+        ExtendedDataType[i] = GrannyDataTypeDefinition(
+            member_type=mtype,
+            name=key.encode()
+        )
+    
+    ExtendedDataType[-1] = GrannyDataTypeDefinition(member_type=0)
+    data = extended_data_create(granny_props)
+    granny.extended_data.object = cast(pointer(data), c_void_p)
+    granny.extended_data.type = ExtendedDataType
+    
+enums = {
+    "bungie_object_type",
+    "bungie_mesh_type",
+}
+    
+def extended_data_create(properties):
+    # fields = [(key, c_char_p) for key in properties.keys()]
+    fields = []
+    for key, value in properties.items():
+        if isinstance(value, int):
+            if value < 256:
+                fields.append((key, c_uint8))
+            else:
+                fields.append((key, c_int))
+        elif isinstance(value, float):
+            fields.append((key, c_float))
+        elif isinstance(value, bytes):
+            fields.append((key, c_char_p))
+        else:
+            fields.append((key, (c_float * len(value))))
+
+    class ExtendedData(Structure):
+        _pack_ = 1
+        _fields_ = fields
+    
+    return ExtendedData(**properties)

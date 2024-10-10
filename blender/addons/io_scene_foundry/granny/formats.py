@@ -105,7 +105,7 @@ class GrannyVariant(Structure):
     _pack_ = 1
     _fields_ = [
                 ('type',POINTER(GrannyDataTypeDefinition)),
-                ('object',c_void_p)]
+                ('object', c_void_p)]
 
 class GrannyFileArtToolInfo(Structure):
     _pack_ = 1
