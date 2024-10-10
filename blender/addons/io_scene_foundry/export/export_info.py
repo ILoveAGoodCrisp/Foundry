@@ -51,7 +51,7 @@ class MeshType(BungieEnum):
     planar_fog_volume = 15
     cookie_cutter = 16
     water_surface = 17
-    water_physics = 18
+    water_physics_volume = 18
     
 class MarkerType(BungieEnum): ...
 

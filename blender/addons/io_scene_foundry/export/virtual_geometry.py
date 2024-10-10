@@ -57,7 +57,7 @@ logging.basicConfig(level=logging.DEBUG)
 DESIGN_MESH_TYPES = {
     MeshType.planar_fog_volume.value,
     MeshType.boundary_surface.value,
-    MeshType.water_physics.value,
+    MeshType.water_physics_volume.value,
     MeshType.poop_rain_blocker.value,
     MeshType.poop_verticle_rain_sheet.value
 }
