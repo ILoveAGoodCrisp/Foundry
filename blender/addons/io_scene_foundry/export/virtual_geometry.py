@@ -445,69 +445,6 @@ class VirtualMesh:
                 self.to_granny_data(scene)
                 if negative_scaling:
                     scene.granny.invert_tri_topology_winding(self.granny_tri_topology)
-            
-        del self.positions
-        del self.normals
-        del self.bone_weights
-        del self.bone_indices
-        del self.texcoords
-        del self.lighting_texcoords
-        del self.vertex_colors
-        del self.indices
-
-    # def __del__(self):
-    #     del self.granny_tri_topology.group_count
-    #     for group in self.granny_tri_topology.groups.contents:
-    #         del group.material_index
-    #         del group.tri_first
-    #         del group.tri_count
-    #         del group
-            
-    #     del self.granny_tri_topology.groups
-    #     del self.granny_tri_topology.index_count
-    #     for index in self.granny_tri_topology.indices.contents:
-    #         del index
-    #     del self.granny_tri_topology.indices
-    #     del self.granny_tri_topology.index16_count
-    #     for index in self.granny_tri_topology.indices16.contents:
-    #         del index
-    #     del self.granny_tri_topology.vertex_to_vertex_count
-    #     del self.granny_tri_topology.vertex_to_vertex_map
-    #     del self.granny_tri_topology.vertex_to_triangle_count
-    #     del self.granny_tri_topology.vertex_to_triangle_map
-    #     del self.granny_tri_topology.side_to_neighbor_count
-    #     del self.granny_tri_topology.side_to_neighbor_map
-    #     del self.granny_tri_topology.bones_for_triangle_count
-    #     del self.granny_tri_topology.bones_for_triangle
-    #     del self.granny_tri_topology.triangle_to_bone_count
-    #     del self.granny_tri_topology.triangle_to_bone_indices
-    #     del self.granny_tri_topology.tri_annotation_set_count
-    #     for annotation_set in self.granny_tri_topology.tri_annotation_sets:
-    #         del annotation_set.name
-    #         definition = annotation_set.tri_annotation_type.contents
-    #         del definition.member_type
-    #         del definition.name
-    #         del definition.reference_type
-    #         del definition.array_width
-    #         del definition.extra
-    #         del definition.unused_or_ignored
-    #         del definition
-    #         del annotation_set.tri_annotation_type
-    #         del annotation_set.tri_annotation_count
-    #         for tri_anno in annotation_set.contents:
-    #             del tri_anno
-    #         del annotation_set.tri_annotations
-    #         del annotation_set.indices_map_from_tri_to_annotation
-    #         del annotation_set.tri_annotation_index_count
-    #         del annotation_set.tri_annotation_indices
-    #         del annotation_set
-
-    #     del self.granny_tri_topology
-
-    #     del self.vertex_array
-    
-    
-    
         
     def to_granny_data(self, scene: 'VirtualScene'):
         self._granny_tri_topology(scene)
@@ -743,10 +680,12 @@ class VirtualMesh:
 
         # Remove duplicate vertex data
         data = [self.positions, self.normals]
-        # if self.texcoords is not None:
-        #     data.extend(self.texcoords)
-        # if self.vertex_colors is not None:
-        #     data.extend(self.vertex_colors)
+        if self.texcoords is not None:
+            data.extend(self.texcoords)
+        if self.lighting_texcoords is not None:
+            data.append(self.lighting_texcoords)
+        if self.vertex_colors is not None:
+            data.extend(self.vertex_colors)
 
         loop_data = np.hstack(data)
 
