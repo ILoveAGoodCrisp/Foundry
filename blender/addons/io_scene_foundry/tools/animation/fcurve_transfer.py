@@ -82,7 +82,7 @@ class NWO_OT_FcurveTransfer(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        context.object and context.object.type == 'ARMATURE'
+        return context.object and context.object.type == 'ARMATURE'
     
     all_animations: bpy.props.BoolProperty(
         name="All Animations",
