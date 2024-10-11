@@ -295,9 +295,10 @@ class ExportScene:
             if ob is not None:
                 evaluated_support_armatures.add(ob.evaluated_get(self.depsgraph))
         
-        if self.asset_type in {AssetType.MODEL, AssetType.ANIMATION} and self.scene_settings.main_armature and any((self.scene_settings.support_armature_a, self.scene_settings.support_armature_b, self.scene_settings.support_armature_c)):
-            pass # TODO Implement non-destructive rig consolidation in virtual_geometry
-            # self._consolidate_rig()
+        armature = None
+        if self.asset_type in {AssetType.MODEL, AssetType.ANIMATION}:
+            armature = utils.get_rig(self.context)
+                
         
         with utils.Spinner():
             utils.update_job_count(process, "", 0, num_export_objects)
@@ -319,11 +320,13 @@ class ExportScene:
                 props, region, permutation, fp_defaults, mesh_props = result
                 parent = ob.parent
                 proxies = tuple()
-                if parent:
+                if parent or (armature and ob.type != "ARMATURE"):
                     if parent in evaluated_support_armatures:
                         object_parent_dict[ob] = self.main_armature.evaluated_get(self.depsgraph)
+                    elif not parent:
+                        object_parent_dict[ob] = armature.evaluated_get(self.depsgraph)
                     else:
-                        object_parent_dict[ob] = parent
+                        object_parent_dict[ob] = parent.evaluated_get(self.depsgraph)
                 else:
                     self.no_parent_objects.append(ob)
                     
