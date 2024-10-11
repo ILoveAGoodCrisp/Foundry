@@ -207,8 +207,8 @@ class ExportScene:
             if mesh_props is None:
                 fp_defaults, mesh_props = self._setup_mesh_level_props(proxy_collision, "default", {})
                 # Collision proxies must not be breakable, else tool will crash
-                if mesh_props.get("bungie_face_mode") == "_connected_geometry_face_mode_breakable":
-                    mesh_props["bungie_face_mode"] = "_connected_geometry_face_mode_normal"
+                if mesh_props.get("bungie_face_mode") == FaceMode.breakable.value:
+                    mesh_props["bungie_face_mode"] = FaceMode.normal.value
                 if fp_defaults.get("bungie_face_mode") == FaceMode.breakable.value:
                     fp_defaults["bungie_face_mode"] = FaceMode.normal.value
                 self.processed_meshes[proxy_collision.data] = (fp_defaults, mesh_props)
@@ -300,8 +300,8 @@ class ExportScene:
                     self.ob_halo_data, proxies, has_collision_proxy = self.create_instance_proxies(ob, self.ob_halo_data, region, permutation)
                     if has_collision_proxy:
                         current_face_mode = mesh_props.get("bungie_face_mode")
-                        if not current_face_mode or current_face_mode not in {'_connected_geometry_face_mode_render_only', '_connected_geometry_face_mode_lightmap_only', '_connected_geometry_face_mode_shadow_only'}:
-                            mesh_props["bungie_face_mode"] = '_connected_geometry_face_mode_render_only'
+                        if not current_face_mode or current_face_mode not in {FaceMode.render_only.value, FaceMode.lightmap_only.value, FaceMode.shadow_only.value}:
+                            mesh_props["bungie_face_mode"] = FaceMode.render_only.value
                 
                 props.update(mesh_props)
                 self.ob_halo_data[ob] = (props, region, permutation, fp_defaults, proxies)
@@ -433,7 +433,7 @@ class ExportScene:
                 props["bungie_mesh_water_volume_fog_color"] = utils.color_argb_str(nwo.water_volume_fog_color)
             
         elif mesh_type in ("_connected_geometry_mesh_type_poop_vertical_rain_sheet", "_connected_geometry_mesh_type_poop_rain_blocker"):
-            mesh_props["bungie_face_mode"] = '_connected_geometry_face_mode_render_only'
+            mesh_props["bungie_face_mode"] = FaceMode.render_only.value
             
         elif mesh_type == "_connected_geometry_mesh_type_planar_fog_volume":
             props["bungie_mesh_fog_appearance_tag"] = utils.relative_path(nwo.fog_appearance_tag)
@@ -459,9 +459,9 @@ class ExportScene:
             mesh_type = "_connected_geometry_mesh_type_poop"
             props, mesh_props = self._setup_poop_props(ob, nwo, data_nwo, props, mesh_props)
             if data_nwo.no_shadow:
-                mesh_props["bungie_face_mode"] = '_connected_geometry_face_mode_render_only'
+                mesh_props["bungie_face_mode"] = FaceMode.render_only.value
             else:
-                mesh_props["bungie_face_mode"] = '_connected_geometry_face_mode_lightmap_only'
+                mesh_props["bungie_face_mode"] = FaceMode.lightmap_only.value
             props["bungie_mesh_poop_lighting"] = "_connected_geometry_poop_lighting_single_probe"
             props["bungie_mesh_poop_pathfinding"] = "_connected_poop_instance_pathfinding_policy_none"
             
@@ -483,7 +483,7 @@ class ExportScene:
                 parent_halo_data = self.ob_halo_data.get(ob.parent)
                 if parent_halo_data:
                     # if parent_halo_data[0].get("bungie_face_mode") not in 
-                    parent_halo_data[0]["bungie_face_mode"] = "_connected_geometry_face_mode_render_only"
+                    parent_halo_data[0]["bungie_face_mode"] = FaceMode.render_only.value
                 else:
                     self.forced_render_only[ob.parent] = None
             else:
@@ -493,9 +493,9 @@ class ExportScene:
                 props["bungie_mesh_poop_imposter_policy"] = "_connected_poop_instance_imposter_policy_never"
                 # nwo.reach_poop_collision = True
                 if data_nwo.sphere_collision_only:
-                    mesh_props["bungie_face_mode"] = '_connected_geometry_face_mode_sphere_collision_only'
+                    mesh_props["bungie_face_mode"] = FaceMode.sphere_collision_only.value
                 else:
-                    mesh_props["bungie_face_mode"] = '_connected_geometry_face_mode_collision_only'
+                    mesh_props["bungie_face_mode"] = FaceMode.collision_only.value
         
         elif self.asset_type == AssetType.PREFAB:
             mesh_type = '_connected_geometry_mesh_type_poop'
@@ -586,7 +586,7 @@ class ExportScene:
                 props["bungie_mesh_poop_disallow_object_lighting_samples"] = 1
         
         if self.forced_render_only.get(ob):
-            props["bungie_face_mode"] = "_connected_geometry_face_mode_render_only"
+            props["bungie_face_mode"] = FaceMode.render_only.value
 
         return props, mesh_props
         
@@ -870,22 +870,22 @@ class ExportScene:
             if test_face_prop(face_props, "render_only_override"):
                 fp_defaults["bungie_face_mode"] = FaceMode.render_only.value
             else:
-                mesh_props["bungie_face_mode"] = "_connected_geometry_face_mode_render_only"
+                mesh_props["bungie_face_mode"] = FaceMode.render_only.value
         elif data_nwo.collision_only:
             if test_face_prop(face_props, "collision_only_override"):
                 fp_defaults["bungie_face_mode"] = FaceMode.collision_only.value
             else:
-                mesh_props["bungie_face_mode"] = "_connected_geometry_face_mode_collision_only"
+                mesh_props["bungie_face_mode"] = FaceMode.collision_only.value
         elif data_nwo.sphere_collision_only:
             if test_face_prop(face_props, "sphere_collision_only_override"):
                 fp_defaults["bungie_face_mode"] = FaceMode.sphere_collision_only.value
             else:
-                mesh_props["bungie_face_mode"] = "_connected_geometry_face_mode_sphere_collision_only"
+                mesh_props["bungie_face_mode"] = FaceMode.sphere_collision_only.value
         elif data_nwo.breakable:
             if test_face_prop(face_props, "breakable_override"):
                 fp_defaults["bungie_face_mode"] = FaceMode.breakable.value
             else:
-                mesh_props["bungie_face_mode"] = "_connected_geometry_face_mode_breakable"
+                mesh_props["bungie_face_mode"] = FaceMode.breakable.value
                 
         if data_nwo.face_draw_distance != "_connected_geometry_face_draw_distance_normal":
             if test_face_prop(face_props, "face_draw_distance_override"):

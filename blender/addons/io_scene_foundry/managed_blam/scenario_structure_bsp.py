@@ -186,11 +186,17 @@ class ScenarioStructureBspTag(Tag):
             
         # Create instanced geometries
         print("Creating Instanced Objects")
+        # poops = []
         for element in self.block_instances.Elements:
             io = Instance(element, instance_definitions)
             ob = io.create()
             objects.append(ob)
+            # poops.append(ob)
             self.collection.objects.link(ob)
+        
+        # if poops:
+        #     with bpy.context.temp_override(selected_editable_objects=poops, object=poops[0]):
+        #         bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY')
             
         # Create structure
         structure_objects = []
@@ -198,8 +204,9 @@ class ScenarioStructureBspTag(Tag):
         for element in self.tag.SelectField("Block:clusters").Elements:
             structure = Cluster(element, meshes, render_materials)
             ob = structure.create(render_model, temp_meshes)
-            structure_objects.append(ob)
-            self.collection.objects.link(ob)
+            if ob is not None and ob.data and ob.data.polygons:
+                structure_objects.append(ob)
+                self.collection.objects.link(ob)
             
         # Merge structure
         if structure_objects:
@@ -209,61 +216,63 @@ class ScenarioStructureBspTag(Tag):
             for ob in structure_objects:
                 if ob.type == "MESH":
                     ob.select_set(True)
+                    
+            has_meshes = bpy.context.selected_objects and any([ob for ob in bpy.context.selected_objects if ob.type == 'MESH'])
             
-            if bpy.context.selected_objects:
+            if has_meshes:
                 utils.set_active_object(bpy.context.selected_objects[0])
                 bpy.ops.nwo.join_halo()
                 
                 joined_structure = utils.get_active_object()
                 structure_mesh = joined_structure.data
                 joined_structure.name = self.collection.name + "_structure"
-                
-            utils.deselect_all_objects()
-            
-            bm = bmesh.new()
-            bm.from_mesh(structure_mesh)
-            water_layer = bm.faces.layers.int.get("water_surface")
-            if water_layer:
-                water_mesh = structure_mesh.copy()
-                water_mesh.name = "water_surface"
-                bmw = bm.copy()
-                bmw_water_layer = bmw.faces.layers.int.get("water_surface")
-                bmesh.ops.delete(bmw, geom=[f for f in bmw.faces if not f[bmw_water_layer]], context='FACES')
-                bmesh.ops.delete(bm, geom=[f for f in bm.faces if f[water_layer]], context='FACES')
-                bmw.faces.layers.int.remove(bmw_water_layer)
-                bm.faces.layers.int.remove(water_layer)
-                bmw.to_mesh(water_mesh)
-                if water_mesh.polygons:
-                    water_ob = bpy.data.objects.new(water_mesh.name, water_mesh)
-                    self.collection.objects.link(water_ob)
-                    utils.apply_loop_normals(water_mesh)
-                    water_mesh.nwo.mesh_type = "_connected_geometry_mesh_type_water_surface"
-                    water_ob.nwo.water_volume_depth = 0 # depth to be handled by structure design
-                    utils.loop_normal_magic(water_ob.data)
-                    water_ob.select_set(True)
-                    utils.set_active_object(water_ob)
-                    bpy.ops.object.editmode_toggle()
-                    bpy.ops.mesh.separate(type="LOOSE")
-                    bpy.ops.object.editmode_toggle()
-                    for ob in bpy.context.selected_objects:
-                        objects.append(ob)
-                    utils.deselect_all_objects()
 
-                bm.to_mesh(structure_mesh)
-                bm.free()
+                utils.deselect_all_objects()
                 
-            if structure_mesh.polygons:
-                utils.loop_normal_magic(structure_mesh)
-                structure_mesh.nwo.mesh_type = "_connected_geometry_mesh_type_structure"
-                joined_structure.nwo.proxy_instance = True
-                objects.append(joined_structure)
-                structure_mesh.nwo.render_only = True
-                if structure_mesh.nwo.face_props:
-                    bm = bmesh.new()
-                    bm.from_mesh(structure_mesh)
-                    for face_layer in structure_mesh.nwo.face_props:
-                        face_layer.face_count = utils.layer_face_count(bm, bm.faces.layers.int.get(face_layer.layer_name))
+                bm = bmesh.new()
+                bm.from_mesh(structure_mesh)
+                water_layer = bm.faces.layers.int.get("water_surface")
+                if water_layer:
+                    water_mesh = structure_mesh.copy()
+                    water_mesh.name = "water_surface"
+                    bmw = bm.copy()
+                    bmw_water_layer = bmw.faces.layers.int.get("water_surface")
+                    bmesh.ops.delete(bmw, geom=[f for f in bmw.faces if not f[bmw_water_layer]], context='FACES')
+                    bmesh.ops.delete(bm, geom=[f for f in bm.faces if f[water_layer]], context='FACES')
+                    bmw.faces.layers.int.remove(bmw_water_layer)
+                    bm.faces.layers.int.remove(water_layer)
+                    bmw.to_mesh(water_mesh)
+                    if water_mesh.polygons:
+                        water_ob = bpy.data.objects.new(water_mesh.name, water_mesh)
+                        self.collection.objects.link(water_ob)
+                        utils.apply_loop_normals(water_mesh)
+                        water_mesh.nwo.mesh_type = "_connected_geometry_mesh_type_water_surface"
+                        water_ob.nwo.water_volume_depth = 0 # depth to be handled by structure design
+                        utils.loop_normal_magic(water_ob.data)
+                        water_ob.select_set(True)
+                        utils.set_active_object(water_ob)
+                        bpy.ops.object.editmode_toggle()
+                        bpy.ops.mesh.separate(type="LOOSE")
+                        bpy.ops.object.editmode_toggle()
+                        for ob in bpy.context.selected_objects:
+                            objects.append(ob)
+                        utils.deselect_all_objects()
+
+                    bm.to_mesh(structure_mesh)
                     bm.free()
+                    
+                if structure_mesh.polygons:
+                    utils.loop_normal_magic(structure_mesh)
+                    structure_mesh.nwo.mesh_type = "_connected_geometry_mesh_type_structure"
+                    joined_structure.nwo.proxy_instance = True
+                    objects.append(joined_structure)
+                    structure_mesh.nwo.render_only = True
+                    if structure_mesh.nwo.face_props:
+                        bm = bmesh.new()
+                        bm.from_mesh(structure_mesh)
+                        for face_layer in structure_mesh.nwo.face_props:
+                            face_layer.face_count = utils.layer_face_count(bm, bm.faces.layers.int.get(face_layer.layer_name))
+                        bm.free()
             
         # Create Structure Collision
         self.structure_collision = None
@@ -311,14 +320,16 @@ class ScenarioStructureBspTag(Tag):
                     seam_bm.free()
                     bm.to_mesh(ob.data)
                     bm.free()
-                    seam_ob = ob.copy()
-                    seam_ob.data = seams_mesh
-                    seam_ob.name = "seams"
-                    seams_mesh.nwo.mesh_type = "_connected_geometry_mesh_type_seam"
-                    seam_ob.nwo.seam_back_manual = True
-                    apply_props_material(seam_ob, "Seam")
-                    objects.append(seam_ob)
-                    collection.objects.link(seam_ob)
+                    
+                    if seams_mesh.polygons:
+                        seam_ob = ob.copy()
+                        seam_ob.data = seams_mesh
+                        seam_ob.name = "seams"
+                        seams_mesh.nwo.mesh_type = "_connected_geometry_mesh_type_seam"
+                        seam_ob.nwo.seam_back_manual = True
+                        apply_props_material(seam_ob, "Seam")
+                        objects.append(seam_ob)
+                        collection.objects.link(seam_ob)
                     
         # Create Portals
         print("Creating Portals")
