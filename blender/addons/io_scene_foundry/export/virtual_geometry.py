@@ -759,7 +759,6 @@ class VirtualNode:
         self.selected = False
         self.bone_bindings: list[str] = []
         self.granny_vertex_data = None
-        self.vertex_weighted = False
         if not self.invalid:
             self._setup(id, scene, fp_defaults, proxies, template_node, bones, parent_matrix)
         
@@ -784,10 +783,9 @@ class VirtualNode:
                     
                 if existing_mesh:
                     self.mesh = existing_mesh
-                    self.vertex_weighted = mesh.bone_weights is not None
                 else:
-                    self.vertex_weighted = id.vertex_groups and id.parent and id.parent.type == 'ARMATURE' and id.parent_type != "BONE" and has_armature_deform_mod(id)
-                    mesh = VirtualMesh(self.vertex_weighted, scene, default_bone_bindings, id, fp_defaults, is_rendered(self.props), proxies, self.props, negative_scaling, bones)
+                    vertex_weighted = id.vertex_groups and id.parent and id.parent.type == 'ARMATURE' and id.parent_type != "BONE" and has_armature_deform_mod(id)
+                    mesh = VirtualMesh(vertex_weighted, scene, default_bone_bindings, id, fp_defaults, is_rendered(self.props), proxies, self.props, negative_scaling, bones)
                     id.to_mesh_clear()
                     self.mesh = mesh
                     self.new_mesh = True
@@ -1082,7 +1080,7 @@ class VirtualSkeleton:
                 if not node: continue
                 child_index += 1
                 if not node or node.invalid: continue
-                if not bone_parented and not node.vertex_weighted:
+                if not bone_parented and not (node.mesh and node.mesh.vertex_weighted):
                     parent_index = 1
                     
                 b = VirtualBone(child)

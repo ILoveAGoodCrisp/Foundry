@@ -112,7 +112,7 @@ class SidecarImport:
             if self.export_settings.import_force_animations:
                 flags.append("force_errors")
         else:
-            if self.export_settings.import_draft:
+            if self.export_settings.import_draft and self.asset_type in {AssetType.MODEL, AssetType.SKY}:
                 flags.append("draft")
             if self.export_settings.import_seam_debug:
                 flags.append("seam_debug")
