@@ -169,11 +169,11 @@ class ExportScene:
                     source_ob: bpy.types.Object
                     temp_ob = source_ob.copy()
                     if source_ob.type in VALID_MESHES:
+                        if source_ob.matrix_world.is_negative:
+                            temp_ob.nwo.invert_topology = True
                         data_copy = ob_mesh_copy_dict.get(ob)
                         if data_copy is None:
                             data_copy = source_ob.data.copy()
-                            if source_ob.matrix_world.is_negative:
-                                temp_ob.nwo.invert_topology = True
                             data_copy.transform(source_ob.matrix_world)
                             ob_mesh_copy_dict[source_ob] = data_copy
                             
