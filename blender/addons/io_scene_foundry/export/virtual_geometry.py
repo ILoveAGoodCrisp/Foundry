@@ -778,7 +778,7 @@ class VirtualNode:
                 # self.matrix_local = IDENTITY_MATRIX
             if id.type in VALID_MESHES:
                 default_bone_bindings = [self.name]
-                negative_scaling = id.matrix_world.is_negative
+                negative_scaling = id.matrix_world.is_negative or id.original.nwo.invert_topology
                 existing_mesh = scene.meshes.get((id.data.name, negative_scaling))
                     
                 if existing_mesh:

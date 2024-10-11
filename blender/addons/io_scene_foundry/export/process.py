@@ -155,6 +155,12 @@ class ExportScene:
         instancers = [ob for ob in self.context.view_layer.objects if ob.is_instancer and ob.instance_collection and ob.instance_collection.objects and not ob.nwo.marker_instance]
         skip_obs = set()
         if instancers:
+            self.instanced_collections = set()
+            self.collections_to_hide = set()
+            for ob in instancers:
+                self.instanced_collections.add(ob.instance_collection)
+                
+            ob_mesh_copy_dict = {}
             for ob in instancers:
                 ob: bpy.types.Object
                 skip_obs.add(ob)
@@ -162,12 +168,27 @@ class ExportScene:
                 for source_ob in ob.instance_collection.objects:
                     source_ob: bpy.types.Object
                     temp_ob = source_ob.copy()
+                    if source_ob.type in VALID_MESHES:
+                        data_copy = ob_mesh_copy_dict.get(ob)
+                        if data_copy is None:
+                            data_copy = source_ob.data.copy()
+                            if source_ob.matrix_world.is_negative:
+                                temp_ob.nwo.invert_topology = True
+                            data_copy.transform(source_ob.matrix_world)
+                            ob_mesh_copy_dict[source_ob] = data_copy
+                            
+                        temp_ob.data = data_copy
+                            
                     temp_ob.matrix_world = ob.matrix_world
+                    if temp_ob.parent:
+                        old_world = temp_ob.matrix_world.copy()
+                        temp_ob.parent = None
+                        temp_ob.matrix_world = old_world
+                            
                     for collection in users_collection:
                         collection.objects.link(temp_ob)
+                        
                     self.temp_objects.add(temp_ob)
-                    
-            # self.context.view_layer.update()
             
         if self.main_armature:
             self.support_armatures = {self.context.scene.nwo.support_armature_a, self.context.scene.nwo.support_armature_b, self.context.scene.nwo.support_armature_c}
@@ -323,7 +344,6 @@ class ExportScene:
         self.virtual_scene.global_materials_set = set(self.global_materials_list)
         self.virtual_scene.object_parent_dict = object_parent_dict
         self.virtual_scene.object_halo_data = self.ob_halo_data
-        
         self.context.view_layer.update()
             
     def get_halo_props(self, ob: bpy.types.Object):

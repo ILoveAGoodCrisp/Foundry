@@ -1105,6 +1105,11 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         if not nwo.export_this:
             box.label(text="Object is excluded from export")
             return
+        
+        instanced = ob.is_instancer and ob.instance_collection and ob.instance_collection.objects and not ob.nwo.marker_instance
+        if instanced:
+            box.label(text=f"Object is derived from Instanced Collection: {ob.instance_collection.name}")
+            return box.label(text="This object will be made real at export")
 
         elif ob.type == "ARMATURE":
             box.label(text='Frame')
