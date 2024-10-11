@@ -4,6 +4,7 @@ from math import degrees
 import os
 from pathlib import Path
 import bpy
+from mathutils import Vector
 
 from ..props.animation import NWO_ActionPropertiesGroup, NWO_Animation_ListItems
 
@@ -127,6 +128,7 @@ class ExportScene:
         self.setup_scenario = False
         self.lights = []
         self.temp_objects = {}
+        self.sky_lights = []
         
     def ready_scene(self):
         print("\n\nProcessing Scene")
@@ -280,6 +282,8 @@ class ExportScene:
                 elif ob.type == 'LIGHT':
                     if ob.data.type != 'AREA':
                         self.lights.append(ob)
+                    if not self.corinth and self.asset_type == AssetType.SKY:
+                        self.sky_lights.append(ob)
                     continue
 
                 result = self.get_halo_props(ob)
@@ -304,7 +308,7 @@ class ExportScene:
                             mesh_props["bungie_face_mode"] = FaceMode.render_only.value
                 
                 props.update(mesh_props)
-                self.ob_halo_data[ob] = (props, region, permutation, fp_defaults, proxies)
+                self.ob_halo_data[ob] = [props, region, permutation, fp_defaults, proxies]
                     
                 utils.update_job_count(process, "", idx, num_export_objects)
             utils.update_job_count(process, "", num_export_objects, num_export_objects)
@@ -1039,6 +1043,12 @@ class ExportScene:
         # if self.scene_settings.forward_direction != 'x' and self.armature_poses:
         #     utils.transform_scene(self.context, 1, utils.blender_halo_rotation_diff(self.scene_settings.forward_direction), self.scene_settings.forward_direction, 'x', skip_data=True)
         #     self.forward = 'x'
+        
+        if self.sky_lights:
+            for ob in self.ob_halo_data.keys():
+                if ob.type == 'MESH':
+                    props = self.ob_halo_data[ob][0]
+                    self.ob_halo_data[ob][0] = self._setup_skylights(props)
             
         with utils.Spinner():
             utils.update_job_count(process, "", 0, num_no_parents)
@@ -1518,6 +1528,41 @@ class ExportScene:
                 props["bungie_mesh_primitive_box_length"] = ob.dimensions.y * (1 / self.scale)
                 props["bungie_mesh_primitive_box_height"] = ob.dimensions.z * (1 / self.scale)
                 
+        return props
+    
+    def _setup_skylights(self, props):
+        if not self.sky_lights: return
+        if self.scale != 1:
+            light_scale = 1
+            sun_scale = 1
+        else:
+            light_scale = 0.03048 ** 2
+            sun_scale = 0.03048
+        sun = None
+        lightGen_colors = []
+        lightGen_directions = []
+        lightGen_solid_angles = []
+        for ob in self.sky_lights:
+            if (ob.data.energy * light_scale) < 0.01:
+                sun = ob
+            down = Vector((0, 0, -1))
+            down.rotate(ob.rotation_euler)
+            lightGen_colors.append(utils.color_3p_str(ob.data.color))
+            lightGen_directions.append(f'{utils.jstr(down[0])} {utils.jstr(down[1])} {utils.jstr(down[2])}')
+            lightGen_solid_angles.append(utils.jstr(ob.data.energy * light_scale))
+        
+        props['lightGen_colors'] = ' '.join(lightGen_colors)
+        props['lightGen_directions'] = ' '.join(lightGen_directions)
+        props['lightGen_solid_angles'] = ' '.join(lightGen_solid_angles)
+        props['lightGen_samples'] = str(len(self.sky_lights) - 1)
+        
+        if sun is not None:
+            if sun.data.color.v > 1:
+                sun.data.color.v = 1
+            props['sun_size'] = utils.jstr((max(sun.scale.x, sun.scale.y, sun.scale.z) * sun_scale))
+            props['sun_intensity'] = utils.jstr(sun.data.energy * 10000 * light_scale)
+            props['sun_color'] = utils.color_3p_str(sun.data.color)
+            
         return props
 
 def decorator_int(ob):
