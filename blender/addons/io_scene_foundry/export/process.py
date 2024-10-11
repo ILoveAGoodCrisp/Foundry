@@ -164,10 +164,12 @@ class ExportScene:
             for ob in instancers:
                 ob: bpy.types.Object
                 skip_obs.add(ob)
+                lookup_dict = {}
                 users_collection = ob.users_collection
                 for source_ob in ob.instance_collection.objects:
                     source_ob: bpy.types.Object
                     temp_ob = source_ob.copy()
+                    lookup_dict[source_ob] = temp_ob
                     if source_ob.type in VALID_MESHES:
                         if source_ob.matrix_world.is_negative:
                             temp_ob.nwo.invert_topology = True
@@ -180,15 +182,19 @@ class ExportScene:
                         temp_ob.data = data_copy
                             
                     temp_ob.matrix_world = ob.matrix_world
-                    if temp_ob.parent:
-                        old_world = temp_ob.matrix_world.copy()
-                        temp_ob.parent = None
-                        temp_ob.matrix_world = old_world
-                            
+ 
                     for collection in users_collection:
                         collection.objects.link(temp_ob)
                         
                     self.temp_objects.add(temp_ob)
+                
+                for value in lookup_dict.values():
+                    if value.parent:
+                        new_parent = lookup_dict.get(value.parent)
+                        if new_parent is not None:
+                            old_world = value.matrix_world.copy()
+                            value.parent = new_parent
+                            value.matrix_world = old_world
             
         if self.main_armature:
             self.support_armatures = {self.context.scene.nwo.support_armature_a, self.context.scene.nwo.support_armature_b, self.context.scene.nwo.support_armature_c}
@@ -1552,12 +1558,8 @@ class ExportScene:
     
     def _setup_skylights(self, props):
         if not self.sky_lights: return
-        if self.scale != 1:
-            light_scale = 1
-            sun_scale = 1
-        else:
-            light_scale = 0.03048 ** 2
-            sun_scale = 0.03048
+        light_scale = 1
+        sun_scale = 1
         sun = None
         lightGen_colors = []
         lightGen_directions = []
