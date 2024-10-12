@@ -69,9 +69,6 @@ FACE_PROP_TYPES = {
     MeshType.poop_collision.value,
 }
 
-def divisible_by_3(number: int) -> bool:
-    return number % 3 == 0
-
 def read_frame_id_list() -> list:
     filepath = Path(utils.addon_root(), "export", "frameidlist.csv")
     frame_ids = []
@@ -566,8 +563,7 @@ class VirtualMesh:
             tri_mod.quad_method = scene.quad_method
             tri_mod.ngon_method = scene.ngon_method
         
-        if ob.type != 'MESH' or not divisible_by_3(len(ob.data.vertices)):
-            add_triangle_mod(ob)
+        add_triangle_mod(ob)
 
         mesh = ob.to_mesh(preserve_all_data_layers=True, depsgraph=scene.depsgraph)
         
@@ -576,8 +572,12 @@ class VirtualMesh:
             scene.warnings.append(f"Mesh data [{self.name}] of object [{ob.name}] has no faces. {ob.name} removed from geometry tree")
             self.invalid = True
             return
+
+        indices = np.empty(len(mesh.polygons))
+        mesh.polygons.foreach_get("loop_total", indices)
+        unique_indices = np.unique(indices)
         
-        if not divisible_by_3(len(mesh.vertices)):
+        if len(unique_indices) > 1 or unique_indices[0] != 3:
             # if for whatever reason to_mesh() failed to triangulate the mesh
             bm = bmesh.new()
             bm.from_mesh(mesh)
@@ -588,7 +588,7 @@ class VirtualMesh:
         num_loops = len(mesh.loops)
         num_vertices = len(mesh.vertices)
         num_polygons = len(mesh.polygons)
-        
+
         num_materials = len(mesh.materials)
         special_mats_dict = defaultdict(list)
         for idx, mat in enumerate(mesh.materials):
