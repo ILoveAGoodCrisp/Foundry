@@ -566,7 +566,7 @@ class VirtualMesh:
             tri_mod.quad_method = scene.quad_method
             tri_mod.ngon_method = scene.ngon_method
         
-        if not (ob.type == 'MESH' and divisible_by_3(len(ob.data.loops))):
+        if ob.type != 'MESH' or not divisible_by_3(len(ob.data.vertices)):
             add_triangle_mod(ob)
 
         mesh = ob.to_mesh(preserve_all_data_layers=True, depsgraph=scene.depsgraph)
@@ -577,11 +577,11 @@ class VirtualMesh:
             self.invalid = True
             return
         
-        if not divisible_by_3(len(mesh.loops)):
+        if not divisible_by_3(len(mesh.vertices)):
             # if for whatever reason to_mesh() failed to triangulate the mesh
             bm = bmesh.new()
             bm.from_mesh(mesh)
-            bmesh.ops.triangulate(bm, faces=bm.faces)
+            bmesh.ops.triangulate(bm, faces=bm.faces, quad_method=scene.quad_method, ngon_method='EAR_CLIP' if scene.ngon_method == 'CLIP' else 'BEAUTY')
             bm.to_mesh(mesh)
             bm.free()
             
