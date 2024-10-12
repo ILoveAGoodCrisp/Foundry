@@ -2160,7 +2160,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
             objects = [ob for ob in objects if not ob.nwo.scale_model]
             
         if not skip_data:
-            curves = {ob.data for ob in objects if ob.type =='CURVE'}
+            curves = {ob.data for ob in objects if ob.type in {'CURVE', 'FONT'}}
             metaballs = {ob.data for ob in objects if ob.type =='METABALL'}
             meshes = {ob.data for ob in objects if ob.type =='MESH'}
             cameras = {ob.data for ob in objects if ob.type =='CAMERA'}

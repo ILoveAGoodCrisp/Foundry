@@ -256,46 +256,6 @@ class VirtualAnimation:
         self.granny_track_group = pointer(granny_track_group)
         # self.granny_track_group = scene.granny._end_track_group(group_builder) 
 
-    def to_granny_track_group(self, scene: 'VirtualScene'):
-        num_transform_tracks = len(self.track_group.transform_tracks)
-        granny_transform_tracks = (GrannyTransformTrack * num_transform_tracks)()
-        for i in range(num_transform_tracks):
-            transform_track = GrannyTransformTrack()
-            granny_transform_tracks[i].name = self.track_group.transform_tracks[i].name.encode()
-            transform_track.name = self.track_group.transform_tracks[i].name.encode()
-            
-            position_curve = GrannyCurve2()
-            position_curve.curve_data.type = scene.granny.keyframe_type
-            position_curve.curve_data.object = cast(pointer(self.track_group.transform_tracks[i].position_data), c_void_p)
-            
-            orientation_curve = GrannyCurve2()
-            orientation_curve.curve_data.type = scene.granny.keyframe_type
-            orientation_curve.curve_data.object = cast(pointer(self.track_group.transform_tracks[i].orientation_data), c_void_p)
-            
-            
-            scale_curve = GrannyCurve2()
-            scale_curve.curve_data.type = scene.granny.keyframe_type
-            scale_curve.curve_data.object = cast(pointer(self.track_group.transform_tracks[i].scale_data), c_void_p)
-            
-            scene.granny._initialise_curve_format(position_curve)
-            scene.granny._initialise_curve_format(orientation_curve)
-            scene.granny._initialise_curve_format(scale_curve)
-            
-            transform_track.position_curve = position_curve
-            transform_track.orientation_curve = orientation_curve
-            transform_track.scale_shear_curve = scale_curve
-            
-            
-            granny_transform_tracks[i].position_curve = position_curve
-            granny_transform_tracks[i].orientation_curve = orientation_curve
-            granny_transform_tracks[i].scale_shear_curve = scale_curve
-            
-        granny_track_group = GrannyTrackGroup()
-        granny_track_group.name = scene.skeleton_node.name.encode()
-        granny_track_group.transform_track_count = num_transform_tracks
-        granny_track_group.transform_tracks = granny_transform_tracks
-        self.granny_track_group = pointer(granny_track_group)
-        
     def to_granny_animation(self, scene: 'VirtualScene'):
         granny_animation = GrannyAnimation()
         granny_animation.name = self.name.encode()
