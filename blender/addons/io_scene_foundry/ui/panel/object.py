@@ -463,10 +463,9 @@ class NWO_OT_FaceLayerRemove(bpy.types.Operator):
             bm = bmesh.new()
             bm.from_mesh(me)
         # get list of selected faces
-        try:
-            bm.faces.layers.int.remove(bm.faces.layers.int.get(layer_name))
-        except:
-            pass
+        layer = bm.faces.layers.int.get(layer_name)
+        if layer is not None:
+            bm.faces.layers.int.remove(layer)
         
         if context.mode == 'EDIT_MESH':
             bmesh.update_edit_mesh(me)
@@ -504,6 +503,8 @@ class NWO_OT_FaceLayerAssign(bpy.types.Operator):
         bm = bmesh.from_edit_mesh(me)
         # get list of selected faces
         face_layer = bm.faces.layers.int.get(layer_name)
+        if face_layer is None:
+            face_layer = bm.faces.layers.int.new(layer_name)
         for face in bm.faces:
             if face.select:
                 face[face_layer] = int(self.assign)
@@ -535,6 +536,8 @@ class NWO_OT_FaceLayerSelect(bpy.types.Operator):
         bm = bmesh.from_edit_mesh(me)
         # get list of selected faces
         face_layer = bm.faces.layers.int.get(layer_name)
+        if face_layer is None:
+            face_layer = bm.faces.layers.int.new(layer_name)
         for face in bm.faces:
             if face[face_layer] == 1:
                 face.select = self.select
