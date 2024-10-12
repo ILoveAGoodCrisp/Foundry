@@ -69,6 +69,9 @@ FACE_PROP_TYPES = {
     MeshType.poop_collision.value,
 }
 
+def divisible_by_3(number: int) -> bool:
+    return number % 3 == 0
+
 def read_frame_id_list() -> list:
     filepath = Path(utils.addon_root(), "export", "frameidlist.csv")
     frame_ids = []
@@ -562,24 +565,35 @@ class VirtualMesh:
             tri_mod = mods.new('Triangulate', 'TRIANGULATE')
             tri_mod.quad_method = scene.quad_method
             tri_mod.ngon_method = scene.ngon_method
-            
-        add_triangle_mod(ob)
+        
+        if not (ob.type == 'MESH' and divisible_by_3(len(ob.data.loops))):
+            add_triangle_mod(ob)
+
         mesh = ob.to_mesh(preserve_all_data_layers=True, depsgraph=scene.depsgraph)
+        
         self.name = mesh.name
         if not mesh.polygons:
             scene.warnings.append(f"Mesh data [{self.name}] of object [{ob.name}] has no faces. {ob.name} removed from geometry tree")
             self.invalid = True
             return
         
+        if not divisible_by_3(len(mesh.loops)):
+            # if for whatever reason to_mesh() failed to triangulate the mesh
+            bm = bmesh.new()
+            bm.from_mesh(mesh)
+            bmesh.ops.triangulate(bm, faces=bm.faces)
+            bm.to_mesh(mesh)
+            bm.free()
+            
+        num_loops = len(mesh.loops)
+        num_vertices = len(mesh.vertices)
+        num_polygons = len(mesh.polygons)
+        
         num_materials = len(mesh.materials)
         special_mats_dict = defaultdict(list)
         for idx, mat in enumerate(mesh.materials):
             if mat is not None and (mat.nwo.has_material_properties or mat.name[0] == "+"):
                 special_mats_dict[mat].append(idx)
-
-        num_loops = len(mesh.loops)
-        num_vertices = len(mesh.vertices)
-        num_polygons = len(mesh.polygons)
         
         self.normals = np.zeros((num_loops, 3), dtype=np.single)
         
