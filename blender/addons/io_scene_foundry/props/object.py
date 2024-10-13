@@ -45,7 +45,10 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
     )
     
-    marker_instance: bpy.props.BoolProperty(options={"HIDDEN"})
+    marker_instance: bpy.props.BoolProperty(
+        name="Instance Collection is Marker",
+        description="Collection instance is a marker, as opposed a mesh. If this option is off, then the visible mesh will be made real at export",
+    )
     
     invert_topology: bpy.props.BoolProperty(options={"HIDDEN"})
     
