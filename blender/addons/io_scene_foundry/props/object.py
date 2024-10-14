@@ -50,8 +50,6 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         description="Collection instance is a marker, as opposed a mesh. If this option is off, then the visible mesh will be made real at export",
     )
     
-    invert_topology: bpy.props.BoolProperty(options={"HIDDEN"})
-    
     #########################################################################################################################
     # MESH TYPE UI ####################################################################################################
     #########################################################################################################################

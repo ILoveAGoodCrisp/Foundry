@@ -34,25 +34,12 @@ from ..constants import IDENTITY_MATRIX, VALID_MESHES
 NORMAL_FIX_MATRIX = Matrix(((1, 0, 0), (0, -1, 0), (0, 0, -1)))
 logging.basicConfig(level=logging.DEBUG)
 
-# PEDESTAL_MATRIX_X_POSITIVE = Matrix(((1.0, 0.0, 0.0, 0.0),
-#                                 (0.0, 1.0, 0.0, 0.0),
-#                                 (0.0, 0.0, 1.0, 0.0),
-#                                 (0.0, 0.0, 0.0, 1.0)))
-
-# PEDESTAL_MATRIX_Y_NEGATIVE = Matrix(((0.0, 1.0, 0.0, 0.0),
-#                                     (-1.0, 0.0, 0.0, 0.0),
-#                                     (0.0, 0.0, 1.0, 0.0),
-#                                     (0.0, 0.0, 0.0, 1.0)))
-
-# PEDESTAL_MATRIX_Y_POSITIVE = Matrix(((0.0, -1.0, 0.0, 0.0),
-#                                     (1.0, 0.0, 0.0, 0.0),
-#                                     (0.0, 0.0, 1.0, 0.0),
-#                                     (0.0, 0.0, 0.0, 1.0)))
-
-# PEDESTAL_MATRIX_X_NEGATIVE = Matrix(((-1.0, 0.0, 0.0, 0.0),
-#                                     (0.0, -1.0, 0.0, 0.0),
-#                                     (0.0, 0.0, 1.0, 0.0),
-#                                     (0.0, 0.0, 0.0, 1.0)))
+# TODO
+# Water physics from water surfaces
+# backfacing seams
+# default invalid shader / default water shader
+# Animation events / controls
+# Look into lighting_info failing to open
 
 DESIGN_MESH_TYPES = {
     MeshType.planar_fog_volume.value,
@@ -752,7 +739,7 @@ class VirtualNode:
                 # self.matrix_local = IDENTITY_MATRIX
             if id.type in VALID_MESHES:
                 default_bone_bindings = [self.name]
-                negative_scaling = id.matrix_world.is_negative or id.original.nwo.invert_topology
+                negative_scaling = id.matrix_world.is_negative
                 existing_mesh = scene.meshes.get((id.data.name, negative_scaling))
                     
                 if existing_mesh:

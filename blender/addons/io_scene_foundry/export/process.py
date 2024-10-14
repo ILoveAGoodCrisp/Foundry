@@ -131,8 +131,6 @@ class ExportScene:
         self.sky_lights = []
         
     def ready_scene(self):
-        print("\n\nProcessing Scene")
-        print("-----------------------------------------------------------------------\n")
         utils.exit_local_view(self.context)
         self.context.view_layer.update()
         utils.set_object_mode(self.context)
@@ -159,8 +157,7 @@ class ExportScene:
             self.collections_to_hide = set()
             for ob in instancers:
                 self.instanced_collections.add(ob.instance_collection)
-                
-            ob_mesh_copy_dict = {}
+
             for ob in instancers:
                 ob: bpy.types.Object
                 skip_obs.add(ob)
@@ -170,19 +167,6 @@ class ExportScene:
                     source_ob: bpy.types.Object
                     temp_ob = source_ob.copy()
                     lookup_dict[source_ob] = temp_ob
-                    if source_ob.type in VALID_MESHES:
-                        if source_ob.matrix_world.is_negative:
-                            temp_ob.nwo.invert_topology = True
-                        data_copy = ob_mesh_copy_dict.get(ob)
-                        if data_copy is None:
-                            data_copy = source_ob.data.copy()
-                            data_copy.transform(source_ob.matrix_world)
-                            ob_mesh_copy_dict[source_ob] = data_copy
-                            
-                        temp_ob.data = data_copy
-                            
-                    temp_ob.matrix_world = ob.matrix_world
- 
                     for collection in users_collection:
                         collection.objects.link(temp_ob)
                         
@@ -191,10 +175,14 @@ class ExportScene:
                 for value in lookup_dict.values():
                     if value.parent:
                         new_parent = lookup_dict.get(value.parent)
-                        if new_parent is not None:
-                            old_world = value.matrix_world.copy()
+                        if new_parent is None:
+                            value.matrix_world = ob.matrix_world @ value.matrix_world
+                        else:
+                            old_local = value.matrix_local.copy()
                             value.parent = new_parent
-                            value.matrix_world = old_world
+                            value.matrix_local = old_local
+                    else:
+                        value.matrix_world = ob.matrix_world @ value.matrix_world
             
         if self.main_armature:
             self.support_armatures = {self.context.scene.nwo.support_armature_a, self.context.scene.nwo.support_armature_b, self.context.scene.nwo.support_armature_c}
@@ -1375,8 +1363,6 @@ class ExportScene:
         #             return Path(self.models_export_dir, f"{self.asset_name}_{permutation.name}_{tag_type.name.lower()}.gr2")
         
     def write_sidecar(self):
-        print("\n\nWriting Tags")
-        print("-----------------------------------------------------------------------\n")
         self.sidecar.has_armature = bool(self.virtual_scene.skeleton_node)
         self.sidecar.regions = self.regions
         self.sidecar.global_materials = self.global_materials_list
