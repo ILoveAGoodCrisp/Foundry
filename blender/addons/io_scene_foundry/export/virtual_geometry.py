@@ -886,6 +886,7 @@ class VirtualBone:
     
 class AnimatedBone:
     def __init__(self, pbone, parent_override=None):
+        self.name = pbone.name
         self.pbone = pbone
         if parent_override is None:
             self.parent = pbone.parent

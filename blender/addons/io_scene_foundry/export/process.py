@@ -171,7 +171,7 @@ class ExportScene:
                     for collection in users_collection:
                         collection.objects.link(temp_ob)
                         
-                    # self.temp_objects.add(temp_ob)
+                    self.temp_objects.add(temp_ob)
                 
                 for value in lookup_dict.values():
                     if value.parent:
