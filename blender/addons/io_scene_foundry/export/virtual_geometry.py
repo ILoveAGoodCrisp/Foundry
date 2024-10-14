@@ -1246,10 +1246,11 @@ class VirtualScene:
         def wrap_bounding_box(nodes, padding):
             min_x, min_y, min_z, max_x, max_y, max_z = (i * scalar for i in (-10, -10, 0, 10, 10, 30))
             for node in nodes:
+                # inverse the rotation matrix otherwise this will be rotated incorrectly
                 if node.original.type == 'MESH':
                     bbox = node.original.bound_box
                     for co in bbox:
-                        bounds = node.matrix_world @ Vector((co[0], co[1], co[2]))
+                        bounds = self.rotation_matrix.inverted() @ node.matrix_world @ Vector((co[0], co[1], co[2]))
                         min_x = min(min_x, bounds.x - padding)
                         min_y = min(min_y, bounds.y - padding)
                         min_z = min(min_z, bounds.z - padding)
@@ -1257,7 +1258,7 @@ class VirtualScene:
                         max_y = max(max_y, bounds.y + padding)
                         max_z = max(max_z, bounds.z + padding)
                 else:
-                    bounds = node.matrix_world.to_translation()
+                    bounds = self.rotation_matrix.inverted() @ node.matrix_world.to_translation()
                     min_x = min(min_x, bounds.x - padding)
                     min_y = min(min_y, bounds.y - padding)
                     min_z = min(min_z, bounds.z - padding)
