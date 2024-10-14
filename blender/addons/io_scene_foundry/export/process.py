@@ -150,7 +150,8 @@ class ExportScene:
         self.support_armatures = {}
         self.export_objects = []
         
-        instancers = [ob for ob in self.context.view_layer.objects if ob.is_instancer and ob.instance_collection and ob.instance_collection.objects and not ob.nwo.marker_instance]
+        instancers = [ob for ob in self.context.view_layer.objects if ob.is_instancer and ob.instance_collection and ob.instance_collection.all_objects and not ob.nwo.marker_instance]
+            
         skip_obs = set()
         if instancers:
             self.instanced_collections = set()
@@ -163,14 +164,14 @@ class ExportScene:
                 skip_obs.add(ob)
                 lookup_dict = {}
                 users_collection = ob.users_collection
-                for source_ob in ob.instance_collection.objects:
+                for source_ob in ob.instance_collection.all_objects:
                     source_ob: bpy.types.Object
                     temp_ob = source_ob.copy()
                     lookup_dict[source_ob] = temp_ob
                     for collection in users_collection:
                         collection.objects.link(temp_ob)
                         
-                    self.temp_objects.add(temp_ob)
+                    # self.temp_objects.add(temp_ob)
                 
                 for value in lookup_dict.values():
                     if value.parent:
