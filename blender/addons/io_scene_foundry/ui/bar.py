@@ -666,7 +666,8 @@ class NWO_HaloExportGranny(bpy.types.Panel):
         col.prop(scene_nwo_export, 'granny_export')
         col.prop(scene_nwo_export, 'granny_mirror')
         col.prop(scene_nwo_export, 'granny_textures')
-        col.prop(scene_nwo_export, 'granny_animations_mesh')
+        if utils.poll_ui(('animation',)):
+            col.prop(scene_nwo_export, 'granny_animations_mesh')
         
 class NWO_HaloExportTriangulation(bpy.types.Panel):
     bl_label = "Triangulation"
@@ -1055,7 +1056,7 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
     )
     
     granny_animations_mesh: bpy.props.BoolProperty(
-        name="Animations Store Mesh",
+        name="Animation Exports Mesh",
         description="Exports meshes with animation exports. This has no effect on the results of the imported animations but can be useful for debugging animation issues"
     )
 

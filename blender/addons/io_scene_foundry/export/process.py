@@ -1315,7 +1315,7 @@ class ExportScene:
         self.granny.new(filepath, self.forward, self.scale, self.mirror)
         self.granny.from_tree(self.virtual_scene, virtual_objects)
         
-        if animation is None or self.export_settings.granny_animations_mesh:
+        if animation is None:
             if self.export_settings.granny_textures:
                 self.granny.create_textures()
             self.granny.create_materials()
