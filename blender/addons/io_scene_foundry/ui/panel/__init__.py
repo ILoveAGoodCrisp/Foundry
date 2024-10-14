@@ -1106,7 +1106,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             box.label(text="Object is excluded from export")
             return
         
-        instanced = ob.is_instancer and ob.instance_collection and ob.instance_collection.objects
+        instanced = ob.is_instancer and ob.instance_collection and ob.instance_collection.all_objects
         if instanced:
             box.prop(nwo, "marker_instance")
             if not ob.nwo.marker_instance:
