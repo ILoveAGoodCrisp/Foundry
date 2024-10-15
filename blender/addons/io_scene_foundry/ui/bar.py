@@ -450,6 +450,7 @@ class NWO_HaloExportSettings(bpy.types.Panel):
         col = flow.column()
         col.prop(scene_nwo_export, "export_quick", text="Quick Export")
         col.prop(scene_nwo_export, "show_output", text="Toggle Output")
+        col.prop(scene_nwo_export, "event_level")
         if scene_nwo_export.granny_export:
             col.prop(scene_nwo_export, "export_mode")
         else:
@@ -712,6 +713,24 @@ class NWO_HaloExport(bpy.types.Operator):
 
 
 class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
+    
+    event_level: bpy.props.EnumProperty(
+        name="Event Level",
+        description="Describes the level of error/warning event reporting to be output during exports. ",
+        options=set(),
+        default='DEFAULT',
+        items=[
+            ("DEFAULT", "Default", "Shows most events, but culls out unnecessary warnings"),
+            ("VERBOSE", "Verbose", ""),
+            ("STATUS", "Status", ""),
+            ("MESSAGE", "Message", ""),
+            ("WARNING", "Warning", ""),
+            ("ERROR", "Error", ""),
+            ("CRITICAL", "Critical", ""),
+            ("NONE", "None", "No errors or warnings are reported"),
+        ]
+    )
+    
     triangulate_quad_method: bpy.props.EnumProperty(
         name="Triangulate Quad Method",
         description="The quad method to use when meshes are triangulated at export. This only applies to objects without an existing triangulation modifier",

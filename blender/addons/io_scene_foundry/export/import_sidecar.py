@@ -88,7 +88,8 @@ class SidecarImport:
                 self.sidecar_path,
                 *self._get_import_flags()
             ],
-            self.asset_path
+            self.asset_path,
+            self.export_settings.event_level
         )
         
     def _get_import_flags(self):

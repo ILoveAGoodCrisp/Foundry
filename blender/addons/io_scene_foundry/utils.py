@@ -441,63 +441,79 @@ def run_tool(tool_args: list, in_background=False, null_output=False):
             return e
 
 
-def run_tool_sidecar(tool_args: list, asset_path):
+def run_tool_sidecar(tool_args: list, asset_path, event_level='WARNING'):
     """Runs Tool using the specified function and arguments. Do not include 'tool' in the args passed"""
     failed = False
+    project_path = get_project_path()
     os.chdir(get_project_path())
     command = f"""{get_tool_type()} {' '.join(f'"{arg}"' for arg in tool_args)}"""
     # print(command)
     error = ""
-    p = Popen(command, stderr=subprocess.PIPE)
+    cull_warnings = event_level == 'DEFAULT'
+    if cull_warnings:
+        p = Popen(command, stderr=subprocess.PIPE)
+    else:
+        p = Popen(command)
     error_log = os.path.join(asset_path, "error.log")
-    with open(error_log, "w") as f:
-        # Read and print stderr contents while writing to the file
+    if not cull_warnings:
+        try:
+            with open(Path(project_path, "bonobo_init.txt"), "w") as init:
+                if event_level == 'NONE':
+                    init.write("events_enabled 0\n")
+                else:
+                    level_txt = event_level.lower()
+                    init.write("events_enabled 1\n")
+                    init.write(f"events_global_display {level_txt}\n")
+                    # init.write(f"events_global_log {level_txt}\n")
+                    # init.write(f"events_global_debugger {level_txt}\n")
+        except:
+            print("Unable to replace bonobo_init.txt to set event level. It is currently read only")
+            
+    # Read and print stderr contents while writing to the file
+    if cull_warnings:
         for line in p.stderr:
             line = line.decode().rstrip("\n")
             if failed or is_error_line(line, p):
                 print_error(line)
                 failed = True
-            elif "(skipping tangent-space calculations)" in line or "if it is a decorator" in line:
-                # this really shouldn't be a warning, so don't print/write it
-                continue
-            elif "but has flags that only make sense on render geometry" in line:
-                # Pointless error and just ends up being spam
-                continue
-            elif "Uncompressed vertices are not supported for meshes with type" in line:
-                # This is just incorrect and outputs when a mesh is a valid type for uncompressed
-                # Export logic prevents uncompressed from being applied to invalid types
-                continue
-            elif "which only makes sense on two-sided (or one sided transparent) geometry" in line:
-                # Annonying and outputs on things like collision geometry when it does not matter
-                continue
-            elif "Do you really want this?" in line:
-                # No but don't whine about shaders on imported geometry
-                continue
-            elif "Failed to find any animated nodes" and "idle" in line:
-                # Skip because we often want the idle to not have animation e.g. for vehicles
-                continue
-            else:
-                # need to handle animation stuff. Most animation output is written to stderr...
-                if line.startswith("animation:import:"):
-                    warning_line = line.rpartition("animation:import: ")[2]
-                    if warning_line.startswith("Failed to extract"):
-                        print_warning(line)
-                    elif warning_line.startswith("Failed"):
-                        print_error(line)
-                    else:
-                        print(line)
+            elif cull_warnings:
+                if "(skipping tangent-space calculations)" in line or "if it is a decorator" in line:
+                    # this really shouldn't be a warning, so don't print/write it
+                    continue
+                elif "but has flags that only make sense on render geometry" in line:
+                    # Pointless error and just ends up being spam
+                    continue
+                elif "Uncompressed vertices are not supported for meshes with type" in line:
+                    # This is just incorrect and outputs when a mesh is a valid type for uncompressed
+                    # Export logic prevents uncompressed from being applied to invalid types
+                    continue
+                elif "which only makes sense on two-sided (or one sided transparent) geometry" in line:
+                    # Annonying and outputs on things like collision geometry when it does not matter
+                    continue
+                elif "Do you really want this?" in line:
+                    # No but don't whine about shaders on imported geometry
+                    continue
+                elif "Failed to find any animated nodes" and "idle" in line:
+                    # Skip because we often want the idle to not have animation e.g. for vehicles
+                    continue
                 else:
-                    print_warning(line)
-            f.write(line)
+                    # need to handle animation stuff. Most animation output is written to stderr...
+                    if line.startswith("animation:import:"):
+                        warning_line = line.rpartition("animation:import: ")[2]
+                        if warning_line.startswith("Failed to extract"):
+                            print_warning(line)
+                        elif warning_line.startswith("Failed"):
+                            print_error(line)
+                        else:
+                            print(line)
+                    else:
+                        print_warning(line)
 
     p.wait()
 
     if failed:
         # check for known errors, and return an explanation
         error = get_export_error_explanation(error_log)
-    else:
-        # if there's no fatal error, remove the error log
-        os.remove(error_log)
 
     return failed, error
 
