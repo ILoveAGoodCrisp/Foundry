@@ -2,7 +2,7 @@
 
 from collections import defaultdict
 import csv
-from ctypes import Array, Structure, c_char_p, c_float, c_int, c_uint, POINTER, c_ubyte, c_void_p, cast, create_string_buffer, memmove, pointer, sizeof
+from ctypes import Array, Structure, c_char_p, c_float, c_int, POINTER, c_ubyte, c_void_p, cast, create_string_buffer, memmove, pointer, sizeof
 import logging
 from math import degrees, radians
 from pathlib import Path
@@ -19,12 +19,13 @@ from ..managed_blam.material import MaterialTag
 
 from ..managed_blam.shader import ShaderDecalTag, ShaderTag
 
-from ..granny.formats import GrannyAnimation, GrannyBone, GrannyCompressCurveParameters, GrannyCurve2, GrannyCurveDataDaKeyframes32f, GrannyDataTypeDefinition, GrannyMaterial, GrannyMaterialMap, GrannyMemberType, GrannyTrackGroup, GrannyTransform, GrannyTransformTrack, GrannyTriAnnotationSet, GrannyTriMaterialGroup, GrannyTriTopology, GrannyVertexData
+from ..granny.formats import GrannyAnimation, GrannyBone, GrannyDataTypeDefinition, GrannyMaterial, GrannyMaterialMap, GrannyMemberType, GrannyTrackGroup, GrannyTransform, GrannyTransformTrack, GrannyTriAnnotationSet, GrannyTriMaterialGroup, GrannyTriTopology, GrannyVertexData
 from ..granny import Granny
 
 from .export_info import ExportInfo, FaceDrawDistance, FaceMode, FaceSides, FaceType, LightmapType, MeshType, ObjectType
 
 from ..props.mesh import NWO_FaceProperties_ListItems, NWO_MeshPropertiesGroup
+from ..props.object import NWO_ObjectPropertiesGroup
 
 from .. import utils
 
@@ -64,19 +65,6 @@ def read_frame_id_list() -> list:
         frame_ids = [row for row in csv_reader]
 
     return frame_ids
-            
-class TransformTrack:
-    def __init__(self, name: str):
-        self.name = name
-        self.position_data: GrannyCurveDataDaKeyframes32f = GrannyCurveDataDaKeyframes32f()
-        self.orientation_data: GrannyCurveDataDaKeyframes32f = GrannyCurveDataDaKeyframes32f()
-        self.scale_data: GrannyCurveDataDaKeyframes32f = GrannyCurveDataDaKeyframes32f()
-    
-class TrackGroup:
-    def __init__(self, name: str):
-        self.name = name
-        self.transform_tracks: list[TransformTrack] = []
-        self.granny = None
 
 class VirtualAnimation:
     def __init__(self, action: bpy.types.Action, scene: 'VirtualScene'):
@@ -98,7 +86,7 @@ class VirtualAnimation:
         self.granny_animation = None
         self.granny_track_group = None
         
-        self.track_group = self.create_track_group(scene.animated_bones, scene)
+        self.create_track_group(scene.animated_bones, scene)
         self.to_granny_animation(scene)
 
     # def __del__(self):
@@ -131,7 +119,7 @@ class VirtualAnimation:
     #         track_group.loop_translation = 0
     #         track_group.periodic_loop = 0
         
-    def create_track_group(self, bones: list['AnimatedBone'], scene: 'VirtualScene') -> TrackGroup:
+    def create_track_group(self, bones: list['AnimatedBone'], scene: 'VirtualScene'):
         positions = defaultdict(list)
         orientations = defaultdict(list)
         scales = defaultdict(list)
@@ -524,13 +512,22 @@ class VirtualMesh:
         mesh.polygons.foreach_get("loop_total", indices)
         unique_indices = np.unique(indices)
         
-        if len(unique_indices) > 1 or unique_indices[0] != 3:
+        if len(unique_indices) > 1 or unique_indices[0] != 3: # TODO Add clean geometry export option
             # if for whatever reason to_mesh() failed to triangulate the mesh
             bm = bmesh.new()
             bm.from_mesh(mesh)
+            # if scene.clean_up_geo:
+            # bmesh.ops.dissolve_limit(bm, angle_limit=radians(5), edges=bm.edges, verts=bm.verts, delimit={"NORMAL"})
+            # bmesh.ops.dissolve_degenerate(bm, dist=0.01, edges=bm.edges)
+            # bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.01)
             bmesh.ops.triangulate(bm, faces=bm.faces, quad_method=tri_mod_to_bmesh_tri(scene.quad_method), ngon_method=tri_mod_to_bmesh_tri(scene.ngon_method))
             bm.to_mesh(mesh)
             bm.free()
+            
+        if not mesh.polygons:
+            scene.warnings.append(f"Mesh data [{self.name}] of object [{ob.name}] has no faces. {ob.name} removed from geometry tree")
+            self.invalid = True
+            return
             
         num_loops = len(mesh.loops)
         num_vertices = len(mesh.vertices)
@@ -1603,9 +1600,9 @@ def tri_mod_to_bmesh_tri(txt: str) -> str:
     match txt:
         case 'CLIP':
             return 'EAR_CLIP'
-        case 'SHORT_DIAGONAL':
+        case 'SHORTEST_DIAGONAL':
             return 'SHORT_EDGE'
-        case 'LONG_DIAGONAL':
+        case 'LONGEST_DIAGONAL':
             return 'LONG_EDGE'
         
     return txt

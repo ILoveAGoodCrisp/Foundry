@@ -1137,8 +1137,10 @@ class BSP:
         if duplicates:
             bmesh.ops.delete(bm, geom=[bm.faces[i] for i in  duplicates], context='FACES')
         # Remove any degenerate faces
-        bmesh.ops.dissolve_degenerate(bm, dist=0.1, edges=bm.edges)
-        bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.1)
+        # # bmesh.ops.planar_faces(bm, faces=bm.faces, iterations=200, factor=1)
+        #     # bmesh.ops.dissolve_limit(bm, angle_limit=radians(5), edges=bm.edges, verts=bm.verts, delimit={"NORMAL"})
+        #     # bmesh.ops.dissolve_degenerate(bm, dist=1, edges=bm.edges)
+        #     # bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1)
         bm.faces.ensure_lookup_table()
         # bmesh.ops.triangulate(bm, faces=bm.faces)
         # edges_to_dissolve = set()

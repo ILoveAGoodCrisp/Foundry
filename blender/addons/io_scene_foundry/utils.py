@@ -460,6 +460,9 @@ def run_tool_sidecar(tool_args: list, asset_path):
             elif "(skipping tangent-space calculations)" in line or "if it is a decorator" in line:
                 # this really shouldn't be a warning, so don't print/write it
                 continue
+            elif "but has flags that only make sense on render geometry" in line:
+                # Pointless error and just ends up being spam
+                continue
             elif "Uncompressed vertices are not supported for meshes with type" in line:
                 # This is just incorrect and outputs when a mesh is a valid type for uncompressed
                 # Export logic prevents uncompressed from being applied to invalid types
