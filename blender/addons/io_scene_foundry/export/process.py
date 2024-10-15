@@ -131,6 +131,8 @@ class ExportScene:
         self.temp_objects = {}
         self.sky_lights = []
         
+        self.is_model = self.asset_type in {AssetType.MODEL, AssetType.SKY}
+        
     def ready_scene(self):
         utils.exit_local_view(self.context)
         self.context.view_layer.update()
@@ -314,7 +316,8 @@ class ExportScene:
                 props, region, permutation, fp_defaults, mesh_props = result
                 parent = ob.parent
                 proxies = tuple()
-                if parent or (armature and ob.type != "ARMATURE"):
+                # Write object as if it has no parent if this is not a model and it is parented to an empty/armature. It solves an issue where instancing fails
+                if (parent or (armature and ob.type != "ARMATURE")) and (ob.parent.type not in {'EMPTY', 'ARMATURE'} or self.is_model):
                     if parent in evaluated_support_armatures:
                         object_parent_dict[ob] = self.main_armature.evaluated_get(self.depsgraph)
                     elif not parent:
@@ -367,7 +370,8 @@ class ExportScene:
         fp_defaults = {}
         nwo = ob.original.nwo
         object_type = self._get_object_type(ob.original)
-        if object_type == ObjectType.none:
+        # Frames go unused in non-model exports
+        if object_type == ObjectType.none or (not self.is_model and object_type == ObjectType.frame):
             return 
         
         props["bungie_object_type"] = object_type.value
@@ -630,7 +634,7 @@ class ExportScene:
         marker_type = nwo.marker_type
         props["bungie_marker_type"] = marker_type
         props["bungie_marker_model_group"] = nwo.marker_model_group
-        if self.asset_type in {AssetType.MODEL, AssetType.SKY}:
+        if self.is_model:
             props["bungie_marker_all_regions"] = int(not nwo.marker_uses_regions)
             if nwo.marker_uses_regions:
                 props["bungie_marker_region"] = region
@@ -1527,7 +1531,7 @@ class ExportScene:
                                           self.scene_settings.template_physics_model)
                 
     def lightmap(self):
-        if self.export_settings.lightmap_structure and (self.asset_type == AssetType.SCENARIO or (self.corinth and self.asset_type in {AssetType.MODEL, AssetType.SKY})):
+        if self.export_settings.lightmap_structure and (self.asset_type == AssetType.SCENARIO or (self.corinth and self.is_model)):
             run_lightmapper(
                 self.corinth,
                 [],
@@ -1537,7 +1541,7 @@ class ExportScene:
                 self.export_settings.lightmap_all_bsps,
                 self.export_settings.lightmap_specific_bsp,
                 self.export_settings.lightmap_region,
-                self.asset_type in {AssetType.MODEL, AssetType.SKY} and self.corinth,
+                self.is_model and self.corinth,
                 self.export_settings.lightmap_threads,
                 self.virtual_scene.structure)
     
