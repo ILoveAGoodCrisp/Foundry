@@ -716,7 +716,7 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
         name="Triangulate Quad Method",
         description="The quad method to use when meshes are triangulated at export. This only applies to objects without an existing triangulation modifier",
         options=set(),
-        default='FIXED',
+        default='SHORTEST_DIAGONAL',
         items=[
             ("BEAUTY", "Beauty", "Split the quads in nice triangles, slower method"),
             ("FIXED", "Fixed", "Split the quads on their first and third vertices"),
@@ -729,7 +729,7 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
         name="Triangulate N-gon Method",
         description="The n-gon method to use when meshes are triangulated at export. This only applies to objects without an existing triangulation modifier",
         options=set(),
-        default='CLIP',
+        default='BEAUTY',
         items=[
             ("BEAUTY", "Beauty", "Arrange the new triangles evenly (slow)"),
             ("CLIP", "Clip", "Split the polygons with an ear clipping algorithm")
