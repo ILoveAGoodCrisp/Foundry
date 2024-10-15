@@ -92,6 +92,7 @@ class ExportScene:
         self.depsgraph: bpy.types.Depsgraph = None
         self.virtual_scene: VirtualScene = None
         self.no_parent_objects = []
+        self.objects_with_children = set()
         self.default_region: str = context.scene.nwo.regions_table[0].name
         self.default_permutation: str = context.scene.nwo.permutations_table[0].name
         
@@ -287,6 +288,10 @@ class ExportScene:
         armature = None
         if self.asset_type in {AssetType.MODEL, AssetType.ANIMATION}:
             armature = utils.get_rig(self.context)
+        
+        for ob in bpy.data.objects:
+            if ob.parent:
+                self.objects_with_children.add(ob.parent)
                 
         
         with utils.Spinner():
@@ -334,7 +339,6 @@ class ExportScene:
             
         self.global_materials_list = list(self.global_materials - {'default'})
         self.global_materials_list.insert(0, 'default')
-        
         self.export_info = ExportInfo(self.regions if self.asset_type.supports_regions else None, self.global_materials_list if self.asset_type.supports_global_materials else None).create_info()
         self.virtual_scene.regions = self.regions
         self.virtual_scene.regions_set = set(self.regions)
@@ -343,6 +347,17 @@ class ExportScene:
         self.virtual_scene.object_parent_dict = object_parent_dict
         self.virtual_scene.object_halo_data = self.ob_halo_data
         self.context.view_layer.update()
+        
+    def _get_object_type(self, ob) -> ObjectType:
+        if ob.type in VALID_MESHES:
+            return ObjectType.mesh
+        elif ob.type == 'EMPTY' and ob.empty_display_type != "IMAGE":
+            if ob in self.objects_with_children:
+                return ObjectType.frame
+            else:
+                return ObjectType.marker
+                
+        return ObjectType.none
             
     def get_halo_props(self, ob: bpy.types.Object):
         props = {}
@@ -351,15 +366,14 @@ class ExportScene:
         permutation = self.default_permutation
         fp_defaults = {}
         nwo = ob.original.nwo
-        object_type = utils.get_object_type(ob)
-        
-        if object_type == '_connected_geometry_object_type_none':
+        object_type = self._get_object_type(ob.original)
+        if object_type == ObjectType.none:
             return 
         
-        props["bungie_object_type"] = ObjectType[object_type[32:]].value
+        props["bungie_object_type"] = object_type.value
         # props["bungie_object_type"] = object_type
-        is_mesh = ob.type in VALID_MESHES or ob.is_instancer
-        instanced_object = (object_type == '_connected_geometry_object_type_mesh' and nwo.mesh_type == '_connected_geometry_mesh_type_object_instance')
+        is_mesh = object_type == ObjectType.mesh
+        instanced_object = (is_mesh and nwo.mesh_type == '_connected_geometry_mesh_type_object_instance')
         tmp_region, tmp_permutation = nwo.region_name, nwo.permutation_name
         collection = bpy.data.collections.get(ob.nwo.export_collection)
         if collection and collection != self.context.scene.collection:
@@ -389,7 +403,7 @@ class ExportScene:
                     if perm not in self.permutations:
                         self.warnings.append(f"Object [{ob.name}] has {self.perm_name} [{perm}] in its include list which is not present in the {self.perm_name}s table. Ignoring {self.perm_name}")
             
-        if object_type == '_connected_geometry_object_type_mesh':
+        if object_type == ObjectType.mesh:
             if nwo.mesh_type == '':
                 nwo.mesh_type = '_connected_geometry_mesh_type_default'
             if utils.type_valid(nwo.mesh_type, self.asset_type.name.lower(), self.game_version):
@@ -400,7 +414,7 @@ class ExportScene:
             else:
                 return self.warnings.append(f"{ob.name} has invalid mesh type [{nwo.mesh_type}] for asset [{self.asset_type}]. Skipped")
                 
-        elif object_type == '_connected_geometry_object_type_marker':
+        elif object_type == ObjectType.marker:
             if nwo.marker_type == '':
                 nwo.marker_type = '_connected_geometry_marker_type_model'
             if utils.type_valid(nwo.marker_type, self.asset_type.name.lower(), self.game_version):

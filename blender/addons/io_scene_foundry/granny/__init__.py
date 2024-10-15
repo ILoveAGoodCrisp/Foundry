@@ -79,12 +79,12 @@ class Granny:
         self.export_vertex_datas = []
         meshes = set()
         materials = set()
-        for model in sorted(scene.models.values(), key=lambda model: model.name):
+        for model in scene.models.values():
             node = nodes.get(model.name)
             if not node: continue
             self.export_skeletons.append(Skeleton(model.skeleton, node, nodes))
             mesh_binding_indexes = []
-            for bone in sorted(model.skeleton.bones, key=lambda bone: bone.name):
+            for bone in model.skeleton.bones:
                 if bone.node and nodes.get(bone.name) and bone.node.mesh:
                     self.export_vertex_datas.append(bone.node.granny_vertex_data)
                     # self.export_tri_topologies.append(bone.node.granny_tri_topology)
@@ -97,9 +97,9 @@ class Granny:
             
         if meshes:
             self.export_tri_topologies = [mesh.granny_tri_topology for mesh in meshes]
-            self.export_materials = [mat.granny_material for mat in sorted(materials, key=lambda mat: mat.name)]
+            self.export_materials = [mat.granny_material for mat in materials]
             if scene.uses_textures:
-                self.export_textures = [mat.granny_texture for mat in sorted(materials, key=lambda mat: mat.name) if mat.granny_texture is not None]
+                self.export_textures = [mat.granny_texture for mat in materials if mat.granny_texture is not None]
         
     def save(self):
         data_tree_writer = self._begin_file_data_tree_writing()
