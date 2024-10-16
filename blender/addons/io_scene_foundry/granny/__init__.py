@@ -100,7 +100,7 @@ class Granny:
                     
                 self.end_variant(paths_builder, byref(paths_type), byref(paths_object))
                 
-                self.add_dynamic_array_member(info_builder, b"AllPaths", len(sibling_instances), paths_type, paths_object)
+                self.add_dynamic_array_member(info_builder, b"AllPaths", 1, paths_type, paths_object)
                 
                 info_type = pointer(GrannyDataTypeDefinition())
                 info_object = c_void_p()
