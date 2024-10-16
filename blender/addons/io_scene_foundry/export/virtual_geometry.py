@@ -6,14 +6,10 @@ from ctypes import Array, Structure, c_char_p, c_float, c_int, POINTER, c_ubyte,
 import logging
 from math import degrees, radians
 from pathlib import Path
-import random
 import bmesh
 import bpy
 from mathutils import Matrix, Vector
 import numpy as np
-import clr
-
-from ..granny.export_classes import create_extended_data
 
 from ..managed_blam.material import MaterialTag
 
@@ -156,17 +152,17 @@ class VirtualAnimation:
             granny_track = GrannyTransformTrack()
             granny_track.name = bones[bone_idx].pbone.name.encode()
             
-            builder = scene.granny._begin_curve(scene.granny.keyframe_type, 0, 3, self.frame_count)
-            scene.granny._push_control_array(builder, tracks[i])
-            position_curve = scene.granny._end_curve(builder)
+            builder = scene.granny.begin_curve(scene.granny.keyframe_type, 0, 3, self.frame_count)
+            scene.granny.push_control_array(builder, tracks[i])
+            position_curve = scene.granny.end_curve(builder)
             
-            builder = scene.granny._begin_curve(scene.granny.keyframe_type, 0, 4, self.frame_count)
-            scene.granny._push_control_array(builder, tracks[i + 1])
-            orientation_curve = scene.granny._end_curve(builder)
+            builder = scene.granny.begin_curve(scene.granny.keyframe_type, 0, 4, self.frame_count)
+            scene.granny.push_control_array(builder, tracks[i + 1])
+            orientation_curve = scene.granny.end_curve(builder)
             
-            builder = scene.granny._begin_curve(scene.granny.keyframe_type, 0, 9, self.frame_count)
-            scene.granny._push_control_array(builder, tracks[i + 2])
-            scale_curve = scene.granny._end_curve(builder)
+            builder = scene.granny.begin_curve(scene.granny.keyframe_type, 0, 9, self.frame_count)
+            scene.granny.push_control_array(builder, tracks[i + 2])
+            scale_curve = scene.granny.end_curve(builder)
             
             granny_track.position_curve = position_curve.contents
             granny_track.orientation_curve = orientation_curve.contents
@@ -198,17 +194,17 @@ class VirtualAnimation:
         arm_tracks.append((c_float * (self.frame_count * 4))(*orientations))
         arm_tracks.append((c_float * (self.frame_count * 9))(*scales))
 
-        builder = scene.granny._begin_curve(scene.granny.keyframe_type, 0, 3, self.frame_count)
-        scene.granny._push_control_array(builder, arm_tracks[0])
-        position_curve = scene.granny._end_curve(builder)
+        builder = scene.granny.begin_curve(scene.granny.keyframe_type, 0, 3, self.frame_count)
+        scene.granny.push_control_array(builder, arm_tracks[0])
+        position_curve = scene.granny.end_curve(builder)
         
-        builder = scene.granny._begin_curve(scene.granny.keyframe_type, 0, 4, self.frame_count)
-        scene.granny._push_control_array(builder, arm_tracks[1])
-        orientation_curve = scene.granny._end_curve(builder)
+        builder = scene.granny.begin_curve(scene.granny.keyframe_type, 0, 4, self.frame_count)
+        scene.granny.push_control_array(builder, arm_tracks[1])
+        orientation_curve = scene.granny.end_curve(builder)
         
-        builder = scene.granny._begin_curve(scene.granny.keyframe_type, 0, 9, self.frame_count)
-        scene.granny._push_control_array(builder, arm_tracks[2])
-        scale_curve = scene.granny._end_curve(builder)
+        builder = scene.granny.begin_curve(scene.granny.keyframe_type, 0, 9, self.frame_count)
+        scene.granny.push_control_array(builder, arm_tracks[2])
+        scale_curve = scene.granny.end_curve(builder)
 
         granny_track.position_curve = position_curve.contents
         granny_track.orientation_curve = orientation_curve.contents
@@ -229,7 +225,7 @@ class VirtualAnimation:
         granny_track_group.transform_tracks = granny_transform_tracks
         granny_track_group.flags = 2
         self.granny_track_group = pointer(granny_track_group)
-        # self.granny_track_group = scene.granny._end_track_group(group_builder) 
+        # self.granny_track_group = scene.granny.end_track_group(group_builder) 
 
     def to_granny_animation(self, scene: 'VirtualScene'):
         granny_animation = GrannyAnimation()
@@ -277,7 +273,7 @@ class VirtualMaterial:
     #         del self.granny_material.maps.contents
     #         del self.granny_material.maps
     #         for texture in self.granny_material.texture:
-    #             self.scene.granny._free_texture(texture)
+    #             self.scene.granny.free_texture(texture)
 
     #         del self.granny_material.texture
     #         del self.granny_material.extended_data.type.contents
@@ -325,9 +321,9 @@ class VirtualMaterial:
         
         # Create a granny texture builder instance
         width, height, stride, rgba = bitmap_data
-        builder = scene.granny._begin_texture_builder(width, height)
-        scene.granny._encode_image(builder, width, height, stride, 1, rgba)
-        texture = scene.granny._end_texture(builder)
+        builder = scene.granny.begin_texture_builder(width, height)
+        scene.granny.encode_image(builder, width, height, stride, 1, rgba)
+        texture = scene.granny.end_texture(builder)
         texture.contents.file_name = str(full_path).encode()
         texture.contents.texture_type = 2
         self.granny_texture = texture
@@ -361,7 +357,9 @@ class VirtualMesh:
         self.num_vertices = 0
         self.invalid = False
         self.granny_tri_topology = None
-        self.siblings = [ob.name]
+        self.siblings = []
+        if props.get("bungie_mesh_type") == MeshType.poop.value:
+            self.siblings.append(ob.name)
         # Check if a mesh already exists so we can copy its data (this will be the case in instances of shared mesh data but negative scale)
         # Transforms to account for negative scaling are done at granny level so the blender data can stay the same
         existing_mesh = scene.meshes.get((self.name, not negative_scaling))
@@ -747,7 +745,8 @@ class VirtualNode:
                     
                 if existing_mesh:
                     self.mesh = existing_mesh
-                    self.mesh.siblings.append(self.name)
+                    if self.props.get("bungie_mesh_type") == MeshType.poop.value:
+                        self.mesh.siblings.append(self.name)
                 else:
                     vertex_weighted = id.vertex_groups and id.parent and id.parent.type == 'ARMATURE' and id.parent_type != "BONE" and has_armature_deform_mod(id)
                     mesh = VirtualMesh(vertex_weighted, scene, default_bone_bindings, id, fp_defaults, is_rendered(self.props), proxies, self.props, negative_scaling, bones)
@@ -774,7 +773,7 @@ class VirtualNode:
                     vertex_array = (c_ubyte * self.mesh.len_vertex_array)()
                     memmove(vertex_array, self.mesh.vertex_array, self.mesh.len_vertex_array)
                     affine3, linear3x3, inverse_linear3x3 = calc_transforms(self.matrix_world)
-                    scene.granny._transform_vertices(self.mesh.num_vertices,
+                    scene.granny.transform_vertices(self.mesh.num_vertices,
                                                     self.granny_vertex_data.vertex_type,
                                                     vertex_array,
                                                     affine3,
@@ -875,13 +874,13 @@ class VirtualBone:
         self.props["bungie_object_animates"] = 1
         self.props["bungie_object_type"] = ObjectType.frame.value
         
-    def to_granny_data(self):
+    def to_granny_data(self, scene: 'VirtualScene'):
         self.granny_bone.name = self.name.encode()
         self.granny_bone.parent_index = self.parent_index
         self.granny_bone.local_transform = GrannyTransform(7, *granny_transform_parts(self.matrix_local))
         self.granny_bone.inverse_world_4x4 = self._granny_world_transform()
         if self.props:
-            create_extended_data(self.props, self.granny_bone)
+            scene.granny.create_extended_data(self.props, self.granny_bone)
         
     def _granny_world_transform(self):
         inverse_matrix = self.matrix_world.inverted()
@@ -918,7 +917,7 @@ class VirtualSkeleton:
         own_bone.matrix_world = own_bone.node.matrix_world
         own_bone.matrix_local = IDENTITY_MATRIX
         
-        own_bone.to_granny_data()
+        own_bone.to_granny_data(scene)
         self.bones: list[VirtualBone] = [own_bone]
         self._get_bones(ob, scene, is_main_armature)
 
@@ -1024,7 +1023,7 @@ class VirtualSkeleton:
                     # scene.root_bone = root_bone
                     # scene.root_bone_inverse_matrix = bone.matrix.inverted() @ IDENTITY_MATRIX
                 
-                b.to_granny_data()
+                b.to_granny_data(scene)
                 self.bones.append(b)
                 scene.animated_bones.append(bone)
                 
@@ -1057,7 +1056,7 @@ class VirtualSkeleton:
                 b.matrix_local = node.matrix_local
                 b.parent_index = parent_index
 
-                b.to_granny_data()
+                b.to_granny_data(scene)
                 self.bones.append(b)
                 self.find_children(child, scene, child_index)
                     
@@ -1080,7 +1079,7 @@ class VirtualSkeleton:
                 b.props = b.node.props
             b.matrix_world = node.matrix_world
             b.matrix_local = node.matrix_local
-            b.to_granny_data()
+            b.to_granny_data(scene)
             self.bones.append(b)
             self.find_children(child, scene, child_index)
             
@@ -1093,7 +1092,7 @@ class VirtualSkeleton:
                 b.node = node
                 b.matrix_world = b.node.matrix_world
                 b.matrix_local = b.node.matrix_local
-                b.to_granny_data()
+                b.to_granny_data(scene)
                 self.bones.append(b)
     
 class VirtualModel:

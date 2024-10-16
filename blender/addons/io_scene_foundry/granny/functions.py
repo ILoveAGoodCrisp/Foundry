@@ -90,14 +90,14 @@ def granny_build_composite_transform_4x4(transform : GrannyTransform, composite_
     GrannyDLL.GrannyBuildCompositeTransform4x4.argtypes=[POINTER(GrannyTransform),POINTER(c_float)]
     GrannyDLL.GrannyBuildCompositeTransform4x4(transform,composite_4x4)
 
-def granny_compute_basis_conversion(file_info : GrannyFileInfo, desired_units_per_meter : c_float, desired_origin_3 : c_float, desired_right_3 : c_float, desired_up_3 : c_float, desired_back_3 : c_float, result_affine_3 : c_float, result_linear_3x3 : c_float, result_inverse_linear_3x3 : c_float) -> c_bool:
+def grannycompute_basis_conversion(file_info : GrannyFileInfo, desired_units_per_meter : c_float, desired_origin_3 : c_float, desired_right_3 : c_float, desired_up_3 : c_float, desired_back_3 : c_float, result_affine_3 : c_float, result_linear_3x3 : c_float, result_inverse_linear_3x3 : c_float) -> c_bool:
     """Conversion stuff"""
     GrannyDLL.GrannyComputeBasisConversion.argtypes=[POINTER(GrannyFileInfo),c_float,POINTER(c_float),POINTER(c_float),POINTER(c_float),POINTER(c_float),POINTER(c_float),POINTER(c_float),POINTER(c_float)]
     GrannyDLL.GrannyComputeBasisConversion.restype=c_bool
     result = GrannyDLL.GrannyComputeBasisConversion(file_info,desired_units_per_meter,desired_origin_3,desired_right_3,desired_up_3,desired_back_3,result_affine_3,result_linear_3x3,result_inverse_linear_3x3)
     return result
 
-def granny_transform_file(file_info : GrannyFileInfo, affine_3 : c_float, linear_3x3 : c_float, inverse_linear_3x3 : c_float, affine_tolerance : c_float, linear_tolerance : c_float, flags : c_uint):
+def grannytransform_file(file_info : GrannyFileInfo, affine_3 : c_float, linear_3x3 : c_float, inverse_linear_3x3 : c_float, affine_tolerance : c_float, linear_tolerance : c_float, flags : c_uint):
     """Transforms entire file"""
     GrannyDLL.GrannyTransformFile.argtypes=[POINTER(GrannyFileInfo),POINTER(c_float),POINTER(c_float),POINTER(c_float),c_float,c_float,c_uint]
     GrannyDLL.GrannyTransformFile(file_info,affine_3,linear_3x3,inverse_linear_3x3,affine_tolerance,linear_tolerance,flags)
@@ -142,14 +142,14 @@ def granny_free_model_instance(model_instance : GrannyModelInstance):
     GrannyDLL.GrannyFreeModelInstance.argtypes=[POINTER(GrannyModelInstance)]
     GrannyDLL.GrannyFreeModelInstance(model_instance)
 
-def granny_begin_file_data_tree_writing(root_object_type_def : GrannyDataTypeDefinition, root_object : c_void_p, default_type_section_index : c_int32, default_object_section_index : c_int32) -> c_void_p:
+def grannybegin_file_data_tree_writing(root_object_type_def : GrannyDataTypeDefinition, root_object : c_void_p, default_type_section_index : c_int32, default_object_section_index : c_int32) -> c_void_p:
     """Used for writing gr2 files."""
     GrannyDLL.GrannyBeginFileDataTreeWriting.argtypes=[POINTER(GrannyDataTypeDefinition), c_void_p, c_int32, c_int32]
     GrannyDLL.GrannyBeginFileDataTreeWriting.restype=c_void_p
     result = GrannyDLL.GrannyBeginFileDataTreeWriting(root_object_type_def, root_object, default_type_section_index, default_object_section_index)
     return result
 
-def granny_write_data_tree_to_file(writer: c_void_p, file_type_tag: c_uint32, platform_magic_value : GrannyFileMagic, file_name: str, file_section_count: c_int32) -> c_bool:
+def grannywrite_data_tree_to_file(writer: c_void_p, file_type_tag: c_uint32, platform_magic_value : GrannyFileMagic, file_name: str, file_section_count: c_int32) -> c_bool:
     """Used for writing gr2 files."""
     file_name_bytes = file_name.encode()
     GrannyDLL.GrannyWriteDataTreeToFile.argtypes=[c_void_p, c_uint32, POINTER(GrannyFileMagic), c_char_p, c_int32]
@@ -157,7 +157,7 @@ def granny_write_data_tree_to_file(writer: c_void_p, file_type_tag: c_uint32, pl
     result = GrannyDLL.GrannyWriteDataTreeToFile(writer, file_type_tag, platform_magic_value, file_name_bytes, file_section_count)
     return result
 
-def granny_end_file_data_tree_writing(writer: c_void_p):
+def grannyend_file_data_tree_writing(writer: c_void_p):
     """Used for writing gr2 files."""
     GrannyDLL.GrannyEndFileDataTreeWriting.argtypes=[c_void_p]
     GrannyDLL.GrannyEndFileDataTreeWriting(writer)
@@ -176,7 +176,7 @@ def granny_get_mesh_vertices(mesh : GrannyMesh) -> c_void_p:
     result = GrannyDLL.GrannyGetMeshVertices(mesh)
     return result
 
-def granny_set_transform_with_identity_check(result: GrannyTransform, position_3: c_float, orientation4: c_float, scale_shear_3x3: c_float):
+def grannyset_transform_with_identity_check(result: GrannyTransform, position_3: c_float, orientation4: c_float, scale_shear_3x3: c_float):
     GrannyDLL.GrannySetTransformWithIdentityCheck.argtypes=[POINTER(GrannyTransform),POINTER(c_float),POINTER(c_float),POINTER(c_float)]
     GrannyDLL.GrannySetTransformWithIdentityCheck(result,position_3,orientation4,scale_shear_3x3)
 

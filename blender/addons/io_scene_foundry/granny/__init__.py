@@ -20,14 +20,16 @@ GrannyCallbackType = CFUNCTYPE(
 )
 
 class Granny:
-    def __init__(self, granny_dll_path: str | Path):
+    def __init__(self, granny_dll_path: str | Path, corinth: bool):
         self.dll = cdll.LoadLibrary(str(granny_dll_path))
         self.file_info = None
+        self.corinth = corinth
         self._define_granny_functions()
         self.file_info_type = POINTER(GrannyDataTypeDefinition).in_dll(self.dll, "GrannyFileInfoType")
         self.magic_value = POINTER(GrannyFileMagic).in_dll(self.dll, "GrannyGRNFileMV_ThisPlatform")
         self.keyframe_type = POINTER(GrannyDataTypeDefinition).in_dll(self.dll, "GrannyCurveDataDaKeyframes32fType")
         self.curve_type = POINTER(GrannyDataTypeDefinition).in_dll(self.dll, "GrannyCurveDataDaK32fC32fType")
+        self.string_table = self.new_string_table()
         self._create_callback()
         self.filename = ""
 
@@ -68,6 +70,66 @@ class Granny:
         self.granny_export_info = None
         self._create_file_info()
         
+    def create_extended_data(self, props: dict, entity, sibling_instances=[]):
+        granny_props = utils.get_halo_props_for_granny(props)
+        if not granny_props: return
+        
+        builder = self.begin_variant(self.string_table)
+        
+        for key, value in granny_props.items():
+            if isinstance(value, c_int):
+                self.add_integer_member(builder, key, value)
+            elif isinstance(value, c_float):
+                self.add_scalar_member(builder, key, value)
+            elif isinstance(value, bytes):
+                self.add_string_member(builder, key, value)
+                
+        if sibling_instances:
+            if self.corinth:
+                # Corinth
+                info_builder = self.begin_variant(self.string_table)
+                self.add_integer_member(info_builder, b"IsInstanced", c_int(1))
+                self.add_integer_member(info_builder, b"IndirectlyInstanced", c_int(1))
+                
+                paths_builder = self.begin_variant(self.string_table)
+                for sibling in sibling_instances:
+                    self.add_string_member(paths_builder, b"String", sibling)
+                    
+                paths_type = pointer(GrannyDataTypeDefinition())
+                paths_object = c_void_p()
+                    
+                self.end_variant(paths_builder, byref(paths_type), byref(paths_object))
+                
+                self.add_dynamic_array_member(info_builder, b"AllPaths", len(sibling_instances), paths_type, paths_object)
+                
+                info_type = pointer(GrannyDataTypeDefinition())
+                info_object = c_void_p()
+                self.end_variant(info_builder, byref(info_type), byref(info_object))
+                self.add_reference_member(builder, b"InstancingInfo", info_type, info_object)
+            else:
+                sibling_builder = self.begin_variant(self.string_table)
+                reference_builder = self.begin_variant(self.string_table)
+                for sibling in sibling_instances:
+                    self.add_string_member(sibling_builder, b"String", sibling)
+                    self.add_integer_member(reference_builder, b"Int32", c_int(0))
+                    
+                sibling_type = pointer(GrannyDataTypeDefinition())
+                sibling_object = c_void_p()
+                reference_type = pointer(GrannyDataTypeDefinition())
+                reference_object = c_void_p()
+                    
+                self.end_variant(sibling_builder, byref(sibling_type), byref(sibling_object))
+                self.end_variant(reference_builder, byref(reference_type), byref(reference_object))
+                # self.add_reference_member(builder, b"SiblingInstances", sibling_type, sibling_object)
+                # self.add_reference_member(builder, b"SiblingIsReference", reference_type, reference_object)
+                self.add_dynamic_array_member(builder, b"SiblingInstances", len(sibling_instances), sibling_type, sibling_object)
+                self.add_dynamic_array_member(builder, b"SiblingIsReference", len(sibling_instances), reference_type, reference_object)
+        
+        data = c_void_p()
+        
+        self.end_variant(builder, entity.extended_data.type, byref(data))
+        
+        entity.extended_data.object = data
         
     def from_tree(self, scene, nodes):
         self.export_materials = []
@@ -102,10 +164,10 @@ class Granny:
                 self.export_textures = [mat.granny_texture for mat in materials if mat.granny_texture is not None]
         
     def save(self):
-        data_tree_writer = self._begin_file_data_tree_writing()
+        data_tree_writer = self.begin_file_data_tree_writing()
         if data_tree_writer:
-            if self._write_data_tree_to_file(data_tree_writer):
-                self._end_file_data_tree_writing(data_tree_writer)
+            if self.write_data_tree_to_file(data_tree_writer):
+                self.end_file_data_tree_writing(data_tree_writer)
                 
     def transform(self):
         '''Transforms the granny file to Halo (Big scale + X forward)'''
@@ -118,7 +180,7 @@ class Granny:
         linear3x3 = (c_float * 9)(0, 0, 0, 0, 0, 0, 0, 0, 0)
         inverse_linear3x3 = (c_float * 9)(0, 0, 0, 0, 0, 0, 0, 0, 0)
         
-        self._compute_basis_conversion(self.file_info, 
+        self.compute_basis_conversion(self.file_info, 
                                       halo_units_per_meter,
                                       halo_origin,
                                       halo_right_vector,
@@ -129,7 +191,7 @@ class Granny:
                                       inverse_linear3x3,
                                       )
         
-        self._transform_file(
+        self.transform_file(
             self.file_info,
             affine3,
             linear3x3,
@@ -199,7 +261,7 @@ class Granny:
         granny_bone.local_transform = granny_transform_default
         granny_bone.inverse_world_4x4 = granny_inverse_transform_default
 
-        create_extended_data(export_info, granny_bone)
+        self.create_extended_data(export_info, granny_bone)
         
         granny_skeleton.bone_count = 1
         granny_skeleton.bones = cast(bones, POINTER(GrannyBone))
@@ -231,7 +293,7 @@ class Granny:
 
     def _populate_mesh(self, granny_mesh, export_mesh: Mesh):
         granny_mesh.name = export_mesh.name
-        create_extended_data(export_mesh.props, granny_mesh, export_mesh.siblings)
+        self.create_extended_data(export_mesh.props, granny_mesh, export_mesh.siblings)
         granny_mesh.primary_vertex_data = export_mesh.primary_vertex_data
         granny_mesh.primary_topology = export_mesh.primary_topology
         
@@ -295,7 +357,7 @@ class Granny:
     def _create_callback(self):
         callback = GrannyLogCallback()
         callback.function = GrannyCallbackType(self._new_callback_function)
-        self._set_log_callback(callback)
+        self.set_log_callback(callback)
         
     def _create_file_info(self):
         self.file_info = GrannyFileInfo()
@@ -355,8 +417,8 @@ class Granny:
     def _new_callback_function(self, callback_type, callback_origin, source_file, source_line, message, user_data):
         utils.print_warning(
             f"Granny Traceback\n" 
-            f"Type: {self._granny_get_log_message_type_string(callback_type)}\n"
-            f"Origin: {self._granny_get_log_message_origin_string(callback_origin)}\n"
+            f"Type: {self._grannyget_log_message_type_string(callback_type)}\n"
+            f"Origin: {self._grannyget_log_message_origin_string(callback_origin)}\n"
             f"File: {source_file}\n"
             f"Line: {source_line}\n"
             f"Message: {message}\n"
@@ -369,57 +431,50 @@ class Granny:
         """Returns the granny dll version as a string"""
         return self.dll.GrannyGetVersionString().decode()
     
-    def _begin_file_data_tree_writing(self):
+    def begin_file_data_tree_writing(self):
         "Starts writing the gr2 data"
         return self.dll.GrannyBeginFileDataTreeWriting(self.file_info_type, pointer(self.file_info), 0, 0)
     
-    def _write_data_tree_to_file(self, writer):
+    def write_data_tree_to_file(self, writer):
         "Write the gr2 to a system file"
         return self.dll.GrannyWriteDataTreeToFile(writer, 0x80000037, self.magic_value, self.filename.encode(), 1)
     
-    def _end_file_data_tree_writing(self, writer):
+    def end_file_data_tree_writing(self, writer):
         "Ends gr2 data writing"
         self.dll.GrannyEndFileDataTreeWriting(writer)
     
-    def _set_log_file_name(self, file_name: str, clear: c_bool) -> c_bool:
+    def set_log_file_name(self, file_name: str, clear: c_bool) -> c_bool:
         return self.dll.GrannySetLogFileName(file_name.encode(), clear)
     
-    def _get_log_callback(self, callback: GrannyLogCallback):
+    def get_log_callback(self, callback: GrannyLogCallback):
         self.dll.GrannyGetLogCallback(callback)
         
-    def _set_log_callback(self, callback: GrannyLogCallback):
+    def set_log_callback(self, callback: GrannyLogCallback):
         self.dll.GrannySetLogCallback(callback)
         
-    def _get_log_message_type_string(self, message_type: c_int) -> c_char_p:
+    def get_log_message_type_string(self, message_type: c_int) -> c_char_p:
         return self.dll.GrannyGetLogMessageTypeString(message_type)
 
-    def _get_log_message_origin_string(self, origin: c_int) -> c_char_p:
+    def get_log_message_origin_string(self, origin: c_int) -> c_char_p:
         return self.dll.GrannyGetLogMessageOriginString(origin)
     
-    def _get_log_message_type_string(self, message_type: c_int) -> c_char_p:
-        return self.dll.GrannyGetLogMessageTypeString(message_type)
-
-    def _get_log_message_origin_string(self, origin: c_int) -> c_char_p:
-        result = self.dll.GrannyGetLogMessageOriginString(origin)
-        return result
-    
-    def _set_transform_with_identity_check(self, result: GrannyTransform, position_3: c_float, orientation4: c_float, scale_shear_3x3: c_float):
+    def set_transform_with_identity_check(self, result: GrannyTransform, position_3: c_float, orientation4: c_float, scale_shear_3x3: c_float):
         "Sets the value of the given granny_transform and updates its identity flags"
         self.dll.GrannySetTransformWithIdentityCheck(result,position_3,orientation4,scale_shear_3x3)
         
-    def _transform_file(self, file_info : GrannyFileInfo, affine_3 : c_float, linear_3x3 : c_float, inverse_linear_3x3 : c_float, affine_tolerance : c_float, linear_tolerance : c_float, flags : c_uint):
+    def transform_file(self, file_info : GrannyFileInfo, affine_3 : c_float, linear_3x3 : c_float, inverse_linear_3x3 : c_float, affine_tolerance : c_float, linear_tolerance : c_float, flags : c_uint):
         "Transforms the entire file. Flags: 1 = renormalise normals, 2 = reorder triangle indices"
         self.dll.GrannyTransformFile(file_info, affine_3, linear_3x3, inverse_linear_3x3, affine_tolerance, linear_tolerance, flags)
         
-    def _compute_basis_conversion(self, file_info : GrannyFileInfo, desired_units_per_meter : c_float, desired_origin_3 : c_float, desired_right_3 : c_float, desired_up_3 : c_float, desired_back_3 : c_float, result_affine_3 : c_float, result_linear_3x3 : c_float, result_inverse_linear_3x3 : c_float) -> c_bool:
+    def compute_basis_conversion(self, file_info : GrannyFileInfo, desired_units_per_meter : c_float, desired_origin_3 : c_float, desired_right_3 : c_float, desired_up_3 : c_float, desired_back_3 : c_float, result_affine_3 : c_float, result_linear_3x3 : c_float, result_inverse_linear_3x3 : c_float) -> c_bool:
         "Computes the given affine, linear and inverse linear values to those required to transform the file from the current coordinates to the given coordinates. The results are written directly to the given affine, linear and inverse linear values"
         return self.dll.GrannyComputeBasisConversion(file_info,desired_units_per_meter,desired_origin_3,desired_right_3,desired_up_3,desired_back_3,result_affine_3,result_linear_3x3,result_inverse_linear_3x3)
     
-    def _transform_mesh(self, mesh: GrannyMesh, affine_3 : c_float, linear_3x3 : c_float, inverse_linear_3x3 : c_float, affine_tolerance : c_float, linear_tolerance : c_float, flags : c_uint):
+    def transform_mesh(self, mesh: GrannyMesh, affine_3 : c_float, linear_3x3 : c_float, inverse_linear_3x3 : c_float, affine_tolerance : c_float, linear_tolerance : c_float, flags : c_uint):
         "Transforms a mesh"
         self.dll.GrannyTransformFile(mesh, affine_3, linear_3x3, inverse_linear_3x3, affine_tolerance, linear_tolerance, flags)
         
-    def _transform_vertices(self, vertex_count: c_int, layout: GrannyDataTypeDefinition, vertices, affine_3 : c_float, linear_3x3 : c_float, inverse_linear_3x3 : c_float, renormalise: bool, treat_as_deltas: bool):
+    def transform_vertices(self, vertex_count: c_int, layout: GrannyDataTypeDefinition, vertices, affine_3 : c_float, linear_3x3 : c_float, inverse_linear_3x3 : c_float, renormalise: bool, treat_as_deltas: bool):
         "Transforms vertices. Flags: 1 = renormalise normals, 2 = treat as deltas"
         self.dll.GrannyTransformVertices(vertex_count, layout, vertices, affine_3, linear_3x3, inverse_linear_3x3, renormalise, treat_as_deltas)
         
@@ -427,84 +482,117 @@ class Granny:
         "Inverts face winding of the given tri_topology"
         self.dll.GrannyInvertTriTopologyWinding(tri_topology)
         
-    def _normalise_vertices(self, vertex_count: c_int, layout: GrannyDataTypeDefinition, vertices):
+    def normalise_vertices(self, vertex_count: c_int, layout: GrannyDataTypeDefinition, vertices):
         self.dll.GrannyNormalizeVertices(vertex_count, layout, vertices)
         
-    def _begin_texture_builder(self, width: c_int, height: c_int):
+    def begin_texture_builder(self, width: c_int, height: c_int):
         "Returns a granny texture builder instance"
         return self.dll.GrannyBeginBestMatchS3TCTexture(width, height)
     
-    def _encode_image(self, builder: POINTER(GrannyTextureBuilder), width: c_int, height: c_int, stride: c_int, mip_count: c_int, rgba_data: c_void_p):
+    def encode_image(self, builder: POINTER(GrannyTextureBuilder), width: c_int, height: c_int, stride: c_int, mip_count: c_int, rgba_data: c_void_p):
         "Encodes an image i.e makes it"
         self.dll.GrannyEncodeImage(builder, width, height, stride, mip_count, rgba_data)
     
-    def _end_texture(self, builder: POINTER(GrannyTextureBuilder)):
+    def end_texture(self, builder: POINTER(GrannyTextureBuilder)):
         "returns a granny texture from a builder instance"
         return self.dll.GrannyEndTexture(builder)
     
-    def _free_texture(self, texture: c_void_p):
+    def free_texture(self, texture: c_void_p):
         "Frees the texture from memory"
         self.dll.GrannyFreeBuilderResult(texture)
         
-    def _begin_track_group(self, name: c_char_p, vector_track_count: c_int, transform_track_count: c_int, text_track_count: c_int, include_lod_error_space: c_bool) -> POINTER(GrannyTrackGroupBuilder):
+    def begin_track_group(self, name: c_char_p, vector_track_count: c_int, transform_track_count: c_int, text_track_count: c_int, include_lod_error_space: c_bool) -> POINTER(GrannyTrackGroupBuilder):
         return self.dll.GrannyBeginTrackGroup(name, vector_track_count, transform_track_count, text_track_count, include_lod_error_space)
     
-    def _begin_transform_track(self, builder: POINTER(GrannyTrackGroupBuilder), name: c_char_p, flags: c_int):
+    def begin_transform_track(self, builder: POINTER(GrannyTrackGroupBuilder), name: c_char_p, flags: c_int):
         self.dll.GrannyBeginTransformTrack(builder, name, flags)
         
-    def _initialise_curve_format(self, curve: POINTER(GrannyCurve2)):
+    def initialise_curve_format(self, curve: POINTER(GrannyCurve2)):
         self.dll.GrannyCurveInitializeFormat(curve)
         
-    def _set_transform_track_position(self, builder: POINTER(GrannyTrackGroupBuilder), source_curve: POINTER(GrannyCurve2)):
+    def set_transform_track_position(self, builder: POINTER(GrannyTrackGroupBuilder), source_curve: POINTER(GrannyCurve2)):
         self.dll.GrannySetTransformTrackPositionCurve(builder, source_curve)
         
-    def _set_transform_track_orientation(self, builder: POINTER(GrannyTrackGroupBuilder), source_curve: POINTER(GrannyCurve2)):
+    def set_transform_track_orientation(self, builder: POINTER(GrannyTrackGroupBuilder), source_curve: POINTER(GrannyCurve2)):
         self.dll.GrannySetTransformTrackOrientationCurve(builder, source_curve)
         
-    def _set_transform_track_scale(self, builder: POINTER(GrannyTrackGroupBuilder), source_curve: POINTER(GrannyCurve2)):
+    def set_transform_track_scale(self, builder: POINTER(GrannyTrackGroupBuilder), source_curve: POINTER(GrannyCurve2)):
         self.dll.GrannySetTransformTrackScaleShearCurve(builder, source_curve)
         
-    def _end_transform_track(self, builder: POINTER(GrannyTrackGroupBuilder)):
+    def end_transform_track(self, builder: POINTER(GrannyTrackGroupBuilder)):
         self.dll.GrannyEndTransformTrack(builder)
         
-    def _end_track_group(self, builder: POINTER(GrannyTrackGroupBuilder)) -> POINTER(GrannyTrackGroup):
+    def end_track_group(self, builder: POINTER(GrannyTrackGroupBuilder)) -> POINTER(GrannyTrackGroup):
         return self.dll.GrannyEndTrackGroup(builder)
     
-    def _curve_format_is_initialized_correctly(self, curve: POINTER(GrannyCurve2), check_types: c_bool) -> c_bool:
+    def curve_format_is_initialized_correctly(self, curve: POINTER(GrannyCurve2), check_types: c_bool) -> c_bool:
         return self.dll.GrannyCurveFormatIsInitializedCorrectly(curve, check_types)
     
-    def _begin_sampled_animation(self, transform_curve_count: c_int, sample_count: c_int) -> POINTER(GrannyTrackGroupSampler):
+    def begin_sampled_animation(self, transform_curve_count: c_int, sample_count: c_int) -> POINTER(GrannyTrackGroupSampler):
         return self.dll.GrannyBeginSampledAnimation(transform_curve_count, sample_count)
     
-    def _set_transform_sample(self, sampler: POINTER(GrannyTrackGroupSampler), track_index: c_int, sample_index: c_int, position3: POINTER(c_float), orientation4: POINTER(c_float), scale_shear3x3: POINTER(c_float)):
+    def set_transform_sample(self, sampler: POINTER(GrannyTrackGroupSampler), track_index: c_int, sample_index: c_int, position3: POINTER(c_float), orientation4: POINTER(c_float), scale_shear3x3: POINTER(c_float)):
         self.dll.GrannySetTransformSample(sampler, track_index, sample_index, position3, orientation4, scale_shear3x3)
         
-    def _fit_bspline_to_samples(self, solver: POINTER(GrannyBSplineSolver), solver_flags: c_uint32, degree: c_int, error_threshold: c_float, c0_threshold: c_float, c1_threshold: c_float, samples: POINTER(c_float), dimension: c_int, sample_count: c_int, dt: c_float, curve_data_type: POINTER(GrannyDataTypeDefinition), maximum_curve_size_in_bytes: c_int, achieved_tolerance: c_bool, curve_size_in_bytes: c_int) -> POINTER(GrannyCurve2):
+    def fit_bspline_to_samples(self, solver: POINTER(GrannyBSplineSolver), solver_flags: c_uint32, degree: c_int, error_threshold: c_float, c0_threshold: c_float, c1_threshold: c_float, samples: POINTER(c_float), dimension: c_int, sample_count: c_int, dt: c_float, curve_data_type: POINTER(GrannyDataTypeDefinition), maximum_curve_size_in_bytes: c_int, achieved_tolerance: c_bool, curve_size_in_bytes: c_int) -> POINTER(GrannyCurve2):
         return self.dll.GrannyFitBSplineToSamples(solver, solver_flags, degree, error_threshold, c0_threshold, c1_threshold, samples, dimension, sample_count, dt, curve_data_type, maximum_curve_size_in_bytes, achieved_tolerance, curve_size_in_bytes)
 
-    def _allocate_bspline_solver(self, max_degree: c_int, max_sample_count: c_int, max_dimension: c_int) -> POINTER(GrannyBSplineSolver):
+    def allocate_bspline_solver(self, max_degree: c_int, max_sample_count: c_int, max_dimension: c_int) -> POINTER(GrannyBSplineSolver):
         return self.dll.GrannyAllocateBSplineSolver(max_degree, max_sample_count, max_dimension)
     
-    def _get_position_samples(self, sampler: POINTER(GrannyTrackGroupSampler), track_index: c_int) -> POINTER(c_float):
+    def get_position_samples(self, sampler: POINTER(GrannyTrackGroupSampler), track_index: c_int) -> POINTER(c_float):
         return self.dll.GrannyGetPositionSamples(sampler, track_index)
     
-    def _get_orientation_samples(self, sampler: POINTER(GrannyTrackGroupSampler), track_index: c_int) -> POINTER(c_float):
+    def get_orientation_samples(self, sampler: POINTER(GrannyTrackGroupSampler), track_index: c_int) -> POINTER(c_float):
         return self.dll.GrannyGetOrientationSamples(sampler, track_index)
     
-    def _get_scale_shear_samples(self, sampler: POINTER(GrannyTrackGroupSampler), track_index: c_int) -> POINTER(c_float):
+    def get_scale_shear_samples(self, sampler: POINTER(GrannyTrackGroupSampler), track_index: c_int) -> POINTER(c_float):
         return self.dll.GrannyGetScaleShearSamples(sampler, track_index)
     
-    def _compress_curve(self, solver: POINTER(GrannyBSplineSolver), solver_flags: c_uint32, params: POINTER(GrannyCompressCurveParameters), samples: POINTER(c_float), dimension: c_int, frame_count: c_int, dt: c_float, curve_achieved_tolerance: c_bool) -> POINTER(GrannyCurve2):
+    def compress_curve(self, solver: POINTER(GrannyBSplineSolver), solver_flags: c_uint32, params: POINTER(GrannyCompressCurveParameters), samples: POINTER(c_float), dimension: c_int, frame_count: c_int, dt: c_float, curve_achieved_tolerance: c_bool) -> POINTER(GrannyCurve2):
         return self.dll.GrannyCompressCurve(solver, solver_flags, params, samples, dimension, frame_count, dt, curve_achieved_tolerance)
     
-    def _begin_curve(self, type_definition: POINTER(GrannyDataTypeDefinition), degree: c_int, dimension: c_int, knot_count: c_int) -> POINTER(GrannyCurveBuilder):
+    def begin_curve(self, type_definition: POINTER(GrannyDataTypeDefinition), degree: c_int, dimension: c_int, knot_count: c_int) -> POINTER(GrannyCurveBuilder):
         return self.dll.GrannyBeginCurve(type_definition, degree, dimension, knot_count)
     
-    def _push_control_array(self, builder: POINTER(GrannyCurveBuilder), control_array: POINTER(c_float)):
+    def push_control_array(self, builder: POINTER(GrannyCurveBuilder), control_array: POINTER(c_float)):
         self.dll.GrannyPushCurveControlArray(builder, control_array)
         
-    def _end_curve(self, builder: POINTER(GrannyCurveBuilder)) -> POINTER(GrannyCurve2):
+    def end_curve(self, builder: POINTER(GrannyCurveBuilder)) -> POINTER(GrannyCurve2):
         return self.dll.GrannyEndCurve(builder)
+    
+    def begin_variant(self, string_table_builder: POINTER(GrannyStringTable)) -> POINTER(GrannyVariantBuilder):
+        return self.dll.GrannyBeginVariant(string_table_builder)
+    
+    def end_variant(self, builder: POINTER(GrannyVariantBuilder), dtype: POINTER(POINTER(GrannyDataTypeDefinition)), dobject: POINTER(c_void_p)) -> c_void_p:
+        return self.dll.GrannyEndVariant(builder, dtype, dobject)
+    
+    def add_integer_member(self, builder: POINTER(GrannyVariantBuilder), name: c_char_p, value: c_int32):
+        self.dll.GrannyAddIntegerMember(builder, name, value)
+        
+    def add_integer_array_member(self, builder: POINTER(GrannyVariantBuilder), name: c_char_p, width: c_int32, value: POINTER(c_int32)):
+        self.dll.GrannyAddIntegerArrayMember(builder, name, width, value)
+        
+    def add_unsigned_integer_member(self, builder: POINTER(GrannyVariantBuilder), name: c_char_p, value: c_uint32):
+        self.dll.GrannyAddUnsignedIntegerMember(builder, name, value)
+        
+    def add_scalar_member(self, builder: POINTER(GrannyVariantBuilder), name: c_char_p, value: c_float):
+        self.dll.GrannyAddScalarMember(builder, name, value)
+        
+    def add_scalar_array_member(self, builder: POINTER(GrannyVariantBuilder), name: c_char_p, width: c_int32, value: POINTER(c_float)):
+        self.dll.GrannyAddScalarArrayMember(builder, name, width, value)
+        
+    def add_string_member(self, builder: POINTER(GrannyVariantBuilder), name: c_char_p, value: c_char_p):
+        self.dll.GrannyAddStringMember(builder, name, value)
+        
+    def add_reference_member(self, builder: POINTER(GrannyVariantBuilder), name: c_char_p, dtype: POINTER(GrannyDataTypeDefinition), value: c_char_p):
+        self.dll.GrannyAddReferenceMember(builder, name, dtype, value)
+        
+    def add_dynamic_array_member(self, builder: POINTER(GrannyVariantBuilder), name: c_char_p, count: c_int32, entry_type: POINTER(GrannyDataTypeDefinition), array_entries: c_void_p):
+        self.dll.GrannyAddDynamicArrayMember(builder, name, count, entry_type, array_entries)
+        
+    def new_string_table(self) -> POINTER(GrannyStringTable):
+        return self.dll.GrannyNewStringTable()
 
     def _define_granny_functions(self):
         # Get version
@@ -604,4 +692,28 @@ class Granny:
         # End Curve
         self.dll.GrannyEndCurve.argtypes=[POINTER(GrannyCurveBuilder)]
         self.dll.GrannyEndCurve.restype=POINTER(GrannyCurve2)
+        # Begin Variant
+        self.dll.GrannyBeginVariant.argtypes=[POINTER(GrannyStringTable)]
+        self.dll.GrannyBeginVariant.restype=POINTER(GrannyVariantBuilder)
+        # End Variant
+        self.dll.GrannyEndVariant.argtypes=[POINTER(GrannyVariantBuilder), POINTER(POINTER(GrannyDataTypeDefinition)), POINTER(c_void_p)]
+        self.dll.GrannyEndVariant.restype=c_void_p
+        # Add integer member
+        self.dll.GrannyAddIntegerMember.argtypes=[POINTER(GrannyVariantBuilder), c_char_p, c_int32]
+        # Add integer array member
+        self.dll.GrannyAddIntegerArrayMember.argtypes=[POINTER(GrannyVariantBuilder), c_char_p, c_int32, POINTER(c_int32)]
+        # Add uint member
+        self.dll.GrannyAddUnsignedIntegerMember.argtypes=[POINTER(GrannyVariantBuilder), c_char_p, c_uint32]
+        # Add float member
+        self.dll.GrannyAddScalarMember.argtypes=[POINTER(GrannyVariantBuilder), c_char_p, c_float]
+        # Add float array member
+        self.dll.GrannyAddScalarArrayMember.argtypes=[POINTER(GrannyVariantBuilder), c_char_p, c_int32, POINTER(c_float)]
+        # Add string member
+        self.dll.GrannyAddStringMember.argtypes=[POINTER(GrannyVariantBuilder), c_char_p, c_char_p]
+        # Add reference member
+        self.dll.GrannyAddReferenceMember.argtypes=[POINTER(GrannyVariantBuilder), c_char_p, POINTER(GrannyDataTypeDefinition), c_void_p]
+        # Add dynamic array member
+        self.dll.GrannyAddDynamicArrayMember.argtypes=[POINTER(GrannyVariantBuilder), c_char_p, c_int32, POINTER(GrannyDataTypeDefinition), c_void_p]
+        # Create string table
+        self.dll.GrannyNewStringTable.restype=POINTER(GrannyStringTable)
         

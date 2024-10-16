@@ -123,7 +123,7 @@ class ExportScene:
         self.project_root = self.tags_dir.parent
         self.warnings = []
         os.chdir(self.project_root)
-        self.granny = Granny(Path(self.project_root, "granny2_x64.dll"))
+        self.granny = Granny(Path(self.project_root, "granny2_x64.dll"), self.corinth)
         
         self.forward = scene_settings.forward_direction
         self.scale = 1 if scene_settings.scale == 'max' else 0.03048

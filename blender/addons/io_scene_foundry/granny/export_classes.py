@@ -317,7 +317,7 @@ class Mesh():
         self.name = node.name.encode()
         self.props = node.props
         mesh = node.mesh
-        self.siblings = [s for s in mesh.siblings if s != node.name]
+        self.siblings = [s.encode() for s in mesh.siblings if s != node.name]
         self.primary_vertex_data = node.granny_vertex_data
         self.primary_topology = node.mesh.granny_tri_topology
         self.materials = [mat.granny_material for mat in mesh.materials.keys()]
@@ -336,78 +336,3 @@ class Model:
         position, orientation, scale_shear = granny_transform_parts(node.matrix_local)
         self.initial_placement = GrannyTransform(flags=7, position=position, orientation=orientation, scale_shear=scale_shear)
         self.mesh_bindings = mesh_binding_indexes
-        
-def create_extended_data(props, granny, sibling_instances=[]):
-    granny_props = utils.get_halo_props_for_granny(props)
-    if not granny_props: return
-    
-    # has_sibling_instances = bool(sibling_instances)
-    
-    # ExtendedDataType = (GrannyDataTypeDefinition * (len(granny_props) + 1 + int(has_sibling_instances)))()
-    ExtendedDataType = (GrannyDataTypeDefinition * (len(granny_props) + 1))()
-    
-    for i, (key, value) in enumerate(granny_props.items()):
-        if isinstance(value, int):
-            if value < 256:
-                mtype = GrannyMemberType.granny_uint8_member.value
-            else:
-                mtype = GrannyMemberType.granny_int32_member.value
-        elif isinstance(value, float):
-            mtype = GrannyMemberType.granny_real32_member.value
-        elif isinstance(value, bytes):
-            mtype = GrannyMemberType.granny_string_member.value
-        else:
-            mtype = GrannyMemberType.granny_real32_member.value
-                
-        ExtendedDataType[i] = GrannyDataTypeDefinition(
-            member_type=mtype,
-            name=key.encode()
-        )
-        
-    # if has_sibling_instances:
-    #     sibling_type = []
-    #     # sibling_type.append(GrannyDataTypeDefinition(GrannyMemberType.granny_int32_member.value, b"String", None, len(sibling_instances)))
-    #     sibling_type.append(GrannyDataTypeDefinition(GrannyMemberType.granny_int32_member.value, b"String", None, 5))
-    #     sibling_type.append(GrannyDataTypeDefinition(0, None, None, 0))
-    #     sibling_type_array = (GrannyDataTypeDefinition * 2)(*sibling_type)
-        
-    #     ExtendedDataType[-2] = GrannyDataTypeDefinition(
-    #         member_type=GrannyMemberType.granny_reference_to_array_member.value,
-    #         name=b"SiblingInstances",
-    #         reference_type=cast(sibling_type_array, POINTER(GrannyDataTypeDefinition)),
-    #     )
-    
-    ExtendedDataType[-1] = GrannyDataTypeDefinition(member_type=0)
-    data = extended_data_create(granny_props, sibling_instances)
-    granny.extended_data.object = cast(pointer(data), c_void_p)
-    granny.extended_data.type = ExtendedDataType
-    
-def extended_data_create(properties, sibling_instances=[]):
-    fields = []
-    for key, value in properties.items():
-        if isinstance(value, int):
-            if value < 256:
-                fields.append((key, c_uint8))
-            else:
-                fields.append((key, c_int))
-        elif isinstance(value, float):
-            fields.append((key, c_float))
-        elif isinstance(value, bytes):
-            fields.append((key, c_char_p))
-        else:
-            fields.append((key, (c_float * len(value))))
-            
-    # if sibling_instances:
-    #     # fields.append(("SiblingInstances", (c_char_p * len(sibling_instances))))
-    #     fields.append(("SiblingInstances", (c_int * 5)))
-
-    class ExtendedData(Structure):
-        _pack_ = 1
-        _fields_ = fields
-        
-    data = ExtendedData(**properties)
-    # if sibling_instances:
-    #     # data.SiblingInstances = (c_char_p * len(sibling_instances))(*[sibling.encode() for sibling in sibling_instances])
-    #     data.SiblingInstances = (c_int * 5)(*[1,2,3,4,5])
-    
-    return data

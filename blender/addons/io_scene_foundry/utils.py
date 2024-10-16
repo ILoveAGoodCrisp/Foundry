@@ -22,7 +22,7 @@ from subprocess import Popen, check_call
 import random
 import xml.etree.ElementTree as ET
 import numpy as np
-from ctypes import c_float
+from ctypes import c_float, c_int
 from .constants import COLLISION_MESH_TYPES, PROTECTED_MATERIALS, VALID_MESHES
 from .tools.materials import special_materials, convention_materials
 from .icons import get_icon_id, get_icon_id_in_directory
@@ -3785,13 +3785,21 @@ def cut_out_mesh(ob: bpy.types.Object, cutter: bpy.types.Object):
 def get_halo_props_for_granny(props) -> dict:
     # halo_props = {k: v.encode() for k, v in props.items() if type(k) == str}
     halo_props = {}
-    for k, v in props.items():
+    for key, v in props.items():
+        k = key.encode()
         if isinstance(v, str):
             halo_props[k] = v.encode()
         elif isinstance(v, (tuple, list)):
             halo_props[k] = (c_float * len(v))(*v)
-        else:
+        elif isinstance(v, int):
+            halo_props[k] = c_int(v)
+        elif isinstance(v, float):
+            halo_props[k] = c_float(v)
+        elif isinstance(v, bytes):
             halo_props[k] = v
+        else:
+            print(type(v), v)
+            raise NotImplemented
             
     return halo_props
 

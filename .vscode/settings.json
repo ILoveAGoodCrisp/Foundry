@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "*.hsc": "hsc4",
+        "xutility": "cpp"
+    }
+}
