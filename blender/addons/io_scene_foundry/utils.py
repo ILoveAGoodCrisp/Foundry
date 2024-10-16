@@ -2108,7 +2108,7 @@ def rotation_and_pivot(rotation):
     
     return rotation_matrix, pivot_matrix
 
-def halo_transforms(ob, scale=None, rotation=None, marker=False):
+def halo_transforms(ob: bpy.types.Object, scale=None, rotation=None, marker=False):
     '''
     Returns an object's matrix_world transformed for Halo. Used when writing object transforms directly to tags
     '''
@@ -2125,28 +2125,17 @@ def halo_transforms(ob, scale=None, rotation=None, marker=False):
         
     rotation_matrix, pivot_matrix = rotation_and_pivot(rotation)
     
-    loc, rot, sca = ob.matrix_world.decompose()
+    scale_matrix = Matrix.Scale(scale, 4)
     
-    loc *= scale
-    loc = pivot_matrix @ loc
+    object_matrix = ob.matrix_world
+    final_matrix = rotation_matrix @ scale_matrix @ object_matrix
     
-    if ob.rotation_mode == 'QUATERNION':
-        rot = ob.rotation_quaternion.copy()
-    else:
-        rot = ob.rotation_euler.copy()
-        
-    rot.rotate(rotation_matrix)
-    
+    # If it's a marker and we need to maintain marker axis
     if marker and bpy.context.scene.nwo.maintain_marker_axis:
-        if isinstance(rot, Quaternion):
-            rot = rot.to_euler()
-        
-        rot: Euler
-        rot.rotate_axis('Z', -rotation)
+        marker_rotation_matrix = Matrix.Rotation(-rotation, 4, 'Z')
+        final_matrix = final_matrix @ marker_rotation_matrix
     
-    new_matrix = Matrix.LocRotScale(loc, rot, sca)
-    
-    return new_matrix
+    return final_matrix
 
 def halo_transform_matrix(matrix: Matrix):
     scale = 1
