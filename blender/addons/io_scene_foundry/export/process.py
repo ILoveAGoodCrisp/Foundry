@@ -360,10 +360,16 @@ class ExportScene:
                             
                             copy_region = back_ui
                             copy_props["bungie_mesh_seam_associated_bsp"] = f"{self.asset_name}_{copy_region}"
+                            
+                        case ObjectCopy.INSTANCE:
+                            copy_props["bungie_mesh_type"] = MeshType.poop.value
+                            if copy_props.get("bungie_face_type") == FaceType.sky.value:
+                                copy_props.pop("bungie_face_type")
+                            copy_props, copy_mesh_props = self._setup_poop_props(copy_ob, ob.nwo, ob.data.nwo, copy_props, mesh_props)
+                            copy_props.update(copy_mesh_props)
                     
                     self.ob_halo_data[copy_ob] = [copy_props, copy_region, permutation, fp_defaults, proxies]
                     self.no_parent_objects.append(copy_ob)
-                    print("copied! ", copy_ob)
                     
                 self.ob_halo_data[ob] = [props, region, permutation, fp_defaults, proxies]
                     
@@ -482,6 +488,8 @@ class ExportScene:
             props, mesh_props = self._setup_poop_props(ob, nwo, data_nwo, props, mesh_props)
         elif mesh_type == '_connected_geometry_mesh_type_default' and self.corinth and self.asset_type == AssetType.SCENARIO:
             props["bungie_face_type"] = FaceType.sky.value
+            if nwo.proxy_instance:
+                copy = ObjectCopy.INSTANCE
         elif mesh_type == '_connected_geometry_mesh_type_seam':
             props["bungie_mesh_seam_associated_bsp"] = f"{self.asset_name}_{region}"
             if not nwo.seam_back_manual:
@@ -649,7 +657,7 @@ class ExportScene:
             props["bungie_mesh_poop_precise_geometry"] = 1
 
         if self.corinth:
-            props["bungie_mesh_poop_lightmap_resolution_scale"] = str(nwo.poop_lightmap_resolution_scale)
+            props["bungie_mesh_poop_lightmap_resolution_scale"] = nwo.poop_lightmap_resolution_scale
             props["bungie_mesh_poop_streamingpriority"] = nwo.poop_streaming_priority
             props["bungie_mesh_poop_cinema_only"] = int(nwo.poop_cinematic_properties == '_connected_geometry_poop_cinema_only')
             props["bungie_mesh_poop_exclude_from_cinema"] = int(nwo.poop_cinematic_properties == '_connected_geometry_poop_cinema_exclude')
