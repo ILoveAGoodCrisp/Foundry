@@ -70,7 +70,7 @@ class Granny:
         self.granny_export_info = None
         self._create_file_info()
         
-    def create_extended_data(self, props: dict, entity, sibling_instances=[]):
+    def create_extended_data(self, props: dict, entity, sibling_instances=[], name=None):
         granny_props = utils.get_halo_props_for_granny(props)
         if not granny_props: return
         
@@ -108,22 +108,26 @@ class Granny:
                 self.add_reference_member(builder, b"InstancingInfo", info_type, info_object)
             else:
                 sibling_builder = self.begin_variant(self.string_table)
-                reference_builder = self.begin_variant(self.string_table)
+                # reference_builder = self.begin_variant(self.string_table)
                 for sibling in sibling_instances:
                     self.add_string_member(sibling_builder, b"String", sibling)
-                    self.add_integer_member(reference_builder, b"Int32", c_int(0))
+                    # self.add_integer_member(reference_builder, b"Int32", c_int(0))
                     
                 sibling_type = pointer(GrannyDataTypeDefinition())
                 sibling_object = c_void_p()
-                reference_type = pointer(GrannyDataTypeDefinition())
-                reference_object = c_void_p()
+                # reference_type = pointer(GrannyDataTypeDefinition())
+                # reference_object = c_void_p()
                     
                 self.end_variant(sibling_builder, byref(sibling_type), byref(sibling_object))
-                self.end_variant(reference_builder, byref(reference_type), byref(reference_object))
+                # self.end_variant(reference_builder, byref(reference_type), byref(reference_object))
                 # self.add_reference_member(builder, b"SiblingInstances", sibling_type, sibling_object)
                 # self.add_reference_member(builder, b"SiblingIsReference", reference_type, reference_object)
-                self.add_dynamic_array_member(builder, b"SiblingInstances", len(sibling_instances), sibling_type, sibling_object)
-                self.add_dynamic_array_member(builder, b"SiblingIsReference", len(sibling_instances), reference_type, reference_object)
+                self.add_dynamic_array_member(builder, b"SiblingInstances", 1, sibling_type, sibling_object)
+                # self.add_dynamic_array_member(builder, b"SiblingIsReference", 1, reference_type, reference_object)
+                
+                if name is not None:
+                    self.add_string_member(builder, b"FullPath", name)
+                # self.add_string_member(builder, b"typeName", b"Node")
         
         data = c_void_p()
         
@@ -293,7 +297,7 @@ class Granny:
 
     def _populate_mesh(self, granny_mesh, export_mesh: Mesh):
         granny_mesh.name = export_mesh.name
-        self.create_extended_data(export_mesh.props, granny_mesh, export_mesh.siblings)
+        self.create_extended_data(export_mesh.props, granny_mesh, export_mesh.siblings, export_mesh.name)
         granny_mesh.primary_vertex_data = export_mesh.primary_vertex_data
         granny_mesh.primary_topology = export_mesh.primary_topology
         
