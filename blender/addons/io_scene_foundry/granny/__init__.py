@@ -231,7 +231,7 @@ class Granny:
 
     def _populate_mesh(self, granny_mesh, export_mesh: Mesh):
         granny_mesh.name = export_mesh.name
-        create_extended_data(export_mesh.props, granny_mesh)
+        create_extended_data(export_mesh.props, granny_mesh, export_mesh.siblings)
         granny_mesh.primary_vertex_data = export_mesh.primary_vertex_data
         granny_mesh.primary_topology = export_mesh.primary_topology
         

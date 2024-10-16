@@ -305,6 +305,9 @@ class TableEntryRename(bpy.types.Operator):
         
         scene_objects = context.scene.objects
         entry_objects = [ob for ob in scene_objects if getattr(ob.nwo, self.ob_prop_str) == entry.old]
+        seam_objects = []
+        if self.ob_prop_str == "region_name":
+            seam_objects = [ob for ob in scene_objects if ob.nwo.seam_back == entry.old]
         entry_collections = []
         if self.ob_prop_str == 'region_name':
             entry_collections = [coll for coll in bpy.data.collections if coll.nwo.region == entry.old]
@@ -315,6 +318,8 @@ class TableEntryRename(bpy.types.Operator):
         entry.name = new_name
         for ob in entry_objects:
             setattr(ob.nwo, self.ob_prop_str, new_name)
+        for ob in seam_objects:
+            ob.nwo.seam_back = new_name
             
         if self.ob_prop_str == 'permutation_name':
             for ob in scene_objects:

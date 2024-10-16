@@ -33,6 +33,11 @@ from .. import utils
 from ..constants import VALID_MESHES, VALID_OBJECTS
 from ..tools.asset_types import AssetType
 
+class ObjectCopy(Enum):
+    NONE = 0
+    SEAM = 1
+    INSTANCE = 2
+
 face_prop_defaults = {
     "bungie_face_region": "default",
     "bungie_face_global_material": "default",
@@ -132,6 +137,10 @@ class ExportScene:
         self.sky_lights = []
         
         self.is_model = self.asset_type in {AssetType.MODEL, AssetType.SKY}
+        
+        self.extra_seams = []
+        self.extra_instances = []
+        
         
     def ready_scene(self):
         utils.exit_local_view(self.context)
@@ -313,7 +322,7 @@ class ExportScene:
                 result = self.get_halo_props(ob)
                 if result is None:
                     continue
-                props, region, permutation, fp_defaults, mesh_props = result
+                props, region, permutation, fp_defaults, mesh_props, copy = result
                 parent = ob.parent
                 proxies = tuple()
                 # Write object as if it has no parent if this is not a model and it is parented to an empty/armature. It solves an issue where instancing fails
@@ -335,6 +344,27 @@ class ExportScene:
                             mesh_props["bungie_face_mode"] = FaceMode.render_only.value
                 
                 props.update(mesh_props)
+                
+                if copy is not None:
+                    copy_props = props.copy()
+                    copy_ob = ob.copy()
+                    self.temp_objects.add(copy_ob)
+                    copy_region = region
+                    match copy:
+                        case ObjectCopy.SEAM:
+                            copy_ob.nwo.invert_topology = True
+                            back_ui = ob.nwo.seam_back
+                            if (not back_ui or back_ui == region or back_ui not in self.regions):
+                                self.warnings.append(f"{ob.name} has bad back facing bsp reference. Removing Seam from export")
+                                continue
+                            
+                            copy_region = back_ui
+                            copy_props["bungie_mesh_seam_associated_bsp"] = f"{self.asset_name}_{copy_region}"
+                    
+                    self.ob_halo_data[copy_ob] = [copy_props, copy_region, permutation, fp_defaults, proxies]
+                    self.no_parent_objects.append(copy_ob)
+                    print("copied! ", copy_ob)
+                    
                 self.ob_halo_data[ob] = [props, region, permutation, fp_defaults, proxies]
                     
                 utils.update_job_count(process, "", idx, num_export_objects)
@@ -365,6 +395,7 @@ class ExportScene:
     def get_halo_props(self, ob: bpy.types.Object):
         props = {}
         mesh_props = {}
+        copy = None
         region = self.default_region
         permutation = self.default_permutation
         fp_defaults = {}
@@ -411,7 +442,7 @@ class ExportScene:
             if nwo.mesh_type == '':
                 nwo.mesh_type = '_connected_geometry_mesh_type_default'
             if utils.type_valid(nwo.mesh_type, self.asset_type.name.lower(), self.game_version):
-                props, fp_defaults, mesh_props = self._setup_mesh_properties(ob, ob.nwo, self.asset_type.supports_bsp, props, region, mesh_props)
+                props, fp_defaults, mesh_props, copy = self._setup_mesh_properties(ob, ob.nwo, self.asset_type.supports_bsp, props, region, mesh_props, copy)
                 if props is None:
                     return
                 
@@ -428,9 +459,9 @@ class ExportScene:
             else:
                 return self.warnings.append(f"{ob.name} has invalid marker type [{nwo.mesh_type}] for asset [{self.asset_type}]. Skipped")
 
-        return props, region, permutation, fp_defaults, mesh_props
+        return props, region, permutation, fp_defaults, mesh_props, copy
     
-    def _setup_mesh_properties(self, ob: bpy.types.Object, nwo: NWO_ObjectPropertiesGroup, supports_bsp: bool, props: dict, region: str, mesh_props: dict):
+    def _setup_mesh_properties(self, ob: bpy.types.Object, nwo: NWO_ObjectPropertiesGroup, supports_bsp: bool, props: dict, region: str, mesh_props: dict, copy):
         mesh_type = ob.original.data.nwo.mesh_type
         mesh = ob.original.data
         data_nwo: NWO_MeshPropertiesGroup = mesh.nwo
@@ -452,7 +483,9 @@ class ExportScene:
         elif mesh_type == '_connected_geometry_mesh_type_default' and self.corinth and self.asset_type == AssetType.SCENARIO:
             props["bungie_face_type"] = FaceType.sky.value
         elif mesh_type == '_connected_geometry_mesh_type_seam':
-            props["bungie_mesh_seam_associated_bsp"] = (f"{self.asset_name}_{region}")
+            props["bungie_mesh_seam_associated_bsp"] = f"{self.asset_name}_{region}"
+            if not nwo.seam_back_manual:
+                copy = ObjectCopy.SEAM
         elif mesh_type == "_connected_geometry_mesh_type_portal":
             props["bungie_mesh_portal_type"] = nwo.portal_type
             if nwo.portal_ai_deafening:
@@ -554,7 +587,7 @@ class ExportScene:
         else:
             mesh_props.update(tmp_mesh_props)
 
-        return props, fp_defaults, mesh_props
+        return props, fp_defaults, mesh_props, copy
         
     def _setup_physics_props(self, ob: bpy.types.Object, nwo: NWO_ObjectPropertiesGroup, props: dict):
         prim_type = nwo.mesh_primitive_type

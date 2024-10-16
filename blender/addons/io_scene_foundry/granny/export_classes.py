@@ -1,4 +1,4 @@
-from ctypes import Structure, c_char_p, c_float, c_int, c_ubyte, c_uint8, c_void_p, cast, memmove, pointer
+from ctypes import POINTER, Structure, c_char_p, c_float, c_int, c_ubyte, c_uint8, c_void_p, cast, memmove, pointer
 from enum import Enum
 from math import pi, radians
 from typing import Literal
@@ -317,6 +317,7 @@ class Mesh():
         self.name = node.name.encode()
         self.props = node.props
         mesh = node.mesh
+        self.siblings = [s for s in mesh.siblings if s != node.name]
         self.primary_vertex_data = node.granny_vertex_data
         self.primary_topology = node.mesh.granny_tri_topology
         self.materials = [mat.granny_material for mat in mesh.materials.keys()]
@@ -336,10 +337,13 @@ class Model:
         self.initial_placement = GrannyTransform(flags=7, position=position, orientation=orientation, scale_shear=scale_shear)
         self.mesh_bindings = mesh_binding_indexes
         
-def create_extended_data(props, granny):
+def create_extended_data(props, granny, sibling_instances=[]):
     granny_props = utils.get_halo_props_for_granny(props)
     if not granny_props: return
     
+    # has_sibling_instances = bool(sibling_instances)
+    
+    # ExtendedDataType = (GrannyDataTypeDefinition * (len(granny_props) + 1 + int(has_sibling_instances)))()
     ExtendedDataType = (GrannyDataTypeDefinition * (len(granny_props) + 1))()
     
     for i, (key, value) in enumerate(granny_props.items()):
@@ -359,19 +363,26 @@ def create_extended_data(props, granny):
             member_type=mtype,
             name=key.encode()
         )
+        
+    # if has_sibling_instances:
+    #     sibling_type = []
+    #     # sibling_type.append(GrannyDataTypeDefinition(GrannyMemberType.granny_int32_member.value, b"String", None, len(sibling_instances)))
+    #     sibling_type.append(GrannyDataTypeDefinition(GrannyMemberType.granny_int32_member.value, b"String", None, 5))
+    #     sibling_type.append(GrannyDataTypeDefinition(0, None, None, 0))
+    #     sibling_type_array = (GrannyDataTypeDefinition * 2)(*sibling_type)
+        
+    #     ExtendedDataType[-2] = GrannyDataTypeDefinition(
+    #         member_type=GrannyMemberType.granny_reference_to_array_member.value,
+    #         name=b"SiblingInstances",
+    #         reference_type=cast(sibling_type_array, POINTER(GrannyDataTypeDefinition)),
+    #     )
     
     ExtendedDataType[-1] = GrannyDataTypeDefinition(member_type=0)
-    data = extended_data_create(granny_props)
+    data = extended_data_create(granny_props, sibling_instances)
     granny.extended_data.object = cast(pointer(data), c_void_p)
     granny.extended_data.type = ExtendedDataType
     
-enums = {
-    "bungie_object_type",
-    "bungie_mesh_type",
-}
-    
-def extended_data_create(properties):
-    # fields = [(key, c_char_p) for key in properties.keys()]
+def extended_data_create(properties, sibling_instances=[]):
     fields = []
     for key, value in properties.items():
         if isinstance(value, int):
@@ -385,9 +396,18 @@ def extended_data_create(properties):
             fields.append((key, c_char_p))
         else:
             fields.append((key, (c_float * len(value))))
+            
+    # if sibling_instances:
+    #     # fields.append(("SiblingInstances", (c_char_p * len(sibling_instances))))
+    #     fields.append(("SiblingInstances", (c_int * 5)))
 
     class ExtendedData(Structure):
         _pack_ = 1
         _fields_ = fields
+        
+    data = ExtendedData(**properties)
+    # if sibling_instances:
+    #     # data.SiblingInstances = (c_char_p * len(sibling_instances))(*[sibling.encode() for sibling in sibling_instances])
+    #     data.SiblingInstances = (c_int * 5)(*[1,2,3,4,5])
     
-    return ExtendedData(**properties)
+    return data

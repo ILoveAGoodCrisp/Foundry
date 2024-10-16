@@ -1104,6 +1104,8 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     
     export_collection: bpy.props.StringProperty(options={'HIDDEN'})
     
+    invert_topology: bpy.props.BoolProperty(options={'HIDDEN'})
+    
     # GETTER PROPS
     def get_object_id(self):
         current_id = self.get('object_id', 0)

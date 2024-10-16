@@ -361,6 +361,7 @@ class VirtualMesh:
         self.num_vertices = 0
         self.invalid = False
         self.granny_tri_topology = None
+        self.siblings = [ob.name]
         # Check if a mesh already exists so we can copy its data (this will be the case in instances of shared mesh data but negative scale)
         # Transforms to account for negative scaling are done at granny level so the blender data can stay the same
         existing_mesh = scene.meshes.get((self.name, not negative_scaling))
@@ -739,10 +740,14 @@ class VirtualNode:
             if id.type in VALID_MESHES:
                 default_bone_bindings = [self.name]
                 negative_scaling = id.matrix_world.is_negative
+                if id.nwo.invert_topology:
+                    negative_scaling = not negative_scaling
+                    
                 existing_mesh = scene.meshes.get((id.data.name, negative_scaling))
                     
                 if existing_mesh:
                     self.mesh = existing_mesh
+                    self.mesh.siblings.append(self.name)
                 else:
                     vertex_weighted = id.vertex_groups and id.parent and id.parent.type == 'ARMATURE' and id.parent_type != "BONE" and has_armature_deform_mod(id)
                     mesh = VirtualMesh(vertex_weighted, scene, default_bone_bindings, id, fp_defaults, is_rendered(self.props), proxies, self.props, negative_scaling, bones)
