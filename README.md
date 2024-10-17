@@ -15,6 +15,19 @@ To install the afformentioned editing kits, you must own the respective MCC titl
 > [!CAUTION]
 > Remove any previous installations of Foundry before following the installation guide. The legacy addon version may conflict with the extension.
 
+## Installation
+
+Foundry only needs to be installed once. Thereafter, you can use Blender to download any future updates automatically. If you would prefer to install a local standalone version of Foundry, skip to the Standalone Installation instructions below this section.
+
+- Launch Blender and open Preferences <div align="left"> <img src="img/install0.png"> </div>
+- Navigate to the **Get Extensions** tab and then click **Repositories**
+- On the **Repositories** windows click the `+` icon and then **Add Remote Repository** <div align="left"> <img src="img/install1.png"> </div>
+- In the **Add New Extension Repository** window copy and paste the following text into the **URL** field: `https://iloveagoodcrisp.github.io/Foundry/api/v1/extensions/index.json`
+- I recommend checking the **Check for Updates on Startup** box, but this is optional
+-  Now click **Create** to link the remote repository to Blender <div align="left"> <img src="img/install2.png"> </div>
+- Enter `Foundry` into the search box and you should see the **Foundry** addon show up with an option to install <div align="left"> <img src="img/install3.png"> </div>
+- Once installed, you should have a **Launch Foundry** button show in the top right of the 3D viewport. Click this button to load the addon <div align="left"> <img src="img/install4.png"> </div>
+
 ## Standalone Installation
 
 - The standalone zip can be downloaded [here](https://iloveagoodcrisp.github.io/Foundry/api/v1/extensions/io_scene_foundry.zip)
