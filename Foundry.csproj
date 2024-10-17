@@ -108,7 +108,6 @@
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
     <PreBuildEvent>call python "$(SolutionDir)blender\build\create_zip.py" $(ConfigurationName)
-call blender --command extension server-generate --repo-dir="$(SolutionDir)site\api\v1\extensions"
 call blender --command extension server-generate --repo-dir="$(SolutionDir)site\api\v1\extensions" --html</PreBuildEvent>
   </PropertyGroup>
 </Project>
