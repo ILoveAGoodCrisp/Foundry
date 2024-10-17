@@ -1,5 +1,5 @@
 from collections import defaultdict
-from ctypes import CDLL, byref, c_uint32, cast, cdll, create_string_buffer, pointer, sizeof, string_at, windll
+from ctypes import CDLL, Array, byref, c_uint32, cast, cdll, create_string_buffer, pointer, sizeof, string_at, windll
 from pathlib import Path
 import struct
 import time
@@ -83,6 +83,14 @@ class Granny:
                 self.add_scalar_member(builder, key, value)
             elif isinstance(value, bytes):
                 self.add_string_member(builder, key, value)
+            elif isinstance(value, Array):
+                first = value[0]
+                if isinstance(first, int):
+                    self.add_integer_array_member(builder, key, int(sizeof(value) / 4), value)
+                elif isinstance(first, float):
+                    self.add_scalar_array_member(builder, key, int(sizeof(value) / 4), value)
+            else:
+                print(value, type(value))
                 
         if sibling_instances:
             if self.corinth:

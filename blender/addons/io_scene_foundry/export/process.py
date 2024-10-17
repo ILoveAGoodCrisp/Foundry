@@ -611,9 +611,9 @@ class ExportScene:
         props["bungie_mesh_water_volume_flow_velocity"] = nwo.water_volume_flow_velocity
         props["bungie_mesh_water_volume_fog_murkiness"] = nwo.water_volume_fog_murkiness
         if self.corinth:
-            props["bungie_mesh_water_volume_fog_color"] = utils.color_rgba_str(nwo.water_volume_fog_color)
+            props["bungie_mesh_water_volume_fog_color"] = utils.color_rgba(nwo.water_volume_fog_color)
         else:
-            props["bungie_mesh_water_volume_fog_color"] = utils.color_argb_str(nwo.water_volume_fog_color)
+            props["bungie_mesh_water_volume_fog_color"] = utils.color_argb(nwo.water_volume_fog_color)
             
         return props
     
@@ -792,7 +792,7 @@ class ExportScene:
             elif marker_type == "_connected_geometry_marker_type_garbage":
                 if not self.corinth:
                     props["bungie_marker_type"] = "_connected_geometry_marker_type_model"
-                props["bungie_marker_velocity"] = utils.vector_str(nwo.marker_velocity)
+                props["bungie_marker_velocity"] = utils.vector(nwo.marker_velocity)
         
         elif self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB}:
             if marker_type == "_connected_geometry_marker_type_game_instance":
@@ -865,7 +865,7 @@ class ExportScene:
                 
             elif marker_type == "_connected_geometry_marker_type_lightCone":
                 props["bungie_marker_light_tag"] = nwo.marker_light_cone_tag
-                props["bungie_marker_light_color"] = utils.color_3p_str(nwo.marker_light_cone_color)
+                props["bungie_marker_light_color"] = utils.color_3p(nwo.marker_light_cone_color)
                 props["bungie_marker_light_cone_width"] = nwo.marker_light_cone_alpha
                 props["bungie_marker_light_cone_length"] = nwo.marker_light_cone_width
                 props["bungie_marker_light_color_alpha"] = nwo.marker_light_cone_length
@@ -1038,7 +1038,7 @@ class ExportScene:
             if test_face_prop(face_props, "lightmap_additive_transparency_override"):
                 fp_defaults["bungie_lightmap_additive_transparency"] = utils.color_4p(data_nwo.lightmap_additive_transparency)
             else:
-                mesh_props["bungie_lightmap_additive_transparency"] = utils.color_4p_str(data_nwo.lightmap_additive_transparency)
+                mesh_props["bungie_lightmap_additive_transparency"] = utils.color_4p(data_nwo.lightmap_additive_transparency)
                 
         if data_nwo.lightmap_resolution_scale_active:
             if test_face_prop(face_props, "lightmap_resolution_scale_override"):
@@ -1059,7 +1059,7 @@ class ExportScene:
             if test_face_prop(face_props, "lightmap_translucency_tint_color_override"):
                 fp_defaults["bungie_lightmap_translucency_tint_color"] = utils.color_4p(data_nwo.lightmap_translucency_tint_color)
             else:
-                mesh_props["bungie_lightmap_translucency_tint_color"] = utils.color_4p_str(data_nwo.lightmap_translucency_tint_color)
+                mesh_props["bungie_lightmap_translucency_tint_color"] = utils.color_4p(data_nwo.lightmap_translucency_tint_color)
                 
         if data_nwo.lightmap_lighting_from_both_sides_active:
             if test_face_prop(face_props, "lightmap_lighting_from_both_sides_override"):
@@ -1081,7 +1081,7 @@ class ExportScene:
                 fp_defaults["bungie_lighting_emissive_focus"] = degrees(data_nwo.material_lighting_emissive_focus) / 180
             else:
                 mesh_props["bungie_lighting_emissive_power"] = data_nwo.material_lighting_emissive_power
-                mesh_props["bungie_lighting_emissive_color"] = utils.color_4p_str(data_nwo.material_lighting_emissive_color)
+                mesh_props["bungie_lighting_emissive_color"] = utils.color_4p(data_nwo.material_lighting_emissive_color)
                 mesh_props["bungie_lighting_emissive_per_unit"] = int(data_nwo.material_lighting_emissive_per_unit)
                 mesh_props["bungie_lighting_emissive_quality"] = data_nwo.material_lighting_emissive_quality
                 mesh_props["bungie_lighting_use_shader_gel"] = int(data_nwo.material_lighting_use_shader_gel)
@@ -1603,9 +1603,9 @@ class ExportScene:
     def _set_primitive_props(self, ob, prim_type, props):
         match prim_type:
             case '_connected_geometry_primitive_type_sphere':
-                props["bungie_mesh_primitive_sphere_radius"] = utils.radius_str(ob, scale=1/self.scale)
+                props["bungie_mesh_primitive_sphere_radius"] = utils.radius(ob, scale=1/self.scale)
             case '_connected_geometry_primitive_type_pill':
-                props["bungie_mesh_primitive_pill_radius"] = utils.radius_str(ob, True, scale=1/self.scale)
+                props["bungie_mesh_primitive_pill_radius"] = utils.radius(ob, True, scale=1/self.scale)
                 props["bungie_mesh_primitive_pill_height"] = ob.dimensions.z * (1 / self.scale)
             case '_connected_geometry_primitive_type_box':
                 props["bungie_mesh_primitive_box_width"] =  ob.dimensions.x * (1 / self.scale)
@@ -1627,21 +1627,21 @@ class ExportScene:
                 sun = ob
             down = Vector((0, 0, -1))
             down.rotate(ob.rotation_euler)
-            lightGen_colors.append(utils.color_3p_str(ob.data.color))
-            lightGen_directions.append(f'{utils.jstr(down[0])} {utils.jstr(down[1])} {utils.jstr(down[2])}')
-            lightGen_solid_angles.append(utils.jstr(ob.data.energy * light_scale))
+            lightGen_colors.append(utils.color_3p(ob.data.color))
+            lightGen_directions.append(down.to_tuple())
+            lightGen_solid_angles.append(ob.data.energy * light_scale)
         
-        props['lightGen_colors'] = ' '.join(lightGen_colors)
-        props['lightGen_directions'] = ' '.join(lightGen_directions)
-        props['lightGen_solid_angles'] = ' '.join(lightGen_solid_angles)
-        props['lightGen_samples'] = str(len(self.sky_lights) - 1)
+        props['lightGen_colors'] = lightGen_colors
+        props['lightGen_directions'] = lightGen_directions
+        props['lightGen_solid_angles'] = lightGen_solid_angles
+        props['lightGen_samples'] = len(self.sky_lights) - 1
         
         if sun is not None:
             if sun.data.color.v > 1:
                 sun.data.color.v = 1
-            props['sun_size'] = utils.jstr((max(sun.scale.x, sun.scale.y, sun.scale.z) * sun_scale))
-            props['sun_intensity'] = utils.jstr(sun.data.energy * 10000 * light_scale)
-            props['sun_color'] = utils.color_3p_str(sun.data.color)
+            props['sun_size'] = max(sun.scale.x, sun.scale.y, sun.scale.z) * sun_scale
+            props['sun_intensity'] = sun.data.energy * 10000 * light_scale
+            props['sun_color'] = utils.color_3p(sun.data.color)
             
         return props
 

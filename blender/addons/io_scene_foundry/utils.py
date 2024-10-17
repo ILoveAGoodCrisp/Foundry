@@ -287,6 +287,12 @@ def vector_str(velocity):
     z = velocity.z
     return f"1 {jstr(x)} {jstr(y)} {jstr(z)}"
 
+def vector(velocity):
+    x = velocity.x
+    y = velocity.y
+    z = velocity.z
+    return 1, x, y, z
+
 def color_3p_str(color):
     red = linear_to_srgb(color.r)
     green = linear_to_srgb(color.g)
@@ -318,12 +324,26 @@ def color_rgba_str(color):
     alpha = linear_to_srgb(color[3])
     return f"{jstr(red)} {jstr(green)} {jstr(blue)} {jstr(alpha)}"
 
+def color_rgba(color) -> tuple:
+    red = linear_to_srgb(color[0])
+    green = linear_to_srgb(color[1])
+    blue = linear_to_srgb(color[2])
+    alpha = linear_to_srgb(color[3])
+    return red, green, blue, alpha
+
 def color_argb_str(color):
     red = linear_to_srgb(color[0])
     green = linear_to_srgb(color[1])
     blue = linear_to_srgb(color[2])
     alpha = linear_to_srgb(color[3])
     return f"{jstr(alpha)} {jstr(red)} {jstr(green)} {jstr(blue)}"
+
+def color_argb(color) -> tuple:
+    red = linear_to_srgb(color[0])
+    green = linear_to_srgb(color[1])
+    blue = linear_to_srgb(color[2])
+    alpha = linear_to_srgb(color[3])
+    return alpha, red, green, blue
 
 def linear_to_srgb(linear):
     if linear <= 0.0031308:
@@ -356,6 +376,17 @@ def radius_str(ob, pill=False, scale=1):
     radius = diameter / 2.0
 
     return jstr(radius * scale)
+
+def radius(ob, pill=False, scale=1):
+    """Returns the radius of a sphere (or a pill if second arg is True) as a string"""
+    if pill:
+        diameter = max(ob.dimensions.x, ob.dimensions.y)
+    else:
+        diameter = max(ob.dimensions)
+
+    radius = diameter / 2.0
+
+    return radius * scale
 
 
 def jstr(number):
@@ -3785,6 +3816,15 @@ def get_halo_props_for_granny(props) -> dict:
             halo_props[k] = c_float(v)
         elif isinstance(v, bytes):
             halo_props[k] = v
+        elif isinstance(v, (tuple, list)):
+            first = v[0]
+            if isinstance(first, int):
+                halo_props[k] = (c_int * len(v))(*v)
+            elif isinstance(first, float):
+                halo_props[k] = (c_float * len(v))(*v)
+            else:
+                print(type(v), v)
+                raise NotImplemented
         else:
             print(type(v), v)
             raise NotImplemented
