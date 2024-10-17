@@ -3793,4 +3793,6 @@ def get_bone_matrix_local(bone: bpy.types.PoseBone) -> Matrix:
     if not bone.parent:
         return bone.matrix.copy()
     return bone.parent.matrix.inverted() @ bone.matrix
-    
+
+def get_version() -> tuple[int, int, int]:
+    return bpy.context.preferences.addons[__package__].bl_info["version"]

@@ -348,6 +348,7 @@ class VirtualMesh:
         self.lighting_texcoords: np.ndarray = None
         self.vertex_colors: list[np.ndarray] = [] # Up to two sets of vert colors
         self.vertex_ids: np.ndarray = None # Corinth only
+        self.tension: np.ndarray = None # Corinth only
         self.indices: np.ndarray = None
         self.num_indices = 0
         self.groups: list[VirtualMaterial, int, int] = []
@@ -358,9 +359,7 @@ class VirtualMesh:
         self.num_vertices = 0
         self.invalid = False
         self.granny_tri_topology = None
-        self.siblings = []
-        if props.get("bungie_mesh_type") == MeshType.poop.value:
-            self.siblings.append(ob.name)
+        self.siblings = [ob.name]
         # Check if a mesh already exists so we can copy its data (this will be the case in instances of shared mesh data but negative scale)
         # Transforms to account for negative scaling are done at granny level so the blender data can stay the same
         existing_mesh = scene.meshes.get((self.name, not negative_scaling))
@@ -467,7 +466,14 @@ class VirtualMesh:
             data.append(vcolors)
             types.append(GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, name_encoded, None, 3))
             type_names.append(name_encoded)
-            dtypes.append((name, np.float32, (3,)))
+            dtypes.append((name, np.single, (3,)))
+            
+        if self.tension is not None:
+            print(self.tension)
+            data.append(self.tension)
+            types.append(GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, b"tension", None, 4))
+            type_names.append(b"tension")
+            dtypes.append(("tension", np.single, (4,)))
             
         if self.vertex_ids is not None:
             data.append(self.vertex_ids)
@@ -634,11 +640,17 @@ class VirtualMesh:
                 
                 colors = np.empty((num_vertices, 4) if layer.domain == 'POINT' else (num_loops, 4), dtype=np.single)
                 layer.data.foreach_get("color", colors.ravel())
-                colors = colors[:, :3]
+                is_tension = layer.name.lower() == "tension"
+                
+                if not is_tension:
+                    colors = colors[:, :3]
                 if layer.domain == 'POINT':
                     colors = colors[loop_vertex_indices]
     
-                self.vertex_colors.append(colors)
+                if is_tension:
+                    self.tension = colors
+                else:
+                    self.vertex_colors.append(colors)
 
         # Remove duplicate vertex data
         data = [self.positions, self.normals]
@@ -648,12 +660,16 @@ class VirtualMesh:
             data.append(self.lighting_texcoords)
         if self.vertex_colors is not None:
             data.extend(self.vertex_colors)
+        # if self.tension is not None:
+        #     data.append(self.tension)
 
         loop_data = np.hstack(data)
 
         result_data, new_indices, face_indices = np.unique(loop_data, axis=0, return_index=True, return_inverse=True)
         
         if scene.corinth:
+            # Not exactly sure what vertex_id is for, but I'm assuming it must be unique per vertex
+            # This gets a hash from the vertex data and splits it into its upper and lower parts
             def vector_to_id_pair(vector):
                 vector_tuple = tuple(vector)
                 hashed_value = hash(vector_tuple)
@@ -684,6 +700,9 @@ class VirtualMesh:
         if self.vertex_colors is not None:
             for idx, vcolor in enumerate(self.vertex_colors):
                 self.vertex_colors[idx] = vcolor[new_indices, :]
+                
+        if self.tension is not None:
+            self.tension = self.tension[new_indices, :]
 
         if self.bone_weights is not None:
             self.bone_weights = self.bone_weights[new_indices, :]
@@ -765,8 +784,7 @@ class VirtualNode:
                     
                 if existing_mesh:
                     self.mesh = existing_mesh
-                    if self.props.get("bungie_mesh_type") == MeshType.poop.value:
-                        self.mesh.siblings.append(self.name)
+                    self.mesh.siblings.append(self.name)
                 else:
                     vertex_weighted = id.vertex_groups and id.parent and id.parent.type == 'ARMATURE' and id.parent_type != "BONE" and has_armature_deform_mod(id)
                     mesh = VirtualMesh(vertex_weighted, scene, default_bone_bindings, id, fp_defaults, is_rendered(self.props), proxies, self.props, negative_scaling, bones)

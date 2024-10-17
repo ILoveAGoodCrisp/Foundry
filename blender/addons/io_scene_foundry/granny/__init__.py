@@ -410,10 +410,11 @@ class Granny:
     
     def _create_basic_exporter_tool_info(self) -> GrannyFileExporterInfo:
         exporter_info = GrannyFileExporterInfo()
+        major, minor, build = utils.get_version()
         exporter_info.exporter_name = b'Foundry'
-        exporter_info.exporter_major_revision = 1
-        exporter_info.exporter_minor_revision = 0
-        exporter_info.exporter_build_number = 0
+        exporter_info.exporter_major_revision = major
+        exporter_info.exporter_minor_revision = minor
+        exporter_info.exporter_build_number = build
         exporter_info.extended_data.type = None
         exporter_info.extended_data.object = None
         return exporter_info
