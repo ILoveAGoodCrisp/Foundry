@@ -13,6 +13,7 @@ import time
 from uuid import uuid4
 import winreg
 import zipfile
+import addon_utils
 import bmesh
 import bpy
 import platform
@@ -3794,5 +3795,16 @@ def get_bone_matrix_local(bone: bpy.types.PoseBone) -> Matrix:
         return bone.matrix.copy()
     return bone.parent.matrix.inverted() @ bone.matrix
 
+def get_module() -> str:
+    module_name = bpy.context.preferences.addons[__package__].module
+    for m in addon_utils.modules():
+        if m.__name__ == module_name:
+            return m
+
 def get_version() -> tuple[int, int, int]:
-    return bpy.context.preferences.addons[__package__].bl_info["version"]
+    module = get_module()
+    return module.bl_info["version"]
+
+def get_version_string() -> str:
+    version = get_version()
+    return ".".join([str(n) for n in version])

@@ -135,11 +135,13 @@ class Sidecar:
         ET.SubElement(header, "MainRev").text = "0"
         ET.SubElement(header, "PointRev").text = "6"
         ET.SubElement(header, "Description").text = "Forged in Foundry"
-        ET.SubElement(header, "Created").text = str(datetime.today().strftime("%Y-%m-%d %H:%M:%S"))
+        ET.SubElement(header, "Created").text = datetime.today().strftime("%Y-%m-%d %H:%M:%S")
         ET.SubElement(header, "By").text = getuser()
-        ET.SubElement(header, "SourceBlend").text = self.relative_blend
         ET.SubElement(header, "DirectoryType").text = "TAE.Shared.NWOAssetDirectory"
         ET.SubElement(header, "Schema").text = "1"
+        ET.SubElement(header, "SourceBlend").text = self.relative_blend
+        ET.SubElement(header, "BlenderVersion").text = bpy.app.version_string
+        ET.SubElement(header, "FoundryVersion").text = utils.get_version_string()
 
     def _get_model_tags(self):
         tags = ["model"]
