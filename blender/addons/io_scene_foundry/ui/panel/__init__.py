@@ -3023,6 +3023,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
 
 
     def draw_help(self):
+        self.box.operator("extensions.userpref_show_for_update", text="Check for Update", icon_value=get_icon_id("foundry"))
         box_websites = self.box.box()
         box_websites.label(text="Foundry Documentation")
         col = box_websites.column()
