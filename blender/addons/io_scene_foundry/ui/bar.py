@@ -69,7 +69,7 @@ class NWO_OT_StartFoundry(bpy.types.Operator):
         context.space_data.show_region_ui = True
         bpy.app.timers.register(utils.set_foundry_panel_active, first_interval=0.01)
         # self.report({'INFO'}, "Welcome to Foundry!")
-        display_fading_text("Foundry Loaded")
+        # display_fading_text("Foundry Loaded")
         return {"FINISHED"}
 
 class NWO_MT_ProjectChooserMenu(bpy.types.Menu):
