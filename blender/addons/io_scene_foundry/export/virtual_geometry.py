@@ -347,6 +347,7 @@ class VirtualMesh:
         self.texcoords: list[np.ndarray] = [] # Up to 4 uv layers
         self.lighting_texcoords: np.ndarray = None
         self.vertex_colors: list[np.ndarray] = [] # Up to two sets of vert colors
+        self.vertex_ids: np.ndarray = None # Corinth only
         self.indices: np.ndarray = None
         self.num_indices = 0
         self.groups: list[VirtualMaterial, int, int] = []
@@ -467,6 +468,12 @@ class VirtualMesh:
             types.append(GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, name_encoded, None, 3))
             type_names.append(name_encoded)
             dtypes.append((name, np.float32, (3,)))
+            
+        if self.vertex_ids is not None:
+            data.append(self.vertex_ids)
+            types.append(GrannyDataTypeDefinition(GrannyMemberType.granny_int32_member.value, f"TextureCoordinates{len(self.texcoords)}".encode(), None, 2))
+            type_names.append(b"vertex_id")
+            dtypes.append((f'vertex_id{idx}', np.int32, (2,)))
 
         types.append((GrannyMemberType.granny_end_member.value, None, None, 0))
         
@@ -644,7 +651,20 @@ class VirtualMesh:
 
         loop_data = np.hstack(data)
 
-        _, new_indices, face_indices = np.unique(loop_data, axis=0, return_index=True, return_inverse=True)
+        result_data, new_indices, face_indices = np.unique(loop_data, axis=0, return_index=True, return_inverse=True)
+        
+        if scene.corinth:
+            def vector_to_id_pair(vector):
+                vector_tuple = tuple(vector)
+                hashed_value = hash(vector_tuple)
+                
+                id1 = hashed_value & 0xFFFFFFFF  # Lower 32 bits
+                id2 = (hashed_value >> 32) & 0xFFFFFFFF  # Upper 32 bits
+                
+                return id1, id2
+            
+            self.vertex_ids = np.array([vector_to_id_pair(vec) for vec in result_data])
+            
         
         # self.indices = np.array(range(num_loops))
 

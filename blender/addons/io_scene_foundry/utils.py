@@ -2148,14 +2148,11 @@ def halo_transform_matrix(matrix: Matrix):
     
     rotation_matrix, pivot_matrix = rotation_and_pivot(rotation)
     
-    loc, rot, sca = matrix.decompose()
+    scale_matrix = Matrix.Scale(scale, 4)
+
+    final_matrix = rotation_matrix @ scale_matrix
     
-    loc *= scale
-    loc = pivot_matrix @ loc
-    
-    rot.rotate(rotation_matrix)
-    
-    return Matrix.LocRotScale(loc, rot, sca)
+    return final_matrix
 
 def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forward, new_forward, keep_marker_axis=None, objects=None, actions=None, apply_rotation=False, exclude_scale_models=False, skip_data=False):
     """Transform blender objects by the given scale factor and rotation. Optionally this can be scoped to a set of objects and animations rather than all"""
