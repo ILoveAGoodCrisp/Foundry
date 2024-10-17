@@ -1,6 +1,5 @@
 from pathlib import Path
 
-from .globals import GlobalsTag
 from ..managed_blam import Tag
 import os
 from .. import utils

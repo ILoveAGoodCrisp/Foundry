@@ -1,4 +1,5 @@
 from pathlib import Path
+import addon_utils
 from bpy.app.handlers import persistent
 import bpy
 
@@ -55,6 +56,11 @@ def load_handler(dummy):
 
     # Handle old scenes with aleady existing regions/perms/global materials
     # update_tables_from_objects(context)
+    
+    module_name = bpy.context.preferences.addons[__package__].module
+    for m in addon_utils.modules():
+        if m.__name__ == module_name:
+            utils.module = m
 
     # Add default sets if needed
     scene_nwo = context.scene.nwo

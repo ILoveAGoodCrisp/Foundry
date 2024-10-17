@@ -34,7 +34,7 @@ from ..tools.rigging.create_rig import add_rig
 from ..tools.append_foundry_materials import add_special_materials
 from ..icons import get_icon_id
 from ..tools.asset_types import asset_type_items
-from .. import utils, globals
+from .. import utils
 
 class NWO_OT_NewAsset(bpy.types.Operator):
     bl_idname = "nwo.new_asset"

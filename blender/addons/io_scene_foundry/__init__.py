@@ -18,8 +18,6 @@ modules = [
     keymap,
     icons,
 ]
-
-version = "1.0.0"
             
 def register():
     bpy.app.handlers.load_post.append(startup.load_handler)
