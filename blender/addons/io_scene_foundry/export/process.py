@@ -12,8 +12,6 @@ from ..tools.scenario.lightmap import run_lightmapper
 
 from ..tools.light_exporter import export_lights
 
-from ..managed_blam.scenario_structure_lighting_info import ScenarioStructureLightingInfoTag
-
 from ..tools.scenario.zone_sets import write_zone_sets_to_scenario
 
 from ..managed_blam import Tag
@@ -37,6 +35,7 @@ class ObjectCopy(Enum):
     NONE = 0
     SEAM = 1
     INSTANCE = 2
+    WATER_PHYSICS = 3
 
 face_prop_defaults = {
     "bungie_face_region": "default",
@@ -367,6 +366,10 @@ class ExportScene:
                                 copy_props.pop("bungie_face_type")
                             copy_props, copy_mesh_props = self._setup_poop_props(copy_ob, ob.nwo, ob.data.nwo, copy_props, mesh_props)
                             copy_props.update(copy_mesh_props)
+                            
+                        case ObjectCopy.WATER_PHYSICS:
+                            copy_props["bungie_mesh_type"] = MeshType.water_physics_volume.value
+                            copy_props = self._setup_water_physics_props(copy_ob.nwo, copy_props)
                     
                     self.ob_halo_data[copy_ob] = [copy_props, copy_region, permutation, fp_defaults, proxies]
                     self.no_parent_objects.append(copy_ob)
@@ -503,16 +506,10 @@ class ExportScene:
             if nwo.portal_is_door:
                 props["bungie_mesh_portal_is_door"] = 1
         elif mesh_type == "_connected_geometry_mesh_type_water_physics_volume":
-            # ob["bungie_mesh_tessellation_density"] = nwo.mesh_tessellation_density
-            props["bungie_mesh_water_volume_depth"] = nwo.water_volume_depth
-            props["bungie_mesh_water_volume_flow_direction"] = degrees(nwo.water_volume_flow_direction)
-            props["bungie_mesh_water_volume_flow_velocity"] = nwo.water_volume_flow_velocity
-            props["bungie_mesh_water_volume_fog_murkiness"] = nwo.water_volume_fog_murkiness
-            if self.corinth:
-                props["bungie_mesh_water_volume_fog_color"] = utils.color_rgba_str(nwo.water_volume_fog_color)
-            else:
-                props["bungie_mesh_water_volume_fog_color"] = utils.color_argb_str(nwo.water_volume_fog_color)
-            
+            props = self._setup_water_physics_props(nwo, props)
+        elif mesh_type == "_connected_geometry_mesh_type_water_surface":
+            if nwo.water_volume_depth > 0:
+                copy = ObjectCopy.WATER_PHYSICS
         elif mesh_type in ("_connected_geometry_mesh_type_poop_vertical_rain_sheet", "_connected_geometry_mesh_type_poop_rain_blocker"):
             mesh_props["bungie_face_mode"] = FaceMode.render_only.value
             
@@ -605,6 +602,18 @@ class ExportScene:
         elif self.corinth and nwo.mopp_physics:
             props["bungie_mesh_primitive_type"] = "_connected_geometry_primitive_type_mopp"
             props["bungie_havok_isshape"] = 1
+            
+        return props
+    
+    def _setup_water_physics_props(self, nwo: NWO_ObjectPropertiesGroup, props: dict):
+        props["bungie_mesh_water_volume_depth"] = nwo.water_volume_depth
+        props["bungie_mesh_water_volume_flow_direction"] = degrees(nwo.water_volume_flow_direction)
+        props["bungie_mesh_water_volume_flow_velocity"] = nwo.water_volume_flow_velocity
+        props["bungie_mesh_water_volume_fog_murkiness"] = nwo.water_volume_fog_murkiness
+        if self.corinth:
+            props["bungie_mesh_water_volume_fog_color"] = utils.color_rgba_str(nwo.water_volume_fog_color)
+        else:
+            props["bungie_mesh_water_volume_fog_color"] = utils.color_argb_str(nwo.water_volume_fog_color)
             
         return props
     
