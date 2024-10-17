@@ -325,7 +325,7 @@ class ExportScene:
                 parent = ob.parent
                 proxies = tuple()
                 # Write object as if it has no parent if this is not a model and it is parented to an empty/armature. It solves an issue where instancing fails
-                if (parent or (armature and ob.type != "ARMATURE")) and (ob.parent.type not in {'EMPTY', 'ARMATURE'} or self.is_model):
+                if (parent or (armature and ob.type != "ARMATURE")) and (parent and ob.parent.type not in {'EMPTY', 'ARMATURE'} or self.is_model):
                     if parent in evaluated_support_armatures:
                         object_parent_dict[ob] = self.main_armature.evaluated_get(self.depsgraph)
                     elif not parent:
@@ -398,6 +398,8 @@ class ExportScene:
                 return ObjectType.frame
             else:
                 return ObjectType.marker
+        elif ob.type == 'ARMATURE':
+            return ObjectType.frame
                 
         return ObjectType.none
             
