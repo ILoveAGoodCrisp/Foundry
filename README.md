@@ -1,7 +1,5 @@
 <div align="center"> <img src="img/readme_banner.png"> </div>
 
-# [Download](https://iloveagoodcrisp.github.io/Foundry/api/v1/extensions/io_scene_foundry.zip)
-
 **Foundry** is a Blender extension that facilitates a complete asset import & export pipeline for Halo Reach, Halo 4, and Halo 2 Anniversary Multiplayer.
 
 ## Requirements
