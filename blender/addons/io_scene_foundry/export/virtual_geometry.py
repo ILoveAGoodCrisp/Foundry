@@ -399,13 +399,16 @@ class VirtualMesh:
         self.granny_tri_topology = pointer(granny_tri_topology)
         
     def _granny_vertex_data(self, scene: 'VirtualScene'):
-        data = [self.positions, self.normals]
-        types = [
-            GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, b"Position", None, 3),
-            GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, b"Normal", None, 3)
-        ]
-        type_names = [b"Position", b"Normal"]
-        dtypes = [('Position', np.single, (3,)), ('Normal', np.single, (3,))]
+        data = [self.positions]
+        types = [GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, b"Position", None, 3)]
+        type_names = [b"Position"]
+        dtypes = [('Position', np.single, (3,))]
+        
+        if self.normals is not None:
+            data.append(self.normals)
+            types.append(GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, b"Normal", None, 3))
+            type_names.append(b"Normal")
+            dtypes.append(('Normal', np.single, (3,)))
         
         if self.bone_weights is not None:
             data.extend([self.bone_weights, self.bone_indices])
@@ -423,13 +426,13 @@ class VirtualMesh:
             data.append(uvs)
             types.append(GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, name_encoded, None, 3))
             type_names.append(name_encoded)
-            dtypes.append((name, np.float32, (3,)))
+            dtypes.append((name, np.single, (3,)))
             
         if self.lighting_texcoords is not None:
             data.append(self.lighting_texcoords)
             types.append(GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, b"TextureCoordinateslighting", None, 3))
             type_names.append(b"lighting")
-            dtypes.append((f'TextureCoordinateslighting{idx}', np.float32, (3,)))
+            dtypes.append((f'TextureCoordinateslighting{idx}', np.single, (3,)))
             
         for idx, vcolors in enumerate(self.vertex_colors):
             name = f"colorSet{idx + 1}" if scene.corinth else f"DiffuseColor{idx}"
@@ -517,8 +520,6 @@ class VirtualMesh:
             if mat is not None and (mat.nwo.has_material_properties or mat.name[0] == "+"):
                 special_mats_dict[mat].append(idx)
         
-        self.normals = np.zeros((num_loops, 3), dtype=np.single)
-        
         sorted_order = None
         
         vertex_positions = np.empty((num_vertices, 3), dtype=np.single)
@@ -585,6 +586,7 @@ class VirtualMesh:
         
         if render_mesh:
             # We only care about writing this data if the in game mesh will have a render definition
+            self.normals = np.empty((num_loops, 3), dtype=np.single)
             mesh.corner_normals.foreach_get("vector", self.normals.ravel())
             for idx, layer in enumerate(mesh.uv_layers):
                 if len(self.texcoords) >= 4:
@@ -619,7 +621,9 @@ class VirtualMesh:
                     self.vertex_colors.append(colors)
 
         # Remove duplicate vertex data
-        data = [self.positions, self.normals]
+        data = [self.positions]
+        if self.normals is not None:
+            data.append(self.normals)
         if self.texcoords is not None:
             data.extend(self.texcoords)
         if self.lighting_texcoords is not None:
@@ -654,7 +658,10 @@ class VirtualMesh:
         new_indices = tuple(new_indices)
 
         self.positions = self.positions[new_indices, :]
-        self.normals = self.normals[new_indices, :]
+        
+        
+        if self.normals is not None:
+            self.normals = self.normals[new_indices, :]
 
         if self.texcoords is not None:
             for idx, texcoord in enumerate(self.texcoords):
@@ -1123,13 +1130,13 @@ class VirtualModel:
             self.matrix: Matrix = ob.matrix_world.copy()
             
 class VirtualScene:
-    def __init__(self, asset_type: AssetType, depsgraph: bpy.types.Depsgraph, corinth: bool, tags_dir: Path, granny: Granny, export_settings, fps: int, animation_compression: str, rotation: float, maintain_marker_axis: bool):
+    def __init__(self, asset_type: AssetType, depsgraph: bpy.types.Depsgraph, corinth: bool, tags_dir: Path, granny: Granny, export_settings, fps: int, animation_compression: str, rotation: float, maintain_marker_axis: bool, granny_textures: bool):
         self.nodes: dict[VirtualNode] = {}
         self.meshes: dict[VirtualMesh] = {}
         self.materials: dict[VirtualMaterial] = {}
         self.models: dict[VirtualModel] = {}
         self.root: VirtualNode = None
-        self.uses_textures = export_settings.granny_textures
+        self.uses_textures = granny_textures
         self.quad_method = export_settings.triangulate_quad_method
         self.ngon_method = export_settings.triangulate_ngon_method
         self.asset_type = asset_type

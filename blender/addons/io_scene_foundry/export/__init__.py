@@ -20,6 +20,8 @@ import ctypes
 import traceback
 import logging
 
+from bpy_extras.io_utils import ExportHelper
+
 from .process import ExportScene
 
 from ..icons import get_icon_id, get_icon_id_in_directory
@@ -40,6 +42,7 @@ from ..utils import (
     validate_ek,
 )
 from .. import managed_blam
+from .. import utils
 
 # export keywords
 process = {}
@@ -55,30 +58,30 @@ def toggle_output():
 def menu_func_export(self, context):
     self.layout.operator(NWO_ExportScene.bl_idname, text="Halo Foundry Export")
 
-class NWO_ExportScene(Operator):
-    bl_idname = "export_scene.nwo"
+class NWO_ExportScene(Operator, ExportHelper):
+    bl_idname = "nwo.export_scene"
     bl_label = "Export Asset"
     bl_options = {"PRESET", "UNDO"}
     bl_description = "Exports Tags for use with a Reach/H4/H2AMP Halo Editing Kit"
     
-    filename_ext = ".xml"
+    filename_ext = ".asset"
 
     filter_glob: StringProperty(
-        default="*.xml",
+        default="*.asset",
         options={"HIDDEN"},
         maxlen=1024,
     )
     
     @classmethod
     def poll(cls, context):
-        return not validate_ek() and not context.scene.nwo.storage_only and context.scene.nwo.is_valid_asset and context.scene.nwo.asset_type != 'resource'
+        return not validate_ek() and not context.scene.nwo.storage_only and context.scene.nwo.asset_type != 'resource'
     
     @classmethod
     def description(cls, context, properties):
         d = validate_ek()
         if d is not None:
             return "Export Unavaliable: " + d
-
+        
     def __init__(self):
         # SETUP #
         scene = bpy.context.scene
@@ -91,7 +94,7 @@ class NWO_ExportScene(Operator):
             if not sidecar_filepath.endswith(".sidecar.xml"):
                 sidecar_filepath = ""
             if sidecar_filepath and file_exists(sidecar_filepath):
-                self.filepath = sidecar_filepath
+                self.filepath = utils.dot_partition(sidecar_filepath)
             elif bpy.data.is_saved:
                 try:
                     filepath_list = bpy.data.filepath.split(os.sep)
@@ -106,15 +109,13 @@ class NWO_ExportScene(Operator):
                         del filepath_list[-1]
                     drive = filepath_list[0]
                     del filepath_list[0]
-                    self.filepath = path.join(
-                        drive, path.sep, *filepath_list, "halo_export"
-                    )
+                    self.filepath = path.join(drive, path.sep, *filepath_list, "halo")
                 except:
                     if data_dir != "":
-                        self.filepath = path.join(get_data_path(), "halo_export")
+                        self.filepath = path.join(get_data_path(), "halo")
 
             elif data_dir != "":
-                self.filepath = path.join(get_data_path(), "halo_export")
+                self.filepath = path.join(get_data_path(), "halo")
 
         else:
             self.game_path_not_set = True
@@ -296,6 +297,8 @@ class NWO_ExportScene(Operator):
         scene = context.scene
         scene_nwo_export = scene.nwo_export
         scene_nwo = scene.nwo
+        scenario = scene_nwo.asset_type == "scenario"
+        prefab = scene_nwo.asset_type == "prefab"
         for p in projects:
             if p.name == scene_nwo.scene_project:
                 thumbnail = os.path.join(p.project_path, p.image_path)
@@ -319,135 +322,21 @@ class NWO_ExportScene(Operator):
         box.label(text="Settings")
 
         h4 = is_corinth(context)
-        scenario = scene_nwo.asset_type == "scenario"
 
         col = box.column()
         row = col.row()
         col.prop(scene_nwo, "asset_type", text="Asset Type")
+        col.prop(scene_nwo_export, "export_quick", text="Quick Export")
         col.prop(scene_nwo_export, "show_output", text="Toggle Output")
-        # NWO SETTINGS #
-        box = layout.box()
-        box.label(text="Export Scope")
-        col = box.column()
-        col.prop(scene_nwo_export, "export_gr2s", text="Export Tags")
+        col.separator()
+        col.use_property_split = False
+        col.prop(scene_nwo_export, "export_mode", text="")
+        col.prop(scene_nwo_export, "event_level", text="")
         if scene_nwo.asset_type == 'camera_track_set':
             return
-        if scene_nwo_export.export_gr2s and scene_nwo.asset_type in ('model', 'scenario', 'prefab', 'animation'):
-            col.separator()
-            sub = col.column(heading="Export")
-            # sub.prop(self, "export_hidden")
-            if scene_nwo.asset_type == "model":
-                sub.prop(scene_nwo_export, "export_render")
-                sub.prop(scene_nwo_export, "export_collision")
-                sub.prop(scene_nwo_export, "export_physics")
-                sub.prop(scene_nwo_export, "export_markers")
-                sub.prop(scene_nwo_export, "export_skeleton")
-                sub.prop(scene_nwo_export, "export_animations", expand=True)
-            elif scene_nwo.asset_type == "animation":
-                sub.prop(scene_nwo_export, "export_skeleton")
-                sub.prop(scene_nwo_export, "export_animations", expand=True)
-            elif scene_nwo.asset_type == "scenario":
-                sub.prop(scene_nwo_export, "export_structure")
-                sub.prop(scene_nwo_export, "export_design")
-                sub.prop(scene_nwo_export, "export_all_bsps", expand=True)
-            elif scene_nwo.asset_type != "prefab":
-                sub.prop(scene_nwo_export, "export_render")
-            if scene_nwo.asset_type in (
-                "model",
-                "sky",
-            ):
-                sub.prop(scene_nwo_export, "export_all_perms", expand=True, text='Permutations')
-            elif scene_nwo.asset_type in ("scenario", "prefab"):
-                sub.prop(scene_nwo_export, "export_all_perms", expand=True, text='Layers')
-        # SIDECAR SETTINGS #
-        if scene_nwo.asset_type == "model" and scene_nwo_export.export_gr2s:
-            box = layout.box()
-            box.label(text="Model Settings")
-            col = box.column()
-            # col.prop(self, "export_sidecar_xml")
-            # if self.export_sidecar_xml:
-            sub = box.column(heading="Output Tags")
-            if scene_nwo.asset_type == "model":
-                sub.prop(scene_nwo, "output_biped")
-                sub.prop(scene_nwo, "output_crate")
-                sub.prop(scene_nwo, "output_creature")
-                sub.prop(scene_nwo, "output_device_control")
-                if h4:
-                    sub.prop(scene_nwo, "output_device_dispenser")
-                sub.prop(scene_nwo, "output_device_machine")
-                sub.prop(scene_nwo, "output_device_terminal")
-                sub.prop(scene_nwo, "output_effect_scenery")
-                sub.prop(scene_nwo, "output_equipment")
-                sub.prop(scene_nwo, "output_giant")
-                sub.prop(scene_nwo, "output_scenery")
-                sub.prop(scene_nwo, "output_vehicle")
-                sub.prop(scene_nwo, "output_weapon")
-
-        # IMPORT SETTINGS #
-        if scene_nwo_export.export_gr2s:
-            box = layout.box()
-            sub = box.column(heading="Export Flags")
-            if h4:
-                sub.prop(scene_nwo_export, "import_force", text="Force full export")
-                if scenario:
-                    sub.prop(
-                        scene_nwo_export, "import_seam_debug", text="Show more seam debugging info"
-                    )
-                    sub.prop(
-                        scene_nwo_export, "import_skip_instances", text="Skip importing instances"
-                    )
-                    sub.prop(
-                        scene_nwo_export, "import_meta_only", text="Only import structure_meta tag"
-                    )
-                    sub.prop(
-                        scene_nwo_export,
-                        "import_lighting",
-                        text="Only reimport lighting information",
-                    )
-                    sub.prop(
-                        scene_nwo_export,
-                        "import_disable_hulls",
-                        text="Skip instance convex hull decomp",
-                    )
-                    sub.prop(
-                        scene_nwo_export,
-                        "import_disable_collision",
-                        text="Don't generate complex collision",
-                    )
-                else:
-                    sub.prop(scene_nwo_export, "import_no_pca", text="Skip PCA calculations")
-                    sub.prop(
-                        scene_nwo_export,
-                        "import_force_animations",
-                        text="Force import error animations",
-                    )
-            else:
-                sub.prop(scene_nwo_export, "import_force", text="Force full export")
-                # sub.prop(self, "import_verbose", text="Verbose Output")
-                sub.prop(
-                    scene_nwo_export, "import_suppress_errors", text="Don't write errors to VRML"
-                )
-                if scenario:
-                    sub.prop(
-                        scene_nwo_export, "import_seam_debug", text="Show more seam debugging info"
-                    )
-                    sub.prop(
-                        scene_nwo_export, "import_skip_instances", text="Skip importing instances"
-                    )
-                    sub.prop(
-                        scene_nwo_export,
-                        "import_decompose_instances",
-                        text="Run convex physics decomposition",
-                    )
-                else:
-                    sub.prop(scene_nwo_export, "import_draft", text="Skip PRT generation")
-
-        # LIGHTMAP SETTINGS #
-        render = scene_nwo.asset_type in ("model", "sky")
+        scenario = scene_nwo.asset_type == "scenario"
+        render = utils.poll_ui(("model", "sky"))
         if (h4 and render) or scenario:
-            box = layout.box()
-            box.label(text="Lightmap Settings")
-            col = box.column()
             if scenario:
                 lighting_name = "Light Scenario"
             else:
@@ -455,7 +344,7 @@ class NWO_ExportScene(Operator):
 
             col.prop(scene_nwo_export, "lightmap_structure", text=lighting_name)
             if scene_nwo_export.lightmap_structure:
-                if scenario:
+                if scene_nwo.asset_type == "scenario":
                     if h4:
                         col.prop(scene_nwo_export, "lightmap_quality_h4")
                     else:
@@ -465,6 +354,152 @@ class NWO_ExportScene(Operator):
                     col.prop(scene_nwo_export, "lightmap_all_bsps")
                     if not h4:
                         col.prop(scene_nwo_export, "lightmap_threads")
+                        
+        box = layout.box()
+        box.label(text="Scope")
+        col = box.column()
+                        
+        if scene_nwo.asset_type == "model":
+            col.prop(scene_nwo_export, "export_render", text="Render")
+            col.prop(scene_nwo_export, "export_collision", text="Collision")
+            col.prop(scene_nwo_export, "export_physics", text="Physics")
+            col.prop(scene_nwo_export, "export_markers")
+            col.prop(scene_nwo_export, "export_skeleton", icon='OUTLINER_OB_ARMATURE')
+        elif scene_nwo.asset_type == "animation":
+            col.prop(scene_nwo_export, "export_skeleton", icon='OUTLINER_OB_ARMATURE')
+        elif scene_nwo.asset_type == "scenario":
+            # col.prop(scene_nwo_export, "export_hidden", text="Hidden")
+            col.prop(scene_nwo_export, "export_structure")
+            col.prop(scene_nwo_export, "export_design", text="Design")
+        elif scene_nwo.asset_type != "prefab":
+            # col.prop(scene_nwo_export, "export_hidden", text="Hidden")
+            col.prop(scene_nwo_export, "export_render")
+
+        col = layout.column()
+        col.use_property_split = False
+        col.separator()
+        if scene_nwo.asset_type == "scenario":
+            col.prop(scene_nwo_export, "export_all_bsps", expand=True, text=" ")
+            col.separator()
+        col.prop(scene_nwo_export, "export_all_perms", expand=True, text=" ")
+        col.separator()
+        if scene_nwo.asset_type in {'animation', 'model'}:
+            col.prop(scene_nwo_export, "export_animations", expand=True)
+            
+        box = layout.box()
+        box.label(text="Coordinate System")
+        col = box.column()
+            
+        col.prop(scene_nwo, 'scale', text='Scale')
+        col.prop(scene_nwo, "forward_direction", text="Scene Forward")
+        col.prop(scene_nwo, "maintain_marker_axis")
+        col.prop(scene_nwo_export, "granny_mirror")
+        
+        box = layout.box()
+        box.label(text="Triangulation")
+        col = box.column()
+        
+        col.prop(scene_nwo_export, 'triangulate_quad_method', text="Quad Method")
+        col.prop(scene_nwo_export, 'triangulate_ngon_method', text="N-gon Method")
+        
+        box = layout.box()
+        box.label(text="Import Flags")
+        col = box.column()
+        
+        flow = col.grid_flow(
+            row_major=True,
+            columns=0,
+            even_columns=True,
+            even_rows=False,
+            align=False,
+        )
+        col = flow.column()
+        if h4:
+            col.prop(scene_nwo_export, "import_force", text="Force full export")
+            if scenario or prefab:
+                if scenario:
+                    col.prop(
+                        scene_nwo_export,
+                        "import_seam_debug",
+                        text="Show more seam debugging info",
+                    )
+                    col.prop(
+                        scene_nwo_export,
+                        "import_skip_instances",
+                        text="Skip importing instances",
+                    )
+                col.prop(
+                    scene_nwo_export,
+                    "import_meta_only",
+                    text="Only import structure_meta tag",
+                )
+                col.prop(
+                    scene_nwo_export,
+                    "import_lighting",
+                    text="Only reimport lighting information",
+                )
+                col.prop(
+                    scene_nwo_export,
+                    "import_disable_hulls",
+                    text="Skip instance convex hull decomp",
+                )
+                col.prop(
+                    scene_nwo_export,
+                    "import_disable_collision",
+                    text="Don't generate complex collision",
+                )
+            else:
+                col.prop(
+                    scene_nwo_export, "import_no_pca", text="Skip PCA calculations"
+                )
+                col.prop(
+                    scene_nwo_export,
+                    "import_force_animations",
+                    text="Force import error animations",
+                )
+        else:
+            col.prop(scene_nwo_export, "import_force", text="Force full export")
+            # col.prop(scene_nwo_export, "import_verbose", text="Verbose Output")
+            col.prop(
+                scene_nwo_export,
+                "import_suppress_errors",
+                text="Don't write errors to VRML",
+            )
+            if scenario:
+                col.prop(
+                    scene_nwo_export,
+                    "import_seam_debug",
+                    text="Show more seam debugging info",
+                )
+                col.prop(
+                    scene_nwo_export,
+                    "import_skip_instances",
+                    text="Skip importing instances",
+                )
+                col.prop(
+                    scene_nwo_export,
+                    "import_decompose_instances",
+                    text="Run convex physics decomposition",
+                )
+            else:
+                col.prop(scene_nwo_export, "import_draft", text="Skip PRT generation")
+                
+        flow = col.grid_flow(
+            row_major=True,
+            columns=0,
+            even_columns=True,
+            even_rows=False,
+            align=False,
+        )
+        
+        if utils.has_gr2_viewer():
+            box = layout.box()
+            box.label(text="GR2 Debug Settings")
+            col = box.column()
+            col.prop(scene_nwo_export, 'granny_open')
+            col.prop(scene_nwo_export, 'granny_textures')
+            if utils.poll_ui(('animation',)):
+                col.prop(scene_nwo_export, 'granny_animations_mesh')
 
 def register():
     bpy.utils.register_class(NWO_ExportScene)

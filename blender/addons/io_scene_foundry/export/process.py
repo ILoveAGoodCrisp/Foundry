@@ -247,7 +247,7 @@ class ExportScene:
         else:    
             self.export_objects = [ob.evaluated_get(self.depsgraph) for ob in self.context.view_layer.objects if ob.nwo.export_this and ob.type in VALID_OBJECTS and ob not in self.support_armatures and ob not in skip_obs]
         
-        self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir, self.granny, self.export_settings, self.context.scene.render.fps, self.scene_settings.default_animation_compression, utils.blender_halo_rotation_diff(self.forward), self.scene_settings.maintain_marker_axis)
+        self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir, self.granny, self.export_settings, self.context.scene.render.fps, self.scene_settings.default_animation_compression, utils.blender_halo_rotation_diff(self.forward), self.scene_settings.maintain_marker_axis, self.granny_textures)
         
     def create_instance_proxies(self, ob: bpy.types.Object, ob_halo_data: dict, region: str, permutation: str):
         self.processed_poop_meshes.add(ob.data)
@@ -1440,7 +1440,7 @@ class ExportScene:
         self.granny.save()
         
         if self.granny_open and not animation_export and filepath.exists():
-            os.startfile(Path(self.project_root, "gr2_viewer.exe"), filepath)
+            os.startfile(Path(self.project_root, "gr2_viewer.exe"), arguments=str(filepath))
             
     def _get_export_path(self, name: str, animation=False):
         """Gets the path to save a particular file to"""
@@ -1448,25 +1448,6 @@ class ExportScene:
             return Path(self.animations_export_dir, f"{name}.gr2")
         else:
             return Path(self.models_export_dir, f"{self.asset_name}_{name}.gr2")
-        # if self.asset_type == AssetType.SCENARIO:
-        #     if tag_type == ExportTagType.STRUCTURE_DESIGN:
-        #         if permutation.lower() == 'default':
-        #             return Path(self.models_export_dir, f"{self.asset_name}_{region.name}_design.gr2")
-        #         else:
-        #             return Path(self.models_export_dir, f"{self.asset_name}_{region}_{permutation.name}_design.gr2")
-        #     else:
-        #         if permutation.is_default:
-        #             return Path(self.models_export_dir, f"{self.asset_name}_{region.name}.gr2")
-        #         else:
-        #             return Path(self.models_export_dir, f"{self.asset_name}_{region.name}_{permutation.name}.gr2")
-        # else:
-        #     if tag_type == ExportTagType.ANIMATION:
-        #         return Path(self.animations_export_dir, f"{animation}.gr2")
-        #     else:
-        #         if permutation.lower() == 'default' or tag_type in {ExportTagType.MARKERS, ExportTagType.SKELETON}:
-        #             return Path(self.models_export_dir, f"{self.asset_name}_{tag_type.name.lower()}.gr2")
-        #         else:
-        #             return Path(self.models_export_dir, f"{self.asset_name}_{permutation.name}_{tag_type.name.lower()}.gr2")
         
     def write_sidecar(self):
         self.sidecar.has_armature = bool(self.virtual_scene.skeleton_node)

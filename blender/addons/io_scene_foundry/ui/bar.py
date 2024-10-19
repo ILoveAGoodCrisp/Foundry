@@ -450,8 +450,11 @@ class NWO_HaloExportSettings(bpy.types.Panel):
         col = flow.column()
         col.prop(scene_nwo_export, "export_quick", text="Quick Export")
         col.prop(scene_nwo_export, "show_output", text="Toggle Output")
-        col.prop(scene_nwo_export, "export_mode")
-        col.prop(scene_nwo_export, "event_level")
+        col.separator()
+        col = flow.column()
+        col.use_property_split = False
+        col.prop(scene_nwo_export, "export_mode", text="")
+        col.prop(scene_nwo_export, "event_level", text="")
         if asset_type == 'camera_track_set':
             return
         scenario = asset_type == "scenario"
@@ -505,32 +508,29 @@ class NWO_HaloExportSettingsScope(bpy.types.Panel):
         )
         if scene_nwo.asset_type == "model":
             # col.prop(scene_nwo_export, "export_hidden", text="Hidden")
-            flow.prop(scene_nwo_export, "export_render", text="Render")
-            flow.prop(scene_nwo_export, "export_collision", text="Collision")
-            flow.prop(scene_nwo_export, "export_physics", text="Physics")
-            flow.prop(scene_nwo_export, "export_markers")
-            flow.prop(scene_nwo_export, "export_skeleton")
+            flow.prop(scene_nwo_export, "export_render", text="Render", icon_value=get_icon_id("render"))
+            flow.prop(scene_nwo_export, "export_collision", text="Collision", icon_value=get_icon_id("collision"))
+            flow.prop(scene_nwo_export, "export_physics", text="Physics", icon_value=get_icon_id("physics"))
+            flow.prop(scene_nwo_export, "export_markers", icon_value=get_icon_id("marker"))
+            flow.prop(scene_nwo_export, "export_skeleton", icon='OUTLINER_OB_ARMATURE')
         elif scene_nwo.asset_type == "animation":
-            flow.prop(scene_nwo_export, "export_skeleton")
+            flow.prop(scene_nwo_export, "export_skeleton", icon='OUTLINER_OB_ARMATURE')
         elif scene_nwo.asset_type == "scenario":
             # col.prop(scene_nwo_export, "export_hidden", text="Hidden")
-            flow.prop(scene_nwo_export, "export_structure")
-            flow.prop(scene_nwo_export, "export_design", text="Design")
+            flow.prop(scene_nwo_export, "export_structure", icon_value=get_icon_id("render"))
+            flow.prop(scene_nwo_export, "export_design", text="Design", icon_value=get_icon_id("soft_ceiling"))
         elif scene_nwo.asset_type != "prefab":
             # col.prop(scene_nwo_export, "export_hidden", text="Hidden")
-            flow.prop(scene_nwo_export, "export_render")
+            flow.prop(scene_nwo_export, "export_render", icon_value=get_icon_id("render"))
 
         col = layout.column()
-        col.use_property_split = True
+        col.use_property_split = False
+        col.separator()
         if scene_nwo.asset_type == "scenario":
-            col.prop(scene_nwo_export, "export_all_bsps", expand=True)
-        if utils.poll_ui(("model", "scenario", "prefab")):
-            if scene_nwo.asset_type == "model":
-                txt = "Permutations"
-            else:
-                txt = "Layers"
-            col.prop(scene_nwo_export, "export_all_perms", expand=True, text=txt)
-        
+            col.prop(scene_nwo_export, "export_all_bsps", expand=True, text=" ")
+            col.separator()
+        col.prop(scene_nwo_export, "export_all_perms", expand=True, text=" ")
+        col.separator()
         if scene_nwo.asset_type in {'animation', 'model'}:
             col.prop(scene_nwo_export, "export_animations", expand=True)
 
@@ -564,7 +564,6 @@ class NWO_HaloExportSettingsFlags(bpy.types.Panel):
             align=False,
         )
         col = flow.column()
-        col.prop(scene_nwo_export, 'slow_gr2')
         if h4:
             col.prop(scene_nwo_export, "import_force", text="Force full export")
             if scenario or prefab:
@@ -647,7 +646,7 @@ class NWO_HaloExportCoordinateSystem(bpy.types.Panel):
         scene = context.scene
         scene_nwo = scene.nwo
         scene_nwo_export = scene.nwo_export
-        layout.use_property_split = True
+        layout.use_property_split = False
         flow = layout.grid_flow(
             row_major=True,
             columns=0,
@@ -727,9 +726,11 @@ class NWO_HaloExport(bpy.types.Operator):
         scene = context.scene
         scene_nwo_export = scene.nwo_export
         if scene_nwo_export.export_quick and utils.valid_nwo_asset(context):
-            return export_quick(bpy.ops.export_scene.nwo)
+            bpy.ops.nwo.export_scene()
         else:
-            return export(bpy.ops.export_scene.nwo)
+            bpy.ops.nwo.export_scene("INVOKE_DEFAULT")
+        
+        return {'FINISHED'}
 
 
 class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
@@ -740,14 +741,14 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         default='DEFAULT',
         items=[
-            ("DEFAULT", "Default", "Shows most events, but culls out unnecessary warnings"),
-            ("VERBOSE", "Verbose", ""),
-            ("STATUS", "Status", ""),
-            ("MESSAGE", "Message", ""),
-            ("WARNING", "Warning", ""),
-            ("ERROR", "Error", ""),
-            ("CRITICAL", "Critical", ""),
-            ("NONE", "None", "No errors or warnings are reported"),
+            ("DEFAULT", "Default Events", "Shows most events, but culls out unnecessary warnings"),
+            ("VERBOSE", "Verbose Events", ""),
+            ("STATUS", "Status Events", ""),
+            ("MESSAGE", "Message Events", ""),
+            ("WARNING", "Warning Events", ""),
+            ("ERROR", "Error Events", ""),
+            ("CRITICAL", "Critical Events", ""),
+            ("NONE", "No Events", "No errors or warnings are reported"),
         ]
     )
     
@@ -784,43 +785,27 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
             ("TAGS", "Tags Only", "Skips building intermediate files and attempts to build tags. This will not work if no intermediate files exist")
         ]
     )
-    export_gr2s: bpy.props.BoolProperty(
-        name="Export GR2 Files",
-        default=True,
-        options=set(),
-    )
-    slow_gr2: bpy.props.BoolProperty(
-        name="Slow GR2 Process",
-        description="Runs threads of the the FBX-to-GR2 conversion process one by one, instead of processing them concurrently",
-        default=False,
-        options=set(),
-    )
-    # export_hidden: bpy.props.BoolProperty(
-    #     name="Hidden",
-    #     description="Export visible objects only",
-    #     default=True,
-    #     options=set(),
-    # )
+    
     export_all_bsps: bpy.props.EnumProperty(
         name="BSPs",
         description="Specify whether to export all BSPs, or just those currently selected. Whether a BSP is considered selected is dependant on the object selection",
         default="all",
-        items=[("all", "All", ""), ("selected", "Selected", "")],
+        items=[("all", "All BSPs", ""), ("selected", "Selected BSPs", "")],
         options=set(),
     )
+    
+    def perm_items(self, context):
+        if utils.poll_ui(("scenario", "prefab")):
+            return [("all", "All Layers", ""), ("selected", "Selected Layers", "")]
+        else:
+            return [("all", "All Permutations", ""), ("selected", "Selected Permutations", "")]
+    
     export_all_perms: bpy.props.EnumProperty(
         name="Perms",
         description="Specify whether to export all permutations, or just those selected. Whether a permutation is considered selected is dependant on the object selection",
-        default="all",
-        items=[("all", "All", ""), ("selected", "Selected", "")],
+        items=perm_items,
         options=set(),
     )
-    # export_sidecar_xml: bpy.props.BoolProperty(
-    #     name="Build Sidecar",
-    #     description="",
-    #     default=True,
-    #     options=set(),
-    # )
     import_to_game: bpy.props.BoolProperty(
         name="Import to Game",
         description="",
@@ -962,9 +947,9 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
         description="",
         default="ALL",
         items=[
-            ("ALL", "All", "All animations flagged for export will be included"),
-            ("ACTIVE", "Active", "Only the currently active animation will be exported"),
-            ("NONE", "None", "No animations will be exported"),
+            ("ALL", "All Animations", "All animations flagged for export will be included"),
+            ("ACTIVE", "Active Animation", "Only the currently active animation will be exported"),
+            ("NONE", "No Animations", "No animations will be exported"),
         ],
         options=set(),
     )

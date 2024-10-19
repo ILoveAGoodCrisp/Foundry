@@ -25,6 +25,8 @@
 # ##### END MIT LICENSE BLOCK #####
 
 import bpy
+
+from ...icons import get_icon_id
 from ...managed_blam.scenario import ScenarioTag
 
 class NWO_UL_ZoneSets(bpy.types.UIList):
@@ -32,7 +34,7 @@ class NWO_UL_ZoneSets(bpy.types.UIList):
         if item:
             row = layout.row()
             # row.alignment = 'LEFT'
-            row.prop(item, 'name', text='', emboss=False)
+            row.prop(item, 'name', text='', emboss=False, icon_value=get_icon_id("zone_set"))
         else:
             layout.label(text="", translate=False, icon_value=icon)
             
