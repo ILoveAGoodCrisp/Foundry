@@ -180,12 +180,12 @@ class ExportScene:
         self.disabled_collections = utils.disable_excluded_collections(self.context)
         self.current_frame = self.context.scene.frame_current
         self.current_action = None
-        self.animated_objects = []
+        self.animated_objects = {}
         if self.asset_type in {AssetType.MODEL, AssetType.ANIMATION}:
             action_index = self.context.scene.nwo.active_action_index
             if action_index > -1:
                 self.current_action = bpy.data.actions[action_index]
-            self.animated_objects = utils.reset_to_basis(self.context)
+            self.animated_objects = utils.reset_to_basis(self.context, record_current_action=True)
         
     def get_initial_export_objects(self):
         self.temp_objects = set()
@@ -1262,16 +1262,31 @@ class ExportScene:
             armature.pose_position = 'POSE'
         self.context.view_layer.update()
         self.has_animations = True
-        with utils.Spinner():
-            utils.update_job_count(process, "", 0, num_animations)
-            for idx, action in enumerate(valid_actions):
-                for ob in self.animated_objects:
-                    ob.animation_data.action = action
-                anim_name = self.virtual_scene.add_animation(action)
-                self.create_event_nodes(action, anim_name)
+        if self.export_settings.export_animations == 'ALL':
+            with utils.Spinner():
+                utils.update_job_count(process, "", 0, num_animations)
+                for idx, action in enumerate(valid_actions):
+                    for ob in self.animated_objects.keys():
+                        ob.animation_data.action = action
+                    self.create_event_nodes(action, self.virtual_scene.add_animation(action))
+                    self.exported_actions.append(action)
+                    utils.update_job_count(process, "", idx, num_animations)
+                utils.update_job_count(process, "", num_animations, num_animations)
+        else:
+            active_only = self.export_settings.export_animations == 'ACTIVE'
+            for action in valid_actions:
+                if active_only and action == self.current_action:
+                    for ob in self.animated_objects.keys():
+                        ob.animation_data.action = action
+                    print("--- Sampling Active Animation ", end="")
+                    with utils.Spinner():
+                        self.create_event_nodes(action, self.virtual_scene.add_animation(action))
+                    print(" ", end="")
+                else:
+                    self.virtual_scene.add_animation(action, sample=False)
+                    
                 self.exported_actions.append(action)
-                utils.update_job_count(process, "", idx, num_animations)
-            utils.update_job_count(process, "", num_animations, num_animations)
+                
             
     def create_event_nodes(self, action: bpy.types.Action, name: str):
         nwo = action.nwo
@@ -1320,21 +1335,29 @@ class ExportScene:
                 
     def _export_animations(self):
         if self.virtual_scene.skeleton_node and self.virtual_scene.animations:
-            print("\n\nExporting Animations")
-            print("-----------------------------------------------------------------------\n")
+            exported_something = False
+            export = self.export_settings.export_animations != 'NONE'
+            active_only = export and self.export_settings.export_animations == 'ACTIVE'
+            if export:
+                print("\n\nExporting Active Animation" if active_only else "\n\nExporting Animations")
+                print("-----------------------------------------------------------------------\n")
             for animation in self.virtual_scene.animations:
                 granny_path = self._get_export_path(animation.name, True)
                 self.sidecar.add_animation_file_data(granny_path, bpy.data.filepath, animation.name, animation.compression, animation.animation_type, animation.movement, animation.space, animation.pose_overlay)
-                # if not self.export_settings.selected_perms or perm in self.export_settings.selected_perms:
-                job = f"--- {animation.name}"
-                utils.update_job(job, 0)
-                if self.export_settings.granny_animations_mesh:
-                    nodes_dict = {node.name: node for node in list(self.virtual_scene.nodes.values()) + [self.virtual_scene.skeleton_node]}
-                else:
-                    nodes_dict = {node.name: node for node in [self.virtual_scene.skeleton_node]}
-                    
-                self._export_granny_file(granny_path, nodes_dict, animation)
-                utils.update_job(job, 1)
+                if export and (not active_only or (self.current_action is not None and animation.action == self.current_action)):
+                    job = f"--- {animation.name}"
+                    utils.update_job(job, 0)
+                    if self.export_settings.granny_animations_mesh:
+                        nodes_dict = {node.name: node for node in list(self.virtual_scene.nodes.values()) + [self.virtual_scene.skeleton_node]}
+                    else:
+                        nodes_dict = {node.name: node for node in [self.virtual_scene.skeleton_node]}
+                        
+                    self._export_granny_file(granny_path, nodes_dict, animation)
+                    utils.update_job(job, 1)
+                    exported_something = True
+                
+            if not exported_something:
+                print("--- No animations to export")
     
     def _process_models(self):
         self._create_export_groups()
@@ -1370,7 +1393,7 @@ class ExportScene:
                 exported_something = True
         
         if not exported_something:
-            print("-- No geometry to export")
+            print("--- No geometry to export")
         
     def _export_granny_file(self, filepath: Path, virtual_objects: list[VirtualNode], animation: VirtualAnimation = None):
         self.granny.new(filepath, self.forward, self.scale, self.mirror)
@@ -1440,9 +1463,11 @@ class ExportScene:
         for collection in self.disabled_collections:
             collection.exclude = False
             
-        self.context.scene.frame_current = self.current_frame
-        for ob in self.animated_objects:
-            ob.animation_data.action = self.current_action
+        for ob, action in self.animated_objects.items():
+            ob.animation_data.action = action
+            
+        self.context.scene.frame_set(self.current_frame)
+            
         self.context.view_layer.update()
         
     def preprocess_tags(self):
@@ -1452,19 +1477,19 @@ class ExportScene:
         if node_usage_set or self.scene_settings.ik_chains or self.has_animations:
             with AnimationTag() as animation:
                 if self.scene_settings.parent_animation_graph:
-                    self.print_pre("-- Setting parent animation graph")
+                    self.print_pre("--- Setting parent animation graph")
                     animation.set_parent_graph(self.scene_settings.parent_animation_graph)
                     # print("--- Set Parent Animation Graph")
                 if self.virtual_scene.animations:
-                    self.print_pre(f"-- Validating animation compression for {len(self.exported_actions)} animations: Default Compression = {self.scene_settings.default_animation_compression}")
+                    self.print_pre(f"--- Validating animation compression for {len(self.exported_actions)} animations: Default Compression = {self.scene_settings.default_animation_compression}")
                     animation.validate_compression(self.exported_actions, self.scene_settings.default_animation_compression)
                     # print("--- Validated Animation Compression")
                 if node_usage_set:
-                    self.print_pre("-- Setting node usages")
+                    self.print_pre("--- Setting node usages")
                     animation.set_node_usages(self.virtual_scene.animated_bones, True)
                     #print("--- Updated Animation Node Usages")
                 if self.scene_settings.ik_chains:
-                    self.print_pre("-- Writing IK chains")
+                    self.print_pre("--- Writing IK chains")
                     animation.write_ik_chains(self.scene_settings.ik_chains, self.virtual_scene.animated_bones, True)
                     # print("--- Updated Animation IK Chains")
                     
@@ -1480,13 +1505,13 @@ class ExportScene:
                     
         if self.setup_scenario:
             with ScenarioTag() as scenario:
-                self.print_pre(f"-- Setting up new scenario: Creating default starting profile & setting scenario type to {self.scene_settings.scenario_type}")
+                self.print_pre(f"--- Setting up new scenario: Creating default starting profile & setting scenario type to {self.scene_settings.scenario_type}")
                 scenario.create_default_profile()
                 if self.scene_settings.scenario_type != 'solo':
                     scenario.tag.SelectField('type').SetValue(self.scene_settings.scenario_type)
                 
         if self.asset_type == AssetType.PARTICLE_MODEL and self.scene_settings.particle_uses_custom_points:
-            self.print_pre("-- Adding particle emitter custom points")
+            self.print_pre("--- Adding particle emitter custom points")
             emitter_path = Path(self.asset_path, self.asset_name).with_suffix(".particle_emitter_custom_points")
             if not emitter_path.exists():
                 with Tag(path=str(emitter_path)) as _: pass
@@ -1558,10 +1583,10 @@ class ExportScene:
         if self.sidecar.reach_world_animations or self.sidecar.pose_overlays:
             with AnimationTag() as animation:
                 if self.sidecar.reach_world_animations:
-                    self.print_post(f"-- Setting up {len(self.sidecar.reach_world_animations)} world relative animation{'s' if len(self.sidecar.reach_world_animations) > 1 else ''}")
+                    self.print_post(f"--- Setting up {len(self.sidecar.reach_world_animations)} world relative animation{'s' if len(self.sidecar.reach_world_animations) > 1 else ''}")
                     animation.set_world_animations(self.sidecar.reach_world_animations)
                 if self.sidecar.pose_overlays:
-                    self.print_post(f"-- Creating animation blend screens for {len(self.sidecar.pose_overlays)} pose overlay animation{'s' if len(self.sidecar.pose_overlays) > 1 else ''}")
+                    self.print_post(f"--- Updating animation blend screens for {len(self.sidecar.pose_overlays)} pose overlay animation{'s' if len(self.sidecar.pose_overlays) > 1 else ''}")
                     animation.setup_blend_screens(self.sidecar.pose_overlays)
             # print("--- Setup World Animations")
             
@@ -1570,14 +1595,14 @@ class ExportScene:
             with ScenarioTag() as scenario:
                 for bsp in self.virtual_scene.structure:
                     res = scenario.set_bsp_lightmap_res(bsp, lm_value, 0)
-                    self.print_post(f"-- Setting scenario lightmap resolution to {res}")
+                    self.print_post(f"--- Setting scenario lightmap resolution to {res}")
             
         if self.asset_type == AssetType.SCENARIO and self.scene_settings.zone_sets:
-            self.print_post(f"-- Updating scenario zone sets: {[zs.name for zs in self.scene_settings.zone_sets]}")
+            self.print_post(f"--- Updating scenario zone sets: {[zs.name for zs in self.scene_settings.zone_sets]}")
             write_zone_sets_to_scenario(self.scene_settings, self.asset_name)
 
         if self.lights:
-            self.print_post(f"-- Writing scenario lighting data from {len(self.lights)} light{'s' if len(self.lights) > 1 else ''}")
+            self.print_post(f"--- Writing scenario lighting data from {len(self.lights)} light{'s' if len(self.lights) > 1 else ''}")
             export_lights(self.lights)
         
     def _setup_model_overrides(self):
@@ -1589,7 +1614,7 @@ class ExportScene:
             ))
         if model_override:
             with ModelTag() as model:
-                self.print_post(f"-- Writing model tag paths to {model.tag_path.RelativePathWithExtension}")
+                self.print_post(f"--- Writing model tag paths to {model.tag_path.RelativePathWithExtension}")
                 model.set_model_overrides(self.scene_settings.template_render_model,
                                           self.scene_settings.template_collision_model,
                                           self.scene_settings.template_model_animation_graph,

@@ -1988,33 +1988,38 @@ def base_material_name(name: str, strip_legacy_halo_names=False) -> str:
 
 def get_animated_objects(context) -> list[bpy.types.Object]:
     scene_nwo = context.scene.nwo
-    animated_objects = []
+    animated_objects = set()
     if context.object and context.object.animation_data:
-        animated_objects.append(context.object)
+        animated_objects.add(context.object)
     if scene_nwo.main_armature and scene_nwo.main_armature.animation_data:
-        animated_objects.append(scene_nwo.main_armature)
+        animated_objects.add(scene_nwo.main_armature)
     if scene_nwo.support_armature_a and scene_nwo.support_armature_a.animation_data:
-        animated_objects.append(scene_nwo.support_armature_a)
+        animated_objects.add(scene_nwo.support_armature_a)
     if scene_nwo.support_armature_b and scene_nwo.support_armature_b.animation_data:
-        animated_objects.append(scene_nwo.support_armature_b)
+        animated_objects.add(scene_nwo.support_armature_b)
     if scene_nwo.support_armature_c and scene_nwo.support_armature_c.animation_data:
-        animated_objects.append(scene_nwo.support_armature_c)
+        animated_objects.add(scene_nwo.support_armature_c)
         
     control_objects = get_object_controls(context)
     if control_objects:
-        animated_objects.extend(control_objects)
+        animated_objects.update(control_objects)
         
     return animated_objects
 
-def reset_to_basis(context, keep_animation=False) -> list[bpy.types.Object]:
+def reset_to_basis(context, keep_animation=False, record_current_action=False) -> list[bpy.types.Object]:
     animated_objects = get_animated_objects(context)
+    ob_actions = {}
     for ob in animated_objects:
+        ob_actions[ob] = ob.animation_data.action
         if not keep_animation:
             ob.animation_data.action = None
         # ob.matrix_basis = Matrix()
         if ob.type == 'ARMATURE':
             for bone in ob.pose.bones:
                 bone.matrix_basis = Matrix()
+                
+    if record_current_action:
+        return ob_actions
                       
     return animated_objects
 

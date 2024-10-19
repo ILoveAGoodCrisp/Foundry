@@ -62,9 +62,10 @@ def read_frame_id_list() -> list:
     return frame_ids
 
 class VirtualAnimation:
-    def __init__(self, action: bpy.types.Action, scene: 'VirtualScene'):
+    def __init__(self, action: bpy.types.Action, scene: 'VirtualScene', sample: bool):
         nwo = action.nwo
         self.name = nwo.name_override.strip() if nwo.name_override.strip() else action.name
+        self.action = action
         
         if scene.default_animation_compression != "Automatic" and nwo.compression == "Default":
             self.compression = scene.default_animation_compression
@@ -81,38 +82,9 @@ class VirtualAnimation:
         self.granny_animation = None
         self.granny_track_group = None
         
-        self.create_track_group(scene.animated_bones, scene)
-        self.to_granny_animation(scene)
-
-    # def __del__(self):
-    #     if self.granny_animation is None:
-    #         return
-    #     self.granny_animation.name = None
-    #     self.granny_animation.duration = 0
-    #     self.granny_animation.time_step = 0
-    #     self.granny_animation.oversampling = 0
-    #     self.granny_animation.track_group_count = 0
-    #     for track_group in self.granny_animation.track_groups.contents:
-    #         track_group.name = None
-    #         track_group.vector_track_count = 0
-    #         track_group.vector_tracks = None
-    #         track_group.transform_track_count = 0
-    #         for track in track_group.transform_tracks.contents:
-    #             track.name = None
-    #             track.flags = 0
-    #             track.orientation_curve = None
-    #             track.position_curve = None
-    #             track.scale_shear_curve = None
-
-    #         track_group.transform_tracks = None
-    #         track_group.transform_lod_error_count = 0
-    #         track_group.tranform_lod_errors = 0
-    #         track_group.text_track_count = 0
-    #         track_group.text_tracks
-    #         track_group.initial_placement = None
-    #         track_group.flags = 0
-    #         track_group.loop_translation = 0
-    #         track_group.periodic_loop = 0
+        if sample:
+            self.create_track_group(scene.animated_bones, scene)
+            self.to_granny_animation(scene)
         
     def create_track_group(self, bones: list['AnimatedBone'], scene: 'VirtualScene'):
         positions = defaultdict(list)
@@ -209,9 +181,9 @@ class VirtualAnimation:
         granny_track.orientation_curve = orientation_curve.contents
         granny_track.scale_shear_curve = scale_curve.contents
 
-        del position_curve
-        del orientation_curve
-        del scale_curve
+        # del position_curve
+        # del orientation_curve
+        # del scale_curve
 
         granny_tracks.append(granny_track)
 
@@ -1245,12 +1217,10 @@ class VirtualScene:
         else:
             del model
             
-    def add_animation(self, action: bpy.types.Action):
-        animation = VirtualAnimation(action, self)
-        if animation.granny_animation:
-            self.animations.append(animation)
-        else:
-            del animation
+    def add_animation(self, action: bpy.types.Action, sample=True):
+        animation = VirtualAnimation(action, self, sample)
+        self.animations.append(animation)
+        return animation.name
         
     def _get_material(self, material: bpy.types.Material, scene: 'VirtualScene'):
         if material is None:
