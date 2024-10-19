@@ -22,6 +22,8 @@ import logging
 
 from bpy_extras.io_utils import ExportHelper
 
+from ..tools.camera_track_sync import export_current_action_as_camera_track
+
 from .process import ExportScene
 
 from ..icons import get_icon_id, get_icon_id_in_directory
@@ -511,6 +513,8 @@ def unregister():
 
 def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_path, scene_settings, export_settings, corinth):
     asset_type = scene_settings.asset_type
+    if asset_type == 'camera_track_set':
+        return export_current_action_as_camera_track(context,asset_path) # Return early if this is a camera track export
     export_scene = ExportScene(context, sidecar_path_full, sidecar_path, asset_type, asset_name, asset_path, corinth, export_settings, scene_settings)
     try:
         if export_settings.export_mode in {'FULL', 'GRANNY'}:
