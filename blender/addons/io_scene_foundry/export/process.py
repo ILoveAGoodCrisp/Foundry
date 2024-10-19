@@ -145,7 +145,7 @@ class ExportScene:
         self.export_tag_types = self._get_export_tag_types()
         
         self.pre_title_printed = False
-        self.post_title_printed = False    
+        self.post_title_printed = False
         
     def _get_export_tag_types(self):
         tag_types = set()
@@ -627,7 +627,9 @@ class ExportScene:
             
         elif self.asset_type == AssetType.DECORATOR_SET:
             mesh_type = '_connected_geometry_mesh_type_decorator'
-            props["bungie_mesh_decorator_lod"] = str(decorator_int(ob))
+            lod = decorator_int(ob)
+            self.sidecar.lods.add(lod)
+            props["bungie_mesh_decorator_lod"] = lod
         
         props["bungie_mesh_type"] = MeshType[mesh_type[30:]].value
         

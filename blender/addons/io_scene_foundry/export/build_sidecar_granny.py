@@ -53,7 +53,7 @@ class Sidecar:
         self.scene_settings = scene_settings
         self.corinth = corinth
         self.context = context
-        self.lods = []
+        self.lods = set()
         
         self.structure = set()
         self.design = set()
@@ -381,10 +381,10 @@ class Sidecar:
     def _write_decorator_contents(self, metadata):
         contents = ET.SubElement(metadata, "Contents")
         content = ET.SubElement(contents, "Content", Name=self.asset_name, Type="decorator_set")
-
         render_data = self.file_data.get("render")
         if render_data:
-            for lod in self.lods:
+            ordered_lods = sorted(self.lods)
+            for lod in ordered_lods:
                 lod_str = str(lod - 1)
                 content_object = ET.SubElement(content, "ContentObject", Name=lod_str, Type="render_model", LOD=lod_str)
                 for data in render_data:
