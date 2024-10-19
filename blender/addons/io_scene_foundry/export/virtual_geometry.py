@@ -21,7 +21,6 @@ from ..granny import Granny
 from .export_info import ExportInfo, FaceDrawDistance, FaceMode, FaceSides, FaceType, LightmapType, MeshType, ObjectType
 
 from ..props.mesh import NWO_FaceProperties_ListItems, NWO_MeshPropertiesGroup
-from ..props.object import NWO_ObjectPropertiesGroup
 
 from .. import utils
 
@@ -469,7 +468,6 @@ class VirtualMesh:
             dtypes.append((name, np.single, (3,)))
             
         if self.tension is not None:
-            print(self.tension)
             data.append(self.tension)
             types.append(GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, b"tension", None, 4))
             type_names.append(b"tension")
@@ -524,14 +522,10 @@ class VirtualMesh:
         mesh.polygons.foreach_get("loop_total", indices)
         unique_indices = np.unique(indices)
         
-        if len(unique_indices) > 1 or unique_indices[0] != 3: # TODO Add clean geometry export option
+        if len(unique_indices) > 1 or unique_indices[0] != 3:
             # if for whatever reason to_mesh() failed to triangulate the mesh
             bm = bmesh.new()
             bm.from_mesh(mesh)
-            # if scene.clean_up_geo:
-            # bmesh.ops.dissolve_limit(bm, angle_limit=radians(5), edges=bm.edges, verts=bm.verts, delimit={"NORMAL"})
-            # bmesh.ops.dissolve_degenerate(bm, dist=0.01, edges=bm.edges)
-            # bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.01)
             bmesh.ops.triangulate(bm, faces=bm.faces, quad_method=tri_mod_to_bmesh_tri(scene.quad_method), ngon_method=tri_mod_to_bmesh_tri(scene.ngon_method))
             bm.to_mesh(mesh)
             bm.free()
@@ -739,7 +733,7 @@ class VirtualMesh:
     
 class VirtualNode:
     def __init__(self, id: bpy.types.Object | bpy.types.PoseBone, props: dict, region: str = None, permutation: str = None, fp_defaults: dict = None, scene: 'VirtualScene' = None, proxies = [], template_node: 'VirtualNode' = None, bones: list[str] = [], parent_matrix: Matrix = IDENTITY_MATRIX):
-        self.name: str = "object"
+        self.name: str = id.name
         self.matrix_world: Matrix = IDENTITY_MATRIX
         self.matrix_local: Matrix = IDENTITY_MATRIX
         self.original = id.original
@@ -754,16 +748,13 @@ class VirtualNode:
         self.invalid = False
         self._set_group(scene)
         self.parent: VirtualNode = None
-        self.selected = False
         self.bone_bindings: list[str] = []
         self.granny_vertex_data = None
-        if not self.invalid:
+        if not self.invalid and self.tag_type in scene.export_tag_types:
             self._setup(id, scene, fp_defaults, proxies, template_node, bones, parent_matrix)
         
     def _setup(self, id: bpy.types.Object | bpy.types.PoseBone, scene: 'VirtualScene', fp_defaults: dict, proxies: list, template_node: 'VirtualNode', bones: list[str], parent_matrix: Matrix):
-        self.name = id.name
         if isinstance(id, bpy.types.Object):
-            self.selected = self.original.select_get()
             if template_node is None:
                 if id.type == 'ARMATURE' and not id.parent:
                     self.matrix_world = IDENTITY_MATRIX
@@ -1206,6 +1197,8 @@ class VirtualScene:
 
         self.rotation_matrix = Matrix.Rotation(rotation, 4, Vector((0, 0, 1)))
         self.armature_matrix = IDENTITY_MATRIX
+        
+        self.export_tag_types = set()
         
         # Create default material
         if corinth:

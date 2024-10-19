@@ -671,9 +671,9 @@ def export_asset_granny(context, sidecar_path_full, sidecar_path, asset_name, as
             export_scene.write_sidecar()
             
         if export_settings.export_mode in {'FULL', 'TAGS'}:
+            export_scene.preprocess_tags()
             print("\n\nWriting Tags")
             print("-----------------------------------------------------------------------\n")
-            export_scene.preprocess_tags()
             export_scene.invoke_tool_import()
             export_scene.postprocess_tags()
             export_scene.lightmap()

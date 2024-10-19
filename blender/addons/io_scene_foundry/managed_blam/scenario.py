@@ -84,7 +84,7 @@ class ScenarioTag(Tag):
         if self.corinth:
             bsp_element.SelectField('refinement size class').Value = refinement_class
         self.tag_has_changes = True
-        return True
+        return bsp_element.SelectField('size class').Items[size_class].DisplayName
         
     def get_bsp_info(self, bsp_name: str) -> dict:
         """Returns interesting information about this BSP in a dict"""
@@ -141,7 +141,6 @@ class ScenarioTag(Tag):
 
         with Tag(path=r"multiplayer\globals.multiplayer_object_type_list", tag_must_exist=True, raise_on_error=False) as mp_globals:
             for mp_element in mp_globals.tag.SelectField("Block:object types").Elements:
-                print(mp_element.Fields[1].GetStringData())
                 match mp_element.Fields[1].GetStringData():
                     case 'assault_rifle':
                         path = mp_element.Fields[2].Path

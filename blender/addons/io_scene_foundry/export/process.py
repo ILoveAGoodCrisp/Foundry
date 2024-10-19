@@ -100,6 +100,9 @@ class ExportScene:
         self.default_region: str = context.scene.nwo.regions_table[0].name
         self.default_permutation: str = context.scene.nwo.permutations_table[0].name
         
+        self.models_export_dir = Path(asset_path, "export", "models")
+        self.animations_export_dir = Path(asset_path, "export", "animations")
+        
         self.regions = [i.name for i in context.scene.nwo.regions_table]
         self.permutations = [i.name for i in context.scene.nwo.permutations_table]
         self.global_materials = set()
@@ -108,16 +111,18 @@ class ExportScene:
         self.reg_name = 'BSP' if self.asset_type.supports_bsp else 'region'
         self.perm_name = 'layer' if self.asset_type.supports_bsp else 'permutation'
         
-        self.selected_bsps = set()
-        self.selected_permutations = set()
-        
         self.processed_meshes = {}
         self.processed_poop_meshes = set()
-        
+
         self.game_version = 'corinth' if corinth else 'reach'
         self.export_settings = export_settings
         self.scene_settings = scene_settings
         self.sidecar = Sidecar(sidecar_path_full, sidecar_path, asset_path, asset_name, self.asset_type, scene_settings, corinth, context)
+        
+        self.selected_permutations = set()
+        self.selected_bsps = set()
+        self.limit_perms_to_selection = export_settings.export_all_perms == 'selected'
+        self.limit_bsps_to_selection = export_settings.export_all_bsps == 'selected'
         
         self.project_root = self.tags_dir.parent
         self.warnings = []
@@ -136,10 +141,37 @@ class ExportScene:
         self.sky_lights = []
         
         self.is_model = self.asset_type in {AssetType.MODEL, AssetType.SKY}
+        self.export_tag_types = self._get_export_tag_types()
         
-        self.extra_seams = []
-        self.extra_instances = []
+        self.pre_title_printed = False
+        self.post_title_printed = False    
         
+    def _get_export_tag_types(self):
+        tag_types = set()
+        match self.asset_type:
+            case AssetType.MODEL:
+                if self.export_settings.export_render:
+                    tag_types.add('render')
+                if self.export_settings.export_collision:
+                    tag_types.add('collision')
+                if self.export_settings.export_physics:
+                    tag_types.add('physics')
+                if self.export_settings.export_markers:
+                    tag_types.add('markers')
+                if self.export_settings.export_skeleton:
+                    tag_types.add('skeleton')
+            case AssetType.SCENARIO:
+                if self.export_settings.export_structure:
+                    tag_types.add('structure')
+                if self.export_settings.export_design:
+                    tag_types.add('design')
+            case AssetType.PREFAB:
+                if self.export_settings.export_structure:
+                    tag_types.add('structure')
+            case AssetType.SKY | AssetType.DECORATOR_SET | AssetType.PARTICLE_MODEL:
+                tag_types.add('render')
+                
+        return tag_types
         
     def ready_scene(self):
         utils.exit_local_view(self.context)
@@ -322,6 +354,12 @@ class ExportScene:
                 if result is None:
                     continue
                 props, region, permutation, fp_defaults, mesh_props, copy = result
+                
+                if self.limit_perms_to_selection and ob.original.select_get():
+                    self.selected_permutations.add(permutation)
+                if self.limit_bsps_to_selection and ob.original.select_get():
+                    self.selected_bsps.add(region)
+                
                 parent = ob.parent
                 proxies = tuple()
                 # Write object as if it has no parent if this is not a model and it is parented to an empty/armature. It solves an issue where instancing fails
@@ -388,6 +426,7 @@ class ExportScene:
         self.virtual_scene.global_materials_set = set(self.global_materials_list)
         self.virtual_scene.object_parent_dict = object_parent_dict
         self.virtual_scene.object_halo_data = self.ob_halo_data
+        self.virtual_scene.export_tag_types = self.export_tag_types
         self.context.view_layer.update()
         
     def _get_object_type(self, ob) -> ObjectType:
@@ -1273,44 +1312,9 @@ class ExportScene:
         if self.virtual_scene.warnings:
             print("\n--- Geometry Errors")
             for warning in self.virtual_scene.warnings:
-                utils.print_warning(warning)
-        
-        
-    def get_selected_sets(self):
-        '''
-        Get selected bsps/permutations from the objects selected at export
-        '''
-        sel_perms = self.export_settings.export_all_perms == "selected"
-        sel_bsps = self.export_settings.export_all_bsps == "selected"
-        if not (sel_bsps or sel_perms):
-            return
-        current_selection = {node for node in self.virtual_scene.nodes if node.selected}
-        if not current_selection:
-            return
-        for node in current_selection:
-            if sel_bsps:
-                self.selected_bsps.add(node.region)
-            if sel_perms:
-                self.selected_permutations.add(node.permutation)
-            
+                utils.print_warning(warning)     
     
     def export_files(self):
-        # make necessary directories
-        #self.models_dir = Path(self.asset_path, "models")
-        self.models_export_dir = Path(self.asset_path, "export", "models")
-        # if not self.models_dir.exists():
-        #     self.models_dir.mkdir(parents=True, exist_ok=True)
-        if not self.models_export_dir.exists():
-            self.models_export_dir.mkdir(parents=True, exist_ok=True)
-            
-        if self.asset_type.supports_animations:
-            # self.animations_dir = Path(self.asset_path, "animations")
-            self.animations_export_dir = Path(self.asset_path, "export", "animations")
-            # if not self.animations_dir.exists():
-            #     self.animations_dir.mkdir(parents=True, exist_ok=True)
-            if not self.animations_export_dir.exists():
-                self.animations_export_dir.mkdir(parents=True, exist_ok=True)
-                
         self._process_models()
         self._export_animations()
                 
@@ -1343,7 +1347,7 @@ class ExportScene:
     
     def _export_models(self):
         if not self.groups: return
-        
+        exported_something = False
         print("\n\nExporting Geometry")
         print("-----------------------------------------------------------------------\n")
         for name, nodes in self.groups.items():
@@ -1352,60 +1356,45 @@ class ExportScene:
             region = nodes[0].region
             tag_type = nodes[0].tag_type
             self.sidecar.add_file_data(tag_type, perm, region, granny_path, bpy.data.filepath)
-            # if not self.export_settings.selected_perms or perm in self.export_settings.selected_perms:
-            job = f"--- {name}"
-            utils.update_job(job, 0)
-            if self.virtual_scene.skeleton_node:
-                nodes_dict = {node.name: node for node in nodes + [self.virtual_scene.skeleton_node]}
-            else:
-                nodes_dict = {node.name: node for node in nodes}
-            self._export_granny_file(granny_path, nodes_dict)
-            utils.update_job(job, 1)
-            
-                
-        # for permutation in self.permutations:
-        #     granny_path = self._get_export_path(tag_type, permutation=permutation)
-        #     self.sidecar_info.append(SidecarData(granny_path, self.data_dir, permutation))
-            
-        #     if not sel_perms or perm in sel_perms:
-        #         if model_armature:
-        #             if obs_perms:
-        #                 export_obs = [ob for ob in objects if ob.nwo.permutation_name == perm]
-        #                 export_obs.append(model_armature)
-        #             else:
-        #                 export_obs = [ob for ob in objects]
-        #                 export_obs.append(model_armature)
-        #         else:
-        #             if obs_perms:
-        #                 export_obs = [ob for ob in objects if ob.nwo.permutation_name == perm]
-        #             else:
-        #                 export_obs = [ob for ob in objects]
+            in_permutation_selection = self.asset_type not in {AssetType.MODEL, AssetType.SCENARIO, AssetType.SKY, AssetType.PREFAB} or not self.limit_perms_to_selection or perm in self.selected_permutations or tag_type in {'markers', 'skeleton'}
+            in_bsp_selection = self.asset_type != AssetType.SCENARIO or not self.limit_bsps_to_selection or region in self.selected_bsps
+            if in_permutation_selection and in_bsp_selection and tag_type in self.export_tag_types:
+                job = f"--- {name}"
+                utils.update_job(job, 0)
+                if self.virtual_scene.skeleton_node:
+                    nodes_dict = {node.name: node for node in nodes + [self.virtual_scene.skeleton_node]}
+                else:
+                    nodes_dict = {node.name: node for node in nodes}
+                self._export_granny_file(granny_path, nodes_dict)
+                utils.update_job(job, 1)
+                exported_something = True
+        
+        if not exported_something:
+            print("-- No geometry to export")
         
     def _export_granny_file(self, filepath: Path, virtual_objects: list[VirtualNode], animation: VirtualAnimation = None):
         self.granny.new(filepath, self.forward, self.scale, self.mirror)
         self.granny.from_tree(self.virtual_scene, virtual_objects)
         
-        if animation is None:
-            if self.export_settings.granny_textures:
-                self.granny.create_textures()
-            self.granny.create_materials()
-            self.granny.create_vertex_data()
-            self.granny.create_tri_topologies()
-            self.granny.create_meshes()
-            
-        self.granny.create_skeletons(export_info=self.export_info)
-        self.granny.create_models()
+        animation_export = animation is not None
         
-        if animation is not None:
-            self.granny.create_track_groups(animation.granny_track_group)
-            self.granny.create_animations(animation.granny_animation)
+        if not animation_export:
+            if self.export_settings.granny_textures:
+                self.granny.write_textures()
+            self.granny.write_materials()
+            self.granny.write_vertex_data()
+            self.granny.write_tri_topologies()
+            self.granny.write_meshes()
+            
+        self.granny.write_skeletons(export_info=self.export_info)
+        self.granny.write_models()
+        
+        if animation_export:
+            self.granny.write_track_groups(animation.granny_track_group)
+            self.granny.write_animations(animation.granny_animation)
             
         self.granny.transform()
         self.granny.save()
-        
-        # if filepath.exists():
-        #     os.startfile(r"F:\Modding\granny\granny_common_2_9_12_0_release\bin\win32\gr2_viewer.exe", arguments='"' + str(filepath) + '"')
-        
             
     def _get_export_path(self, name: str, animation=False):
         """Gets the path to save a particular file to"""
@@ -1458,21 +1447,24 @@ class ExportScene:
         
     def preprocess_tags(self):
         """ManagedBlam tasks to run before tool import is called"""
-        print("--- Tags Pre-Process")
         node_usage_set = self.has_animations and self.any_node_usage_override()
         # print("\n--- Foundry Tags Pre-Process\n")
         if node_usage_set or self.scene_settings.ik_chains or self.has_animations:
-            with AnimationTag(hide_prints=False) as animation:
+            with AnimationTag() as animation:
                 if self.scene_settings.parent_animation_graph:
+                    self.print_pre("-- Setting parent animation graph")
                     animation.set_parent_graph(self.scene_settings.parent_animation_graph)
                     # print("--- Set Parent Animation Graph")
                 if self.virtual_scene.animations:
+                    self.print_pre(f"-- Validating animation compression for {len(self.exported_actions)} animations: Default Compression = {self.scene_settings.default_animation_compression}")
                     animation.validate_compression(self.exported_actions, self.scene_settings.default_animation_compression)
                     # print("--- Validated Animation Compression")
                 if node_usage_set:
+                    self.print_pre("-- Setting node usages")
                     animation.set_node_usages(self.virtual_scene.animated_bones, True)
                     #print("--- Updated Animation Node Usages")
                 if self.scene_settings.ik_chains:
+                    self.print_pre("-- Writing IK chains")
                     animation.write_ik_chains(self.scene_settings.ik_chains, self.virtual_scene.animated_bones, True)
                     # print("--- Updated Animation IK Chains")
                     
@@ -1482,17 +1474,19 @@ class ExportScene:
                     animation.tag.SelectField("Struct:definitions[0]/ByteFlags:private flags").SetBit('uses data driven animation', True)
 
         if self.asset_type == AssetType.SCENARIO:
-            scenario_path = Path(self.asset_path, f"{self.asset_name}.scenario")
+            scenario_path = Path(self.tags_dir, utils.relative_path(self.asset_path), f"{self.asset_name}.scenario")
             if not scenario_path.exists():
                 self.setup_scenario = True
                     
         if self.setup_scenario:
-            with ScenarioTag(hide_prints=True) as scenario:
+            with ScenarioTag() as scenario:
+                self.print_pre(f"-- Setting up new scenario: Creating default starting profile & setting scenario type to {self.scene_settings.scenario_type}")
                 scenario.create_default_profile()
                 if self.scene_settings.scenario_type != 'solo':
                     scenario.tag.SelectField('type').SetValue(self.scene_settings.scenario_type)
                 
         if self.asset_type == AssetType.PARTICLE_MODEL and self.scene_settings.particle_uses_custom_points:
+            self.print_pre("-- Adding particle emitter custom points")
             emitter_path = Path(self.asset_path, self.asset_name).with_suffix(".particle_emitter_custom_points")
             if not emitter_path.exists():
                 with Tag(path=str(emitter_path)) as _: pass
@@ -1542,30 +1536,48 @@ class ExportScene:
         if self.asset_type == AssetType.ANIMATION:
             sidecar_importer.cull_unused_tags()
             
+    def print_pre(self, txt):
+        if not self.pre_title_printed:
+            print("\n\nTags Pre-Process")
+            print("-----------------------------------------------------------------------\n")
+            self.pre_title_printed = True
+            
+        print(txt)
+        
+    def print_post(self, txt):
+        if not self.post_title_printed:
+            print("\n\nTags Post-Process")
+            print("-----------------------------------------------------------------------\n")
+            self.post_title_printed = True
+            
+        print(txt)
+            
     def postprocess_tags(self):
         """ManagedBlam tasks to run after tool import is called"""
-        print("--- Tags Post-Process")
         self._setup_model_overrides()
-
         if self.sidecar.reach_world_animations or self.sidecar.pose_overlays:
-            with AnimationTag(hide_prints=False) as animation:
+            with AnimationTag() as animation:
                 if self.sidecar.reach_world_animations:
+                    self.print_post(f"-- Setting up {len(self.sidecar.reach_world_animations)} world relative animation{'s' if len(self.sidecar.reach_world_animations) > 1 else ''}")
                     animation.set_world_animations(self.sidecar.reach_world_animations)
                 if self.sidecar.pose_overlays:
+                    self.print_post(f"-- Creating animation blend screens for {len(self.sidecar.pose_overlays)} pose overlay animation{'s' if len(self.sidecar.pose_overlays) > 1 else ''}")
                     animation.setup_blend_screens(self.sidecar.pose_overlays)
             # print("--- Setup World Animations")
             
         if self.asset_type == AssetType.SCENARIO and self.setup_scenario:
             lm_value = 6 if self.corinth else 3
-            with ScenarioTag(hide_prints=True) as scenario:
+            with ScenarioTag() as scenario:
                 for bsp in self.virtual_scene.structure:
-                    scenario.set_bsp_lightmap_res(bsp, lm_value, 0)
-            # print("--- Set Lightmapper size class to 1k")
+                    res = scenario.set_bsp_lightmap_res(bsp, lm_value, 0)
+                    self.print_post(f"-- Setting scenario lightmap resolution to {res}")
             
         if self.asset_type == AssetType.SCENARIO and self.scene_settings.zone_sets:
+            self.print_post(f"-- Updating scenario zone sets: {[zs.name for zs in self.scene_settings.zone_sets]}")
             write_zone_sets_to_scenario(self.scene_settings, self.asset_name)
 
-        if self.lights:   
+        if self.lights:
+            self.print_post(f"-- Writing scenario lighting data from {len(self.lights)} light{'s' if len(self.lights) > 1 else ''}")
             export_lights(self.lights)
         
     def _setup_model_overrides(self):
@@ -1577,6 +1589,7 @@ class ExportScene:
             ))
         if model_override:
             with ModelTag() as model:
+                self.print_post(f"-- Writing model tag paths to {model.tag_path.RelativePathWithExtension}")
                 model.set_model_overrides(self.scene_settings.template_render_model,
                                           self.scene_settings.template_collision_model,
                                           self.scene_settings.template_model_animation_graph,

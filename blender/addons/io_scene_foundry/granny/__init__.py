@@ -32,17 +32,13 @@ class Granny:
         self.string_table = self.new_string_table()
         self._create_callback()
         self.filename = ""
-
-    # def __del__(self):
-    #     if self.dll is None:
-    #         return
-    #     libHandle = self.dll._handle
-    #     del self.dll
-    #     windll.kernel32.FreeLibrary(libHandle)
     
         
     def new(self, filepath: Path, forward: str, scale: float, mirror: bool):
         self.filename = str(filepath)
+        parent_dir = filepath.parent
+        if not parent_dir.exists():
+            parent_dir.mkdir(parents=True, exist_ok=True)
         # File Transforms
         self.units_per_meter = (1  / 0.03048) * scale
         self.origin = (c_float * 3)(0, 0, 0)
@@ -213,29 +209,27 @@ class Granny:
             3, # 3 represents the flags GrannyRenormalizeNormals & GrannyReorderTriangleIndices
         )
         
-    def create_track_groups(self, export_track_group):
-        track_groups = (POINTER(GrannyTrackGroup))(export_track_group)
+    def write_track_groups(self, export_track_group):
         self.file_info.track_group_count = 1
         self.file_info.track_groups = pointer(export_track_group)
         
-    def create_animations(self, export_animation):
-        animations = (POINTER(GrannyAnimation))(export_animation)
+    def write_animations(self, export_animation):
         self.file_info.animation_count = 1
         self.file_info.animations = pointer(export_animation)
                 
-    def create_materials(self):
+    def write_materials(self):
         num_materials = len(self.export_materials)
         materials = (POINTER(GrannyMaterial) * num_materials)(*self.export_materials)
         self.file_info.material_count = num_materials
         self.file_info.materials = materials
         
-    def create_textures(self):
+    def write_textures(self):
         num_textures = len(self.export_textures)
         textures = (POINTER(GrannyTexture) * num_textures)(*self.export_textures)
         self.file_info.texture_count = num_textures
         self.file_info.textures = textures
 
-    def create_skeletons(self, export_info=None):
+    def write_skeletons(self, export_info=None):
         num_skeletons = len(self.export_skeletons) + int(bool(export_info))
         skeletons = (POINTER(GrannySkeleton) * num_skeletons)()
 
@@ -278,19 +272,19 @@ class Granny:
         granny_skeleton.bone_count = 1
         granny_skeleton.bones = cast(bones, POINTER(GrannyBone))
         
-    def create_vertex_data(self):
+    def write_vertex_data(self):
         num_vertex_datas = len(self.export_vertex_datas)
         vertex_datas = (POINTER(GrannyVertexData) * num_vertex_datas)(*self.export_vertex_datas)
         self.file_info.vertex_data_count = num_vertex_datas
         self.file_info.vertex_datas = vertex_datas
     
-    def create_tri_topologies(self):
+    def write_tri_topologies(self):
         num_tri_topologies = len(self.export_tri_topologies)
         tri_topologies = (POINTER(GrannyTriTopology) * num_tri_topologies)(*self.export_tri_topologies)
         self.file_info.tri_topology_count = num_tri_topologies
         self.file_info.tri_topologies = tri_topologies
         
-    def create_meshes(self):
+    def write_meshes(self):
         num_meshes = len(self.export_meshes)
         meshes = (POINTER(GrannyMesh) * num_meshes)()
 
@@ -332,7 +326,7 @@ class Granny:
             granny_mesh.bone_bindings_count = num_bone_bindings
             granny_mesh.bone_bindings = cast(bone_bindings, POINTER(GrannyBoneBinding))
         
-    def create_models(self):
+    def write_models(self):
         num_models = len(self.export_models) + int(bool(self.granny_export_info))
         models = (POINTER(GrannyModel) * num_models)()
 
