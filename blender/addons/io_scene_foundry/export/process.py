@@ -3,6 +3,7 @@ from enum import Enum
 from math import degrees
 import os
 from pathlib import Path
+import random
 import bpy
 from mathutils import Vector
 
@@ -25,7 +26,7 @@ from .build_sidecar_granny import Sidecar
 from .export_info import ExportInfo, FaceDrawDistance, FaceMode, FaceSides, FaceType, LightmapType, MeshTessellationDensity, MeshType, ObjectType
 from ..props.mesh import NWO_MeshPropertiesGroup
 from ..props.object import NWO_ObjectPropertiesGroup
-from .virtual_geometry import VirtualAnimation, VirtualNode, VirtualScene
+from .virtual_geometry import AnimatedBone, VirtualAnimation, VirtualNode, VirtualScene
 from ..granny import Granny
 from .. import utils
 from ..constants import VALID_MESHES, VALID_OBJECTS
@@ -160,6 +161,10 @@ class ExportScene:
                     tag_types.add('markers')
                 if self.export_settings.export_skeleton:
                     tag_types.add('skeleton')
+                tag_types.add('animation')
+            case AssetType.ANIMATION:
+                tag_types.add('render')
+                tag_types.add('animation')
             case AssetType.SCENARIO:
                 if self.export_settings.export_structure:
                     tag_types.add('structure')
@@ -1187,69 +1192,6 @@ class ExportScene:
         if self.asset_type == AssetType.SCENARIO:
             self.virtual_scene.add_automatic_structure(self.default_permutation, self.inverse_scale)
             
-    def _consolidate_rig(self):
-        context = self.context
-        scene_nwo = self.scene_settings
-        if scene_nwo.support_armature_a and context.scene.objects.get(scene_nwo.support_armature_a.name):
-            child_bone = utils.rig_root_deform_bone(scene_nwo.support_armature_a, True)
-            if child_bone and scene_nwo.support_armature_a_parent_bone:
-                self._join_armatures(context, scene_nwo.main_armature, scene_nwo.support_armature_a, scene_nwo.support_armature_a_parent_bone, child_bone)
-            else:
-                utils.unlink(scene_nwo.support_armature_a)
-                if not scene_nwo.support_armature_a_parent_bone:
-                    self.warning_hit = True
-                    utils.print_warning(f"No parent bone specified in Asset Editor panel for {scene_nwo.support_armature_a_parent_bone}. Ignoring support armature")
-                    
-                if not child_bone:
-                    self.warning_hit = True
-                    utils.print_warning(f"{scene_nwo.support_armature_a.name} has multiple root bones, could not join to {scene_nwo.main_armature.name}. Ignoring support armature")
-                    
-        if scene_nwo.support_armature_b and context.scene.objects.get(scene_nwo.support_armature_b.name):
-            child_bone = utils.rig_root_deform_bone(scene_nwo.support_armature_b, True)
-            if child_bone and scene_nwo.support_armature_b_parent_bone:
-                self._join_armatures(context, scene_nwo.main_armature, scene_nwo.support_armature_b, scene_nwo.support_armature_b_parent_bone, child_bone)
-            else:
-                utils.unlink(scene_nwo.support_armature_b)
-                if not scene_nwo.support_armature_b_parent_bone:
-                    self.warning_hit = True
-                    utils.print_warning(f"No parent bone specified in Asset Editor panel for {scene_nwo.support_armature_b_parent_bone}. Ignoring support armature")
-                    
-                if not child_bone:
-                    self.warning_hit = True
-                    utils.print_warning(f"{scene_nwo.support_armature_b.name} has multiple root bones, could not join to {scene_nwo.main_armature.name}. Ignoring support armature")
-                    
-        if scene_nwo.support_armature_c and context.scene.objects.get(scene_nwo.support_armature_c.name):
-            child_bone = utils.rig_root_deform_bone(scene_nwo.support_armature_c, True)
-            if child_bone and scene_nwo.support_armature_c_parent_bone:
-                self._join_armatures(context, scene_nwo.main_armature, scene_nwo.support_armature_c, scene_nwo.support_armature_c_parent_bone, child_bone)
-            else:
-                utils.unlink(scene_nwo.support_armature_c)
-                if not scene_nwo.support_armature_c_parent_bone:
-                    self.warning_hit = True
-                    utils.print_warning(f"No parent bone specified in Asset Editor panel for {scene_nwo.support_armature_c_parent_bone}. Ignoring support armature")
-                    
-                if not child_bone:
-                    self.warning_hit = True
-                    utils.print_warning(f"{scene_nwo.support_armature_c.name} has multiple root bones, could not join to {scene_nwo.main_armature.name}. Ignoring support armature")
-                    
-    def _join_armatures(self, context: bpy.types.Context, parent, child, parent_bone, child_bone):
-        with context.temp_override(selected_editable_objects=[parent, child], active_object=parent):
-            bpy.ops.object.join()
-        # Couldn't get context override working for accessing edit_bones
-        context.view_layer.objects.active = parent
-        bpy.ops.object.editmode_toggle()
-        edit_child = parent.data.edit_bones.get(child_bone, 0)
-        edit_parent = parent.data.edit_bones.get(parent_bone, 0)
-        if edit_child and edit_parent:
-            edit_child.parent = edit_parent
-        else:
-            self.warning_hit = True
-            utils.print_warning(f"Failed to join bones {parent_bone} and {child_bone} for {parent.name}")
-            
-        bpy.ops.object.editmode_toggle()
-        
-        context.view_layer.objects.active = None
-            
     def sample_animations(self):
         if self.asset_type not in {AssetType.MODEL, AssetType.ANIMATION}:
             return
@@ -1268,7 +1210,8 @@ class ExportScene:
                 for idx, action in enumerate(valid_actions):
                     for ob in self.animated_objects.keys():
                         ob.animation_data.action = action
-                    self.create_event_nodes(action, self.virtual_scene.add_animation(action))
+                    controls = self.create_event_objects(action)
+                    self.virtual_scene.add_animation(action, controls=controls)
                     self.exported_actions.append(action)
                     utils.update_job_count(process, "", idx, num_animations)
                 utils.update_job_count(process, "", num_animations, num_animations)
@@ -1280,7 +1223,8 @@ class ExportScene:
                         ob.animation_data.action = action
                     print("--- Sampling Active Animation ", end="")
                     with utils.Spinner():
-                        self.create_event_nodes(action, self.virtual_scene.add_animation(action))
+                        controls = self.create_event_objects(action)
+                        self.virtual_scene.add_animation(action, controls=controls)
                     print(" ", end="")
                 else:
                     self.virtual_scene.add_animation(action, sample=False)
@@ -1288,9 +1232,11 @@ class ExportScene:
                 self.exported_actions.append(action)
                 
             
-    def create_event_nodes(self, action: bpy.types.Action, name: str):
+    def create_event_objects(self, action: bpy.types.Action):
         nwo = action.nwo
         nwo: NWO_ActionPropertiesGroup
+        name = nwo.name_override.strip() if nwo.name_override.strip() else action.name
+        event_ob_props = {}
         for event in nwo.animation_events:
             event: NWO_Animation_ListItems
             props = {}
@@ -1299,18 +1245,87 @@ class ExportScene:
                 self.warnings.append(f"Animation event [{event.name}] has no ik chain defined. Skipping")
                 continue
             event_name = 'event_export_node_' + event_type[41:] + '_' + str(event.event_id)
+            ob = bpy.data.objects.new(event_name, None)
+            event_ob_props[ob] = props
             props["bungie_object_type"] = ObjectType.animation_event.value
-            props["bungie_animation_event_id"] = str(abs(event.event_id))
+            props["bungie_animation_event_id"] = abs(event.event_id)
             props["bungie_animation_event_type"] = event_type
+            props["bungie_animation_event_start"] = 0
+            props["bungie_animation_event_end"] = int(action.frame_end) - int(action.frame_start)
             
             match event_type:
+                case '_connected_geometry_animation_event_type_frame':
+                    props["bungie_animation_event_frame_frame"] = event.frame_frame
+                    props["bungie_animation_event_frame_name"] = event.frame_name
+                    if event.multi_frame == "range" and event.frame_range > event.frame_frame:
+                        for i in range(event.frame_range - event.frame_frame):
+                            copy_ob = ob.copy()
+                            copy_props = props.copy()
+                            copy_id = abs(event.event_id) + i
+                            copy_props["bungie_animation_event_id"] = copy_id
+                            copy_props["bungie_animation_event_frame_frame"] = event.frame_frame + i
+                            copy_props.name = f'event_export_node_frame_{str(copy_id)}'
+                            event_ob_props[copy_ob] = copy_props
+                            
                 case '_connected_geometry_animation_event_type_wrinkle_map':
                     props["bungie_animation_event_wrinkle_map_face_region"] = event.wrinkle_map_face_region
                     props["bungie_animation_event_wrinkle_map_effect"] = event.wrinkle_map_effect
+                    
                 case '_connected_geometry_animation_event_type_ik_active' | '_connected_geometry_animation_event_type_ik_passive':
                     props["bungie_animation_event_ik_chain"] = event.ik_chain
-                    props["bungie_animation_event_ik_target_marker"] = event.ik_target_marker.name if event.ik_target_marker else ''
+                    target_marker = event.ik_target_marker.name if event.ik_target_marker else ''
+                    props["bungie_animation_event_ik_target_marker"] = target_marker
                     props["bungie_animation_event_ik_target_usage"] = event.ik_target_usage
+                    
+                    proxy_target = bpy.data.objects.new(f'proxy_target_export_node_{event.ik_target_usage}_{target_marker}', None)
+                    proxy_target.parent = self.virtual_scene.skeleton_object
+                    proxy_target_props = {}
+                    rnd = random.Random()
+                    rnd.seed(proxy_target.name)
+                    proxy_target_id = rnd.randint(0, 2147483647)
+                    props["bungie_animation_event_ik_proxy_target_id"] = proxy_target_id
+                    proxy_target_props["bungie_object_type"] = ObjectType.animation_control.value
+                    proxy_target_props["bungie_animation_control_id"] = proxy_target_id
+                    proxy_target_props["bungie_animation_control_type"] = '_connected_geometry_animation_control_type_target_proxy'
+                    proxy_target_props["bungie_animation_control_proxy_target_usage"] = props["bungie_animation_event_ik_target_usage"]
+                    proxy_target_props["bungie_animation_control_proxy_target_marker"] = props["bungie_animation_event_ik_target_marker"]
+                    if event.ik_target_marker:
+                        proxy_target.matrix_world = event.ik_target_marker.matrix_world
+                        
+                    event_ob_props[proxy_target] = proxy_target_props
+                    
+                    effector = bpy.data.objects.new(f'ik_effector_export_node_{event.ik_chain}_{event.event_type[44:]}', None)
+                    effector.parent = self.virtual_scene.skeleton_object
+                    effector_props = {}
+                    rnd = random.Random()
+                    rnd.seed(effector.name)
+                    effector_id = str(rnd.randint(0, 2147483647))
+                    props["bungie_animation_event_ik_effector_id"] = effector_id
+                    effector_props["bungie_object_type"] = ObjectType.animation_control.value
+                    effector_props["bungie_animation_control_id"] = effector_id
+                    effector_props["bungie_animation_control_type"] = '_connected_geometry_animation_control_type_ik_effector'
+                    effector_props["bungie_animation_control_ik_chain"] = event.ik_chain
+                    effector_props["bungie_animation_control_ik_effect"] = event.ik_influence
+                    effector.matrix_world = proxy_target.matrix_world
+                    
+                    event_ob_props[effector] = effector_props
+                    
+                    rnd = random.Random()
+                    rnd.seed(ob.name + '117')
+                    props["bungie_animation_event_ik_pole_vector_id"] = rnd.randint(0, 2147483647)
+        
+        controls = []
+        
+        for ob, props in event_ob_props.items():
+            if ob.parent:
+                node = self.virtual_scene.add(ob, props, animation_owner=name)
+                self.virtual_scene.skeleton_model.skeleton.append_animation_control(ob, node, self.virtual_scene)
+                controls.append(AnimatedBone(ob, parent_override=self.virtual_scene.root_bone))
+            else:
+                self.virtual_scene.add_model_for_animation(ob, props, animation_owner=name)
+                
+        return controls
+                    
             
     def report_warnings(self):
         if not (self.virtual_scene.warnings or self.warnings):
@@ -1330,7 +1345,8 @@ class ExportScene:
                 utils.print_warning(warning)     
     
     def export_files(self):
-        self._process_models()
+        self._create_export_groups()
+        self._export_models()
         self._export_animations()
                 
     def _export_animations(self):
@@ -1347,11 +1363,8 @@ class ExportScene:
                 if export and (not active_only or (self.current_action is not None and animation.action == self.current_action)):
                     job = f"--- {animation.name}"
                     utils.update_job(job, 0)
-                    if self.export_settings.granny_animations_mesh:
-                        nodes_dict = {node.name: node for node in list(self.virtual_scene.nodes.values()) + [self.virtual_scene.skeleton_node]}
-                    else:
-                        nodes_dict = {node.name: node for node in [self.virtual_scene.skeleton_node]}
-                        
+                    nodes = self.animation_groups.get(animation.name, [])
+                    nodes_dict = {node.name: node for node in nodes + [self.virtual_scene.skeleton_node]}
                     self._export_granny_file(granny_path, nodes_dict, animation)
                     utils.update_job(job, 1)
                     exported_something = True
@@ -1359,21 +1372,21 @@ class ExportScene:
             if not exported_something:
                 print("--- No animations to export")
     
-    def _process_models(self):
-        self._create_export_groups()
-        self._export_models()
-    
     def _create_export_groups(self):
-        self.groups = defaultdict(list)
+        self.animation_groups = defaultdict(list)
+        self.model_groups = defaultdict(list)
         for node in self.virtual_scene.nodes.values():
-            self.groups[node.group].append(node)
+            if node.for_animation:
+                self.animation_groups[node.group].append(node)
+            else:
+                self.model_groups[node.group].append(node)
     
     def _export_models(self):
-        if not self.groups: return
+        if not self.model_groups: return
         exported_something = False
         print("\n\nExporting Geometry")
         print("-----------------------------------------------------------------------\n")
-        for name, nodes in self.groups.items():
+        for name, nodes in self.model_groups.items():
             granny_path = self._get_export_path(name)
             perm = nodes[0].permutation
             region = nodes[0].region

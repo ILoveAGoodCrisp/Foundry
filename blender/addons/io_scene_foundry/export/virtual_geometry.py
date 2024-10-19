@@ -62,7 +62,7 @@ def read_frame_id_list() -> list:
     return frame_ids
 
 class VirtualAnimation:
-    def __init__(self, action: bpy.types.Action, scene: 'VirtualScene', sample: bool):
+    def __init__(self, action: bpy.types.Action, scene: 'VirtualScene', sample: bool, animation_controls=[]):
         nwo = action.nwo
         self.name = nwo.name_override.strip() if nwo.name_override.strip() else action.name
         self.action = action
@@ -83,7 +83,7 @@ class VirtualAnimation:
         self.granny_track_group = None
         
         if sample:
-            self.create_track_group(scene.animated_bones, scene)
+            self.create_track_group(scene.animated_bones + animation_controls, scene)
             self.to_granny_animation(scene)
         
     def create_track_group(self, bones: list['AnimatedBone'], scene: 'VirtualScene'):
@@ -97,11 +97,11 @@ class VirtualAnimation:
             bone_inverse_matrices = {}
             for idx, bone in enumerate(bones):
                 if bone.parent:
-                    matrix_world = scene.rotation_matrix @ scale_matrix @ bone.pbone.matrix
+                    matrix_world = scene.rotation_matrix @ scale_matrix @ bone.matrix
                     bone_inverse_matrices[bone.pbone] = matrix_world.inverted()
                     matrix = bone_inverse_matrices[bone.parent] @ matrix_world
                 else:
-                    matrix = scene.rotation_matrix @ scale_matrix @ bone.pbone.matrix
+                    matrix = scene.rotation_matrix @ scale_matrix @ bone.matrix
                     bone_inverse_matrices[bone.pbone] = matrix.inverted()
 
                 loc, rot, sca = matrix.decompose()
@@ -704,7 +704,7 @@ class VirtualMesh:
             self.face_properties = gather_face_props(ob.original.data.nwo, mesh, num_polygons, scene, sorted_order, special_mats_dict, fp_defaults, props)
     
 class VirtualNode:
-    def __init__(self, id: bpy.types.Object | bpy.types.PoseBone, props: dict, region: str = None, permutation: str = None, fp_defaults: dict = None, scene: 'VirtualScene' = None, proxies = [], template_node: 'VirtualNode' = None, bones: list[str] = [], parent_matrix: Matrix = IDENTITY_MATRIX):
+    def __init__(self, id: bpy.types.Object | bpy.types.PoseBone, props: dict, region: str = None, permutation: str = None, fp_defaults: dict = None, scene: 'VirtualScene' = None, proxies = [], template_node: 'VirtualNode' = None, bones: list[str] = [], parent_matrix: Matrix = IDENTITY_MATRIX, animation_owner=None):
         self.name: str = id.name
         self.matrix_world: Matrix = IDENTITY_MATRIX
         self.matrix_local: Matrix = IDENTITY_MATRIX
@@ -718,7 +718,8 @@ class VirtualNode:
         self.group: str = "default"
         self.tag_type: str = "render"
         self.invalid = False
-        self._set_group(scene)
+        self.for_animation = animation_owner is not None
+        self._set_group(scene, animation_owner)
         self.parent: VirtualNode = None
         self.bone_bindings: list[str] = []
         self.granny_vertex_data = None
@@ -788,58 +789,62 @@ class VirtualNode:
                 self.granny_vertex_data.vertex_count = self.mesh.num_vertices
                 self.granny_vertex_data = pointer(self.granny_vertex_data)   
             
-    def _set_group(self, scene: 'VirtualScene'):
-        match scene.asset_type:
-            case AssetType.MODEL:
-                mesh_type = self.props.get("bungie_mesh_type")
-                if mesh_type:
-                    match mesh_type:
-                        case MeshType.default.value | MeshType.object_instance.value:
-                            self.tag_type = 'render'
-                        case MeshType.collision.value:
-                            self.tag_type = 'collision'
-                        case MeshType.physics.value:
-                            self.tag_type = 'physics'
+    def _set_group(self, scene: 'VirtualScene', animation: str | None):
+        if animation is None:
+            match scene.asset_type:
+                case AssetType.MODEL:
+                    mesh_type = self.props.get("bungie_mesh_type")
+                    if mesh_type:
+                        match mesh_type:
+                            case MeshType.default.value | MeshType.object_instance.value:
+                                self.tag_type = 'render'
+                            case MeshType.collision.value:
+                                self.tag_type = 'collision'
+                            case MeshType.physics.value:
+                                self.tag_type = 'physics'
+                        
+                        self.group = f'{self.tag_type}_{self.permutation}'
+                        
+                    else:
+                        object_type = self.props.get("bungie_object_type")
+                        if object_type is None:
+                            self.invalid = True
+                            scene.warnings.append(f"Object [{self.name}] has no Halo object type")
+                            return
+                        
+                        match object_type:
+                            case ObjectType.marker.value:
+                                self.tag_type = 'markers'
+                            case ObjectType.frame.value:
+                                self.tag_type = 'skeleton'
+                                
+                        self.group = self.tag_type
+                
+                case AssetType.SCENARIO:
+                    mesh_type = self.props.get("bungie_mesh_type")
+                    if mesh_type in DESIGN_MESH_TYPES:
+                        self.tag_type = 'design'
+                        scene.design.add(self.region)
+                    elif self.region == 'shared':
+                        self.tag_type = 'shared'
+                    else:
+                        self.tag_type = 'structure'
+                        scene.structure.add(self.region)
+                        if mesh_type == MeshType.default.value:
+                            scene.bsps_with_structure.add(self.region)
+                        
+                    self.group = f'{self.tag_type}_{self.region}_{self.permutation}'
                     
+                case AssetType.PREFAB:
+                    self.tag_type = 'structure'
                     self.group = f'{self.tag_type}_{self.permutation}'
                     
-                else:
-                    object_type = self.props.get("bungie_object_type")
-                    if object_type is None:
-                        self.invalid = True
-                        scene.warnings.append(f"Object [{self.name}] has no Halo object type")
-                        return
-                    
-                    match object_type:
-                        case ObjectType.marker.value:
-                            self.tag_type = 'markers'
-                        case ObjectType.frame.value:
-                            self.tag_type = 'skeleton'
-                            
-                    self.group = self.tag_type
-            
-            case AssetType.SCENARIO:
-                mesh_type = self.props.get("bungie_mesh_type")
-                if mesh_type in DESIGN_MESH_TYPES:
-                    self.tag_type = 'design'
-                    scene.design.add(self.region)
-                elif self.region == 'shared':
-                    self.tag_type = 'shared'
-                else:
-                    self.tag_type = 'structure'
-                    scene.structure.add(self.region)
-                    if mesh_type == MeshType.default.value:
-                        scene.bsps_with_structure.add(self.region)
-                    
-                self.group = f'{self.tag_type}_{self.region}_{self.permutation}'
-                
-            case AssetType.PREFAB:
-                self.tag_type = 'structure'
-                self.group = f'{self.tag_type}_{self.permutation}'
-                
-            case _:
-                self.tag_type = 'render'
-                self.group = 'default'
+                case _:
+                    self.tag_type = 'render'
+                    self.group = 'default'
+        else:
+            self.tag_type = 'animation'
+            self.group = animation
                 
     
     def props_encoded(self):
@@ -892,6 +897,10 @@ class AnimatedBone:
     def __init__(self, pbone, parent_override=None):
         self.name = pbone.name
         self.pbone = pbone
+        if isinstance(pbone, bpy.types.Object):
+            self.matrix = pbone.matrix_world
+        else:
+            self.matrix = pbone.matrix
         if parent_override is None:
             self.parent = pbone.parent
         else:
@@ -921,26 +930,6 @@ class VirtualSkeleton:
         own_bone.to_granny_data(scene)
         self.bones: list[VirtualBone] = [own_bone]
         self._get_bones(ob, scene, is_main_armature)
-
-    # def __del__(self):
-    #     for vbone in self.bones:
-    #         granny_bone = vbone.granny_bone
-    #         granny_bone.name = None
-    #         granny_bone.parent_index = None
-    #         granny_bone.local_transform = None
-    #         granny_bone.inverse_world_4x4 = None
-    #         granny_bone.lod_error = None
-    #         definition = granny_bone.extended_data.type
-    #         del definition.member_type
-    #         del definition.name
-    #         del definition.reference_type
-    #         del definition.array_width
-    #         del definition.extra
-    #         del definition.unused_or_ignored
-    #         del definition
-    #         del granny_bone.extended_data.object
-    #         del granny_bone.extended_data
-    #         del granny_bone
         
     def _get_bones(self, ob, scene: 'VirtualScene',is_main_armature: bool):
         if ob.type == 'ARMATURE':
@@ -997,7 +986,7 @@ class VirtualSkeleton:
                 if bone.parent:
                     # Add one to this since the root is the armature
                     b.parent_index = list_bones.index(bone.parent.name) + 1
-                    b.matrix_world = scene.rotation_matrix @ bone.pbone.matrix
+                    b.matrix_world = scene.rotation_matrix @ bone.matrix
                     bone_inverse_matrices[bone.pbone] = b.matrix_world.inverted()
                     b.matrix_local = bone_inverse_matrices[bone.parent] @ b.matrix_world
                 # elif is_aim_bone:
@@ -1014,14 +1003,14 @@ class VirtualSkeleton:
                     if root_bone_found:
                         raise RuntimeError(f"Armature {ob.name} has multiple root bones. This must be fixed before export can proceed")
                     root_bone_found = True
-                    root_bone = bone
+                    root_bone = bone.pbone
                     b.parent_index = 0
                     # b.matrix_local = IDENTITY_MATRIX
                     # b.matrix_world = IDENTITY_MATRIX
-                    b.matrix_world = scene.rotation_matrix @ bone.pbone.matrix
+                    b.matrix_world = scene.rotation_matrix @ bone.matrix
                     b.matrix_local = b.matrix_world
                     bone_inverse_matrices[bone.pbone] = b.matrix_world.inverted()
-                    # scene.root_bone = root_bone
+                    scene.root_bone = root_bone
                     # scene.root_bone_inverse_matrix = bone.matrix.inverted() @ IDENTITY_MATRIX
                 
                 b.to_granny_data(scene)
@@ -1095,10 +1084,20 @@ class VirtualSkeleton:
                 b.matrix_local = b.node.matrix_local
                 b.to_granny_data(scene)
                 self.bones.append(b)
+                
+    def append_animation_control(self, ob: bpy.types.Object, node: VirtualNode, scene: 'VirtualScene', parent_index=1):
+        b = VirtualBone(ob)
+        b.parent_index = parent_index
+        b.node = node
+        b.matrix_world = b.node.matrix_world
+        b.matrix_local = b.node.matrix_local
+        b.props = node.props
+        b.to_granny_data(scene)
+        self.bones.append(b)
     
 class VirtualModel:
     '''Describes a blender object which has no parent'''
-    def __init__(self, ob: bpy.types.Object, scene: 'VirtualScene', props=None, region=None, permutation=None):
+    def __init__(self, ob: bpy.types.Object, scene: 'VirtualScene', props=None, region=None, permutation=None, animation_owner=None):
         self.name: str = ob.name
         self.node = None
         self.skeleton = None
@@ -1106,20 +1105,18 @@ class VirtualModel:
         if props is None:
             node = scene.add(ob, *scene.object_halo_data[ob])
         else:
-            node = scene.add(ob, props, region, permutation)
+            node = scene.add(ob, props, region, permutation, animation_owner=animation_owner)
         if node and not node.invalid:
             self.node = node
             if ob.type == 'ARMATURE':
                 if not scene.skeleton_node or bpy.context.scene.nwo.main_armature == ob.original:
                     scene.skeleton_node = self.node
+                    scene.skeleton_model = self
+                    scene.skeleton_object = ob.original
                     is_main_armature = True
 
             self.skeleton: VirtualSkeleton = VirtualSkeleton(ob, scene, self.node, is_main_armature)
             self.matrix: Matrix = ob.matrix_world.copy()
-
-    # def __del__(self):
-    #     if self.skeleton is not None:
-    #         del self.skeleton
             
 class VirtualScene:
     def __init__(self, asset_type: AssetType, depsgraph: bpy.types.Depsgraph, corinth: bool, tags_dir: Path, granny: Granny, export_settings, fps: int, animation_compression: str, rotation: float):
@@ -1141,6 +1138,8 @@ class VirtualScene:
         self.global_materials: list = []
         self.global_materials_set = set()
         self.skeleton_node: VirtualNode = None
+        self.skeleton_model: VirtualModel = None
+        self.skeleton_object: bpy.types.Object
         self.time_step = 1.0 / fps
         self.corinth = corinth
         self.export_info: ExportInfo = None
@@ -1195,9 +1194,9 @@ class VirtualScene:
         pass
         
         
-    def add(self, id: bpy.types.Object, props: dict, region: str = None, permutation: str = None, fp_defaults: dict = None, proxies: list = [], template_node: VirtualNode = None, bones: list[str] = [], parent_matrix: Matrix = IDENTITY_MATRIX) -> VirtualNode:
+    def add(self, id: bpy.types.Object, props: dict, region: str = None, permutation: str = None, fp_defaults: dict = None, proxies: list = [], template_node: VirtualNode = None, bones: list[str] = [], parent_matrix: Matrix = IDENTITY_MATRIX, animation_owner=None) -> VirtualNode:
         '''Creates a new node with the given parameters and appends it to the virtual scene'''
-        node = VirtualNode(id, props, region, permutation, fp_defaults, self, proxies, template_node, bones, parent_matrix)
+        node = VirtualNode(id, props, region, permutation, fp_defaults, self, proxies, template_node, bones, parent_matrix, animation_owner)
         if not node.invalid:
             self.nodes[node.name] = node
             if node.new_mesh:
@@ -1214,11 +1213,14 @@ class VirtualScene:
         model = VirtualModel(ob, self)
         if model.node:
             self.models[ob.name] = model
-        else:
-            del model
             
-    def add_animation(self, action: bpy.types.Action, sample=True):
-        animation = VirtualAnimation(action, self, sample)
+    def add_model_for_animation(self, ob, props, animation_owner):
+        model = VirtualModel(ob, self, props=props, animation_owner=animation_owner)
+        if model.node:
+            self.models[ob.name] = model
+            
+    def add_animation(self, action: bpy.types.Action, sample=True, controls=[]):
+        animation = VirtualAnimation(action, self, sample, controls)
         self.animations.append(animation)
         return animation.name
         

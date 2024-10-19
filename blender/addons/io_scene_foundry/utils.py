@@ -544,26 +544,7 @@ def run_tool_sidecar(tool_args: list, asset_path, event_level='WARNING'):
 
     p.wait()
 
-    if failed:
-        # check for known errors, and return an explanation
-        error = get_export_error_explanation(error_log)
-
     return failed, error
-
-
-def get_export_error_explanation(error_log):
-    with open(error_log, "r") as f:
-        lines = f.readlines()
-        for text in lines:
-            if "point->node_indices[0]==section->node_index" in text:
-                return "A collision mesh had vertex weights that were not equal to 1 or 0. Collision objects must use rigid vertex weighting or be bone parented"
-            elif "does not have the required 'BungieExportInfo' model" in text:
-                return "Tool built a corrupt GR2 during export. Please try exporting again"
-            elif "non-world space mesh has no valid bones" in text:
-                ob = text.rpartition("mesh=")[2].strip()
-                return f'Object "{ob}" is parented to the armature but has no bone weighting. You should either bone parent this object, or ensure each vertex is correctly weighted to a bone and that an armature modifier is active for "{ob}" and linked to the armature. See object modifiers and vertex groups / weight paint mode to debug'
-
-    return ""
 
 
 def is_error_line(line, process):
