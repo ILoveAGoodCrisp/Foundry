@@ -33,7 +33,7 @@ from ..tools.append_grid_materials import append_grid_materials
 from ..tools.rigging.create_rig import add_rig
 from ..tools.append_foundry_materials import add_special_materials
 from ..icons import get_icon_id
-from ..tools.asset_types import asset_type_items
+from ..tools.asset_types import asset_type_items_creator
 from .. import utils
 
 class NWO_OT_NewAsset(bpy.types.Operator):
@@ -74,7 +74,7 @@ class NWO_OT_NewAsset(bpy.types.Operator):
         name="Asset Type",
         options=set(),
         description="Asset type determines what tags are exported from the blend scene, and the options and tools accessible",
-        items=asset_type_items,
+        items=asset_type_items_creator,
     )
     
     def update_file_directory(self, context: bpy.types.Context):

@@ -46,6 +46,17 @@ def asset_type_items(self, context):
     
     return items
 
+def asset_type_items_creator(self, context):
+    items = []
+    project = utils.get_project(self.project)
+    if project is None:
+        return asset_type_items(self, context)
+    corinth = project.corinth
+    for i, a in enumerate([a for a in asset_types if corinth or not a.corinth_only]):
+        items.append((a.internal_name, a.display_name, a.description, a.icon, i))
+    
+    return items
+
 class AssetType(Enum):
     MODEL = 0
     SCENARIO = 1
