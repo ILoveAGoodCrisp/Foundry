@@ -96,7 +96,7 @@ class VirtualAnimation:
             bpy.context.scene.frame_set(frame)
             bone_inverse_matrices = {}
             for idx, bone in enumerate(bones):
-                if bone.parent and not bone.is_animation_control:
+                if bone.parent:
                     matrix_world = scene.rotation_matrix @ scale_matrix @ bone.matrix
                     bone_inverse_matrices[bone.pbone] = matrix_world.inverted()
                     matrix = bone_inverse_matrices[bone.parent] @ matrix_world
