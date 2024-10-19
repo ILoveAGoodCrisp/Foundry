@@ -96,7 +96,7 @@ class VirtualAnimation:
             bpy.context.scene.frame_set(frame)
             bone_inverse_matrices = {}
             for idx, bone in enumerate(bones):
-                if bone.parent:
+                if bone.parent and not bone.is_animation_control:
                     matrix_world = scene.rotation_matrix @ scale_matrix @ bone.matrix
                     bone_inverse_matrices[bone.pbone] = matrix_world.inverted()
                     matrix = bone_inverse_matrices[bone.parent] @ matrix_world
@@ -452,7 +452,7 @@ class VirtualMesh:
             data.append(self.vertex_ids)
             types.append(GrannyDataTypeDefinition(GrannyMemberType.granny_int32_member.value, f"TextureCoordinates{len(self.texcoords)}".encode(), None, 2))
             type_names.append(b"vertex_id")
-            dtypes.append((f'vertex_id{idx}', np.int32, (2,)))
+            dtypes.append((f'vertex_id', np.int32, (2,)))
 
         types.append((GrannyMemberType.granny_end_member.value, None, None, 0))
         
@@ -908,7 +908,9 @@ class AnimatedBone:
     def __init__(self, pbone, parent_override=None):
         self.name = pbone.name
         self.pbone = pbone
+        self.is_animation_control = False
         if isinstance(pbone, bpy.types.Object):
+            self.is_animation_control = True
             self.matrix = pbone.matrix_world
         else:
             self.matrix = pbone.matrix
@@ -922,6 +924,7 @@ class VirtualSkeleton:
     def __init__(self, ob: bpy.types.Object, scene: 'VirtualScene', node: VirtualNode, is_main_armature = False):
         self.name: str = ob.name
         self.node = node
+        self.pbones = {}
         own_bone = VirtualBone(ob)
         own_bone.node = node
         if ob.type == 'ARMATURE':
@@ -980,6 +983,7 @@ class VirtualSkeleton:
 
             list_bones = [abone.pbone.name for abone in valid_bones]
             dict_bones = {v: i for i, v in enumerate(list_bones)}
+            self.pbones = {bone.name: bone.pbone for bone in valid_bones}
             aim_pitch = bpy.context.scene.nwo.node_usage_pose_blend_pitch
             aim_yaw = bpy.context.scene.nwo.node_usage_pose_blend_yaw
 
