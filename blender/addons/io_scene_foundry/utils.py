@@ -1532,10 +1532,10 @@ def is_mesh(ob):
     return ob.type in VALID_MESHES
 
 def is_marker(ob):
-    return ob.type == 'EMPTY'  and not ob.children and not library_instanced_collection(ob) and ob.empty_display_type != "IMAGE"
+    return ob.type == 'EMPTY' and not ob.children and ob.empty_display_type != "IMAGE"
 
 def is_marker_quick(ob):
-    return ob.type == 'EMPTY'  and not library_instanced_collection(ob) and ob.empty_display_type != "IMAGE"
+    return ob.type == 'EMPTY' and ob.empty_display_type != "IMAGE"
 
 def is_frame(ob):
     return (ob.type == 'EMPTY' and ob.children) or ob.type == 'ARMATURE'
@@ -2149,7 +2149,7 @@ def halo_transforms(ob: bpy.types.Object, scale=None, rotation=None, marker=Fals
     object_matrix = ob.matrix_world
     final_matrix = rotation_matrix @ scale_matrix @ object_matrix
     
-    # If it's a marker and we need to maintain marker axis
+    # If it's a marker and we have been asked to maintain marker axis
     if marker and bpy.context.scene.nwo.maintain_marker_axis:
         marker_rotation_matrix = Matrix.Rotation(-rotation, 4, 'Z')
         final_matrix = final_matrix @ marker_rotation_matrix
@@ -2194,7 +2194,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
             actions = bpy.data.actions
             
         if keep_marker_axis is None:
-            # keep_marker_axis = context.scene.nwo.maintain_marker_axis
+            keep_marker_axis = context.scene.nwo.maintain_marker_axis
             keep_marker_axis = False
 
         armatures = [ob for ob in objects if ob.type == 'ARMATURE']
@@ -2251,7 +2251,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                 local_loc *= scale_factor
                 ob.matrix_local = Matrix.LocRotScale(local_loc, local_rot, local_sca)
             
-            if keep_marker_axis and not is_a_frame and is_marker(ob) and nwo_asset_type() in ('model', 'sky', 'scenario', 'prefab'):
+            if keep_marker_axis and not is_a_frame and is_marker(ob):
                 ob.rotation_euler.rotate_axis('Z', -rotation)
             
             if ob.type == 'LATTICE' or ob.type == 'LIGHT':

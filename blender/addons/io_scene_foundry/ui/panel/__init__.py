@@ -1125,13 +1125,6 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         halo_light = ob.type == 'LIGHT'
         has_mesh_types = utils.is_mesh(ob) and utils.poll_ui(('model', 'scenario', 'prefab'))
 
-        # # Check if this is a linked collection
-        # if utils.library_instanced_collection(ob):
-        #     row.label(text='Instanced Collection', icon='OUTLINER_OB_GROUP_INSTANCE')
-        #     row = box.row()
-        #     row.label(text=f'{ob.name} will be unpacked at export')
-        #     return
-
         if halo_light:
             row.prop(data, "type", expand=True)
             col = box.column()
@@ -1611,7 +1604,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             
             #col.prop(nwo, "frame_override")
 
-            if utils.poll_ui("scenario"):
+            if utils.poll_ui(("scenario",)):
                 col.use_property_split = True
                 self.draw_table_menus(col, nwo, ob)
 

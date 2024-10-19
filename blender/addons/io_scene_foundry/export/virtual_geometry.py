@@ -733,7 +733,11 @@ class VirtualNode:
                     self.matrix_world = IDENTITY_MATRIX
                     self.matrix_local = IDENTITY_MATRIX
                 else:
-                    self.matrix_world = scene.rotation_matrix @ self.original.matrix_world
+                    if scene.maintain_marker_axis and self.props.get("bungie_object_type") == ObjectType.marker.value:
+                        self.matrix_world = scene.rotation_matrix @ self.original.matrix_world @ scene.marker_rotation_matrix
+                    else:
+                        self.matrix_world = scene.rotation_matrix @ self.original.matrix_world
+                        
                     self.matrix_local = parent_matrix @ self.matrix_world
             else:
                 self.matrix_world = template_node.matrix_world.copy()
@@ -1119,7 +1123,7 @@ class VirtualModel:
             self.matrix: Matrix = ob.matrix_world.copy()
             
 class VirtualScene:
-    def __init__(self, asset_type: AssetType, depsgraph: bpy.types.Depsgraph, corinth: bool, tags_dir: Path, granny: Granny, export_settings, fps: int, animation_compression: str, rotation: float):
+    def __init__(self, asset_type: AssetType, depsgraph: bpy.types.Depsgraph, corinth: bool, tags_dir: Path, granny: Granny, export_settings, fps: int, animation_compression: str, rotation: float, maintain_marker_axis: bool):
         self.nodes: dict[VirtualNode] = {}
         self.meshes: dict[VirtualMesh] = {}
         self.materials: dict[VirtualMaterial] = {}
@@ -1167,6 +1171,8 @@ class VirtualScene:
         self.aim_yaw_matrix_inverse = IDENTITY_MATRIX
 
         self.rotation_matrix = Matrix.Rotation(rotation, 4, Vector((0, 0, 1)))
+        self.marker_rotation_matrix = Matrix.Rotation(-rotation, 4, 'Z')
+        self.maintain_marker_axis = maintain_marker_axis
         self.armature_matrix = IDENTITY_MATRIX
         
         self.export_tag_types = set()
