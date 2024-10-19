@@ -393,7 +393,7 @@ class Sidecar:
                 output = ET.SubElement(content_object, "OutputTagCollection")
                 ET.SubElement(output, "OutputTag", Type="render_model").text = f"{self.tag_path}_lod{lod}"
 
-    def _write_particle_contents(self, metadata, sidecar_paths):
+    def _write_particle_contents(self, metadata):
         contents = ET.SubElement(metadata, "Contents")
         content = ET.SubElement(contents, "Content", Name=self.asset_name, Type="particle_model")
 
@@ -407,7 +407,7 @@ class Sidecar:
             if self.context.scene.nwo.particle_uses_custom_points:
                 ET.SubElement(output, "OutputTag", Type="particle_emitter_custom_points").text = self.tag_path
 
-    def _write_prefab_contents(self, metadata, sidecar_paths):
+    def _write_prefab_contents(self, metadata):
         contents = ET.SubElement(metadata, "Contents")
         content = ET.SubElement(contents, "Content", Name=self.asset_name, Type="prefab")
         bsp_data = self.file_data.get("structure")
