@@ -1099,25 +1099,28 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         world_units = self.scale_display == 'world_units'
         match self.scale:
             case 'blender':
-                scene_scale = (1 / 3.048) if world_units else 1
+                scene_scale = 1 / 3.048 if world_units else 1
+                factor = 0.03048
             case 'max':
                 scene_scale = 0.01 if world_units else 0.03048
-            
-        start = 0.01 * (1 / scene_scale)
-        end = 1000 * (1 / scene_scale)
-        for workspace in bpy.data.workspaces:
-            for screen in workspace.screens:
-                for area in screen.areas:
-                    if area.type == "VIEW_3D":
-                        for space in area.spaces:
-                            if space.type == "VIEW_3D":
-                                space.clip_start = start
-                                space.clip_end = end
+                factor = 1 / 0.03048
+        scale_val = self.get("scale")
+        if scale_val is not None and scale_val != self.old_scale:
+            self.old_scale = self["scale"]
+            for workspace in bpy.data.workspaces:
+                for screen in workspace.screens:
+                    for area in screen.areas:
+                        if area.type == "VIEW_3D":
+                            for space in area.spaces:
+                                if space.type == "VIEW_3D":
+                                    space.clip_start *= factor
+                                    space.clip_end *= factor
+        
         
         if self.scale_display == 'world_units':
             context.scene.unit_settings.system = 'METRIC'
             context.scene.unit_settings.length_unit = 'METERS'
-            
+        print("updated????")
         context.scene.unit_settings.scale_length = scene_scale
     
     def scale_items(self, context):
@@ -1142,10 +1145,12 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         update=scale_update,
     )
     
+    old_scale: bpy.props.IntProperty(options={'HIDDEN'})
+    
     scale_display: bpy.props.EnumProperty(
         name="Scale Display",
         options=set(),
-        description="Select whether to display scale as meters or world units",
+        description="Select whether to display scale as meters or world units. This has no affect on the scale of the exported asset",
         items=scale_display_items,
         update=scale_update,
     )
@@ -1154,7 +1159,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         name="Maintain Marker Axis",
         options=set(),
         default=True,
-        description="Maintains the forward direction of markers during scene transform. Don't use this if you're re-importing existing assets and rely on marker positions exactly matching",
+        description="Maintains the forward direction of markers when the scene coordinate system is transformed. Use this if you're working with mesh markers and want their orientation in Blender to match their in game orientation",
     )
     
     export_in_progress: bpy.props.BoolProperty(options=set())

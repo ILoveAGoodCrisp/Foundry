@@ -450,11 +450,8 @@ class NWO_HaloExportSettings(bpy.types.Panel):
         col = flow.column()
         col.prop(scene_nwo_export, "export_quick", text="Quick Export")
         col.prop(scene_nwo_export, "show_output", text="Toggle Output")
+        col.prop(scene_nwo_export, "export_mode")
         col.prop(scene_nwo_export, "event_level")
-        if scene_nwo_export.granny_export:
-            col.prop(scene_nwo_export, "export_mode")
-        else:
-            col.prop(scene_nwo_export, "export_gr2s", text="Export Tags")
         if asset_type == 'camera_track_set':
             return
         scenario = asset_type == "scenario"
@@ -638,8 +635,34 @@ class NWO_HaloExportSettingsFlags(bpy.types.Panel):
             else:
                 col.prop(scene_nwo_export, "import_draft", text="Skip PRT generation")
                 
+class NWO_HaloExportCoordinateSystem(bpy.types.Panel):
+    bl_label = "Coordinate System"
+    bl_idname = "NWO_PT_HaloExportCoordinateSystem"
+    bl_space_type = "VIEW_3D"
+    bl_parent_id = "NWO_PT_HaloExportSettings"
+    bl_region_type = "HEADER"
+    
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        scene_nwo = scene.nwo
+        scene_nwo_export = scene.nwo_export
+        layout.use_property_split = True
+        flow = layout.grid_flow(
+            row_major=True,
+            columns=0,
+            even_columns=True,
+            even_rows=False,
+            align=False,
+        )
+        col = flow.column()
+        col.prop(scene_nwo, 'scale', text='Scale')
+        col.prop(scene_nwo, "forward_direction", text="Scene Forward")
+        col.prop(scene_nwo, "maintain_marker_axis")
+        col.prop(scene_nwo_export, "granny_mirror")
+                
 class NWO_HaloExportGranny(bpy.types.Panel):
-    bl_label = "Intermediate File Settings"
+    bl_label = "GR2 Debug Settings"
     bl_idname = "NWO_PT_HaloExportGranny"
     bl_space_type = "VIEW_3D"
     bl_parent_id = "NWO_PT_HaloExportSettings"
@@ -647,14 +670,12 @@ class NWO_HaloExportGranny(bpy.types.Panel):
 
     @classmethod
     def poll(self, context):
-        return utils.poll_ui(('model', 'scenario', 'prefab', 'sky', 'particle_model', 'decorator_set', 'animation'))
+        return utils.has_gr2_viewer()
 
     def draw(self, context):
         layout = self.layout
         scene = context.scene
-        scene_nwo = scene.nwo
         scene_nwo_export = scene.nwo_export
-        h4 = utils.is_corinth(context)
         layout.use_property_split = False
         flow = layout.grid_flow(
             row_major=True,
@@ -664,8 +685,7 @@ class NWO_HaloExportGranny(bpy.types.Panel):
             align=False,
         )
         col = flow.column()
-        col.prop(scene_nwo_export, 'granny_export')
-        col.prop(scene_nwo_export, 'granny_mirror')
+        col.prop(scene_nwo_export, 'granny_open')
         col.prop(scene_nwo_export, 'granny_textures')
         if utils.poll_ui(('animation',)):
             col.prop(scene_nwo_export, 'granny_animations_mesh')
@@ -754,11 +774,7 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
             ("CLIP", "Clip", "Split the polygons with an ear clipping algorithm")
         ]
     )
-    granny_export: bpy.props.BoolProperty(
-        name="New Granny Pipeline (WIP)",
-        description="Enables the new Granny pipeline",
-        options=set(),
-    )
+
     export_mode: bpy.props.EnumProperty(
         name="Export Mode",
         options=set(),
@@ -1066,17 +1082,26 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
     
     granny_mirror: bpy.props.BoolProperty(
         name="Mirror",
-        description="Exported GR2 files are mirrored"
+        description="Exported GR2 files are mirrored",
+        options=set(),
+    )
+    
+    granny_open: bpy.props.BoolProperty(
+        name="Open Exported Model Files",
+        description="Opens model GR2 files after they have been exported",
+        options=set(),
     )
     
     granny_textures: bpy.props.BoolProperty(
         name="Textures",
-        description="Adds textures to export gr2 files using the shader/material tag paths set. This has no effect on the results of the imported model but can be useful for debugging issues. Please note this will increase both export time and filesize"
+        description="Adds textures to export gr2 files using the shader/material tag paths set. This has no effect on the results of the imported model but can be useful for debugging issues. Please note this will increase both export time and filesize",
+        options=set(),
     )
     
     granny_animations_mesh: bpy.props.BoolProperty(
         name="Animation Exports Mesh",
-        description="Exports meshes with animation exports. This has no effect on the results of the imported animations but can be useful for debugging animation issues"
+        description="Exports meshes with animation exports. This has no effect on the results of the imported animations but can be useful for debugging animation issues",
+        options=set(),
     )
 
     import_force: bpy.props.BoolProperty(

@@ -81,9 +81,9 @@ class NWO_ScaleScene(bpy.types.Operator):
     )
     
     maintain_marker_axis: bpy.props.BoolProperty(
-        name="Maintain Marker Axis",
+        name="Keep Marker Axis",
         options=set(),
-        description="Maintains the forward direction of markers during scene transform. Don't use this if you're re-importing existing assets and rely on marker positions exactly matching",
+        description="Maintains the forward direction of markers when the scene coordinate system is transformed. Use this if you're working with mesh markers and want their visuals in Blender to match in game",
         default=True,
     )
     

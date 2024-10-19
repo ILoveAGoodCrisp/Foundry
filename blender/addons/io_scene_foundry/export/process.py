@@ -22,7 +22,7 @@ from ..managed_blam.render_model import RenderModelTag
 from ..managed_blam.animation import AnimationTag
 from ..managed_blam.model import ModelTag
 from .import_sidecar import SidecarImport
-from .build_sidecar_granny import Sidecar
+from .build_sidecar import Sidecar
 from .export_info import ExportInfo, FaceDrawDistance, FaceMode, FaceSides, FaceType, LightmapType, MeshTessellationDensity, MeshType, ObjectType
 from ..props.mesh import NWO_MeshPropertiesGroup
 from ..props.object import NWO_ObjectPropertiesGroup
@@ -146,6 +146,10 @@ class ExportScene:
         
         self.pre_title_printed = False
         self.post_title_printed = False
+        gr2_debug = utils.has_gr2_viewer()
+        self.granny_textures = gr2_debug and export_settings.granny_textures
+        self.granny_open = gr2_debug and export_settings.granny_open
+        self.granny_animations_mesh = gr2_debug and export_settings.granny_animations_mesh
         
     def _get_export_tag_types(self):
         tag_types = set()
@@ -238,7 +242,7 @@ class ExportScene:
             
         self.depsgraph = self.context.evaluated_depsgraph_get()
         
-        if self.asset_type == AssetType.ANIMATION and not self.export_settings.granny_animations_mesh:
+        if self.asset_type == AssetType.ANIMATION and not self.granny_animations_mesh:
             self.export_objects = [ob.evaluated_get(self.depsgraph) for ob in self.context.view_layer.objects if ob.nwo.export_this and (ob.type == "ARMATURE" and ob not in self.support_armatures) and ob not in skip_obs]
         else:    
             self.export_objects = [ob.evaluated_get(self.depsgraph) for ob in self.context.view_layer.objects if ob.nwo.export_this and ob.type in VALID_OBJECTS and ob not in self.support_armatures and ob not in skip_obs]
@@ -1418,7 +1422,7 @@ class ExportScene:
         animation_export = animation is not None
         
         if not animation_export:
-            if self.export_settings.granny_textures:
+            if self.granny_textures:
                 self.granny.write_textures()
             self.granny.write_materials()
             self.granny.write_vertex_data()
@@ -1434,6 +1438,9 @@ class ExportScene:
             
         self.granny.transform()
         self.granny.save()
+        
+        if self.granny_open and not animation_export and filepath.exists():
+            os.startfile(Path(self.project_root, "gr2_viewer.exe"), filepath)
             
     def _get_export_path(self, name: str, animation=False):
         """Gets the path to save a particular file to"""

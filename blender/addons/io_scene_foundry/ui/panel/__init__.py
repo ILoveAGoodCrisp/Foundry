@@ -149,19 +149,23 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         col = box.column()
         col.scale_y = 1.25
         col.separator()
+        col.label(text="Coordinate System")
         row = col.row()
         row.scale_y = 1.1
         row.prop(scene.nwo, 'scale', text='Scale', expand=True)
-        row = col.row()
-        row.scale_y = 1.1
-        row.prop(scene.nwo, 'scale_display', text='Scale Display', expand=True)
-        if scene.nwo.scale_display == 'halo' and scene.unit_settings.length_unit != 'METERS':
-            row = col.row()
-            row.label(text='World Units only accurate when Unit Length is Meters', icon='ERROR')
+        row = col.row(heading="Forward")
         row = col.row()
         row.prop(nwo, "forward_direction", text="Scene Forward", expand=True)
         row = col.row()
         row.prop(nwo, "maintain_marker_axis")
+        col.label(text="Units Display")
+        row = col.row()
+        row.scale_y = 1.1
+        row.prop(scene.nwo, 'scale_display', text=' ', expand=True)
+        if scene.nwo.scale_display == 'halo' and scene.unit_settings.length_unit != 'METERS':
+            row = col.row()
+            row.label(text='World Units only accurate when Unit Length is Meters', icon='ERROR')
+
 
     def draw_asset_editor(self):
         box = self.box

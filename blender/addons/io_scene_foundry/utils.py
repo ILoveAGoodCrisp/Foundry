@@ -1595,14 +1595,6 @@ def amf_addon_installed():
             return 'Blender_AMF2'
         
     return False
-
-def fbx_addon_installed():
-    script_dirs = bpy.utils.script_paths()
-    for dir in script_dirs:
-        if Path(dir, 'addons', 'io_scene_fbx').exists() or Path(dir, 'addons_core', 'io_scene_fbx').exists():
-            return True
-        
-    return False
     
 def has_collision_type(ob: bpy.types.Object) -> bool:
     nwo = ob.nwo
@@ -3828,3 +3820,9 @@ def get_version() -> tuple[int, int, int]:
 def get_version_string() -> str:
     version = get_version()
     return ".".join([str(n) for n in version])
+
+def has_gr2_viewer() -> bool:
+    root = get_project_path()
+    if not root:
+        return False
+    return Path(root, "gr2_viewer.exe").exists()
