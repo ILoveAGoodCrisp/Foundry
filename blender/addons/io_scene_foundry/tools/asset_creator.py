@@ -114,6 +114,12 @@ class NWO_OT_NewAsset(bpy.types.Operator):
         description="Builds a new armature ready for Halo. If the output tags include a biped, vehicle, or giant. This armature includes aim deform and control bones"
     )
     
+    save_new_blend_file: bpy.props.BoolProperty(
+        name="Save new Blend File",
+        description="Saves the blend as a new file in the asset directory",
+        default=True,
+    )
+    
     output_biped: bpy.props.BoolProperty(
         name="Biped",
         description="",
@@ -263,6 +269,18 @@ class NWO_OT_NewAsset(bpy.types.Operator):
             else:
                 self.report({"WARNING"}, f"Invalid asset location. Please ensure your file is saved to your {self.project} data directory: [{project.data_directory}]",)
                 return {'CANCELLED'}
+            
+        if asset_directory == Path(project.data_directory):
+            asset_num = 0
+            asset_name = f"asset_{asset_num:03}"
+            while Path(project.data_directory, asset_name).exists():
+                asset_num += 1
+                asset_name = f"asset_{asset_num:03}"
+                if asset_num > 999:
+                    self.report({"WARNING"}, f"Failed to create asset. What have you done")
+                    return {'CANCELLED'}
+                
+            asset_directory = Path(project.data_directory, asset_name)
         
         if not asset_directory.exists():
             asset_directory.mkdir(parents=True)
@@ -284,8 +302,8 @@ class NWO_OT_NewAsset(bpy.types.Operator):
             parent_directory.mkdir(parents=True)
             
         # # Save a copy of the original blend if possible
-        # if bpy.data.filepath and bpy.data.filepath != str(blender_filepath):
-        #     bpy.ops.wm.save_mainfile()
+        if bpy.data.filepath and bpy.data.filepath != str(blender_filepath):
+            bpy.ops.wm.save_mainfile()
         
         # Set blender scene settings for new file
         scene_settings = context.scene
@@ -334,10 +352,11 @@ class NWO_OT_NewAsset(bpy.types.Operator):
         
         if self.generate_halo_skeleton:
             needs_aim_bones = self.output_biped or self.output_vehicle or self.output_giant
-            add_rig(context, needs_aim_bones, True, needs_aim_bones)
+            add_rig(context, needs_aim_bones, True)
         
         # Save the file to the asset folder
-        bpy.ops.wm.save_as_mainfile(filepath=str(blender_filepath), check_existing=False)
+        if self.save_new_blend_file:
+            bpy.ops.wm.save_as_mainfile(filepath=str(blender_filepath), check_existing=False)
         
         self.report({"INFO"}, f"Created new {self.asset_type.title()} asset for {self.project}. Asset Name = {asset_name}")
         
@@ -351,7 +370,6 @@ class NWO_OT_NewAsset(bpy.types.Operator):
     
     def draw(self, context):
         layout = self.layout
-        scene = context.scene
         flow = layout.grid_flow(
             row_major=True,
             columns=0,
@@ -371,6 +389,7 @@ class NWO_OT_NewAsset(bpy.types.Operator):
         col.label(text="Scene Forward")
         col.row().prop(self, 'forward_direction', text=" ", expand=True)
         col.separator()
+        col.prop(self, 'save_new_blend_file')
         col.prop(self, "work_dir", text="Save to work directory")
         col.prop(self, "selected_only")
         col.prop(self, 'append_special_materials')
