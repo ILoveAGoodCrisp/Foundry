@@ -1301,7 +1301,7 @@ class ExportScene:
                         #     proxy_target.parent_type = 'BONE'
                         #     proxy_target.parent_bone = event.ik_target_marker.parent_bone
                             
-                        proxy_target.matrix_world = event.ik_target_marker.matrix_world
+                        proxy_target.matrix_local = event.ik_target_marker.matrix_local
                         
                     event_ob_props[proxy_target] = proxy_target_props
                     
@@ -1318,9 +1318,9 @@ class ExportScene:
                     effector_props["bungie_animation_control_type"] = '_connected_geometry_animation_control_type_ik_effector'
                     effector_props["bungie_animation_control_ik_chain"] = event.ik_chain
                     effector_props["bungie_animation_control_ik_effect"] = event.ik_influence
-                    effector.parent_type = proxy_target.parent_type
-                    effector.parent_bone = proxy_target.parent_bone
-                    effector.matrix_world = proxy_target.matrix_world
+                    # effector.parent_type = proxy_target.parent_type
+                    # effector.parent_bone = proxy_target.parent_bone
+                    effector.matrix_local = proxy_target.matrix_local
                     
                     event_ob_props[effector] = effector_props
                     
