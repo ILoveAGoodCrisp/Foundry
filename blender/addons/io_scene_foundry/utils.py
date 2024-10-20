@@ -498,8 +498,8 @@ def run_tool_sidecar(tool_args: list, asset_path, event_level='WARNING'):
                     level_txt = event_level.lower()
                     init.write("events_enabled 1\n")
                     init.write(f"events_global_display {level_txt}\n")
-                    # init.write(f"events_global_log {level_txt}\n")
-                    # init.write(f"events_global_debugger {level_txt}\n")
+                    init.write(f"events_global_log {level_txt}\n")
+                    init.write(f"events_global_debugger {level_txt}\n")
         except:
             print("Unable to replace bonobo_init.txt to set event level. It is currently read only")
             

@@ -806,7 +806,7 @@ class VirtualNode:
     def _set_group(self, scene: 'VirtualScene', animation: str | None):
         if animation is None:
             match scene.asset_type:
-                case AssetType.MODEL:
+                case AssetType.MODEL | AssetType.ANIMATION | AssetType.SKY:
                     mesh_type = self.props.get("bungie_mesh_type")
                     if mesh_type:
                         match mesh_type:

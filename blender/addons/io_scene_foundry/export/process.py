@@ -141,7 +141,7 @@ class ExportScene:
         self.temp_objects = {}
         self.sky_lights = []
         
-        self.is_model = self.asset_type in {AssetType.MODEL, AssetType.SKY}
+        self.is_model = self.asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.ANIMATION}
         self.export_tag_types = self._get_export_tag_types()
         
         self.pre_title_printed = False
@@ -1427,6 +1427,7 @@ class ExportScene:
             perm = nodes[0].permutation
             region = nodes[0].region
             tag_type = nodes[0].tag_type
+            print(tag_type, perm, region, granny_path)
             self.sidecar.add_file_data(tag_type, perm, region, granny_path, bpy.data.filepath)
             in_permutation_selection = self.asset_type not in {AssetType.MODEL, AssetType.SCENARIO, AssetType.SKY, AssetType.PREFAB} or not self.limit_perms_to_selection or perm in self.selected_permutations or tag_type in {'markers', 'skeleton'}
             in_bsp_selection = self.asset_type != AssetType.SCENARIO or not self.limit_bsps_to_selection or region in self.selected_bsps
