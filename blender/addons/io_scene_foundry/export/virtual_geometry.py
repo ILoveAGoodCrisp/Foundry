@@ -199,9 +199,10 @@ class VirtualAnimation:
         # self.granny_track_group = scene.granny.end_track_group(group_builder) 
 
     def to_granny_animation(self, scene: 'VirtualScene'):
+        frame_total = self.frame_count - 1
         granny_animation = GrannyAnimation()
         granny_animation.name = self.name.encode()
-        granny_animation.duration = scene.time_step * (self.frame_count - 1)
+        granny_animation.duration = scene.time_step * frame_total
         granny_animation.time_step = scene.time_step
         granny_animation.oversampling = 1
         granny_animation.track_group_count = 1
@@ -1134,7 +1135,7 @@ class VirtualModel:
             self.matrix: Matrix = ob.matrix_world.copy()
             
 class VirtualScene:
-    def __init__(self, asset_type: AssetType, depsgraph: bpy.types.Depsgraph, corinth: bool, tags_dir: Path, granny: Granny, export_settings, fps: int, animation_compression: str, rotation: float, maintain_marker_axis: bool, granny_textures: bool):
+    def __init__(self, asset_type: AssetType, depsgraph: bpy.types.Depsgraph, corinth: bool, tags_dir: Path, granny: Granny, export_settings, fps: float, animation_compression: str, rotation: float, maintain_marker_axis: bool, granny_textures: bool):
         self.nodes: dict[VirtualNode] = {}
         self.meshes: dict[VirtualMesh] = {}
         self.materials: dict[VirtualMaterial] = {}
@@ -1155,7 +1156,7 @@ class VirtualScene:
         self.skeleton_node: VirtualNode = None
         self.skeleton_model: VirtualModel = None
         self.skeleton_object: bpy.types.Object
-        self.time_step = 1.0 / fps
+        self.time_step = 1.0010000467300415 / 30
         self.corinth = corinth
         self.export_info: ExportInfo = None
         self.valid_bones = []

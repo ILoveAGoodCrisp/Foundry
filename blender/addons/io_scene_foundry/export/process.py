@@ -247,7 +247,7 @@ class ExportScene:
         else:    
             self.export_objects = [ob.evaluated_get(self.depsgraph) for ob in self.context.view_layer.objects if ob.nwo.export_this and ob.type in VALID_OBJECTS and ob not in self.support_armatures and ob not in skip_obs]
         
-        self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir, self.granny, self.export_settings, self.context.scene.render.fps, self.scene_settings.default_animation_compression, utils.blender_halo_rotation_diff(self.forward), self.scene_settings.maintain_marker_axis, self.granny_textures)
+        self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir, self.granny, self.export_settings, self.context.scene.render.fps / self.context.scene.render.fps_base, self.scene_settings.default_animation_compression, utils.blender_halo_rotation_diff(self.forward), self.scene_settings.maintain_marker_axis, self.granny_textures)
         
     def create_instance_proxies(self, ob: bpy.types.Object, ob_halo_data: dict, region: str, permutation: str):
         self.processed_poop_meshes.add(ob.data)
@@ -1283,13 +1283,14 @@ class ExportScene:
                     props["bungie_animation_event_ik_target_marker"] = target_marker
                     props["bungie_animation_event_ik_target_usage"] = event.ik_target_usage
                     
-                    proxy_target = bpy.data.objects.new(f'proxy_target_export_node_{event.ik_target_usage}_{target_marker}', None)
+                    proxy_target = bpy.data.objects.new(f'proxy_target_export_node_{event.ik_target_usage}', None)
                     proxy_target.parent = self.virtual_scene.skeleton_object
                     proxy_target_props = {}
                     rnd = random.Random()
                     rnd.seed(proxy_target.name)
                     proxy_target_id = rnd.randint(0, 2147483647)
                     props["bungie_animation_event_ik_proxy_target_id"] = proxy_target_id
+                    proxy_target_props["bungie_object_animates"] = 1
                     proxy_target_props["bungie_object_type"] = ObjectType.animation_control.value
                     proxy_target_props["bungie_animation_control_id"] = proxy_target_id
                     proxy_target_props["bungie_animation_control_type"] = '_connected_geometry_animation_control_type_target_proxy'
@@ -1304,14 +1305,15 @@ class ExportScene:
                         
                     event_ob_props[proxy_target] = proxy_target_props
                     
-                    effector = bpy.data.objects.new(f'ik_effector_export_node_{event.ik_chain}_{event.event_type[44:]}', None)
+                    effector = bpy.data.objects.new(f'ik_effector_export_node_{event.ik_chain}_{event.event_type[41:]}', None)
                     effector.parent = self.virtual_scene.skeleton_object
                     effector_props = {}
                     rnd = random.Random()
                     rnd.seed(effector.name)
-                    effector_id = str(rnd.randint(0, 2147483647))
+                    effector_id = rnd.randint(0, 2147483647)
                     props["bungie_animation_event_ik_effector_id"] = effector_id
                     effector_props["bungie_object_type"] = ObjectType.animation_control.value
+                    effector_props["bungie_object_animates"] = 1
                     effector_props["bungie_animation_control_id"] = effector_id
                     effector_props["bungie_animation_control_type"] = '_connected_geometry_animation_control_type_ik_effector'
                     effector_props["bungie_animation_control_ik_chain"] = event.ik_chain
