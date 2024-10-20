@@ -8,7 +8,7 @@ from math import degrees, radians
 from pathlib import Path
 import bmesh
 import bpy
-from mathutils import Matrix, Vector
+from mathutils import Euler, Matrix, Quaternion, Vector
 import numpy as np
 
 from ..managed_blam.material import MaterialTag
@@ -75,7 +75,7 @@ class VirtualAnimation:
         self.animation_type = nwo.animation_type
         self.movement = nwo.animation_movement_data
         self.space = nwo.animation_space
-        self.pose_overlay = nwo.animation_is_pose
+        self.pose_overlay = nwo.animation_is_pose and nwo.animation_type == 'overlay'
         
         self.frame_count: int = int(action.frame_end) - int(action.frame_start) + 1
         self.frame_range: tuple[int, int] = (int(action.frame_start), int(action.frame_end))
@@ -908,11 +908,12 @@ class VirtualBone:
         return inverse_transform
     
 class AnimatedBone:
-    def __init__(self, pbone, parent_override=None):
+    def __init__(self, pbone, parent_override=None, is_aim_bone=False):
         self.name = pbone.name
-        self.pbone = pbone
+        self.pbone: bpy.types.PoseBone = pbone
         self.parent = None
         self.is_object = False
+        self.is_aim_bone = is_aim_bone
         if isinstance(pbone, bpy.types.Object):
             self.is_object = True
         else:
@@ -950,8 +951,9 @@ class VirtualSkeleton:
     def _get_bones(self, ob, scene: 'VirtualScene',is_main_armature: bool):
         if ob.type == 'ARMATURE':
             scene_nwo = bpy.context.scene.nwo
+            aim_bone_names = {scene_nwo.node_usage_pose_blend_pitch, scene_nwo.node_usage_pose_blend_yaw}
             special_bone_names = {scene_nwo.node_usage_pedestal, scene_nwo.node_usage_pose_blend_pitch, scene_nwo.node_usage_pose_blend_yaw}
-            valid_bones = [AnimatedBone(pbone) for pbone in ob.original.pose.bones if ob.original.data.bones[pbone.name].use_deform or pbone.name in special_bone_names]
+            valid_bones = [AnimatedBone(pbone, is_aim_bone=pbone.name in aim_bone_names) for pbone in ob.original.pose.bones if ob.original.data.bones[pbone.name].use_deform or pbone.name in special_bone_names]
             if is_main_armature:
                 arm = bpy.context.scene.nwo.support_armature_a
                 bone_parent = bpy.context.scene.nwo.support_armature_a_parent_bone

@@ -32,7 +32,7 @@ class NWO_AddAimAnimation(bpy.types.Operator):
         subtype='ANGLE',
         default=radians(45),
         min=radians(1),
-        max=radians(90),
+        max=radians(89.99),
     )
     
     max_pitch: bpy.props.FloatProperty(
@@ -40,7 +40,7 @@ class NWO_AddAimAnimation(bpy.types.Operator):
         subtype='ANGLE',
         default=radians(45),
         min=radians(1),
-        max=radians(90),
+        max=radians(89.99),
     )
     
     def setup_steering(self, yaw, aim, start):

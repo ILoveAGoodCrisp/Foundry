@@ -7,6 +7,8 @@ from uuid import uuid4
 import gpu
 from gpu_extras.batch import batch_for_shader
 
+from ...constants import VALID_MESHES
+
 from ...icons import get_icon_id
 from ... import utils
 
@@ -650,7 +652,7 @@ class NWO_OT_FacePropRemove(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return context.object and context.object.data and context.object.data.nwo.face_props_active_index > -1
+        return context.object and context.object.data and context.object.type in VALID_MESHES and context.object.data.nwo.face_props_active_index > -1
 
     options: bpy.props.EnumProperty(
         items=[
