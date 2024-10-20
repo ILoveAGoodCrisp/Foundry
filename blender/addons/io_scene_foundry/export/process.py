@@ -1307,7 +1307,15 @@ class ExportScene:
                     event_ob_props[proxy_target] = proxy_target_props
                     
                     effector = bpy.data.objects.new(f'ik_effector_export_node_{event.ik_chain}_{event.event_type[41:]}', None)
-                    effector.parent = event.ik_target_marker
+                    actual_chain = self.context.scene.nwo.ik_chains
+                    for chain in actual_chain:
+                        if chain.name == event.ik_chain:
+                            effector.parent = self.virtual_scene.skeleton_object
+                            effector.parent_type = "BONE"
+                            effector.parent_bone = chain.effector_node
+                            break
+                    else:
+                        effector.parent = event.ik_target_marker
                     effector_props = {}
                     rnd = random.Random()
                     rnd.seed(effector.name)
