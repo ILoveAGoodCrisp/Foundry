@@ -576,8 +576,10 @@ class ShaderTag(Tag):
                 case _:
                     continue
                     
-
-            full_path = element.SelectField("bitmap").Path.Filename
+            p = element.SelectField("bitmap").Path
+            if not p:
+                continue
+            full_path = p.Filename
             if not os.path.exists(full_path):
                 continue
             
