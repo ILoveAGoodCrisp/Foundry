@@ -138,7 +138,8 @@ class ExportScene:
         self.exported_actions = []
         self.setup_scenario = False
         self.lights = []
-        self.temp_objects = {}
+        self.temp_objects = set()
+        self.temp_meshes = set()
         self.sky_lights = []
         
         self.is_model = self.asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.ANIMATION}
@@ -169,6 +170,7 @@ class ExportScene:
             case AssetType.ANIMATION:
                 tag_types.add('render')
                 tag_types.add('animation')
+                tag_types.add('skeleton')
             case AssetType.SCENARIO:
                 if self.export_settings.export_structure:
                     tag_types.add('structure')
@@ -245,6 +247,10 @@ class ExportScene:
         
         if self.asset_type == AssetType.ANIMATION and not self.granny_animations_mesh:
             self.export_objects = [ob.evaluated_get(self.depsgraph) for ob in self.context.view_layer.objects if ob.nwo.export_this and (ob.type == "ARMATURE" and ob not in self.support_armatures) and ob not in skip_obs]
+            null_ob = make_default_render()
+            self.temp_objects.add(null_ob)
+            self.temp_meshes.add(null_ob.data)
+            self.export_objects.append(null_ob)
         else:    
             self.export_objects = [ob.evaluated_get(self.depsgraph) for ob in self.context.view_layer.objects if ob.nwo.export_this and ob.type in VALID_OBJECTS and ob not in self.support_armatures and ob not in skip_obs]
         
@@ -1427,7 +1433,6 @@ class ExportScene:
             perm = nodes[0].permutation
             region = nodes[0].region
             tag_type = nodes[0].tag_type
-            print(tag_type, perm, region, granny_path)
             self.sidecar.add_file_data(tag_type, perm, region, granny_path, bpy.data.filepath)
             in_permutation_selection = self.asset_type not in {AssetType.MODEL, AssetType.SCENARIO, AssetType.SKY, AssetType.PREFAB} or not self.limit_perms_to_selection or perm in self.selected_permutations or tag_type in {'markers', 'skeleton'}
             in_bsp_selection = self.asset_type != AssetType.SCENARIO or not self.limit_bsps_to_selection or region in self.selected_bsps
@@ -1490,6 +1495,9 @@ class ExportScene:
     def restore_scene(self):
         for ob in self.temp_objects:
             bpy.data.objects.remove(ob)
+            
+        for mesh in self.temp_meshes:
+            bpy.data.meshes.remove(mesh)
         
         for armature, pose in self.armature_poses.items():
             armature.pose_position = pose
@@ -1775,3 +1783,8 @@ def test_face_prop(face_props: NWO_MeshPropertiesGroup, attribute: str):
             return True
         
     return False
+
+def make_default_render():
+    mesh = bpy.data.meshes.new("default_render")
+    mesh.from_pydata(vertices=[(1, 0, 0), (0, 1, 0), (0, 0, 1)], edges=[], faces=[[0, 1, 2]])
+    return bpy.data.objects.new(mesh.name, mesh)

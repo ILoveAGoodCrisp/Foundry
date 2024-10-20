@@ -130,7 +130,7 @@ class SidecarImport:
     
     def cull_unused_tags(self):
         try:
-            tag_path = Path(self.tags_dir, self.asset_path, self.asset_name)
+            tag_path = Path(self.tags_dir, self.relative_asset_path, self.asset_name)
             scenery = tag_path.with_suffix(".scenery")
             model = tag_path.with_suffix(".model")
             render_model = tag_path.with_suffix(".render_model")
