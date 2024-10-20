@@ -40,7 +40,7 @@ legacy_animation_formats = '.jmm', '.jma', '.jmt', '.jmz', '.jmv', '.jmw', '.jmo
 legacy_poop_prefixes = '%', '+', '-', '?', '!', '>', '*', '&', '^', '<', '|',
 legacy_frame_prefixes = "frame_", "frame ", "bip_", "bip ", "b_", "b "
 
-formats = "amf", "jms", "jma", "bitmap", "camera_track", "model", "scenario", "scenario_structure_bsp"
+formats = "amf", "jms", "jma", "bitmap", "camera_track", "model", "render_model", "scenario", "scenario_structure_bsp"
 
 class NWO_OT_ConvertScene(bpy.types.Operator):
     bl_label = "Convert Scene"
@@ -313,6 +313,26 @@ class NWO_Import(bpy.types.Operator):
                         
                     imported_objects.extend(imported_model_objects)
                     
+                elif 'render_model' in importer.extensions:
+                    importer.tag_render = self.tag_render
+                    render_model_files = importer.sorted_filepaths["render_model"]
+                    existing_armature = None
+                    if self.reuse_armature:
+                        existing_armature = utils.get_rig(context)
+                        if needs_scaling:
+                            utils.transform_scene(context, (1 / scale_factor), to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[existing_armature], actions=[])
+                    
+                    imported_render_objects = []
+                    for file in render_model_files:
+                        print(f'Importing Render Model Tag: {Path(file).with_suffix("").name} ')
+                        render_model_objects, armature = importer.import_render_model(file, context.scene.collection, existing_armature, skip_print=True)
+                        imported_render_objects.extend(render_model_objects)
+                        
+                    if needs_scaling:
+                        utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_render_objects, actions=[])
+                        
+                    imported_objects.extend(imported_render_objects)
+                    
                 if 'scenario' in importer.extensions:
                     scenario_files = importer.sorted_filepaths["scenario"]
                     imported_scenario_objects = importer.import_scenarios(scenario_files)
@@ -406,7 +426,7 @@ class NWO_Import(bpy.types.Operator):
         skip_fileselect = False
         if self.directory or self.files or self.filepath:
             skip_fileselect = True
-            self.filter_glob = "*.bitmap;*.camera_track;*.model;*.scenario;*.scen*_bsp;"
+            self.filter_glob = "*.bitmap;*.camera_track;*.model;*.scenario;*.scen*_bsp;*.render_model"
         else:
             if 'bitmap' in self.scope:
                 self.directory = utils.get_tags_path()
@@ -428,6 +448,8 @@ class NWO_Import(bpy.types.Operator):
                 self.filter_glob += '*.camera_track;'
             if (not self.scope or 'model' in self.scope):
                 self.filter_glob += '*.model;'
+            if (not self.scope or 'render_model' in self.scope):
+                self.filter_glob += '*.render_model;'
             if (not self.scope or 'scenario' in self.scope):
                 self.filter_glob += '*.scenario;'
             if (not self.scope or 'scenario_structure_bsp' in self.scope):
@@ -744,6 +766,9 @@ class NWOImporter:
             elif 'model' in valid_exts and path.lower().endswith('.model'):
                 self.extensions.add('model')
                 filetype_dict["model"].append(path)
+            elif 'render_model' in valid_exts and path.lower().endswith('.render_model'):
+                self.extensions.add('render_model')
+                filetype_dict["render_model"].append(path)
             elif 'scenario' in valid_exts and path.lower().endswith('.scenario'):
                 self.extensions.add('scenario')
                 filetype_dict["scenario"].append(path)
@@ -827,8 +852,9 @@ class NWOImporter:
         
         return imported_objects
             
-    def import_render_model(self, file, model_collection, existing_armature):
-        print("Importing Render Model")
+    def import_render_model(self, file, model_collection, existing_armature, skip_print=False):
+        if not skip_print:
+            print("Importing Render Model")
         render_model_objects = []
         armature = None
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_render")
@@ -2025,7 +2051,7 @@ class NWO_FH_Import(bpy.types.FileHandler):
     bl_idname = "NWO_FH_Import"
     bl_label = "File handler Foundry Importer"
     bl_import_operator = "nwo.import"
-    bl_file_extensions = ".jms;.amf;.ass;.bitmap;.model;.scenario;.scenario_structure_bsp;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track"
+    bl_file_extensions = ".jms;.amf;.ass;.bitmap;.model;.render_model;.scenario;.scenario_structure_bsp;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track"
 
     @classmethod
     def poll_drop(cls, context):

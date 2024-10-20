@@ -1538,7 +1538,7 @@ class Mesh:
     
     def create(self, render_model, temp_meshes: TagFieldBlock, nodes=[], parent: bpy.types.Object | None = None, instances: list['InstancePlacement'] = [], name="blam", is_io=False):
         if not self.valid:
-            return [bpy.data.objects.new(name, None)]
+            return []
 
         temp_mesh = temp_meshes.Elements[self.index]
         raw_vertices = temp_mesh.SelectField("raw vertices")

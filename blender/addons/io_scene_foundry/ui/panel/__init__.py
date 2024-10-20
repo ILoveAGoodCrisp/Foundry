@@ -2951,7 +2951,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         amf_installed = utils.amf_addon_installed()
         toolset_installed = utils.blender_toolset_installed()
         if amf_installed or toolset_installed:
-            col.operator('nwo.import', text="Import Models & Animations", icon='IMPORT').scope = 'amf,jma,jms,model,scenario,scenario_structure_bsp'
+            col.operator('nwo.import', text="Import Models & Animations", icon='IMPORT').scope = 'amf,jma,jms,model,render_model,scenario,scenario_structure_bsp'
         if not toolset_installed:
             col.label(text="Halo Blender Toolset required for import of JMS/JMA/ASS files")
             col.operator("nwo.open_url", text="Download", icon="BLENDER").url = BLENDER_TOOLSET
