@@ -1297,16 +1297,17 @@ class ExportScene:
                     proxy_target_props["bungie_animation_control_proxy_target_usage"] = props["bungie_animation_event_ik_target_usage"]
                     proxy_target_props["bungie_animation_control_proxy_target_marker"] = props["bungie_animation_event_ik_target_marker"]
                     if event.ik_target_marker:
-                        if event.ik_target_marker.parent_type == "BONE" and event.ik_target_marker.parent_bone:
-                            proxy_target.parent_type = 'BONE'
-                            proxy_target.parent_bone = event.ik_target_marker.parent_bone
+                        proxy_target.parent = event.ik_target_marker
+                        # if event.ik_target_marker.parent_type == "BONE" and event.ik_target_marker.parent_bone:
+                        #     proxy_target.parent_type = 'BONE'
+                        #     proxy_target.parent_bone = event.ik_target_marker.parent_bone
                             
-                        proxy_target.matrix_local = event.ik_target_marker.matrix_local
+                        # proxy_target.matrix_local = event.ik_target_marker.matrix_local
                         
                     event_ob_props[proxy_target] = proxy_target_props
                     
                     effector = bpy.data.objects.new(f'ik_effector_export_node_{event.ik_chain}_{event.event_type[41:]}', None)
-                    effector.parent = self.virtual_scene.skeleton_object
+                    effector.parent = event.ik_target_marker
                     effector_props = {}
                     rnd = random.Random()
                     rnd.seed(effector.name)
@@ -1318,9 +1319,9 @@ class ExportScene:
                     effector_props["bungie_animation_control_type"] = '_connected_geometry_animation_control_type_ik_effector'
                     effector_props["bungie_animation_control_ik_chain"] = event.ik_chain
                     effector_props["bungie_animation_control_ik_effect"] = event.ik_influence
-                    effector.parent_type = proxy_target.parent_type
-                    effector.parent_bone = proxy_target.parent_bone
-                    effector.matrix_local = proxy_target.matrix_local
+                    # effector.parent_type = proxy_target.parent_type
+                    # effector.parent_bone = proxy_target.parent_bone
+                    # effector.matrix_local = proxy_target.matrix_local
                     
                     event_ob_props[effector] = effector_props
                     
@@ -1333,15 +1334,15 @@ class ExportScene:
         for ob, props in event_ob_props.items():
             self.temp_objects.add(ob)
             if ob.parent:
-                bone_parent = self.virtual_scene.root_bone
-                node = self.virtual_scene.add(ob, props, animation_owner=name)
-                if ob.parent_type == 'BONE':
-                    pbone = self.virtual_scene.skeleton_model.skeleton.pbones.get(ob.parent_bone)
-                    if pbone is not None:
-                        bone_parent = pbone
+                # bone_parent = self.virtual_scene.root_bone
+                node = self.virtual_scene.add(ob, props, animation_owner=name, parent_matrix=ob.parent.matrix_world)
+                # if ob.parent_type == 'BONE':
+                #     pbone = self.virtual_scene.skeleton_model.skeleton.pbones.get(ob.parent_bone)
+                #     if pbone is not None:
+                #         bone_parent = pbone
                         
                 self.virtual_scene.skeleton_model.skeleton.append_animation_control(ob, node, self.virtual_scene)
-                controls.append(AnimatedBone(ob, parent_override=bone_parent))
+                controls.append(AnimatedBone(ob))
             else:
                 self.virtual_scene.add_model_for_animation(ob, props, animation_owner=name)
                 

@@ -96,12 +96,14 @@ class VirtualAnimation:
             bpy.context.scene.frame_set(frame)
             bone_inverse_matrices = {}
             for idx, bone in enumerate(bones):
-                if bone.parent and not bone.is_animation_control:
-                    matrix_world = scene.rotation_matrix @ scale_matrix @ bone.matrix
+                if bone.is_object:
+                    matrix = scene.rotation_matrix @ scale_matrix @ bone.pbone.matrix_local
+                elif bone.parent:
+                    matrix_world = scene.rotation_matrix @ scale_matrix @ bone.pbone.matrix
                     bone_inverse_matrices[bone.pbone] = matrix_world.inverted()
                     matrix = bone_inverse_matrices[bone.parent] @ matrix_world
                 else:
-                    matrix = scene.rotation_matrix @ scale_matrix @ bone.matrix
+                    matrix = scene.rotation_matrix @ scale_matrix @ bone.pbone.matrix
                     bone_inverse_matrices[bone.pbone] = matrix.inverted()
 
                 loc, rot, sca = matrix.decompose()
@@ -909,16 +911,15 @@ class AnimatedBone:
     def __init__(self, pbone, parent_override=None):
         self.name = pbone.name
         self.pbone = pbone
-        self.is_animation_control = False
+        self.parent = None
+        self.is_object = False
         if isinstance(pbone, bpy.types.Object):
-            self.is_animation_control = True
-            self.matrix = pbone.matrix_world
+            self.is_object = True
         else:
-            self.matrix = pbone.matrix
-        if parent_override is None:
-            self.parent = pbone.parent
-        else:
-            self.parent = parent_override
+            if parent_override is None:
+                self.parent = pbone.parent
+            else:
+                self.parent = parent_override
         
 class VirtualSkeleton:
     '''Describes a list of bones'''
@@ -1002,7 +1003,7 @@ class VirtualSkeleton:
                 if bone.parent:
                     # Add one to this since the root is the armature
                     b.parent_index = list_bones.index(bone.parent.name) + 1
-                    b.matrix_world = scene.rotation_matrix @ bone.matrix
+                    b.matrix_world = scene.rotation_matrix @ bone.pbone.matrix
                     bone_inverse_matrices[bone.pbone] = b.matrix_world.inverted()
                     b.matrix_local = bone_inverse_matrices[bone.parent] @ b.matrix_world
                 # elif is_aim_bone:
@@ -1023,7 +1024,7 @@ class VirtualSkeleton:
                     b.parent_index = 0
                     # b.matrix_local = IDENTITY_MATRIX
                     # b.matrix_world = IDENTITY_MATRIX
-                    b.matrix_world = scene.rotation_matrix @ bone.matrix
+                    b.matrix_world = scene.rotation_matrix @ bone.pbone.matrix
                     b.matrix_local = b.matrix_world
                     bone_inverse_matrices[bone.pbone] = b.matrix_world.inverted()
                     scene.root_bone = root_bone
