@@ -921,6 +921,16 @@ class AnimatedBone:
                 self.parent = pbone.parent
             else:
                 self.parent = parent_override
+                
+def sort_bones_by_hierachy(bones):
+    bone_dict = {}
+    for bone in bones:
+        if bone.parent:
+            bone_dict[bone] = bone_dict[bone.parent] + 1
+        else:
+            bone_dict[bone] = 0
+            
+    return sorted(bones, key=lambda x: bone_dict[x])
         
 class VirtualSkeleton:
     '''Describes a list of bones'''
@@ -953,7 +963,8 @@ class VirtualSkeleton:
             scene_nwo = bpy.context.scene.nwo
             aim_bone_names = {scene_nwo.node_usage_pose_blend_pitch, scene_nwo.node_usage_pose_blend_yaw}
             special_bone_names = {scene_nwo.node_usage_pedestal, scene_nwo.node_usage_pose_blend_pitch, scene_nwo.node_usage_pose_blend_yaw}
-            valid_bones = [AnimatedBone(pbone, is_aim_bone=pbone.name in aim_bone_names) for pbone in ob.original.pose.bones if ob.original.data.bones[pbone.name].use_deform or pbone.name in special_bone_names]
+            sorted_bones = sort_bones_by_hierachy(ob.original.pose.bones)
+            valid_bones = [AnimatedBone(pbone, is_aim_bone=pbone.name in aim_bone_names) for pbone in sorted_bones if ob.original.data.bones[pbone.name].use_deform or pbone.name in special_bone_names]
             if is_main_armature:
                 arm = bpy.context.scene.nwo.support_armature_a
                 bone_parent = bpy.context.scene.nwo.support_armature_a_parent_bone
@@ -1006,7 +1017,7 @@ class VirtualSkeleton:
                 # is_aim_bone = bone.name == aim_pitch or bone.name == aim_yaw
                 if bone.parent:
                     # Add one to this since the root is the armature
-                    b.parent_index = list_bones.index(bone.parent.name) + 1
+                    b.parent_index = dict_bones[bone.parent.name] + 1
                     b.matrix_world = scene.rotation_matrix @ bone.pbone.matrix
                     bone_inverse_matrices[bone.pbone] = b.matrix_world.inverted()
                     b.matrix_local = bone_inverse_matrices[bone.parent] @ b.matrix_world
