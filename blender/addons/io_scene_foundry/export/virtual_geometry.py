@@ -949,7 +949,9 @@ class VirtualSkeleton:
         
     def _get_bones(self, ob, scene: 'VirtualScene',is_main_armature: bool):
         if ob.type == 'ARMATURE':
-            valid_bones = [AnimatedBone(pbone) for pbone in ob.original.pose.bones if ob.original.data.bones[pbone.name].use_deform]
+            scene_nwo = bpy.context.scene.nwo
+            special_bone_names = {scene_nwo.node_usage_pedestal, scene_nwo.node_usage_pose_blend_pitch, scene_nwo.node_usage_pose_blend_yaw}
+            valid_bones = [AnimatedBone(pbone) for pbone in ob.original.pose.bones if ob.original.data.bones[pbone.name].use_deform or pbone.name in special_bone_names]
             if is_main_armature:
                 arm = bpy.context.scene.nwo.support_armature_a
                 bone_parent = bpy.context.scene.nwo.support_armature_a_parent_bone

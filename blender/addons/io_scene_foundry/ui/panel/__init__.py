@@ -2895,6 +2895,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                         # col.prop(item, "ik_active_tag")
                         # col.prop(item, "ik_target_tag")
                         col.prop(item, "ik_target_marker", icon_value=get_icon_id('marker'))
+                        col.prop(item, "ik_target_marker_name_override")
                         col.prop(item, "ik_target_usage")
                         col.prop(item, 'ik_influence')
                         # col.prop(item, "ik_proxy_target_id")

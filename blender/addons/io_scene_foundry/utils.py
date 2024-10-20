@@ -5,6 +5,7 @@ import itertools
 import json
 from math import radians
 from pathlib import Path, PureWindowsPath
+import re
 import shutil
 import subprocess
 import sys
@@ -1142,6 +1143,40 @@ def set_object_mode(context):
                 bpy.ops.gpencil.vertexmode_toggle()
             case "SCULPT_CURVES":
                 bpy.ops.curves.sculptmode_toggle()
+                
+def restore_mode(mode):
+    if mode == "OBJECT":
+        return
+
+    if mode.startswith("EDIT") and not mode.endswith("GPENCIL"):
+        bpy.ops.object.editmode_toggle()
+    else:
+        match mode:
+            case "POSE":
+                bpy.ops.object.posemode_toggle()
+            case "SCULPT":
+                bpy.ops.sculpt.sculptmode_toggle()
+            case "PAINT_WEIGHT":
+                bpy.ops.paint.weight_paint_toggle()
+            case "PAINT_VERTEX":
+                bpy.ops.paint.vertex_paint_toggle()
+            case "PAINT_TEXTURE":
+                bpy.ops.paint.texture_paint_toggle()
+            case "PARTICLE":
+                bpy.ops.particle.particle_edit_toggle()
+            case "PAINT_GPENCIL":
+                bpy.ops.gpencil.paintmode_toggle()
+            case "EDIT_GPENCIL":
+                bpy.ops.gpencil.editmode_toggle()
+            case "SCULPT_GPENCIL":
+                bpy.ops.gpencil.sculptmode_toggle()
+            case "WEIGHT_GPENCIL":
+                bpy.ops.gpencil.weightmode_toggle()
+            case "VERTEX_GPENCIL":
+                bpy.ops.gpencil.vertexmode_toggle()
+            case "SCULPT_CURVES":
+                bpy.ops.curves.sculptmode_toggle()
+    
 
 def get_prefs():
     return bpy.context.preferences.addons[__package__].preferences
@@ -2187,7 +2222,6 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
             
         if keep_marker_axis is None:
             keep_marker_axis = context.scene.nwo.maintain_marker_axis
-            keep_marker_axis = False
 
         armatures = [ob for ob in objects if ob.type == 'ARMATURE']
         parented_armatures = [ob for ob in armatures if ob.parent]
@@ -3826,3 +3860,23 @@ def has_gr2_viewer() -> bool:
     if not root:
         return False
     return Path(root, "gr2_viewer.exe").exists()
+
+def remove_node_prefix(string):
+    node_prefix_tuple = ('b ', 'b_', 'bone ', 'bone_', 'frame ', 'frame_', 'bip01 ', 'bip01_')
+    name = string
+
+    for node_prefix in node_prefix_tuple:
+        if name.lower().startswith(node_prefix):
+            name = re.split(node_prefix, name, maxsplit=1, flags=re.IGNORECASE)[1]
+            break
+
+    return name
+
+def get_pose_bone(arm: bpy.types.Object, node_name: str) -> bpy.types.PoseBone | None:
+    for bone in arm.pose.bones:
+        if bone.name.lower() == node_name.lower():
+            return bone
+
+    for bone in arm.pose.bones:
+        if remove_node_prefix(bone.name).lower() == node_name.lower():
+            return bone

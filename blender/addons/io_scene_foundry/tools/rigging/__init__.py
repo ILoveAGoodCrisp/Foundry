@@ -3,6 +3,8 @@
 import bpy
 from mathutils import Vector
 
+from ... import utils
+
 bone_x = 0, 0.1, 0
 bone_x_negative = 0, -0.1, 0
 bone_y = -0.1, 0, 0
@@ -25,92 +27,95 @@ class HaloRig:
         self.has_pose_bones = has_pose_bones
         self.set_scene_rig_props = set_scene_rig_props
     
-    def build_and_apply_control_shapes(self, pedestal=None, pitch=None, yaw=None, aim_control=None, wireframe=False):
-        if pedestal is None:
-            pedestal: bpy.types.PoseBone = self.rig_ob.pose.bones.get(pedestal_name)
-        else:
-            pedestal = self.rig_ob.pose.bones.get(pedestal)
-        shape_ob = bpy.data.objects.get(pedestal_shape_name)
-        if shape_ob is None:
-            shape_data = bpy.data.meshes.new(pedestal_shape_name)
-            verts = [Vector(co) for co in pedestal_shape_vert_coords]
-            shape_data.from_pydata(vertices=verts, edges=[], faces=pedestal_shape_faces)
-            shape_ob = bpy.data.objects.new(pedestal_shape_name, shape_data)
-            
-            shape_ob.nwo.export_this = False
-            
-        pedestal.custom_shape = shape_ob
-        pedestal.custom_shape_scale_xyz *= self.scale
-        pedestal.use_custom_shape_bone_size = False
-        if wireframe:
-            self.rig_data.bones[pedestal.name].show_wire = True
+    def build_and_apply_control_shapes(self, pedestal=None, pitch=None, yaw=None, aim_control=None, wireframe=False, aim_control_only=False):
+        if not aim_control_only:
+            if pedestal is None:
+                pedestal: bpy.types.PoseBone = utils.get_pose_bone(self.rig_ob, pedestal_name)
+            else:
+                pedestal = self.rig_ob.pose.bones.get(pedestal)
+            if pedestal is not None:
+                shape_ob = bpy.data.objects.get(pedestal_shape_name)
+                if shape_ob is None:
+                    shape_data = bpy.data.meshes.new(pedestal_shape_name)
+                    verts = [Vector(co) for co in pedestal_shape_vert_coords]
+                    shape_data.from_pydata(vertices=verts, edges=[], faces=pedestal_shape_faces)
+                    shape_ob = bpy.data.objects.new(pedestal_shape_name, shape_data)
+                    
+                    shape_ob.nwo.export_this = False
+                    
+                pedestal.custom_shape = shape_ob
+                pedestal.custom_shape_scale_xyz *= self.scale
+                pedestal.use_custom_shape_bone_size = False
+                if wireframe:
+                    self.rig_data.bones[pedestal.name].show_wire = True
         
         if self.has_pose_bones:
             if aim_control is None:
-                aim_control: bpy.types.PoseBone = self.rig_ob.pose.bones.get(aim_control_name)
-            shape_ob = bpy.data.objects.get(aim_shape_name)
-            if shape_ob is None:
-                shape_data = bpy.data.meshes.new(aim_shape_name)
-                verts = [Vector(co) for co in aim_shape_vert_coords]
-                shape_data.from_pydata(vertices=verts, edges=[], faces=aim_shape_faces)
-                shape_ob = bpy.data.objects.new(aim_shape_name, shape_data)
-                shape_ob.nwo.export_this = False
+                aim_control: bpy.types.PoseBone = utils.get_pose_bone(self.rig_ob, aim_control_name)
+            if aim_control is not None:
+                shape_ob = bpy.data.objects.get(aim_shape_name)
+                if shape_ob is None:
+                    shape_data = bpy.data.meshes.new(aim_shape_name)
+                    verts = [Vector(co) for co in aim_shape_vert_coords]
+                    shape_data.from_pydata(vertices=verts, edges=[], faces=aim_shape_faces)
+                    shape_ob = bpy.data.objects.new(aim_shape_name, shape_data)
+                    shape_ob.nwo.export_this = False
+                    
+                aim_control.custom_shape = shape_ob
+                aim_control.custom_shape_scale_xyz *= self.scale
+                aim_control.use_custom_shape_bone_size = False
+                if wireframe:
+                    self.rig_data.bones[aim_control.name].show_wire = True
+                    
+                con = aim_control.constraints.new('LIMIT_SCALE')
+                con.use_min_x = True
+                con.use_min_y = True
+                con.use_min_z = True
+                con.use_max_x = True
+                con.use_max_y = True
+                con.use_max_z = True
+                con.min_x = 1
+                con.min_y = 1
+                con.min_z = 1
+                con.max_x = 1
+                con.max_y = 1
+                con.max_z = 1
+                con.use_transform_limit = True
+                con.owner_space = 'LOCAL'
                 
-            aim_control.custom_shape = shape_ob
-            aim_control.custom_shape_scale_xyz *= self.scale
-            aim_control.use_custom_shape_bone_size = False
-            if wireframe:
-                self.rig_data.bones[aim_control.name].show_wire = True
+                con = aim_control.constraints.new('LIMIT_LOCATION')
+                con.use_min_x = True
+                con.use_min_y = True
+                con.use_min_z = True
+                con.use_max_x = True
+                con.use_max_y = True
+                con.use_max_z = True
+                con.use_transform_limit = True
+                con.owner_space = 'LOCAL'
                 
-            con = aim_control.constraints.new('LIMIT_SCALE')
-            con.use_min_x = True
-            con.use_min_y = True
-            con.use_min_z = True
-            con.use_max_x = True
-            con.use_max_y = True
-            con.use_max_z = True
-            con.min_x = 1
-            con.min_y = 1
-            con.min_z = 1
-            con.max_x = 1
-            con.max_y = 1
-            con.max_z = 1
-            con.use_transform_limit = True
-            con.owner_space = 'LOCAL'
-            
-            con = aim_control.constraints.new('LIMIT_LOCATION')
-            con.use_min_x = True
-            con.use_min_y = True
-            con.use_min_z = True
-            con.use_max_x = True
-            con.use_max_y = True
-            con.use_max_z = True
-            con.use_transform_limit = True
-            con.owner_space = 'LOCAL'
-            
-            if pitch is None:
-                pitch: bpy.types.PoseBone = self.rig_ob.pose.bones.get(aim_pitch_name)
-            else:
-                pitch = self.rig_ob.pose.bones.get(pitch)
-            con = pitch.constraints.new('COPY_ROTATION')
-            con.target = self.rig_ob
-            con.subtarget = aim_control.name
-            con.use_x = False
-            con.use_z = False
-            con.target_space = 'LOCAL_OWNER_ORIENT'
-            con.owner_space = 'LOCAL'
-            
-            if yaw is None:
-                yaw: bpy.types.PoseBone = self.rig_ob.pose.bones.get(aim_yaw_name)
-            else:
-                yaw = self.rig_ob.pose.bones.get(yaw)
-            con = yaw.constraints.new('COPY_ROTATION')
-            con.target = self.rig_ob
-            con.subtarget = aim_control.name
-            con.use_x = False
-            con.use_y = False
-            con.target_space = 'LOCAL_OWNER_ORIENT'
-            con.owner_space = 'LOCAL'
+                if pitch is None:
+                    pitch: bpy.types.PoseBone = utils.get_pose_bone(self.rig_ob, aim_pitch_name)
+                else:
+                    pitch = self.rig_ob.pose.bones.get(pitch)
+                con = pitch.constraints.new('COPY_ROTATION')
+                con.target = self.rig_ob
+                con.subtarget = aim_control.name
+                con.use_x = False
+                con.use_z = False
+                con.target_space = 'LOCAL_OWNER_ORIENT'
+                con.owner_space = 'LOCAL'
+                
+                if yaw is None:
+                    yaw: bpy.types.PoseBone = utils.get_pose_bone(self.rig_ob, aim_yaw_name)
+                else:
+                    yaw = self.rig_ob.pose.bones.get(yaw)
+                con = yaw.constraints.new('COPY_ROTATION')
+                con.target = self.rig_ob
+                con.subtarget = aim_control.name
+                con.use_x = False
+                con.use_y = False
+                con.target_space = 'LOCAL_OWNER_ORIENT'
+                con.owner_space = 'LOCAL'
     
     def build_bones(self, pedestal=None, pitch=None, yaw=None):
         bone_tail = globals()[f"bone_{self.forward.replace('-', '_negative')}"]
@@ -123,7 +128,7 @@ class HaloRig:
             
         if self.set_scene_rig_props and self.has_pose_bones and not self.context.scene.nwo.node_usage_pedestal:
             self.context.scene.nwo.node_usage_pedestal = pedestal_name
-            
+        
         if self.has_pose_bones:
             if pitch is None:
                 pitch = self.rig_data.edit_bones.new(aim_pitch_name)
@@ -160,7 +165,6 @@ class HaloRig:
         child_bone = self.rig_data.edit_bones.get(child_bone_name)
         child_bone.parent = pedestal
         bpy.ops.object.editmode_toggle()
-            
     
     def build_armature(self):
         self.rig_data = bpy.data.armatures.new('Armature')

@@ -442,9 +442,10 @@ class NWO_AddPoseBones(bpy.types.Operator):
         rig.rig_data = arm.data
         context.view_layer.objects.active = arm
         arm.select_set(True)
+        rig.has_pose_bones = True
         rig.build_bones(pedestal=scene_nwo.node_usage_pedestal if scene_nwo.node_usage_pedestal else None, pitch=scene_nwo.node_usage_pose_blend_pitch if scene_nwo.node_usage_pose_blend_pitch else None, yaw=scene_nwo.node_usage_pose_blend_yaw if scene_nwo.node_usage_pose_blend_yaw else None)
         if self.add_control_bone:
-            rig.build_and_apply_control_shapes(pitch=scene_nwo.node_usage_pose_blend_pitch, yaw=scene_nwo.node_usage_pose_blend_yaw)
+            rig.build_and_apply_control_shapes(pitch=scene_nwo.node_usage_pose_blend_pitch, yaw=scene_nwo.node_usage_pose_blend_yaw, aim_control_only=True)
         context.scene.nwo.needs_pose_bones = False
         return {'FINISHED'}
     

@@ -185,6 +185,7 @@ class ExportScene:
     def ready_scene(self):
         utils.exit_local_view(self.context)
         self.context.view_layer.update()
+        self.current_mode = self.context.mode
         utils.set_object_mode(self.context)
         self.disabled_collections = utils.disable_excluded_collections(self.context)
         self.current_frame = self.context.scene.frame_current
@@ -1278,8 +1279,13 @@ class ExportScene:
                     props["bungie_animation_event_wrinkle_map_effect"] = event.wrinkle_map_effect
                     
                 case '_connected_geometry_animation_event_type_ik_active' | '_connected_geometry_animation_event_type_ik_passive':
+                    if not event.ik_target_marker:
+                        self.warnings.append(f"Animation event [{event.name}] has no ik target marker defined. Skipping")
+                        continue
                     props["bungie_animation_event_ik_chain"] = event.ik_chain
-                    target_marker = event.ik_target_marker.name if event.ik_target_marker else ''
+                    target_marker = event.ik_target_marker.name
+                    if event.ik_target_marker_name_override.strip():
+                        target_marker = event.ik_target_marker_name_override.strip()
                     props["bungie_animation_event_ik_target_marker"] = target_marker
                     props["bungie_animation_event_ik_target_usage"] = event.ik_target_usage
                     
@@ -1399,7 +1405,7 @@ class ExportScene:
                     utils.update_job(job, 1)
                     exported_something = True
                 
-            if not exported_something:
+            if export and not exported_something:
                 print("--- No animations to export")
     
     def _create_export_groups(self):
@@ -1494,6 +1500,8 @@ class ExportScene:
             ob.animation_data.action = action
             
         self.context.scene.frame_set(self.current_frame)
+        
+        utils.restore_mode(self.current_mode)
             
         self.context.view_layer.update()
         

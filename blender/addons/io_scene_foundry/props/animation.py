@@ -204,6 +204,12 @@ class NWO_Animation_ListItems(bpy.types.PropertyGroup):
         poll=poll_ik_target_marker,
         options=set(),
     )
+    
+    ik_target_marker_name_override: bpy.props.StringProperty(
+        name="Target Marker Name Overide",
+        description="If set, overrides the name of the proxy marker written to the animation graph. Useful if you are using an IK event on a marker not present in this model, such as a weapon",
+        options=set(),
+    )
 
     ik_target_usage: bpy.props.EnumProperty(
         name="Target Usage",

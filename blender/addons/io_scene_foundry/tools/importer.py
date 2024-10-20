@@ -315,6 +315,7 @@ class NWO_Import(bpy.types.Operator):
                     
                 elif 'render_model' in importer.extensions:
                     importer.tag_render = self.tag_render
+                    importer.tag_markers = self.tag_markers
                     render_model_files = importer.sorted_filepaths["render_model"]
                     existing_armature = None
                     if self.reuse_armature:
