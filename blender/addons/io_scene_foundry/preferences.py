@@ -143,7 +143,6 @@ class NWO_OT_ProjectEdit(Operator):
 
     display_name: StringProperty(name="Display Name")
     material_path: StringProperty(name="Default Material/Shader Tag")
-    water_path: StringProperty(name="Default Water Shader/Material Tag")
 
     @classmethod
     def poll(cls, context):
@@ -166,15 +165,11 @@ class NWO_OT_ProjectEdit(Operator):
         default_material = relative_path(self.material_path.strip(" '\""))
         if Path(get_tags_path(), default_material).exists():
             xml.default_material = default_material
-        default_water = relative_path(self.water_path.strip(" '\""))
-        if Path(get_tags_path(), default_water).exists():
-            xml.default_water = default_water
         xml.parse(project_xml.parent)
         
         active_project.name = xml.display_name
         active_project.project_name = xml.name
         active_project.default_material = xml.default_material
-        active_project.default_water = xml.default_water
 
         context.area.tag_redraw()
         
@@ -185,7 +180,6 @@ class NWO_OT_ProjectEdit(Operator):
         active_project = prefs.projects[prefs.current_project_index]
         self.display_name = active_project.name
         self.material_path = active_project.default_material
-        self.water_path = active_project.default_water
         return context.window_manager.invoke_props_dialog(self, width=800)
         
     def draw(self, context):
@@ -193,8 +187,6 @@ class NWO_OT_ProjectEdit(Operator):
         shader_name = "Material" if is_corinth(context) else "Shader"
         layout.prop(self, "display_name")
         layout.prop(self, "material_path", text=f"Default {shader_name} Tag")
-        layout.prop(self, "water_path", text=f"Default Water {shader_name} Tag")
-        
 
 class HREKLocationPath(Operator):
     """Set the path to your Halo Reach Editing Kit"""

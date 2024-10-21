@@ -223,12 +223,12 @@ class VirtualMaterial:
         self.scene = scene
         if shader_path is not None:
             if not str(shader_path).strip() or str(shader_path) == '.':
-                return self.set_invalid(scene)
+                return self.set_default_shader(scene)
         
             path = Path(shader_path)
             full_path = Path(scene.tags_dir, shader_path)
             if not (full_path.exists() and full_path.is_file()):
-                return self.set_invalid(scene)
+                return self.set_default_shader(scene)
         
             self.shader_path = str(path.with_suffix(""))
             self.shader_type = path.suffix[1:]
@@ -253,9 +253,9 @@ class VirtualMaterial:
     #         del self.granny_material.extended_data
 
         
-    def set_invalid(self, scene: 'VirtualScene'):
-        self.shader_path = r"shaders\invalid"
-        self.shader_type = "material" if scene.corinth else "shader"
+    def set_default_shader(self, scene: 'VirtualScene'):
+        self.shader_path = scene.default_shader_path
+        self.shader_type = scene.default_shader_type
         self.to_granny_data(scene)
     
     def to_granny_data(self, scene):
@@ -1154,7 +1154,7 @@ class VirtualModel:
             self.matrix: Matrix = ob.matrix_world.copy()
             
 class VirtualScene:
-    def __init__(self, asset_type: AssetType, depsgraph: bpy.types.Depsgraph, corinth: bool, tags_dir: Path, granny: Granny, export_settings, fps: float, animation_compression: str, rotation: float, maintain_marker_axis: bool, granny_textures: bool):
+    def __init__(self, asset_type: AssetType, depsgraph: bpy.types.Depsgraph, corinth: bool, tags_dir: Path, granny: Granny, export_settings, fps: float, animation_compression: str, rotation: float, maintain_marker_axis: bool, granny_textures: bool, project):
         self.nodes: dict[VirtualNode] = {}
         self.meshes: dict[VirtualMesh] = {}
         self.materials: dict[VirtualMaterial] = {}
@@ -1208,11 +1208,18 @@ class VirtualScene:
         
         self.export_tag_types = set()
         
+        spath = "shaders\invalid"
+        stype = "material" if corinth else "shader"
+        if project and project.default_material:
+            relative_default_shader = utils.relative_path(project.default_material)
+            if Path(tags_dir, relative_default_shader).exists():
+                spath, _, stype = relative_default_shader.rpartition('.')
+        
+        self.default_shader_path = spath
+        self.default_shader_type = stype
+        
         # Create default material
-        if corinth:
-            default_material = VirtualMaterial("invalid", self, r"shaders\invalid.material")
-        else:
-            default_material = VirtualMaterial("invalid", self, r"shaders\invalid.shader")
+        default_material = VirtualMaterial("invalid", self, f"{self.default_shader_path}.{self.default_shader_type}")
             
         self.materials["invalid"] = default_material
 
