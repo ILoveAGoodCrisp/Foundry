@@ -1730,8 +1730,6 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 ):
                     row = col.row(align=True)
                     row.prop(nwo, "marker_hint_height", expand=True)
-                # if h4:
-                #     col.prop(nwo, "marker_hint_length")
 
             elif nwo.marker_type == "_connected_geometry_marker_type_garbage":
                 col.prop(nwo, "marker_velocity", text="Marker Velocity")

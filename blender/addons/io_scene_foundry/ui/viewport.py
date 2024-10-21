@@ -571,7 +571,7 @@ class NWO_OT_ApplyTypeMarker(bpy.types.Operator):
         
     def get_marker_type(self):
         marker_type = "_connected_geometry_marker_type_none"
-        display = 'ARROWS'
+        display = ''
         match self.m_type:
             case "model":
                 marker_type = "_connected_geometry_marker_type_model"

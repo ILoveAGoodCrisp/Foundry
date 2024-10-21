@@ -765,33 +765,8 @@ class ExportScene:
                 if self.corinth:
                     scale = ob.matrix_world.to_scale()
                     max_abs_scale = max(abs(scale.x), abs(scale.y), abs(scale.z))
-                    props["bungie_marker_hint_length"] = ob.empty_display_size * 2 * max_abs_scale
+                    props["bungie_marker_hint_length"] = ob.empty_display_size * 2 * max_abs_scale * self.inverse_scale
 
-                # TODO Move all this code to update the name while editing in Blender
-                # ob.name = "hint_"
-                # if nwo.marker_hint_type == "bunker":
-                #     ob.name += "bunker"
-                # elif nwo.marker_hint_type == "corner":
-                #     ob.name += "corner_"
-                #     if nwo.marker_hint_side == "right":
-                #         ob.name += "right"
-                #     else:
-                #         ob.name += "left"
-
-                # else:
-                #     if nwo.marker_hint_type == "vault":
-                #         ob.name += "vault_"
-                #     elif nwo.marker_hint_type == "mount":
-                #         ob.name += "mount_"
-                #     else:
-                #         ob.name += "hoist_"
-
-                #     if nwo.marker_hint_height == "step":
-                #         ob.name += "step"
-                #     elif nwo.marker_hint_height == "crouch":
-                #         ob.name += "crouch"
-                #     else:
-                #         ob.name += "stand"
                         
             elif marker_type == "_connected_geometry_marker_type_pathfinding_sphere":
                 props["bungie_mesh_primitive_sphere_radius"] = self.get_marker_sphere_size(ob)
@@ -1662,6 +1637,9 @@ class ExportScene:
                             # Graph should be data driven if ik chains or overlay groups in use.
                             # Node usages are a sign the user intends to create overlays group
                             animation.tag.SelectField("Struct:definitions[0]/ByteFlags:private flags").SetBit('uses data driven animation', True)
+                            
+                        # TODO check if frame event list ref set correctly after templating
+                            
             # print("--- Setup World Animations")
             
         if self.asset_type == AssetType.SCENARIO and self.setup_scenario:
@@ -1712,19 +1690,19 @@ class ExportScene:
     def get_marker_sphere_size(self, ob):
         scale = ob.matrix_world.to_scale()
         max_abs_scale = max(abs(scale.x), abs(scale.y), abs(scale.z))
-        return ob.empty_display_size * max_abs_scale * (1 / self.scale)
+        return ob.empty_display_size * max_abs_scale * self.inverse_scale
     
     def _set_primitive_props(self, ob, prim_type, props):
         match prim_type:
             case '_connected_geometry_primitive_type_sphere':
-                props["bungie_mesh_primitive_sphere_radius"] = utils.radius(ob, scale=1/self.scale)
+                props["bungie_mesh_primitive_sphere_radius"] = utils.radius(ob, scale=self.inverse_scale)
             case '_connected_geometry_primitive_type_pill':
-                props["bungie_mesh_primitive_pill_radius"] = utils.radius(ob, True, scale=1/self.scale)
-                props["bungie_mesh_primitive_pill_height"] = ob.dimensions.z * (1 / self.scale)
+                props["bungie_mesh_primitive_pill_radius"] = utils.radius(ob, True, scale=self.inverse_scale)
+                props["bungie_mesh_primitive_pill_height"] = ob.dimensions.z * self.inverse_scale
             case '_connected_geometry_primitive_type_box':
-                props["bungie_mesh_primitive_box_width"] =  ob.dimensions.x * (1 / self.scale)
-                props["bungie_mesh_primitive_box_length"] = ob.dimensions.y * (1 / self.scale)
-                props["bungie_mesh_primitive_box_height"] = ob.dimensions.z * (1 / self.scale)
+                props["bungie_mesh_primitive_box_width"] =  ob.dimensions.x * self.inverse_scale
+                props["bungie_mesh_primitive_box_length"] = ob.dimensions.y * self.inverse_scale
+                props["bungie_mesh_primitive_box_height"] = ob.dimensions.z * self.inverse_scale
                 
         return props
     

@@ -765,13 +765,44 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     )
     
     #####
+    
+    def update_hint_name(self, context):
+        ob = self.id_data
+        name = "hint_"
+        if self.marker_hint_type == "bunker":
+            name += "bunker"
+        elif self.marker_hint_type == "corner":
+            name += "corner_"
+            if self.marker_hint_side == "right":
+                name += "right"
+            else:
+                name += "left"
+
+        else:
+            if self.marker_hint_type == "vault":
+                name += "vault_"
+            elif self.marker_hint_type == "mount":
+                name += "mount_"
+            else:
+                name += "hoist_"
+
+            if self.marker_hint_height == "step":
+                name += "step"
+            elif self.marker_hint_height == "crouch":
+                name += "crouch"
+            else:
+                name += "stand"
+        
+        ob.name = name
 
     marker_hint_type: bpy.props.EnumProperty(
         name="Type",
         options=set(),
         description="",
-        default="bunker",
+        default="none",
+        update=update_hint_name,
         items=[
+            ("none", "None", ""),
             ("bunker", "Bunker", ""),
             ("corner", "Corner", ""),
             ("vault", "Vault", ""),
@@ -785,6 +816,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="",
         default="right",
+        update=update_hint_name,
         items=[
             ("right", "Right", ""),
             ("left", "Left", ""),
@@ -796,6 +828,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="",
         default="step",
+        update=update_hint_name,
         items=[
             ("step", "Step", ""),
             ("crouch", "Crouch", ""),

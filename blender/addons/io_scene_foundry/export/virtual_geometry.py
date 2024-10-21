@@ -31,10 +31,7 @@ NORMAL_FIX_MATRIX = Matrix(((1, 0, 0), (0, -1, 0), (0, 0, -1)))
 logging.basicConfig(level=logging.DEBUG)
 
 # TODO
-# Water physics from water surfaces
-# backfacing seams
 # default invalid shader / default water shader
-# Animation events / controls
 # Look into lighting_info failing to open
 
 DESIGN_MESH_TYPES = {
