@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "io_scene_foundry"
-version = "1.0.13"
+version = "1.0.14"
 name = "Foundry"
 tagline = "An import & export pipeline for Halo Reach, Halo 4, and Halo 2 Anniversary Multiplayer"
 maintainer = "Crisp"
