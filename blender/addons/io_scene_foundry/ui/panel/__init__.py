@@ -1127,8 +1127,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col = box.column()
             bone = context.active_bone
             if bone:
-                col.prop(bone, "name", text="Active Bone Name", icon='BONE_DATA')
-                col.prop_enum(ob.data, "bones", "name")
+                col.prop(bone, "name", text="Active Bone", icon='BONE_DATA')
                 data_bone = ob.data.bones[bone.name]
                 col.prop(data_bone.nwo, "object_space_node")
                 col.prop(data_bone.nwo, "replacement_correction_node")
