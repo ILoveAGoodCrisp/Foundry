@@ -211,7 +211,7 @@ class RenderModelTag(Tag):
                 if not ob: continue
                 for region in self.regions:
                     for perm in region.permutations:
-                        for instance_index in perm.instance_indexes:
+                        for instance_index in perm.instance_indices:
                             if instance_index == instance.index:
                                 if not ob.nwo.marker_uses_regions:
                                     ob.nwo.marker_uses_regions = True

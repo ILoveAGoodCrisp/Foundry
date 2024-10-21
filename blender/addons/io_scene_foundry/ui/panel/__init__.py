@@ -97,7 +97,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 if not utils.poll_ui(('model', 'animation', 'camera_track_set')):
                     continue
             elif p in ("object_properties", "material_properties", 'sets_manager'):
-                if nwo.asset_type in ('animation', 'camera_track_set'):
+                if nwo.asset_type in ('camera_track_set',) or (p == "material_properties" and nwo.asset_type == "animation"):
                     continue
             
             row_icon = box.row(align=True)
@@ -1119,7 +1119,21 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
 
         elif ob.type == "ARMATURE":
             box.label(text='Frame')
-            return
+            col = box.column()
+            col.operator("nwo.select_child_objects", icon='CON_CHILDOF')
+            box = box.box()
+            box.use_property_split = True
+            box.label(text="Bone Properties")
+            col = box.column()
+            bone = context.active_bone
+            if bone:
+                col.prop(bone, "name", text="Active Bone Name", icon='BONE_DATA')
+                col.prop_enum(ob.data, "bones", "name")
+                data_bone = ob.data.bones[bone.name]
+                col.prop(data_bone.nwo, "object_space_node")
+                col.prop(data_bone.nwo, "replacement_correction_node")
+                col.prop(data_bone.nwo, "fik_anchor_node")
+                return
 
         row = box.row(align=True)
         row.scale_x = 0.5
@@ -1878,12 +1892,10 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 row.operator("nwo.tag_explore", icon="FILE_FOLDER", text="").prop = 'marker_light_cone_curve'
                 
         elif utils.is_frame(ob) and utils.poll_ui(
-            ("model", "scenario", "sky")):
+            ("model", "scenario", "sky", "animation", "prefab")):
             col = box.column()
             col.label(text='Frame', icon_value=get_icon_id('frame'))
-            # if not ob.children:
-            #     col.prop(nwo, "frame_override")
-            # TODO Add button that selects child objects
+            col.operator("nwo.select_child_objects", icon='CON_CHILDOF')
             return
                 
 

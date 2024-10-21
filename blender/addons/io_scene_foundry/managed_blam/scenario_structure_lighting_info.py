@@ -41,23 +41,23 @@ class ScenarioStructureLightingInfoTag(Tag):
         self.tag_has_changes = True
             
     def _write_corinth_light_definitions(self, light_definitions):
-        remaining_light_indexes = list(range(len(light_definitions)))
-        remove_indexes = []
+        remaining_light_indices = list(range(len(light_definitions)))
+        remove_indices = []
         
         for element in self.block_generic_light_definitions.Elements:
             element_id = element.SelectField("Definition Identifier").GetStringData()
             found_light = next((light for light in light_definitions if light.id == element_id), None)
             if found_light is None:
-                remove_indexes.append(element.ElementIndex)
+                remove_indices.append(element.ElementIndex)
             else:
-                remaining_light_indexes.remove(light_definitions.index(found_light))
+                remaining_light_indices.remove(light_definitions.index(found_light))
                 self._update_corinth_light_definitions(found_light, element)
                 
-        if remove_indexes:
-            for i in reversed(remove_indexes):
+        if remove_indices:
+            for i in reversed(remove_indices):
                 self.block_generic_light_definitions.RemoveElement(i)
                 
-        for i in remaining_light_indexes:
+        for i in remaining_light_indices:
             self._update_corinth_light_definitions(light_definitions[i], self.block_generic_light_definitions.AddElement())
                 
     def _update_corinth_light_definitions(self, light, element: TagFieldBlockElement):

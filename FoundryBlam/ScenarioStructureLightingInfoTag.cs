@@ -42,32 +42,32 @@ namespace FoundryBlam
 
         private void WriteCorinthLightDefinitions(List<LightDefinition> lights)
         {
-            List<int> remainingLightIndexes = Enumerable.Range(0, lights.Count).ToList();
-            List<int> removeIndexes = new List<int>();
+            List<int> remainingLightindices = Enumerable.Range(0, lights.Count).ToList();
+            List<int> removeindices = new List<int>();
             foreach (TagElement element in GenericLightDefinitions.Elements)
             {
                 string elementId = ((TagFieldElementInteger)element.SelectField("Definition Identifier")).GetStringData();
                 LightDefinition foundLight = lights.Find(light => light.Id == elementId);
                 if (foundLight == null)
-                    removeIndexes.Add(element.ElementIndex);
+                    removeindices.Add(element.ElementIndex);
                 else
                 {
-                    remainingLightIndexes.Remove(lights.IndexOf(foundLight));
+                    remainingLightindices.Remove(lights.IndexOf(foundLight));
                     UpdateCorinthLightDefinitions(foundLight, element);
                 }    
             }
 
-            if (removeIndexes.Any())
+            if (removeindices.Any())
             {
-                removeIndexes.Reverse();
+                removeindices.Reverse();
 
-                foreach (int i in removeIndexes)
+                foreach (int i in removeindices)
                 {
                     GenericLightDefinitions.RemoveElement(i);
                 }
             }
 
-            foreach(int i in remainingLightIndexes)
+            foreach(int i in remainingLightindices)
             {
                 UpdateCorinthLightDefinitions(lights[i], GenericLightDefinitions.AddElement());
             }

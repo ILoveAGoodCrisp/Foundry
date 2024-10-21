@@ -109,7 +109,7 @@ class AnimationTag(Tag):
 
             return node_usage_dict
         
-        # Establish a list of node indexes. These are needed when we write the node usage data
+        # Establish a list of node indices. These are needed when we write the node usage data
         if granny:
             node_index_list = self._node_index_list_granny(bones)
         else:

@@ -16,6 +16,25 @@ from ...managed_blam.globals import GlobalsTag
 
 int_highlight = 0
 
+# FRAME PROPS
+
+class NWO_OT_SelectChildObjects(bpy.types.Operator):
+    bl_idname = "nwo.select_child_objects"
+    bl_label = "Select Child Objects"
+    bl_description = "Selects the child objects of this frame"
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        return context.object
+
+    def execute(self, context):
+        ob = context.object
+        children = len(ob.children_recursive)
+        for child in ob.children_recursive:
+            child.select_set(True)
+        self.report({'INFO'}, f"Selected {len(children)} child objects")
+        return {"FINISHED"}
 
 # FACE PROPERTIES #
 class NWO_MT_FaceLayerAddMenu(bpy.types.Menu):

@@ -44,6 +44,11 @@ def register():
         name="Halo NWO Properties",
         description="Set Halo Object Properties",
     )
+    bpy.types.Bone.nwo = bpy.props.PointerProperty(
+        type=bone.NWO_BonePropertiesGroup,
+        name="Halo NWO Properties",
+        description="Set Halo Object Properties",
+    )
     bpy.types.Collection.nwo = bpy.props.PointerProperty(
         type=collection.NWO_CollectionPropertiesGroup,
         name="Halo NWO Properties",
@@ -103,6 +108,7 @@ def register():
 def unregister():
     del bpy.types.Scene.nwo
     del bpy.types.Object.nwo
+    del bpy.types.Bone.nwo
     del bpy.types.Light.nwo
     del bpy.types.Material.nwo
     del bpy.types.Bone.nwo

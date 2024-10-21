@@ -329,10 +329,10 @@ class Model:
     initial_placement: GrannyTransform
     mesh_bindings: tuple[int]
     
-    def __init__(self, model, skeleton_index: int, mesh_binding_indexes: list[int]):
+    def __init__(self, model, skeleton_index: int, mesh_binding_indices: list[int]):
         self.name = model.name.encode()
         node = model.node
         self.skeleton_index = skeleton_index
         position, orientation, scale_shear = granny_transform_parts(node.matrix_local)
         self.initial_placement = GrannyTransform(flags=7, position=position, orientation=orientation, scale_shear=scale_shear)
-        self.mesh_bindings = mesh_binding_indexes
+        self.mesh_bindings = mesh_binding_indices

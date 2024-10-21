@@ -668,7 +668,7 @@ class TagElement(ITagFieldSelector, ITagFieldSerializable, _IEnumerator):
     ElementHeaderText: str
     ElementIndex: int
     FieldPath: str
-    FieldPathWithoutIndexes: str
+    FieldPathWithoutindices: str
     Fields: list['TagField']
     Size: int
     def GetParentContainer(self) -> ITagElementContainer:
@@ -691,7 +691,7 @@ class TagField(ITagFieldSerializable, _GetParent, _HashEquals, _ToString):
     FieldDefinition: 'TagFieldDefinition'
     FieldName: str
     FieldPath: str
-    FieldPathWithoutIndexes: str
+    FieldPathWithoutindices: str
     FieldSubtype: str
     FieldType: TagFieldType
     File: 'TagFile'
@@ -1045,10 +1045,10 @@ class TagFieldPath(_HashEquals, _ToString):
     FieldName: str
     FieldType: TagFieldType
     Name: str
-    NameWithoutIndexes: str
+    NameWithoutindices: str
     Parent: 'TagFieldPath'
     Path: str
-    PathWithoutIndexes: str
+    PathWithoutindices: str
     def __init__(self, name: str, type: TagFieldType, index: int, parent: 'TagFieldPath'):
         pass
     def __init__(self, name: str, type: TagFieldType, parent: 'TagFieldPath'):
@@ -1109,7 +1109,7 @@ class TagFile(ITagFieldSelector, ITagElementContainer, ITagFieldSerializable, _I
     Checksum: int
     Elements: ITagElementCollection
     FieldPath: str
-    FieldPathWithoutIndexes: str
+    FieldPathWithoutindices: str
     Fields: list[TagField]
     HasPostprocessOnSyncProc: bool
     HasPostprocessProc: bool

@@ -125,10 +125,10 @@ class CubemapFarm:
                 bitmap_path = Path(bitmap_tagpath.Path.Filename)
                 if bitmap_path.exists():   
                     with BitmapTag(path=bitmap_path) as bitmap:
-                        bitmap_cubemap_indexes = index_map.get(bsp_element.ElementIndex, None)
-                        if bitmap_cubemap_indexes is None: continue
+                        bitmap_cubemap_indices = index_map.get(bsp_element.ElementIndex, None)
+                        if bitmap_cubemap_indices is None: continue
                         for bitmap_element in bitmap.block_bitmaps.Elements:
-                            current_cubemap_index = bitmap_cubemap_indexes[bitmap_element.ElementIndex]
+                            current_cubemap_index = bitmap_cubemap_indices[bitmap_element.ElementIndex]
                             field_registration_point = bitmap_element.SelectField("registration point")
                             rpx, rpy = cubemaps[current_cubemap_index].checksum_pair
                             field_registration_point.SetStringData([rpx, rpy])

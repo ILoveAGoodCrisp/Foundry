@@ -110,6 +110,7 @@ classes = [
     object.NWO_OT_List_Add_MarkerPermutation,
     object.NWO_OT_List_Remove_MarkerPermutation,
     object.NWO_OT_MeshPropAdd,
+    object.NWO_OT_SelectChildObjects,
     panel.NWO_FoundryPanelProps,
     panel.NWO_FoundryPanelPopover,
     panel.NWO_HotkeyDescription,

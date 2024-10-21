@@ -24,7 +24,7 @@ from .Tags import TagFieldBlock, TagFieldBlockElement, TagPath
 
 class BSPSeam:
     index: int
-    edge_indexes: set[int]
+    edge_indices: set[int]
     origin = Vector
     
     def __init__(self, element: TagFieldBlockElement):
@@ -370,7 +370,7 @@ class Permutation:
     name: str
     mesh_index: int
     mesh_count: int
-    instance_indexes: list[int]
+    instance_indices: list[int]
     clone_name: str
     
     def __init__(self, element: TagFieldBlockElement, region: 'Region'):
@@ -380,21 +380,21 @@ class Permutation:
         self.mesh_index = int(element.SelectField("mesh index").GetStringData())
         self.mesh_count = int(element.SelectField("mesh count").GetStringData())
         self.clone_name = ""
-        self.instance_indexes = []
+        self.instance_indices = []
         if utils.is_corinth():
             self.clone_name = element.SelectField("clone name").GetStringData()
         flags_1 = element.SelectField("instance mask 0-31")
         for i in range(31):
             if flags_1.TestBit(str(i)):
-                self.instance_indexes.append(i)
+                self.instance_indices.append(i)
         flags_2 = element.SelectField("instance mask 32-63")
         for i in range(31):
             if flags_2.TestBit(str(i)):
-                self.instance_indexes.append(i + 32)
+                self.instance_indices.append(i + 32)
         flags_3 = element.SelectField("instance mask 64-95")
         for i in range(31):
             if flags_3.TestBit(str(i)):
-                self.instance_indexes.append(i + 64)
+                self.instance_indices.append(i + 64)
     
 class Region:
     index: int
@@ -1414,9 +1414,9 @@ class MeshSubpart:
             mesh.materials.append(blend_material)
         blend_material_index = ob.material_slots.find(blend_material.name)
 
-        indexes = {t.index for t in tris if t.subpart == self}
+        indices = {t.index for t in tris if t.subpart == self}
 
-        for i in indexes:
+        for i in indices:
             mesh.polygons[i].material_index = blend_material_index
 
         if not (face_transparent or face_draw_distance or face_tesselation or face_no_shadow or face_lightmap_only or water_surface_parts):
@@ -1464,7 +1464,7 @@ class MeshSubpart:
                 layer_map["water_surface"] = existing_layer
 
         bm.faces.ensure_lookup_table()
-        for i in indexes:
+        for i in indices:
             for layer in layer_map.values():
                 bm.faces[i][layer] = 1
 
@@ -1582,8 +1582,8 @@ class Mesh:
 
         indices = [t.indices for t in self.tris if not subpart or t.subpart == subpart]
 
-        vertex_indexes = sorted({idx for tri in indices for idx in tri})
-        idx_start, idx_end = vertex_indexes[0], vertex_indexes[-1]
+        vertex_indices = sorted({idx for tri in indices for idx in tri})
+        idx_start, idx_end = vertex_indices[0], vertex_indices[-1]
 
         mesh = bpy.data.meshes.new(name)
         ob = bpy.data.objects.new(name, mesh)

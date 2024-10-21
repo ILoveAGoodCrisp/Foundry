@@ -1403,8 +1403,8 @@ class FaceSet:
         if layer:
             self.face_props[layer] = value
             
-    def update_from_material(self, bm: bmesh.types.BMesh, material_indexes: list[int], value: object):
-        for idx in material_indexes:
+    def update_from_material(self, bm: bmesh.types.BMesh, material_indices: list[int], value: object):
+        for idx in material_indices:
             self.face_props[idx] = value
             
     def _set_tri_annotation_type(self):
@@ -1543,16 +1543,16 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
             face_properties.setdefault("bungie_lighting_attenuation_falloff", FaceSet(np.full(num_faces, fp_defaults["bungie_lighting_attenuation_falloff"], np.single))).update(bm, face_prop.layer_name, face_prop.material_lighting_attenuation_falloff)
             face_properties.setdefault("bungie_lighting_emissive_focus", FaceSet(np.full(num_faces, fp_defaults["bungie_lighting_emissive_focus"], np.single))).update(bm, face_prop.layer_name, degrees(face_prop.material_lighting_emissive_focus) / 180)
 
-    for material, material_indexes in special_mats_dict.items():
+    for material, material_indices in special_mats_dict.items():
         if material.name.lower().startswith('+seamsealer') and props.get("bungie_face_type") is None:
-            face_properties.setdefault("bungie_face_type", FaceSet(np.zeros(num_faces, np.uint8))).update_from_material(bm, material_indexes, FaceType.seam_sealer.value)
+            face_properties.setdefault("bungie_face_type", FaceSet(np.zeros(num_faces, np.uint8))).update_from_material(bm, material_indices, FaceType.seam_sealer.value)
         elif material.name.lower().startswith('+sky'):
             if props.get("bungie_face_type") is None:
-                face_properties.setdefault("bungie_face_type", FaceSet(np.zeros(num_faces, np.uint8))).update_from_material(bm, material_indexes, FaceType.sky.value)
+                face_properties.setdefault("bungie_face_type", FaceSet(np.zeros(num_faces, np.uint8))).update_from_material(bm, material_indices, FaceType.sky.value)
             if len(material.name) > 4 and material.name[4].isdigit():
                 sky_index = int(material.name[4])
                 if sky_index > 0 and props.get("bungie_sky_permutation_index") is None:
-                    face_properties.setdefault("bungie_sky_permutation_index", FaceSet(np.zeros(num_faces, np.uint8))).update_from_material(bm, material_indexes, sky_index)
+                    face_properties.setdefault("bungie_sky_permutation_index", FaceSet(np.zeros(num_faces, np.uint8))).update_from_material(bm, material_indices, sky_index)
         else:
             # Must be a material with material properties
             pass

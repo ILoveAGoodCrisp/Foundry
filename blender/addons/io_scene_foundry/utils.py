@@ -878,8 +878,8 @@ def layer_faces(bm, face_layer):
     if face_layer:
         return [face for face in bm.faces if face[face_layer]]
     
-def layer_face_indexes(bm, face_layer):
-    """Returns the face indexes in a bmesh that have an face int custom_layer with a value greater than 0"""
+def layer_face_indices(bm, face_layer):
+    """Returns the face indices in a bmesh that have an face int custom_layer with a value greater than 0"""
     if face_layer:
         return {face.index for face in bm.faces if face[face_layer]}
 
@@ -1014,6 +1014,7 @@ def is_halo_object(ob) -> bool:
                 "decorator_set",
                 "particle_model",
                 "prefab",
+                "animation",
             )
         )
     )
@@ -3159,25 +3160,25 @@ def clean_materials(ob: bpy.types.Object) -> list[bpy.types.MaterialSlot]:
     slots = ob.material_slots
     slots_to_remove = set()
     duplicate_slots = {}
-    material_indexes = dict.fromkeys(slots)
+    material_indices = dict.fromkeys(slots)
     for idx, slot in enumerate(slots):
         if not slot.material:
             slots_to_remove.add(idx)
             continue
         slot_name = slot.material.name
-        if slot_name not in material_indexes.keys():
-            material_indexes[slot_name] = idx
+        if slot_name not in material_indices.keys():
+            material_indices[slot_name] = idx
         else:
             slots_to_remove.add(idx)
-            duplicate_slots[idx] = material_indexes[slot_name]
+            duplicate_slots[idx] = material_indices[slot_name]
     
     if ob.type == 'MESH':
         bm = bmesh.new()
         bm.from_mesh(ob.data)
         bm.faces.ensure_lookup_table()
-        used_material_indexes = set()
+        used_material_indices = set()
         for face in bm.faces:
-            used_material_indexes.add(face.material_index)
+            used_material_indices.add(face.material_index)
             if duplicate_slots and face.material_index in duplicate_slots.keys():
                 face.material_index = duplicate_slots[face.material_index]
                 
@@ -3185,7 +3186,7 @@ def clean_materials(ob: bpy.types.Object) -> list[bpy.types.MaterialSlot]:
         bm.free()
         
         for i in range(len(slots)):
-            if i not in used_material_indexes:
+            if i not in used_material_indices:
                 slots_to_remove.add(i)
     
     slots_to_remove = sorted(slots_to_remove, reverse=True)
@@ -3219,15 +3220,15 @@ def get_major_vertex_group(ob: bpy.types.Object):
         return
     if len(ob.vertex_groups) == 1:
         return ob.vertex_groups[0].name
-    vert_group_indexes = []
+    vert_group_indices = []
     for vert in ob.data.vertices:
         for g in vert.groups:
-            vert_group_indexes.append(g.group)
+            vert_group_indices.append(g.group)
     
-    if len(vert_group_indexes) < 2:
+    if len(vert_group_indices) < 2:
         return ob.vertex_groups[0].name
     
-    most_common_index = Counter(vert_group_indexes).most_common(1)[0][0]
+    most_common_index = Counter(vert_group_indices).most_common(1)[0][0]
     
     if len(ob.vertex_groups) > most_common_index: 
         return ob.vertex_groups[most_common_index].name
