@@ -530,6 +530,12 @@ def run_tool_sidecar(tool_args: list, asset_path, event_level='WARNING'):
                 elif "Failed to find any animated nodes" and "idle" in line:
                     # Skip because we often want the idle to not have animation e.g. for vehicles
                     continue
+                elif "graph was imported with old codec which is no longer supported!" in line:
+                    # Skip since the animation import codec is fine
+                    continue
+                elif "animation graph update failed!" in line:
+                    # Always outputs on new animation graph creation
+                    continue
                 else:
                     # need to handle animation stuff. Most animation output is written to stderr...
                     if line.startswith("animation:import:"):

@@ -50,15 +50,25 @@ class SidecarImport:
         for template in templates:
             self._set_template(template)
         
-    def _set_template(self, tag_type: str):
-        if tag_type.endswith('model') or tag_type == 'model_animation_graph' or getattr(self.scene_settings, 'output_' + tag_type):
-            template_path = getattr(self.scene_settings, 'template_' + tag_type)
+    def _set_template(self, tag_type: str, frame_event_tag=False):
+        animation = tag_type == 'model_animation_graph'
+        if frame_event_tag or animation or tag_type.endswith('model') or getattr(self.scene_settings, 'output_' + tag_type):
+            if animation:
+                self._set_template("frame_event_list", frame_event_tag=True)
+                
+            if frame_event_tag:
+                template_path = utils.dot_partition(self.scene_settings.template_model_animation_graph) + ".frame_event_list"
+            else:
+                template_path = getattr(self.scene_settings, 'template_' + tag_type)
+                
             if not template_path:
                 return
+            
             relative_template_path = utils.relative_path(template_path)
             expected_asset_path = Path(self.tags_dir, self.relative_asset_path, f'{self.asset_name}.{tag_type}')
             if expected_asset_path.exists():
                 return
+            
             asset_folder = expected_asset_path.parent
             if not asset_folder.exists():
                 asset_folder.mkdir(parents=True, exist_ok=True)
@@ -66,7 +76,7 @@ class SidecarImport:
             if full_path.exists():
                 utils.copy_file(full_path, expected_asset_path)
                 print(f'- Loaded {tag_type} tag template')
-            else:
+            elif not frame_event_tag: # Don't warn about the frame event list since the user doesn't explictly specify this
                 utils.print_warning(f'Tried to set up template for {tag_type} tag but given template tag [{full_path}] does not exist')
     
     def save_lighting_infos(self):

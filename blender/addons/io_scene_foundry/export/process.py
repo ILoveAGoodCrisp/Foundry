@@ -152,6 +152,9 @@ class ExportScene:
         self.granny_open = gr2_debug and export_settings.granny_open
         self.granny_animations_mesh = gr2_debug and export_settings.granny_animations_mesh
         
+        self.defer_graph_process = False
+        self.node_usage_set = False
+        
     def _get_export_tag_types(self):
         tag_types = set()
         match self.asset_type:
@@ -1516,9 +1519,12 @@ class ExportScene:
         
     def preprocess_tags(self):
         """ManagedBlam tasks to run before tool import is called"""
-        node_usage_set = self.has_animations and self.any_node_usage_override()
+        self.node_usage_set = self.has_animations and self.any_node_usage_override()
         # print("\n--- Foundry Tags Pre-Process\n")
-        if node_usage_set or self.scene_settings.ik_chains or self.has_animations:
+        # Skip pre processing the graph if this is a first time export and the user has specified a template animation graph
+        # This is done to ensure the templating is not skipped
+        self.defer_graph_process = not Path(self.asset_path, f"{self.asset_name}.model_animation_graph").exists() and self.scene_settings.template_model_animation_graph and Path(self.tags_dir, utils.relative_path(self.scene_settings.template_model_animation_graph)).exists()
+        if not self.defer_graph_process and (self.node_usage_set or self.scene_settings.ik_chains or self.has_animations):
             with AnimationTag() as animation:
                 if self.scene_settings.parent_animation_graph:
                     self.print_pre("--- Setting parent animation graph")
@@ -1528,7 +1534,7 @@ class ExportScene:
                     self.print_pre(f"--- Validating animation compression for {len(self.exported_actions)} animations: Default Compression = {self.scene_settings.default_animation_compression}")
                     animation.validate_compression(self.exported_actions, self.scene_settings.default_animation_compression)
                     # print("--- Validated Animation Compression")
-                if node_usage_set:
+                if self.node_usage_set:
                     self.print_pre("--- Setting node usages")
                     animation.set_node_usages(self.virtual_scene.animated_bones, True)
                     #print("--- Updated Animation Node Usages")
@@ -1537,7 +1543,7 @@ class ExportScene:
                     animation.write_ik_chains(self.scene_settings.ik_chains, self.virtual_scene.animated_bones, True)
                     # print("--- Updated Animation IK Chains")
                     
-                if animation.tag_has_changes and (node_usage_set or self.scene_settings.ik_chains):
+                if animation.tag_has_changes and (self.node_usage_set or self.scene_settings.ik_chains):
                     # Graph should be data driven if ik chains or overlay groups in use.
                     # Node usages are a sign the user intends to create overlays group
                     animation.tag.SelectField("Struct:definitions[0]/ByteFlags:private flags").SetBit('uses data driven animation', True)
@@ -1624,7 +1630,7 @@ class ExportScene:
     def postprocess_tags(self):
         """ManagedBlam tasks to run after tool import is called"""
         self._setup_model_overrides()
-        if self.sidecar.reach_world_animations or self.sidecar.pose_overlays:
+        if self.sidecar.reach_world_animations or self.sidecar.pose_overlays or self.defer_graph_process:
             with AnimationTag() as animation:
                 if self.sidecar.reach_world_animations:
                     self.print_post(f"--- Setting up {len(self.sidecar.reach_world_animations)} world relative animation{'s' if len(self.sidecar.reach_world_animations) > 1 else ''}")
@@ -1632,6 +1638,30 @@ class ExportScene:
                 if self.sidecar.pose_overlays:
                     self.print_post(f"--- Updating animation blend screens for {len(self.sidecar.pose_overlays)} pose overlay animation{'s' if len(self.sidecar.pose_overlays) > 1 else ''}")
                     animation.setup_blend_screens(self.sidecar.pose_overlays)
+                    
+                if self.defer_graph_process and (self.node_usage_set or self.scene_settings.ik_chains or self.has_animations):
+                    with AnimationTag() as animation:
+                        if self.scene_settings.parent_animation_graph:
+                            self.print_pre("--- Setting parent animation graph")
+                            animation.set_parent_graph(self.scene_settings.parent_animation_graph)
+                            # print("--- Set Parent Animation Graph")
+                        if self.virtual_scene.animations:
+                            self.print_pre(f"--- Validating animation compression for {len(self.exported_actions)} animations: Default Compression = {self.scene_settings.default_animation_compression}")
+                            animation.validate_compression(self.exported_actions, self.scene_settings.default_animation_compression)
+                            # print("--- Validated Animation Compression")
+                        if self.node_usage_set:
+                            self.print_pre("--- Setting node usages")
+                            animation.set_node_usages(self.virtual_scene.animated_bones, True)
+                            #print("--- Updated Animation Node Usages")
+                        if self.scene_settings.ik_chains:
+                            self.print_pre("--- Writing IK chains")
+                            animation.write_ik_chains(self.scene_settings.ik_chains, self.virtual_scene.animated_bones, True)
+                            # print("--- Updated Animation IK Chains")
+                            
+                        if animation.tag_has_changes and (self.node_usage_set or self.scene_settings.ik_chains):
+                            # Graph should be data driven if ik chains or overlay groups in use.
+                            # Node usages are a sign the user intends to create overlays group
+                            animation.tag.SelectField("Struct:definitions[0]/ByteFlags:private flags").SetBit('uses data driven animation', True)
             # print("--- Setup World Animations")
             
         if self.asset_type == AssetType.SCENARIO and self.setup_scenario:
