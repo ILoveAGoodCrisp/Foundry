@@ -1121,18 +1121,18 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             box.label(text='Frame')
             col = box.column()
             col.operator("nwo.select_child_objects", icon='CON_CHILDOF')
-            box = box.box()
-            box.use_property_split = True
-            box.label(text="Bone Properties")
-            col = box.column()
-            bone = context.active_bone
-            if bone:
-                col.prop(bone, "name", text="Active Bone", icon='BONE_DATA')
-                data_bone = ob.data.bones[bone.name]
-                col.prop(data_bone.nwo, "object_space_node")
-                col.prop(data_bone.nwo, "replacement_correction_node")
-                col.prop(data_bone.nwo, "fik_anchor_node")
-                return
+            # box = box.box()
+            # box.use_property_split = True
+            # box.label(text="Bone Properties")
+            # col = box.column()
+            # bone = context.active_bone
+            # if bone:
+            #     col.prop(bone, "name", text="Active Bone", icon='BONE_DATA')
+            #     data_bone = ob.data.bones[bone.name]
+            #     col.prop(data_bone.nwo, "object_space_node")
+            #     col.prop(data_bone.nwo, "replacement_correction_node")
+            #     col.prop(data_bone.nwo, "fik_anchor_node")
+            return
 
         row = box.row(align=True)
         row.scale_x = 0.5

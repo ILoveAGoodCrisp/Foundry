@@ -890,6 +890,12 @@ class VirtualBone:
         self.props["bungie_frame_ID2"] = int(frame_ids[1])
         self.props["bungie_object_animates"] = 1
         self.props["bungie_object_type"] = ObjectType.frame.value
+        # if bone.nwo.object_space_node:
+        #     self.props["bungie_is_object_space_offset_node"] = 1
+        # if bone.nwo.replacement_correction_node:
+        #     self.props["bungie_is_replacement_correction_node"] = 1
+        # if bone.nwo.fik_anchor_node:
+        #     self.props["bungie_is_fik_anchor_node"] = 1
         
     def to_granny_data(self, scene: 'VirtualScene'):
         self.granny_bone.name = self.name.encode()
@@ -1009,7 +1015,7 @@ class VirtualSkeleton:
                 frame_ids_index = scene.template_node_order.get(b.name)
                 if frame_ids_index is None:
                     frame_ids_index = idx
-                b.create_bone_props(bone.pbone, scene.frame_ids[frame_ids_index])
+                b.create_bone_props(ob.data.bones[bone.pbone.name], scene.frame_ids[frame_ids_index])
                 # b.properties = utils.get_halo_props_for_granny(ob.data.bones[idx])
                 # is_aim_bone = bone.name == aim_pitch or bone.name == aim_yaw
                 if bone.parent:
