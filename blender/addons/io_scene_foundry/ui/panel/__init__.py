@@ -2552,7 +2552,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             if nwo.SpecialMaterial:
                 if mat.name == '+invisible':
                     col.label(text=f'Invisible {tag_type} applied')
-                elif mat.name == '+invalid':
+                elif mat.name == 'invalid':
                     col.label(text=f'Default Invalid {tag_type} applied')
                 elif mat.name == '+missing':
                     col.label(text=f'Default Missing {tag_type} applied')

@@ -473,7 +473,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="Color of the fog that renders when below the water surface",
         size=4,
-        default=(1.0, 1.0, 1.0, 1.0),
+        default=(0.322, 0.379, 0.466, 1.0),
         subtype="COLOR",
         min=0.0,
         max=1.0,

@@ -110,9 +110,9 @@ def cleanup_empty_slots(slots):
         if slot_mat:
             continue
         
-        invalid_mat = materials.get('+invalid')
+        invalid_mat = materials.get('invalid')
         if not invalid_mat:
-            invalid_mat = materials.new("+invalid")
+            invalid_mat = materials.new("invalid")
 
         slot.material = invalid_mat
 
