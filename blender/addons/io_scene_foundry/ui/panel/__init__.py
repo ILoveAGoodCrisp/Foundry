@@ -3322,4 +3322,27 @@ class NWO_OT_PanelExpand(bpy.types.Operator):
     
     @classmethod
     def description(cls, context, properties):
-        pass
+        match properties.panel_str:
+            # Main panel descriptions
+            case "scene_properties":
+                return "Settings for tweaking the coordinate system (forward direction and scale) of the Blender scene and how units are displayed. This also gives access to the Transform Scene Tool to transform the full scene to the desired coordinate system"
+            case "asset_editor":
+                return "Describes the type of asset you are building, as well as giving access to many tools and properties to edit the tags for this asset"
+            case "sets_manager":
+                return "Lets you manage the halo regions, permutations, and BSPs of your asset. This panel allows you to bulk assign objects to different sets as well as manage the Blender viewport visibility of sets and object types"
+            case "object_properties":
+                return "Allows you set the various Halo specific properties of the active object, and its underlying mesh (if it has one)"
+            case "material_properties":
+                return "Panel for viewing and setting the properties of the materials on the active object. This is also the place to generate tags from a specific blender material"
+            case "animation_manager":
+                return "Describes the full list of animations (actions) in this blend file. Use this to manage which animations should export and the properties of these animations. Clicking on an animation in the list will load it"
+            case "tools":
+                return "Contains a collection of miscellaneous tools to aid in asset development"
+            case "help":
+                return "Provides resources and links to help with asset creation. If you've installed Foundry as a remote repository you can check for updates here. If you've noticed any of Foundry's custom icons are not loading, you can refresh them here"
+            case "settings":
+                return "These are Foundry's preferences. You this to manage your different Halo projects (editing kits) and set various behaviors for the addon"
+            
+            # Asset editor descriptions
+            case "rig_usages":
+                return "A list of special bones that unique properties used by Halo's animation system. Any bones you set here will be added to the animation graph tag for you automatically whenever you export the asset. Leave all these fields blank to if you'd prefer to set the values in the tag yourself, or do not need them"
