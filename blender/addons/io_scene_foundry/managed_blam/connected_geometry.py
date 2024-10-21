@@ -136,7 +136,9 @@ class Cluster:
         self.mesh = Mesh(mesh_block.Elements[self.mesh_index], materials=render_materials)
         
     def create(self, render_model, temp_meshes) -> bpy.types.Object:
-        return self.mesh.create(render_model, temp_meshes, name=f"cluster:{self.index}")[0]
+        result = self.mesh.create(render_model, temp_meshes, name=f"cluster:{self.index}")
+        if result:
+            return result[0]
     
 class InstanceDefinition:
     index: int
@@ -176,11 +178,14 @@ class InstanceDefinition:
     
     def create(self, render_model, temp_meshes) -> list[bpy.types.Object]:
         objects = []
-        self.blender_render = self.mesh.create(render_model, temp_meshes, name=f"instance_definition:{self.index}")[0]
+        result = self.mesh.create(render_model, temp_meshes, name=f"instance_definition:{self.index}")
+        self.blender_render = None
+        if result:
+            self.blender_render = result[0]
         if not utils.is_corinth():
             if self.has_collision:
                 self.blender_collision = self.collision_info.to_object()
-                if self.blender_render.type == 'MESH':
+                if self.blender_render and self.blender_render.type == 'MESH':
                     if self.blender_collision.data.nwo.breakable:
                     # Proxy collision can't be breakable, so wing it and use the render as the collision
                         self.blender_collision = None
@@ -194,7 +199,7 @@ class InstanceDefinition:
                 else:
                     self.blender_collision.data.nwo.mesh_type = "_connected_geometry_mesh_type_collision"
                     
-            elif self.blender_render.data:
+            elif self.blender_render and self.blender_render.data:
                 self.blender_render.data.nwo.render_only = True
             
         if self.blender_render:
@@ -276,7 +281,7 @@ class Instance:
         
         
     def create(self) -> list[bpy.types.Object]:
-        if self.definition.blender_render.type == 'EMPTY' and self.definition.blender_collision:
+        if (not self.definition.blender_render or self.definition.blender_render.type == 'EMPTY') and self.definition.blender_collision:
             ob = self.definition.blender_collision.copy()
         else:
             ob = self.definition.blender_render.copy()
