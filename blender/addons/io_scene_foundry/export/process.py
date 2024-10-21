@@ -1561,8 +1561,8 @@ class ExportScene:
                 with Tag(path=str(emitter_path)) as _: pass
 
     def any_node_usage_override(self):
-        if not self.corinth and self.asset_type == AssetType.ANIMATION and self.scene_settings.asset_animation_type == 'first_person':
-            return False # Don't want to set node usages for reach fp animations, it breaks them
+        # if not self.corinth and self.asset_type == AssetType.ANIMATION and self.scene_settings.asset_animation_type == 'first_person':
+        #     return False # Don't want to set node usages for reach fp animations, it breaks them
         return (self.scene_settings.node_usage_physics_control
                 or self.scene_settings.node_usage_camera_control
                 or self.scene_settings.node_usage_origin_marker
