@@ -49,8 +49,10 @@ class AnimationTag(Tag):
         return node_index_list
                 
     def _needs_skeleton_update(self, node_index_list):
+        if self.skip_skeleton_update:
+            return False
         graph_nodes = [e.SelectField('name').GetStringData() for e in self.block_skeleton_nodes.Elements]
-        return node_index_list != graph_nodes
+        return set(node_index_list) != set(graph_nodes)
     
     def set_node_usages(self, bones, granny: bool = False):
         def _node_usage_dict(nwo):

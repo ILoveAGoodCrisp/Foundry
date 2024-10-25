@@ -972,44 +972,55 @@ class VirtualSkeleton:
             if is_main_armature:
                 arm = bpy.context.scene.nwo.support_armature_a
                 bone_parent = bpy.context.scene.nwo.support_armature_a_parent_bone
-                support_root_set = False
-                if arm and arm.pose and arm.pose.bones and bone_parent and ob.original.pose.bones.get(bone_parent):
-                    for pbone in arm.pose.bones:
+                pose_parent = ob.original.pose.bones.get(bone_parent)
+                if arm and arm.pose and arm.pose.bones and bone_parent and pose_parent:
+                    insertion_index = sorted_bones.index(pose_parent) + 1
+                    sorted_sub_bones = sort_bones_by_hierachy(arm.pose.bones)
+                    for pbone in sorted_sub_bones:
                         if arm.data.bones[pbone.name].use_deform:
                             if pbone.parent:
-                                valid_bones.append(AnimatedBone(pbone))
+                                valid_bones.insert(insertion_index, AnimatedBone(pbone))
                             else:
-                                valid_bones.append(AnimatedBone(pbone, parent_override=ob.original.pose.bones[bone_parent]))
-                            sorted_bones.append(arm.data.bones[pbone.name])
-
+                                valid_bones.insert(insertion_index, AnimatedBone(pbone, parent_override=ob.original.pose.bones[bone_parent]))
+                                
+                            sorted_bones.insert(insertion_index, arm.data.bones[pbone.name])
+                            insertion_index += 1
+                            
                 arm = bpy.context.scene.nwo.support_armature_b
                 bone_parent = bpy.context.scene.nwo.support_armature_b_parent_bone
-                if arm and arm.pose and arm.pose.bones and bone_parent and ob.original.pose.bones.get(bone_parent):
-                    for pbone in arm.pose.bones:
+                pose_parent = ob.original.pose.bones.get(bone_parent)
+                if arm and arm.pose and arm.pose.bones and bone_parent and pose_parent:
+                    insertion_index = sorted_bones.index(pose_parent) + 1
+                    sorted_sub_bones = sort_bones_by_hierachy(arm.pose.bones)
+                    for pbone in sorted_sub_bones:
                         if arm.data.bones[pbone.name].use_deform:
                             if pbone.parent:
-                                valid_bones.append(AnimatedBone(pbone))
+                                valid_bones.insert(insertion_index, AnimatedBone(pbone))
                             else:
-                                valid_bones.append(AnimatedBone(pbone, parent_override=ob.original.pose.bones[bone_parent]))
-                            sorted_bones.append(arm.data.bones[pbone.name])
-
+                                valid_bones.insert(insertion_index, AnimatedBone(pbone, parent_override=ob.original.pose.bones[bone_parent]))
+                                
+                            sorted_bones.insert(insertion_index, arm.data.bones[pbone.name])
+                            insertion_index += 1
+                            
                 arm = bpy.context.scene.nwo.support_armature_c
                 bone_parent = bpy.context.scene.nwo.support_armature_c_parent_bone
-                if arm and arm.pose and arm.pose.bones and bone_parent and ob.original.pose.bones.get(bone_parent):
-                    for pbone in arm.pose.bones:
+                pose_parent = ob.original.pose.bones.get(bone_parent)
+                if arm and arm.pose and arm.pose.bones and bone_parent and pose_parent:
+                    insertion_index = sorted_bones.index(pose_parent) + 1
+                    sorted_sub_bones = sort_bones_by_hierachy(arm.pose.bones)
+                    for pbone in sorted_sub_bones:
                         if arm.data.bones[pbone.name].use_deform:
                             if pbone.parent:
-                                valid_bones.append(AnimatedBone(pbone))
+                                valid_bones.insert(insertion_index, AnimatedBone(pbone))
                             else:
-                                valid_bones.append(AnimatedBone(pbone, parent_override=ob.original.pose.bones[bone_parent]))
-                            sorted_bones.append(arm.data.bones[pbone.name])
-
+                                valid_bones.insert(insertion_index, AnimatedBone(pbone, parent_override=ob.original.pose.bones[bone_parent]))
+                                
+                            sorted_bones.insert(insertion_index, arm.data.bones[pbone.name])
+                            insertion_index += 1
 
             list_bones = [abone.pbone.name for abone in valid_bones]
             dict_bones = {v: i for i, v in enumerate(list_bones)}
             self.pbones = {bone.name: bone.pbone for bone in valid_bones}
-            aim_pitch = bpy.context.scene.nwo.node_usage_pose_blend_pitch
-            aim_yaw = bpy.context.scene.nwo.node_usage_pose_blend_yaw
             
             data_bones = {bone.name: bone for bone in sorted_bones}
 
@@ -1022,37 +1033,22 @@ class VirtualSkeleton:
                 if frame_ids_index is None:
                     frame_ids_index = idx
                 b.create_bone_props(data_bones[bone.pbone.name], scene.frame_ids[frame_ids_index])
-                # b.properties = utils.get_halo_props_for_granny(ob.data.bones[idx])
-                # is_aim_bone = bone.name == aim_pitch or bone.name == aim_yaw
                 if bone.parent:
                     # Add one to this since the root is the armature
                     b.parent_index = dict_bones[bone.parent.name] + 1
                     b.matrix_world = scene.rotation_matrix @ bone.pbone.matrix
                     bone_inverse_matrices[bone.pbone] = b.matrix_world.inverted()
                     b.matrix_local = bone_inverse_matrices[bone.parent] @ b.matrix_world
-                # elif is_aim_bone:
-                #     b.parent_index = 1
-                #     b.matrix_local = IDENTITY_MATRIX
-                #     b.matrix_world = IDENTITY_MATRIX
-                #     if bone.name == aim_pitch:
-                #         scene.aim_pitch_matrix_inverse = bone.matrix.inverted() @ IDENTITY_MATRIX
-                #         scene.aim_pitch = bone
-                #     else:
-                #         scene.aim_yaw_matrix_inverse = bone.matrix.inverted() @ IDENTITY_MATRIX
-                #         scene.aim_yaw = bone
                 else:
                     if root_bone_found:
                         raise RuntimeError(f"Armature {ob.name} has multiple root bones. This must be fixed before export can proceed")
                     root_bone_found = True
                     root_bone = bone.pbone
                     b.parent_index = 0
-                    # b.matrix_local = IDENTITY_MATRIX
-                    # b.matrix_world = IDENTITY_MATRIX
                     b.matrix_world = scene.rotation_matrix @ bone.pbone.matrix
                     b.matrix_local = b.matrix_world
                     bone_inverse_matrices[bone.pbone] = b.matrix_world.inverted()
                     scene.root_bone = root_bone
-                    # scene.root_bone_inverse_matrix = bone.matrix.inverted() @ IDENTITY_MATRIX
                 
                 b.to_granny_data(scene)
                 self.bones.append(b)

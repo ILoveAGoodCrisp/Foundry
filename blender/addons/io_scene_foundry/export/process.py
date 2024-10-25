@@ -1048,6 +1048,7 @@ class ExportScene:
             else:
                 mesh_props["bungie_no_lightmap"] = 1
         if data_nwo.precise_position:
+            print("precise ", ob.name)
             if test_face_prop(face_props, "precise_position_override"):
                 fp_defaults["bungie_precise_position"] = 1
             else:
@@ -1610,19 +1611,19 @@ class ExportScene:
                 if self.defer_graph_process and (self.node_usage_set or self.scene_settings.ik_chains or self.has_animations):
                     with AnimationTag() as animation:
                         if self.scene_settings.parent_animation_graph:
-                            self.print_pre("--- Setting parent animation graph")
+                            self.print_post("--- Setting parent animation graph")
                             animation.set_parent_graph(self.scene_settings.parent_animation_graph)
                             # print("--- Set Parent Animation Graph")
                         if self.virtual_scene.animations:
-                            self.print_pre(f"--- Validating animation compression for {len(self.exported_actions)} animations: Default Compression = {self.scene_settings.default_animation_compression}")
+                            self.print_post(f"--- Validating animation compression for {len(self.exported_actions)} animations: Default Compression = {self.scene_settings.default_animation_compression}")
                             animation.validate_compression(self.exported_actions, self.scene_settings.default_animation_compression)
                             # print("--- Validated Animation Compression")
                         if self.node_usage_set:
-                            self.print_pre("--- Setting node usages")
+                            self.print_post("--- Setting node usages")
                             animation.set_node_usages(self.virtual_scene.animated_bones, True)
                             #print("--- Updated Animation Node Usages")
                         if self.scene_settings.ik_chains:
-                            self.print_pre("--- Writing IK chains")
+                            self.print_post("--- Writing IK chains")
                             animation.write_ik_chains(self.scene_settings.ik_chains, self.virtual_scene.animated_bones, True)
                             # print("--- Updated Animation IK Chains")
                             
