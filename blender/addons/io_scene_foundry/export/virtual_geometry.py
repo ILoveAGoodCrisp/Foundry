@@ -532,8 +532,9 @@ class VirtualMesh:
         
         def remap(i):
             return vgroup_remap.get(i, 0)
-        
+        # TODO ensure collision is not skinned
         if self.vertex_weighted:
+            collision = props.get("bungie_mesh_type") == MeshType.collision.value
             unique_bone_indices = set()
             vgroup_bone_names = {}
             for idx, vg in enumerate(ob.vertex_groups):
@@ -979,6 +980,7 @@ class VirtualSkeleton:
                                 valid_bones.append(AnimatedBone(pbone))
                             else:
                                 valid_bones.append(AnimatedBone(pbone, parent_override=ob.original.pose.bones[bone_parent]))
+                            sorted_bones.append(arm.data.bones[pbone.name])
 
                 arm = bpy.context.scene.nwo.support_armature_b
                 bone_parent = bpy.context.scene.nwo.support_armature_b_parent_bone
@@ -989,6 +991,7 @@ class VirtualSkeleton:
                                 valid_bones.append(AnimatedBone(pbone))
                             else:
                                 valid_bones.append(AnimatedBone(pbone, parent_override=ob.original.pose.bones[bone_parent]))
+                            sorted_bones.append(arm.data.bones[pbone.name])
 
                 arm = bpy.context.scene.nwo.support_armature_c
                 bone_parent = bpy.context.scene.nwo.support_armature_c_parent_bone
@@ -999,6 +1002,7 @@ class VirtualSkeleton:
                                 valid_bones.append(AnimatedBone(pbone))
                             else:
                                 valid_bones.append(AnimatedBone(pbone, parent_override=ob.original.pose.bones[bone_parent]))
+                            sorted_bones.append(arm.data.bones[pbone.name])
 
 
             list_bones = [abone.pbone.name for abone in valid_bones]
@@ -1006,6 +1010,8 @@ class VirtualSkeleton:
             self.pbones = {bone.name: bone.pbone for bone in valid_bones}
             aim_pitch = bpy.context.scene.nwo.node_usage_pose_blend_pitch
             aim_yaw = bpy.context.scene.nwo.node_usage_pose_blend_yaw
+            
+            data_bones = {bone.name: bone for bone in sorted_bones}
 
             root_bone = None
             root_bone_found = False
@@ -1015,7 +1021,7 @@ class VirtualSkeleton:
                 frame_ids_index = scene.template_node_order.get(b.name)
                 if frame_ids_index is None:
                     frame_ids_index = idx
-                b.create_bone_props(ob.data.bones[bone.pbone.name], scene.frame_ids[frame_ids_index])
+                b.create_bone_props(data_bones[bone.pbone.name], scene.frame_ids[frame_ids_index])
                 # b.properties = utils.get_halo_props_for_granny(ob.data.bones[idx])
                 # is_aim_bone = bone.name == aim_pitch or bone.name == aim_yaw
                 if bone.parent:

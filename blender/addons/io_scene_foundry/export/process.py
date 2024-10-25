@@ -23,7 +23,7 @@ from ..managed_blam.animation import AnimationTag
 from ..managed_blam.model import ModelTag
 from .import_sidecar import SidecarImport
 from .build_sidecar import Sidecar
-from .export_info import ExportInfo, FaceDrawDistance, FaceMode, FaceSides, FaceType, LightmapType, MeshTessellationDensity, MeshType, ObjectType
+from .export_info import BoundarySurfaceType, ExportInfo, FaceDrawDistance, FaceMode, FaceSides, FaceType, LightmapType, MeshObbVolumeType, MeshTessellationDensity, MeshType, ObjectType
 from ..props.mesh import NWO_MeshPropertiesGroup
 from ..props.object import NWO_ObjectPropertiesGroup
 from .virtual_geometry import AnimatedBone, VirtualAnimation, VirtualNode, VirtualScene
@@ -565,11 +565,14 @@ class ExportScene:
                 props["bungie_mesh_portal_blocks_sound"] = 1
             if nwo.portal_is_door:
                 props["bungie_mesh_portal_is_door"] = 1
-        elif mesh_type == "_connected_geometry_mesh_type_water_physics_volume":
-            props = self._setup_water_physics_props(nwo, props)
         elif mesh_type == "_connected_geometry_mesh_type_water_surface":
             if nwo.water_volume_depth > 0:
-                copy = ObjectCopy.WATER_PHYSICS
+                if mesh.materials:
+                    copy = ObjectCopy.WATER_PHYSICS
+                else:
+                    mesh_type = '_connected_geometry_mesh_type_water_physics_volume'
+                    self._setup_water_physics_props()
+                    
         elif mesh_type in ("_connected_geometry_mesh_type_poop_vertical_rain_sheet", "_connected_geometry_mesh_type_poop_rain_blocker"):
             mesh_props["bungie_face_mode"] = FaceMode.render_only.value
             
@@ -577,63 +580,51 @@ class ExportScene:
             props["bungie_mesh_fog_appearance_tag"] = utils.relative_path(nwo.fog_appearance_tag)
             props["bungie_mesh_fog_volume_depth"] = nwo.fog_volume_depth
             
-        elif mesh_type == "_connected_geometry_mesh_type_soft_ceiling":
-            mesh_type = "_connected_geometry_mesh_type_boundary_surface"
-            props["bungie_mesh_boundary_surface_type"] = '_connected_geometry_boundary_surface_type_soft_ceiling'
+        elif mesh_type == "_connected_geometry_mesh_type_boundary_surface":
+            match nwo.boundary_surface_type:
+                case 'soft_ceiling':
+                    props["bungie_mesh_boundary_surface_type"] = BoundarySurfaceType.soft_ceiling.value
+                case 'soft_kill':
+                    props["bungie_mesh_boundary_surface_type"] = BoundarySurfaceType.soft_kill.value
+                case 'slip_surface':
+                    props["bungie_mesh_boundary_surface_type"] = BoundarySurfaceType.slip_surface.value
+                case _:
+                    return
+                
             props["bungie_mesh_boundary_surface_name"] = utils.dot_partition(ob.name)
             
-        elif mesh_type == "_connected_geometry_mesh_type_soft_kill":
-            mesh_type = "_connected_geometry_mesh_type_boundary_surface"
-            props["bungie_mesh_boundary_surface_type"] = '_connected_geometry_boundary_surface_type_soft_kill'
-            props["bungie_mesh_boundary_surface_name"] = utils.dot_partition(ob.name)
+        elif mesh_type == "_connected_geometry_mesh_type_obb_volume":
+            match nwo.obb_volume.type:
+                case 'lightmapexclusionvolume':
+                    props["bungie_mesh_obb_type"] = MeshObbVolumeType.lightmapexclusionvolume.value
+                case 'streamingvolume':
+                    props["bungie_mesh_obb_type"] = MeshObbVolumeType.streamingvolume.value
+                case _:
+                    return
             
-        elif mesh_type == "_connected_geometry_mesh_type_slip_surface":
-            mesh_type = "_connected_geometry_mesh_type_boundary_surface"
-            props["bungie_mesh_boundary_surface_type"] = '_connected_geometry_boundary_surface_type_slip_surface'
-            props["bungie_mesh_boundary_surface_name"] = utils.dot_partition(ob.name)
-            
-        elif mesh_type == "_connected_geometry_mesh_type_lightmap_only":
-            nwo.lightmap_resolution_scale_active = False
-            mesh_type = "_connected_geometry_mesh_type_poop"
-            props, mesh_props = self._setup_poop_props(ob, nwo, data_nwo, props, mesh_props)
-            if data_nwo.no_shadow:
-                mesh_props["bungie_face_mode"] = FaceMode.render_only.value
-            else:
-                mesh_props["bungie_face_mode"] = FaceMode.lightmap_only.value
-            props["bungie_mesh_poop_lighting"] = "_connected_geometry_poop_lighting_single_probe"
-            props["bungie_mesh_poop_pathfinding"] = "_connected_poop_instance_pathfinding_policy_none"
-            
-        elif mesh_type == "_connected_geometry_mesh_type_lightmap_exclude":
-            mesh_type = "_connected_geometry_mesh_type_obb_volume"
-            props["bungie_mesh_obb_type"] = "_connected_geometry_mesh_obb_volume_type_lightmapexclusionvolume"
-            
-        elif mesh_type == "_connected_geometry_mesh_type_streaming":
-            mesh_type = "_connected_geometry_mesh_type_obb_volume"
-            props["bungie_mesh_obb_type"] = "_connected_geometry_mesh_obb_volume_type_streamingvolume"
-            
-        elif mesh_type == '_connected_geometry_mesh_type_collision' and self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB}:
-            if self.corinth:
-                mesh_type = '_connected_geometry_mesh_type_poop_collision'
-                props["bungie_mesh_poop_collision_type"] = data_nwo.poop_collision_type
-            elif ob.parent and ob.parent.type in VALID_MESHES and ob.parent.data.nwo.mesh_type == '_connected_geometry_mesh_type_default':
-                mesh_type = '_connected_geometry_mesh_type_poop_collision'
-                props["bungie_poop_parent"] = '_connected_geometry_mesh_type_poop_collision'
-                parent_halo_data = self.ob_halo_data.get(ob.parent)
-                if parent_halo_data:
-                    # if parent_halo_data[0].get("bungie_face_mode") not in 
-                    parent_halo_data[0]["bungie_face_mode"] = FaceMode.render_only.value
-                else:
-                    self.forced_render_only[ob.parent] = None
-            else:
-                mesh_type = '_connected_geometry_mesh_type_poop'
-                props["bungie_mesh_poop_lighting"] = "_connected_geometry_poop_lighting_single_probe"
-                props["bungie_mesh_poop_pathfinding"] = "_connected_poop_instance_pathfinding_policy_cutout"
-                props["bungie_mesh_poop_imposter_policy"] = "_connected_poop_instance_imposter_policy_never"
-                # nwo.reach_poop_collision = True
-                if data_nwo.sphere_collision_only:
-                    mesh_props["bungie_face_mode"] = FaceMode.sphere_collision_only.value
-                else:
-                    mesh_props["bungie_face_mode"] = FaceMode.collision_only.value
+        # elif mesh_type == '_connected_geometry_mesh_type_collision' and self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB}:
+        #     if self.corinth:
+        #         mesh_type = '_connected_geometry_mesh_type_poop_collision'
+        #         props["bungie_mesh_poop_collision_type"] = data_nwo.poop_collision_type
+        #     elif ob.parent and ob.parent.type in VALID_MESHES and ob.parent.data.nwo.mesh_type == '_connected_geometry_mesh_type_default':
+        #         mesh_type = '_connected_geometry_mesh_type_poop_collision'
+        #         props["bungie_poop_parent"] = '_connected_geometry_mesh_type_poop_collision'
+        #         parent_halo_data = self.ob_halo_data.get(ob.parent)
+        #         if parent_halo_data:
+        #             # if parent_halo_data[0].get("bungie_face_mode") not in 
+        #             parent_halo_data[0]["bungie_face_mode"] = FaceMode.render_only.value
+        #         else:
+        #             self.forced_render_only[ob.parent] = None
+            # else:
+            #     mesh_type = '_connected_geometry_mesh_type_poop'
+            #     props["bungie_mesh_poop_lighting"] = "_connected_geometry_poop_lighting_single_probe"
+            #     props["bungie_mesh_poop_pathfinding"] = "_connected_poop_instance_pathfinding_policy_cutout"
+            #     props["bungie_mesh_poop_imposter_policy"] = "_connected_poop_instance_imposter_policy_never"
+            #     # nwo.reach_poop_collision = True
+            #     if data_nwo.sphere_collision_only:
+            #         mesh_props["bungie_face_mode"] = FaceMode.sphere_collision_only.value
+            #     else:
+            #         mesh_props["bungie_face_mode"] = FaceMode.collision_only.value
         
         elif self.asset_type == AssetType.PREFAB:
             mesh_type = '_connected_geometry_mesh_type_poop'

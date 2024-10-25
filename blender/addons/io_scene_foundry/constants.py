@@ -1,5 +1,6 @@
 # MESH TYPE GROUPS
 # Mesh types which support render properties
+from dataclasses import dataclass
 from enum import Enum, auto
 
 from mathutils import Matrix
@@ -103,10 +104,45 @@ LEGACY_ANIMATION_TYPES = (
     "JMRX",
 )
 
+# class FoundryGame:
+#     def __init__(self):
+#         self.name: str
+
+
+# class FoundryAssetType:
+#     def __init__(self):
+#         self.games: tuple[FoundryGame]
+
+
+# class FoundryMeshType:
+#     def __init__(self):
+#         self.games: tuple[FoundryGame]
+#         self.asset_types = tuple[FoundryAssetType]
+#         self.mesh_properties: bool
+#         self.face_properties: bool
+        
+
+# REACH = FoundryGame()
+# REACH.name = "reach"
+
+# CORINTH = FoundryGame()
+# CORINTH.name = "corinth"
+
+# MODEL = FoundryAssetType()
+# MODEL.games = REACH, CORINTH
+
+# SCENARIO = FoundryAssetType()
+# SCENARIO.games = REACH, CORINTH
+
+# MESH_DEFAULT = FoundryMeshType()
+# MESH_DEFAULT.games = REACH, CORINTH
+# MESH_DEFAULT.asset_types = MODEL, SCENARIO
+        
+
 object_asset_validation = {
     # Mesh
     '_connected_geometry_mesh_type_default': ('model', 'scenario', 'sky', 'particle_model', 'decorator_set', 'animation', 'prefab', 'resource'),
-    '_connected_geometry_mesh_type_collision': ('model', 'scenario', 'sky', 'prefab', 'resource'),
+    '_connected_geometry_mesh_type_collision': ('model', 'resource'),
     '_connected_geometry_mesh_type_physics': ('model', 'resource'),
     '_connected_geometry_mesh_type_object_instance': ('model', 'resource'),
     '_connected_geometry_mesh_type_structure': ('scenario', 'resource'),
@@ -116,13 +152,15 @@ object_asset_validation = {
     '_connected_geometry_mesh_type_water_surface': ('scenario', 'resource'),
     '_connected_geometry_mesh_type_poop_vertical_rain_sheet': ('scenario', 'resource'),
     '_connected_geometry_mesh_type_planar_fog_volume': ('scenario', 'resource'),
-    '_connected_geometry_mesh_type_soft_ceiling': ('scenario', 'resource'),
-    '_connected_geometry_mesh_type_soft_kill': ('scenario', 'resource'),
-    '_connected_geometry_mesh_type_slip_surface': ('scenario', 'resource'),
-    '_connected_geometry_mesh_type_water_physics_volume': ('scenario', 'resource'),
-    '_connected_geometry_mesh_type_lightmap_only': ('scenario', 'prefab', 'resource'),
-    '_connected_geometry_mesh_type_streaming': ('scenario', 'resource'),
-    '_connected_geometry_mesh_type_lightmap_exclude': ('scenario', 'resource'),
+    '_connected_geometry_mesh_type_boundary_surface': ('scenario', 'resource'),
+    #'_connected_geometry_mesh_type_soft_ceiling': ('scenario', 'resource'),
+    #'_connected_geometry_mesh_type_soft_kill': ('scenario', 'resource'),
+    #'_connected_geometry_mesh_type_slip_surface': ('scenario', 'resource'),
+    #'_connected_geometry_mesh_type_water_physics_volume': ('scenario', 'resource'),
+    #'_connected_geometry_mesh_type_lightmap_only': ('scenario', 'prefab', 'resource'),
+    #'_connected_geometry_mesh_type_streaming': ('scenario', 'resource'),
+    #'_connected_geometry_mesh_type_lightmap_exclude': ('scenario', 'resource'),
+    '_connected_geometry_mesh_type_obb_volume': ('scenario', 'resource'),
     '_connected_geometry_mesh_type_cookie_cutter': ('scenario', 'resource'),
     '_connected_geometry_mesh_type_poop_rain_blocker': ('scenario', 'resource'),
     # Marker
@@ -152,13 +190,14 @@ object_game_validation = {
     '_connected_geometry_mesh_type_water_surface': ('reach', 'corinth'),
     '_connected_geometry_mesh_type_poop_vertical_rain_sheet': ('reach',),
     '_connected_geometry_mesh_type_planar_fog_volume': ('reach',),
-    '_connected_geometry_mesh_type_soft_ceiling': ('reach', 'corinth'),
-    '_connected_geometry_mesh_type_soft_kill': ('reach', 'corinth'),
-    '_connected_geometry_mesh_type_slip_surface': ('reach', 'corinth'),
-    '_connected_geometry_mesh_type_water_physics_volume': ('reach', 'corinth'),
-    '_connected_geometry_mesh_type_lightmap_only': ('reach', 'corinth'),
-    '_connected_geometry_mesh_type_streaming': ('corinth',),
-    '_connected_geometry_mesh_type_lightmap_exclude': ('corinth',),
+    #'_connected_geometry_mesh_type_soft_ceiling': ('reach', 'corinth'),
+    #'_connected_geometry_mesh_type_soft_kill': ('reach', 'corinth'),
+    #'_connected_geometry_mesh_type_slip_surface': ('reach', 'corinth'),
+    # '_connected_geometry_mesh_type_water_physics_volume': ('reach', 'corinth'),
+    # '_connected_geometry_mesh_type_lightmap_only': ('reach', 'corinth'),
+    # '_connected_geometry_mesh_type_streaming': ('corinth',),
+    '_connected_geometry_mesh_type_obb_volume': ('corinth',),
+    #'_connected_geometry_mesh_type_lightmap_exclude': ('corinth',),
     '_connected_geometry_mesh_type_cookie_cutter': ('reach',),
     '_connected_geometry_mesh_type_poop_rain_blocker': ('reach',),
     # Marker

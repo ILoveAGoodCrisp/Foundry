@@ -94,6 +94,15 @@ class MeshTessellationDensity(BungieEnum):
     _9x = 2
     _36x = 3
     
+class BoundarySurfaceType(BungieEnum):
+    soft_ceiling = 0
+    soft_kill = 1
+    slip_surface = 2
+    
+class MeshObbVolumeType(BungieEnum):
+    streamingvolume = 0
+    lightmapexclusionvolume = 1
+    
 class ExportInfo:
     def __init__(self, regions, global_materials):
         self.export_user = getuser()[:19]
