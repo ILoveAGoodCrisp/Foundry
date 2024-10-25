@@ -155,6 +155,15 @@ class ExportScene:
         self.defer_graph_process = False
         self.node_usage_set = False
         
+        self.forced_render_only = {}
+        self.armature_poses = {}
+        self.ob_halo_data = {}
+        self.disabled_collections = set()
+        self.animated_objects = {}
+        self.current_frame = context.scene.frame_current
+        self.current_action = None
+        self.current_mode = context.mode
+        
     def _get_export_tag_types(self):
         tag_types = set()
         match self.asset_type:
@@ -190,12 +199,8 @@ class ExportScene:
     def ready_scene(self):
         utils.exit_local_view(self.context)
         self.context.view_layer.update()
-        self.current_mode = self.context.mode
         utils.set_object_mode(self.context)
         self.disabled_collections = utils.disable_excluded_collections(self.context)
-        self.current_frame = self.context.scene.frame_current
-        self.current_action = None
-        self.animated_objects = {}
         if self.asset_type in {AssetType.MODEL, AssetType.ANIMATION}:
             action_index = self.context.scene.nwo.active_action_index
             if action_index > -1:
@@ -335,11 +340,8 @@ class ExportScene:
     
     def map_halo_properties(self):
         process = "--- Mapping Halo Properties"
-        self.ob_halo_data = {}
         num_export_objects = len(self.export_objects)
         self.collection_map = create_parent_mapping(self.depsgraph)
-        self.forced_render_only = {}
-        self.armature_poses = {}
         object_parent_dict = {}
         evaluated_support_armatures = set()
         for ob in self.support_armatures:
