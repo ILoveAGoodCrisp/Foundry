@@ -49,8 +49,6 @@ class AnimationTag(Tag):
         return node_index_list
                 
     def _needs_skeleton_update(self, node_index_list):
-        if self.skip_skeleton_update:
-            return False
         graph_nodes = [e.SelectField('name').GetStringData() for e in self.block_skeleton_nodes.Elements]
         return set(node_index_list) != set(graph_nodes)
     

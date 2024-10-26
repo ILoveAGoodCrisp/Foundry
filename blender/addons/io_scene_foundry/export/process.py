@@ -248,8 +248,15 @@ class ExportScene:
                     else:
                         value.matrix_world = ob.matrix_world @ value.matrix_world
             
+        if not self.main_armature:
+            for ob in self.context.view_layer.objects:
+                if ob.type == 'ARMATURE' and ob.parent is None:
+                    self.main_armature = ob
+                    break
+                    
         if self.main_armature:
-            self.support_armatures = {self.context.scene.nwo.support_armature_a, self.context.scene.nwo.support_armature_b, self.context.scene.nwo.support_armature_c}
+            self.support_armatures = [ob for ob in self.main_armature.children if ob.type == 'ARMATURE' and ob.nwo.exportable]
+            # self.support_armatures = {self.context.scene.nwo.support_armature_a, self.context.scene.nwo.support_armature_b, self.context.scene.nwo.support_armature_c}
             
         self.depsgraph = self.context.evaluated_depsgraph_get()
         
@@ -448,6 +455,7 @@ class ExportScene:
         self.virtual_scene.object_parent_dict = object_parent_dict
         self.virtual_scene.object_halo_data = self.ob_halo_data
         self.virtual_scene.export_tag_types = self.export_tag_types
+        self.virtual_scene.support_armatures = self.support_armatures
         self.context.view_layer.update()
         
     def _get_object_type(self, ob) -> ObjectType:

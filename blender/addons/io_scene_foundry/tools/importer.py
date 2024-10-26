@@ -278,22 +278,39 @@ class NWO_Import(bpy.types.Operator):
                         addon_utils.enable('io_scene_halo')
                     jms_files = importer.sorted_filepaths["jms"]
                     jma_files = importer.sorted_filepaths["jma"]
+                    
+                    scene_nwo = context.scene.nwo
+                    if scene_nwo.main_armature:
+                        arm = scene_nwo.main_armature
+                    else:
+                        arm = utils.get_rig(self.context)
+                        if not arm:
+                            arm_data = bpy.data.armatures.new('Armature')
+                            arm = bpy.data.objects.new('Armature', arm_data)
+                            self.context.scene.collection.objects.link(arm)
+                        
+                    arm.hide_set(False)
+                    arm.hide_select = False
+                    utils.set_active_object(arm)
+                    
                     # Transform Scene so it's ready for JMA/JMS files
                     if needs_scaling:
-                        utils.transform_scene(context, (1 / scale_factor), to_x_rot, context.scene.nwo.forward_direction, 'x')
-                        
-                    imported_jms_objects = importer.import_jms_files(jms_files, self.legacy_fix_rotations)
-                    imported_jma_animations = importer.import_jma_files(jma_files, self.legacy_fix_rotations)
-                    if imported_jma_animations:
-                        imported_actions.extend(imported_jma_animations)
-                    if imported_jms_objects:
-                        imported_objects.extend(imported_jms_objects)
-                    if not toolset_addon_enabled:
-                        addon_utils.disable('io_scene_halo')
-                        
-                    # Return to our scale
-                    if needs_scaling:
-                        utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction)
+                        utils.transform_scene(context, (1 / scale_factor), to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[arm], actions=[])
+         
+                    try:
+                        imported_jms_objects = importer.import_jms_files(jms_files, self.legacy_fix_rotations)
+                        imported_jma_animations = importer.import_jma_files(jma_files, self.legacy_fix_rotations)
+                        if imported_jma_animations:
+                            imported_actions.extend(imported_jma_animations)
+                        if imported_jms_objects:
+                            imported_objects.extend(imported_jms_objects)
+                        if not toolset_addon_enabled:
+                            addon_utils.disable('io_scene_halo')
+                            
+                    finally:
+                        # Return to our scale
+                        if needs_scaling:
+                            utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=[arm], actions=imported_actions)
                         
                 if 'model' in importer.extensions:
                     importer.tag_render = self.tag_render
@@ -1971,19 +1988,6 @@ class NWOImporter:
             return []
         self.animations = []
         self.objects = []
-        scene_nwo = self.context.scene.nwo
-        if scene_nwo.main_armature:
-            arm = scene_nwo.main_armature
-        else:
-            arm = utils.get_rig(self.context)
-            if not arm:
-                arm_data = bpy.data.armatures.new('Armature')
-                arm = bpy.data.objects.new('Armature', arm_data)
-                self.context.scene.collection.objects.link(arm)
-            
-        arm.hide_set(False)
-        arm.hide_select = False
-        utils.set_active_object(arm)
         muted_armature_deforms = utils.mute_armature_mods()
         if jma_files:
             print("Importing Animations")

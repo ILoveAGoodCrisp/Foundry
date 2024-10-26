@@ -60,7 +60,7 @@ classes = [
     asset.NWO_OT_SelectObjectControl,
     asset.NWO_OT_ClearAsset,
     asset.NWO_OT_RegisterIcons,
-    asset.NWO_OT_LinkArmatures,
+    # asset.NWO_OT_LinkArmatures,
     material.NWO_OT_MaterialOpenTag,
     material.NWO_OpenImageEditor,
     material.NWO_DuplicateMaterial,

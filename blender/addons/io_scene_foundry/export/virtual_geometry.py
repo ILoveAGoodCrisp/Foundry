@@ -94,13 +94,14 @@ class VirtualAnimation:
             bone_inverse_matrices = {}
             for idx, bone in enumerate(bones):
                 if bone.is_object:
-                    matrix = scene.rotation_matrix @ scale_matrix @ bone.pbone.matrix_local
+                    matrix = scene.rotation_matrix @ (bone.parent_matrix_rest_inverted @ bone.ob.matrix_world) @ bone.pbone.matrix_local
                 elif bone.parent:
-                    matrix_world = scene.rotation_matrix @ scale_matrix @ bone.pbone.matrix
+                    # matrix_world = scene.rotation_matrix @ scale_matrix @ bone.pbone.matrix
+                    matrix_world = scene.rotation_matrix @ (bone.parent_matrix_rest_inverted @ bone.ob.matrix_world) @ bone.pbone.matrix
                     bone_inverse_matrices[bone.pbone] = matrix_world.inverted()
                     matrix = bone_inverse_matrices[bone.parent] @ matrix_world
                 else:
-                    matrix = scene.rotation_matrix @ scale_matrix @ bone.pbone.matrix
+                    matrix = scene.rotation_matrix @ (bone.parent_matrix_rest_inverted @ bone.ob.matrix_world) @ bone.pbone.matrix
                     bone_inverse_matrices[bone.pbone] = matrix.inverted()
 
                 loc, rot, sca = matrix.decompose()
@@ -906,8 +907,10 @@ class VirtualBone:
         return inverse_transform
     
 class AnimatedBone:
-    def __init__(self, pbone, parent_override=None, is_aim_bone=False):
+    def __init__(self, ob: bpy.types.Object, pbone, parent_override=None, is_aim_bone=False):
         self.name = pbone.name
+        self.ob = ob
+        self.parent_matrix_rest_inverted = ob.matrix_world.inverted()
         self.pbone: bpy.types.PoseBone = pbone
         self.parent = None
         self.is_object = False
@@ -923,6 +926,7 @@ class AnimatedBone:
 class FakeBone:
     def __init__(self, ob: bpy.types.Object, bone: bpy.types.PoseBone, parent: 'FakeBone' = None, special_bone_names=[]):
         self.name = bone.name
+        self.ob = ob
         self.parent = parent
         self.bone = bone
         self.export = ob.data.bones[bone.name].use_deform or self.name in special_bone_names
@@ -963,46 +967,31 @@ class VirtualSkeleton:
         self.bones: list[VirtualBone] = [own_bone]
         self._get_bones(ob, scene, is_main_armature)
         
-    def _get_bones(self, ob, scene: 'VirtualScene',is_main_armature: bool):
+    def _get_bones(self, ob, scene: 'VirtualScene', is_main_armature: bool):
         if ob.type == 'ARMATURE':
+            main_arm = ob.original
             scene_nwo = bpy.context.scene.nwo
             aim_bone_names = {scene_nwo.node_usage_pose_blend_pitch, scene_nwo.node_usage_pose_blend_yaw}
             special_bone_names = {scene_nwo.node_usage_pedestal, scene_nwo.node_usage_pose_blend_pitch, scene_nwo.node_usage_pose_blend_yaw}
             # Get all bones at fake_bones, so we can more easily create a virtual skeleton containing multiple armatures
-            
             support_armature_bone_parent_names = set()
-            arm_a = None
-            arm_b = None
-            arm_c = None
-            bone_a = None
-            bone_b = None
-            bone_c = None
             if is_main_armature:
-                arm_a = bpy.context.scene.nwo.support_armature_a
-                arm_b = bpy.context.scene.nwo.support_armature_b
-                arm_c = bpy.context.scene.nwo.support_armature_c
-                bone_a = bpy.context.scene.nwo.support_armature_a_parent_bone
-                bone_b = bpy.context.scene.nwo.support_armature_b_parent_bone
-                bone_c = bpy.context.scene.nwo.support_armature_c_parent_bone
-                # Support Armature A
-                pose_parent = ob.original.pose.bones.get(bone_a)
-                if arm_a and arm_a.pose and arm_a.pose.bones and bone_a and pose_parent:
-                    support_armature_bone_parent_names.add(pose_parent.name)
-                # Support Armature B
-                pose_parent = ob.original.pose.bones.get(bone_b)
-                if arm_b and arm_b.pose and arm_b.pose.bones and bone_b and pose_parent:
-                    support_armature_bone_parent_names.add(pose_parent.name)
-                # Support Armature C
-                pose_parent = ob.original.pose.bones.get(bone_c)
-                if arm_c and arm_c.pose and arm_c.pose.bones and bone_c and pose_parent:
-                    support_armature_bone_parent_names.add(pose_parent.name)
-            
-            main_arm = ob.original
+                export_bones = [b for b in main_arm.data.bones if b.use_deform or b.name in special_bone_names]
+                export_bone_names = [b.name for b in export_bones]
+                root_bone_names = [b.name for b in export_bones if b.parent is None]
+                if root_bone_names:
+                    root = root_bone_names[0]
+                    for child in scene.support_armatures:
+                        if child.parent_type == 'BONE' and child.parent_bone in export_bone_names:
+                            support_armature_bone_parent_names.add(child.parent_bone)
+                        else:
+                            support_armature_bone_parent_names.add(root)
+
             start_bones_dict = {}
             
             def create_fake_bone(arm, pb, parent_fb=None) -> FakeBone:
                 if parent_fb is None:
-                    parent = pbone.parent
+                    parent = pb.parent
                     if parent:
                         parent_fb = start_bones_dict.get(parent.name)
                 fb = FakeBone(arm, pb, parent_fb, special_bone_names)
@@ -1016,16 +1005,9 @@ class VirtualSkeleton:
             for pbone in main_arm.pose.bones:
                 fb = create_fake_bone(main_arm, pbone)
                 if fb.name in support_armature_bone_parent_names:
-                    if bone_a == fb.name:
-                        for pbone_a in arm_a.pose.bones:
-                            create_fake_bone(arm_a, pbone_a, fb if pbone_a.parent is None else None)
-                    if bone_b == fb.name:
-                        for pbone_b in arm_b.pose.bones:
-                            create_fake_bone(arm_b, pbone_b, fb if pbone_a.parent is None else None)
-                    if bone_c == fb.name:
-                        for pbone_c in arm_c.pose.bones:
-                            create_fake_bone(arm_c, pbone_c, fb if pbone_a.parent is None else None)
-                        
+                    for child in scene.support_armatures:
+                        for pbone_s in child.pose.bones:
+                            create_fake_bone(child, pbone_s, fb if pbone_s.parent is None else None)
                 
             start_bones = list(start_bones_dict.values())
             
@@ -1065,7 +1047,8 @@ class VirtualSkeleton:
                 
                 b.to_granny_data(scene)
                 self.bones.append(b)
-                scene.animated_bones.append(AnimatedBone(fb.bone, is_aim_bone=fb.name in aim_bone_names, parent_override=fb.parent.bone if fb.parent else None))
+                if is_main_armature:
+                    scene.animated_bones.append(AnimatedBone(fb.ob, fb.bone, is_aim_bone=fb.name in aim_bone_names, parent_override=fb.parent.bone if fb.parent else None))
                 
             child_index = 0
             for child in scene.get_immediate_children(ob):
@@ -1222,6 +1205,7 @@ class VirtualScene:
         self.armature_matrix = IDENTITY_MATRIX
         
         self.export_tag_types = set()
+        self.support_armatures = []
         
         spath = "shaders\invalid"
         stype = "material" if corinth else "shader"

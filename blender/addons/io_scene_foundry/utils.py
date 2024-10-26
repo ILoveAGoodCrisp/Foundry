@@ -2009,12 +2009,12 @@ def get_animated_objects(context) -> list[bpy.types.Object]:
         animated_objects.add(context.object)
     if scene_nwo.main_armature and scene_nwo.main_armature.animation_data:
         animated_objects.add(scene_nwo.main_armature)
-    if scene_nwo.support_armature_a and scene_nwo.support_armature_a.animation_data:
-        animated_objects.add(scene_nwo.support_armature_a)
-    if scene_nwo.support_armature_b and scene_nwo.support_armature_b.animation_data:
-        animated_objects.add(scene_nwo.support_armature_b)
-    if scene_nwo.support_armature_c and scene_nwo.support_armature_c.animation_data:
-        animated_objects.add(scene_nwo.support_armature_c)
+    # if scene_nwo.support_armature_a and scene_nwo.support_armature_a.animation_data:
+    #     animated_objects.add(scene_nwo.support_armature_a)
+    # if scene_nwo.support_armature_b and scene_nwo.support_armature_b.animation_data:
+    #     animated_objects.add(scene_nwo.support_armature_b)
+    # if scene_nwo.support_armature_c and scene_nwo.support_armature_c.animation_data:
+    #     animated_objects.add(scene_nwo.support_armature_c)
         
     control_objects = get_object_controls(context)
     if control_objects:
