@@ -155,7 +155,6 @@ class ExportScene:
         self.defer_graph_process = False
         self.node_usage_set = False
         
-        self.forced_render_only = {}
         self.armature_poses = {}
         self.ob_halo_data = {}
         self.disabled_collections = set()
@@ -674,6 +673,12 @@ class ExportScene:
         return props
     
     def _setup_poop_props(self, ob: bpy.types.Object, nwo: NWO_ObjectPropertiesGroup, data_nwo: NWO_MeshPropertiesGroup, props: dict, mesh_props: dict):
+        if self.corinth and not data_nwo.render_only and data_nwo.collision_only:
+            props["bungie_mesh_type"] = MeshType.poop_collision.value
+            props["bungie_mesh_poop_collision_type"] = data_nwo.poop_collision_type
+            props["bungie_mesh_poop_pathfinding"] = PoopInstancePathfindingPolicy[nwo.poop_pathfinding].value
+            return props, mesh_props
+        
         props["bungie_mesh_poop_lighting"] = PoopLighting[nwo.poop_lighting].value
         props["bungie_mesh_poop_pathfinding"] = PoopInstancePathfindingPolicy[nwo.poop_pathfinding].value
         props["bungie_mesh_poop_imposter_policy"] = PoopInstanceImposterPolicy[nwo.poop_imposter_policy].value
@@ -713,9 +718,6 @@ class ExportScene:
                 props["bungie_mesh_poop_remove_from_shadow_geometry"] = 1
             if nwo.poop_disallow_lighting_samples:
                 props["bungie_mesh_poop_disallow_object_lighting_samples"] = 1
-        
-        if self.forced_render_only.get(ob):
-            props["bungie_face_mode"] = FaceMode.render_only.value
 
         return props, mesh_props
         
@@ -997,12 +999,12 @@ class ExportScene:
                 fp_defaults["bungie_face_mode"] = FaceMode.collision_only.value
             else:
                 mesh_props["bungie_face_mode"] = FaceMode.collision_only.value
-        elif data_nwo.sphere_collision_only:
+        elif not self.corinth and data_nwo.sphere_collision_only:
             if test_face_prop(face_props, "sphere_collision_only_override"):
                 fp_defaults["bungie_face_mode"] = FaceMode.sphere_collision_only.value
             else:
                 mesh_props["bungie_face_mode"] = FaceMode.sphere_collision_only.value
-        elif data_nwo.breakable:
+        elif not self.corinth and data_nwo.breakable:
             if test_face_prop(face_props, "breakable_override"):
                 fp_defaults["bungie_face_mode"] = FaceMode.breakable.value
             else:

@@ -134,16 +134,10 @@ class NWO_MT_FaceLayerAddMenu(bpy.types.Menu):
                 layout.operator(
                     self.op_prefix, text="Collision Only"
                 ).options = "collision_only"
-                layout.operator(
-                    self.op_prefix, text="Sphere Collision Only"
-                ).options = "sphere_collision_only"
-                if h4:
+                if not h4:
                     layout.operator(
-                        self.op_prefix, text="Bullet Collision Only"
-                    ).options = "bullet_collision_only"
-                    layout.operator(
-                        self.op_prefix, text="Player Collision Only"
-                    ).options = "player_collision_only"
+                        self.op_prefix, text="Sphere Collision Only"
+                    ).options = "sphere_collision_only"
                 layout.operator(
                     self.op_prefix, text="Emissive"
                 ).options = "emissive"

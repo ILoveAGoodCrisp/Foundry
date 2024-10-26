@@ -997,15 +997,11 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             grid.prop(nwo, "connected_geometry_mesh_type_structure_visible", text="", icon_value=get_icon_id("structure") if nwo.connected_geometry_mesh_type_structure_visible else get_icon_id("structure_off"), emboss=False)
             grid.prop(nwo, "connected_geometry_mesh_type_seam_visible", text="", icon_value=get_icon_id("seam") if nwo.connected_geometry_mesh_type_seam_visible else get_icon_id("seam_off"), emboss=False)
             grid.prop(nwo, "connected_geometry_mesh_type_portal_visible", text="", icon_value=get_icon_id("portal") if nwo.connected_geometry_mesh_type_portal_visible else get_icon_id("portal_off"), emboss=False)
-            grid.prop(nwo, "connected_geometry_mesh_type_lightmap_only_visible", text="", icon_value=get_icon_id("lightmap") if nwo.connected_geometry_mesh_type_lightmap_only_visible else get_icon_id("lightmap_off"), emboss=False)
             grid.prop(nwo, "connected_geometry_mesh_type_water_surface_visible", text="", icon_value=get_icon_id("water") if nwo.connected_geometry_mesh_type_water_surface_visible else get_icon_id("water_off"), emboss=False)
             grid.prop(nwo, "connected_geometry_mesh_type_planar_fog_volume_visible", text="", icon_value=get_icon_id("fog") if nwo.connected_geometry_mesh_type_planar_fog_volume_visible else get_icon_id("fog_off"), emboss=False)
-            grid.prop(nwo, "connected_geometry_mesh_type_soft_ceiling_visible", text="", icon_value=get_icon_id("soft_ceiling") if nwo.connected_geometry_mesh_type_soft_ceiling_visible else get_icon_id("soft_ceiling_off"), emboss=False)
-            grid.prop(nwo, "connected_geometry_mesh_type_soft_kill_visible", text="", icon_value=get_icon_id("soft_kill") if nwo.connected_geometry_mesh_type_soft_kill_visible else get_icon_id("soft_kill_off"), emboss=False)
-            grid.prop(nwo, "connected_geometry_mesh_type_slip_surface_visible", text="", icon_value=get_icon_id("slip_surface") if nwo.connected_geometry_mesh_type_slip_surface_visible else get_icon_id("slip_surface_off"), emboss=False)
+            grid.prop(nwo, "connected_geometry_mesh_type_boundary_surface_visible", text="", icon_value=get_icon_id("soft_ceiling") if nwo.connected_geometry_mesh_type_boundary_surface_visible else get_icon_id("soft_ceiling_off"), emboss=False)
             if self.h4:
-                grid.prop(nwo, "connected_geometry_mesh_type_streaming_visible", text="", icon_value=get_icon_id("streaming") if nwo.connected_geometry_mesh_type_streaming_visible else get_icon_id("streaming_off"), emboss=False)
-                grid.prop(nwo, "connected_geometry_mesh_type_lightmap_exclude_visible", text="", icon_value=get_icon_id("lightmap_exclude") if nwo.connected_geometry_mesh_type_lightmap_exclude_visible else get_icon_id("lightmap_exclude_off"), emboss=False)
+                grid.prop(nwo, "connected_geometry_mesh_type_obb_volume_visible", text="", icon_value=get_icon_id("streaming") if nwo.connected_geometry_mesh_type_obb_volume_visible else get_icon_id("streaming_off"), emboss=False)
             else:
                 grid.prop(nwo, "connected_geometry_mesh_type_cookie_cutter_visible", text="", icon_value=get_icon_id("cookie_cutter") if nwo.connected_geometry_mesh_type_cookie_cutter_visible else get_icon_id("cookie_cutter_off"), emboss=False)
                 grid.prop(nwo, "connected_geometry_mesh_type_poop_vertical_rain_sheet_visible", text="", icon_value=get_icon_id("rain_sheet") if nwo.connected_geometry_mesh_type_poop_vertical_rain_sheet_visible else get_icon_id("rain_sheet_off"), emboss=False)
@@ -2269,7 +2265,9 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     row.prop(mesh_nwo, "slip_surface", text="Slip Surface")
                 
             elif self.h4 and has_collision and nwo.mesh_type != '_connected_geometry_mesh_type_collision':
+                row.prop(mesh_nwo, 'lightmap_only')
                 row.prop(mesh_nwo, 'render_only')
+                row.prop(mesh_nwo, 'collision_only', text='Collision Only')
 
             if self.h4 and nwo.mesh_type in constants.RENDER_MESH_TYPES and mesh_nwo.face_two_sided:
                 row = box.row()
@@ -2562,18 +2560,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             tag_type = "Material" if h4 else "Shader"
             col = box.column()
             if nwo.SpecialMaterial:
-                if mat.name == '+invisible':
-                    col.label(text=f'Invisible {tag_type} applied')
-                elif mat.name == 'invalid':
-                    col.label(text=f'Default Invalid {tag_type} applied')
-                elif mat.name == '+missing':
-                    col.label(text=f'Default Missing {tag_type} applied')
-                elif mat.name == '+seamsealer':
+                if mat.name.startswith('+seamsealer'):
                     col.label(text=f'SeamSealer Material applied')
-                elif mat.name == '+collision':
-                    col.label(text=f'Collision Material applied')
-                elif mat.name == '+sphere_collision':
-                    col.label(text=f'Sphere Collision Material applied')
                 else:
                     col.label(text=f'Sky Material applied')
                     sky_perm = utils.get_sky_perm(mat)
@@ -2582,7 +2570,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                             col.label(text='Maximum Sky Permutation Index is 31', icon='ERROR')
                         else:
                             col.label(text=f"Sky Permutation {str(sky_perm)}")
-                    col.operator("nwo.set_sky", text="Set Sky Permutation")
+                    if not h4:
+                        col.operator("nwo.set_sky", text="Set Sky Permutation")
                 return
             elif nwo.ConventionMaterial:
                 return col.label(text=f'Non-Rendered {tag_type} applied')

@@ -2,9 +2,6 @@
 
 from pathlib import Path
 
-import bpy
-
-from .. import utils
 from ..managed_blam import Tag
 
 class ModelTag(Tag):

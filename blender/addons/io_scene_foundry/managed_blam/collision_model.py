@@ -1,13 +1,9 @@
-
-
-from uuid import uuid4
 from mathutils import Euler, Matrix, Vector
 
 from .connected_geometry import CollisionMaterial, ModelCollision, PathfindingSphere
 
 from ..managed_blam import Tag
 from .. import utils
-from ..tools.materials import collision
 import bpy
 
 

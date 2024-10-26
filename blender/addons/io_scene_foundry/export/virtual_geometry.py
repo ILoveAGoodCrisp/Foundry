@@ -1454,11 +1454,11 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
                 face_properties.setdefault("bungie_face_mode", FaceSet(np.full(num_faces, fp_defaults["bungie_face_mode"], np.uint8))).update(bm, face_prop.layer_name, FaceMode.render_only.value)
             elif face_prop.collision_only_override:
                 face_properties.setdefault("bungie_face_mode", FaceSet(np.full(num_faces, fp_defaults["bungie_face_mode"], np.uint8))).update(bm, face_prop.layer_name, FaceMode.collision_only.value)
-            elif face_prop.sphere_collision_only_override:
+            elif not scene.corinth and face_prop.sphere_collision_only_override:
                 face_properties.setdefault("bungie_face_mode", FaceSet(np.full(num_faces, fp_defaults["bungie_face_mode"], np.uint8))).update(bm, face_prop.layer_name, FaceMode.sphere_collision_only.value)
             elif face_prop.lightmap_only_override:
                 face_properties.setdefault("bungie_face_mode", FaceSet(np.full(num_faces, fp_defaults["bungie_face_mode"], np.uint8))).update(bm, face_prop.layer_name, FaceMode.lightmap_only.value)
-            elif face_prop.breakable_override:
+            elif not scene.corinth and face_prop.breakable_override:
                 face_properties.setdefault("bungie_face_mode", FaceSet(np.full(num_faces, fp_defaults["bungie_face_mode"], np.uint8))).update(bm, face_prop.layer_name, FaceMode.breakable.value)
         
         if props.get("bungie_face_sides") is None:
@@ -1502,11 +1502,12 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
             if default_region in scene.regions_set:
                 rv = scene.regions.index(fp_defaults["bungie_face_region"])
             face_properties.setdefault("bungie_face_region", FaceSet(np.full(num_faces, rv, np.int32))).update(bm, face_prop.layer_name, scene.regions.index(face_prop.region_name))
-            
-        if face_prop.ladder_override and props.get("bungie_ladder") is None:
-            face_properties.setdefault("bungie_ladder", FaceSet(np.full(num_faces, fp_defaults["bungie_ladder"], np.uint8))).update(bm, face_prop.layer_name, 1)
-        if face_prop.slip_surface_override and props.get("bungie_slip_surface") is None:
-            face_properties.setdefault("bungie_slip_surface", FaceSet(np.full(num_faces, fp_defaults["bungie_slip_surface"], np.uint8))).update(bm, face_prop.layer_name, 1)
+        
+        if not scene.corinth:
+            if face_prop.ladder_override and props.get("bungie_ladder") is None:
+                face_properties.setdefault("bungie_ladder", FaceSet(np.full(num_faces, fp_defaults["bungie_ladder"], np.uint8))).update(bm, face_prop.layer_name, 1)
+            if face_prop.slip_surface_override and props.get("bungie_slip_surface") is None:
+                face_properties.setdefault("bungie_slip_surface", FaceSet(np.full(num_faces, fp_defaults["bungie_slip_surface"], np.uint8))).update(bm, face_prop.layer_name, 1)
         if face_prop.decal_offset_override and props.get("bungie_decal_offset") is None:
             face_properties.setdefault("bungie_decal_offset", FaceSet(np.full(num_faces, fp_defaults["bungie_decal_offset"], np.uint8))).update(bm, face_prop.layer_name, 1)
         if face_prop.no_shadow_override and props.get("bungie_no_shadow") is None:
@@ -1559,12 +1560,15 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
         if material.name.lower().startswith('+seamsealer') and props.get("bungie_face_type") is None:
             face_properties.setdefault("bungie_face_type", FaceSet(np.zeros(num_faces, np.uint8))).update_from_material(bm, material_indices, FaceType.seam_sealer.value)
         elif material.name.lower().startswith('+sky'):
+            enum_val = FaceType.sky.value if props.get("bungie_mesh_type") == MeshType.default.value and scene.asset_type == AssetType.SCENARIO else FaceType.seam_sealer.value
             if props.get("bungie_face_type") is None:
-                face_properties.setdefault("bungie_face_type", FaceSet(np.zeros(num_faces, np.uint8))).update_from_material(bm, material_indices, FaceType.sky.value)
-            if len(material.name) > 4 and material.name[4].isdigit():
-                sky_index = int(material.name[4])
-                if sky_index > 0 and props.get("bungie_sky_permutation_index") is None:
-                    face_properties.setdefault("bungie_sky_permutation_index", FaceSet(np.zeros(num_faces, np.uint8))).update_from_material(bm, material_indices, sky_index)
+                face_properties.setdefault("bungie_face_type", FaceSet(np.zeros(num_faces, np.uint8))).update_from_material(bm, material_indices, enum_val)
+            
+            if not scene.corinth and enum_val == FaceType.sky.value:
+                if len(material.name) > 4 and material.name[4].isdigit():
+                    sky_index = int(material.name[4])
+                    if sky_index > 0 and props.get("bungie_sky_permutation_index") is None:
+                        face_properties.setdefault("bungie_sky_permutation_index", FaceSet(np.zeros(num_faces, np.uint8))).update_from_material(bm, material_indices, sky_index)
         else:
             # Must be a material with material properties
             pass
