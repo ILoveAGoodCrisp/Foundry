@@ -221,7 +221,7 @@ class NWO_ExportScene(Operator, ExportHelper):
             except Exception as e:
                 if isinstance(e, RuntimeError):
                     # logging.error(traceback.format_exc())
-                    self.fail_explanation = traceback.format_exc()
+                    self.fail_explanation = traceback.format_exception_only(e)[0][14:]
                 else:
                     print_error("\n\nException hit. Please include in report\n")
                     logging.error(traceback.format_exc())
@@ -242,8 +242,8 @@ class NWO_ExportScene(Operator, ExportHelper):
                 )
                 
             elif self.fail_explanation:
-                    print_warning("\nEXPORT CANCELLED")
-                    print(self.fail_explanation)
+                    print_warning("\n\nEXPORT CANCELLED\n")
+                    print_error(self.fail_explanation)
 
             elif process_results and process_results.sidecar_import_failed:
                 print(

@@ -886,17 +886,11 @@ class VirtualBone:
         self.props = {}
         self.granny_bone = GrannyBone()
         
-    def create_bone_props(self, bone, frame_ids):
+    def create_bone_props(self, frame_ids):
         self.props["bungie_frame_ID1"] = int(frame_ids[0])
         self.props["bungie_frame_ID2"] = int(frame_ids[1])
         self.props["bungie_object_animates"] = 1
         self.props["bungie_object_type"] = ObjectType.frame.value
-        # if bone.nwo.object_space_node:
-        #     self.props["bungie_is_object_space_offset_node"] = 1
-        # if bone.nwo.replacement_correction_node:
-        #     self.props["bungie_is_replacement_correction_node"] = 1
-        # if bone.nwo.fik_anchor_node:
-        #     self.props["bungie_is_fik_anchor_node"] = 1
         
     def to_granny_data(self, scene: 'VirtualScene'):
         self.granny_bone.name = self.name.encode()
@@ -925,16 +919,23 @@ class AnimatedBone:
                 self.parent = pbone.parent
             else:
                 self.parent = parent_override
-                
-def sort_bones_by_hierachy(bones):
+
+class FakeBone:
+    def __init__(self, ob: bpy.types.Object, bone: bpy.types.PoseBone, parent: 'FakeBone' = None, special_bone_names=[]):
+        self.name = bone.name
+        self.parent = parent
+        self.bone = bone
+        self.export = ob.data.bones[bone.name].use_deform or self.name in special_bone_names
+        
+def sort_bones_by_hierachy(fake_bones: list[FakeBone]):
     bone_dict = {}
-    for bone in bones:
-        if bone.parent:
-            bone_dict[bone] = bone_dict[bone.parent] + 1
+    for fake_bone in fake_bones:
+        if fake_bone.parent:
+            bone_dict[fake_bone] = bone_dict[fake_bone.parent] + 1
         else:
-            bone_dict[bone] = 0
+            bone_dict[fake_bone] = 0
             
-    return sorted(bones, key=lambda x: bone_dict[x])
+    return sorted(fake_bones, key=lambda x: bone_dict[x])
         
 class VirtualSkeleton:
     '''Describes a list of bones'''
@@ -967,92 +968,104 @@ class VirtualSkeleton:
             scene_nwo = bpy.context.scene.nwo
             aim_bone_names = {scene_nwo.node_usage_pose_blend_pitch, scene_nwo.node_usage_pose_blend_yaw}
             special_bone_names = {scene_nwo.node_usage_pedestal, scene_nwo.node_usage_pose_blend_pitch, scene_nwo.node_usage_pose_blend_yaw}
-            sorted_bones = sort_bones_by_hierachy(ob.original.pose.bones)
-            valid_bones = [AnimatedBone(pbone, is_aim_bone=pbone.name in aim_bone_names) for pbone in sorted_bones if ob.original.data.bones[pbone.name].use_deform or pbone.name in special_bone_names]
-            if is_main_armature:
-                arm = bpy.context.scene.nwo.support_armature_a
-                bone_parent = bpy.context.scene.nwo.support_armature_a_parent_bone
-                pose_parent = ob.original.pose.bones.get(bone_parent)
-                if arm and arm.pose and arm.pose.bones and bone_parent and pose_parent:
-                    insertion_index = sorted_bones.index(pose_parent) + 1
-                    sorted_sub_bones = sort_bones_by_hierachy(arm.pose.bones)
-                    for pbone in sorted_sub_bones:
-                        if arm.data.bones[pbone.name].use_deform:
-                            if pbone.parent:
-                                valid_bones.insert(insertion_index, AnimatedBone(pbone))
-                            else:
-                                valid_bones.insert(insertion_index, AnimatedBone(pbone, parent_override=ob.original.pose.bones[bone_parent]))
-                                
-                            sorted_bones.insert(insertion_index, arm.data.bones[pbone.name])
-                            insertion_index += 1
-                            
-                arm = bpy.context.scene.nwo.support_armature_b
-                bone_parent = bpy.context.scene.nwo.support_armature_b_parent_bone
-                pose_parent = ob.original.pose.bones.get(bone_parent)
-                if arm and arm.pose and arm.pose.bones and bone_parent and pose_parent:
-                    insertion_index = sorted_bones.index(pose_parent) + 1
-                    sorted_sub_bones = sort_bones_by_hierachy(arm.pose.bones)
-                    for pbone in sorted_sub_bones:
-                        if arm.data.bones[pbone.name].use_deform:
-                            if pbone.parent:
-                                valid_bones.insert(insertion_index, AnimatedBone(pbone))
-                            else:
-                                valid_bones.insert(insertion_index, AnimatedBone(pbone, parent_override=ob.original.pose.bones[bone_parent]))
-                                
-                            sorted_bones.insert(insertion_index, arm.data.bones[pbone.name])
-                            insertion_index += 1
-                            
-                arm = bpy.context.scene.nwo.support_armature_c
-                bone_parent = bpy.context.scene.nwo.support_armature_c_parent_bone
-                pose_parent = ob.original.pose.bones.get(bone_parent)
-                if arm and arm.pose and arm.pose.bones and bone_parent and pose_parent:
-                    insertion_index = sorted_bones.index(pose_parent) + 1
-                    sorted_sub_bones = sort_bones_by_hierachy(arm.pose.bones)
-                    for pbone in sorted_sub_bones:
-                        if arm.data.bones[pbone.name].use_deform:
-                            if pbone.parent:
-                                valid_bones.insert(insertion_index, AnimatedBone(pbone))
-                            else:
-                                valid_bones.insert(insertion_index, AnimatedBone(pbone, parent_override=ob.original.pose.bones[bone_parent]))
-                                
-                            sorted_bones.insert(insertion_index, arm.data.bones[pbone.name])
-                            insertion_index += 1
-
-            list_bones = [abone.pbone.name for abone in valid_bones]
-            dict_bones = {v: i for i, v in enumerate(list_bones)}
-            self.pbones = {bone.name: bone.pbone for bone in valid_bones}
+            # Get all bones at fake_bones, so we can more easily create a virtual skeleton containing multiple armatures
             
-            data_bones = {bone.name: bone for bone in sorted_bones}
+            support_armature_bone_parent_names = set()
+            arm_a = None
+            arm_b = None
+            arm_c = None
+            bone_a = None
+            bone_b = None
+            bone_c = None
+            if is_main_armature:
+                arm_a = bpy.context.scene.nwo.support_armature_a
+                arm_b = bpy.context.scene.nwo.support_armature_b
+                arm_c = bpy.context.scene.nwo.support_armature_c
+                bone_a = bpy.context.scene.nwo.support_armature_a_parent_bone
+                bone_b = bpy.context.scene.nwo.support_armature_b_parent_bone
+                bone_c = bpy.context.scene.nwo.support_armature_c_parent_bone
+                # Support Armature A
+                pose_parent = ob.original.pose.bones.get(bone_a)
+                if arm_a and arm_a.pose and arm_a.pose.bones and bone_a and pose_parent:
+                    support_armature_bone_parent_names.add(pose_parent.name)
+                # Support Armature B
+                pose_parent = ob.original.pose.bones.get(bone_b)
+                if arm_b and arm_b.pose and arm_b.pose.bones and bone_b and pose_parent:
+                    support_armature_bone_parent_names.add(pose_parent.name)
+                # Support Armature C
+                pose_parent = ob.original.pose.bones.get(bone_c)
+                if arm_c and arm_c.pose and arm_c.pose.bones and bone_c and pose_parent:
+                    support_armature_bone_parent_names.add(pose_parent.name)
+            
+            main_arm = ob.original
+            start_bones_dict = {}
+            
+            def create_fake_bone(arm, pb, parent_fb=None) -> FakeBone:
+                if parent_fb is None:
+                    parent = pbone.parent
+                    if parent:
+                        parent_fb = start_bones_dict.get(parent.name)
+                fb = FakeBone(arm, pb, parent_fb, special_bone_names)
+                start_bones_dict[pb.name] = fb
+                if fb.export and parent_fb is not None and not parent_fb.export: # Ensure parents of deform bones are themselves deform
+                    scene.warnings.append(f"Bone {parent_fb.name} is marked non-deform but has deforming children. Including {parent_fb.name} in export")
+                    parent_fb.export = True
+                    
+                return fb
+                    
+            for pbone in main_arm.pose.bones:
+                fb = create_fake_bone(main_arm, pbone)
+                if fb.name in support_armature_bone_parent_names:
+                    if bone_a == fb.name:
+                        for pbone_a in arm_a.pose.bones:
+                            create_fake_bone(arm_a, pbone_a, fb if pbone_a.parent is None else None)
+                    if bone_b == fb.name:
+                        for pbone_b in arm_b.pose.bones:
+                            create_fake_bone(arm_b, pbone_b, fb if pbone_a.parent is None else None)
+                    if bone_c == fb.name:
+                        for pbone_c in arm_c.pose.bones:
+                            create_fake_bone(arm_c, pbone_c, fb if pbone_a.parent is None else None)
+                        
+                
+            start_bones = list(start_bones_dict.values())
+            
+            # Sort bones by hierachy i.e. all bones in a certain depth level in the child-parent relationship come before the next depth level
+            sorted_bones = sort_bones_by_hierachy(start_bones)
+            valid_bones = [fb for fb in sorted_bones if fb.export]
+            # More bone collections for later
+            list_bones = [fb.name for fb in valid_bones]
+            dict_bones = {v: i for i, v in enumerate(list_bones)}
+            self.pbones = {fb.name: fb.bone for fb in valid_bones}
 
             root_bone = None
             root_bone_found = False
             bone_inverse_matrices = {}
-            for idx, bone in enumerate(valid_bones):
-                b = VirtualBone(bone.pbone)
+            for idx, fb in enumerate(valid_bones):
+                b = VirtualBone(fb.bone)
                 frame_ids_index = scene.template_node_order.get(b.name)
                 if frame_ids_index is None:
                     frame_ids_index = idx
-                b.create_bone_props(data_bones[bone.pbone.name], scene.frame_ids[frame_ids_index])
-                if bone.parent:
+                b.create_bone_props(scene.frame_ids[frame_ids_index])
+                if fb.parent:
                     # Add one to this since the root is the armature
-                    b.parent_index = dict_bones[bone.parent.name] + 1
-                    b.matrix_world = scene.rotation_matrix @ bone.pbone.matrix
-                    bone_inverse_matrices[bone.pbone] = b.matrix_world.inverted()
-                    b.matrix_local = bone_inverse_matrices[bone.parent] @ b.matrix_world
+                    b.parent_index = dict_bones[fb.parent.name] + 1
+                    b.matrix_world = scene.rotation_matrix @ fb.bone.matrix
+                    bone_inverse_matrices[fb.bone] = b.matrix_world.inverted()
+                    b.matrix_local = bone_inverse_matrices[fb.parent.bone] @ b.matrix_world
                 else:
                     if root_bone_found:
-                        raise RuntimeError(f"Armature {ob.name} has multiple root bones. This must be fixed before export can proceed")
+                        raise RuntimeError(f"Armature {ob.name} has multiple root bones: {[bone.name for bone in valid_bones if not bone.parent]}. Halo requires that models have a single root bone. If one of the root bones is a control bone, ensure the deform checkbox is toggled off")
                     root_bone_found = True
-                    root_bone = bone.pbone
+                    root_bone = fb.bone
                     b.parent_index = 0
-                    b.matrix_world = scene.rotation_matrix @ bone.pbone.matrix
+                    b.matrix_world = scene.rotation_matrix @ fb.bone.matrix
                     b.matrix_local = b.matrix_world
-                    bone_inverse_matrices[bone.pbone] = b.matrix_world.inverted()
+                    bone_inverse_matrices[fb.bone] = b.matrix_world.inverted()
                     scene.root_bone = root_bone
                 
                 b.to_granny_data(scene)
                 self.bones.append(b)
-                scene.animated_bones.append(bone)
+                scene.animated_bones.append(AnimatedBone(fb.bone, is_aim_bone=fb.name in aim_bone_names, parent_override=fb.parent.bone if fb.parent else None))
                 
             child_index = 0
             for child in scene.get_immediate_children(ob):
@@ -1062,11 +1075,11 @@ class VirtualSkeleton:
                 if bone_parented:
                     bone_index = dict_bones.get(child.parent_bone)
                     if bone_index is None:
-                        scene.warnings.append(f"{child.name} is parented to non-existant bone: {child.parent_bone}. Parenting to {list_bones[0]}")
+                        scene.warnings.append(f"{child.name} is parented to non-existent or non-deform bone: {child.parent_bone}. Parenting to {list_bones[0]}")
                         bone_index = 0
                     parent_bone = valid_bones[bone_index]
                     parent_index = bone_index + 1
-                    parent_matrix = bone_inverse_matrices[parent_bone.pbone]
+                    parent_matrix = bone_inverse_matrices[parent_bone.bone]
 
                 node = scene.add(child, *scene.object_halo_data[child], bones=list_bones, parent_matrix=parent_matrix)
                 if not node: continue
