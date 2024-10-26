@@ -43,13 +43,13 @@ class ScenarioStructureBspTag(Tag):
                 policy_mask.SetBit("override lightmapping policy", True)
                 lighting = element.SelectField("override lightmapping policy")
                 match nwo.prefab_lighting:
-                    case "_connected_geometry_poop_lighting_per_pixel":
+                    case "per_pixel":
                         lighting.Value = 0
-                    case "_connected_geometry_poop_lighting_per_vertex":
+                    case "per_vertex":
                         lighting.Value = 1
-                    case "_connected_geometry_poop_lighting_single_probe":
+                    case "single_probe":
                         lighting.Value = 2
-                    case "_connected_geometry_poop_lighting_per_vertex_ao":
+                    case "per_vertex_ao":
                         lighting.Value = 5
                         
             if nwo.prefab_lightmap_res > 0:
@@ -60,28 +60,28 @@ class ScenarioStructureBspTag(Tag):
                 policy_mask.SetBit("override pathfinding policy", True)
                 pathfinding = element.SelectField("override pathfinding policy")
                 match nwo.prefab_lighting:
-                    case "_connected_poop_instance_pathfinding_policy_cutout":
+                    case "cutout":
                         pathfinding.Value = 0
-                    case "_connected_poop_instance_pathfinding_policy_static":
+                    case "static":
                         pathfinding.Value = 1
-                    case "_connected_poop_instance_pathfinding_policy_none":
+                    case "none":
                         pathfinding.Value = 2
                         
             if nwo.prefab_imposter_policy != "no_override":
                 policy_mask.SetBit("override lmposter policy", True)
                 imposter = element.SelectField("override imposter policy")
                 match nwo.prefab_imposter_policy:
-                    case "_connected_poop_instance_imposter_policy_polygon_default":
+                    case "polygon_default":
                         imposter.Value = 0
-                    case "_connected_poop_instance_imposter_policy_polygon_high":
+                    case "polygon_high":
                         imposter.Value = 1
-                    case "_connected_poop_instance_imposter_policy_card_default":
+                    case "card_default":
                         imposter.Value = 2
-                    case "_connected_poop_instance_imposter_policy_card_high":
+                    case "card_high":
                         imposter.Value = 3
-                    case "_connected_poop_instance_imposter_policy_never":
+                    case "never":
                         imposter.Value = 4
-                if nwo.prefab_imposter_policy != "_connected_poop_instance_imposter_policy_never":
+                if nwo.prefab_imposter_policy != "never":
                     if nwo.prefab_imposter_brightness > 0:
                         policy_mask.SetBit("override imposter brightness", True)
                         element.SelectField("override imposter brightness").SetStringData(jstr(nwo.prefab_imposter_brightness))

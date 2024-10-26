@@ -295,22 +295,19 @@ class NWO_Import(bpy.types.Operator):
                     
                     # Transform Scene so it's ready for JMA/JMS files
                     if needs_scaling:
-                        utils.transform_scene(context, (1 / scale_factor), to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[arm], actions=[])
+                        utils.transform_scene(context, (1 / scale_factor), to_x_rot, context.scene.nwo.forward_direction, 'x')
          
-                    try:
-                        imported_jms_objects = importer.import_jms_files(jms_files, self.legacy_fix_rotations)
-                        imported_jma_animations = importer.import_jma_files(jma_files, self.legacy_fix_rotations)
-                        if imported_jma_animations:
-                            imported_actions.extend(imported_jma_animations)
-                        if imported_jms_objects:
-                            imported_objects.extend(imported_jms_objects)
-                        if not toolset_addon_enabled:
-                            addon_utils.disable('io_scene_halo')
-                            
-                    finally:
-                        # Return to our scale
-                        if needs_scaling:
-                            utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=[arm], actions=imported_actions)
+                    imported_jms_objects = importer.import_jms_files(jms_files, self.legacy_fix_rotations)
+                    imported_jma_animations = importer.import_jma_files(jma_files, self.legacy_fix_rotations)
+                    if imported_jma_animations:
+                        imported_actions.extend(imported_jma_animations)
+                    if imported_jms_objects:
+                        imported_objects.extend(imported_jms_objects)
+                    if not toolset_addon_enabled:
+                        addon_utils.disable('io_scene_halo')
+
+                    if needs_scaling:
+                        utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction)
                         
                 if 'model' in importer.extensions:
                     importer.tag_render = self.tag_render
@@ -1516,15 +1513,15 @@ class NWOImporter:
         for char in ob.name[1:]:
             match char:
                 case '+':
-                    ob.nwo.poop_pathfinding = '_connected_poop_instance_pathfinding_policy_static'
+                    ob.nwo.poop_pathfinding = 'static'
                 case '-':
-                    ob.nwo.poop_pathfinding = '_connected_poop_instance_pathfinding_policy_none'
+                    ob.nwo.poop_pathfinding = 'none'
                 case '?':
-                    ob.nwo.poop_lighting = '_connected_geometry_poop_lighting_per_vertex'
+                    ob.nwo.poop_lighting = 'per_vertex'
                 case '!':
-                    ob.nwo.poop_lighting = '_connected_geometry_poop_lighting_per_pixel'
+                    ob.nwo.poop_lighting = 'per_pixel'
                 case '>':
-                    ob.nwo.poop_lighting = '_connected_geometry_poop_lighting_single_probe'
+                    ob.nwo.poop_lighting = 'single_probe'
                 case '*':
                     ob.data.nwo.render_only = True
                 case '&':
@@ -1945,16 +1942,16 @@ class NWOImporter:
                 mesh_type = "_connected_geometry_mesh_type_planar_fog_volume"
                 material = "Fog"
             case "soft_ceiling":
-                mesh_type = "_connected_geometry_mesh_type_soft_ceiling"
+                mesh_type = "_connected_geometry_mesh_type_boundary_surface"
                 material = "SoftCeiling"
             case "soft_kill":
-                mesh_type = "_connected_geometry_mesh_type_soft_kill"
+                mesh_type = "_connected_geometry_mesh_type_boundary_surface"
                 material = "SoftKill"
             case "slip_surface":
-                mesh_type = "_connected_geometry_mesh_type_slip_surface"
+                mesh_type = "_connected_geometry_mesh_type_boundary_surface"
                 material = "SlipSurface"
             case "water_physics":
-                mesh_type = "_connected_geometry_mesh_type_water_physics_volume"
+                mesh_type = "_connected_geometry_mesh_type_water_surface"
                 material = "WaterVolume"
             case "invisible_wall":
                 mesh_type = "_connected_geometry_mesh_type_invisible_wall"

@@ -1544,7 +1544,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     )
                     if (
                         nwo.poop_imposter_policy
-                        != "_connected_poop_instance_imposter_policy_never"
+                        != "never"
                     ):
                         sub = col.row(heading="Imposter Transition")
                         sub.prop(
@@ -1711,7 +1711,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     col.prop(nwo, "prefab_lightmap_res")
                     col.prop(nwo, "prefab_pathfinding")
                     col.prop(nwo, "prefab_imposter_policy")
-                    if nwo.prefab_imposter_policy != "_connected_poop_instance_imposter_policy_never":
+                    if nwo.prefab_imposter_policy != "never":
                         sub = col.row(heading="Imposter Transition")
                         sub.prop(
                             nwo,
@@ -2226,7 +2226,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 align=True,
             )
             row.scale_x = 0.8
-            if nwo.mesh_type in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_lightmap_only", '_connected_geometry_mesh_type_object_instance'):
+            if nwo.mesh_type in ("_connected_geometry_mesh_type_default", '_connected_geometry_mesh_type_object_instance'):
                 row.prop(mesh_nwo, "precise_position", text="Uncompressed")
             if nwo.mesh_type in constants.TWO_SIDED_MESH_TYPES:
                 row.prop(mesh_nwo, "face_two_sided", text="Two Sided")
@@ -2254,9 +2254,9 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     row.prop(mesh_nwo, "ladder", text="Ladder")
                     row.prop(mesh_nwo, "slip_surface", text="Slip Surface")
                     row.prop(mesh_nwo, 'breakable', text='Breakable')
-                    if nwo.mesh_type == '_connected_geometry_mesh_type_structure':
+                    if not mesh_nwo.breakable:
                         row.prop(mesh_nwo, 'collision_only', text='Collision Only')
-                        row.prop(mesh_nwo, 'sphere_collision_only', text='Sphere Collision')
+                        row.prop(mesh_nwo, 'sphere_collision_only', text='Sphere Collision Only')
                 
             elif not self.h4 and nwo.mesh_type == '_connected_geometry_mesh_type_collision':
                 if utils.poll_ui(('scenario', 'model')):

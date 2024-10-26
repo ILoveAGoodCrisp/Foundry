@@ -95,25 +95,25 @@ class BSPMarkerType(Enum):
     model = 5
     
 class PathfindingPolicy(Enum):
-    _connected_poop_instance_pathfinding_policy_cutout = 0
-    _connected_poop_instance_pathfinding_policy_static = 1
-    _connected_poop_instance_pathfinding_policy_none = 2
+    cutout = 0
+    static = 1
+    none = 2
     
 class LightmappingPolicy(Enum):
-    _connected_geometry_poop_lighting_per_pixel = 0
-    _connected_geometry_poop_lighting_per_vertex = 1
-    _connected_geometry_poop_lighting_single_probe = 2
+    per_pixel = 0
+    per_vertex = 1
+    single_probe = 2
     _connected_geometry_poop_lighting_exclude = 3
-    _connected_geometry_poop_lighting_per_pixel_ao = 4
-    _connected_geometry_poop_lighting_per_vertex_ao = 5
+    per_pixel_ao = 4
+    per_vertex_ao = 5
     
 class ImposterPolicy(Enum):
-    _connected_poop_instance_imposter_policy_polygon_default = 0
-    _connected_poop_instance_imposter_policy_polygon_high = 1
-    _connected_poop_instance_imposter_policy_card_default = 2
-    _connected_poop_instance_imposter_policy_card_high = 3
+    polygon_default = 0
+    polygon_high = 1
+    card_default = 2
+    card_high = 3
     _connected_poop_instance_imposter_policy_none = 4
-    _connected_poop_instance_imposter_policy_never = 5
+    never = 5
 
 class CinemaType(Enum):
     _connected_geometry_poop_cinema_default = 0
@@ -297,18 +297,18 @@ class Instance:
         nwo.poop_disallow_lighting_samples = self.disallow_lighting_samples
         nwo.poop_cinematic_properties = self.cinema_type.name
         if self.lightmapping.value > 2:
-            if self.lightmapping == LightmappingPolicy._connected_geometry_poop_lighting_per_pixel_ao:
+            if self.lightmapping == LightmappingPolicy.per_pixel_ao:
                 nwo.poop_ao = True
-                nwo.poop_lighting = "_connected_geometry_poop_lighting_per_pixel"
-            elif self.lightmapping == LightmappingPolicy._connected_geometry_poop_lighting_per_vertex_ao:
+                nwo.poop_lighting = "per_pixel"
+            elif self.lightmapping == LightmappingPolicy.per_vertex_ao:
                 nwo.poop_ao = True
-                nwo.poop_lighting = "_connected_geometry_poop_lighting_per_vertex"
+                nwo.poop_lighting = "per_vertex"
         else:
             nwo.poop_lighting = self.lightmapping.name
             
         nwo.poop_pathfinding = self.pathfinding.name
         if self.imposter == ImposterPolicy._connected_poop_instance_imposter_policy_none:
-            nwo.poop_imposter_policy = "_connected_poop_instance_imposter_policy_never"
+            nwo.poop_imposter_policy = "never"
         else:
             nwo.poop_imposter_policy = self.imposter.name
         nwo.poop_streaming_priority = self.streaming.name

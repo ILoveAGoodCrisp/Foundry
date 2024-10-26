@@ -201,17 +201,17 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
 
     poop_lighting_items = [
         (
-            "_connected_geometry_poop_lighting_per_pixel",
+            "per_pixel",
             "Per Pixel",
             "Per pixel provides good fidelity and lighting variation but it takes up resolution in the lightmap bitmap",
         ),
         (
-            "_connected_geometry_poop_lighting_per_vertex",
+            "per_vertex",
             "Per Vertex",
             "Uses a separate and additional per-vertex lightmap budget. Cost is dependent purely on complexity/vert count of the mesh",
         ),
         (
-            "_connected_geometry_poop_lighting_single_probe",
+            "single_probe",
             "Single Probe",
             "Cheap but effective lighting",
         ),
@@ -228,7 +228,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         name="Lighting Policy",
         options=set(),
         description="Determines how this instance is lightmapped",
-        default="_connected_geometry_poop_lighting_per_pixel",
+        default="per_pixel",
         items=poop_lighting_items,
     )
     
@@ -250,12 +250,12 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     def poop_pathfinding_items(self, context):
         items = []
         if utils.is_corinth(context):
-            items.append(("_connected_poop_instance_pathfinding_policy_cutout", "Walkable", "AI will be able to pathfind around and on this mesh"))
-            items.append(("_connected_poop_instance_pathfinding_policy_static", "Force Walkable", "AI will be able to pathfind around and on this mesh"))
+            items.append(("cutout", "Walkable", "AI will be able to pathfind around and on this mesh"))
+            items.append(("static", "Force Walkable", "AI will be able to pathfind around and on this mesh"))
         else:
-            items.append(("_connected_poop_instance_pathfinding_policy_cutout", "Cut-Out", "AI will be able to pathfind around this instance, but not on it"))
-            items.append(("_connected_poop_instance_pathfinding_policy_static", "Walkable", "AI will be able to pathfind around and on this mesh"))
-        items.append(("_connected_poop_instance_pathfinding_policy_none", "None", "This mesh will be ignored during pathfinding generation. AI will attempt to walk though it as if it is not there"))
+            items.append(("cutout", "Cut-Out", "AI will be able to pathfind around this instance, but not on it"))
+            items.append(("static", "Walkable", "AI will be able to pathfind around and on this mesh"))
+        items.append(("none", "None", "This mesh will be ignored during pathfinding generation. AI will attempt to walk though it as if it is not there"))
         
         return items
 
@@ -270,29 +270,29 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         name="Instanced Geometry Imposter Policy",
         options=set(),
         description="Sets what kind of imposter model is assigned to this instance. If any the policy is set to anything other than 'Never', you will need to generate imposters for this to render correctly. See https://c20.reclaimers.net/hr/guides/imposter-generation/ for how to generate these",
-        default="_connected_poop_instance_imposter_policy_never",
+        default="never",
         items=[
             (
-                "_connected_poop_instance_imposter_policy_polygon_default",
+                "polygon_default",
                 "Polygon Default",
                 "",
             ),
             (
-                "_connected_poop_instance_imposter_policy_polygon_high",
+                "polygon_high",
                 "Polygon High",
                 "",
             ),
             (
-                "_connected_poop_instance_imposter_policy_card_default",
+                "card_default",
                 "Card Default",
                 "",
             ),
             (
-                "_connected_poop_instance_imposter_policy_card_high",
+                "card_high",
                 "Card High",
                 "",
             ),
-            ("_connected_poop_instance_imposter_policy_never", "Never", ""),
+            ("never", "Never", ""),
         ],
     )
 
@@ -657,17 +657,17 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
             "Does not override the lighting policy for this prefab instance",
         ),
         (
-            "_connected_geometry_poop_lighting_per_pixel",
+            "per_pixel",
             "Per Pixel",
             "Per pixel provides good fidelity and lighting variation but it takes up resolution in the lightmap bitmap",
         ),
         (
-            "_connected_geometry_poop_lighting_per_vertex",
+            "per_vertex",
             "Per Vertex",
             "Uses a separate and additional per-vertex lightmap budget. Cost is dependent purely on complexity/vert count of the mesh",
         ),
         (
-            "_connected_geometry_poop_lighting_single_probe",
+            "single_probe",
             "Single Probe",
             "Cheap but effective lighting",
         ),
@@ -690,9 +690,9 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     def prefab_pathfinding_items(self, context):
         items = []
         items.append(("no_override", "No Override", "Does not override the pathfinding policy for this prefab instance"))
-        items.append(("_connected_poop_instance_pathfinding_policy_cutout", "Walkable", "AI will be able to pathfind around and on this mesh"))
-        items.append(("_connected_poop_instance_pathfinding_policy_static", "Force Walkable", "AI will be able to pathfind around and on this mesh"))
-        items.append(("_connected_poop_instance_pathfinding_policy_none", "None", "This mesh will be ignored during pathfinding generation. AI will attempt to walk though it as if it is not there"))
+        items.append(("cutout", "Walkable", "AI will be able to pathfind around and on this mesh"))
+        items.append(("static", "Force Walkable", "AI will be able to pathfind around and on this mesh"))
+        items.append(("none", "None", "This mesh will be ignored during pathfinding generation. AI will attempt to walk though it as if it is not there"))
         
         return items
 
@@ -715,26 +715,26 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
                 "Does not override the imposter policy for this prefab instance",
             ),
             (
-                "_connected_poop_instance_imposter_policy_polygon_default",
+                "polygon_default",
                 "Polygon Default",
                 "",
             ),
             (
-                "_connected_poop_instance_imposter_policy_polygon_high",
+                "polygon_high",
                 "Polygon High",
                 "",
             ),
             (
-                "_connected_poop_instance_imposter_policy_card_default",
+                "card_default",
                 "Card Default",
                 "",
             ),
             (
-                "_connected_poop_instance_imposter_policy_card_high",
+                "card_high",
                 "Card High",
                 "",
             ),
-            ("_connected_poop_instance_imposter_policy_never", "Never", ""),
+            ("never", "Never", ""),
         ],
     )
 

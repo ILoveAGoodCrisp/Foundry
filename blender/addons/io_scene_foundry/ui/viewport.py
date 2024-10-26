@@ -118,16 +118,6 @@ class NWO_OT_ApplyTypeMesh(bpy.types.Operator):
             index += 1
             items.append(
                 utils.nwo_enum(
-                    "collision",
-                    "Collision",
-                    "Non rendered geometry which provides collision only",
-                    "collider",
-                    index,
-                )
-            ),
-            index += 1
-            items.append(
-                utils.nwo_enum(
                     "seam",
                     "Seam",
                     "Allows visibility and traversal between two or more bsps. Requires zone sets to be set up in the scenario tag",
@@ -148,19 +138,9 @@ class NWO_OT_ApplyTypeMesh(bpy.types.Operator):
             index += 1
             items.append(
                 utils.nwo_enum(
-                    "lightmap_only",
-                    "Lightmap Only",
-                    "Non-collidable mesh that is used by the lightmapper to calculate lighting & shadows, but otherwise invisible",
-                    "lightmap",
-                    index,
-                )
-            )
-            index += 1
-            items.append(
-                utils.nwo_enum(
                     "water_surface",
                     "Water Surface",
-                    "Plane which can cut through geometry to define a water surface, optionally with water physics if the depth is greater than 0. Water physics allows material effects to play when projectiles strike this mesh. Underwater fog atmosphere will be used when the player is inside the volume (this appears broken in H4)",
+                    "Plane which can cut through geometry to define a water surface, optionally with water physics if the depth is greater than 0. If not material is set on this mesh, it will not render. Additionally the shader/material tag used must explictly support water surfaces. Water physics allows material effects to play when projectiles strike this mesh. Underwater fog atmosphere will be used when the player is inside the volume (this appears broken in H4)",
                     "water",
                     index,
                 )
@@ -168,58 +148,18 @@ class NWO_OT_ApplyTypeMesh(bpy.types.Operator):
             index += 1
             items.append(
                 utils.nwo_enum(
-                    "water_physics",
-                    "Water Physics Volume",
-                    "Plane from which a water volume is generated based on depth value. Material effects will play when projectiles strike this mesh. Underwater fog atmosphere will be used when the player is inside the volume (this appears broken in H4+)",
-                    "water_physics",
-                    index,
-                )
-            )
-            index += 1
-            items.append(
-                utils.nwo_enum(
-                    "soft_ceiling",
-                    "Soft Ceiling Volume",
-                    "Soft barrier that blocks the player and player camera",
-                    "soft_ceiling",
-                    index,
-                )
-            )
-            index += 1
-            items.append(
-                utils.nwo_enum(
-                    "soft_kill",
-                    "Soft Kill Volume",
-                    "Defines a region where the player will be killed... softly",
-                    "soft_kill",
-                    index,
-                )
-            )
-            index += 1
-            items.append(
-                utils.nwo_enum(
-                    "slip_surface",
-                    "Slip Surface Volume",
-                    "Defines a region in which surfaces become slippery",
-                    "slip_surface",
+                    "boundary_surface",
+                    "SBoundary Surface",
+                    "Surfaces which prevent the player leaving the intended playspace",
+                    "boundary_surface",
                     index,
                 )
             )
             if h4:
+                # stream_des = """Defines the region in a zone set that should be used when generating a streamingzoneset tag. By default the full space inside a zone set will be used when generating the streaming zone set tag. This tag tells the game to only generate the tag within the bounds of this volume.\nThis is useful for performance if you have textures in areas of the map the player will not get close to"""
                 index += 1
                 items.append(
-                    utils.nwo_enum(
-                        "lightmap",
-                        "Lightmap Exclusion Volume",
-                        "Defines a region that should not be lightmapped",
-                        "lightmap_exclude",
-                        index,
-                    )
-                )
-                stream_des = """Defines the region in a zone set that should be used when generating a streamingzoneset tag. By default the full space inside a zone set will be used when generating the streaming zone set tag. This tag tells the game to only generate the tag within the bounds of this volume.\nThis is useful for performance if you have textures in areas of the map the player will not get close to"""
-                index += 1
-                items.append(
-                    utils.nwo_enum("streaming", "Texture Streaming Volume", stream_des, "streaming", index)
+                    utils.nwo_enum("obb_volume", "Bounding Box", "Bounding box which assigns special properties to the geometry inside of it", "obb_volume", index)
                 )
             else:
                 index += 1
@@ -353,8 +293,6 @@ class NWO_OT_ApplyTypeMesh(bpy.types.Operator):
             case "portal":
                 mesh_type = "_connected_geometry_mesh_type_portal"
                 material = "Portal"
-            case "lightmap_only":
-                mesh_type = "_connected_geometry_mesh_type_lightmap_only"
             case "water_surface":
                 mesh_type = "_connected_geometry_mesh_type_water_surface"
             case "rain_sheet":
@@ -362,33 +300,15 @@ class NWO_OT_ApplyTypeMesh(bpy.types.Operator):
             case "fog":
                 mesh_type = "_connected_geometry_mesh_type_planar_fog_volume"
                 material = "Fog"
-            case "soft_ceiling":
-                mesh_type = "_connected_geometry_mesh_type_soft_ceiling"
+            case "boundary_surface":
+                mesh_type = "_connected_geometry_mesh_type_boundary_surface"
                 material = "SoftCeiling"
-            case "soft_kill":
-                mesh_type = "_connected_geometry_mesh_type_soft_kill"
-                material = "SoftKill"
-            case "slip_surface":
-                mesh_type = "_connected_geometry_mesh_type_slip_surface"
-                material = "SlipSurface"
-            case "water_physics":
-                mesh_type = "_connected_geometry_mesh_type_water_physics_volume"
-                material = "WaterVolume"
-            case "invisible_wall":
-                mesh_type = "_connected_geometry_mesh_type_invisible_wall"
-                material = "WaterVolume"
-            case "streaming":
-                mesh_type = "_connected_geometry_mesh_type_streaming"
+            case "obb_volume":
+                mesh_type = "_connected_geometry_mesh_type_obb_volume"
                 material = "StreamingVolume"
-            case "lightmap":
-                if utils.is_corinth(context):
-                    mesh_type = "_connected_geometry_mesh_type_lightmap_exclude"
-                    material = "LightmapExcludeVolume"
-
             case "cookie_cutter":
                 mesh_type = "_connected_geometry_mesh_type_cookie_cutter"
                 material = "CookieCutter"
-
             case "rain_blocker":
                 mesh_type = "_connected_geometry_mesh_type_poop_rain_blocker"
             case "decorator":

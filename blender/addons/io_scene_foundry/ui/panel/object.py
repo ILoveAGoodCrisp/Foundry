@@ -1076,18 +1076,12 @@ class NWO_MT_MeshTypes(bpy.types.Menu):
         if utils.poll_ui("scenario"):
             layout.operator('nwo.apply_type_mesh_single', text='Instanced Geometry', icon_value=get_icon_id('instance')).m_type = 'instance'
             layout.operator('nwo.apply_type_mesh_single', text='Structure', icon_value=get_icon_id('structure')).m_type = 'structure'
-            layout.operator('nwo.apply_type_mesh_single', text='Collision', icon_value=get_icon_id('collider')).m_type = 'collision'
             layout.operator('nwo.apply_type_mesh_single', text='Seam', icon_value=get_icon_id('seam')).m_type = 'seam'
             layout.operator('nwo.apply_type_mesh_single', text='Portal', icon_value=get_icon_id('portal')).m_type = 'portal'
-            layout.operator('nwo.apply_type_mesh_single', text='Lightmap Only', icon_value=get_icon_id('lightmap')).m_type = 'lightmap_only'
             layout.operator('nwo.apply_type_mesh_single', text='Water Surface', icon_value=get_icon_id('water')).m_type = 'water_surface'
-            layout.operator('nwo.apply_type_mesh_single', text='Water Physics Volume', icon_value=get_icon_id('water_physics')).m_type = 'water_physics'
-            layout.operator('nwo.apply_type_mesh_single', text='Soft Ceiling Volume', icon_value=get_icon_id('soft_ceiling')).m_type = 'soft_ceiling'
-            layout.operator('nwo.apply_type_mesh_single', text='Soft Kill Volume', icon_value=get_icon_id('soft_kill')).m_type = 'soft_kill'
-            layout.operator('nwo.apply_type_mesh_single', text='Slip Surface Volume', icon_value=get_icon_id('slip_surface')).m_type = 'slip_surface'
+            layout.operator('nwo.apply_type_mesh_single', text='Boundary Surface', icon_value=get_icon_id('soft_ceiling')).m_type = 'boundary_surface'
             if h4:
-                layout.operator('nwo.apply_type_mesh_single', text='Lightmap Exclusion Volume', icon_value=get_icon_id('lightmap_exclude')).m_type = 'lightmap'
-                layout.operator('nwo.apply_type_mesh_single', text='Texture Streaming Volume', icon_value=get_icon_id('streaming')).m_type = 'streaming'
+                layout.operator('nwo.apply_type_mesh_single', text='Bounding Box', icon_value=get_icon_id('streaming')).m_type = 'obb_volume'
             else:
                 layout.operator('nwo.apply_type_mesh_single', text='Rain Blocker', icon_value=get_icon_id('rain_blocker')).m_type = 'rain_blocker'
                 layout.operator('nwo.apply_type_mesh_single', text='Rain Sheet', icon_value=get_icon_id('rain_sheet')).m_type = 'rain_sheet'
@@ -1095,8 +1089,6 @@ class NWO_MT_MeshTypes(bpy.types.Menu):
                 layout.operator('nwo.apply_type_mesh_single', text='Fog Sheet', icon_value=get_icon_id('fog')).m_type = 'fog'
         elif utils.poll_ui("prefab"):
             layout.operator('nwo.apply_type_mesh_single', text='Instanced Geometry', icon_value=get_icon_id('instance')).m_type = 'instance'
-            layout.operator('nwo.apply_type_mesh_single', text='Collision', icon_value=get_icon_id('collider')).m_type = 'collision'
-            layout.operator('nwo.apply_type_mesh_single', text='Lightmap Only', icon_value=get_icon_id('lightmap')).m_type = 'lightmap_only'
             
 class NWO_MT_MarkerTypes(bpy.types.Menu):
     bl_label = "Marker Type"

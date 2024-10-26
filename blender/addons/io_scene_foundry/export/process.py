@@ -23,7 +23,7 @@ from ..managed_blam.animation import AnimationTag
 from ..managed_blam.model import ModelTag
 from .import_sidecar import SidecarImport
 from .build_sidecar import Sidecar
-from .export_info import BoundarySurfaceType, ExportInfo, FaceDrawDistance, FaceMode, FaceSides, FaceType, LightmapType, MeshObbVolumeType, MeshTessellationDensity, MeshType, ObjectType
+from .export_info import BoundarySurfaceType, ExportInfo, FaceDrawDistance, FaceMode, FaceSides, FaceType, LightmapType, MeshObbVolumeType, PoopInstanceImposterPolicy, PoopLighting, PoopInstancePathfindingPolicy, MeshTessellationDensity, MeshType, ObjectType
 from ..props.mesh import NWO_MeshPropertiesGroup
 from ..props.object import NWO_ObjectPropertiesGroup
 from .virtual_geometry import AnimatedBone, VirtualAnimation, VirtualNode, VirtualScene
@@ -611,30 +611,6 @@ class ExportScene:
                     props["bungie_mesh_obb_type"] = MeshObbVolumeType.streamingvolume.value
                 case _:
                     return
-            
-        # elif mesh_type == '_connected_geometry_mesh_type_collision' and self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB}:
-        #     if self.corinth:
-        #         mesh_type = '_connected_geometry_mesh_type_poop_collision'
-        #         props["bungie_mesh_poop_collision_type"] = data_nwo.poop_collision_type
-        #     elif ob.parent and ob.parent.type in VALID_MESHES and ob.parent.data.nwo.mesh_type == '_connected_geometry_mesh_type_default':
-        #         mesh_type = '_connected_geometry_mesh_type_poop_collision'
-        #         props["bungie_poop_parent"] = '_connected_geometry_mesh_type_poop_collision'
-        #         parent_halo_data = self.ob_halo_data.get(ob.parent)
-        #         if parent_halo_data:
-        #             # if parent_halo_data[0].get("bungie_face_mode") not in 
-        #             parent_halo_data[0]["bungie_face_mode"] = FaceMode.render_only.value
-        #         else:
-        #             self.forced_render_only[ob.parent] = None
-            # else:
-            #     mesh_type = '_connected_geometry_mesh_type_poop'
-            #     props["bungie_mesh_poop_lighting"] = "_connected_geometry_poop_lighting_single_probe"
-            #     props["bungie_mesh_poop_pathfinding"] = "_connected_poop_instance_pathfinding_policy_cutout"
-            #     props["bungie_mesh_poop_imposter_policy"] = "_connected_poop_instance_imposter_policy_never"
-            #     # nwo.reach_poop_collision = True
-            #     if data_nwo.sphere_collision_only:
-            #         mesh_props["bungie_face_mode"] = FaceMode.sphere_collision_only.value
-            #     else:
-            #         mesh_props["bungie_face_mode"] = FaceMode.collision_only.value
         
         elif self.asset_type == AssetType.PREFAB:
             mesh_type = '_connected_geometry_mesh_type_poop'
@@ -698,12 +674,12 @@ class ExportScene:
         return props
     
     def _setup_poop_props(self, ob: bpy.types.Object, nwo: NWO_ObjectPropertiesGroup, data_nwo: NWO_MeshPropertiesGroup, props: dict, mesh_props: dict):
-        props["bungie_mesh_poop_lighting"] = nwo.poop_lighting
-        props["bungie_mesh_poop_pathfinding"] = nwo.poop_pathfinding
-        props["bungie_mesh_poop_imposter_policy"] = nwo.poop_imposter_policy
+        props["bungie_mesh_poop_lighting"] = PoopLighting[nwo.poop_lighting].value
+        props["bungie_mesh_poop_pathfinding"] = PoopInstancePathfindingPolicy[nwo.poop_pathfinding].value
+        props["bungie_mesh_poop_imposter_policy"] = PoopInstanceImposterPolicy[nwo.poop_imposter_policy].value
         if (
             nwo.poop_imposter_policy
-            != "_connected_poop_instance_imposter_policy_never"
+            != "never"
         ):
             if not nwo.poop_imposter_transition_distance_auto:
                 props["bungie_mesh_poop_imposter_transition_distance"] = nwo.poop_imposter_transition_distance
@@ -849,7 +825,7 @@ class ExportScene:
                         props["bungie_mesh_poop_lighting"] = nwo.prefab_lighting
                     if nwo.prefab_imposter_policy != "no_override":
                         props["bungie_mesh_poop_imposter_policy"] = nwo.prefab_imposter_policy
-                        if nwo.prefab_imposter_policy != "_connected_poop_instance_imposter_policy_never":
+                        if nwo.prefab_imposter_policy != "never":
                             if nwo.prefab_imposter_brightness > 0:
                                 props["bungie_mesh_poop_imposter_brightness"] = nwo.prefab_imposter_brightness
                             if not nwo.prefab_imposter_transition_distance_auto:
@@ -978,20 +954,32 @@ class ExportScene:
                     fp_defaults["bungie_face_sides"] = FaceSides.one_sided_transparent.value
                         
             else:
-                face_sides_value = "_connected_geometry_face_sides_"
-                if data_nwo.face_two_sided:
-                    if not self.corinth:
-                        face_sides_value += "two_sided"
+                if two_sided and transparent:
+                    if self.corinth:
+                        match data_nwo.face_two_sided_type:
+                            case 'mirror':
+                                mesh_props["bungie_face_sides"] = FaceSides.mirror_transparent.value
+                            case 'keep':
+                                mesh_props["bungie_face_sides"] = FaceSides.keep_transparent.value
+                            case _:
+                                mesh_props["bungie_face_sides"] = FaceSides.two_sided_transparent.value
                     else:
-                        face_sides_value += data_nwo.face_two_sided_type
-                        
-                    if transparent:
-                        face_sides_value += "_transparent"
-                    mesh_props["bungie_face_sides"] = face_sides_value
+                        mesh_props["bungie_face_sides"] = FaceSides.two_sided_transparent.value
                     
-                elif transparent:
-                    face_sides_value += "one_sided_transparent"
-                    mesh_props["bungie_face_sides"] = face_sides_value
+                elif two_sided:
+                    if self.corinth:
+                        match data_nwo.face_two_sided_type:
+                            case 'mirror':
+                                mesh_props["bungie_face_sides"] = FaceSides.mirror.value
+                            case 'keep':
+                                mesh_props["bungie_face_sides"] = FaceSides.keep.value
+                            case _:
+                                mesh_props["bungie_face_sides"] = FaceSides.two_sided.value
+                    else:
+                        mesh_props["bungie_face_sides"] = FaceSides.two_sided.value
+                        
+                else:
+                    mesh_props["bungie_face_sides"] = FaceSides.one_sided_transparent.value
                     
         
         if data_nwo.render_only:

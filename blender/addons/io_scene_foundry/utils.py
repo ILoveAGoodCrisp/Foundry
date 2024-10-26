@@ -54,30 +54,6 @@ foundry_output_state = True
 hit_target = False
 
 # Enums #
-special_mesh_types = (
-    "_connected_geometry_mesh_type_boundary_surface",
-    "_connected_geometry_mesh_type_collision",
-    "_connected_geometry_mesh_type_decorator",
-    "_connected_geometry_mesh_type_default",
-    "_connected_geometry_mesh_type_planar_fog_volume",
-    "_connected_geometry_mesh_type_portal",
-    "_connected_geometry_mesh_type_seam",
-    "_connected_geometry_mesh_type_water_physics_volume",
-    "_connected_geometry_mesh_type_obb_volume",
-)
-invalid_mesh_types = (
-    "_connected_geometry_mesh_type_boundary_surface",
-    "_connected_geometry_mesh_type_cookie_cutter",
-    "_connected_geometry_mesh_type_poop_marker",
-    "_connected_geometry_mesh_type_poop_rain_blocker",
-    "_connected_geometry_mesh_type_poop_vertical_rain_sheet",
-    "_connected_geometry_mesh_type_lightmap_region",
-    "_connected_geometry_mesh_type_planar_fog_volume",
-    "_connected_geometry_mesh_type_portal",
-    "_connected_geometry_mesh_type_seam",
-    "_connected_geometry_mesh_type_water_physics_volume",
-    "_connected_geometry_mesh_type_obb_volume",
-)
 
 # animation events #
 non_sound_frame_types = [
@@ -1452,28 +1428,18 @@ def get_mesh_display(mesh_type):
             return 'Portal', get_icon_id('portal')
         case '_connected_geometry_mesh_type_water_surface':
             return 'Water Surface', get_icon_id('water')
-        case '_connected_geometry_mesh_type_water_physics_volume':
-            return 'Water Physics Volume', get_icon_id('water_physics')
-        case '_connected_geometry_mesh_type_soft_ceiling':
-            return 'Soft Ceiling Volume', get_icon_id('soft_ceiling')
-        case '_connected_geometry_mesh_type_soft_kill':
-            return 'Soft Kill Volume', get_icon_id('soft_ceiling')
-        case '_connected_geometry_mesh_type_slip_surface':
-            return 'Slip Surface Volume', get_icon_id('slip_surface')
+        case '_connected_geometry_mesh_type_boundary_surface':
+            return 'Boundary Surface', get_icon_id('soft_ceiling')
         case '_connected_geometry_mesh_type_poop_rain_blocker':
             return 'Rain Blocker Volume', get_icon_id('rain_blocker')
-        case '_connected_geometry_mesh_type_lightmap_exclude':
-            return 'Lightmap Exclusion Volume', get_icon_id('lightmap_exclude')
-        case '_connected_geometry_mesh_type_streaming':
-            return 'Texture Streaming Volume', get_icon_id('streaming')
+        case '_connected_geometry_mesh_type_obb_volume':
+            return 'Bounding Box', get_icon_id('streaming')
         case '_connected_geometry_mesh_type_poop_vertical_rain_sheet':
             return 'Rain Sheet', get_icon_id('rain_sheet')
         case '_connected_geometry_mesh_type_cookie_cutter':
             return 'Pathfinding Cutout Volume', get_icon_id('cookie_cutter')
         case '_connected_geometry_mesh_type_planar_fog_volume':
             return 'Fog Sheet', get_icon_id('fog')
-        case '_connected_geometry_mesh_type_lightmap_only':
-            return 'Lightmap Only', get_icon_id('lightmap')
         case _:
             if poll_ui(('scenario', 'prefab')):
                 return 'Instanced Geometry', get_icon_id('instance')
@@ -2003,18 +1969,11 @@ def base_material_name(name: str, strip_legacy_halo_names=False) -> str:
 
 
 def get_animated_objects(context) -> list[bpy.types.Object]:
-    scene_nwo = context.scene.nwo
     animated_objects = set()
     if context.object and context.object.animation_data:
         animated_objects.add(context.object)
-    if scene_nwo.main_armature and scene_nwo.main_armature.animation_data:
-        animated_objects.add(scene_nwo.main_armature)
-    # if scene_nwo.support_armature_a and scene_nwo.support_armature_a.animation_data:
-    #     animated_objects.add(scene_nwo.support_armature_a)
-    # if scene_nwo.support_armature_b and scene_nwo.support_armature_b.animation_data:
-    #     animated_objects.add(scene_nwo.support_armature_b)
-    # if scene_nwo.support_armature_c and scene_nwo.support_armature_c.animation_data:
-    #     animated_objects.add(scene_nwo.support_armature_c)
+    
+    animated_objects.update({ob for ob in context.view_layer.objects if ob.type == 'ARMATURE'})
         
     control_objects = get_object_controls(context)
     if control_objects:

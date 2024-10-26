@@ -8,7 +8,7 @@ from mathutils import Matrix
 RENDER_MESH_TYPES = ("_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_poop", '_connected_geometry_mesh_type_object_instance', '_connected_geometry_mesh_type_water_surface')
 COLLISION_MESH_TYPES = ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_collision")
 # Mesh types which support the two sided flag
-TWO_SIDED_MESH_TYPES = ("_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_collision", '_connected_geometry_mesh_type_lightmap_only', '_connected_geometry_mesh_type_object_instance', '_connected_geometry_mesh_type_water_surface')
+TWO_SIDED_MESH_TYPES = ("_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_collision", '_connected_geometry_mesh_type_object_instance', '_connected_geometry_mesh_type_water_surface')
 
 # Blender Halo Mesh Types
 VALID_MESHES = {'MESH', 'CURVE', 'META', 'SURFACE', 'FONT'}
@@ -153,13 +153,6 @@ object_asset_validation = {
     '_connected_geometry_mesh_type_poop_vertical_rain_sheet': ('scenario', 'resource'),
     '_connected_geometry_mesh_type_planar_fog_volume': ('scenario', 'resource'),
     '_connected_geometry_mesh_type_boundary_surface': ('scenario', 'resource'),
-    #'_connected_geometry_mesh_type_soft_ceiling': ('scenario', 'resource'),
-    #'_connected_geometry_mesh_type_soft_kill': ('scenario', 'resource'),
-    #'_connected_geometry_mesh_type_slip_surface': ('scenario', 'resource'),
-    #'_connected_geometry_mesh_type_water_physics_volume': ('scenario', 'resource'),
-    #'_connected_geometry_mesh_type_lightmap_only': ('scenario', 'prefab', 'resource'),
-    #'_connected_geometry_mesh_type_streaming': ('scenario', 'resource'),
-    #'_connected_geometry_mesh_type_lightmap_exclude': ('scenario', 'resource'),
     '_connected_geometry_mesh_type_obb_volume': ('scenario', 'resource'),
     '_connected_geometry_mesh_type_cookie_cutter': ('scenario', 'resource'),
     '_connected_geometry_mesh_type_poop_rain_blocker': ('scenario', 'resource'),
@@ -190,14 +183,8 @@ object_game_validation = {
     '_connected_geometry_mesh_type_water_surface': ('reach', 'corinth'),
     '_connected_geometry_mesh_type_poop_vertical_rain_sheet': ('reach',),
     '_connected_geometry_mesh_type_planar_fog_volume': ('reach',),
-    #'_connected_geometry_mesh_type_soft_ceiling': ('reach', 'corinth'),
-    #'_connected_geometry_mesh_type_soft_kill': ('reach', 'corinth'),
-    #'_connected_geometry_mesh_type_slip_surface': ('reach', 'corinth'),
-    # '_connected_geometry_mesh_type_water_physics_volume': ('reach', 'corinth'),
-    # '_connected_geometry_mesh_type_lightmap_only': ('reach', 'corinth'),
-    # '_connected_geometry_mesh_type_streaming': ('corinth',),
+    '_connected_geometry_mesh_type_boundary_surface': ('reach', 'corinth'),
     '_connected_geometry_mesh_type_obb_volume': ('corinth',),
-    #'_connected_geometry_mesh_type_lightmap_exclude': ('corinth',),
     '_connected_geometry_mesh_type_cookie_cutter': ('reach',),
     '_connected_geometry_mesh_type_poop_rain_blocker': ('reach',),
     # Marker

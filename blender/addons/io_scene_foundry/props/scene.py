@@ -1036,34 +1036,34 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         poll=poll_armature,
         options=set(),
     )
-    support_armature_a: bpy.props.PointerProperty(
-        name="Support Armature",
-        description="",
-        type=bpy.types.Object,
-        poll=poll_armature,
-        options=set(),
-    )
-    support_armature_a_parent_bone : bpy.props.StringProperty(name='Parent Bone', description='Specify the bone from the main armature which the root bone of this support armature should join to at export', options=set())
+    # support_armature_a: bpy.props.PointerProperty(
+    #     name="Support Armature",
+    #     description="",
+    #     type=bpy.types.Object,
+    #     poll=poll_armature,
+    #     options=set(),
+    # )
+    # support_armature_a_parent_bone : bpy.props.StringProperty(name='Parent Bone', description='Specify the bone from the main armature which the root bone of this support armature should join to at export', options=set())
 
     
-    support_armature_b: bpy.props.PointerProperty(
-        name="Support Armature",
-        description="",
-        type=bpy.types.Object,
-        poll=poll_armature,
-        options=set(),
-    )
-    support_armature_b_parent_bone : bpy.props.StringProperty(name='Parent Bone', description='Specify the bone from the main armature which the root bone of this support armature should join to at export', options=set())
+    # support_armature_b: bpy.props.PointerProperty(
+    #     name="Support Armature",
+    #     description="",
+    #     type=bpy.types.Object,
+    #     poll=poll_armature,
+    #     options=set(),
+    # )
+    # support_armature_b_parent_bone : bpy.props.StringProperty(name='Parent Bone', description='Specify the bone from the main armature which the root bone of this support armature should join to at export', options=set())
 
     
-    support_armature_c: bpy.props.PointerProperty(
-        name="Support Armature",
-        description="",
-        type=bpy.types.Object,
-        poll=poll_armature,
-        options=set(),
-    )
-    support_armature_c_parent_bone : bpy.props.StringProperty(name='Parent Bone', description='Specify the bone from the main armature which the root bone of this support armature should join to at export', options=set())
+    # support_armature_c: bpy.props.PointerProperty(
+    #     name="Support Armature",
+    #     description="",
+    #     type=bpy.types.Object,
+    #     poll=poll_armature,
+    #     options=set(),
+    # )
+    # support_armature_c_parent_bone : bpy.props.StringProperty(name='Parent Bone', description='Specify the bone from the main armature which the root bone of this support armature should join to at export', options=set())
     
     node_usage_physics_control : bpy.props.StringProperty(name="Physics Control", options=set())
     node_usage_camera_control : bpy.props.StringProperty(name="Camera Control", options=set())
@@ -1277,13 +1277,9 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     def update_connected_geometry_mesh_type_water_surface_visible(self, context): bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_water_surface')
     def update_connected_geometry_mesh_type_poop_vertical_rain_sheet_visible(self, context): bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_poop_vertical_rain_sheet')
     def update_connected_geometry_mesh_type_planar_fog_volume_visible(self, context): bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_planar_fog_volume')
-    def update_connected_geometry_mesh_type_soft_ceiling_visible(self, context): bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_soft_ceiling')
-    def update_connected_geometry_mesh_type_soft_kill_visible(self, context): bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_soft_kill')
-    def update_connected_geometry_mesh_type_slip_surface_visible(self, context): bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_slip_surface')
-    def update_connected_geometry_mesh_type_water_physics_volume_visible(self, context): bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_water_physics_volume')
-    def update_connected_geometry_mesh_type_lightmap_only_visible(self, context): bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_lightmap_only')
-    def update_connected_geometry_mesh_type_streaming_visible(self, context): bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_streaming')
-    def update_connected_geometry_mesh_type_lightmap_exclude_visible(self, context): bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_lightmap_exclude')
+    def update_connected_geometry_mesh_type_boundary_surface_visible(self, context): bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_boundary_surface')
+    # def update_connected_geometry_mesh_type_water_physics_volume_visible(self, context): bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_water_physics_volume')
+    def update_connected_geometry_mesh_type_obb_volume_visible(self, context): bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_obb_volume')
     def update_connected_geometry_mesh_type_cookie_cutter_visible(self, context): bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_cookie_cutter')
     def update_connected_geometry_mesh_type_poop_rain_blocker_visible(self, context): bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_poop_rain_blocker')
     
@@ -1312,13 +1308,8 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     connected_geometry_mesh_type_water_surface_visible: bpy.props.BoolProperty(default=True, options=set(), name="Water Surface", update=update_connected_geometry_mesh_type_water_surface_visible)
     connected_geometry_mesh_type_poop_vertical_rain_sheet_visible: bpy.props.BoolProperty(default=True, options=set(), name="Rain Sheet", update=update_connected_geometry_mesh_type_poop_vertical_rain_sheet_visible)
     connected_geometry_mesh_type_planar_fog_volume_visible: bpy.props.BoolProperty(default=True, options=set(), name="Fog", update=update_connected_geometry_mesh_type_planar_fog_volume_visible)
-    connected_geometry_mesh_type_soft_ceiling_visible: bpy.props.BoolProperty(default=True, options=set(), name="Soft Ceiling", update=update_connected_geometry_mesh_type_soft_ceiling_visible)
-    connected_geometry_mesh_type_soft_kill_visible: bpy.props.BoolProperty(default=True, options=set(), name="Soft Kill", update=update_connected_geometry_mesh_type_soft_kill_visible)
-    connected_geometry_mesh_type_slip_surface_visible: bpy.props.BoolProperty(default=True, options=set(), name="Slip Surface", update=update_connected_geometry_mesh_type_slip_surface_visible)
-    connected_geometry_mesh_type_water_physics_volume_visible: bpy.props.BoolProperty(default=True, options=set(), name="Water Physics", update=update_connected_geometry_mesh_type_water_physics_volume_visible)
-    connected_geometry_mesh_type_lightmap_only_visible: bpy.props.BoolProperty(default=True, options=set(), name="Lightmap Only", update=update_connected_geometry_mesh_type_lightmap_only_visible)
-    connected_geometry_mesh_type_streaming_visible: bpy.props.BoolProperty(default=True, options=set(), name="Streaming Volume", update=update_connected_geometry_mesh_type_streaming_visible)
-    connected_geometry_mesh_type_lightmap_exclude_visible: bpy.props.BoolProperty(default=True, options=set(), name="Lightmap Exclusion Volume", update=update_connected_geometry_mesh_type_lightmap_exclude_visible)
+    connected_geometry_mesh_type_boundary_surface_visible: bpy.props.BoolProperty(default=True, options=set(), name="Soft Ceiling", update=update_connected_geometry_mesh_type_boundary_surface_visible)
+    connected_geometry_mesh_type_obb_volume_visible: bpy.props.BoolProperty(default=True, options=set(), name="Lightmap Exclusion Volume", update=update_connected_geometry_mesh_type_obb_volume_visible)
     connected_geometry_mesh_type_cookie_cutter_visible: bpy.props.BoolProperty(default=True, options=set(), name="Cookie Cutter", update=update_connected_geometry_mesh_type_cookie_cutter_visible)
     connected_geometry_mesh_type_poop_rain_blocker_visible: bpy.props.BoolProperty(default=True, options=set(), name="Rain Blocker", update=update_connected_geometry_mesh_type_poop_rain_blocker_visible)
     

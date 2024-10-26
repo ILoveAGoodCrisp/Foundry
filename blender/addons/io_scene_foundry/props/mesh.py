@@ -475,6 +475,20 @@ class NWO_MeshPropertiesGroup(bpy.types.PropertyGroup):
         items.append(("_connected_geometry_poop_collision_type_bullet_collision", "Bullet Collision", "Collision mesh that only interacts with simple projectiles, such as bullets"))
         
         return items
+    
+    # face_mode: bpy.props.EnumProperty(
+    #     name="Type",
+    #     description="Determines the kind of geometry the game will build from this mesh"
+    #     items=[
+    #         ('_connected_geometry_face_mode_normal', "Render & Collision", "Mesh will be used to build both render geometry and collision"),
+    #         ('_connected_geometry_face_mode_render_only', "Render Only", "Mesh will be used to build both render geometry. The game will not build a collision representation of this mesh. It will not be collidable in game"),
+    #         ('_connected_geometry_face_mode_collision_only', "Collision Only", "Physics objects and projectiles will collide with this mesh but it will not be visible"),
+    #         ('_connected_geometry_face_mode_sphere_collision_only', "Sphere Collision Only", "Only physics objects collide with this mesh. Projectiles will pass through it"),
+    #         ('_connected_geometry_face_mode_shadow_only', "Shadow Only", "Mesh will be invisible and uncollidable. It will only be used for shadow casting"),
+    #         ('_connected_geometry_face_mode_lightmap_only', "Lightmap Only", "Mesh will be invisible and uncollidable. It will only be used by the lightmapping"),
+    #         ('_connected_geometry_face_mode_breakable', "", "Allows collision geometry to be destroyed. Mesh will be used to build both render geometry and collision. This type is non-functional in Halo 4+"),
+    #     ]
+    # )
         
     poop_collision_type: bpy.props.EnumProperty(
         name="Collision Type",
@@ -489,16 +503,26 @@ class NWO_MeshPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
     )
     
+    def update_sphere_collision(self, context):
+        if self.sphere_collision_only and self.collision_only:
+            self['collision_only'] = False
+            
+    def update_collision(self, context):
+        if self.collision_only and self.sphere_collision_only:
+            self['sphere_collision_only'] = False
+    
     sphere_collision_only: bpy.props.BoolProperty(
         name="Sphere Collision Only",
         description="Only physics objects collide with this mesh. Projectiles will pass through it",
         options=set(),
+        update=update_sphere_collision,
     )
     
     collision_only: bpy.props.BoolProperty(
         name="Collision Only",
-        description="Collision only. Physics objects and projectiles will collide with this but it will not be visible",
+        description="Physics objects and projectiles will collide with this but it will not be visible",
         options=set(),
+        update=update_collision,
     )
     
     breakable: bpy.props.BoolProperty(

@@ -19,6 +19,12 @@ class BungieEnum(Enum):
     def values(cls):
         text = str(list(map(lambda c: c.value, cls)))
         return f"#({text.strip('[]')})".encode()
+    
+class BungieEnumPoop(BungieEnum):
+    @classmethod
+    def names(cls):
+        text = str(list(map(lambda c: f"_connected_{snake(cls.__name__)}_{c.name.strip('_')}", cls)))
+        return f"#({text.strip('[]')})".encode()
 
 class ObjectType(BungieEnum):
     none = 0
@@ -103,6 +109,26 @@ class MeshObbVolumeType(BungieEnum):
     streamingvolume = 0
     lightmapexclusionvolume = 1
     
+class PoopLighting(BungieEnum):
+    none = 0 
+    single_probe = 1
+    per_pixel = 2
+    per_vertex = 3
+    per_vertex_ao = 4
+    
+class PoopInstancePathfindingPolicy(BungieEnumPoop):
+    none = 0
+    cutout = 1
+    static = 2
+    
+class PoopInstanceImposterPolicy(BungieEnumPoop):
+    polygon_default = 0
+    polygon_high = 1
+    card_default = 2
+    card_high = 3
+    none = 4
+    never = 5
+    
 class ExportInfo:
     def __init__(self, regions, global_materials):
         self.export_user = getuser()[:19]
@@ -120,6 +146,11 @@ class ExportInfo:
         self.face_draw_distance = FaceDrawDistance
         self.lightmap_type = LightmapType
         self.mesh_tessellation_density = MeshTessellationDensity
+        self.boundary_surface_type = BoundarySurfaceType
+        self.mesh_obb_volume_type = MeshObbVolumeType
+        self.poop_lighting = PoopLighting
+        self.poop_instance_pathfinding_policy = PoopInstancePathfindingPolicy
+        self.poop_instance_imposter_policy = PoopInstanceImposterPolicy
         if regions:
             self.regions = regions
         if global_materials:
@@ -135,6 +166,11 @@ class ExportInfo:
                 values_key = f"connected_geometry_{key}_table_enum_values"
                 info[names_key] = f"#({str(value).strip('[]')})".encode()
                 info[values_key] = f"#({str(list(range(len(value)))).strip('[]')})".encode()
+            elif key in {'poop_instance_pathfinding_policy', 'poop_instance_imposter_policy'}:
+                names_key = f"e_connected_{snake(key)}_enum_names"
+                values_key = f"e_connected_{snake(key)}_enum_values"
+                info[names_key] = value.names()
+                info[values_key] = value.values()
             else:
                 names_key = f"e_connected_geometry_{snake(key)}_enum_names"
                 values_key = f"e_connected_geometry_{snake(key)}_enum_values"
