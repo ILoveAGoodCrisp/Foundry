@@ -163,7 +163,7 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
     lightmap_only: bpy.props.BoolProperty(
         name="Lightmap Only",
         options=set(),
-        description="Mesh does not render but is considered by the lightmapper",
+        description="Geometry is non-rendered and non-collidable. This mesh will still be used by the lightmapper for emissive materials",
     )
 
     no_pvs: bpy.props.BoolProperty(
@@ -500,6 +500,12 @@ class NWO_MeshPropertiesGroup(bpy.types.PropertyGroup):
     render_only: bpy.props.BoolProperty(
         name="No Collision",
         description="Game will not build a collision representation of this mesh. It will not be collidable in game",
+        options=set(),
+    )
+    
+    lightmap_only: bpy.props.BoolProperty(
+        name="Lightmap Only",
+        description="Geometry is non-rendered and non-collidable. This mesh will still be used by the lightmapper for emissive materials",
         options=set(),
     )
     

@@ -1608,7 +1608,7 @@ def is_rendered(props: dict) -> bool:
         # returning true since the absence of a mesh type means the game will use the default mesh type - _connected_geometry_mesh_type_default
         return True 
     
-    return mesh_type in {MeshType.default.value, MeshType.poop.value, MeshType.object_instance.value, MeshType.water_surface.value}
+    return mesh_type in {MeshType.default.value, MeshType.poop.value, MeshType.object_instance.value, MeshType.water_surface.value, MeshType.decorator.value}
 
 def deep_copy_granny_tri_topology(original):
     copy = GrannyTriTopology()

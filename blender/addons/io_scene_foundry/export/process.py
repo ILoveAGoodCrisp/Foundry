@@ -29,7 +29,7 @@ from ..props.object import NWO_ObjectPropertiesGroup
 from .virtual_geometry import AnimatedBone, VirtualAnimation, VirtualNode, VirtualScene
 from ..granny import Granny
 from .. import utils
-from ..constants import VALID_MESHES, VALID_OBJECTS
+from ..constants import VALID_MESHES, VALID_OBJECTS, WU_SCALAR
 from ..tools.asset_types import AssetType
 
 class ObjectCopy(Enum):
@@ -982,7 +982,12 @@ class ExportScene:
                     mesh_props["bungie_face_sides"] = FaceSides.one_sided_transparent.value
                     
         
-        if data_nwo.render_only:
+        if data_nwo.lightmap_only:
+            if test_face_prop(face_props, "lightmap_only_override"):
+                fp_defaults["bungie_face_mode"] = FaceMode.lightmap_only.value
+            else:
+                mesh_props["bungie_face_mode"] = FaceMode.lightmap_only.value
+        elif data_nwo.render_only:
             if test_face_prop(face_props, "render_only_override"):
                 fp_defaults["bungie_face_mode"] = FaceMode.render_only.value
             else:
@@ -1103,8 +1108,8 @@ class ExportScene:
                 fp_defaults["bungie_lighting_use_shader_gel"] = int(data_nwo.material_lighting_use_shader_gel)
                 fp_defaults["bungie_lighting_bounce_ratio"] = data_nwo.material_lighting_bounce_ratio
                 fp_defaults["bungie_lighting_attenuation_enabled"] = int(data_nwo.material_lighting_attenuation_cutoff > 0)
-                fp_defaults["bungie_lighting_attenuation_cutoff"] = data_nwo.material_lighting_attenuation_cutoff
-                fp_defaults["bungie_lighting_attenuation_falloff"] = data_nwo.material_lighting_attenuation_falloff
+                fp_defaults["bungie_lighting_attenuation_cutoff"] = data_nwo.material_lighting_attenuation_cutoff * WU_SCALAR
+                fp_defaults["bungie_lighting_attenuation_falloff"] = data_nwo.material_lighting_attenuation_falloff * WU_SCALAR
                 fp_defaults["bungie_lighting_emissive_focus"] = degrees(data_nwo.material_lighting_emissive_focus) / 180
             else:
                 mesh_props["bungie_lighting_emissive_power"] = data_nwo.material_lighting_emissive_power
@@ -1114,8 +1119,8 @@ class ExportScene:
                 mesh_props["bungie_lighting_use_shader_gel"] = int(data_nwo.material_lighting_use_shader_gel)
                 mesh_props["bungie_lighting_bounce_ratio"] = data_nwo.material_lighting_bounce_ratio
                 mesh_props["bungie_lighting_attenuation_enabled"] = int(data_nwo.material_lighting_attenuation_cutoff > 0)
-                mesh_props["bungie_lighting_attenuation_cutoff"] = data_nwo.material_lighting_attenuation_cutoff
-                mesh_props["bungie_lighting_attenuation_falloff"] = data_nwo.material_lighting_attenuation_falloff
+                mesh_props["bungie_lighting_attenuation_cutoff"] = data_nwo.material_lighting_attenuation_cutoff * WU_SCALAR
+                mesh_props["bungie_lighting_attenuation_falloff"] = data_nwo.material_lighting_attenuation_falloff * WU_SCALAR
                 mesh_props["bungie_lighting_emissive_focus"] = degrees(data_nwo.material_lighting_emissive_focus) / 180
                 
         return fp_defaults, mesh_props
@@ -1162,6 +1167,7 @@ class ExportScene:
                 if ob.type == 'MESH':
                     props = self.ob_halo_data[ob][0]
                     self.ob_halo_data[ob][0] = self._setup_skylights(props)
+                    break
             
         with utils.Spinner():
             utils.update_job_count(process, "", 0, num_no_parents)
@@ -1567,7 +1573,7 @@ class ExportScene:
         else:
             structure = self.virtual_scene.structure
         sidecar_importer = SidecarImport(self.asset_path, self.asset_name, self.asset_type, self.sidecar_path, self.scene_settings, self.export_settings, self.selected_bsps, self.corinth, structure, self.tags_dir)
-        if self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB}:
+        if self.corinth and self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB}:
             sidecar_importer.save_lighting_infos()
         sidecar_importer.setup_templates()
         sidecar_importer.run()
@@ -1709,13 +1715,13 @@ class ExportScene:
                 sun = ob
             down = Vector((0, 0, -1))
             down.rotate(ob.rotation_euler)
-            lightGen_colors.append(utils.color_3p(ob.data.color))
-            lightGen_directions.append(down.to_tuple())
+            lightGen_colors.extend(utils.color_3p(ob.data.color))
+            lightGen_directions.extend(down.to_tuple())
             lightGen_solid_angles.append(ob.data.energy * light_scale)
         
-        props['lightGen_colors'] = lightGen_colors
-        props['lightGen_directions'] = lightGen_directions
-        props['lightGen_solid_angles'] = lightGen_solid_angles
+        props['lightGen_colors'] = " ".join(map(utils.jstr, lightGen_colors))
+        props['lightGen_directions'] = " ".join(map(utils.jstr, lightGen_directions))
+        props['lightGen_solid_angles'] = " ".join(map(utils.jstr, lightGen_solid_angles))
         props['lightGen_samples'] = len(self.sky_lights) - 1
         
         if sun is not None:

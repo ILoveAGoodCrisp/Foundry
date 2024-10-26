@@ -2040,10 +2040,12 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     else:
                         row = col.row()
                         row.label(text="Two Sided")
+                if item.lightmap_only_override:
+                    row = col.row()
+                    row.label(text='Lightmap Only')
                 if item.render_only_override:
                     row = col.row()
                     row.label(text='Render Only')
-                    
                 if item.collision_only_override:
                     row = col.row()
                     row.label(text='Collision Only')
@@ -2249,14 +2251,16 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                             row.prop(mesh_nwo, "no_pvs", text="No Visibility Culling")
                             
             if not self.h4 and utils.poll_ui(('scenario',)) and nwo.mesh_type in ('_connected_geometry_mesh_type_default', '_connected_geometry_mesh_type_structure'):
-                row.prop(mesh_nwo, 'render_only')
-                if not mesh_nwo.render_only:
-                    row.prop(mesh_nwo, "ladder", text="Ladder")
-                    row.prop(mesh_nwo, "slip_surface", text="Slip Surface")
-                    row.prop(mesh_nwo, 'breakable', text='Breakable')
-                    if not mesh_nwo.breakable:
-                        row.prop(mesh_nwo, 'collision_only', text='Collision Only')
-                        row.prop(mesh_nwo, 'sphere_collision_only', text='Sphere Collision Only')
+                row.prop(mesh_nwo, 'lightmap_only')
+                if not mesh_nwo.lightmap_only:
+                    row.prop(mesh_nwo, 'render_only')
+                    if not mesh_nwo.render_only:
+                        row.prop(mesh_nwo, "ladder", text="Ladder")
+                        row.prop(mesh_nwo, "slip_surface", text="Slip Surface")
+                        row.prop(mesh_nwo, 'breakable', text='Breakable')
+                        if not mesh_nwo.breakable:
+                            row.prop(mesh_nwo, 'collision_only', text='Collision Only')
+                            row.prop(mesh_nwo, 'sphere_collision_only', text='Sphere Collision')
                 
             elif not self.h4 and nwo.mesh_type == '_connected_geometry_mesh_type_collision':
                 if utils.poll_ui(('scenario', 'model')):
