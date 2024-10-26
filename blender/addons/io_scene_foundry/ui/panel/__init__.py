@@ -654,17 +654,25 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         if arm_count > 1 or nwo.support_armature_a:
             col.prop(nwo, 'support_armature_a', icon='OUTLINER_OB_ARMATURE')
             if nwo.support_armature_a:
-                col.prop_search(nwo, 'support_armature_a_parent_bone', nwo.main_armature.data, 'bones')
+                row = col.row()
+                row.prop_search(nwo, 'support_armature_a_parent_bone', nwo.main_armature.data, 'bones')
+                if not nwo.support_armature_a_parent_bone:
+                    row.operator("nwo.link_armatures", text="", icon='DECORATE_LINKED').support_arm = 0
                 col.separator()
         if arm_count > 2 or nwo.support_armature_b:
             col.prop(nwo, 'support_armature_b', icon='OUTLINER_OB_ARMATURE')
             if nwo.support_armature_b:
-                col.prop_search(nwo, 'support_armature_b_parent_bone', nwo.main_armature.data, 'bones')
-                col.separator()
+                row = col.row()
+                row.prop_search(nwo, 'support_armature_b_parent_bone', nwo.main_armature.data, 'bones')
+                if not nwo.support_armature_b_parent_bone:
+                    row.operator("nwo.link_armatures", text="", icon='DECORATE_LINKED').support_arm = 1
         if arm_count > 3 or nwo.support_armature_c:
             col.prop(nwo, 'support_armature_c', icon='OUTLINER_OB_ARMATURE')
             if nwo.support_armature_c:
-                col.prop_search(nwo, 'support_armature_c_parent_bone', nwo.main_armature.data, 'bones')
+                row = col.row()
+                row.prop_search(nwo, 'support_armature_c_parent_bone', nwo.main_armature.data, 'bones')
+                if not nwo.support_armature_c_parent_bone:
+                    row.operator("nwo.link_armatures", text="", icon='DECORATE_LINKED').support_arm = 2
                 
         #col.separator()
                 

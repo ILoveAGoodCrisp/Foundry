@@ -380,3 +380,89 @@ class NWO_OT_RegisterIcons(bpy.types.Operator):
             icons.icons_activate()
             
         return {"FINISHED"}
+    
+class NWO_OT_LinkArmatures(bpy.types.Operator):
+    bl_idname = "nwo.link_armatures"
+    bl_label = "Link Armatures"
+    bl_description = "Links a support armature to the main armature by assinging the parent bone and adding child of constraints"
+    bl_options = {"UNDO"}
+    
+    support_arm: bpy.props.IntProperty(options={'HIDDEN'})
+    
+    parent_bone: bpy.props.StringProperty(
+        name="Parent Bone",
+        description="Bone from the main armature which acts as the parent of all root bones in the support armature"
+    )
+    
+    @classmethod
+    def poll(cls, context):
+        return context.scene.nwo.main_armature
+    
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+    
+    def draw(self, context):
+        self.layout.prop_search(self, 'parent_bone', context.scene.nwo.main_armature.pose, 'bones')
+
+    def execute(self, context):
+        scene_nwo = context.scene.nwo
+        main_armature = scene_nwo.main_armature
+
+        support_armature = None
+        parent_bone = main_armature.pose.bones.get(self.parent_bone)
+        field_prop_name = ""
+        match self.support_arm:
+            case 0:
+                support_armature = scene_nwo.support_armature_a
+                field_prop_name = "support_armature_a_parent_bone"
+            case 1:
+                support_armature = scene_nwo.support_armature_b
+                field_prop_name = "support_armature_b_parent_bone"
+            case 2:
+                support_armature = scene_nwo.support_armature_c
+                field_prop_name = "support_armature_c_parent_bone"
+                
+        if support_armature is None:
+            self.report({'WARNING'}, "Support armature is None")
+            return {'CANCELLED'}
+        
+        elif parent_bone is None:
+            self.report({'WARNING'}, f"Parent Bone not found in {main_armature}")
+            return {'CANCELLED'}
+        
+        def has_child_of_constraint(pbone: bpy.types.PoseBone):
+            for con in pbone.constraints:
+                con: bpy.types.Constraint
+                if con.type == 'CHILD_OF':
+                    return True
+                
+            return False
+        
+        main_posed = main_armature.data.pose_position == 'POSE'
+        support_posed = support_armature.data.pose_position == 'POSE'
+        
+        if main_posed:
+            main_armature.data.pose_position = 'REST'
+        if support_posed:
+            support_armature.data.pose_position = 'REST'
+            
+        if main_posed or support_posed:
+            context.view_layer.update()
+        
+        for pbone in support_armature.pose.bones:
+            pbone: bpy.types.PoseBone
+            if pbone.parent or has_child_of_constraint(pbone):
+                continue
+            constraint = pbone.constraints.new('CHILD_OF')
+            constraint.target = main_armature
+            constraint.subtarget = parent_bone.name
+            constraint.inverse_matrix = (main_armature.matrix_world @ parent_bone.matrix).inverted()
+            
+        if main_posed:
+            main_armature.data.pose_position = 'POSE'
+        if support_posed:
+            support_armature.data.pose_position = 'POSE'
+            
+        setattr(scene_nwo, field_prop_name, parent_bone.name)  
+            
+        return {"FINISHED"}
