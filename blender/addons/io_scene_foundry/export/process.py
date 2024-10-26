@@ -431,6 +431,8 @@ class ExportScene:
                                 copy_props.pop("bungie_face_type")
                             copy_props, copy_mesh_props = self._setup_poop_props(copy_ob, ob.nwo, ob.data.nwo, copy_props, mesh_props)
                             copy_props.update(copy_mesh_props)
+                            copy_ob.data = copy_ob.data.copy()
+                            self.temp_meshes.add(copy_ob.data)
                             
                         case ObjectCopy.WATER_PHYSICS:
                             copy_props["bungie_mesh_type"] = MeshType.water_physics_volume.value

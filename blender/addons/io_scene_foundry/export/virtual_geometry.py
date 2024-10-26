@@ -1560,7 +1560,12 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
         if material.name.lower().startswith('+seamsealer') and props.get("bungie_face_type") is None:
             face_properties.setdefault("bungie_face_type", FaceSet(np.zeros(num_faces, np.uint8))).update_from_material(bm, material_indices, FaceType.seam_sealer.value)
         elif material.name.lower().startswith('+sky'):
-            enum_val = FaceType.sky.value if props.get("bungie_mesh_type") == MeshType.default.value and scene.asset_type == AssetType.SCENARIO else FaceType.seam_sealer.value
+            is_structure = props.get("bungie_mesh_type") == MeshType.default.value
+            if not is_structure and not scene.corinth:
+                bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.material_index in material_indices], context='FACES')
+                continue
+            
+            enum_val = FaceType.sky.value if is_structure and scene.asset_type == AssetType.SCENARIO else FaceType.seam_sealer.value
             if props.get("bungie_face_type") is None:
                 face_properties.setdefault("bungie_face_type", FaceSet(np.zeros(num_faces, np.uint8))).update_from_material(bm, material_indices, enum_val)
             
