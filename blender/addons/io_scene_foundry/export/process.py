@@ -1367,7 +1367,7 @@ class ExportScene:
                 #         bone_parent = pbone
                         
                 self.virtual_scene.skeleton_model.skeleton.append_animation_control(ob, node, self.virtual_scene)
-                controls.append(AnimatedBone(ob))
+                controls.append(AnimatedBone(ob.parent, ob))
             else:
                 self.virtual_scene.add_model_for_animation(ob, props, animation_owner=name)
                 
