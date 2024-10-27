@@ -165,10 +165,11 @@ class ScenarioStructureBspTag(Tag):
         # poops = []
         for element in self.block_instances.Elements:
             io = Instance(element, instance_definitions)
-            ob = io.create()
-            objects.append(ob)
-            # poops.append(ob)
-            self.collection.objects.link(ob)
+            if io.definition.blender_render or io.definition.blender_collision:
+                ob = io.create()
+                objects.append(ob)
+                # poops.append(ob)
+                self.collection.objects.link(ob)
         
         # if poops:
         #     with bpy.context.temp_override(selected_editable_objects=poops, object=poops[0]):
