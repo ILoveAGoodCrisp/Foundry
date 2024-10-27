@@ -1,5 +1,6 @@
 
 
+from collections import defaultdict
 from math import radians
 from pathlib import Path
 import bpy
@@ -54,58 +55,58 @@ class AnimationTag(Tag):
     
     def set_node_usages(self, bones, granny: bool = False):
         def _node_usage_dict(nwo):
-            node_usage_dict = {}
+            node_usage_dict = defaultdict(list)
             if nwo.node_usage_pedestal:
-                node_usage_dict[nwo.node_usage_pedestal] = "pedestal"
+                node_usage_dict[nwo.node_usage_pedestal].append("pedestal")
             if nwo.node_usage_physics_control:
-                node_usage_dict[nwo.node_usage_physics_control] = "physics control"
+                node_usage_dict[nwo.node_usage_physics_control].append("physics control")
             if nwo.node_usage_camera_control:
-                node_usage_dict[nwo.node_usage_camera_control] = "camera control"
+                node_usage_dict[nwo.node_usage_camera_control].append("camera control")
             if nwo.node_usage_origin_marker:
-                node_usage_dict[nwo.node_usage_origin_marker] = "origin marker"
+                node_usage_dict[nwo.node_usage_origin_marker].append("origin marker")
             if nwo.node_usage_left_clavicle:
-                node_usage_dict[nwo.node_usage_left_clavicle] = "left clavicle"
+                node_usage_dict[nwo.node_usage_left_clavicle].append("left clavicle")
             if nwo.node_usage_left_upperarm:
-                node_usage_dict[nwo.node_usage_left_upperarm] = "left upperarm"
+                node_usage_dict[nwo.node_usage_left_upperarm].append("left upperarm")
             if nwo.node_usage_pose_blend_pitch:
-                node_usage_dict[nwo.node_usage_pose_blend_pitch] = "pose blend pitch"
+                node_usage_dict[nwo.node_usage_pose_blend_pitch].append("pose blend pitch")
             if nwo.node_usage_pose_blend_yaw:
-                node_usage_dict[nwo.node_usage_pose_blend_yaw] = "pose blend yaw"
+                node_usage_dict[nwo.node_usage_pose_blend_yaw].append("pose blend yaw")
             if nwo.node_usage_pelvis:
-                node_usage_dict[nwo.node_usage_pelvis] = "pelvis"
+                node_usage_dict[nwo.node_usage_pelvis].append("pelvis")
             if nwo.node_usage_left_foot:
-                node_usage_dict[nwo.node_usage_left_foot] = "left foot"
+                node_usage_dict[nwo.node_usage_left_foot].append("left foot")
             if nwo.node_usage_right_foot:
-                node_usage_dict[nwo.node_usage_right_foot] = "right foot"
+                node_usage_dict[nwo.node_usage_right_foot].append("right foot")
             if nwo.node_usage_damage_root_gut:
-                node_usage_dict[nwo.node_usage_damage_root_gut] = "damage root gut"
+                node_usage_dict[nwo.node_usage_damage_root_gut].append("damage root gut")
             if nwo.node_usage_damage_root_chest:
-                node_usage_dict[nwo.node_usage_damage_root_chest] = "damage root chest"
+                node_usage_dict[nwo.node_usage_damage_root_chest].append("damage root chest")
             if nwo.node_usage_damage_root_head:
-                node_usage_dict[nwo.node_usage_damage_root_head] = "damage root head"
+                node_usage_dict[nwo.node_usage_damage_root_head].append("damage root head")
             if nwo.node_usage_damage_root_left_shoulder:
-                node_usage_dict[nwo.node_usage_damage_root_left_shoulder] = "damage root left shoulder"
+                node_usage_dict[nwo.node_usage_damage_root_left_shoulder].append("damage root left shoulder")
             if nwo.node_usage_damage_root_left_arm:
-                node_usage_dict[nwo.node_usage_damage_root_left_arm] = "damage root left arm"
+                node_usage_dict[nwo.node_usage_damage_root_left_arm].append("damage root left arm")
             if nwo.node_usage_damage_root_left_leg:
-                node_usage_dict[nwo.node_usage_damage_root_left_leg] = "damage root left leg"
+                node_usage_dict[nwo.node_usage_damage_root_left_leg].append("damage root left leg")
             if nwo.node_usage_damage_root_left_foot:
-                node_usage_dict[nwo.node_usage_damage_root_left_foot] = "damage root left foot"
+                node_usage_dict[nwo.node_usage_damage_root_left_foot].append("damage root left foot")
             if nwo.node_usage_damage_root_right_shoulder:
-                node_usage_dict[nwo.node_usage_damage_root_right_shoulder] = "damage root right shoulder"
+                node_usage_dict[nwo.node_usage_damage_root_right_shoulder].append("damage root right shoulder")
             if nwo.node_usage_damage_root_right_arm:
-                node_usage_dict[nwo.node_usage_damage_root_right_arm] = "damage root right arm"
+                node_usage_dict[nwo.node_usage_damage_root_right_arm].append("damage root right arm")
             if nwo.node_usage_damage_root_right_leg:
-                node_usage_dict[nwo.node_usage_damage_root_right_leg] = "damage root right leg"
+                node_usage_dict[nwo.node_usage_damage_root_right_leg].append("damage root right leg")
             if nwo.node_usage_damage_root_right_foot:
-                node_usage_dict[nwo.node_usage_damage_root_right_foot] = "damage root right foot"
+                node_usage_dict[nwo.node_usage_damage_root_right_foot].append("damage root right foot")
             if self.corinth:
                 if nwo.node_usage_left_hand:
-                    node_usage_dict[nwo.node_usage_left_hand] = "left hand"
+                    node_usage_dict[nwo.node_usage_left_hand].append("left hand")
                 if nwo.node_usage_right_hand:
-                    node_usage_dict[nwo.node_usage_right_hand] = "right hand"
+                    node_usage_dict[nwo.node_usage_right_hand].append("right hand")
                 if nwo.node_usage_weapon_ik:
-                    node_usage_dict[nwo.node_usage_weapon_ik] = "weapon ik"
+                    node_usage_dict[nwo.node_usage_weapon_ik].append("weapon ik")
 
             return node_usage_dict
         
@@ -118,13 +119,14 @@ class AnimationTag(Tag):
         self.block_node_usages.RemoveAllElements()
         node_targets = [n for n in node_index_list if n in node_usage_dict.keys()]
         for node in node_targets:
-            usage = node_usage_dict[node]
-            new_element = self.block_node_usages.AddElement()
-            usage_field = new_element.SelectField("usage")
-            node_field = new_element.SelectField("node to use")
-            items = [i.EnumName for i in usage_field.Items]
-            usage_field.Value = items.index(usage)
-            node_field.Value = node_index_list.index(node)
+            usages = node_usage_dict[node]
+            for usage in usages:
+                new_element = self.block_node_usages.AddElement()
+                usage_field = new_element.SelectField("usage")
+                node_field = new_element.SelectField("node to use")
+                items = [i.EnumName for i in usage_field.Items]
+                usage_field.Value = items.index(usage)
+                node_field.Value = node_index_list.index(node)
         if node_targets:
             self.tag_has_changes = True
     

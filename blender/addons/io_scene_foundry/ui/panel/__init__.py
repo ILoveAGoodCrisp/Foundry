@@ -717,9 +717,9 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         col.prop_search(nwo, "node_usage_left_clavicle", nwo.main_armature.data, "bones")
         col.prop_search(nwo, "node_usage_left_upperarm", nwo.main_armature.data, "bones")
         col.prop_search(nwo, "node_usage_left_foot", nwo.main_armature.data, "bones")
+        col.prop_search(nwo, "node_usage_right_foot", nwo.main_armature.data, "bones")
         if self.h4:
             col.prop_search(nwo, "node_usage_left_hand", nwo.main_armature.data, "bones")
-            col.prop_search(nwo, "node_usage_right_foot", nwo.main_armature.data, "bones")
             col.prop_search(nwo, "node_usage_right_hand", nwo.main_armature.data, "bones")
         col.prop_search(nwo, "node_usage_damage_root_gut", nwo.main_armature.data, "bones")
         col.prop_search(nwo, "node_usage_damage_root_chest", nwo.main_armature.data, "bones")
