@@ -182,7 +182,7 @@ class NWO_TagExplore(bpy.types.Operator):
         return {"FINISHED"}
 
     def invoke(self, context, event):
-        self.filepath = get_tags_path()
+        self.filepath = get_tags_path() + os.sep
         self.filter_glob = get_glob_from_prop(self.prop)
         context.window_manager.fileselect_add(self)
 
