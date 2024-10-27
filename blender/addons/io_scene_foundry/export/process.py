@@ -1558,7 +1558,7 @@ class ExportScene:
                     self.print_pre("--- Setting parent animation graph")
                     animation.set_parent_graph(self.scene_settings.parent_animation_graph)
                     # print("--- Set Parent Animation Graph")
-                if self.virtual_scene.animations:
+                if self.virtual_scene and self.virtual_scene.animations:
                     self.print_pre(f"--- Validating animation compression for {len(self.exported_actions)} animations: Default Compression = {self.scene_settings.default_animation_compression}")
                     animation.validate_compression(self.exported_actions, self.scene_settings.default_animation_compression)
                     # print("--- Validated Animation Compression")

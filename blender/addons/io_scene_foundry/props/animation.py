@@ -236,18 +236,24 @@ class NWO_Animation_ListItems(bpy.types.PropertyGroup):
     ik_proxy_target_id: bpy.props.IntProperty(
         name="IK Proxy Target ID",
         default=0,
-        options=set(),
+        options={'HIDDEN'},
     )
 
     ik_pole_vector_id: bpy.props.IntProperty(
         name="IK Pole Vector ID",
         default=0,
-        options=set(),
+        options={'HIDDEN'},
     )
 
     ik_effector_id: bpy.props.IntProperty(
         name="IK Effector ID",
         default=0,
+        options={'HIDDEN'},
+    )
+    
+    ik_pole_vector: bpy.props.PointerProperty(
+        name="Pole Target",
+        type=bpy.types.Object,
         options=set(),
     )
 
