@@ -1973,7 +1973,7 @@ def get_animated_objects(context) -> list[bpy.types.Object]:
     if context.object and context.object.animation_data:
         animated_objects.add(context.object)
     
-    animated_objects.update({ob for ob in context.view_layer.objects if ob.type == 'ARMATURE'})
+    animated_objects.update({ob for ob in context.view_layer.objects if ob.type == 'ARMATURE' and ob.animation_data})
         
     control_objects = get_object_controls(context)
     if control_objects:
