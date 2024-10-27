@@ -574,17 +574,17 @@ class VirtualMesh:
                     unique_bone_indices.update(top_bone_indices)
                     
                 
-            self.bone_bindings = [bones[idx] for idx in vgroup_remap.values()]
-            
-            max_index = max(vgroup_remap.values()) + 1
-            mapping_array = np.full(max_index, -1, dtype=np.int32)
-            for new_idx, old_idx in enumerate(vgroup_remap.values()):
-                mapping_array[old_idx] = new_idx
+            if vgroup_remap:
+                self.bone_bindings = [bones[idx] for idx in vgroup_remap.values()]
+                max_index = max(vgroup_remap.values()) + 1
+                mapping_array = np.full(max_index, -1, dtype=np.int32)
+                for new_idx, old_idx in enumerate(vgroup_remap.values()):
+                    mapping_array[old_idx] = new_idx
 
-            bone_indices = np.clip(mapping_array[bone_indices], 0, max_index - 1)
+                bone_indices = np.clip(mapping_array[bone_indices], 0, max_index - 1)
 
-            self.bone_weights = bone_weights.astype(np.byte)[loop_vertex_indices]
-            self.bone_indices = bone_indices.astype(np.byte)[loop_vertex_indices]
+                self.bone_weights = bone_weights.astype(np.byte)[loop_vertex_indices]
+                self.bone_indices = bone_indices.astype(np.byte)[loop_vertex_indices]
         
         if render_mesh:
             # We only care about writing this data if the in game mesh will have a render definition

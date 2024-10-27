@@ -1063,7 +1063,6 @@ class ExportScene:
             else:
                 mesh_props["bungie_no_lightmap"] = 1
         if data_nwo.precise_position:
-            print("precise ", ob.name)
             if test_face_prop(face_props, "precise_position_override"):
                 fp_defaults["bungie_precise_position"] = 1
             else:

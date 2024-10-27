@@ -2135,6 +2135,9 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 if item.lightmap_lighting_from_both_sides_override:
                     row = col.row()
                     row.label(text="Lightmap Lighting From Both Sides")
+                if item.lightmap_transparency_override_override:
+                    row = col.row()
+                    row.label(text="Disable Lightmap Transparency")
                 # material lighting
                 if item.emissive_override:
                     col.separator()

@@ -45,6 +45,7 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
     lightmap_analytical_bounce_modifier_override: bpy.props.BoolProperty()
     lightmap_general_bounce_modifier_override: bpy.props.BoolProperty()
     lightmap_translucency_tint_color_override: bpy.props.BoolProperty()
+    lightmap_transparency_override_override: bpy.props.BoolProperty()
     lightmap_lighting_from_both_sides_override: bpy.props.BoolProperty()
     # material lighting
     emissive_override: bpy.props.BoolProperty()
@@ -274,6 +275,13 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
             ("_connected_material_lightmap_type_per_pixel", "Per Pixel", ""),
             ("_connected_material_lightmap_type_per_vertex", "Per Vetex", ""),
         ],
+    )
+    
+    lightmap_transparency_override: bpy.props.BoolProperty(
+        name="Disable Lightmap Transparency",
+        options=set(),
+        description="Disables the transparency of any mesh faces this property is applied for the purposes of lightmapping. For example on a mesh using an invisible shader/material, shadow will still be cast",
+        default=True,
     )
 
     lightmap_analytical_bounce_modifier: bpy.props.FloatProperty(

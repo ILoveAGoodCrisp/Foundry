@@ -274,6 +274,8 @@ def toggle_override(option, bool_var, item):
             item.lightmap_translucency_tint_color_override = bool_var
         case "lightmap_lighting_from_both_sides":
             item.lightmap_lighting_from_both_sides_override = bool_var
+        case "lightmap_transparency_override":
+            item.lightmap_transparency_override_override = bool_var
         # material lighting
         case "emissive":
             item.emissive_override = bool_var
