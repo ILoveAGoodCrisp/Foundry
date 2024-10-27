@@ -275,21 +275,21 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
     lightmap_analytical_bounce_modifier: bpy.props.FloatProperty(
         name="Lightmap Analytical Bounce Modifier",
         options=set(),
-        description="0 will bounce no energy.  1 will bounce full energy.  Any value greater than 1 will exaggerate the amount of bounced light.  Affects 1st bounce only",
+        description="For analytical lights such as the sun. 0 will bounce no energy. 1 will bounce full energy",
         default=1,
-        soft_max=1,
+        max=1,
         min=0,
-        subtype="FACTOR",
+        subtype='FACTOR',
     )
 
     lightmap_general_bounce_modifier: bpy.props.FloatProperty(
         name="Lightmap General Bounce Modifier",
         options=set(),
-        description="0 will bounce no energy.  1 will bounce full energy.  Any value greater than 1 will exaggerate the amount of bounced light.  Affects 1st bounce only",
+        description="For analytical lights such as the sun. 0 will bounce no energy. 1 will bounce full energy",
         default=1,
-        soft_max=1,
+        max=1,
         min=0,
-        subtype="FACTOR",
+        subtype='FACTOR',
     )
 
     lightmap_translucency_tint_color: bpy.props.FloatVectorProperty(
@@ -711,12 +711,17 @@ class NWO_MeshPropertiesGroup(bpy.types.PropertyGroup):
             ("_connected_material_lightmap_type_per_vertex", "Per Vertex", "Uses a separate and additional per-vertex lightmap budget. Cost is dependent purely on complexity/vert count of the mesh"),
         ],
     )
+    
+    def update_lightmap_transparency_override(self, context):
+        self.lightmap_transparency_override_active = True
 
+    lightmap_transparency_override_active: bpy.props.BoolProperty()
     lightmap_transparency_override: bpy.props.BoolProperty(
-        name="Lightmap Transparency Override",
+        name="Disable Lightmap Transparency",
         options=set(),
-        description="",
-        default=False,
+        description="Disables the transparency of any mesh faces this property is applied for the purposes of lightmapping. For example on a mesh using an invisible shader/material, shadow will still be cast",
+        default=True,
+        update=update_lightmap_transparency_override,
     )
 
     def update_lightmap_analytical_bounce_modifier(self, context):
@@ -726,8 +731,11 @@ class NWO_MeshPropertiesGroup(bpy.types.PropertyGroup):
     lightmap_analytical_bounce_modifier: bpy.props.FloatProperty(
         name="Lightmap Analytical Bounce Modifier",
         options=set(),
-        description="",
+        description="For analytical lights such as the sun. 0 will bounce no energy. 1 will bounce full energy",
         default=1,
+        max=1,
+        min=0,
+        subtype='FACTOR',
         update=update_lightmap_analytical_bounce_modifier,
     )
 
@@ -738,8 +746,11 @@ class NWO_MeshPropertiesGroup(bpy.types.PropertyGroup):
     lightmap_general_bounce_modifier: bpy.props.FloatProperty(
         name="Lightmap General Bounce Modifier",
         options=set(),
-        description="",
+        description="For general lights, such as placed spot lights. 0 will bounce no energy. 1 will bounce full energy",
         default=1,
+        max=1,
+        min=0,
+        subtype='FACTOR',
         update=update_lightmap_general_bounce_modifier,
     )
 
@@ -766,7 +777,7 @@ class NWO_MeshPropertiesGroup(bpy.types.PropertyGroup):
         name="Lightmap Lighting From Both Sides",
         options=set(),
         description="",
-        default=False,
+        default=True,
         update=update_lightmap_lighting_from_both_sides,
     )
 

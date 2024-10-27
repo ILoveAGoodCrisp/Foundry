@@ -58,6 +58,9 @@ face_prop_defaults = {
     "bungie_lightmap_type": 0,
     "bungie_lightmap_translucency_tint_color": (0.0, 0.0, 0.0, 0.0),
     "bungie_lightmap_lighting_from_both_sides": 0,
+    "bungie_lightmap_transparency_override": 0,
+    "bungie_lightmap_analytical_bounce_modifier": 1.0,
+    "bungie_lightmap_general_bounce_modifier": 1.0,
     "bungie_lighting_emissive_power": 0.0,
     "bungie_lighting_emissive_color": 0.0,
     "bungie_lighting_emissive_per_unit": 0,
@@ -1005,7 +1008,7 @@ class ExportScene:
             if test_face_prop(face_props, "sphere_collision_only_override"):
                 fp_defaults["bungie_face_mode"] = FaceMode.sphere_collision_only.value
             else:
-                mesh_props["bungie_face_mode"] = FaceMode.sphere_collision_only.value
+                mesh_props["bungie_face_mode"] = FaceMode.shadow_only.value
         elif not self.corinth and data_nwo.breakable:
             if test_face_prop(face_props, "breakable_override"):
                 fp_defaults["bungie_face_mode"] = FaceMode.breakable.value
@@ -1102,6 +1105,24 @@ class ExportScene:
                 fp_defaults["bungie_lightmap_lighting_from_both_sides"] = 1
             else:
                 mesh_props["bungie_lightmap_lighting_from_both_sides"] = 1
+                
+        if data_nwo.lightmap_transparency_override_active:
+            if test_face_prop(face_props, "lightmap_transparency_override"):
+                fp_defaults["bungie_lightmap_transparency_override"] = 1
+            else:
+                mesh_props["bungie_lightmap_transparency_override"] = 1
+                
+        if data_nwo.lightmap_analytical_bounce_modifier_active:
+            if test_face_prop(face_props, "lightmap_analytical_bounce_modifier"):
+                fp_defaults["bungie_lightmap_analytical_bounce_modifier"] = data_nwo.lightmap_analytical_bounce_modifier
+            else:
+                mesh_props["bungie_lightmap_analytical_bounce_modifier"] = data_nwo.lightmap_analytical_bounce_modifier
+                
+        if data_nwo.lightmap_general_bounce_modifier_active:
+            if test_face_prop(face_props, "lightmap_general_bounce_modifier"):
+                fp_defaults["bungie_lightmap_general_bounce_modifier"] = data_nwo.lightmap_general_bounce_modifier
+            else:
+                mesh_props["bungie_lightmap_general_bounce_modifier"] = data_nwo.lightmap_general_bounce_modifier
                 
         if data_nwo.emissive_active:
             if test_face_prop(face_props, "emissive_override"):

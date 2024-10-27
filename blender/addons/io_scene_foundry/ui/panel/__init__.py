@@ -2339,74 +2339,79 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 col_ob = box.column()
                 col_ob.use_property_split = True
                 # lightmap
-                has_lightmap_props = mesh_nwo.mesh_type != "_connected_geometry_mesh_type_lightmap_only"
-                if has_lightmap_props:
-                    if mesh_nwo.lightmap_additive_transparency_active:
-                        row = col_ob.row(align=True)
-                        row.prop(
-                            mesh_nwo,
-                            "lightmap_additive_transparency",
-                            text="Additive Transparency",
-                        )
-                        row.operator(
-                            "nwo.remove_mesh_property", text="", icon="X"
-                        ).options = "lightmap_additive_transparency"
-                    if mesh_nwo.lightmap_resolution_scale_active:
-                        row = col_ob.row(align=True)
-                        row.prop(
-                            mesh_nwo,
-                            "lightmap_resolution_scale",
-                            text="Resolution Scale",
-                        )
-                        row.operator(
-                            "nwo.remove_mesh_property", text="", icon="X"
-                        ).options = "lightmap_resolution_scale"
-                    if mesh_nwo.lightmap_type_active:
-                        row = col_ob.row(align=True)
-                        row.prop(mesh_nwo, "lightmap_type", text="Lightmap Type")
-                        row.operator(
-                            "nwo.remove_mesh_property", text="", icon="X"
-                        ).options = "lightmap_type"
-                    if mesh_nwo.lightmap_analytical_bounce_modifier_active:
-                        row = col_ob.row(align=True)
-                        row.prop(
-                            mesh_nwo,
-                            "lightmap_analytical_bounce_modifier",
-                            text="Analytical Bounce Modifier",
-                        )
-                        row.operator(
-                            "nwo.remove_mesh_property", text="", icon="X"
-                        ).options = "lightmap_analytical_bounce_modifier"
-                    if mesh_nwo.lightmap_general_bounce_modifier_active:
-                        row = col_ob.row(align=True)
-                        row.prop(
-                            mesh_nwo,
-                            "lightmap_general_bounce_modifier",
-                            text="General Bounce Modifier",
-                        )
-                        row.operator(
-                            "nwo.remove_mesh_property", text="", icon="X"
-                        ).options = "lightmap_general_bounce_modifier"
-                    if mesh_nwo.lightmap_translucency_tint_color_active:
-                        row = col_ob.row(align=True)
-                        row.prop(
-                            mesh_nwo,
-                            "lightmap_translucency_tint_color",
-                            text="Translucency Tint Color",
-                        )
-                        row.operator(
-                            "nwo.remove_mesh_property", text="", icon="X"
-                        ).options = "lightmap_translucency_tint_color"
-                    if mesh_nwo.lightmap_lighting_from_both_sides_active:
-                        row = col_ob.row(align=True)
-                        row.prop(
-                            mesh_nwo,
-                            "lightmap_lighting_from_both_sides",
-                            text="Lighting From Both Sides",
-                        )
-                        row.operator(
-                            "nwo.remove_mesh_property", text="", icon="X"
-                        ).options = "lightmap_lighting_from_both_sides"
+                if mesh_nwo.lightmap_additive_transparency_active:
+                    row = col_ob.row(align=True)
+                    row.prop(
+                        mesh_nwo,
+                        "lightmap_additive_transparency",
+                        text="Additive Transparency",
+                    )
+                    row.operator(
+                        "nwo.remove_mesh_property", text="", icon="X"
+                    ).options = "lightmap_additive_transparency"
+                if mesh_nwo.lightmap_resolution_scale_active:
+                    row = col_ob.row(align=True)
+                    row.prop(
+                        mesh_nwo,
+                        "lightmap_resolution_scale",
+                        text="Resolution Scale",
+                    )
+                    row.operator(
+                        "nwo.remove_mesh_property", text="", icon="X"
+                    ).options = "lightmap_resolution_scale"
+                if mesh_nwo.lightmap_type_active:
+                    row = col_ob.row(align=True)
+                    row.prop(mesh_nwo, "lightmap_type", text="Lightmap Type")
+                    row.operator(
+                        "nwo.remove_mesh_property", text="", icon="X"
+                    ).options = "lightmap_type"
+                if mesh_nwo.lightmap_translucency_tint_color_active:
+                    row = col_ob.row(align=True)
+                    row.prop(
+                        mesh_nwo,
+                        "lightmap_translucency_tint_color",
+                        text="Translucency Tint Color",
+                    )
+                    row.operator(
+                        "nwo.remove_mesh_property", text="", icon="X"
+                    ).options = "lightmap_translucency_tint_color"
+                if mesh_nwo.lightmap_lighting_from_both_sides_active:
+                    row = col_ob.row(align=True)
+                    row.prop(
+                        mesh_nwo,
+                        "lightmap_lighting_from_both_sides",
+                        text="Lighting From Both Sides",
+                    )
+                    row.operator(
+                        "nwo.remove_mesh_property", text="", icon="X"
+                    ).options = "lightmap_lighting_from_both_sides"
+                if mesh_nwo.lightmap_transparency_override_active:
+                    row = col_ob.row(align=True)
+                    row.prop(
+                        mesh_nwo,
+                        "lightmap_transparency_override",
+                    )
+                    row.operator(
+                        "nwo.remove_mesh_property", text="", icon="X"
+                    ).options = "lightmap_transparency_override"
+                if mesh_nwo.lightmap_analytical_bounce_modifier_active:
+                    row = col_ob.row(align=True)
+                    row.prop(
+                        mesh_nwo,
+                        "lightmap_analytical_bounce_modifier",
+                    )
+                    row.operator(
+                        "nwo.remove_mesh_property", text="", icon="X"
+                    ).options = "lightmap_analytical_bounce_modifier"
+                if mesh_nwo.lightmap_general_bounce_modifier_active:
+                    row = col_ob.row(align=True)
+                    row.prop(
+                        mesh_nwo,
+                        "lightmap_general_bounce_modifier",
+                    )
+                    row.operator(
+                        "nwo.remove_mesh_property", text="", icon="X"
+                    ).options = "lightmap_general_bounce_modifier"
                 if mesh_nwo.emissive_active:
                     col_ob.separator()
                     box_ob = col_ob.box()
@@ -2463,8 +2468,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 if not mesh_nwo.emissive_active:
                     row_add_prop.operator("nwo.add_mesh_property", text="Emissive", icon='LIGHT_DATA').options = "emissive"
                 
-                if has_lightmap_props:
-                    row_add_prop.operator_menu_enum("nwo.add_mesh_property_lightmap", property="options", text="Lightmap Settings", icon='OUTLINER_DATA_LIGHTPROBE')
+                row_add_prop.operator_menu_enum("nwo.add_mesh_property_lightmap", property="options", text="Lightmap Settings", icon='OUTLINER_DATA_LIGHTPROBE')
     
     def draw_instance_proxies(self, box, ob):
         nwo = ob.data.nwo
