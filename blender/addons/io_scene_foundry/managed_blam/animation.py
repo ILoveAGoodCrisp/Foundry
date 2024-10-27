@@ -53,6 +53,9 @@ class AnimationTag(Tag):
         graph_nodes = [e.SelectField('name').GetStringData() for e in self.block_skeleton_nodes.Elements]
         return set(node_index_list) != set(graph_nodes)
     
+    def _node_index_dict(self):
+        return {element.Fields[0].Data: element.ElementIndex for element in self.block_skeleton_nodes.Elements}
+    
     def set_node_usages(self, bones, granny: bool = False):
         def _node_usage_dict(nwo):
             node_usage_dict = defaultdict(list)
@@ -110,14 +113,15 @@ class AnimationTag(Tag):
 
             return node_usage_dict
         
-        # Establish a list of node indices. These are needed when we write the node usage data
-        if granny:
-            node_index_list = self._node_index_list_granny(bones)
-        else:
-            node_index_list = self._node_index_list(bones)
+        if self.block_skeleton_nodes.Elements.Count != len(bones):
+            self.block_skeleton_nodes.RemoveAllElements()
+            for n in [b.name for b in bones]:
+                self.block_skeleton_nodes.AddElement().Fields[0].SetStringData(n)
+                
         node_usage_dict = _node_usage_dict(self.context.scene.nwo)
+        skeleton_nodes = self._node_index_dict()
         self.block_node_usages.RemoveAllElements()
-        node_targets = [n for n in node_index_list if n in node_usage_dict.keys()]
+        node_targets = [n for n in skeleton_nodes.keys() if n in node_usage_dict.keys()]
         for node in node_targets:
             usages = node_usage_dict[node]
             for usage in usages:
@@ -126,7 +130,7 @@ class AnimationTag(Tag):
                 node_field = new_element.SelectField("node to use")
                 items = [i.EnumName for i in usage_field.Items]
                 usage_field.Value = items.index(usage)
-                node_field.Value = node_index_list.index(node)
+                node_field.Value = skeleton_nodes[node]
         if node_targets:
             self.tag_has_changes = True
     
@@ -150,33 +154,14 @@ class AnimationTag(Tag):
         print('\n\n\n')
         
     def write_ik_chains(self, ik_chains: list, bones: list, granny: bool = False):
-        if granny:
-            skeleton_nodes = self._node_index_list_granny(bones)
-        else:
-            skeleton_nodes = self._node_index_list(bones)
+        
+        if self.block_skeleton_nodes.Elements.Count != len(bones):
+            self.block_skeleton_nodes.RemoveAllElements()
+            for n in [b.name for b in bones]:
+                self.block_skeleton_nodes.AddElement().Fields[0].SetStringData(n)
+        
+        skeleton_nodes = self._node_index_dict()
         valid_ik_chains = [chain for chain in ik_chains if chain.start_node in skeleton_nodes and chain.effector_node in skeleton_nodes]
-        # Check if we need to write to the block
-        chain_names = [chain.name for chain in valid_ik_chains]
-        [e.SelectField('name').GetStringData() for e in self.block_skeleton_nodes.Elements]
-        if self.block_ik_chains.Elements.Count == len(valid_ik_chains):
-            for idx, element in enumerate(self.block_ik_chains.Elements):
-                name = element.SelectField('name').GetStringData()
-                if name != chain_names[idx]:
-                    break
-                test_chain = valid_ik_chains[idx]
-                start_bone = test_chain.start_node
-                effector_bone = test_chain.effector_node
-                start_node_index = element.SelectField('start node').Value
-                effector_node_index = element.SelectField('effector node').Value
-                if start_node_index < 0 or effector_node_index < 0:
-                    break
-                start_node = skeleton_nodes[start_node_index]
-                effector_node = skeleton_nodes[effector_node_index]
-                if start_node != start_bone or effector_node != effector_bone:
-                    break
-                
-            else:
-                return
         
         if self.block_ik_chains.Elements.Count:
             self.block_ik_chains.RemoveAllElements()
@@ -184,8 +169,8 @@ class AnimationTag(Tag):
         for chain in valid_ik_chains:
             element = self.block_ik_chains.AddElement()
             element.SelectField('name').SetStringData(chain.name)
-            element.SelectField('start node').Value = skeleton_nodes.index(chain.start_node)
-            element.SelectField('effector node').Value = skeleton_nodes.index(chain.effector_node)
+            element.SelectField('start node').Value = skeleton_nodes[chain.start_node]
+            element.SelectField('effector node').Value = skeleton_nodes[chain.effector_node]
             
         self.tag_has_changes = True
         

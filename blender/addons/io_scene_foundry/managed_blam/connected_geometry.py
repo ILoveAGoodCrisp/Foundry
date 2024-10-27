@@ -382,8 +382,8 @@ class Permutation:
         self.region = region
         self.index = element.ElementIndex
         self.name = element.SelectField("name").GetStringData()
-        self.mesh_index = int(element.SelectField("mesh index").GetStringData())
-        self.mesh_count = int(element.SelectField("mesh count").GetStringData())
+        self.mesh_index = element.SelectField("mesh index").Data
+        self.mesh_count = element.SelectField("mesh count").Data
         self.clone_name = ""
         self.instance_indices = []
         if utils.is_corinth():
@@ -1235,15 +1235,15 @@ class CompressionBounds:
     v1: float
     
     def __init__(self, element: TagFieldBlockElement):
-        first = element.SelectField("position bounds 0").GetStringData()
-        second = element.SelectField("position bounds 1").GetStringData()
+        first = element.SelectField("position bounds 0").Data
+        second = element.SelectField("position bounds 1").Data
         
-        self.x0 = float(first[0]) * 100
-        self.x1 = float(first[1]) * 100
-        self.y0 = float(first[2]) * 100
-        self.y1 = float(second[0]) * 100
-        self.z0 = float(second[1]) * 100
-        self.z1 = float(second[2]) * 100
+        self.x0 = first[0] * 100
+        self.x1 = first[1] * 100
+        self.y0 = first[2] * 100
+        self.y1 = second[0] * 100
+        self.z0 = second[1] * 100
+        self.z1 = second[2] * 100
         
         self.co_matrix = Matrix((
             (self.x1-self.x0, 0, 0, self.x0),
@@ -1252,13 +1252,13 @@ class CompressionBounds:
             (0, 0, 0, 1),
         ))
         
-        third = element.SelectField("texcoord bounds 0").GetStringData()
-        fourth = element.SelectField("texcoord bounds 1").GetStringData()
+        third = element.SelectField("texcoord bounds 0").Data
+        fourth = element.SelectField("texcoord bounds 1").Data
         
-        self.u0 = float(third[0])
-        self.u1 = float(third[1])
-        self.v0 = float(fourth[0])
-        self.v1 = float(fourth[1])
+        self.u0 = third[0]
+        self.u1 = third[1]
+        self.v0 = fourth[0]
+        self.v1 = fourth[1]
 
 class Material:
     index: int
@@ -1279,8 +1279,8 @@ class Material:
         self.name = render_method_path.ShortName
         self.new = not bool(bpy.data.materials.get(self.name, 0))
         self.shader_path = render_method_path.RelativePathWithExtension
-        self.emissive_index = int(element.SelectField("imported material index").GetStringData())
-        self.lm_res = int(element.SelectField("imported material index").GetStringData())
+        self.emissive_index = element.SelectField("imported material index").Data
+        self.lm_res = element.SelectField("imported material index").Data
         self.lm_transparency = element.SelectField("lightmap additive transparency color").Data
         self.lm_translucency = element.SelectField("lightmap traslucency tint color").Data
         flags = element.SelectField("lightmap flags")
@@ -1372,8 +1372,8 @@ class MeshPart:
         self.index = element.ElementIndex
         self.material_index = element.SelectField("render method index").Value
         self.transparent = element.SelectField("transparent sorting index").Value > -1
-        self.index_start = int(element.SelectField("index start").GetStringData())
-        self.index_count = int(element.SelectField("index count").GetStringData())
+        self.index_start = element.SelectField("index start").Data
+        self.index_count = element.SelectField("index count").Data
         
         self.draw_distance = DrawDistance._connected_geometry_face_draw_distance_normal
         flags = element.SelectField("part flags")
@@ -1406,8 +1406,8 @@ class MeshSubpart:
     
     def __init__(self, element: TagFieldBlockElement, parts: list[MeshPart]):
         self.index = element.ElementIndex
-        self.index_start = int(element.SelectField("index start").GetStringData())
-        self.index_count = int(element.SelectField("index count").GetStringData())
+        self.index_start = element.SelectField("index start").Data
+        self.index_count = element.SelectField("index count").Data
         self.part_index = element.SelectField("part index").Value
         self.part = next(p for p in parts if p.index == self.part_index)
         
@@ -1502,8 +1502,8 @@ class Mesh:
     def __init__(self, element: TagFieldBlockElement, bounds: CompressionBounds = None, permutation=None, materials=[], block_node_map=None):
         self.index = element.ElementIndex
         self.permutation = permutation
-        self.rigid_node_index = int(element.SelectField("rigid node index").GetStringData())
-        self.index_buffer_type =  int(element.SelectField("index buffer type").Value)
+        self.rigid_node_index = element.SelectField("rigid node index").Data
+        self.index_buffer_type =  element.SelectField("index buffer type").Value
         self.bounds = bounds
         self.parts = []
         self.subparts = []
@@ -1530,7 +1530,7 @@ class Mesh:
         self.node_map = []
         if block_node_map is not None and block_node_map.Elements.Count and self.index < block_node_map.Elements.Count:
             map_element = block_node_map.Elements[self.index]
-            self.node_map = [int(e.Fields[0].GetStringData()) for e in map_element.Fields[0].Elements]
+            self.node_map = [e.Fields[0].Data for e in map_element.Fields[0].Elements]
             
     def _true_uvs(self, texcoords):
         return [self._interp_uv(tc) for tc in texcoords]
@@ -1562,7 +1562,7 @@ class Mesh:
             self.raw_node_indices = list(render_model.GetNodeIndiciesFromMesh(temp_meshes, self.index))
             self.raw_node_weights = list(render_model.GetNodeWeightsFromMesh(temp_meshes, self.index))
 
-        indices = [utils.unsigned_int16(int(element.Fields[0].GetStringData())) for element in raw_indices.Elements]
+        indices = [utils.unsigned_int16(element.Fields[0].Data) for element in raw_indices.Elements]
         buffer = IndexBuffer(self.index_buffer_type, indices)
         self.tris = buffer.get_faces(self)
 
@@ -1754,11 +1754,11 @@ class InstancePlacement:
         if self.node_index > -1:
             self.bone = next((n.name for n in nodes if n.index == self.node_index), None)
         
-        self.scale = float(element.SelectField("scale").GetStringData())
-        self.forward = Vector([float(n) for n in element.SelectField("forward").GetStringData()])
-        self.left = Vector([float(n) for n in element.SelectField("left").GetStringData()])
-        self.up = Vector([float(n) for n in element.SelectField("up").GetStringData()])
-        self.position = Vector([float(n) for n in element.SelectField("position").GetStringData()]) * 100
+        self.scale = element.SelectField("scale").Data
+        self.forward = Vector([n for n in element.SelectField("forward").Data])
+        self.left = Vector([n for n in element.SelectField("left").Data])
+        self.up = Vector([n for n in element.SelectField("up").Data])
+        self.position = Vector([n for n in element.SelectField("position").Data]) * 100
         
         # self.matrix = Matrix((
         #     (self.forward[0], self.forward[1], self.forward[2], self.position[0]),
@@ -1807,9 +1807,9 @@ class Marker:
         self.scale = 0.01
         self.direction = []
         self.linked_to = []
-        region_index = int(element.SelectField("region index").GetStringData())
-        permutation_index = int(element.SelectField("permutation index").GetStringData())
-        node_index = int(element.SelectField("node index").GetStringData())
+        region_index = element.SelectField("region index").Data
+        permutation_index = element.SelectField("permutation index").Data
+        node_index = element.SelectField("node index").Data
         if region_index > -1:
             self.region = next(r for r in regions if r.index == region_index)
             if permutation_index > -1:
@@ -1818,11 +1818,11 @@ class Marker:
         if node_index > -1:
             self.bone = next((n.name for n in nodes if n.index == node_index), None)
         
-        self.translation = [float(n) * 100 for n in element.SelectField("translation").GetStringData()]
+        self.translation = [n * 100 for n in element.SelectField("translation").Data]
         
-        self.rotation = utils.ijkw_to_wxyz([float(n) for n in element.SelectField("rotation").GetStringData()])
-        self.scale = float(element.SelectField("scale").GetStringData())
-        self.direction = ([float(n) for n in element.SelectField("direction").GetStringData()])
+        self.rotation = utils.ijkw_to_wxyz([n for n in element.SelectField("rotation").Data])
+        self.scale = element.SelectField("scale").Data
+        self.direction = ([n for n in element.SelectField("direction").Data])
     
 class MarkerGroup:
     name: str

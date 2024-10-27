@@ -1433,7 +1433,7 @@ def get_mesh_display(mesh_type):
         case '_connected_geometry_mesh_type_poop_rain_blocker':
             return 'Rain Blocker Volume', get_icon_id('rain_blocker')
         case '_connected_geometry_mesh_type_obb_volume':
-            return 'Bounding Box', get_icon_id('streaming')
+            return 'Bounding Box', get_icon_id('volume')
         case '_connected_geometry_mesh_type_poop_vertical_rain_sheet':
             return 'Rain Sheet', get_icon_id('rain_sheet')
         case '_connected_geometry_mesh_type_cookie_cutter':

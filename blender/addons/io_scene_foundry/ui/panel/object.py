@@ -1083,7 +1083,7 @@ class NWO_MT_MeshTypes(bpy.types.Menu):
             layout.operator('nwo.apply_type_mesh_single', text='Water Surface', icon_value=get_icon_id('water')).m_type = 'water_surface'
             layout.operator('nwo.apply_type_mesh_single', text='Boundary Surface', icon_value=get_icon_id('soft_ceiling')).m_type = 'boundary_surface'
             if h4:
-                layout.operator('nwo.apply_type_mesh_single', text='Bounding Box', icon_value=get_icon_id('streaming')).m_type = 'obb_volume'
+                layout.operator('nwo.apply_type_mesh_single', text='Bounding Box', icon_value=get_icon_id('volume')).m_type = 'obb_volume'
             else:
                 layout.operator('nwo.apply_type_mesh_single', text='Rain Blocker', icon_value=get_icon_id('rain_blocker')).m_type = 'rain_blocker'
                 layout.operator('nwo.apply_type_mesh_single', text='Rain Sheet', icon_value=get_icon_id('rain_sheet')).m_type = 'rain_sheet'

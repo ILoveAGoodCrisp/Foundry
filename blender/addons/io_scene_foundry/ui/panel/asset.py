@@ -1,6 +1,8 @@
 """UI for the asset editor sub-panel"""
 
 import bpy
+
+from ...icons import get_icon_id
 from ... import utils
 
 class NWO_UL_SceneProps_SharedAssets(bpy.types.UIList):
@@ -190,9 +192,9 @@ class NWO_UL_IKChain(bpy.types.UIList):
     # Called for each drawn item.
     def draw_item(self, context, layout: bpy.types.UILayout, data, item, icon, active_data, active_propname, index, flt_flag):
         layout.alignment = 'LEFT'
-        layout.prop(item, 'name', text='', emboss=False)
+        layout.prop(item, 'name', text='', emboss=False, icon_value=get_icon_id("ik_chain"))
         if item.start_node and item.effector_node:
-            layout.label(text=f'{item.start_node} >>> {item.effector_node}', icon='CON_SPLINEIK')
+            layout.label(text=f'{item.start_node} >>> {item.effector_node}')
         else:
             layout.label(text='IK Chain Bones Not Set', icon='ERROR')
         # row.prop_search(item, 'start_node', data.main_armature.data, 'bones', text='')

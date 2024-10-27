@@ -436,7 +436,7 @@ class NWO_MeshPropertiesGroup(bpy.types.PropertyGroup):
     def obb_volume_types(self, context) -> list:
         return [
             ('LIGHTMAP_EXCLUSION', "Lightmap Exclusion", "", get_icon_id("lightmap_exclude"), 0),
-            ('STREAMING', "Texture Streaming", "", get_icon_id("streaming"), 1),
+            ('STREAMING_VOLUME', "Texture Streaming", "", get_icon_id("streaming"), 1),
         ]
     
     obb_volume_type: bpy.props.EnumProperty(

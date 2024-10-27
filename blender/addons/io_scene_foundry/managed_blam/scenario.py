@@ -94,7 +94,7 @@ class ScenarioTag(Tag):
         bsp_info_dict["Lightmapper Size Class"] = self._Element_get_enum_as_string(bsp_element, "size class")
         if self.corinth:
             bsp_info_dict["Lightmapper Refinement Class"] = self._Element_get_enum_as_string(bsp_element, "refinement size class")
-        sky_index = bsp_element.SelectField('default sky').GetStringData()
+        sky_index = bsp_element.SelectField('default sky').Data
         if sky_index == -1:
             bsp_info_dict["Default Sky"] = "None"
         else:

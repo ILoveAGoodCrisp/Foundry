@@ -735,7 +735,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         
     def draw_ik_chains(self, box, nwo):
         if not nwo.ik_chains:
-            box.operator("nwo.add_ik_chain", text="Add Game IK Chain", icon="CON_SPLINEIK")
+            box.operator("nwo.add_ik_chain", text="Add Game IK Chain", icon_value=get_icon_id("ik_chain"))
             return
         row = box.row()
         row.template_list(
@@ -1464,7 +1464,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 col.prop(
                     mesh_nwo,
                     "obb_volume_type",
-                    icon_value=get_icon_id("streaming" if mesh_nwo.obb_volume_type == "STREAMING" else "lightmap_exclude")
+                    icon_value=get_icon_id("streaming" if mesh_nwo.obb_volume_type == "STREAMING_VOLUME" else "lightmap_exclude")
                 )
 
             elif (

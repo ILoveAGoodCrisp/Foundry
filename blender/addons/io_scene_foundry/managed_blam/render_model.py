@@ -104,19 +104,19 @@ class RenderModelTag(Tag):
         for element in self.block_nodes.Elements:
             node = Node(element.SelectField("name").GetStringData(), )
             node.index = element.ElementIndex
-            translation = element.SelectField("default translation").GetStringData()
-            node.translation = Vector([float(n) for n in translation]) * 100
-            rotation = element.SelectField("default rotation").GetStringData()
-            node.rotation = Quaternion([float(rotation[3]), float(rotation[0]), float(rotation[1]), float(rotation[2])])
-            inverse_forward = element.SelectField("inverse forward").GetStringData()
-            node.inverse_forward = Vector([float(n) for n in inverse_forward])
-            inverse_left = element.SelectField("inverse left").GetStringData()
-            node.inverse_left = Vector([float(n) for n in inverse_left])
-            inverse_up = element.SelectField("inverse up").GetStringData()
-            node.inverse_up = Vector([float(n) for n in inverse_up])
-            inverse_position = element.SelectField("inverse position").GetStringData()
-            node.inverse_position = Vector([float(n) for n in inverse_position]) * 100
-            inverse_scale = element.SelectField("inverse scale").GetStringData()
+            translation = element.SelectField("default translation").Data
+            node.translation = Vector([n for n in translation]) * 100
+            rotation = element.SelectField("default rotation").Data
+            node.rotation = Quaternion([rotation[3], rotation[0], rotation[1], rotation[2]])
+            inverse_forward = element.SelectField("inverse forward").Data
+            node.inverse_forward = Vector([n for n in inverse_forward])
+            inverse_left = element.SelectField("inverse left").Data
+            node.inverse_left = Vector([n for n in inverse_left])
+            inverse_up = element.SelectField("inverse up").Data
+            node.inverse_up = Vector([n for n in inverse_up])
+            inverse_position = element.SelectField("inverse position").Data
+            node.inverse_position = Vector([n for n in inverse_position]) * 100
+            inverse_scale = element.SelectField("inverse scale").Data
             node.inverse_scale = float(inverse_scale)
             
             parent_index = element.SelectField("parent node").Value

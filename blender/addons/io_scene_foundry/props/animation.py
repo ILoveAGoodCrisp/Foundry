@@ -199,9 +199,9 @@ class NWO_Animation_ListItems(bpy.types.PropertyGroup):
         return is_marker(object) and object.nwo.marker_type == '_connected_geometry_marker_type_model'
     
     ik_target_marker: bpy.props.PointerProperty(
-        name="Target Marker",
+        name="Proxy Target",
         type=bpy.types.Object,
-        poll=poll_ik_target_marker,
+        # poll=poll_ik_target_marker,
         options=set(),
     )
     
@@ -215,11 +215,11 @@ class NWO_Animation_ListItems(bpy.types.PropertyGroup):
         name="Target Usage",
         options=set(),
         items=[
-            ('world', 'World', ''),
+            # ('world', 'World', ''),
             ('self', 'Self', ''),
-            ('parent', 'Parent', ''),
             ('primary_weapon', 'Primary Weapon', ''),
             ('secondary_weapon', 'Secondary Weapon', ''),
+            ('parent', 'Parent', ''),
             ('assassination', 'Assassination', ''),
         ]
     )

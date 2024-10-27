@@ -821,7 +821,7 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
     import_draft: bpy.props.BoolProperty(
         name="Draft",
         description="Skip generating PRT data. Faster speed, lower quality",
-        default=False,
+        default=True,
         options=set(),
     )
     lightmap_structure: bpy.props.BoolProperty(
@@ -1098,8 +1098,8 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
 
     import_draft: bpy.props.BoolProperty(
         name="Draft",
-        description="Skip generating PRT data. Faster speed, lower quality",
-        default=False,
+        description="Skip generating self-shadowing data. This can be a very long process on complex models",
+        default=True,
         options=set(),
     )
     import_seam_debug: bpy.props.BoolProperty(

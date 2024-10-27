@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 import random
 import bpy
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 from ..props.animation import NWO_ActionPropertiesGroup, NWO_Animation_ListItems
 
@@ -618,7 +618,7 @@ class ExportScene:
             match data_nwo.obb_volume.type:
                 case 'LIGHTMAP_EXCLUSION':
                     props["bungie_mesh_obb_type"] = MeshObbVolumeType.lightmapexclusionvolume.value
-                case 'STREAMING':
+                case 'STREAMING_VOLUME':
                     props["bungie_mesh_obb_type"] = MeshObbVolumeType.streamingvolume.value
                 case _:
                     return
@@ -1220,6 +1220,10 @@ class ExportScene:
         num_animations = len(valid_actions)
         for armature in self.armature_poses.keys():
             armature.pose_position = 'POSE'
+        # for ob in self.context.view_layer.objects:
+        #     ob: bpy.types.Object
+        #     if ob.type != 'ARMATURE':
+        #         utils.unlink(ob)
         self.context.view_layer.update()
         self.has_animations = True
         if self.export_settings.export_animations == 'ALL':
@@ -1313,26 +1317,47 @@ class ExportScene:
                     proxy_target_props["bungie_animation_control_type"] = '_connected_geometry_animation_control_type_target_proxy'
                     proxy_target_props["bungie_animation_control_proxy_target_usage"] = props["bungie_animation_event_ik_target_usage"]
                     proxy_target_props["bungie_animation_control_proxy_target_marker"] = props["bungie_animation_event_ik_target_marker"]
-                    if event.ik_target_marker:
-                        proxy_target.parent = event.ik_target_marker
+                    actual_chain = self.context.scene.nwo.ik_chains
+                    current_chain = None
+                    for chain in actual_chain:
+                        if chain.name == event.ik_chain:
+                            current_chain = chain
+                            break
+                    
+                    if current_chain and event.ik_target_marker:
+                        # proxy_target.parent = event.ik_target_marker.parent
                         # if event.ik_target_marker.parent_type == "BONE" and event.ik_target_marker.parent_bone:
                         #     proxy_target.parent_type = 'BONE'
                         #     proxy_target.parent_bone = event.ik_target_marker.parent_bone
-                            
-                        # proxy_target.matrix_local = event.ik_target_marker.matrix_local
                         
-                    event_ob_props[proxy_target] = proxy_target_props
+                        # proxy_target.parent = event.ik_target_marker
+                        # proxy_target.matrix_world = event.ik_target_marker.matrix_local
+                        proxy_target.parent = self.virtual_scene.skeleton_object
+                        proxy_target.parent_type = 'BONE'
+                        proxy_target.parent_bone = self.virtual_scene.root_bone.name
+                        constraint = proxy_target.constraints.new('COPY_TRANSFORMS')
+                        constraint.target = event.ik_target_marker
+                        # constraint.target_space = 'LOCAL'
+                        # constraint.owner_space = 'LOCAL'
+                            
+                        # proxy_target.matrix_world = event.ik_target_marker.matrix_world # event.ik_target_marker.matrix_local @ self.virtual_scene.marker_rotation_matrix
+                        # proxy_target.matrix_local = self.virtual_scene.skeleton_object.pose.bones[chain.start_node].matrix
+                        # proxy_target.matrix_local = event.ik_target_marker.matrix_local @ self.virtual_scene.marker_rotation_matrix
+                        
+                        event_ob_props[proxy_target] = proxy_target_props
+                        
+                        effector = bpy.data.objects.new(f'ik_effector_export_node_{event.ik_chain}_{event.event_type[41:]}', None)
+                        effector.parent = self.virtual_scene.skeleton_object
+                        effector.parent_type = "BONE"
+                        effector.parent_bone = self.virtual_scene.root_bone.name # chain.effector_node
+                        constraint = effector.constraints.new('COPY_TRANSFORMS')
+                        constraint.target = self.virtual_scene.skeleton_object
+                        constraint.subtarget = chain.effector_node
+                        # constraint.target_space = 'LOCAL'
+                        # constraint.owner_space = 'LOCAL'
                     
-                    effector = bpy.data.objects.new(f'ik_effector_export_node_{event.ik_chain}_{event.event_type[41:]}', None)
-                    actual_chain = self.context.scene.nwo.ik_chains
-                    for chain in actual_chain:
-                        if chain.name == event.ik_chain:
-                            effector.parent = self.virtual_scene.skeleton_object
-                            effector.parent_type = "BONE"
-                            effector.parent_bone = chain.effector_node
-                            break
-                    else:
-                        effector.parent = event.ik_target_marker
+                    # effector.matrix_world = event.ik_target_marker.matrix_world
+                        
                     effector_props = {}
                     rnd = random.Random()
                     rnd.seed(effector.name)
@@ -1358,6 +1383,7 @@ class ExportScene:
         
         for ob, props in event_ob_props.items():
             self.temp_objects.add(ob)
+            self.context.scene.collection.objects.link(ob)
             if ob.parent:
                 # bone_parent = self.virtual_scene.root_bone
                 node = self.virtual_scene.add(ob, props, animation_owner=name, parent_matrix=ob.parent.matrix_world)

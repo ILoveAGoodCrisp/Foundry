@@ -88,13 +88,13 @@ class VirtualAnimation:
         orientations = defaultdict(list)
         scales = defaultdict(list)
         tracks = []
-        scale_matrix = Matrix.Diagonal(scene.armature_matrix.to_scale()).to_4x4()
+        # scale_matrix = Matrix.Diagonal(scene.armature_matrix.to_scale()).to_4x4()
         for frame_idx, frame in enumerate(range(self.frame_range[0], self.frame_range[1] + 1)):
             bpy.context.scene.frame_set(frame)
             bone_inverse_matrices = {}
             for idx, bone in enumerate(bones):
                 if bone.is_object:
-                    matrix = scene.rotation_matrix @ (bone.parent_matrix_rest_inverted @ bone.ob.matrix_world) @ bone.pbone.matrix_local
+                    matrix = scene.rotation_matrix @ bone.pbone.matrix_world
                 elif bone.parent:
                     # matrix_world = scene.rotation_matrix @ scale_matrix @ bone.pbone.matrix
                     matrix_world = scene.rotation_matrix @ (bone.parent_matrix_rest_inverted @ bone.ob.matrix_world) @ bone.pbone.matrix

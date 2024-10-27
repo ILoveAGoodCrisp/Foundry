@@ -1079,7 +1079,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     node_usage_damage_root_gut : bpy.props.StringProperty(name="Damage Root Gut", options=set())
     node_usage_damage_root_chest : bpy.props.StringProperty(name="Damage Root Chest", options=set())
     node_usage_damage_root_head : bpy.props.StringProperty(name="Damage Root Head", options=set())
-    node_usage_damage_root_left_shoulder : bpy.props.StringProperty(name="Damage RootLeft Shoulder", options=set())
+    node_usage_damage_root_left_shoulder : bpy.props.StringProperty(name="Damage Root Left Shoulder", options=set())
     node_usage_damage_root_left_arm : bpy.props.StringProperty(name="Damage Root Left Arm", options=set())
     node_usage_damage_root_left_leg : bpy.props.StringProperty(name="Damage Root Left Leg", options=set())
     node_usage_damage_root_left_foot : bpy.props.StringProperty(name="Damage Root Left Foot", options=set())
