@@ -74,7 +74,7 @@ class NWO_NewSky(bpy.types.Operator):
         return {"FINISHED"}
     
     def invoke(self, context, _):
-        self.filepath = utils.get_tags_path()
+        self.filepath = utils.get_tags_path() + os.sep
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
 

@@ -60,7 +60,7 @@ class NWO_OT_ApplyTypeMesh(bpy.types.Operator):
         h4 = utils.is_corinth(context)
         index = 0
         if asset_type == 'model' or asset_type == 'resource':
-            index += 1
+            # index += 1
             items.append(
                 utils.nwo_enum(
                     "render", "Render", "Render only geometry", "render_geometry", index
@@ -97,7 +97,7 @@ class NWO_OT_ApplyTypeMesh(bpy.types.Operator):
                 )
             ),
         if asset_type == 'scenario' or asset_type == 'resource':
-            index += 1
+            # index += 1
             items.append(
                 utils.nwo_enum(
                     "instance",
@@ -203,7 +203,7 @@ class NWO_OT_ApplyTypeMesh(bpy.types.Operator):
                     )
                 )
         elif asset_type == 'prefab':
-            index += 1
+            # index += 1
             items.append(
                 utils.nwo_enum(
                     "instance",
