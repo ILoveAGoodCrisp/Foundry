@@ -3847,3 +3847,66 @@ def get_pose_bone(arm: bpy.types.Object, node_name: str) -> bpy.types.PoseBone |
     for bone in arm.pose.bones:
         if remove_node_prefix(bone.name).lower() == node_name.lower():
             return bone
+        
+def mesh_and_material(m_type, context):
+    mesh_type = ""
+    material = ""
+    match m_type:
+        case "collision":
+            mesh_type = "_connected_geometry_mesh_type_collision"
+            if context.scene.nwo.asset_type == 'model':
+                material = "Collision"
+        case "physics":
+            mesh_type = "_connected_geometry_mesh_type_physics"
+            material = "Physics"
+        case "render":
+            mesh_type = "_connected_geometry_mesh_type_default"
+        case "io":
+            mesh_type = "_connected_geometry_mesh_type_object_instance"
+        case "instance":
+            mesh_type = "_connected_geometry_mesh_type_default"
+        case "structure":
+            mesh_type = "_connected_geometry_mesh_type_structure"
+        case "seam":
+            mesh_type = "_connected_geometry_mesh_type_seam"
+            material = "Seam"
+        case "portal":
+            mesh_type = "_connected_geometry_mesh_type_portal"
+            material = "Portal"
+        case "water_surface":
+            mesh_type = "_connected_geometry_mesh_type_water_surface"
+        case "rain_sheet":
+            mesh_type = "_connected_geometry_mesh_type_poop_vertical_rain_sheet"
+        case "fog":
+            mesh_type = "_connected_geometry_mesh_type_planar_fog_volume"
+            material = "Fog"
+        case "boundary_surface":
+            mesh_type = "_connected_geometry_mesh_type_boundary_surface"
+            material = "SoftCeiling"
+        case "soft_ceiling":
+            mesh_type = "_connected_geometry_mesh_type_boundary_surface"
+            material = "SoftCeiling"
+        case "soft_kill":
+            mesh_type = "_connected_geometry_mesh_type_boundary_surface"
+            material = "SoftKill"
+        case "slip_surface":
+            mesh_type = "_connected_geometry_mesh_type_boundary_surface"
+            material = "SlipSurface"
+        case "obb_volume":
+            mesh_type = "_connected_geometry_mesh_type_obb_volume"
+            material = "StreamingVolume"
+        case "streaming_volume":
+            mesh_type = "_connected_geometry_mesh_type_obb_volume"
+            material = "StreamingVolume"
+        case "lightmap_exclusion":
+            mesh_type = "_connected_geometry_mesh_type_obb_volume"
+            material = "LightmapExcludeVolume"
+        case "cookie_cutter":
+            mesh_type = "_connected_geometry_mesh_type_cookie_cutter"
+            material = "CookieCutter"
+        case "rain_blocker":
+            mesh_type = "_connected_geometry_mesh_type_poop_rain_blocker"
+        case "decorator":
+            mesh_type = "_connected_geometry_mesh_type_decorator"
+            
+    return mesh_type, material

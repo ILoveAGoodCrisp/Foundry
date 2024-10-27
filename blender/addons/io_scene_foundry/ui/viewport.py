@@ -267,61 +267,13 @@ class NWO_OT_ApplyTypeMesh(bpy.types.Operator):
         
         if utils.get_prefs().apply_prefix != "none":
             self.layout.prop(self, "apply_prefix", text="Apply Prefix")
-        
-    def mesh_and_material(self, context):
-        mesh_type = ""
-        material = ""
-        match self.m_type:
-            case "collision":
-                mesh_type = "_connected_geometry_mesh_type_collision"
-                if context.scene.nwo.asset_type == 'model':
-                    material = "Collision"
-            case "physics":
-                mesh_type = "_connected_geometry_mesh_type_physics"
-                material = "Physics"
-            case "render":
-                mesh_type = "_connected_geometry_mesh_type_default"
-            case "io":
-                mesh_type = "_connected_geometry_mesh_type_object_instance"
-            case "instance":
-                mesh_type = "_connected_geometry_mesh_type_default"
-            case "structure":
-                mesh_type = "_connected_geometry_mesh_type_structure"
-            case "seam":
-                mesh_type = "_connected_geometry_mesh_type_seam"
-                material = "Seam"
-            case "portal":
-                mesh_type = "_connected_geometry_mesh_type_portal"
-                material = "Portal"
-            case "water_surface":
-                mesh_type = "_connected_geometry_mesh_type_water_surface"
-            case "rain_sheet":
-                mesh_type = "_connected_geometry_mesh_type_poop_vertical_rain_sheet"
-            case "fog":
-                mesh_type = "_connected_geometry_mesh_type_planar_fog_volume"
-                material = "Fog"
-            case "boundary_surface":
-                mesh_type = "_connected_geometry_mesh_type_boundary_surface"
-                material = "SoftCeiling"
-            case "obb_volume":
-                mesh_type = "_connected_geometry_mesh_type_obb_volume"
-                material = "StreamingVolume"
-            case "cookie_cutter":
-                mesh_type = "_connected_geometry_mesh_type_cookie_cutter"
-                material = "CookieCutter"
-            case "rain_blocker":
-                mesh_type = "_connected_geometry_mesh_type_poop_rain_blocker"
-            case "decorator":
-                mesh_type = "_connected_geometry_mesh_type_decorator"
-                
-        return mesh_type, material
 
     def execute(self, context):
         apply_materials = utils.get_prefs().apply_materials
         prefix_setting = utils.get_prefs().apply_prefix
         original_selection = context.selected_objects
         original_active = context.object
-        mesh_type, material = self.mesh_and_material(context)
+        mesh_type, material = utils.mesh_and_material(self.m_type, context)
 
         meshes = [
             ob for ob in context.selected_objects
@@ -365,7 +317,7 @@ class NWO_OT_ApplyTypeMeshSingle(NWO_OT_ApplyTypeMesh):
     def execute(self, context):
         apply_materials = utils.get_prefs().apply_materials
         prefix_setting = utils.get_prefs().apply_prefix
-        mesh_type, material = self.mesh_and_material(context)
+        mesh_type, material = utils.mesh_and_material(self.m_type, context)
         ob = context.object
         ob.data.nwo.mesh_type = mesh_type
 

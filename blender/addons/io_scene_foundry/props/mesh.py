@@ -3,6 +3,10 @@
 from math import radians
 import bpy
 
+from ..tools.property_apply import apply_props_material_data
+
+from ..icons import get_icon_id
+
 from .. import utils
 
 class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
@@ -415,6 +419,46 @@ class NWO_MeshPropertiesGroup(bpy.types.PropertyGroup):
     proxy_physics7: bpy.props.PointerProperty(type=bpy.types.Object)
     proxy_physics8: bpy.props.PointerProperty(type=bpy.types.Object)
     proxy_physics9: bpy.props.PointerProperty(type=bpy.types.Object)
+    
+    def update_obb_volume_type(self, context):
+        if utils.get_prefs().apply_materials:
+            _, material = utils.mesh_and_material(self.obb_volume_type.lower(), context)
+            apply_props_material_data(self.id_data, material)
+    
+    def obb_volume_types(self, context) -> list:
+        return [
+            ('LIGHTMAP_EXCLUSION', "Lightmap Exclusion", "", get_icon_id("lightmap_exclude"), 0),
+            ('STREAMING', "Texture Streaming", "", get_icon_id("streaming"), 1),
+        ]
+    
+    obb_volume_type: bpy.props.EnumProperty(
+        name="Type",
+        items=obb_volume_types,
+        update=update_obb_volume_type,
+        default=0,
+        options=set(),
+    )
+    
+    def update_boundary_surface_types(self, context):
+        if utils.get_prefs().apply_materials:
+            _, material = utils.mesh_and_material(self.boundary_surface_type.lower(), context)
+            apply_props_material_data(self.id_data, material)
+            
+    
+    def boundary_surface_types(self, context) -> list:
+        return [
+            ('SOFT_CEILING', "Soft Ceiling", "", get_icon_id("soft_ceiling"), 0),
+            ('SOFT_KILL', "Kill Timer", "", get_icon_id("soft_kill"), 1),
+            ('SLIP_SURFACE', "Slip Surface", "", get_icon_id("slip_surface"), 2)
+        ]
+    
+    boundary_surface_type: bpy.props.EnumProperty(
+        name="Type",
+        items=boundary_surface_types,
+        update=update_boundary_surface_types,
+        default=0,
+        options=set(),
+    )
     
     mesh_type: bpy.props.StringProperty(
         name="Mesh Type",

@@ -123,29 +123,6 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     )
 
     # OBJECT LEVEL PROPERTIES
-    
-    def obb_volume_types(self, context) -> list:
-        return [
-            ('LIGHTMAP_EXCLUSION', "Lightmap Exclusion", "", 0, get_icon_id("soft_ceiling")),
-            ('STREAMING', "Texture Streaming", "", 1, get_icon_id("soft_kill")),
-        ]
-    
-    obb_volume_type: bpy.props.EnumProperty(
-        name="Type",
-        items=obb_volume_types
-    )
-    
-    def boundary_surface_types(self, context) -> list:
-        return [
-            ('SOFT_CEILING', "Soft Ceiling", "", 0, get_icon_id("soft_ceiling")),
-            ('SOFT_KILL', "Kill Timer", "", 1, get_icon_id("soft_kill")),
-            ('SLIP_SURFACE', "Slip Surface", "", 2, get_icon_id("slip_surface"))
-        ]
-    
-    boundary_surface_type: bpy.props.EnumProperty(
-        name="Type",
-        items=boundary_surface_types
-    )
 
     seam_back: bpy.props.StringProperty(
         name="Seam Back Facing BSP",

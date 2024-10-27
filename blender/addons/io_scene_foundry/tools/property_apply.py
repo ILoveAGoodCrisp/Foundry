@@ -123,6 +123,10 @@ def apply_props_material(ob, mat_name):
     else:
         clear_special_mats(ob.data.materials)
         cleanup_empty_slots(ob.material_slots)
+        
+def apply_props_material_data(data, mat_name):
+    data.materials.clear()
+    data.materials.append(halo_material(mat_name))
 
 def apply_prefix(ob, type, setting):
     if setting == 'none':

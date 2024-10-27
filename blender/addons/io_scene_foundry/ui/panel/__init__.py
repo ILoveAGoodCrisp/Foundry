@@ -1450,32 +1450,21 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 
             elif (
                 nwo.mesh_type
-                == "_connected_geometry_mesh_type_water_physics_volume"
+                == "_connected_geometry_mesh_type_boundary_surface"
             ):
                 col.prop(
-                    nwo,
-                    "water_volume_depth",
-                    text="Water Depth",
+                    mesh_nwo,
+                    "boundary_surface_type",
+                    icon_value=get_icon_id(mesh_nwo.boundary_surface_type.lower())
                 )
+            elif (
+                nwo.mesh_type
+                == "_connected_geometry_mesh_type_obb_volume"
+            ):
                 col.prop(
-                    nwo,
-                    "water_volume_flow_direction",
-                    text="Water Flow Direction",
-                )
-                col.prop(
-                    nwo,
-                    "water_volume_flow_velocity",
-                    text="Water Flow Velocity",
-                )
-                col.prop(
-                    nwo,
-                    "water_volume_fog_color",
-                    text="Underwater Fog Color",
-                )
-                col.prop(
-                    nwo,
-                    "water_volume_fog_murkiness",
-                    text="Underwater Fog Murkiness",
+                    mesh_nwo,
+                    "obb_volume_type",
+                    icon_value=get_icon_id("streaming" if mesh_nwo.obb_volume_type == "STREAMING" else "lightmap_exclude")
                 )
 
             elif (

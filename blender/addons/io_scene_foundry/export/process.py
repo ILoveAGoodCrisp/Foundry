@@ -595,12 +595,12 @@ class ExportScene:
             props["bungie_mesh_fog_volume_depth"] = nwo.fog_volume_depth
             
         elif mesh_type == "_connected_geometry_mesh_type_boundary_surface":
-            match nwo.boundary_surface_type:
-                case 'soft_ceiling':
+            match data_nwo.boundary_surface_type:
+                case 'SOFT_CEILING':
                     props["bungie_mesh_boundary_surface_type"] = BoundarySurfaceType.soft_ceiling.value
-                case 'soft_kill':
+                case 'SOFT_KILL':
                     props["bungie_mesh_boundary_surface_type"] = BoundarySurfaceType.soft_kill.value
-                case 'slip_surface':
+                case 'SLIP_SURFACE':
                     props["bungie_mesh_boundary_surface_type"] = BoundarySurfaceType.slip_surface.value
                 case _:
                     return
@@ -608,10 +608,10 @@ class ExportScene:
             props["bungie_mesh_boundary_surface_name"] = utils.dot_partition(ob.name)
             
         elif mesh_type == "_connected_geometry_mesh_type_obb_volume":
-            match nwo.obb_volume.type:
-                case 'lightmapexclusionvolume':
+            match data_nwo.obb_volume.type:
+                case 'LIGHTMAP_EXCLUSION':
                     props["bungie_mesh_obb_type"] = MeshObbVolumeType.lightmapexclusionvolume.value
-                case 'streamingvolume':
+                case 'STREAMING':
                     props["bungie_mesh_obb_type"] = MeshObbVolumeType.streamingvolume.value
                 case _:
                     return
