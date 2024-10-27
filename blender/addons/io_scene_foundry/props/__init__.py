@@ -111,7 +111,6 @@ def unregister():
     del bpy.types.Bone.nwo
     del bpy.types.Light.nwo
     del bpy.types.Material.nwo
-    del bpy.types.Bone.nwo
     del bpy.types.Action.nwo
     del bpy.types.Mesh.nwo
     del bpy.types.TextCurve.nwo
