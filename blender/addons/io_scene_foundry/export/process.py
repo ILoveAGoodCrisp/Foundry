@@ -493,6 +493,13 @@ class ExportScene:
         is_mesh = object_type == ObjectType.mesh
         instanced_object = (is_mesh and nwo.mesh_type == '_connected_geometry_mesh_type_object_instance')
         tmp_region, tmp_permutation = nwo.region_name, nwo.permutation_name
+        
+        if not tmp_region:
+            tmp_region = self.default_region
+            
+        if not tmp_permutation:
+            tmp_permutation = self.default_permutation
+            
         collection = bpy.data.collections.get(ob.nwo.export_collection)
         if collection and collection != self.context.scene.collection:
             export_coll = self.collection_map[collection]
