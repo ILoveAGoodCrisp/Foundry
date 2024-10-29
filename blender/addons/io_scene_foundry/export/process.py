@@ -1015,7 +1015,7 @@ class ExportScene:
             if test_face_prop(face_props, "sphere_collision_only_override"):
                 fp_defaults["bungie_face_mode"] = FaceMode.sphere_collision_only.value
             else:
-                mesh_props["bungie_face_mode"] = FaceMode.shadow_only.value
+                mesh_props["bungie_face_mode"] = FaceMode.sphere_collision_only.value
         elif not self.corinth and data_nwo.breakable:
             if test_face_prop(face_props, "breakable_override"):
                 fp_defaults["bungie_face_mode"] = FaceMode.breakable.value
@@ -1352,12 +1352,20 @@ class ExportScene:
                         effector = bpy.data.objects.new(f'ik_effector_export_node_{event.ik_chain}_{event.event_type[41:]}', None)
                         effector.parent = self.virtual_scene.skeleton_object
                         effector.parent_type = "BONE"
-                        effector.parent_bone = self.virtual_scene.root_bone.name # chain.effector_node
+                        effector.parent_bone = self.virtual_scene.root_bone.name
                         constraint = effector.constraints.new('COPY_TRANSFORMS')
                         constraint.target = self.virtual_scene.skeleton_object
                         constraint.subtarget = chain.effector_node
                         # constraint.target_space = 'LOCAL'
                         # constraint.owner_space = 'LOCAL'
+                        pole_target = None
+                        if event.ik_pole_vector:
+                            pole_target = bpy.data.objects.new(f'ik_pole_vector_export_node_{event.ik_chain}_{event.event_type[41:]}', None)
+                            pole_target.parent = self.virtual_scene.skeleton_object
+                            pole_target.parent_type = "BONE"
+                            pole_target.parent_bone = self.virtual_scene.root_bone.name
+                            constraint = pole_target.constraints.new('COPY_TRANSFORMS')
+                            constraint.target = event.ik_pole_vector
                     
                     # effector.matrix_world = event.ik_target_marker.matrix_world
                         
@@ -1380,7 +1388,16 @@ class ExportScene:
                     
                     rnd = random.Random()
                     rnd.seed(ob.name + '117')
-                    props["bungie_animation_event_ik_pole_vector_id"] = rnd.randint(0, 2147483647)
+                    pole_vector_id = rnd.randint(0, 2147483647)
+                    props["bungie_animation_event_ik_pole_vector_id"] = pole_vector_id
+                    if pole_target is not None:
+                        pole_target_props = {}
+                        pole_target_props["bungie_object_type"] = ObjectType.animation_control.value
+                        pole_target_props["bungie_object_animates"] = 1
+                        pole_target_props["bungie_animation_control_id"] = pole_vector_id
+                        pole_target_props["bungie_animation_control_type"] = '_connected_geometry_animation_control_type_ik_pole_vector'
+                        pole_target_props["bungie_animation_control_ik_chain"] = event.ik_chain
+                        event_ob_props[pole_target] = pole_target_props
         
         controls = []
         

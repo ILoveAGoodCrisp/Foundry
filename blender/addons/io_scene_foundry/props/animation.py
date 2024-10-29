@@ -206,8 +206,8 @@ class NWO_Animation_ListItems(bpy.types.PropertyGroup):
     )
     
     ik_target_marker_name_override: bpy.props.StringProperty(
-        name="Target Marker Name Overide",
-        description="If set, overrides the name of the proxy marker written to the animation graph. Useful if you are using an IK event on a marker not present in this model, such as a weapon",
+        name="Target Marker Name",
+        description="Name of the in game marker to use as the IK target. If left blank, the name of the proxy target will be used",
         options=set(),
     )
 
@@ -254,6 +254,7 @@ class NWO_Animation_ListItems(bpy.types.PropertyGroup):
     ik_pole_vector: bpy.props.PointerProperty(
         name="Pole Target",
         type=bpy.types.Object,
+        description="Pole target for this IK to use. Optional",
         options=set(),
     )
 

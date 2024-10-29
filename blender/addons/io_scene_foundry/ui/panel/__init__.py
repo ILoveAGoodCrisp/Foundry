@@ -2224,17 +2224,17 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     row.prop(mesh_nwo, "face_transparent", text="Transparent")
                     # if h4 and utils.poll_ui(('model', 'sky')):
                     #     row.prop(mesh_nwo, "uvmirror_across_entire_model_ui", text="Mirror UVs")
-            if nwo.mesh_type in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure", '_connected_geometry_mesh_type_object_instance', "_connected_geometry_mesh_type_lightmap_only"):
+            if nwo.mesh_type in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure", '_connected_geometry_mesh_type_object_instance'):
                 row.prop(mesh_nwo, "decal_offset", text="Decal Offset") 
             if utils.poll_ui(("scenario", "prefab")):
                 if not self.h4:
-                    if nwo.mesh_type in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_lightmap_only"):
+                    if nwo.mesh_type in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure"):
                         row.prop(mesh_nwo, "no_shadow", text="No Shadow")
                 else:
                     # row.prop(mesh_nwo, "group_transparents_by_plane_ui", text="Transparents by Plane")
-                    if nwo.mesh_type in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_lightmap_only"):
+                    if nwo.mesh_type in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure"):
                         row.prop(mesh_nwo, "no_shadow", text="No Shadow")
-                        if self.h4 and nwo.mesh_type != "_connected_geometry_mesh_type_lightmap_only":
+                        if self.h4:
                             row.prop(mesh_nwo, "no_lightmap", text="No Lightmap")
                             row.prop(mesh_nwo, "no_pvs", text="No Visibility Culling")
                             
@@ -2324,7 +2324,6 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             "_connected_geometry_mesh_type_structure",
             # "_connected_geometry_mesh_type_collision",
             "_connected_geometry_mesh_type_default",
-            "_connected_geometry_mesh_type_lightmap_only",
         ):
             if utils.poll_ui(("scenario", "prefab")) and (not self.h4 or nwo.proxy_instance or nwo.mesh_type != "_connected_geometry_mesh_type_structure"):
                 # col.separator()

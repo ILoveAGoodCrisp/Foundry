@@ -1233,7 +1233,7 @@ class NWO_MT_MeshPropAddMenu(bpy.types.Menu):
             #     layout.operator(
             #         "nwo.add_mesh_property", text="Seam Sealer"
             #     ).options = "_connected_geometry_face_type_seam_sealer"
-            if nwo.mesh_type in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_lightmap_only"):
+            if nwo.mesh_type in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure"):
                 layout.operator(
                     "nwo.add_mesh_property", text="Emissive"
                 ).options = "emissive"

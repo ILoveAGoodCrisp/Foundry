@@ -197,7 +197,7 @@ class InstanceDefinition:
                         self.blender_collision.nwo.proxy_type = "collision"
                         self.blender_render.data.nwo.proxy_collision = self.blender_collision
                 else:
-                    self.blender_collision.data.nwo.mesh_type = "_connected_geometry_mesh_type_collision"
+                    self.blender_collision.data.nwo.collision_only = True
                     
             elif self.blender_render and self.blender_render.data:
                 self.blender_render.data.nwo.render_only = True
@@ -1668,8 +1668,8 @@ class Mesh:
             mesh.nwo.mesh_tessellation_density = self.parts[0].tessellation.name
         if not self.face_no_shadow:
             mesh.nwo.no_shadow = self.parts[0].no_shadow
-        if not self.face_lightmap_only and self.parts[0].lightmap_only:
-            mesh.nwo.mesh_type = "_connected_geometry_mesh_type_lightmap_only"
+        if not self.face_lightmap_only:
+            mesh.nwo.lightmap_only = self.parts[0].lightmap_only
 
         water_surface_parts = {p for p in self.parts if p.water_surface}
 

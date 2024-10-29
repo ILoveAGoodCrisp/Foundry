@@ -281,11 +281,11 @@ class NWO_Import(bpy.types.Operator):
                     if scene_nwo.main_armature:
                         arm = scene_nwo.main_armature
                     else:
-                        arm = utils.get_rig(self.context)
+                        arm = utils.get_rig(context)
                         if not arm:
                             arm_data = bpy.data.armatures.new('Armature')
                             arm = bpy.data.objects.new('Armature', arm_data)
-                            self.context.scene.collection.objects.link(arm)
+                            context.scene.collection.objects.link(arm)
                         
                     arm.hide_set(False)
                     arm.hide_select = False
@@ -551,8 +551,6 @@ class JMSMaterialSlot:
             return 'slip_surface'
         elif self.fog_plane:
             return 'fog'
-        elif self.lightmap_only:
-            return 'lightmap_only'
         elif self.water_surface:
             return 'water_surface'
         
@@ -1442,15 +1440,12 @@ class NWOImporter:
                 ob.data.nwo.mesh_type = mesh_type
                 if ob.data.nwo.sphere_collision_only:
                     ob.data.nwo.poop_collision_type = '_connected_geometry_poop_collision_type_invisible_wall'
-                    if self.corinth:
-                        ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_collision'
+                        
                 elif ob.data.nwo.collision_only:
                     ob.data.nwo.poop_collision_type = '_connected_geometry_poop_collision_type_bullet_collision'
-                    if self.corinth:
-                        ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_collision'
                         
                 if self.corinth and ob.data.nwo.render_only:
-                    ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_poop'
+                    ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_default'
                     
                 if self.corinth and ob.data.nwo.mesh_type == '_connected_geometry_mesh_type_structure' and ob.data.nwo.slip_surface:
                     ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_default'
@@ -1461,7 +1456,7 @@ class NWOImporter:
                         if prop.face_two_sided_override:
                             ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_default'
                             
-                if ob.data.nwo.mesh_type == '_connected_geometry_mesh_type_lightmap_only':
+                if ob.data.nwo.lightmap_only:
                     for prop in ob.data.nwo.face_props:
                         if prop.emissive_override:
                             ob.data.nwo.emissive_active = True
@@ -1488,6 +1483,14 @@ class NWOImporter:
                                 ob.nwo.mesh_primitive_type = "_connected_geometry_primitive_type_box"
                             case _:
                                 ob.nwo.mesh_primitive_type = "_connected_geometry_primitive_type_none"
+                                
+                elif ob.parent and mesh_type_legacy == 'collision' and (ob.parent.name[0] == "%" and ob.parent.type == 'MESH'):
+                    # setup poop proxy
+                    ob.nwo.proxy_parent = ob.parent.data
+                    ob.nwo.proxy_type = "collision"
+                    ob.parent.data.nwo.proxy_collision = ob
+                    ob.parent.data.nwo.render_only = False
+                    utils.unlink(ob)
                     
                 if self.apply_materials:
                     apply_props_material(ob, material)
@@ -1504,7 +1507,7 @@ class NWOImporter:
                 ob.nwo.proxy_instance = True
             elif ob.nwo.mesh_type == '_connected_geometry_mesh_type_seam':
                 ob.nwo.seam_back_manual = True
-                
+            
             self.jms_mesh_objects.append(ob)
             
     def set_poop_policies(self, ob):
@@ -1555,13 +1558,14 @@ class NWOImporter:
             nwo = ob.data.nwo
             nwo.face_two_sided = jms_mat.two_sided or jms_mat.transparent_two_sided
             nwo.face_transparent = jms_mat.transparent_one_sided or jms_mat.transparent_two_sided
-            nwo.render_only = jms_mat.render_only
+            nwo.render_only = jms_mat.render_only and not ob.data.nwo.proxy_collision
             nwo.sphere_collision_only = jms_mat.sphere_collision_only
             nwo.collision_only = jms_mat.collision_only
             nwo.ladder = jms_mat.ladder
             nwo.breakable = jms_mat.breakable
             nwo.portal_ai_deafening = jms_mat.ai_deafening
             nwo.no_shadow = jms_mat.no_shadow
+            nwo.lightmap_only = jms_mat.lightmap_only
             nwo.precise_position = jms_mat.precise
             if jms_mat.portal_one_way:
                 nwo.portal_type = '_connected_geometry_portal_type_one_way'
@@ -1648,13 +1652,14 @@ class NWOImporter:
                     nwo = ob.data.nwo
                     nwo.face_two_sided = jms_mat.two_sided or jms_mat.transparent_two_sided
                     nwo.face_transparent = jms_mat.transparent_one_sided or jms_mat.transparent_two_sided
-                    nwo.render_only = jms_mat.render_only
+                    nwo.render_only = jms_mat.render_only and not ob.data.nwo.proxy_collision
                     nwo.sphere_collision_only = jms_mat.sphere_collision_only
                     nwo.collision_only = jms_mat.collision_only
                     nwo.ladder = jms_mat.ladder
                     nwo.breakable = jms_mat.breakable
                     nwo.portal_ai_deafening = jms_mat.ai_deafening
                     nwo.no_shadow = jms_mat.no_shadow
+                    nwo.lightmap_only = jms_mat.lightmap_only
                     nwo.precise_position = jms_mat.precise
                     if jms_mat.portal_one_way:
                         nwo.portal_type = '_connected_geometry_portal_type_one_way'
@@ -1752,6 +1757,13 @@ class NWOImporter:
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
                                 layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "No Shadow", "no_shadow_override")))
+                                
+                        if jms_mat.lightmap_only:
+                            l_name = 'lightmap_only'
+                            if bm.faces.layers.int.get(l_name):
+                                layers[idx].append(bm.faces.layers.int.get(l_name))
+                            else:
+                                layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "Lightmap Only", "lightmap_only_override")))
                                 
                         if jms_mat.precise:
                             l_name = 'uncompressed'
@@ -1908,9 +1920,11 @@ class NWOImporter:
         material = ""
         match mesh_type:
             case "collision":
-                mesh_type = "_connected_geometry_mesh_type_collision"
                 if is_model:
+                    mesh_type = "_connected_geometry_mesh_type_collision"
                     material = "Collision"
+                else:
+                    mesh_type = "_connected_geometry_mesh_type_structure"
             case "physics":
                 mesh_type = "_connected_geometry_mesh_type_physics"
                 material = "Physics"
@@ -1929,8 +1943,6 @@ class NWOImporter:
             case "portal":
                 mesh_type = "_connected_geometry_mesh_type_portal"
                 material = "Portal"
-            case "lightmap_only":
-                mesh_type = "_connected_geometry_mesh_type_lightmap_only"
             case "water_surface":
                 mesh_type = "_connected_geometry_mesh_type_water_surface"
             case "rain_sheet":
@@ -1951,21 +1963,9 @@ class NWOImporter:
             case "water_physics":
                 mesh_type = "_connected_geometry_mesh_type_water_surface"
                 material = "WaterVolume"
-            case "invisible_wall":
-                mesh_type = "_connected_geometry_mesh_type_invisible_wall"
-                material = "WaterVolume"
-            case "streaming":
-                mesh_type = "_connected_geometry_mesh_type_streaming"
-                material = "StreamingVolume"
-            case "lightmap":
-                if utils.is_corinth(self.context):
-                    mesh_type = "_connected_geometry_mesh_type_lightmap_exclude"
-                    material = "LightmapExcludeVolume"
-
             case "cookie_cutter":
                 mesh_type = "_connected_geometry_mesh_type_cookie_cutter"
                 material = "CookieCutter"
-
             case "rain_blocker":
                 mesh_type = "_connected_geometry_mesh_type_poop_rain_blocker"
                 material = "RainBlocker"
@@ -1983,16 +1983,17 @@ class NWOImporter:
             return []
         self.animations = []
         self.objects = []
-        muted_armature_deforms = utils.mute_armature_mods()
         if jma_files:
+            muted_armature_deforms = utils.mute_armature_mods()
             print("Importing Animations")
             print(
                 "-----------------------------------------------------------------------\n"
             )
-            for path in jma_files:
-                self.import_legacy_animation(path, legacy_fix_rotations)
-            
-            utils.unmute_armature_mods(muted_armature_deforms)
+            try:
+                for path in jma_files:
+                    self.import_legacy_animation(path, legacy_fix_rotations)
+            finally:
+                utils.unmute_armature_mods(muted_armature_deforms)
             
             return self.animations
             

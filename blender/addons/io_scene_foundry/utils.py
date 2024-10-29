@@ -1002,7 +1002,6 @@ def has_mesh_props(ob) -> bool:
         "_connected_geometry_mesh_type_physics",
         "_connected_geometry_mesh_type_default",
         "_connected_geometry_mesh_type_structure",
-        "_connected_geometry_mesh_type_lightmap_only",
         "_connected_geometry_mesh_type_object_instance",
         "_connected_geometry_mesh_type_water_surface",
     )
@@ -2947,7 +2946,8 @@ def area_light_to_emissive(light_ob: bpy.types.Object):
     plane_ob = bpy.data.objects.new(new_name, plane_data)
     plane_ob.matrix_world = light_ob.matrix_world
     plane_nwo = plane_data.nwo
-    plane_nwo.mesh_type = "_connected_geometry_mesh_type_lightmap_only"
+    plane_nwo.mesh_type = "_connected_geometry_mesh_type_default"
+    plane_nwo.lightmap_only = True
     plane_ob.nwo.region_name = true_region(light_ob.nwo)
     plane_ob.nwo.permutation_name = true_permutation(light_ob.nwo)
     plane_nwo.emissive_active = True
