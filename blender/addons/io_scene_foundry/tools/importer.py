@@ -1559,8 +1559,8 @@ class NWOImporter:
             nwo.face_two_sided = jms_mat.two_sided or jms_mat.transparent_two_sided
             nwo.face_transparent = jms_mat.transparent_one_sided or jms_mat.transparent_two_sided
             nwo.render_only = jms_mat.render_only and not ob.data.nwo.proxy_collision
-            nwo.sphere_collision_only = jms_mat.sphere_collision_only
             nwo.collision_only = jms_mat.collision_only
+            nwo.sphere_collision_only = jms_mat.sphere_collision_only
             nwo.ladder = jms_mat.ladder
             nwo.breakable = jms_mat.breakable
             nwo.portal_ai_deafening = jms_mat.ai_deafening
@@ -1653,8 +1653,8 @@ class NWOImporter:
                     nwo.face_two_sided = jms_mat.two_sided or jms_mat.transparent_two_sided
                     nwo.face_transparent = jms_mat.transparent_one_sided or jms_mat.transparent_two_sided
                     nwo.render_only = jms_mat.render_only and not ob.data.nwo.proxy_collision
-                    nwo.sphere_collision_only = jms_mat.sphere_collision_only
                     nwo.collision_only = jms_mat.collision_only
+                    nwo.sphere_collision_only = jms_mat.sphere_collision_only
                     nwo.ladder = jms_mat.ladder
                     nwo.breakable = jms_mat.breakable
                     nwo.portal_ai_deafening = jms_mat.ai_deafening
