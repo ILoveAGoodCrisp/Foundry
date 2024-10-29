@@ -121,14 +121,9 @@ class NWO_OT_ConvertScene(bpy.types.Operator):
         if user_cancelled:
             self.report({'WARNING'}, "Cancelled by user")
         else:
-            print(
-                "\n-----------------------------------------------------------------------"
-            )
-            print(f"Completed in {round(end - start, 3)} seconds")
-
-            print(
-                "-----------------------------------------------------------------------\n"
-            )
+            print("\n-----------------------------------------------------------------------")
+            print(f"Completed in {utils.human_time(end - start, True)} seconds")
+            print("-----------------------------------------------------------------------\n")
         return {'FINISHED'}
 
 class NWO_Import(bpy.types.Operator):

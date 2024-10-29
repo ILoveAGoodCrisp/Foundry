@@ -1224,35 +1224,38 @@ class ExportScene:
         #     ob: bpy.types.Object
         #     if ob.type != 'ARMATURE':
         #         utils.unlink(ob)
+        armature_mods = utils.mute_armature_mods()
         self.context.view_layer.update()
         self.has_animations = True
-        if self.export_settings.export_animations == 'ALL':
-            with utils.Spinner():
-                utils.update_job_count(process, "", 0, num_animations)
-                for idx, action in enumerate(valid_actions):
-                    for ob in self.animated_objects.keys():
-                        ob.animation_data.action = action
-                    controls = self.create_event_objects(action)
-                    self.virtual_scene.add_animation(action, controls=controls)
-                    self.exported_actions.append(action)
-                    utils.update_job_count(process, "", idx, num_animations)
-                utils.update_job_count(process, "", num_animations, num_animations)
-        else:
-            active_only = self.export_settings.export_animations == 'ACTIVE'
-            for action in valid_actions:
-                if active_only and action == self.current_action:
-                    for ob in self.animated_objects.keys():
-                        ob.animation_data.action = action
-                    print("--- Sampling Active Animation ", end="")
-                    with utils.Spinner():
+        try:
+            if self.export_settings.export_animations == 'ALL':
+                with utils.Spinner():
+                    utils.update_job_count(process, "", 0, num_animations)
+                    for idx, action in enumerate(valid_actions):
+                        for ob in self.animated_objects.keys():
+                            ob.animation_data.action = action
                         controls = self.create_event_objects(action)
                         self.virtual_scene.add_animation(action, controls=controls)
-                    print(" ", end="")
-                else:
-                    self.virtual_scene.add_animation(action, sample=False)
-                    
-                self.exported_actions.append(action)
-                
+                        self.exported_actions.append(action)
+                        utils.update_job_count(process, "", idx, num_animations)
+                    utils.update_job_count(process, "", num_animations, num_animations)
+            else:
+                active_only = self.export_settings.export_animations == 'ACTIVE'
+                for action in valid_actions:
+                    if active_only and action == self.current_action:
+                        for ob in self.animated_objects.keys():
+                            ob.animation_data.action = action
+                        print("--- Sampling Active Animation ", end="")
+                        with utils.Spinner():
+                            controls = self.create_event_objects(action)
+                            self.virtual_scene.add_animation(action, controls=controls)
+                        print(" ", end="")
+                    else:
+                        self.virtual_scene.add_animation(action, sample=False)
+                        
+                    self.exported_actions.append(action)
+        finally:
+            utils.unmute_armature_mods(armature_mods)
             
     def create_event_objects(self, action: bpy.types.Action):
         nwo = action.nwo
