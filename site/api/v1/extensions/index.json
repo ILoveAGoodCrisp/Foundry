@@ -7,7 +7,7 @@
       "id": "io_scene_foundry",
       "name": "Foundry",
       "tagline": "An import & export pipeline for Halo Reach, Halo 4, and Halo 2 Anniversary Multiplayer",
-      "version": "1.0.18",
+      "version": "1.0.19",
       "type": "add-on",
       "maintainer": "Crisp",
       "license": [
@@ -35,8 +35,8 @@
         "./wheels/pythonnet-3.0.3-py3-none-any.whl"
       ],
       "archive_url": "./io_scene_foundry.zip",
-      "archive_size": 4551660,
-      "archive_hash": "sha256:0a32389e73f49dfdb557be06009b02f9c789f78a23e4916efa743b63841d36d2"
+      "archive_size": 4551835,
+      "archive_hash": "sha256:0ef23f347a97637f7e2ddca7df143a8e601d8e9a5a3f115214a1ded88e3f19cb"
     }
   ]
 }
