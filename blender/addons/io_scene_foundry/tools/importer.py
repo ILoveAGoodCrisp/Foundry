@@ -105,6 +105,9 @@ class NWO_OT_ConvertScene(bpy.types.Operator):
                         converter.amf_other_objects = []
                         converter.process_amf_objects(objects_in_scope, "")
                     case "jms":
+                        if not utils.blender_toolset_installed():
+                            self.report({'WARNING'}, "Cannot convert scene from JMS/ASS format, Halo Blender Toolset is not installed")
+                            return {'CANCELLED'}
                         converter.jms_marker_objects = []
                         converter.jms_mesh_objects = []
                         converter.jms_other_objects = []
