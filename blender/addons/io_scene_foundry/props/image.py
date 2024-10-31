@@ -80,31 +80,9 @@ class NWO_ImagePropertiesGroup(bpy.types.PropertyGroup):
     )
 
     reexport_tiff : bpy.props.BoolProperty(
-        name="Re-Export TIFF",
-        description="Forces this bitmap's source file (TIFF) to be re-exported. By default the Bitmap exporter will skip exporting a new TIFF file provided the following conditions are met: a TIFF file already exists, is not packed data in this blend, and is located within the data directory",
+        name="Re-Export Image",
+        description="Forces this bitmap's source file to be re-exported from Blender. By default the Bitmap exporter will skip exporting a new file provided the following conditions are met: a TIFF file already exists, is not packed data in this blend, and is located within the project data directory",
     )
 
     filepath : bpy.props.StringProperty()
     source_name : bpy.props.StringProperty()
-
-    def update_bitmap_dir(self, context):
-
-        self["bitmap_dir"] = clean_tag_path(self["bitmap_dir"]).strip('"')
-
-    def get_bitmap_dir(self):
-        context = bpy.context
-        is_asset = valid_nwo_asset(context)
-        if is_asset:
-            return self.get("bitmap_dir", os.path.join(get_asset_path(), "bitmaps"))
-        return self.get("bitmap_dir", "")
-    
-    def set_bitmap_dir(self, value):
-        self['bitmap_dir'] = value
-
-    bitmap_dir : bpy.props.StringProperty(
-        name="Tiff Directory",
-        description="Specifies where the exported tiff should be saved (if it is not externally linked). Defaults to the asset bitmaps folder",
-        update=update_bitmap_dir,
-        get=get_bitmap_dir,
-        set=set_bitmap_dir,
-    )

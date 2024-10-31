@@ -2678,7 +2678,6 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col.separator()
             col_props = col.column()
             col_props.use_property_split = True
-            col_props.prop(bitmap, "bitmap_dir", text="Tiff Directory")
             col_props.prop(bitmap, "bitmap_type", text="Type")
             return
         col.separator()
@@ -2692,7 +2691,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col_props = col.column()
             col_props.use_property_split = True
             col_props.prop(bitmap, "bitmap_type", text="Type")
-            col_props.prop(bitmap, "reexport_tiff", text="Always Export TIFF")
+            col_props.prop(bitmap, "reexport_tiff", text="Always Export Image")
 
     def draw_animation_manager(self):
         box = self.box.box()

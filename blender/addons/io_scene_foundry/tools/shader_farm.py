@@ -6,13 +6,12 @@ import threading
 import time
 import bpy
 
-from ..managed_blam import mb_init
+from .. import utils
+
 from ..icons import get_icon_id
 from ..managed_blam.bitmap import BitmapTag
 from ..tools.export_bitmaps import save_image_as
 from ..tools.shader_builder import build_shader
-
-from ..utils import ExportManager, asset_path_from_blend_location, clean_tag_path, dot_partition, get_asset_path, get_data_path, get_shader_name, get_tags_path, is_corinth, print_warning, relative_path, run_tool, update_job, update_job_count, update_progress, valid_filename, valid_image_name, valid_nwo_asset
 
 BLENDER_IMAGE_FORMATS = (".bmp", ".sgi", ".rgb", ".bw", ".png", ".jpg", ".jpeg", ".jp2", ".j2c", ".tga", ".cin", ".dpx", ".exr", ".hdr", ".tif", ".tiff", ".webp")
 
@@ -22,7 +21,7 @@ class NWO_FarmShaders(bpy.types.Operator):
     bl_description = "Builds shader/material tags for all valid blender materials. Will export all necessary bitmaps"
 
     def farm_type_items(self, context):
-        tag_type = "Materials" if is_corinth(context) else "Shaders"
+        tag_type = "Materials" if utils.is_corinth(context) else "Shaders"
         items = [
             ("both", f"{tag_type} & Bitmaps", ""),
             ("shaders", f"{tag_type}", ""),
@@ -71,7 +70,7 @@ class NWO_FarmShaders(bpy.types.Operator):
     )
 
     def update_default_material_shader(self, context):
-        self["default_material_shader"] = clean_tag_path(self["default_material_shader"]).strip('"')
+        self["default_material_shader"] = utils.clean_tag_path(self["default_material_shader"]).strip('"')
         
     def get_default_material_shader(self):
         from ..tools.shader_builder import material_shader_path
@@ -104,8 +103,8 @@ class NWO_FarmShaders(bpy.types.Operator):
         return False
 
     def execute(self, context):
-        with ExportManager():
-            self.corinth = is_corinth(context)
+        with utils.ExportManager():
+            self.corinth = utils.is_corinth(context)
             self.thread_max = multiprocessing.cpu_count()
             self.running_check = 0
             self.bitmap_processes = 0
@@ -116,10 +115,10 @@ class NWO_FarmShaders(bpy.types.Operator):
             bitmaps = {}
             bitmaps['new'] = []
             bitmaps['update'] = []
-            self.tags_dir = get_tags_path()
-            self.data_dir = get_data_path()
-            self.asset_path = get_asset_path()
-            blend_asset_path = asset_path_from_blend_location()
+            self.tags_dir = utils.get_tags_path()
+            self.data_dir = utils.get_data_path()
+            self.asset_path = utils.get_asset_path()
+            blend_asset_path = utils.asset_path_from_blend_location()
             tag_type = 'Material' if self.corinth else 'Shader'
             start = time.perf_counter()
             os.system("cls")
@@ -137,7 +136,7 @@ class NWO_FarmShaders(bpy.types.Operator):
                 mat_nwo = mat.nwo
                 # Skip if either declared as not a shader or is a grease pencil material
                 if not mat_nwo.RenderMaterial: continue
-                s_name = get_shader_name(mat)
+                s_name = utils.get_shader_name(mat)
                 if s_name in shader_names:
                     continue
                 shader_names.add(s_name)
@@ -158,13 +157,13 @@ class NWO_FarmShaders(bpy.types.Operator):
             for image in bpy.data.images:
                 if image.name != image.name_full:
                     continue
-                if dot_partition(image.name).endswith(BLENDER_IMAGE_FORMATS):
-                    print_warning(f"{image.name} looks like a duplicate image, skipping")
+                if utils.dot_partition(image.name).endswith(BLENDER_IMAGE_FORMATS):
+                    utils.print_warning(f"{image.name} looks like a duplicate image, skipping")
                     continue
                 if not self.all_bitmaps and not self.image_in_valid_node(image, valid_shaders):
                     continue
                 bitmap = image.nwo
-                bitmap_path = dot_partition(bitmap.filepath) + '.bitmap'
+                bitmap_path = utils.dot_partition(bitmap.filepath) + '.bitmap'
                 if not Path(self.tags_dir, bitmap_path).exists() and Path(image.filepath_from_user()).is_relative_to(self.data_dir):
                     bitmap_path = str(Path(image.filepath_from_user()).relative_to(self.data_dir).with_suffix('.bitmap'))
                 if Path(self.tags_dir, bitmap_path).exists():
@@ -195,11 +194,11 @@ class NWO_FarmShaders(bpy.types.Operator):
                 )
                 bitmap_count = len(valid_bitmaps)
                 print(f"{bitmap_count} bitmaps in scope")
-                print(f"Bitmaps Directory = {relative_path(self.bitmaps_data_dir)}\n")
+                print(f"Bitmaps Directory = {utils.relative_path(self.bitmaps_data_dir)}\n")
                 for idx, bitmap in enumerate(valid_bitmaps):
                     tiff_path = self.export_tiff_if_needed(bitmap)
                     if tiff_path:
-                        self.thread_bitmap_export(bitmap, tiff_path)
+                        self.thread_bitmap_export(bitmap)
                 self.report({'INFO'}, f"Exported {bitmap_count} Bitmaps")
 
                 # Wait for Bitmap export to finish
@@ -208,11 +207,11 @@ class NWO_FarmShaders(bpy.types.Operator):
                 spinner = itertools.cycle(["|", "/", "—", "\\"])
                 total_p = self.bitmap_processes
                 while self.running_check:
-                    update_job_count(
+                    utils.update_job_count(
                         job, next(spinner), total_p - self.running_check, total_p
                     )
                     time.sleep(0.1)
-                update_job_count(job, "", total_p, total_p)
+                utils.update_job_count(job, "", total_p, total_p)
 
             if self.farm_type == "both" or self.farm_type == "shaders":
                 print(f"\nStarting {tag_type}s Export")
@@ -230,12 +229,12 @@ class NWO_FarmShaders(bpy.types.Operator):
                 print(f"{tag_type}s Directory = {shaders_dir}\n")
                 job = f"Exporting {tag_type}s"
                 for idx, shader in enumerate(valid_shaders):
-                    update_progress(job, idx / shader_count)
+                    utils.update_progress(job, idx / shader_count)
                     shader.nwo.uses_blender_nodes = self.link_shaders
                     if self.default_material_shader and Path(self.tags_dir, self.default_material_shader).exists():
                         shader.nwo.material_shader = self.default_material_shader
                     build_shader(shader, self.corinth, shaders_dir)
-                update_progress(job, 1)
+                utils.update_progress(job, 1)
                 self.report({'INFO'}, f"Exported {shader_count} {tag_type}s")
 
             end = time.perf_counter()
@@ -254,35 +253,36 @@ class NWO_FarmShaders(bpy.types.Operator):
         return {'FINISHED'}
     
     def export_tiff_if_needed(self, image):
-        valid_name = valid_image_name(image.name) + ".tif"
+        valid_name = utils.valid_image_name(image.name) + ".tif"
         if ".tiff" in image.name:
             valid_name += 'f'
         image.nwo.source_name = valid_name
-        user_path = image.filepath_from_user()
-        is_tiff = image.file_format == 'TIFF'
-        if is_tiff and user_path and Path(user_path).is_relative_to(self.data_dir) and Path(user_path).exists():
-            image.nwo.filepath = str(Path(user_path).relative_to(self.data_dir))
+        user_path = Path(image.filepath_from_user())
+        user_path_contains_data_dir = user_path.is_relative_to(self.data_dir)
+            
+        if user_path and user_path_contains_data_dir and user_path.exists():
+            image.nwo.filepath = utils.relative_path(user_path)
             if image.nwo.reexport_tiff:
                 if image.has_data:
-                    image.nwo.filepath = save_image_as(image, "", tiff_name=image.nwo.source_name)
+                    image.nwo.filepath = save_image_as(image, user_path.parent, tiff_name=image.nwo.source_name)
                 else:
-                    return print_warning(f"{image.name} has no data. Cannot export Tif")
+                    utils.print_warning(f"{image.name} has no data. Cannot export Tif")
 
-        elif is_tiff and image.nwo.filepath.lower().endswith((".tif", ".tiff")) and Path(self.data_dir, image.nwo.filepath).exists():
+        elif Path(image.nwo.filepath.lower()).suffix in {".tif", ".tiff"} and Path(self.data_dir, image.nwo.filepath).exists():
             if image.nwo.reexport_tiff:
                 if image.has_data:
-                    image.nwo.filepath = save_image_as(image, "", tiff_name=image.nwo.source_name)
+                    image.nwo.filepath = save_image_as(image, Path(self.data_dir, image.nwo.filepath).parent, tiff_name=image.nwo.source_name)
                 else:
-                    return print_warning(f"{image.name} has no data. Cannot export Tif")
+                    utils.print_warning(f"{image.name} has no data. Cannot export Tif")
         else:
             if image.has_data:
                 image.nwo.filepath = save_image_as(image, self.bitmaps_data_dir, tiff_name=image.nwo.source_name)
             else:
-                return print_warning(f"{image.name} has no data. Cannot export Tif")
+                utils.print_warning(f"{image.name} has no data. Cannot export Tif")
                 
         return image.nwo.filepath
     
-    def thread_bitmap_export(self, image, tiff_path):
+    def thread_bitmap_export(self, image):
         user_path = image.filepath_from_user()
         if user_path and Path(user_path).is_relative_to(Path(self.data_dir)):
             bitmap_path = str(Path(user_path).relative_to(Path(self.data_dir)).with_suffix('.bitmap'))
@@ -302,7 +302,7 @@ class NWO_FarmShaders(bpy.types.Operator):
             path_no_ext = str(Path(image.nwo.filepath).with_suffix(""))
             bitmap_path = path_no_ext + '.bitmap'
             with BitmapTag(path=bitmap_path) as bitmap:
-                bitmap.new_bitmap(dot_partition(image.nwo.source_name), image.nwo.bitmap_type, image.colorspace_settings.name)
+                bitmap.new_bitmap(utils.dot_partition(image.nwo.source_name), image.nwo.bitmap_type, image.colorspace_settings.name)
                 
             self.exported_bitmaps.append(bitmap_path)
             print(f"{job} {bitmap_path}")
@@ -318,21 +318,21 @@ class NWO_FarmShaders(bpy.types.Operator):
         self.bitmap_processes += 1
         time.sleep(self.running_check / 10)
         if self.corinth:
-            run_tool(["reimport-bitmaps-single", bitmap_path, "default"], False, True)
+            utils.run_tool(["reimport-bitmaps-single", bitmap_path, "default"], False, True)
         else:
-            run_tool(["reimport-bitmaps-single", bitmap_path], False, True)
+            utils.run_tool(["reimport-bitmaps-single", bitmap_path], False, True)
         self.running_check -= 1
         
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
-        tag_type = "Material" if is_corinth(context) else "Shader"
+        tag_type = "Material" if utils.is_corinth(context) else "Shader"
         col = layout.column()
         col.prop(self, "farm_type", text="Type")
         col.separator()
         if self.farm_type in ("both", "shaders"):
             col.prop(self, "shaders_scope", text=f"{tag_type}s Scope")
-            if is_corinth(context):
+            if utils.is_corinth(context):
                 row = col.row(align=True)
                 row.prop(self, "default_material_shader", text="Material Shader (Optional)", icon_value=get_icon_id('tags'))
                 row.operator("nwo.get_material_shaders", text="", icon="VIEWZOOM").batch_panel = True                
