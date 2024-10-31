@@ -1163,7 +1163,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col = flow.column()
             col.prop(data, "color")
             col.prop(data, "energy")
-            # col.prop(nwo, 'light_intensity', text="Intensity")
+            col.prop(nwo, 'light_intensity', text="Intensity")
             scaled_energy = data.energy * utils.get_export_scale(context)
             if scaled_energy < 11 and data.type != 'SUN':
                 # Warn user about low light power. Need the light scaled to Halo proportions

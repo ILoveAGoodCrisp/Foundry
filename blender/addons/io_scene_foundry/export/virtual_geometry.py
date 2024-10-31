@@ -710,15 +710,15 @@ class VirtualMesh:
         
         self.num_indices = len(self.indices)
         self.num_vertices = len(self.positions)
-        if (ob.original.data.nwo.face_props or special_mats_dict) and props.get("bungie_mesh_type") in FACE_PROP_TYPES:
-            self.face_properties = gather_face_props(ob.original.data.nwo, mesh, num_polygons, scene, sorted_order, special_mats_dict, fp_defaults, props)
+        if (ob.data.nwo.face_props or special_mats_dict) and props.get("bungie_mesh_type") in FACE_PROP_TYPES:
+            self.face_properties = gather_face_props(ob.data.nwo, mesh, num_polygons, scene, sorted_order, special_mats_dict, fp_defaults, props)
     
 class VirtualNode:
     def __init__(self, id: bpy.types.Object | bpy.types.PoseBone, props: dict, region: str = None, permutation: str = None, fp_defaults: dict = None, scene: 'VirtualScene' = None, proxies = [], template_node: 'VirtualNode' = None, bones: list[str] = [], parent_matrix: Matrix = IDENTITY_MATRIX, animation_owner=None):
         self.name: str = id.name
+        self.id = id
         self.matrix_world: Matrix = IDENTITY_MATRIX
         self.matrix_local: Matrix = IDENTITY_MATRIX
-        self.original = id.original
         self.mesh: VirtualMesh | None = None
         self.new_mesh = False
         self.skeleton: VirtualSkeleton = None
@@ -744,9 +744,9 @@ class VirtualNode:
                     self.matrix_local = IDENTITY_MATRIX
                 else:
                     if scene.maintain_marker_axis and self.props.get("bungie_object_type") == ObjectType.marker.value:
-                        self.matrix_world = scene.rotation_matrix @ self.original.matrix_world @ scene.marker_rotation_matrix
+                        self.matrix_world = scene.rotation_matrix @ id.matrix_world @ scene.marker_rotation_matrix
                     else:
-                        self.matrix_world = scene.rotation_matrix @ self.original.matrix_world
+                        self.matrix_world = scene.rotation_matrix @ id.matrix_world
                         
                     self.matrix_local = parent_matrix @ self.matrix_world
             else:
@@ -970,7 +970,7 @@ class VirtualSkeleton:
         
     def _get_bones(self, ob, scene: 'VirtualScene', is_main_armature: bool):
         if ob.type == 'ARMATURE':
-            main_arm = ob.original
+            main_arm = ob
             scene_nwo = bpy.context.scene.nwo
             aim_bone_names = {scene_nwo.node_usage_pose_blend_pitch, scene_nwo.node_usage_pose_blend_yaw}
             special_bone_names = {scene_nwo.node_usage_pedestal, scene_nwo.node_usage_pose_blend_pitch, scene_nwo.node_usage_pose_blend_yaw}
@@ -1143,10 +1143,10 @@ class VirtualModel:
         if node and not node.invalid:
             self.node = node
             if ob.type == 'ARMATURE':
-                if not scene.skeleton_node or bpy.context.scene.nwo.main_armature == ob.original:
+                if not scene.skeleton_node or bpy.context.scene.nwo.main_armature == ob:
                     scene.skeleton_node = self.node
                     scene.skeleton_model = self
-                    scene.skeleton_object = ob.original
+                    scene.skeleton_object = ob
                     is_main_armature = True
 
             self.skeleton: VirtualSkeleton = VirtualSkeleton(ob, scene, self.node, is_main_armature)
@@ -1298,8 +1298,8 @@ class VirtualScene:
             min_x, min_y, min_z, max_x, max_y, max_z = (i * scalar for i in (-10, -10, 0, 10, 10, 30))
             for node in nodes:
                 # inverse the rotation matrix otherwise this will be rotated incorrectly
-                if node.original.type == 'MESH':
-                    bbox = node.original.bound_box
+                if node.id.type == 'MESH':
+                    bbox = node.id.bound_box
                     for co in bbox:
                         bounds = self.rotation_matrix.inverted() @ node.matrix_world @ Vector((co[0], co[1], co[2]))
                         min_x = min(min_x, bounds.x - padding)

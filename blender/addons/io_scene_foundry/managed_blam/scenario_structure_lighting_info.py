@@ -21,9 +21,9 @@ class ScenarioStructureLightingInfoTag(Tag):
     def _definition_index_from_data_name(self, name, light_definitions) -> int:
         for definition in light_definitions:
             if name == definition.data_name:
-                return str(definition.index)
+                return definition.index
             
-        return "0"
+        return 0
     
     def clear_lights(self):
         self.block_generic_light_definitions.RemoveAllElements()
@@ -131,43 +131,53 @@ class ScenarioStructureLightingInfoTag(Tag):
             light.index = element.ElementIndex
             element.SelectField("type").Value = light.type
             element.SelectField("shape").Value = light.shape
-            element.SelectField("color").SetStringData(light.color)
-            element.SelectField("intensity").SetStringData(str(light.intensity))
-            
+            element.SelectField("color").Data = light.color
+            intensity_divisor = 1
+            # Reach seems to fudge our intensity numbers based on whether the light is a point or spot light, fight back!
+            match light.type:
+                case 0:
+                    intensity_divisor = 0.37735857955
+                case 1:
+                    intensity_divisor = 3.14465382959
+                case 2:
+                    intensity_divisor = 0.6289308
+                    
+            element.SelectField("intensity").Data = light.intensity / intensity_divisor
+            print(light.intensity)
             if light.type == 1:
-                element.SelectField("hotspot size").SetStringData(str(light.hotspot_size))
-                element.SelectField("hotspot cutoff size").SetStringData(light.hotspot_cutoff)
-                element.SelectField("hotspot falloff speed").SetStringData(light.hotspot_falloff)
+                element.SelectField("hotspot size").Data = light.hotspot_size
+                element.SelectField("hotspot cutoff size").Data = light.hotspot_cutoff
+                element.SelectField("hotspot falloff speed").Data = light.hotspot_falloff
     
-            element.SelectField("near attenuation bounds").SetStringData([light.near_attenuation_start, light.near_attenuation_end])
+            element.SelectField("near attenuation bounds").Data = [light.near_attenuation_start, light.near_attenuation_end]
             
             flags = element.SelectField("flags")
             flags.SetBit("use far attenuation", True)
             if light.far_attenuation_end > 0:
                 flags.SetBit("invere squared falloff", False)
-                element.SelectField("far attenuation bounds").SetStringData([str(light.far_attenuation_start), str(light.far_attenuation_end)])
+                element.SelectField("far attenuation bounds").Data = [light.far_attenuation_start, light.far_attenuation_end]
             else:
                 flags.SetBit("invere squared falloff", True)
-                element.SelectField("far attenuation bounds").SetStringData(["900", "4000"])
+                element.SelectField("far attenuation bounds").Data = ["900", "4000"]
 
-            element.SelectField("aspect").SetStringData(light.aspect)
+            element.SelectField("aspect").Data = light.aspect
             
     def _write_reach_light_instances(self, light_instances, light_definitions):
         self.block_generic_light_instances.RemoveAllElements()
         for light in light_instances:
             element = self.block_generic_light_instances.AddElement()
-            element.SelectField("definition index").SetStringData(self._definition_index_from_data_name(light.data_name, light_definitions))
-            element.SelectField("origin").SetStringData(light.origin)
-            element.SelectField("forward").SetStringData(light.forward)
-            element.SelectField("up").SetStringData(light.up)
+            element.SelectField("definition index").Data = self._definition_index_from_data_name(light.data_name, light_definitions)
+            element.SelectField("origin").Data = light.origin
+            element.SelectField("forward").Data = light.forward
+            element.SelectField("up").Data = light.up
             element.SelectField("bungie light type").Value = light.game_type
             
             flags = element.SelectField("screen space specular")
             flags.SetBit("screen space light has specular", light.screen_space_specular)
             
-            element.SelectField("bounce light control").SetStringData(light.bounce_ratio)
-            element.SelectField("light volume distance").SetStringData(light.volume_distance)
-            element.SelectField("light volume intensity scalar").SetStringData(light.volume_intensity)
+            element.SelectField("bounce light control").Data = light.bounce_ratio
+            element.SelectField("light volume distance").Data = light.volume_distance
+            element.SelectField("light volume intensity scalar").Data = light.volume_intensity
             
             if light.light_tag:
                 element.SelectField("user control").Path = self._TagPath_from_string(light.light_tag)

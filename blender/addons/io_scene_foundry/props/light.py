@@ -149,13 +149,13 @@ class NWO_LightPropertiesGroup(bpy.types.PropertyGroup):
     )
     
     def get_light_intensity(self):
-        return utils.calc_light_intensity(self.id_data)
+        return utils.calc_light_intensity(self.id_data, utils.get_export_scale(bpy.context) ** 2)
     
     def set_light_intensity(self, value):
         self['light_intensity_value'] = value
         
     def update_light_intensity(self, context):
-        self.id_data.energy = utils.calc_light_energy(self.id_data, self.light_intensity_value)
+        self.id_data.energy = utils.calc_light_energy(self.id_data, utils.get_export_scale(context) ** -2 * self.light_intensity_value)
 
     light_intensity: bpy.props.FloatProperty(
         name="Light Intensity",
@@ -164,6 +164,7 @@ class NWO_LightPropertiesGroup(bpy.types.PropertyGroup):
         get=get_light_intensity,
         set=set_light_intensity,
         update=update_light_intensity,
+        min=0,
     )
     
     light_intensity_value: bpy.props.FloatProperty(options={'HIDDEN'})

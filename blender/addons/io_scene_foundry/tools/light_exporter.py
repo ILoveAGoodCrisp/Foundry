@@ -16,10 +16,10 @@ class BlamLightInstance:
         self.data_name = ob.data.name
         self.bsp = bsp
         matrix = utils.halo_transforms(ob, scale, rotation)
-        self.origin = [str(n) for n in matrix.translation]
+        self.origin = matrix.translation.to_tuple()
         matrix_3x3 = matrix.to_3x3().normalized()
-        self.forward = [str(n) for n in matrix_3x3.col[1]]
-        self.up = [str(n) for n in matrix_3x3.col[2]]
+        self.forward = matrix_3x3.col[1]
+        self.up = matrix_3x3.col[2]
         
         self.game_type = 0
         match nwo.light_game_type:
@@ -32,10 +32,10 @@ class BlamLightInstance:
             case '_connected_geometry_bungie_light_type_rerender':
                 self.game_type = 4
         
-        self.volume_distance = str(nwo.light_volume_distance)
-        self.volume_intensity = str(nwo.light_volume_intensity)
+        self.volume_distance = nwo.light_volume_distance
+        self.volume_intensity = nwo.light_volume_intensity
         
-        self.bounce_ratio = str(nwo.light_bounce_ratio)
+        self.bounce_ratio = nwo.light_bounce_ratio
         self.screen_space_specular = nwo.light_screenspace_has_specular
         
         self.light_tag = nwo.light_tag_override
@@ -69,18 +69,18 @@ class BlamLightDefinition:
         if nwo.light_shape == '_connected_geometry_light_shape_circle':
             self.shape = 1
             
-        self.color = str(utils.linear_to_srgb(data.color[0])), str(utils.linear_to_srgb(data.color[1])), str(utils.linear_to_srgb(data.color[2]))
+        self.color = [utils.linear_to_srgb(data.color[0]), utils.linear_to_srgb(data.color[1]), utils.linear_to_srgb(data.color[2])]
         self.intensity = max(utils.calc_light_intensity(data, utils.get_export_scale(bpy.context) ** 2), 0.0001)
-        self.hotspot_size = "0"
-        self.hotspot_cutoff = "0"
+        self.hotspot_size = 0
+        self.hotspot_cutoff = 0
         if data.type == 'SPOT':
             self.hotspot_size = min(degrees(data.spot_size), 160)
-            self.hotspot_cutoff = str(self.hotspot_size * abs(1 - data.spot_blend))
+            self.hotspot_cutoff = self.hotspot_size * abs(1 - data.spot_blend)
             
-        self.hotspot_falloff = str(nwo.light_falloff_shape)
+        self.hotspot_falloff = nwo.light_falloff_shape
         
-        self.near_attenuation_start = str(nwo.light_near_attenuation_start * atten_scalar * WU_SCALAR)
-        self.near_attenuation_end = str(nwo.light_near_attenuation_end * atten_scalar * WU_SCALAR)
+        self.near_attenuation_start = nwo.light_near_attenuation_start * atten_scalar * WU_SCALAR
+        self.near_attenuation_end = nwo.light_near_attenuation_end * atten_scalar * WU_SCALAR
         if nwo.light_far_attenuation_end:
             self.far_attenuation_start = nwo.light_far_attenuation_start * atten_scalar * WU_SCALAR
             self.far_attenuation_end = nwo.light_far_attenuation_end * atten_scalar * WU_SCALAR
@@ -88,15 +88,15 @@ class BlamLightDefinition:
             self.far_attenuation_start = 9 * atten_scalar
             self.far_attenuation_end = 40 * atten_scalar
             
-        self.aspect = str(nwo.light_aspect)
+        self.aspect = nwo.light_aspect
         
         self.cone_shape = 0 if nwo.light_cone_projection_shape == '_connected_geometry_cone_projection_shape_cone' else 1
         self.lighting_mode = 0 if nwo.light_physically_correct else 1
         
         # Dynamic only props
-        self.shadow_near_clip = str(nwo.light_shadow_near_clipplane)
-        self.shadow_far_clip = str(nwo.light_shadow_far_clipplane)
-        self.shadow_bias = str(nwo.light_shadow_bias_offset)
+        self.shadow_near_clip = nwo.light_shadow_near_clipplane
+        self.shadow_far_clip = nwo.light_shadow_far_clipplane
+        self.shadow_bias = nwo.light_shadow_bias_offset
         self.shadow_quality = 0 if nwo.light_dynamic_shadow_quality == '_connected_geometry_dynamic_shadow_quality_normal' else 1
         self.shadows = 1 if nwo.light_shadows else 0
         self.screen_space = 1 if nwo.light_screenspace else 0
@@ -108,9 +108,9 @@ class BlamLightDefinition:
         self.diffuse_contribution = 1 if nwo.light_diffuse_contribution else 0
         
         # Static only props
-        self.indirect_amp = str(nwo.light_amplification_factor)
-        self.jitter_sphere = str(nwo.light_jitter_sphere_radius)
-        self.jitter_angle = str(degrees(nwo.light_jitter_angle))
+        self.indirect_amp = nwo.light_amplification_factor
+        self.jitter_sphere = nwo.light_jitter_sphere_radius
+        self.jitter_angle = degrees(nwo.light_jitter_angle)
         self.jitter_quality = 0
         if nwo.light_jitter_quality == '_connected_geometry_light_jitter_quality_medium':
             self.jitter_quality = 1
