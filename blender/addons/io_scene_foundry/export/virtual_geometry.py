@@ -336,6 +336,7 @@ class VirtualMesh:
         # Transforms to account for negative scaling are done at granny level so the blender data can stay the same
         existing_mesh = scene.meshes.get((self.name, not negative_scaling))
         if existing_mesh and not existing_mesh.invalid:
+            self.materials = existing_mesh.materials
             self.num_vertices = existing_mesh.num_vertices
             self.vertex_component_names = existing_mesh.vertex_component_names
             self.vertex_component_name_count = existing_mesh.vertex_component_name_count
@@ -1542,11 +1543,11 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
             face_properties.setdefault("bungie_lightmap_translucency_tint_color", FaceSet(np.full((num_faces, 4), fp_defaults["bungie_lightmap_translucency_tint_color"], np.single))).update(bm, face_prop.layer_name, utils.color_4p(face_prop.lightmap_translucency_tint_color))
         if face_prop.lightmap_lighting_from_both_sides_override and props.get("bungie_lightmap_lighting_from_both_sides") is None:
             face_properties.setdefault("bungie_lightmap_lighting_from_both_sides", FaceSet(np.full(num_faces, fp_defaults["bungie_lightmap_lighting_from_both_sides"], np.uint8))).update(bm, face_prop.layer_name, 1)
-        if face_prop.lightmap_transparency_override and props.get("bungie_lightmap_transparency_override") is None:
+        if face_prop.lightmap_transparency_override_override and props.get("bungie_lightmap_transparency_override") is None:
             face_properties.setdefault("bungie_lightmap_transparency_override", FaceSet(np.full(num_faces, fp_defaults["bungie_lightmap_transparency_override"], np.uint8))).update(bm, face_prop.layer_name, 1)
-        if face_prop.lightmap_analytical_bounce_modifier and props.get("bungie_lightmap_analytical_bounce_modifier") is None:
+        if face_prop.lightmap_analytical_bounce_modifier_override and props.get("bungie_lightmap_analytical_bounce_modifier") is None:
             face_properties.setdefault("bungie_lightmap_analytical_bounce_modifier", FaceSet(np.full(num_faces, fp_defaults["bungie_lightmap_analytical_bounce_modifier"], np.single))).update(bm, face_prop.layer_name, face_prop.lightmap_analytical_bounce_modifier)
-        if face_prop.lightmap_general_bounce_modifier and props.get("bungie_lightmap_general_bounce_modifier") is None:
+        if face_prop.lightmap_general_bounce_modifier_override and props.get("bungie_lightmap_general_bounce_modifier") is None:
             face_properties.setdefault("bungie_lightmap_general_bounce_modifier", FaceSet(np.full(num_faces, fp_defaults["bungie_lightmap_general_bounce_modifier"], np.single))).update(bm, face_prop.layer_name, face_prop.lightmap_general_bounce_modifier)
         
         # Emissives

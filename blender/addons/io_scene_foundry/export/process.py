@@ -263,19 +263,19 @@ class ExportScene:
         self.depsgraph = self.context.evaluated_depsgraph_get()
         
         if self.asset_type == AssetType.ANIMATION and not self.granny_animations_mesh:
-            self.export_objects = [ob.evaluated_get(self.depsgraph) for ob in self.context.view_layer.objects if ob.nwo.export_this and (ob.type == "ARMATURE" and ob not in self.support_armatures) and ob not in skip_obs]
+            self.export_objects = [ob for ob in self.context.view_layer.objects if ob.nwo.export_this and (ob.type == "ARMATURE" and ob not in self.support_armatures) and ob not in skip_obs]
             null_ob = make_default_render()
             self.temp_objects.add(null_ob)
             self.temp_meshes.add(null_ob.data)
             self.export_objects.append(null_ob)
         else:    
-            self.export_objects = [ob.evaluated_get(self.depsgraph) for ob in self.context.view_layer.objects if ob.nwo.export_this and ob.type in VALID_OBJECTS and ob not in self.support_armatures and ob not in skip_obs]
+            self.export_objects = [ob for ob in self.context.view_layer.objects if ob.nwo.export_this and ob.type in VALID_OBJECTS and ob not in self.support_armatures and ob not in skip_obs]
         
         self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir, self.granny, self.export_settings, self.context.scene.render.fps / self.context.scene.render.fps_base, self.scene_settings.default_animation_compression, utils.blender_halo_rotation_diff(self.forward), self.scene_settings.maintain_marker_axis, self.granny_textures, utils.get_project(self.context.scene.nwo.scene_project))
         
     def create_instance_proxies(self, ob: bpy.types.Object, ob_halo_data: dict, region: str, permutation: str):
         self.processed_poop_meshes.add(ob.data)
-        data_nwo = ob.original.data.nwo
+        data_nwo = ob.data.nwo
         proxy_physics_list = [getattr(data_nwo, f"proxy_physics{i}", None) for i in range(10) if getattr(data_nwo, f"proxy_physics{i}") is not None]
         proxy_collision = data_nwo.proxy_collision
         proxy_cookie_cutter = data_nwo.proxy_cookie_cutter
@@ -287,7 +287,6 @@ class ExportScene:
         proxies = []
         
         if has_coll:
-            proxy_collision = proxy_collision.evaluated_get(self.depsgraph)
             coll_props = {}
             coll_props["bungie_object_type"] = ObjectType.mesh.value
             coll_props["bungie_mesh_type"] = MeshType.poop_collision.value
@@ -313,7 +312,6 @@ class ExportScene:
             
         if has_phys:
             for proxy_physics in proxy_physics_list:
-                proxy_physics = proxy_physics.evaluated_get(self.depsgraph)
                 phys_props = {}
                 phys_props["bungie_object_type"] = ObjectType.mesh.value
                 if self.corinth:
@@ -332,7 +330,6 @@ class ExportScene:
                 proxies.append(proxy_physics)
             
         if has_cookie:
-            proxy_cookie_cutter = proxy_cookie_cutter.evaluated_get(self.depsgraph)
             cookie_props = {}
             cookie_props["bungie_object_type"] = ObjectType.mesh.value
             cookie_props["bungie_mesh_type"] = MeshType.cookie_cutter.value
@@ -350,12 +347,12 @@ class ExportScene:
     def map_halo_properties(self):
         process = "--- Mapping Halo Properties"
         num_export_objects = len(self.export_objects)
-        self.collection_map = create_parent_mapping(self.depsgraph)
+        self.collection_map = create_parent_mapping()
         object_parent_dict = {}
-        evaluated_support_armatures = set()
+        support_armatures = set()
         for ob in self.support_armatures:
             if ob is not None:
-                evaluated_support_armatures.add(ob.evaluated_get(self.depsgraph))
+                support_armatures.add(ob)
         
         armature = None
         if self.asset_type in {AssetType.MODEL, AssetType.ANIMATION}:
@@ -371,8 +368,8 @@ class ExportScene:
             for idx, ob in enumerate(self.export_objects):
                 ob: bpy.types.Object
                 if ob.type == 'ARMATURE':
-                    self.armature_poses[ob.original.data] = ob.original.data.pose_position
-                    ob.original.data.pose_position = 'REST'
+                    self.armature_poses[ob.data] = ob.data.pose_position
+                    ob.data.pose_position = 'REST'
                 elif ob.type == 'LIGHT':
                     if ob.data.type != 'AREA':
                         self.lights.append(ob)
@@ -385,21 +382,21 @@ class ExportScene:
                     continue
                 props, region, permutation, fp_defaults, mesh_props, copy = result
                 
-                if self.limit_perms_to_selection and ob.original.select_get():
+                if self.limit_perms_to_selection and ob.select_get():
                     self.selected_permutations.add(permutation)
-                if self.limit_bsps_to_selection and ob.original.select_get():
+                if self.limit_bsps_to_selection and ob.select_get():
                     self.selected_bsps.add(region)
                 
                 parent = ob.parent
                 proxies = tuple()
                 # Write object as if it has no parent if this is not a model and it is parented to an empty/armature. It solves an issue where instancing fails
                 if (parent or (armature and ob.type != "ARMATURE")) and (parent and ob.parent.type not in {'EMPTY', 'ARMATURE'} or self.is_model):
-                    if parent in evaluated_support_armatures:
-                        object_parent_dict[ob] = self.main_armature.evaluated_get(self.depsgraph)
+                    if parent in support_armatures:
+                        object_parent_dict[ob] = self.main_armature
                     elif not parent:
-                        object_parent_dict[ob] = armature.evaluated_get(self.depsgraph)
+                        object_parent_dict[ob] = armature
                     else:
-                        object_parent_dict[ob] = parent.evaluated_get(self.depsgraph)
+                        object_parent_dict[ob] = parent
                 else:
                     self.no_parent_objects.append(ob)
                     
@@ -482,8 +479,8 @@ class ExportScene:
         region = self.default_region
         permutation = self.default_permutation
         fp_defaults = {}
-        nwo = ob.original.nwo
-        object_type = self._get_object_type(ob.original)
+        nwo = ob.nwo
+        object_type = self._get_object_type(ob)
         # Frames go unused in non-model exports
         if object_type == ObjectType.none or (not self.is_model and object_type == ObjectType.frame):
             return 
@@ -501,6 +498,7 @@ class ExportScene:
             tmp_permutation = self.default_permutation
             
         collection = bpy.data.collections.get(ob.nwo.export_collection)
+        nwo.export_collection = ""
         if collection and collection != self.context.scene.collection:
             export_coll = self.collection_map[collection]
             coll_region, coll_permutation = export_coll.region, export_coll.permutation
@@ -552,8 +550,8 @@ class ExportScene:
         return props, region, permutation, fp_defaults, mesh_props, copy
     
     def _setup_mesh_properties(self, ob: bpy.types.Object, nwo: NWO_ObjectPropertiesGroup, supports_bsp: bool, props: dict, region: str, mesh_props: dict, copy):
-        mesh_type = ob.original.data.nwo.mesh_type
-        mesh = ob.original.data
+        mesh_type = ob.data.nwo.mesh_type
+        mesh = ob.data
         data_nwo: NWO_MeshPropertiesGroup = mesh.nwo
         
         if supports_bsp:
@@ -701,7 +699,7 @@ class ExportScene:
             if not nwo.poop_imposter_transition_distance_auto:
                 props["bungie_mesh_poop_imposter_transition_distance"] = nwo.poop_imposter_transition_distance
             if self.corinth:
-                nwo["bungie_mesh_poop_imposter_brightness"] = nwo.poop_imposter_brightness
+                props["bungie_mesh_poop_imposter_brightness"] = nwo.poop_imposter_brightness
 
         if nwo.poop_render_only:
             if self.corinth:
@@ -1822,11 +1820,10 @@ def decorator_int(ob):
             return 4
         
 class ExportCollection:
-    def __init__(self, collection: bpy.types.Collection, depsgraph: bpy.types.Depsgraph):
+    def __init__(self, collection: bpy.types.Collection):
         self.region, self.permutation = coll_region_perm(collection)
         for ob in collection.objects:
-            eval_ob = ob.evaluated_get(depsgraph)
-            eval_ob.nwo.export_collection = collection.name
+            ob.nwo.export_collection = collection.name
         
 def coll_region_perm(coll) -> tuple[str, str]:
     r, p = '', ''
@@ -1839,15 +1836,15 @@ def coll_region_perm(coll) -> tuple[str, str]:
             
     return r, p
 
-def create_parent_mapping(depsgraph: bpy.types.Depsgraph):
+def create_parent_mapping():
     collection_map: dict[bpy.types.Collection: ExportCollection] = {}
     for collection in bpy.data.collections:
-        export_coll = ExportCollection(collection, depsgraph)
+        export_coll = ExportCollection(collection)
         collection_map[collection] = export_coll
         for child in collection.children_recursive:
             export_child = collection_map.get(child)
             if not export_child:
-                export_child = ExportCollection(child, depsgraph)
+                export_child = ExportCollection(child)
                 collection_map[collection] = export_child
                 
             parent_region, parent_permutation = export_coll.region, export_coll.permutation
