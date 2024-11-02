@@ -391,6 +391,27 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
         subtype='POWER',
         unit='POWER',
     )
+    
+    def get_light_intensity(self):
+        return utils.calc_emissive_intensity(self.material_lighting_emissive_power, utils.get_export_scale(bpy.context) ** 2)
+    
+    def set_light_intensity(self, value):
+        self['light_intensity_value'] = value
+        
+    def update_light_intensity(self, context):
+        self.material_lighting_emissive_power = utils.calc_emissive_energy(self.material_lighting_emissive_power, utils.get_export_scale(context) ** -2 * self.light_intensity_value)
+
+    light_intensity: bpy.props.FloatProperty(
+        name="Light Intensity",
+        options=set(),
+        description="The intensity of this light expressed in the units the game uses",
+        get=get_light_intensity,
+        set=set_light_intensity,
+        update=update_light_intensity,
+        min=0,
+    )
+    
+    light_intensity_value: bpy.props.FloatProperty(options={'HIDDEN'})
 
     material_lighting_emissive_quality: bpy.props.FloatProperty(
         name="Emissive Quality",
@@ -919,6 +940,27 @@ class NWO_MeshPropertiesGroup(bpy.types.PropertyGroup):
         subtype='POWER',
         unit='POWER',
     )
+    
+    def get_light_intensity(self):
+        return utils.calc_emissive_intensity(self.material_lighting_emissive_power, utils.get_export_scale(bpy.context) ** 2)
+    
+    def set_light_intensity(self, value):
+        self['light_intensity_value'] = value
+        
+    def update_light_intensity(self, context):
+        self.material_lighting_emissive_power = utils.calc_emissive_energy(self.material_lighting_emissive_power, utils.get_export_scale(context) ** -2 * self.light_intensity_value)
+
+    light_intensity: bpy.props.FloatProperty(
+        name="Light Intensity",
+        options=set(),
+        description="The intensity of this light expressed in the units the game uses",
+        get=get_light_intensity,
+        set=set_light_intensity,
+        update=update_light_intensity,
+        min=0,
+    )
+    
+    light_intensity_value: bpy.props.FloatProperty(options={'HIDDEN'})
 
     material_lighting_emissive_quality_active: bpy.props.BoolProperty()
     material_lighting_emissive_quality: bpy.props.FloatProperty(

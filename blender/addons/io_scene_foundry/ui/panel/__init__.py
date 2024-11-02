@@ -2156,6 +2156,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                         "material_lighting_emissive_power",
                         text="Power",
                     )
+                    row = box.row(align=True)
+                    row.prop(item, "light_intensity", text="Intensity")
                     row = box.row()
                     row.prop(
                         item,
@@ -2415,6 +2417,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     row.prop(mesh_nwo, "material_lighting_emissive_color", text="Color")
                     row = box_ob.row(align=True)
                     row.prop(mesh_nwo, "material_lighting_emissive_power", text="Power")
+                    row = box_ob.row(align=True)
+                    row.prop(mesh_nwo, "light_intensity", text="Intensity")
                     row = box_ob.row(align=True)
                     row.prop(
                         mesh_nwo,

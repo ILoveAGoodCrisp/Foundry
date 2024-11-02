@@ -1308,7 +1308,7 @@ class NWOImporter:
             utils.add_to_collection(self.jms_file_mesh_objects, True, new_coll, name="meshes")
             
         for data in self.light_data:
-            data.energy = data.energy * (0.03048 ** -2) * 10
+            data.nwo.light_intensity = data.energy * (1 / 0.03048)
             if data.halo_light.light_cone_shape == 'RECTANGLE':
                 data.nwo.light_shape = '_connected_geometry_light_shape_rectangle'
             else:
@@ -1456,19 +1456,19 @@ class NWOImporter:
                         if prop.face_two_sided_override:
                             ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_default'
                             
-                if ob.data.nwo.lightmap_only:
-                    for prop in ob.data.nwo.face_props:
-                        if prop.emissive_override:
-                            ob.data.nwo.emissive_active = True
-                            ob.data.nwo.material_lighting_attenuation_cutoff = prop.material_lighting_attenuation_cutoff
-                            ob.data.nwo.material_lighting_attenuation_falloff = prop.material_lighting_attenuation_falloff
-                            ob.data.nwo.material_lighting_emissive_focus = prop.material_lighting_emissive_focus
-                            ob.data.nwo.material_lighting_emissive_color = prop.material_lighting_emissive_color
-                            ob.data.nwo.material_lighting_emissive_per_unit = prop.material_lighting_emissive_per_unit
-                            ob.data.nwo.material_lighting_emissive_power = prop.material_lighting_emissive_power
-                            ob.data.nwo.material_lighting_emissive_quality = prop.material_lighting_emissive_quality
-                            ob.data.nwo.material_lighting_use_shader_gel = prop.material_lighting_use_shader_gel
-                            ob.data.nwo.material_lighting_bounce_ratio = prop.material_lighting_bounce_ratio
+                # if ob.data.nwo.lightmap_only:
+                #     for prop in ob.data.nwo.face_props:
+                #         if prop.emissive_override:
+                #             ob.data.nwo.emissive_active = True
+                #             ob.data.nwo.material_lighting_attenuation_cutoff = prop.material_lighting_attenuation_cutoff
+                #             ob.data.nwo.material_lighting_attenuation_falloff = prop.material_lighting_attenuation_falloff
+                #             ob.data.nwo.material_lighting_emissive_focus = prop.material_lighting_emissive_focus
+                #             ob.data.nwo.material_lighting_emissive_color = prop.material_lighting_emissive_color
+                #             ob.data.nwo.material_lighting_emissive_per_unit = prop.material_lighting_emissive_per_unit
+                #             ob.data.nwo.light_intensity = prop.light_intensity
+                #             ob.data.nwo.material_lighting_emissive_quality = prop.material_lighting_emissive_quality
+                #             ob.data.nwo.material_lighting_use_shader_gel = prop.material_lighting_use_shader_gel
+                #             ob.data.nwo.material_lighting_bounce_ratio = prop.material_lighting_bounce_ratio
                             
 
                 if mesh_type_legacy in ('collision', 'physics') and is_model:
@@ -1586,7 +1586,7 @@ class NWOImporter:
             # Emissive
             if jms_mat.emissive_power:
                 nwo.emissive_active = True
-                nwo.material_lighting_emissive_power = jms_mat.emissive_power
+                nwo.light_intensity = jms_mat.emissive_power * (1 / 0.03048)
                 nwo.material_lighting_emissive_color = jms_mat.emissive_color
                 nwo.material_lighting_emissive_quality = jms_mat.emissive_quality
                 nwo.material_lighting_emissive_per_unit = jms_mat.emissive_per_unit
@@ -1683,7 +1683,7 @@ class NWOImporter:
                     # Emissive
                     if jms_mat.emissive_power:
                         nwo.emissive_active = True
-                        nwo.material_lighting_emissive_power = jms_mat.emissive_power
+                        nwo.light_intensity = jms_mat.emissive_power * (1 / 0.03048)
                         nwo.material_lighting_emissive_color = jms_mat.emissive_color
                         nwo.material_lighting_emissive_quality = jms_mat.emissive_quality
                         nwo.material_lighting_emissive_per_unit = jms_mat.emissive_per_unit
@@ -1822,7 +1822,7 @@ class NWOImporter:
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
                                 emissive_props_dict = {
-                                    "material_lighting_emissive_power": jms_mat.emissive_power,
+                                    "light_intensity": jms_mat.emissive_power * (1 / 0.03048),
                                     "material_lighting_emissive_color": jms_mat.emissive_color,
                                     "material_lighting_emissive_quality": jms_mat.emissive_quality,
                                     "material_lighting_emissive_per_unit": jms_mat.emissive_per_unit,

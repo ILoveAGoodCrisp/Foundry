@@ -283,15 +283,15 @@ def color_3p(color):
     return red, green, blue
 
 def color_4p_str(color):
-    red = color.r * 255
-    green = color.g * 255
-    blue = color.b * 255
+    red = int(color.r * 255)
+    green = int(color.g * 255)
+    blue = int(color.b * 255)
     return f"1 {jstr(red)} {jstr(green)} {jstr(blue)}"
 
 def color_4p(color):
-    red = color.r * 255
-    green = color.g * 255
-    blue = color.b * 255
+    red = int(color.r * 255)
+    green = int(color.g * 255)
+    blue = int(color.b * 255)
     return 1, red, green, blue
 
 def color_rgba_str(color):
@@ -1759,8 +1759,12 @@ def calc_light_energy(light_data, intensity):
     if light_data.type == "SUN":
         return intensity
     
-    energy = intensity * (0.03048 ** -2) * (10 if is_corinth() else 300)
+    energy = intensity * (0.03048 ** -2) * (100 if is_corinth() else 300)
     
+    return energy
+
+def calc_emissive_energy(light_data, intensity):
+    energy = intensity * (0.03048 ** -2) * (100 if is_corinth() else 300)
     return energy
 
 def get_blender_shader(node_tree: bpy.types.NodeTree) -> bpy.types.Node | None:

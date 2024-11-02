@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 import random
 import bpy
-from mathutils import Matrix, Vector
+from mathutils import Vector
 
 from ..props.animation import NWO_ActionPropertiesGroup, NWO_Animation_ListItems
 
@@ -53,16 +53,16 @@ face_prop_defaults = {
     "bungie_no_lightmap": 0,
     "bungie_precise_position": 0,
     "bungie_mesh_tessellation_density": 0,
-    "bungie_lightmap_additive_transparency": (0.0, 0.0, 0.0, 0.0),
+    "bungie_lightmap_additive_transparency": (1, 0, 0, 0),
     "bungie_lightmap_resolution_scale": 3,
     "bungie_lightmap_type": 0,
-    "bungie_lightmap_translucency_tint_color": (0.0, 0.0, 0.0, 0.0),
+    "bungie_lightmap_translucency_tint_color": (1, 0, 0, 0),
     "bungie_lightmap_lighting_from_both_sides": 0,
     "bungie_lightmap_transparency_override": 0,
     "bungie_lightmap_analytical_bounce_modifier": 1.0,
     "bungie_lightmap_general_bounce_modifier": 1.0,
     "bungie_lighting_emissive_power": 0.0,
-    "bungie_lighting_emissive_color": 0.0,
+    "bungie_lighting_emissive_color": (1, 0, 0, 0),
     "bungie_lighting_emissive_per_unit": 0,
     "bungie_lighting_emissive_quality": 0.0,
     "bungie_lighting_use_shader_gel": 0,
