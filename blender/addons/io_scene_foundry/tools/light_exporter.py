@@ -1,12 +1,18 @@
 
 
 from math import degrees
+import math
 from pathlib import Path
 import bpy
 from ..managed_blam.model import ModelTag
 from ..managed_blam.scenario_structure_lighting_info import ScenarioStructureLightingInfoTag
 from ..constants import WU_SCALAR
 from .. import utils
+
+def calc_attenutation(power: float, intensity_threshold=0.5, cutoff_intensity=0.1) -> tuple[float, float]:
+    falloff = math.sqrt(power / (4 * math.pi * intensity_threshold))
+    cutoff = math.sqrt(power / (4 * math.pi * cutoff_intensity))
+    return falloff, cutoff
 
 class BlamLightInstance:
     def __init__(self, ob, bsp=None, scale=None, rotation=None) -> None:
@@ -87,8 +93,9 @@ class BlamLightDefinition:
             self.far_attenuation_start = nwo.light_far_attenuation_start * atten_scalar * WU_SCALAR * unit_factor
             self.far_attenuation_end = nwo.light_far_attenuation_end * atten_scalar * WU_SCALAR * unit_factor
         else:
-            self.far_attenuation_start = 9 * atten_scalar
-            self.far_attenuation_end = 40 * atten_scalar
+            falloff, cutoff = calc_attenutation(data.energy * unit_factor ** 2)
+            self.far_attenuation_start = falloff * atten_scalar * WU_SCALAR
+            self.far_attenuation_end = cutoff * atten_scalar * WU_SCALAR
             
         self.aspect = nwo.light_aspect
         
