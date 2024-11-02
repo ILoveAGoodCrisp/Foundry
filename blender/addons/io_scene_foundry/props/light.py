@@ -90,7 +90,7 @@ class NWO_LightPropertiesGroup(bpy.types.PropertyGroup):
     light_far_attenuation_start: bpy.props.FloatProperty(
         name="Light Falloff Start",
         options=set(),
-        description="After this point, the light will begin to lose power",
+        description="After this point, the light will begin to lose power. This value will be automatically calculated based on Blender light power in left at 0",
         default=0,
         min=0,
         subtype='DISTANCE',
@@ -106,7 +106,7 @@ class NWO_LightPropertiesGroup(bpy.types.PropertyGroup):
     light_far_attenuation_end: bpy.props.FloatProperty(
         name="Light Falloff End",
         options=set(),
-        description="From the light falloff start, the light will gradually lose power until it reaches zero by the end point. Setting this to 0 will let the game automatically calculate light falloff based on intensity",
+        description="From the light falloff start, the light will gradually lose power until it reaches zero by the end point. This value will be automatically calculated based on Blender light power in left at 0",
         default=0,
         min=0,
         subtype='DISTANCE',
