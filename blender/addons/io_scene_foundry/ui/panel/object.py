@@ -127,7 +127,7 @@ class NWO_MT_FaceLayerAddMenu(bpy.types.Menu):
                     ).options = "decal_offset"
 
         if utils.poll_ui(("scenario", "prefab")):
-            if nwo.mesh_type == "_connected_geometry_mesh_type_default":
+            if nwo.mesh_type in {"_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure"}:
                 layout.operator(
                     self.op_prefix, text="Render Only"
                 ).options = "render_only"

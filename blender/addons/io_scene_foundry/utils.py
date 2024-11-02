@@ -1751,9 +1751,9 @@ def calc_light_intensity(light_data, factor=1):
     
     return intensity
 
-def calc_emissive_intensity(emissive_power, scale_factor=1):
-    intensity = (emissive_power / 0.03048**-2) / (300 if is_corinth() else 3)
-    return intensity * (scale_factor ** 2)
+def calc_emissive_intensity(emissive_power, factor=1):
+    intensity = factor * ((emissive_power / 0.03048**-2) / (100 if is_corinth() else 300))
+    return intensity
 
 def calc_light_energy(light_data, intensity):
     if light_data.type == "SUN":
@@ -2362,9 +2362,11 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                 mesh.transform(scale_matrix)
                 mesh.nwo.material_lighting_attenuation_falloff *= scale_factor
                 mesh.nwo.material_lighting_attenuation_cutoff *= scale_factor
+                mesh.nwo.material_lighting_emissive_power *= scale_factor ** 2
                 for prop in mesh.nwo.face_props:
                     prop.material_lighting_attenuation_cutoff *= scale_factor
                     prop.material_lighting_attenuation_falloff *= scale_factor
+                    prop.material_lighting_emissive_power *= scale_factor ** 2
                 
             for camera in cameras:
                 camera.display_size *= scale_factor
@@ -2960,13 +2962,12 @@ def area_light_to_emissive(light_ob: bpy.types.Object):
     plane_ob.nwo.region_name = true_region(light_ob.nwo)
     plane_ob.nwo.permutation_name = true_permutation(light_ob.nwo)
     plane_nwo.emissive_active = True
-    plane_nwo.no_shadow = True
     plane_nwo.material_lighting_attenuation_cutoff = light_nwo.light_far_attenuation_end
     plane_nwo.material_lighting_attenuation_falloff = light_nwo.light_far_attenuation_start
     plane_nwo.material_lighting_emissive_focus = light_nwo.light_focus
     plane_nwo.material_lighting_emissive_color = light.color
     plane_nwo.material_lighting_emissive_per_unit = light_nwo.light_per_unit
-    plane_nwo.material_lighting_emissive_power = calc_emissive_intensity(light.energy, 1 if bpy.context.scene.nwo.scale == 'max' else 0.03048)
+    plane_nwo.material_lighting_emissive_power = light.energy
     plane_nwo.material_lighting_emissive_quality = light_nwo.light_quality
     plane_nwo.material_lighting_use_shader_gel = light_nwo.light_use_shader_gel
     plane_nwo.material_lighting_bounce_ratio = light_nwo.light_bounce_ratio

@@ -11,7 +11,7 @@ from ..props.animation import NWO_ActionPropertiesGroup, NWO_Animation_ListItems
 
 from ..tools.scenario.lightmap import run_lightmapper
 
-from ..tools.light_exporter import export_lights
+from ..tools.light_exporter import calc_attenutation, export_lights
 
 from ..tools.scenario.zone_sets import write_zone_sets_to_scenario
 
@@ -136,6 +136,7 @@ class ExportScene:
         self.forward = scene_settings.forward_direction
         self.scale = 1 if scene_settings.scale == 'max' else 0.03048
         self.inverse_scale = 1 if scene_settings.scale == 'blender' else 1 / 0.03048
+        self.light_scale = utils.get_export_scale(context)
         self.mirror = export_settings.granny_mirror
         self.has_animations = False
         self.exported_actions = []
@@ -165,6 +166,9 @@ class ExportScene:
         self.current_frame = context.scene.frame_current
         self.current_action = None
         self.current_mode = context.mode
+        
+        self.atten_scalar = 1 if corinth else 100
+        self.unit_factor = utils.get_unit_conversion_factor(context)
         
     def _get_export_tag_types(self):
         tag_types = set()
@@ -271,7 +275,7 @@ class ExportScene:
         else:    
             self.export_objects = [ob for ob in self.context.view_layer.objects if ob.nwo.export_this and ob.type in VALID_OBJECTS and ob not in self.support_armatures and ob not in skip_obs]
         
-        self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir, self.granny, self.export_settings, self.context.scene.render.fps / self.context.scene.render.fps_base, self.scene_settings.default_animation_compression, utils.blender_halo_rotation_diff(self.forward), self.scene_settings.maintain_marker_axis, self.granny_textures, utils.get_project(self.context.scene.nwo.scene_project))
+        self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir, self.granny, self.export_settings, self.context.scene.render.fps / self.context.scene.render.fps_base, self.scene_settings.default_animation_compression, utils.blender_halo_rotation_diff(self.forward), self.scene_settings.maintain_marker_axis, self.granny_textures, utils.get_project(self.context.scene.nwo.scene_project), self.light_scale, self.unit_factor, self.atten_scalar)
         
     def create_instance_proxies(self, ob: bpy.types.Object, ob_halo_data: dict, region: str, permutation: str):
         self.processed_poop_meshes.add(ob.data)
@@ -371,11 +375,15 @@ class ExportScene:
                     self.armature_poses[ob.data] = ob.data.pose_position
                     ob.data.pose_position = 'REST'
                 elif ob.type == 'LIGHT':
-                    if ob.data.type != 'AREA':
+                    if ob.data.type == 'AREA':
+                        ob = utils.area_light_to_emissive(ob)
+                        self.temp_objects.add(ob)
+                        self.temp_meshes.add(ob.data)
+                    else:
                         self.lights.append(ob)
-                    if not self.corinth and self.asset_type == AssetType.SKY:
-                        self.sky_lights.append(ob)
-                    continue
+                        if not self.corinth and self.asset_type == AssetType.SKY:
+                            self.sky_lights.append(ob)
+                        continue
 
                 result = self.get_halo_props(ob)
                 if result is None:
@@ -1129,27 +1137,33 @@ class ExportScene:
                 mesh_props["bungie_lightmap_general_bounce_modifier"] = data_nwo.lightmap_general_bounce_modifier
                 
         if data_nwo.emissive_active:
+            power = max(utils.calc_emissive_intensity(data_nwo.material_lighting_emissive_power, self.light_scale ** 2), 0.0001)
+            if data_nwo.material_lighting_attenuation_cutoff > 0:
+                falloff = data_nwo.material_lighting_attenuation_falloff
+                cutoff = data_nwo.material_lighting_attenuation_cutoff
+            else:
+                falloff, cutoff = calc_attenutation(data_nwo.material_lighting_emissive_power * self.unit_factor ** 2)
             if test_face_prop(face_props, "emissive_override"):
-                fp_defaults["bungie_lighting_emissive_power"] = data_nwo.material_lighting_emissive_power
+                fp_defaults["bungie_lighting_emissive_power"] = power
                 fp_defaults["bungie_lighting_emissive_color"] = utils.color_4p(data_nwo.material_lighting_emissive_color)
                 fp_defaults["bungie_lighting_emissive_per_unit"] = int(data_nwo.material_lighting_emissive_per_unit)
                 fp_defaults["bungie_lighting_emissive_quality"] = data_nwo.material_lighting_emissive_quality
                 fp_defaults["bungie_lighting_use_shader_gel"] = int(data_nwo.material_lighting_use_shader_gel)
                 fp_defaults["bungie_lighting_bounce_ratio"] = data_nwo.material_lighting_bounce_ratio
-                fp_defaults["bungie_lighting_attenuation_enabled"] = int(data_nwo.material_lighting_attenuation_cutoff > 0)
-                fp_defaults["bungie_lighting_attenuation_cutoff"] = data_nwo.material_lighting_attenuation_cutoff * atten_scalar * WU_SCALAR * unit_factor
-                fp_defaults["bungie_lighting_attenuation_falloff"] = data_nwo.material_lighting_attenuation_falloff * atten_scalar * WU_SCALAR * unit_factor
+                fp_defaults["bungie_lighting_attenuation_enabled"] = 1
+                fp_defaults["bungie_lighting_attenuation_cutoff"] = cutoff * self.atten_scalar * WU_SCALAR
+                fp_defaults["bungie_lighting_attenuation_falloff"] = falloff * self.atten_scalar * WU_SCALAR
                 fp_defaults["bungie_lighting_emissive_focus"] = degrees(data_nwo.material_lighting_emissive_focus) / 180
             else:
-                mesh_props["bungie_lighting_emissive_power"] = data_nwo.material_lighting_emissive_power
+                mesh_props["bungie_lighting_emissive_power"] = power
                 mesh_props["bungie_lighting_emissive_color"] = utils.color_4p(data_nwo.material_lighting_emissive_color)
                 mesh_props["bungie_lighting_emissive_per_unit"] = int(data_nwo.material_lighting_emissive_per_unit)
                 mesh_props["bungie_lighting_emissive_quality"] = data_nwo.material_lighting_emissive_quality
                 mesh_props["bungie_lighting_use_shader_gel"] = int(data_nwo.material_lighting_use_shader_gel)
                 mesh_props["bungie_lighting_bounce_ratio"] = data_nwo.material_lighting_bounce_ratio
-                mesh_props["bungie_lighting_attenuation_enabled"] = int(data_nwo.material_lighting_attenuation_cutoff > 0)
-                mesh_props["bungie_lighting_attenuation_cutoff"] = data_nwo.material_lighting_attenuation_cutoff * atten_scalar * WU_SCALAR * unit_factor
-                mesh_props["bungie_lighting_attenuation_falloff"] = data_nwo.material_lighting_attenuation_falloff * atten_scalar * WU_SCALAR * unit_factor
+                mesh_props["bungie_lighting_attenuation_enabled"] = 1
+                mesh_props["bungie_lighting_attenuation_cutoff"] = cutoff * self.atten_scalar * WU_SCALAR
+                mesh_props["bungie_lighting_attenuation_falloff"] = falloff * self.atten_scalar * WU_SCALAR
                 mesh_props["bungie_lighting_emissive_focus"] = degrees(data_nwo.material_lighting_emissive_focus) / 180
                 
         return fp_defaults, mesh_props
@@ -1808,6 +1822,20 @@ class ExportScene:
             props['sun_color'] = utils.color_3p(sun.data.color)
             
         return props
+    
+    def convert_area_lights(self):
+        ''''
+        Converts Area lights to emissive planes
+        '''
+        area_lights = {ob for ob in self.context.view_layer.objects if ob.type == 'LIGHT' and ob.data.type == 'AREA'}
+        for light_ob in area_lights:
+            collections = light_ob.users_collection
+            plane_ob = utils.area_light_to_emissive(light_ob)
+            for collection in collections:
+                collection.objects.link(plane_ob)
+            utils.unlink(light_ob)
+        
+        utils.update_view_layer(self.context)
 
 def decorator_int(ob):
     match ob.nwo.decorator_lod:

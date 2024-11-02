@@ -385,9 +385,11 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
     material_lighting_emissive_power: bpy.props.FloatProperty(
         name="Emissive Power",
         options=set(),
-        description="The intensity of the emissive surface",
+        description="The power of the emissive surface",
         min=0,
-        default=5,
+        default=10,
+        subtype='POWER',
+        unit='POWER',
     )
 
     material_lighting_emissive_quality: bpy.props.FloatProperty(
@@ -852,7 +854,7 @@ class NWO_MeshPropertiesGroup(bpy.types.PropertyGroup):
         name="Material Lighting Attenuation Cutoff",
         options=set(),
         description="Determines how far light travels before it stops. Leave this at 0 to for realistic light falloff/cutoff",
-        min=utils.wu(8),
+        min=0,
         default=0,
         update=update_lighting_attenuation_cutoff,
         subtype='DISTANCE',
@@ -871,7 +873,7 @@ class NWO_MeshPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="Determines how far light travels before its power begins to falloff",
         min=0,
-        default=utils.wu(2),
+        default=0,
         update=update_lighting_attenuation_falloff,
         subtype='DISTANCE',
         unit='LENGTH',
@@ -911,10 +913,11 @@ class NWO_MeshPropertiesGroup(bpy.types.PropertyGroup):
     material_lighting_emissive_power: bpy.props.FloatProperty(
         name="Material Lighting Emissive Quality",
         options=set(),
-        description="",
+        description="The power of the emissive surface",
         min=0,
-        default=5,
-        # update=update_emissive,
+        default=10,
+        subtype='POWER',
+        unit='POWER',
     )
 
     material_lighting_emissive_quality_active: bpy.props.BoolProperty()
