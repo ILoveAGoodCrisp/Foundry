@@ -2004,11 +2004,20 @@ def asset_path_from_blend_location() -> str | None:
         return os.path.dirname(blend_path).replace(data_path, '')
     return None
 
-def get_export_scale(context) -> int:
+def get_export_scale(context) -> float:
     export_scale = 1
     scene_nwo = context.scene.nwo
     if scene_nwo.scale == 'blender':
         export_scale = (1 / 0.03048)
+        
+    return export_scale
+
+def get_unit_conversion_factor(context) -> float:
+    '''Returns the factor needed to convert a unit back to blender scale'''
+    export_scale = 1
+    scene_nwo = context.scene.nwo
+    if scene_nwo.scale == 'max':
+        export_scale = 0.03048
         
     return export_scale
 

@@ -143,7 +143,7 @@ class ScenarioStructureLightingInfoTag(Tag):
                     intensity_divisor = 0.6289308
                     
             element.SelectField("intensity").Data = light.intensity / intensity_divisor
-            print(light.intensity)
+            
             if light.type == 1:
                 element.SelectField("hotspot size").Data = light.hotspot_size
                 element.SelectField("hotspot cutoff size").Data = light.hotspot_cutoff

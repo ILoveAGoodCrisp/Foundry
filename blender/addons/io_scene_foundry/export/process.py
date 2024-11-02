@@ -1137,8 +1137,8 @@ class ExportScene:
                 fp_defaults["bungie_lighting_use_shader_gel"] = int(data_nwo.material_lighting_use_shader_gel)
                 fp_defaults["bungie_lighting_bounce_ratio"] = data_nwo.material_lighting_bounce_ratio
                 fp_defaults["bungie_lighting_attenuation_enabled"] = int(data_nwo.material_lighting_attenuation_cutoff > 0)
-                fp_defaults["bungie_lighting_attenuation_cutoff"] = data_nwo.material_lighting_attenuation_cutoff * WU_SCALAR
-                fp_defaults["bungie_lighting_attenuation_falloff"] = data_nwo.material_lighting_attenuation_falloff * WU_SCALAR
+                fp_defaults["bungie_lighting_attenuation_cutoff"] = data_nwo.material_lighting_attenuation_cutoff * atten_scalar * WU_SCALAR * unit_factor
+                fp_defaults["bungie_lighting_attenuation_falloff"] = data_nwo.material_lighting_attenuation_falloff * atten_scalar * WU_SCALAR * unit_factor
                 fp_defaults["bungie_lighting_emissive_focus"] = degrees(data_nwo.material_lighting_emissive_focus) / 180
             else:
                 mesh_props["bungie_lighting_emissive_power"] = data_nwo.material_lighting_emissive_power
@@ -1148,8 +1148,8 @@ class ExportScene:
                 mesh_props["bungie_lighting_use_shader_gel"] = int(data_nwo.material_lighting_use_shader_gel)
                 mesh_props["bungie_lighting_bounce_ratio"] = data_nwo.material_lighting_bounce_ratio
                 mesh_props["bungie_lighting_attenuation_enabled"] = int(data_nwo.material_lighting_attenuation_cutoff > 0)
-                mesh_props["bungie_lighting_attenuation_cutoff"] = data_nwo.material_lighting_attenuation_cutoff * WU_SCALAR
-                mesh_props["bungie_lighting_attenuation_falloff"] = data_nwo.material_lighting_attenuation_falloff * WU_SCALAR
+                mesh_props["bungie_lighting_attenuation_cutoff"] = data_nwo.material_lighting_attenuation_cutoff * atten_scalar * WU_SCALAR * unit_factor
+                mesh_props["bungie_lighting_attenuation_falloff"] = data_nwo.material_lighting_attenuation_falloff * atten_scalar * WU_SCALAR * unit_factor
                 mesh_props["bungie_lighting_emissive_focus"] = degrees(data_nwo.material_lighting_emissive_focus) / 180
                 
         return fp_defaults, mesh_props
@@ -1764,6 +1764,7 @@ class ExportScene:
         return ob.empty_display_size * max_abs_scale * self.inverse_scale
     
     def _set_primitive_props(self, ob, prim_type, props):
+        # TODO fix the calcs here
         match prim_type:
             case '_connected_geometry_primitive_type_sphere':
                 props["bungie_mesh_primitive_sphere_radius"] = utils.radius(ob, scale=self.inverse_scale)

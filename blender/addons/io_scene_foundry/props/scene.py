@@ -1120,7 +1120,6 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         if self.scale_display == 'world_units':
             context.scene.unit_settings.system = 'METRIC'
             context.scene.unit_settings.length_unit = 'METERS'
-        print("updated????")
         context.scene.unit_settings.scale_length = scene_scale
     
     def scale_items(self, context):

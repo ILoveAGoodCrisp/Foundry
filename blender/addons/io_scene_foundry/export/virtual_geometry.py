@@ -476,7 +476,8 @@ class VirtualMesh:
         self.vertex_array = (c_ubyte * self.len_vertex_array).from_buffer_copy(vertex_byte_array)
         
     def _setup(self, ob: bpy.types.Object, scene: 'VirtualScene', fp_defaults: dict, render_mesh: bool, props: dict, bones: list[str]):
-        def add_triangle_mod(ob: bpy.types.Object):
+        eval_ob = ob.evaluated_get(scene.depsgraph)
+        def add_triangle_mod(ob: bpy.types.Object) -> bpy.types.Modifier:
             mods = ob.modifiers
             for m in mods:
                 if m.type == 'TRIANGULATE': return
@@ -485,9 +486,9 @@ class VirtualMesh:
             tri_mod.quad_method = scene.quad_method
             tri_mod.ngon_method = scene.ngon_method
         
-        add_triangle_mod(ob)
+        add_triangle_mod(eval_ob)
 
-        mesh = ob.to_mesh(preserve_all_data_layers=True, depsgraph=scene.depsgraph)
+        mesh = eval_ob.to_mesh(preserve_all_data_layers=True, depsgraph=scene.depsgraph)
         
         self.name = mesh.name
         if not mesh.polygons:
@@ -639,7 +640,6 @@ class VirtualMesh:
         loop_data = np.hstack(data)
 
         result_data, new_indices, face_indices = np.unique(loop_data, axis=0, return_index=True, return_inverse=True)
-        
         if scene.corinth:
             # Not exactly sure what vertex_id is for, but I'm assuming it must be unique per vertex
             # This gets a hash from the vertex data and splits it into its upper and lower parts
@@ -661,7 +661,6 @@ class VirtualMesh:
         new_indices = tuple(new_indices)
 
         self.positions = self.positions[new_indices, :]
-        
         
         if self.normals is not None:
             self.normals = self.normals[new_indices, :]
@@ -712,6 +711,8 @@ class VirtualMesh:
         self.num_vertices = len(self.positions)
         if (ob.data.nwo.face_props or special_mats_dict) and props.get("bungie_mesh_type") in FACE_PROP_TYPES:
             self.face_properties = gather_face_props(ob.data.nwo, mesh, num_polygons, scene, sorted_order, special_mats_dict, fp_defaults, props)
+            
+        eval_ob.to_mesh_clear()
     
 class VirtualNode:
     def __init__(self, id: bpy.types.Object | bpy.types.PoseBone, props: dict, region: str = None, permutation: str = None, fp_defaults: dict = None, scene: 'VirtualScene' = None, proxies = [], template_node: 'VirtualNode' = None, bones: list[str] = [], parent_matrix: Matrix = IDENTITY_MATRIX, animation_owner=None):
@@ -766,7 +767,6 @@ class VirtualNode:
                 else:
                     vertex_weighted = id.vertex_groups and id.parent and id.parent.type == 'ARMATURE' and id.parent_type != "BONE" and has_armature_deform_mod(id)
                     mesh = VirtualMesh(vertex_weighted, scene, default_bone_bindings, id, fp_defaults, is_rendered(self.props), proxies, self.props, negative_scaling, bones)
-                    id.to_mesh_clear()
                     self.mesh = mesh
                     self.new_mesh = True
                     
@@ -1559,8 +1559,8 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
             face_properties.setdefault("bungie_lighting_use_shader_gel", FaceSet(np.full(num_faces, fp_defaults["bungie_lighting_use_shader_gel"], np.uint8))).update(bm, face_prop.layer_name, 1)
             face_properties.setdefault("bungie_lighting_bounce_ratio", FaceSet(np.full(num_faces, fp_defaults["bungie_lighting_bounce_ratio"], np.single))).update(bm, face_prop.layer_name, face_prop.material_lighting_bounce_ratio)
             face_properties.setdefault("bungie_lighting_attenuation_enabled", FaceSet(np.full(num_faces, fp_defaults["bungie_lighting_attenuation_enabled"], np.uint8))).update(bm, face_prop.layer_name, 1)
-            face_properties.setdefault("bungie_lighting_attenuation_cutoff", FaceSet(np.full(num_faces, fp_defaults["bungie_lighting_attenuation_cutoff"], np.single))).update(bm, face_prop.layer_name, face_prop.material_lighting_attenuation_cutoff * WU_SCALAR)
-            face_properties.setdefault("bungie_lighting_attenuation_falloff", FaceSet(np.full(num_faces, fp_defaults["bungie_lighting_attenuation_falloff"], np.single))).update(bm, face_prop.layer_name, face_prop.material_lighting_attenuation_falloff * WU_SCALAR)
+            face_properties.setdefault("bungie_lighting_attenuation_cutoff", FaceSet(np.full(num_faces, fp_defaults["bungie_lighting_attenuation_cutoff"], np.single))).update(bm, face_prop.layer_name, face_prop.material_lighting_attenuation_cutoff * atten_scalar * WU_SCALAR * unit_factor)
+            face_properties.setdefault("bungie_lighting_attenuation_falloff", FaceSet(np.full(num_faces, fp_defaults["bungie_lighting_attenuation_falloff"], np.single))).update(bm, face_prop.layer_name, face_prop.material_lighting_attenuation_falloff * atten_scalar * WU_SCALAR * unit_factor)
             face_properties.setdefault("bungie_lighting_emissive_focus", FaceSet(np.full(num_faces, fp_defaults["bungie_lighting_emissive_focus"], np.single))).update(bm, face_prop.layer_name, degrees(face_prop.material_lighting_emissive_focus) / 180)
 
     for material, material_indices in special_mats_dict.items():

@@ -51,6 +51,8 @@ class BlamLightInstance:
         
 class BlamLightDefinition:
     def __init__(self, data):
+        export_scale = utils.get_export_scale(bpy.context)
+        unit_factor = utils.get_unit_conversion_factor(bpy.context)
         if utils.is_corinth():
             atten_scalar = 1
         else:
@@ -70,7 +72,7 @@ class BlamLightDefinition:
             self.shape = 1
             
         self.color = [utils.linear_to_srgb(data.color[0]), utils.linear_to_srgb(data.color[1]), utils.linear_to_srgb(data.color[2])]
-        self.intensity = max(utils.calc_light_intensity(data, utils.get_export_scale(bpy.context) ** 2), 0.0001)
+        self.intensity = max(utils.calc_light_intensity(data, export_scale ** 2), 0.0001)
         self.hotspot_size = 0
         self.hotspot_cutoff = 0
         if data.type == 'SPOT':
@@ -79,11 +81,11 @@ class BlamLightDefinition:
             
         self.hotspot_falloff = nwo.light_falloff_shape
         
-        self.near_attenuation_start = nwo.light_near_attenuation_start * atten_scalar * WU_SCALAR
-        self.near_attenuation_end = nwo.light_near_attenuation_end * atten_scalar * WU_SCALAR
+        self.near_attenuation_start = nwo.light_near_attenuation_start * atten_scalar * WU_SCALAR * unit_factor
+        self.near_attenuation_end = nwo.light_near_attenuation_end * atten_scalar * WU_SCALAR * unit_factor
         if nwo.light_far_attenuation_end:
-            self.far_attenuation_start = nwo.light_far_attenuation_start * atten_scalar * WU_SCALAR
-            self.far_attenuation_end = nwo.light_far_attenuation_end * atten_scalar * WU_SCALAR
+            self.far_attenuation_start = nwo.light_far_attenuation_start * atten_scalar * WU_SCALAR * unit_factor
+            self.far_attenuation_end = nwo.light_far_attenuation_end * atten_scalar * WU_SCALAR * unit_factor
         else:
             self.far_attenuation_start = 9 * atten_scalar
             self.far_attenuation_end = 40 * atten_scalar
