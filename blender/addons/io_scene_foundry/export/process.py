@@ -224,7 +224,6 @@ class ExportScene:
         self.export_objects = []
         
         instancers = [ob for ob in self.context.view_layer.objects if ob.is_instancer and ob.instance_collection and ob.instance_collection.all_objects and not ob.nwo.marker_instance]
-            
         skip_obs = set()
         if instancers:
             self.instanced_collections = set()
@@ -240,6 +239,9 @@ class ExportScene:
                 for source_ob in ob.instance_collection.all_objects:
                     source_ob: bpy.types.Object
                     temp_ob = source_ob.copy()
+                    if ob.instance_collection.library:
+                        temp_ob.data = source_ob.data.copy()
+                        
                     lookup_dict[source_ob] = temp_ob
                     for collection in users_collection:
                         collection.objects.link(temp_ob)
