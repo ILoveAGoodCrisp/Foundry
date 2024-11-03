@@ -568,6 +568,7 @@ class JMSMaterialSlot:
         self.breakable = self.material.ass_jms.breakable or self.breakable
         self.ai_deafening = self.material.ass_jms.ai_deafening or self.ai_deafening
         self.no_shadow = self.material.ass_jms.no_shadow or self.no_shadow
+        self.shadow_only = self.material.ass_jms.shadow_only or self.material.ass_jms.override_lightmap_transparency or self.shadow_only
         self.lightmap_only = self.material.ass_jms.lightmap_only or self.lightmap_only
         self.precise = self.material.ass_jms.precise or self.precise
         self.portal_one_way = self.material.ass_jms.portal_1_way or self.portal_one_way
@@ -580,7 +581,7 @@ class JMSMaterialSlot:
         self.slip_surface = self.material.ass_jms.slip_surface
         # lightmap
         if self.material.ass_jms.lightmap_res != 1:
-            self.lightmap_resolution_scale = self.material.ass_jms.lightmap_res
+            self.lightmap_resolution_scale = utils.clamp(int(float(self.material.ass_jms.lightmap_res) * 3), 1, 7)
         if self.material.ass_jms.additive_transparency != Color((0.0, 0.0, 0.0)):
             self.lightmap_additive_transparency = self.material.ass_jms.additive_transparency
         if self.material.ass_jms.two_sided_transparent_tint != Color((0.0, 0.0, 0.0)):
@@ -629,6 +630,7 @@ class JMSMaterialSlot:
         self.ai_deafening = '&' in name
         self.no_shadow = '=' in name
         self.lightmap_only = ';' in name
+        self.shadow_only = False
         self.precise = ')' in name
         self.portal_one_way = '<' in name
         self.portal_door = '|' in name
@@ -637,7 +639,7 @@ class JMSMaterialSlot:
         self.blocks_sound = '}' in name
         self.decal_offset = '[' in name
         self.water_surface = "'" in name
-        # self.slip_surface = False
+        self.slip_surface = False
         
         # lighting props
         self.lightmap_resolution_scale = None
@@ -654,7 +656,7 @@ class JMSMaterialSlot:
                 match match_groups[0]:
                     # Only handling lightmap res currently
                     case 'lm:':
-                        self.lightmap_resolution_scale = float(match_groups[1])
+                        self.lightmap_resolution_scale = utils.clamp(int(float(match_groups[1]) * 3), 1, 7)
         
     def __eq__(self, __value: 'JMSMaterialSlot') -> bool:
         if not isinstance(__value, self.__class__):
@@ -681,6 +683,8 @@ class JMSMaterialSlot:
             return False
         if self.no_shadow != __value.no_shadow:
             return False
+        if self.shadow_only != __value.shadow_only:
+            return False
         if self.lightmap_only != __value.lightmap_only:
             return False
         if self.precise != __value.precise:
@@ -702,9 +706,9 @@ class JMSMaterialSlot:
         if self.slip_surface != __value.slip_surface:
             return False
         
-        # if self.lightmap_resolution_scale != __value.lightmap_resolution_scale: return False
-        if self.lightmap_translucency_tint_color != __value.lightmap_resolution_scale: return False
-        if self.lightmap_additive_transparency != __value.lightmap_resolution_scale: return False
+        if self.lightmap_resolution_scale != __value.lightmap_resolution_scale: return False
+        if self.lightmap_translucency_tint_color != __value.lightmap_translucency_tint_color: return False
+        if self.lightmap_additive_transparency != __value.lightmap_additive_transparency: return False
         
         if self.emissive_power != __value.emissive_power: return False
         if self.emissive_color != __value.emissive_color: return False
@@ -1565,6 +1569,10 @@ class NWOImporter:
             nwo.breakable = jms_mat.breakable
             nwo.portal_ai_deafening = jms_mat.ai_deafening
             nwo.no_shadow = jms_mat.no_shadow
+            if jms_mat.shadow_only:
+                nwo.lightmap_transparency_override_active = True
+                nwo.lightmap_transparency_override = True
+                
             nwo.lightmap_only = jms_mat.lightmap_only
             nwo.precise_position = jms_mat.precise
             if jms_mat.portal_one_way:
@@ -1660,6 +1668,9 @@ class NWOImporter:
                     nwo.portal_ai_deafening = jms_mat.ai_deafening
                     nwo.no_shadow = jms_mat.no_shadow
                     nwo.lightmap_only = jms_mat.lightmap_only
+                    if jms_mat.shadow_only:
+                        nwo.lightmap_transparency_override_active = True
+                        nwo.lightmap_transparency_override = True
                     nwo.precise_position = jms_mat.precise
                     if jms_mat.portal_one_way:
                         nwo.portal_type = '_connected_geometry_portal_type_one_way'
@@ -1671,9 +1682,9 @@ class NWOImporter:
                     nwo.decal_offset = jms_mat.decal_offset
                     nwo.slip_surface = jms_mat.slip_surface
                     # Lightmap
-                    # if jms_mat.lightmap_resolution_scale:
-                    #     nwo.lightmap_resolution_scale_active = True
-                    #     nwo.lightmap_resolution_scale = jms_mat.lightmap_resolution_scale
+                    if jms_mat.lightmap_resolution_scale:
+                        nwo.lightmap_resolution_scale_active = True
+                        nwo.lightmap_resolution_scale = jms_mat.lightmap_resolution_scale
                     if jms_mat.lightmap_additive_transparency:
                         nwo.lightmap_additive_transparency_active = True
                         nwo.lightmap_additive_transparency = jms_mat.lightmap_additive_transparency
@@ -1765,6 +1776,13 @@ class NWOImporter:
                             else:
                                 layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "Lightmap Only", "lightmap_only_override")))
                                 
+                        if jms_mat.shadow_only:
+                            l_name = 'lightmap_transparency_override'
+                            if bm.faces.layers.int.get(l_name):
+                                layers[idx].append(bm.faces.layers.int.get(l_name))
+                            else:
+                                layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "Disable Lightmap Transparency", "lightmap_transparency_override_override")))
+                                
                         if jms_mat.precise:
                             l_name = 'uncompressed'
                             if bm.faces.layers.int.get(l_name):
@@ -1794,12 +1812,12 @@ class NWOImporter:
                                 layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "Slip Surface", "slip_surface_override")))
                         
                         # Lightmap
-                        # if jms_mat.lightmap_resolution_scale:
-                        #     l_name = 'lightmap_resolution_scale'
-                        #     if bm.faces.layers.int.get(l_name):
-                        #         layers[idx].append(bm.faces.layers.int.get(l_name))
-                        #     else:
-                        #         layers[idx].append(bm.faces.layers.int.new(new_face_prop(ob.data, l_name, "Lightmap Resolution Scale", "lightmap_resolution_scale_override", {"lightmap_resolution_scale": jms_mat.lightmap_resolution_scale})))
+                        if jms_mat.lightmap_resolution_scale:
+                            l_name = 'lightmap_resolution_scale'
+                            if bm.faces.layers.int.get(l_name):
+                                layers[idx].append(bm.faces.layers.int.get(l_name))
+                            else:
+                                layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "Lightmap Resolution Scale", "lightmap_resolution_scale_override", {"lightmap_resolution_scale": jms_mat.lightmap_resolution_scale})))
                         
                         if jms_mat.lightmap_translucency_tint_color:
                             l_name = 'lightmap_translucency_tint_color'

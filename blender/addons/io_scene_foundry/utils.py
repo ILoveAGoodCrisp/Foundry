@@ -3373,6 +3373,11 @@ def add_face_layer(bm: bmesh.types.BMesh, mesh: bpy.types.Mesh, prop: str, value
             display_name = "Lightmap Only"
             override_prop = "lightmap_only_override"
             other_props = {"lightmap_only": value}
+        case "lightmap_transparency_override":
+            layer_name = f"lightmap_transparency_override{str(uuid4())}"
+            display_name = "Disable Lightmap Transparency"
+            override_prop = "lightmap_transparency_override_override"
+            other_props = {"lightmap_transparency_override": value}
         case "no_pvs":
             layer_name = f"no_pvs{str(uuid4())}"
             display_name = "No PVS"
@@ -3722,7 +3727,7 @@ def to_bounding_box(ob: bpy.types.Object):
     
 def id_from_string(name) -> str:
     rand = random.Random(name)
-    return str(rand.randint(-2147483647, 2147483647))
+    return rand.randint(-2147483647, 2147483647)
 
 def ijkw_to_wxyz(rot: list[float, float, float, float] | Vector | Quaternion) -> Quaternion:
     i, j, k, w = rot
@@ -3924,3 +3929,6 @@ def mesh_and_material(m_type, context):
             mesh_type = "_connected_geometry_mesh_type_decorator"
             
     return mesh_type, material
+
+def clamp(number: float | int, minimum: float | int, maximum: float | int) -> float | int:
+    return max(min(maximum, number), minimum)

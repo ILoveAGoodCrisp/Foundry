@@ -155,7 +155,8 @@ class NWO_LightPropertiesGroup(bpy.types.PropertyGroup):
         self['light_intensity_value'] = value
         
     def update_light_intensity(self, context):
-        self.id_data.energy = utils.calc_light_energy(self.id_data, utils.get_export_scale(context) ** -2 * self.light_intensity_value)
+        if self.id_data.type != 'SUN':
+            self.id_data.energy = utils.calc_light_energy(self.id_data, utils.get_export_scale(context) ** -2 * self.light_intensity_value)
 
     light_intensity: bpy.props.FloatProperty(
         name="Light Intensity",

@@ -13,10 +13,10 @@ class ScenarioStructureLightingInfoTag(Tag):
         
     def _definition_index_from_id(self, id) -> int:
         for element in self.block_generic_light_definitions.Elements:
-            if id == element.Fields[0].GetStringData():
-                return str(element.ElementIndex)
+            if id == element.Fields[0].Data:
+                return element.ElementIndex
             
-        return "0"
+        return 0
     
     def _definition_index_from_data_name(self, name, light_definitions) -> int:
         for definition in light_definitions:
@@ -61,25 +61,25 @@ class ScenarioStructureLightingInfoTag(Tag):
             self._update_corinth_light_definitions(light_definitions[i], self.block_generic_light_definitions.AddElement())
                 
     def _update_corinth_light_definitions(self, light, element: TagFieldBlockElement):
-        element.SelectField("Definition Identifier").SetStringData(light.id) 
+        element.SelectField("Definition Identifier").Data = light.id 
         parameters_struct  = element.SelectField("Midnight_Light_Parameters")
         parameters = parameters_struct.Elements[0]
         parameters.SelectField("haloLightNode").SetStringData(light.data_name)
         parameters.SelectField("Light Type").Value = light.type
-        parameters.SelectField("Light Color").SetStringData(light.color)
+        parameters.SelectField("Light Color").Data = light.color
         intensity_struct = parameters.SelectField("Intensity")
         intensity = intensity_struct.Elements[0]
         intensity_mapping = intensity.SelectField("Custom:Mapping")
         intensity_mapping.Value.ClampRangeMin = light.intensity
         parameters.SelectField("Lighting Mode").Value = light.lighting_mode
-        parameters.SelectField("Distance Attenuation Start").SetStringData(str(light.far_attenuation_start))
+        parameters.SelectField("Distance Attenuation Start").Data = light.far_attenuation_start
         atten_struct = parameters.SelectField("Distance Attenuation End")
         atten = atten_struct.Elements[0]
         atten_mapping = atten.SelectField("Custom:Mapping")
         atten_mapping.Value.ClampRangeMin = light.far_attenuation_end
         
         if light.type == 1: # Spot
-            parameters.SelectField("Inner Cone Angle").SetStringData(light.hotspot_cutoff)
+            parameters.SelectField("Inner Cone Angle").Data = light.hotspot_cutoff
             hotpot_struct = parameters.SelectField("Outer Cone End")
             hotspot = hotpot_struct.Elements[0]
             hotspot_mapping = hotspot.SelectField("Custom:Mapping")
@@ -92,9 +92,9 @@ class ScenarioStructureLightingInfoTag(Tag):
             element.SelectField("sun").Value = 0
             
         # Dynamic Only
-        parameters.SelectField("Shadow Near Clip Plane").SetStringData(light.shadow_near_clip)
-        parameters.SelectField("Shadow Far Clip Plane").SetStringData(light.shadow_far_clip)
-        parameters.SelectField("Shadow Bias Offset").SetStringData(light.shadow_bias)
+        parameters.SelectField("Shadow Near Clip Plane").Data = light.shadow_near_clip
+        parameters.SelectField("Shadow Far Clip Plane").Data = light.shadow_far_clip
+        parameters.SelectField("Shadow Bias Offset").Data = light.shadow_bias
         parameters.SelectField("Dynamic Shadow Quality").Value = light.shadow_quality
         parameters.SelectField("Shadows").Value = light.shadows
         parameters.SelectField("Screenspace Light").Value = light.screen_space
@@ -105,9 +105,9 @@ class ScenarioStructureLightingInfoTag(Tag):
         parameters.SelectField("Specular Contribution").Value = light.specular_contribution
         parameters.SelectField("Diffuse Contribution").Value = light.diffuse_contribution
         # Static Only
-        element.SelectField("indirect amplification factor").SetStringData(light.indirect_amp)
-        element.SelectField("jitter sphere radius").SetStringData(light.jitter_sphere)
-        element.SelectField("jitter angle").SetStringData(light.jitter_angle)
+        element.SelectField("indirect amplification factor").Data = light.indirect_amp
+        element.SelectField("jitter sphere radius").Data = light.jitter_sphere
+        element.SelectField("jitter angle").Data = light.jitter_angle
         element.SelectField("jitter quality").Value = light.jitter_quality
         element.SelectField("static analytic").Value = light.static_analytic
         
@@ -117,12 +117,12 @@ class ScenarioStructureLightingInfoTag(Tag):
         for light in light_instances:
             element = self.block_generic_light_instances.AddElement()
             id = utils.id_from_string(light.data_name)
-            element.SelectField("Light Definition ID").SetStringData(id)
-            element.SelectField("Light Definition Index").SetStringData(self._definition_index_from_id(id))
+            element.SelectField("Light Definition ID").Data = id
+            element.SelectField("Light Definition Index").Data = self._definition_index_from_id(id)
             element.SelectField("light mode").Value = light.light_mode
-            element.SelectField("origin").SetStringData(light.origin)
-            element.SelectField("forward").SetStringData(light.forward)
-            element.SelectField("up").SetStringData(light.up)
+            element.SelectField("origin").Data = light.origin
+            element.SelectField("forward").Data = light.forward
+            element.SelectField("up").Data = light.up
             
     def _write_reach_light_definitions(self, light_definitions):
         self.block_generic_light_definitions.RemoveAllElements()
