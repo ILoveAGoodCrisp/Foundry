@@ -53,16 +53,16 @@ face_prop_defaults = {
     "bungie_no_lightmap": 0,
     "bungie_precise_position": 0,
     "bungie_mesh_tessellation_density": 0,
-    "bungie_lightmap_additive_transparency": (1, 0, 0, 0),
+    "bungie_lightmap_additive_transparency": (0, 0, 0),
     "bungie_lightmap_resolution_scale": 3,
     "bungie_lightmap_type": 0,
-    "bungie_lightmap_translucency_tint_color": (1, 0, 0, 0),
+    "bungie_lightmap_translucency_tint_color": (255, 255, 255),
     "bungie_lightmap_lighting_from_both_sides": 0,
     "bungie_lightmap_transparency_override": 0,
     "bungie_lightmap_analytical_bounce_modifier": 1.0,
     "bungie_lightmap_general_bounce_modifier": 1.0,
     "bungie_lighting_emissive_power": 0.0,
-    "bungie_lighting_emissive_color": (1, 0, 0, 0),
+    "bungie_lighting_emissive_color": (255, 255, 255),
     "bungie_lighting_emissive_per_unit": 0,
     "bungie_lighting_emissive_quality": 0.0,
     "bungie_lighting_use_shader_gel": 0,
@@ -197,7 +197,11 @@ class ExportScene:
             case AssetType.PREFAB:
                 if self.export_settings.export_structure:
                     tag_types.add('structure')
-            case AssetType.SKY | AssetType.DECORATOR_SET | AssetType.PARTICLE_MODEL:
+            case AssetType.SKY:
+                tag_types.add('render')
+                tag_types.add('markers')
+                tag_types.add('skeleton')
+            case AssetType.DECORATOR_SET | AssetType.PARTICLE_MODEL:
                 tag_types.add('render')
                 
         return tag_types
@@ -380,9 +384,10 @@ class ExportScene:
                         self.temp_objects.add(ob)
                         self.temp_meshes.add(ob.data)
                     else:
-                        self.lights.append(ob)
                         if not self.corinth and self.asset_type == AssetType.SKY:
                             self.sky_lights.append(ob)
+                        else:
+                            self.lights.append(ob)
                         continue
 
                 result = self.get_halo_props(ob)
@@ -1087,9 +1092,9 @@ class ExportScene:
                 
         if data_nwo.lightmap_additive_transparency_active:
             if test_face_prop(face_props, "lightmap_additive_transparency_override"):
-                fp_defaults["bungie_lightmap_additive_transparency"] = utils.color_4p(data_nwo.lightmap_additive_transparency)
+                fp_defaults["bungie_lightmap_additive_transparency"] = utils.color_3p_int(data_nwo.lightmap_additive_transparency)
             else:
-                mesh_props["bungie_lightmap_additive_transparency"] = utils.color_4p(data_nwo.lightmap_additive_transparency)
+                mesh_props["bungie_lightmap_additive_transparency"] = utils.color_3p_int(data_nwo.lightmap_additive_transparency)
                 
         if data_nwo.lightmap_resolution_scale_active:
             if test_face_prop(face_props, "lightmap_resolution_scale_override"):
@@ -1108,9 +1113,9 @@ class ExportScene:
                 
         if data_nwo.lightmap_translucency_tint_color_active:
             if test_face_prop(face_props, "lightmap_translucency_tint_color_override"):
-                fp_defaults["bungie_lightmap_translucency_tint_color"] = utils.color_4p(data_nwo.lightmap_translucency_tint_color)
+                fp_defaults["bungie_lightmap_translucency_tint_color"] = utils.color_3p_int(data_nwo.lightmap_translucency_tint_color)
             else:
-                mesh_props["bungie_lightmap_translucency_tint_color"] = utils.color_4p(data_nwo.lightmap_translucency_tint_color)
+                mesh_props["bungie_lightmap_translucency_tint_color"] = utils.color_3p_int(data_nwo.lightmap_translucency_tint_color)
                 
         if data_nwo.lightmap_lighting_from_both_sides_active:
             if test_face_prop(face_props, "lightmap_lighting_from_both_sides_override"):
@@ -1145,7 +1150,7 @@ class ExportScene:
                 falloff, cutoff = calc_attenutation(data_nwo.material_lighting_emissive_power * self.unit_factor ** 2)
             if test_face_prop(face_props, "emissive_override"):
                 fp_defaults["bungie_lighting_emissive_power"] = power
-                fp_defaults["bungie_lighting_emissive_color"] = utils.color_4p(data_nwo.material_lighting_emissive_color)
+                fp_defaults["bungie_lighting_emissive_color"] = utils.color_3p_int(data_nwo.material_lighting_emissive_color)
                 fp_defaults["bungie_lighting_emissive_per_unit"] = int(data_nwo.material_lighting_emissive_per_unit)
                 fp_defaults["bungie_lighting_emissive_quality"] = data_nwo.material_lighting_emissive_quality
                 fp_defaults["bungie_lighting_use_shader_gel"] = int(data_nwo.material_lighting_use_shader_gel)
@@ -1156,7 +1161,7 @@ class ExportScene:
                 fp_defaults["bungie_lighting_emissive_focus"] = degrees(data_nwo.material_lighting_emissive_focus) / 180
             else:
                 mesh_props["bungie_lighting_emissive_power"] = power
-                mesh_props["bungie_lighting_emissive_color"] = utils.color_4p(data_nwo.material_lighting_emissive_color)
+                mesh_props["bungie_lighting_emissive_color"] = utils.color_3p_int(data_nwo.material_lighting_emissive_color)
                 mesh_props["bungie_lighting_emissive_per_unit"] = int(data_nwo.material_lighting_emissive_per_unit)
                 mesh_props["bungie_lighting_emissive_quality"] = data_nwo.material_lighting_emissive_quality
                 mesh_props["bungie_lighting_use_shader_gel"] = int(data_nwo.material_lighting_use_shader_gel)
@@ -1739,7 +1744,7 @@ class ExportScene:
             write_zone_sets_to_scenario(self.scene_settings, self.asset_name)
 
         if self.lights:
-            self.print_post(f"--- Writing scenario lighting data from {len(self.lights)} light{'s' if len(self.lights) > 1 else ''}")
+            self.print_post(f"--- Writing lighting data from {len(self.lights)} light{'s' if len(self.lights) > 1 else ''}")
             export_lights(self.lights)
         
     def _setup_model_overrides(self):

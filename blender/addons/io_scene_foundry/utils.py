@@ -276,23 +276,32 @@ def color_3p_str(color):
     blue = linear_to_srgb(color.b)
     return f"{jstr(red)} {jstr(green)} {jstr(blue)}"
 
+
 def color_3p(color):
     red = linear_to_srgb(color.r)
     green = linear_to_srgb(color.g)
     blue = linear_to_srgb(color.b)
     return red, green, blue
 
+def color_3p_int(color):
+    red = int(color.r * 255)
+    green = int(color.g * 255)
+    blue = int(color.b * 255)
+    return red, green, blue
+
 def color_4p_str(color):
     red = int(color.r * 255)
     green = int(color.g * 255)
     blue = int(color.b * 255)
-    return f"1 {jstr(red)} {jstr(green)} {jstr(blue)}"
+    alpha = int(color.a * 255)
+    return f"{jstr(alpha)} {jstr(red)} {jstr(green)} {jstr(blue)}"
 
 def color_4p(color):
     red = int(color.r * 255)
     green = int(color.g * 255)
     blue = int(color.b * 255)
-    return 1, red, green, blue
+    alpha = int(color.a * 255)
+    return alpha, red, green, blue
 
 def color_rgba_str(color):
     red = linear_to_srgb(color[0])
