@@ -144,6 +144,9 @@ class ExportScene:
         self.lights = []
         self.temp_objects = set()
         self.temp_meshes = set()
+        self.temp_curves = set()
+        self.temp_metaballs = set()
+        self.temp_lights = set()
         self.sky_lights = []
         
         self.is_model = self.asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.ANIMATION}
@@ -241,6 +244,15 @@ class ExportScene:
                     temp_ob = source_ob.copy()
                     if ob.instance_collection.library:
                         temp_ob.data = source_ob.data.copy()
+                        match temp_ob.type:
+                            case 'MESH':
+                                self.temp_meshes.add(temp_ob.data)
+                            case 'CURVE' | 'FONT':
+                                self.temp_curves.add(temp_ob.data)
+                            case 'METABALL':
+                                self.temp_metaballs.add(temp_ob.data)
+                            case 'LIGHT':
+                                self.temp_lights.add(temp_ob.data)
                         
                     lookup_dict[source_ob] = temp_ob
                     for collection in users_collection:
@@ -1568,6 +1580,12 @@ class ExportScene:
             
         for mesh in self.temp_meshes:
             bpy.data.meshes.remove(mesh)
+        for curve in self.temp_curves:
+            bpy.data.curves.remove(curve)
+        for metaball in self.temp_metaballs:
+            bpy.data.metaballs.remove(metaball)
+        for light in self.temp_lights:
+            bpy.data.lights.remove(light)
         
         for armature, pose in self.armature_poses.items():
             armature.pose_position = pose
