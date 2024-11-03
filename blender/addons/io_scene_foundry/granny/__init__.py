@@ -149,6 +149,7 @@ class Granny:
         self.export_vertex_datas = []
         meshes = set()
         materials = set()
+        valid_siblings = {n.name for n in nodes.values() if n.mesh}
         for model in scene.models.values():
             node = nodes.get(model.name)
             if not node: continue
@@ -158,7 +159,7 @@ class Granny:
                 if bone.node and nodes.get(bone.name) and bone.node.mesh:
                     self.export_vertex_datas.append(bone.node.granny_vertex_data)
                     # self.export_tri_topologies.append(bone.node.granny_tri_topology)
-                    self.export_meshes.append(Mesh(bone.node))
+                    self.export_meshes.append(Mesh(bone.node, valid_siblings))
                     materials.update(bone.node.mesh.materials)
                     meshes.add(bone.node.mesh)
                     mesh_binding_indices.append(len(self.export_meshes) - 1)

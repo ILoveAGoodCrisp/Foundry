@@ -1556,7 +1556,7 @@ class ExportScene:
         self.sidecar.has_armature = bool(self.virtual_scene.skeleton_node)
         self.sidecar.regions = self.regions
         self.sidecar.global_materials = self.global_materials_list
-        self.sidecar.structure = self.virtual_scene.structure
+        self.sidecar.structure = [region for region in self.regions if region in self.virtual_scene.structure]
         self.sidecar.design = self.virtual_scene.design
         self.sidecar.build()
         

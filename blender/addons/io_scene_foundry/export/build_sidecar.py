@@ -329,12 +329,14 @@ class Sidecar:
         contents = ET.SubElement(metadata, "Contents")
         ##### STRUCTURE #####
         shared_data = self.file_data.get("shared")
+        bsp_data = self.file_data.get("structure")
         for bsp in self.structure:
             content = ET.SubElement(contents, "Content", Name=f"{self.asset_name}_{bsp}", Type="bsp")
             content_object = ET.SubElement(content, "ContentObject", Name="", Type="scenario_structure_bsp")
             bsp_data = self.file_data.get("structure")
             for data in bsp_data:
-                self._write_network_files_bsp(content_object, data)
+                if data.region == bsp:
+                    self._write_network_files_bsp(content_object, data)
             if shared_data:
                 for data in shared_data:
                     self._write_network_files_bsp(content_object, data, True)
@@ -351,7 +353,8 @@ class Sidecar:
 
             if not design_data: continue
             for data in design_data:
-                self._write_network_files_bsp(content_object, data)
+                if data.region == bsp:
+                    self._write_network_files_bsp(content_object, data)
 
             output = ET.SubElement(content_object, "OutputTagCollection")
             ET.SubElement(output, "OutputTag", Type="structure_design").text = f"{self.tag_path}_{bsp}_structure_design"

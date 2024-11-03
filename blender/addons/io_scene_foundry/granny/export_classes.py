@@ -312,12 +312,12 @@ class BoneBinding:
         self.name = name.encode()
     
 class Mesh():
-    def __init__(self, node):
+    def __init__(self, node, valid_siblings):
         self.granny = None
         self.name = node.name.encode()
         self.props = node.props
         mesh = node.mesh
-        self.siblings = [s.encode() for s in mesh.siblings if s != node.name]
+        self.siblings = [s.encode() for s in mesh.siblings if s != node.name and s in valid_siblings]
         self.primary_vertex_data = node.granny_vertex_data
         self.primary_topology = node.mesh.granny_tri_topology
         self.materials = [mat.granny_material for mat in mesh.materials.keys()]
