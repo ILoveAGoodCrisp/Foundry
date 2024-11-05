@@ -189,7 +189,6 @@ class InstanceDefinition:
                     breakable_face_props = [prop for prop in self.blender_collision.data.nwo.face_props if prop.breakable_override]
                     if self.blender_collision.data.nwo.breakable or breakable_face_props:
                     # Proxy collision can't be breakable, so wing it and use the render as the collision
-                        self.blender_collision = None
                         if self.blender_render:
                             if self.blender_collision.data.nwo.breakable:
                                 self.blender_render.data.nwo.breakable = True
@@ -228,10 +227,14 @@ class InstanceDefinition:
                                     bm_render = bmesh.new()
                                     bm_render.from_mesh(self.blender_render.data)
                                     layer_render = utils.add_face_layer(bm_render, self.blender_render.data, "breakable", True)
-                                    
                                     for face in bm_render.faces:
                                         if face.material_index in breakable_material_indexes_render:
                                             face[layer_render] = 1
+                                            
+                                    bm_render.to_mesh(self.blender_render.data)
+                                    bm_render.free()
+                                    
+                            self.blender_collision = None
                                     
                                      
                     else:
