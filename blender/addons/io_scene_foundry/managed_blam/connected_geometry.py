@@ -1160,11 +1160,10 @@ class BSP:
             
         bm.to_mesh(mesh)
         bm.free()
-                                
-        mesh.nwo.mesh_type = "_connected_geometry_mesh_type_collision"
         
         ob = bpy.data.objects.new(self.name, mesh)
         if not self.uses_materials:
+            mesh.nwo.mesh_type = "_connected_geometry_mesh_type_collision"
             apply_props_material(ob, 'Collision')
         return ob
     
