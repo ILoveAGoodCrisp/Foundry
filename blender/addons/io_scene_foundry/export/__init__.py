@@ -531,9 +531,17 @@ def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_pat
             export_scene.write_sidecar()
             
         if export_settings.export_mode in {'FULL', 'TAGS'}:
-            export_scene.preprocess_tags()
+            if export_settings.export_mode == 'TAGS' and (export_scene.limit_perms_to_selection or export_scene.limit_bsps_to_selection):
+                # Need to figure out what perms/bsps are selected in this case
+                print("\n\nQuick Scene Process")
+                print("-----------------------------------------------------------------------\n")
+                export_scene.ready_scene()
+                export_scene.get_initial_export_objects()
+                export_scene.map_halo_properties()
+                
             print("\n\nWriting Tags")
             print("-----------------------------------------------------------------------\n")
+            export_scene.preprocess_tags()
             export_scene.invoke_tool_import()
             export_scene.postprocess_tags()
             export_scene.lightmap()

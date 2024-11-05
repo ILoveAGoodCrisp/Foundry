@@ -186,11 +186,54 @@ class InstanceDefinition:
             if self.has_collision:
                 self.blender_collision = self.collision_info.to_object()
                 if self.blender_render and self.blender_render.type == 'MESH':
-                    if self.blender_collision.data.nwo.breakable:
+                    breakable_face_props = [prop for prop in self.blender_collision.data.nwo.face_props if prop.breakable_override]
+                    if self.blender_collision.data.nwo.breakable or breakable_face_props:
                     # Proxy collision can't be breakable, so wing it and use the render as the collision
                         self.blender_collision = None
                         if self.blender_render:
-                            self.blender_render.data.nwo.breakable = True
+                            if self.blender_collision.data.nwo.breakable:
+                                self.blender_render.data.nwo.breakable = True
+                            else:
+                                # This assumes that materials between the render and collision match and are the basis of breakables
+                                bm_coll = bmesh.new()
+                                bm_coll.from_mesh(self.blender_collision.data)
+                                for prop in breakable_face_props:
+                                    breakable_material_indexes_coll = set()
+                                    layer_coll = bm_coll.faces.layers.int.get(prop.layer_name)
+                                    for face in bm_coll.faces:
+                                        if face[layer_coll]:
+                                            breakable_material_indexes_coll.add(face.material_index)
+                                            break
+                                    else:
+                                        bm_coll.free()
+                                        continue
+                                    
+                                    bm_coll.free()
+                                    material_colls = set()
+                                    for i in breakable_material_indexes_coll:
+                                        material_colls.add(self.blender_collision.data.materials[i])
+                                        
+                                    if not material_colls:
+                                        continue
+                                        
+                                    breakable_material_indexes_render = set()
+                                        
+                                    for idx, material in enumerate(self.blender_render.data.materials):
+                                        if material in material_colls:
+                                            breakable_material_indexes_render.add(idx)
+                                            
+                                    if not breakable_material_indexes_render:
+                                        continue
+                                    
+                                    bm_render = bmesh.new()
+                                    bm_render.from_mesh(self.blender_render.data)
+                                    layer_render = utils.add_face_layer(bm_render, self.blender_render.data, "breakable", True)
+                                    
+                                    for face in bm_render.faces:
+                                        if face.material_index in breakable_material_indexes_render:
+                                            face[layer_render] = 1
+                                    
+                                     
                     else:
                         self.blender_collision.name = f"{self.blender_render.name}_proxy_collision"
                         self.blender_collision.nwo.proxy_parent = self.blender_render.data
