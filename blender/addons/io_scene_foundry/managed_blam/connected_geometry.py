@@ -227,10 +227,13 @@ class InstanceDefinition:
                                     bm_render = bmesh.new()
                                     bm_render.from_mesh(self.blender_render.data)
                                     layer_render = utils.add_face_layer(bm_render, self.blender_render.data, "breakable", True)
+                                    face_count = 0
                                     for face in bm_render.faces:
                                         if face.material_index in breakable_material_indexes_render:
                                             face[layer_render] = 1
+                                            face_count += 1
                                             
+                                    self.blender_render.data.nwo.face_props[-1].face_count = face_count
                                     bm_render.to_mesh(self.blender_render.data)
                                     bm_render.free()
                                     

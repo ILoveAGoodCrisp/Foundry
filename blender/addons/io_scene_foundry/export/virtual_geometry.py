@@ -311,7 +311,7 @@ class VirtualMaterial:
 
     
 class VirtualMesh:
-    def __init__(self, vertex_weighted: bool, scene: 'VirtualScene', bone_bindings: list[str], ob: bpy.types.Object, fp_defaults: dict, render_mesh: bool, proxies: list, props: dict, negative_scaling: bool, bones: list[str]):
+    def __init__(self, vertex_weighted: bool, scene: 'VirtualScene', bone_bindings: list[str], ob: bpy.types.Object, fp_defaults: dict, render_mesh: bool, proxies: list, props: dict, negative_scaling: bool, bones: list[str], materials: tuple[bpy.types.Material]):
         self.name = ob.data.name
         self.proxies = proxies
         self.positions: np.ndarray = None
@@ -327,6 +327,7 @@ class VirtualMesh:
         self.num_indices = 0
         self.groups: list[VirtualMaterial, int, int] = []
         self.materials = {}
+        self.bpy_materials = materials
         self.face_properties: dict = {}
         self.bone_bindings = bone_bindings
         self.vertex_weighted = vertex_weighted
@@ -334,20 +335,6 @@ class VirtualMesh:
         self.invalid = False
         self.granny_tri_topology = None
         self.siblings = [ob.name]
-        # Check if a mesh already exists so we can copy its data (this will be the case in instances of shared mesh data but negative scale)
-        # Transforms to account for negative scaling are done at granny level so the blender data can stay the same
-        # existing_mesh = scene.meshes.get((self.name, not negative_scaling))
-        # if existing_mesh and not existing_mesh.invalid:
-        #     self.materials = existing_mesh.materials
-        #     self.num_vertices = existing_mesh.num_vertices
-        #     self.vertex_component_names = existing_mesh.vertex_component_names
-        #     self.vertex_component_name_count = existing_mesh.vertex_component_name_count
-        #     self.vertex_type = existing_mesh.vertex_type
-        #     self.vertex_array = existing_mesh.vertex_array
-        #     self.len_vertex_array = existing_mesh.len_vertex_array
-        #     self.granny_tri_topology = deep_copy_granny_tri_topology(existing_mesh.granny_tri_topology)
-        #     scene.granny.invert_tri_topology_winding(self.granny_tri_topology)
-        # else:
         self._setup(ob, scene, fp_defaults, render_mesh, props, bones)
             
         if not self.invalid:
@@ -519,9 +506,9 @@ class VirtualMesh:
         num_vertices = len(mesh.vertices)
         num_polygons = len(mesh.polygons)
 
-        num_materials = len(mesh.materials)
+        num_materials = len(self.bpy_materials)
         special_mats_dict = defaultdict(list)
-        for idx, mat in enumerate(mesh.materials):
+        for idx, mat in enumerate(self.bpy_materials):
             if mat is not None and (mat.nwo.has_material_properties or mat.name[0] == "+"):
                 special_mats_dict[mat].append(idx)
         
@@ -694,14 +681,14 @@ class VirtualMesh:
             unique_indices = np.concatenate(([0], np.where(np.diff(material_indices[sorted_order]) != 0)[0] + 1))
             counts = np.diff(np.concatenate((unique_indices, [len(material_indices)])))
             mat_index_counts = list(zip(unique_indices, counts))
-            used_materials = [mesh.materials[i] for i in np.unique(material_indices)]
+            used_materials = [self.bpy_materials[i] for i in np.unique(material_indices)]
             unique_materials = list(dict.fromkeys([m for m in used_materials]))
             for idx, mat in enumerate(used_materials):
                 virtual_mat = scene._get_material(mat, scene)
                 self.materials[virtual_mat] = None
                 self.groups.append((virtual_mat, unique_materials.index(mat), mat_index_counts[idx]))
         elif num_materials >= 1:
-            virtual_mat = scene._get_material(mesh.materials[0], scene)
+            virtual_mat = scene._get_material(self.bpy_materials[0], scene)
             self.materials[virtual_mat] = None
             self.groups.append((virtual_mat, 0, (0, num_polygons)))
         else:
@@ -718,7 +705,7 @@ class VirtualMesh:
     
 class VirtualNode:
     def __init__(self, id: bpy.types.Object | bpy.types.PoseBone, props: dict, region: str = None, permutation: str = None, fp_defaults: dict = None, scene: 'VirtualScene' = None, proxies = [], template_node: 'VirtualNode' = None, bones: list[str] = [], parent_matrix: Matrix = IDENTITY_MATRIX, animation_owner=None):
-        self.name: str = id.name
+        self.name: str = id.name_full
         self.id = id
         self.matrix_world: Matrix = IDENTITY_MATRIX
         self.matrix_local: Matrix = IDENTITY_MATRIX
@@ -761,14 +748,16 @@ class VirtualNode:
                 if id.nwo.invert_topology:
                     negative_scaling = not negative_scaling
                     
-                existing_mesh = scene.meshes.get((id.data.name, negative_scaling))
+                materials  = tuple(slot.material for slot in id.material_slots)
+                    
+                existing_mesh = scene.meshes.get((id.data.name_full, negative_scaling, materials))
                     
                 if existing_mesh:
                     self.mesh = existing_mesh
                     self.mesh.siblings.append(self.name)
                 else:
                     vertex_weighted = id.vertex_groups and id.parent and id.parent.type == 'ARMATURE' and id.parent_type != "BONE" and has_armature_deform_mod(id)
-                    mesh = VirtualMesh(vertex_weighted, scene, default_bone_bindings, id, fp_defaults, is_rendered(self.props), proxies, self.props, negative_scaling, bones)
+                    mesh = VirtualMesh(vertex_weighted, scene, default_bone_bindings, id, fp_defaults, is_rendered(self.props), proxies, self.props, negative_scaling, bones, materials)
                     self.mesh = mesh
                     self.new_mesh = True
                     
@@ -1251,7 +1240,7 @@ class VirtualScene:
             self.nodes[node.name] = node
             if node.new_mesh:
                 # This is a tuple containing whether the object has a negative scale. This because we need to create seperate mesh data for negatively scaled objects
-                self.meshes[(node.mesh.name, id.matrix_world.is_negative)] = node.mesh
+                self.meshes[(node.mesh.name, id.matrix_world.is_negative, node.mesh.bpy_materials)] = node.mesh
             
         return node
             

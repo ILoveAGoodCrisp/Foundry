@@ -2614,7 +2614,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
 
                 else:
                     if nwo.shader_path:
-                        col.label(text="Shader Tag Not Found", icon="ERROR")
+                        col.label(text=f"{txt} Tag Not Found", icon="ERROR")
                     else:
                         col.separator()
                         col.label(text=f'{txt} Export Tools')

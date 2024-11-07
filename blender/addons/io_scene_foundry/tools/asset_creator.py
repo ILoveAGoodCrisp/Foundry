@@ -278,8 +278,11 @@ class NWO_OT_NewAsset(bpy.types.Operator):
             parent_directory.mkdir(parents=True)
             
         # # Save a copy of the original blend if possible
-        if bpy.data.filepath and bpy.data.filepath != str(blender_filepath):
-            bpy.ops.wm.save_mainfile()
+        try:
+            if bpy.data.filepath and bpy.data.filepath != str(blender_filepath):
+                bpy.ops.wm.save_mainfile()
+        except:
+            print("Failed to save current file")
         
         # Set blender scene settings for new file
         scene_settings = context.scene
