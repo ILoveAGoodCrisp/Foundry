@@ -1351,6 +1351,8 @@ class VirtualScene:
             
             return structure_ob, props
         
+        if not self.structure:
+            self.structure.add(self.regions[0])
 
         if self.structure == self.bsps_with_structure:
             return
