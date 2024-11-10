@@ -2748,7 +2748,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         row = col.row()
         rows = 3
         row.template_list(
-            "NWO_UL_ActionGroup",
+            "NWO_UL_ActionTrack",
             "",
             animation,
             "action_tracks",
@@ -2757,11 +2757,11 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             rows=rows,
         )
         col = row.column(align=True)
-        col.operator("nwo.action_group_add", text="", icon="ADD")
-        col.operator("nwo.action_group_remove", icon="REMOVE", text="")
+        col.operator("nwo.action_track_add", text="", icon="ADD")
+        col.operator("nwo.action_track_remove", icon="REMOVE", text="")
         col.separator()
-        col.operator("nwo.action_group_move", text="", icon="TRIA_UP").direction = 'up'
-        col.operator("nwo.action_group_move", icon="TRIA_DOWN", text="").direction = 'down'
+        col.operator("nwo.action_track_move", text="", icon="TRIA_UP").direction = 'up'
+        col.operator("nwo.action_track_move", icon="TRIA_DOWN", text="").direction = 'down'
         
         col = box.column(align=True)
         
@@ -2771,8 +2771,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         
         row = col.row()
         row.use_property_split = False
-        row.prop(animation, "frame_start", text='Start Frame')
-        row.prop(animation, "frame_end", text='End Frame')
+        row.prop(animation, "frame_start", text='Start Frame', icon='KEYFRAME_HLT')
+        row.prop(animation, "frame_end", text='End Frame', icon='KEYFRAME_HLT')
         col.separator()
         row = col.row()
         row.use_property_split = True

@@ -729,13 +729,11 @@ class NWO_UL_AnimationRename(bpy.types.UIList):
     ):
         layout.prop(item, "name", text="", emboss=False, icon_value=get_icon_id("animation_rename"))
         
-class NWO_OT_AddActionGroup(bpy.types.Operator):
-    bl_label = "New Action"
-    bl_idname = "nwo.action_group_add"
+class NWO_OT_AddActionTrack(bpy.types.Operator):
+    bl_label = "New Action Track"
+    bl_idname = "nwo.action_track_add"
     bl_description = "Adds new action tracks based on current object selection and their active actions"
     bl_options = {"REGISTER", "UNDO"}
-    
-    # use_active_action: bpy.props.BoolProperty(options={'SKIP_SAVE'})
     
     @classmethod
     def poll(cls, context):
@@ -770,12 +768,12 @@ class NWO_OT_AddActionGroup(bpy.types.Operator):
             return self.report({'WARNING'}, f"No active action for object [{ob.name}], cannot add action track")
         
 
-class NWO_OT_RemoveActionGroup(bpy.types.Operator):
+class NWO_OT_RemoveActionTrack(bpy.types.Operator):
     """Remove an Item from the UIList"""
 
-    bl_idname = "nwo.action_group_remove"
-    bl_label = "Remove"
-    bl_description = "Remove an action from the list"
+    bl_idname = "nwo.action_track_remove"
+    bl_label = "Remove Action Track"
+    bl_description = "Remove an action track from the list"
     bl_options = {'UNDO'}
 
     @classmethod
@@ -791,9 +789,9 @@ class NWO_OT_RemoveActionGroup(bpy.types.Operator):
             animation.active_action_group_index += -1
         return {"FINISHED"}
     
-class NWO_OT_ActionGroupMove(bpy.types.Operator):
-    bl_label = ""
-    bl_idname = "nwo.action_group_move"
+class NWO_OT_ActionTrackMove(bpy.types.Operator):
+    bl_label = "Move Action Track"
+    bl_idname = "nwo.action_track_move"
     bl_options = {'UNDO'}
     
     direction: bpy.props.StringProperty()
@@ -816,7 +814,7 @@ class NWO_OT_ActionGroupMove(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class NWO_UL_ActionGroup(bpy.types.UIList):
+class NWO_UL_ActionTrack(bpy.types.UIList):
     def draw_item(
         self,
         context,
