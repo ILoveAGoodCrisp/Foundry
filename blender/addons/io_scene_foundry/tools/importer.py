@@ -296,7 +296,7 @@ class NWO_Import(bpy.types.Operator):
                         utils.transform_scene(context, (1 / scale_factor), to_x_rot, context.scene.nwo.forward_direction, 'x')
          
                     imported_jms_objects = importer.import_jms_files(jms_files, self.legacy_fix_rotations)
-                    imported_jma_animations = importer.import_jma_files(jma_files, self.legacy_fix_rotations)
+                    imported_jma_animations = importer.import_jma_files(jma_files, self.legacy_fix_rotations, arm)
                     if imported_jma_animations:
                         imported_actions.extend(imported_jma_animations)
                     if imported_jms_objects:
@@ -1995,11 +1995,11 @@ class NWOImporter:
 
 # Legacy Animation importer
 ######################################################################
-    def import_jma_files(self, jma_files, legacy_fix_rotations):
+    def import_jma_files(self, jma_files, legacy_fix_rotations, arm):
         """Imports all legacy animation files supplied"""
         if not jma_files:
             return []
-        self.animations = []
+        self.actions = []
         self.objects = []
         if jma_files:
             muted_armature_deforms = utils.mute_armature_mods()
@@ -2009,14 +2009,14 @@ class NWOImporter:
             )
             try:
                 for path in jma_files:
-                    self.import_legacy_animation(path, legacy_fix_rotations)
+                    self.import_legacy_animation(path, legacy_fix_rotations, arm)
             finally:
                 utils.unmute_armature_mods(muted_armature_deforms)
             
-            return self.animations
+            return self.actions
             
         
-    def import_legacy_animation(self, path, legacy_fix_rotations):
+    def import_legacy_animation(self, path, legacy_fix_rotations, arm):
         path = Path(path)
         existing_animations = bpy.data.actions[:]
         extension = path.suffix.strip('.')
@@ -2025,46 +2025,50 @@ class NWOImporter:
         with utils.MutePrints():
             bpy.ops.import_scene.jma(filepath=str(path), fix_rotations=legacy_fix_rotations)
         if bpy.data.actions:
-            new_animations = [a for a in bpy.data.actions if a not in existing_animations]
-            if not new_animations:
+            new_actions = [a for a in bpy.data.actions if a not in existing_animations]
+            if not new_actions:
                 return utils.print_warning(f"Failed to import animation: {path}")
                 
-            anim = new_animations[0]
-            self.animations.append(anim)
-            nwo = anim.nwo
-            if anim:
-                anim.use_fake_user = True
-                anim.use_frame_range = True
-                if len(anim_name) > 64:
-                    nwo.name_override = anim_name
+            action = new_actions[0]
+            self.actions.append(action)
+            if action:
+                animation = self.context.scene.nwo.animations.add()
+                animation.name = anim_name
+                action.use_fake_user = True
+                action.use_frame_range = True
+                animation.frame_start = int(action.frame_start)
+                animation.frame_end = int(action.frame_end)
+                track = animation.action_tracks.add()
+                track.object = arm
+                track.action = action
                 match extension.lower():
                     case 'jmm':
-                        nwo.animation_type = 'base'
-                        nwo.animation_movement_data = 'none'
+                        animation.animation_type = 'base'
+                        animation.animation_movement_data = 'none'
                     case 'jma':
-                        nwo.animation_type = 'base'
-                        nwo.animation_movement_data = 'xy'
+                        animation.animation_type = 'base'
+                        animation.animation_movement_data = 'xy'
                     case 'jmt':
-                        nwo.animation_type = 'base'
-                        nwo.animation_movement_data = 'xyyaw'
+                        animation.animation_type = 'base'
+                        animation.animation_movement_data = 'xyyaw'
                     case 'jmz':
-                        nwo.animation_type = 'base'
-                        nwo.animation_movement_data = 'xyzyaw'
+                        animation.animation_type = 'base'
+                        animation.animation_movement_data = 'xyzyaw'
                     case 'jmv':
-                        nwo.animation_type = 'base'
-                        nwo.animation_movement_data = 'full'
+                        animation.animation_type = 'base'
+                        animation.animation_movement_data = 'full'
                     case 'jmw':
-                        nwo.animation_type = 'world'
+                        animation.animation_type = 'world'
                     case 'jmo':
-                        nwo.animation_type = 'overlay'
-                        nwo.animation_is_pose = any(hint in anim_name.lower() for hint in pose_hints)
-                        if nwo.animation_is_pose:
+                        animation.animation_type = 'overlay'
+                        animation.animation_is_pose = any(hint in anim_name.lower() for hint in pose_hints)
+                        if animation.animation_is_pose:
                             pass
                     case 'jmr':
-                        nwo.animation_type = 'replacement'
+                        animation.animation_type = 'replacement'
                     case 'jmrx':
-                        nwo.animation_type = 'replacement'
-                        nwo.animation_space = 'local'
+                        animation.animation_type = 'replacement'
+                        animation.animation_space = 'local'
                         
 class NWO_FH_Import(bpy.types.FileHandler):
     bl_idname = "NWO_FH_Import"
