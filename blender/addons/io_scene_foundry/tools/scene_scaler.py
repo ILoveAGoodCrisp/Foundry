@@ -103,22 +103,17 @@ class NWO_ScaleScene(bpy.types.Operator):
         old_mode = context.mode
         old_object = context.object
         old_selection = context.selected_objects
-        # animation_index = None
-        # current_frame = int(context.scene.frame_current)
         context.scene.tool_settings.use_keyframe_insert_auto = False
-        # if bpy.ops.nwo.unlink_animation.poll():
-        #     animation_index = int(context.scene.nwo.active_action_index)
-        #     bpy.ops.nwo.unlink_animation()
         utils.set_object_mode(context)
         utils.deselect_all_objects()
         objects_to_transform = old_selection if self.selected_only else None
         actions_to_transform = None
         if self.animations != "all":
-            active_action_index = context.scene.nwo.active_action_index
-            if self.animations == 'active' and active_action_index >= 0:
-                actions_to_transform = [bpy.data.actions[active_action_index]]
+            active_animation_index = context.scene.nwo.active_animation_index
+            if self.animations == 'active' and active_animation_index >= 0:
+                actions_to_transform = {track.action for track in context.scene.nwo.animations[active_animation_index].action_tracks}
             else:
-                actions_to_transform = []
+                actions_to_transform = set()
                 
         utils.transform_scene(context, self.scale_factor, self.rotation, context.scene.nwo.forward_direction, self.forward, keep_marker_axis=self.maintain_marker_axis, objects=objects_to_transform, actions=actions_to_transform, exclude_scale_models=self.exclude_scale_models)
 
@@ -135,10 +130,7 @@ class NWO_ScaleScene(bpy.types.Operator):
             context.scene.nwo.scale = self.scale
         context.scene.nwo.forward_direction = self.forward
         context.scene.nwo.maintain_marker_axis = self.maintain_marker_axis
-        
-        # if animation_index:
-        #     context.scene.nwo.active_action_index = animation_index
-        #     context.scene.frame_current = current_frame
+
         return {"FINISHED"}
     
     def invoke(self, context: bpy.types.Context, _):

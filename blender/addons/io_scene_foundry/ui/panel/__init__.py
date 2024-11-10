@@ -2713,10 +2713,10 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         row.template_list(
             "NWO_UL_AnimationList",
             "",
-            bpy.data,
-            "actions",
             scene_nwo,
-            "active_action_index",
+            "animations",
+            scene_nwo,
+            "active_animation_index",
         )
         
         col = row.column(align=True)
@@ -2729,48 +2729,62 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         if not ob or ob.type != "ARMATURE":
             col.separator()
             col.operator("nwo.select_armature", text="", icon='OUTLINER_OB_ARMATURE')
+            
+        col.separator()
+        col.menu("NWO_MT_AnimationTools", text="", icon='DOWNARROW_HLT')
         
         col = box.column()
         row = col.row()
         
-        
-        if scene_nwo.active_action_index < 0:
+        if scene_nwo.active_animation_index < 0:
             col.label(text="No Animation Selected")
             return
         
-        action = bpy.data.actions[scene_nwo.active_action_index]
+        animation = scene_nwo.animations[scene_nwo.active_animation_index]
         
-        if not action.use_frame_range:
-            col.label(text="Animation excluded from export", icon='ERROR')
-            col.separator()
-            
-        if not action.use_fake_user:
-            col.label(text="Fake User Not Set, Animation may be lost on Blender close", icon='ERROR')
-            col.prop(action, 'use_fake_user', text="Enable Fake User", icon='FAKE_USER_OFF')
-            col.separator()
+        col = box.column()
+        row = col.row()
+        row.label(text="Action Tracks")
+        row = col.row()
+        rows = 3
+        row.template_list(
+            "NWO_UL_ActionGroup",
+            "",
+            animation,
+            "action_tracks",
+            animation,
+            "active_action_group_index",
+            rows=rows,
+        )
+        col = row.column(align=True)
+        col.operator("nwo.action_group_add", text="", icon="ADD")
+        col.operator("nwo.action_group_remove", icon="REMOVE", text="")
+        col.separator()
+        col.operator("nwo.action_group_move", text="", icon="TRIA_UP").direction = 'up'
+        col.operator("nwo.action_group_move", icon="TRIA_DOWN", text="").direction = 'down'
         
-        nwo = action.nwo
+        col = box.column(align=True)
+        
         col.separator()
         col.operator("nwo.animation_frames_sync_to_keyframes", text="Sync Frame Range to Keyframes", icon='FILE_REFRESH', depress=scene_nwo.keyframe_sync_active)
         col.separator()
+        
         row = col.row()
-        row.use_property_split = True
-        row.prop(action, "frame_start", text='Start Frame')
-        row = col.row()
-        row.use_property_split = True
-        row.prop(action, "frame_end", text='End Frame')
+        row.use_property_split = False
+        row.prop(animation, "frame_start", text='Start Frame')
+        row.prop(animation, "frame_end", text='End Frame')
         col.separator()
         row = col.row()
         row.use_property_split = True
-        row.prop(nwo, "animation_type")
-        if nwo.animation_type != 'world':
+        row.prop(animation, "animation_type")
+        if animation.animation_type != 'world':
             row = col.row()
             row.use_property_split = True
-            if nwo.animation_type == 'base':
-                row.prop(nwo, 'animation_movement_data')
-            elif nwo.animation_type == 'overlay':
-                row.prop(nwo, 'animation_is_pose')
-                if nwo.animation_is_pose:
+            if animation.animation_type == 'base':
+                row.prop(animation, 'animation_movement_data')
+            elif animation.animation_type == 'overlay':
+                row.prop(animation, 'animation_is_pose')
+                if animation.animation_is_pose:
                     no_aim_pitch = not scene_nwo.node_usage_pose_blend_pitch
                     no_aim_yaw = not scene_nwo.node_usage_pose_blend_yaw
                     no_pedestal = not scene_nwo.node_usage_pedestal
@@ -2790,20 +2804,21 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     else:
                         col.operator('nwo.add_aim_animation', text='Add/Change Aim Bones Animation', icon='ANIM')
                             
-            elif nwo.animation_type == 'replacement':
-                row.prop(nwo, 'animation_space', expand=True)
+            elif animation.animation_type == 'replacement':
+                row.prop(animation, 'animation_space', expand=True)
             col.separator()
             row = col.row()
             row.use_property_split = True
-            row.prop(nwo, "compression", text="Compression")
+            row.prop(animation, "compression", text="Compression")
             col.separator()
             row = col.row()
             row.use_property_split = True
-            row.prop(nwo, "name_override")
+
             col.separator()
+            
             row = col.row()
             # ANIMATION RENAMES
-            if not nwo.animation_renames:
+            if not animation.animation_renames:
                 row.operator("nwo.animation_rename_add", text="New Rename", icon_value=get_icon_id('animation_rename'))
             else:
                 row = col.row()
@@ -2813,10 +2828,10 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 row.template_list(
                     "NWO_UL_AnimationRename",
                     "",
-                    nwo,
+                    animation,
                     "animation_renames",
-                    nwo,
-                    "animation_renames_index",
+                    animation,
+                    "active_animation_rename_index",
                     rows=rows,
                 )
                 col = row.column(align=True)
@@ -2827,10 +2842,12 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 col.operator("nwo.animation_rename_move", icon="TRIA_DOWN", text="").direction = 'down'
 
             # ANIMATION EVENTS
-            if not nwo.animation_events:
-                if nwo.animation_renames:
+            if not animation.animation_events:
+                if animation.animation_renames:
                     row = box.row()
                 row.operator("animation_event.list_add", text="New Event", icon_value=get_icon_id('animation_event'))
+                if bpy.ops.nwo.paste_events.poll():
+                    row.operator("nwo.paste_events", icon="PASTEDOWN")
             else:
                 row = box.row()
                 row.label(text="Animation Events")
@@ -2839,10 +2856,10 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 row.template_list(
                     "NWO_UL_AnimProps_Events",
                     "",
-                    nwo,
+                    animation,
                     "animation_events",
-                    nwo,
-                    "animation_events_index",
+                    animation,
+                    "active_animation_event_index",
                     rows=rows,
                 )
 
@@ -2852,9 +2869,13 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 col.separator()
                 col.operator("nwo.animation_event_move", text="", icon="TRIA_UP").direction = 'up'
                 col.operator("nwo.animation_event_move", icon="TRIA_DOWN", text="").direction = 'down'
+                
+                row = box.row()
+                row.operator("nwo.copy_events", icon="COPYDOWN")
+                row.operator("nwo.paste_events", icon="PASTEDOWN")
 
-                if len(nwo.animation_events) > 0:
-                    item = nwo.animation_events[nwo.animation_events_index]
+                if len(animation.animation_events) > 0:
+                    item = animation.animation_events[animation.active_animation_event_index]
                     # row = layout.row()
                     # row.prop(item, "name") # debug only
                     flow = box.grid_flow(
@@ -2925,7 +2946,6 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     ):
                         col.prop(item, "import_frame")
                         col.prop(item, "import_name")
-            col = box.column()
 
     def draw_tools(self):
         nwo = self.scene.nwo

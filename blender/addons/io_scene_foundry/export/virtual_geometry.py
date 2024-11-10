@@ -61,23 +61,22 @@ def read_frame_id_list() -> list:
     return frame_ids
 
 class VirtualAnimation:
-    def __init__(self, action: bpy.types.Action, scene: 'VirtualScene', sample: bool, animation_controls=[]):
-        nwo = action.nwo
-        self.name = nwo.name_override.strip() if nwo.name_override.strip() else action.name
-        self.action = action
+    def __init__(self, animation, scene: 'VirtualScene', sample: bool, animation_controls=[]):
+        self.name = animation.name
+        self.anim = animation
         
-        if scene.default_animation_compression != "Automatic" and nwo.compression == "Default":
+        if scene.default_animation_compression != "Automatic" and animation.compression == "Default":
             self.compression = scene.default_animation_compression
         else:
-            self.compression = nwo.compression
+            self.compression = animation.compression
             
-        self.animation_type = nwo.animation_type
-        self.movement = nwo.animation_movement_data
-        self.space = nwo.animation_space
-        self.pose_overlay = nwo.animation_is_pose and nwo.animation_type == 'overlay'
+        self.animation_type = animation.animation_type
+        self.movement = animation.animation_movement_data
+        self.space = animation.animation_space
+        self.pose_overlay = animation.animation_is_pose and animation.animation_type == 'overlay'
         
-        self.frame_count: int = int(action.frame_end) - int(action.frame_start) + 1
-        self.frame_range: tuple[int, int] = (int(action.frame_start), int(action.frame_end))
+        self.frame_count: int = animation.frame_end - animation.frame_start + 1
+        self.frame_range: tuple[int, int] = (animation.frame_start, animation.frame_end)
         self.granny_animation = None
         self.granny_track_group = None
         
@@ -1258,8 +1257,8 @@ class VirtualScene:
         if model.node:
             self.models[ob.name] = model
             
-    def add_animation(self, action: bpy.types.Action, sample=True, controls=[]):
-        animation = VirtualAnimation(action, self, sample, controls)
+    def add_animation(self, anim, sample=True, controls=[]):
+        animation = VirtualAnimation(anim, self, sample, controls)
         self.animations.append(animation)
         return animation.name
         

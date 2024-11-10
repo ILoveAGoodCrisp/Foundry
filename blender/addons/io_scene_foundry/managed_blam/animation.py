@@ -174,11 +174,11 @@ class AnimationTag(Tag):
             
         self.tag_has_changes = True
         
-    def validate_compression(self, actions: bpy.types.Action, default_compression: str):
+    def validate_compression(self, animations, default_compression: str):
         # medium = 0
         # rough = 1
         # uncompressed = 2
-        game_animations = {action.nwo.name_override.replace(' ', ':'): action.nwo.compression for action in actions}
+        game_animations = {animation.name.replace(' ', ':'): animation.compression for animation in animations}
         
         for element in self.block_animations.Elements:
             name = element.Fields[0].GetStringData()

@@ -539,9 +539,9 @@ def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_pat
                 export_scene.get_initial_export_objects()
                 export_scene.map_halo_properties()
                 
+            export_scene.preprocess_tags()
             print("\n\nWriting Tags")
             print("-----------------------------------------------------------------------\n")
-            export_scene.preprocess_tags()
             export_scene.invoke_tool_import()
             export_scene.postprocess_tags()
             export_scene.lightmap()

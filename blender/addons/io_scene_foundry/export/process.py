@@ -7,7 +7,7 @@ import random
 import bpy
 from mathutils import Vector
 
-from ..props.animation import NWO_ActionPropertiesGroup, NWO_Animation_ListItems
+from ..props.scene import NWO_AnimationPropertiesGroup, NWO_Animation_ListItems
 
 from ..tools.scenario.lightmap import run_lightmapper
 
@@ -139,7 +139,7 @@ class ExportScene:
         self.light_scale = utils.get_export_scale(context)
         self.mirror = export_settings.granny_mirror
         self.has_animations = False
-        self.exported_actions = []
+        self.exported_animations = []
         self.setup_scenario = False
         self.lights = []
         self.temp_objects = set()
@@ -159,12 +159,11 @@ class ExportScene:
         self.defer_graph_process = False
         self.node_usage_set = False
         
-        self.armature_poses = {}
+        # self.armature_poses = {}
         self.ob_halo_data = {}
         self.disabled_collections = set()
-        self.animated_objects = {}
         self.current_frame = context.scene.frame_current
-        self.current_action = None
+        self.current_animation = None
         self.current_mode = context.mode
         
         self.atten_scalar = 1 if corinth else 100
@@ -212,10 +211,10 @@ class ExportScene:
         utils.set_object_mode(self.context)
         self.disabled_collections = utils.disable_excluded_collections(self.context)
         if self.asset_type in {AssetType.MODEL, AssetType.ANIMATION}:
-            action_index = self.context.scene.nwo.active_action_index
-            if action_index > -1:
-                self.current_action = bpy.data.actions[action_index]
-            self.animated_objects = utils.reset_to_basis(self.context, record_current_action=True)
+            animation_index = self.context.scene.nwo.active_animation_index
+            if animation_index > -1:
+                self.current_animation = self.context.scene.nwo.animations[animation_index]
+                utils.clear_animation(self.current_animation)
         
     def get_initial_export_objects(self):
         self.temp_objects = set()
@@ -369,16 +368,15 @@ class ExportScene:
         for ob in bpy.data.objects:
             if ob.parent:
                 self.objects_with_children.add(ob.parent)
-                
         
         with utils.Spinner():
             utils.update_job_count(process, "", 0, num_export_objects)
             for idx, ob in enumerate(self.export_objects):
                 ob: bpy.types.Object
-                if ob.type == 'ARMATURE':
-                    self.armature_poses[ob.data] = ob.data.pose_position
-                    ob.data.pose_position = 'REST'
-                elif ob.type == 'LIGHT':
+                # if ob.type == 'ARMATURE':
+                #     self.armature_poses[ob.data] = ob.data.pose_position
+                #     ob.data.pose_position = 'REST'
+                if ob.type == 'LIGHT':
                     if ob.data.type == 'AREA':
                         ob = utils.area_light_to_emissive(ob)
                         self.temp_objects.add(ob)
@@ -1239,13 +1237,13 @@ class ExportScene:
     def sample_animations(self):
         if self.asset_type not in {AssetType.MODEL, AssetType.ANIMATION}:
             return
-        valid_actions = [action for action in bpy.data.actions if action.use_frame_range]
-        if not valid_actions:
+        valid_animations = [animation for animation in self.context.scene.nwo.animations if animation.export_this]
+        if not valid_animations:
             return
         process = "--- Sampling Animations"
-        num_animations = len(valid_actions)
-        for armature in self.armature_poses.keys():
-            armature.pose_position = 'POSE'
+        num_animations = len(valid_animations)
+        # for armature in self.armature_poses.keys():
+        #     armature.pose_position = 'POSE'
         # for ob in self.context.view_layer.objects:
         #     ob: bpy.types.Object
         #     if ob.type != 'ARMATURE':
@@ -1257,38 +1255,39 @@ class ExportScene:
             if self.export_settings.export_animations == 'ALL':
                 with utils.Spinner():
                     utils.update_job_count(process, "", 0, num_animations)
-                    for idx, action in enumerate(valid_actions):
-                        for ob in self.animated_objects.keys():
-                            ob.animation_data.action = action
-                        controls = self.create_event_objects(action)
-                        self.virtual_scene.add_animation(action, controls=controls)
-                        self.exported_actions.append(action)
+                    for idx, animation in enumerate(valid_animations):
+                        for track in animation.action_tracks:
+                            if track.object and track.action:
+                                track.object.animation_data.action = track.action
+                                
+                        controls = self.create_event_objects(animation)
+                        self.virtual_scene.add_animation(animation, controls=controls)
+                        self.exported_animations.append(animation)
                         utils.update_job_count(process, "", idx, num_animations)
                     utils.update_job_count(process, "", num_animations, num_animations)
             else:
                 active_only = self.export_settings.export_animations == 'ACTIVE'
-                for action in valid_actions:
-                    if active_only and action == self.current_action:
-                        for ob in self.animated_objects.keys():
-                            ob.animation_data.action = action
+                for animation in valid_animations:
+                    if active_only and animation == self.current_animation:
+                        for track in animation.action_tracks:
+                            if track.object and track.action:
+                                track.object.animation_data.action = track.action
                         print("--- Sampling Active Animation ", end="")
                         with utils.Spinner():
-                            controls = self.create_event_objects(action)
-                            self.virtual_scene.add_animation(action, controls=controls)
+                            controls = self.create_event_objects(animation)
+                            self.virtual_scene.add_animation(animation, controls=controls)
                         print(" ", end="")
                     else:
-                        self.virtual_scene.add_animation(action, sample=False)
+                        self.virtual_scene.add_animation(animation, sample=False)
                         
-                    self.exported_actions.append(action)
+                    self.exported_animations.append(animation)
         finally:
             utils.unmute_armature_mods(armature_mods)
             
-    def create_event_objects(self, action: bpy.types.Action):
-        nwo = action.nwo
-        nwo: NWO_ActionPropertiesGroup
-        name = nwo.name_override.strip() if nwo.name_override.strip() else action.name
+    def create_event_objects(self, animation):
+        name = animation.name
         event_ob_props = {}
-        for event in nwo.animation_events:
+        for event in animation.animation_events:
             event: NWO_Animation_ListItems
             props = {}
             event_type = event.event_type
@@ -1302,7 +1301,7 @@ class ExportScene:
             props["bungie_animation_event_id"] = abs(event.event_id)
             props["bungie_animation_event_type"] = event_type
             props["bungie_animation_event_start"] = 0
-            props["bungie_animation_event_end"] = int(action.frame_end) - int(action.frame_start)
+            props["bungie_animation_event_end"] = animation.frame_end - animation.frame_start
             
             match event_type:
                 case '_connected_geometry_animation_event_type_frame':
@@ -1479,7 +1478,7 @@ class ExportScene:
             for animation in self.virtual_scene.animations:
                 granny_path = self._get_export_path(animation.name, True)
                 self.sidecar.add_animation_file_data(granny_path, bpy.data.filepath, animation.name, animation.compression, animation.animation_type, animation.movement, animation.space, animation.pose_overlay)
-                if export and (not active_only or (self.current_action is not None and animation.action == self.current_action)):
+                if export and (not active_only or (self.current_animation is not None and animation.anim == self.current_animation)):
                     job = f"--- {animation.name}"
                     utils.update_job(job, 0)
                     nodes = self.animation_groups.get(animation.name, [])
@@ -1576,14 +1575,16 @@ class ExportScene:
         for mesh in self.temp_meshes:
             bpy.data.meshes.remove(mesh)
         
-        for armature, pose in self.armature_poses.items():
-            armature.pose_position = pose
+        # for armature, pose in self.armature_poses.items():
+        #     armature.pose_position = pose
             
         for collection in self.disabled_collections:
             collection.exclude = False
-            
-        for ob, action in self.animated_objects.items():
-            ob.animation_data.action = action
+        
+        if self.current_animation is not None:
+            for track in self.current_animation.action_tracks:
+                if track.object and track.action:
+                    track.object.animation_data.action = track.action
             
         self.context.scene.frame_set(self.current_frame)
         
@@ -1605,8 +1606,8 @@ class ExportScene:
                     animation.set_parent_graph(self.scene_settings.parent_animation_graph)
                     # print("--- Set Parent Animation Graph")
                 if self.virtual_scene and self.virtual_scene.animations:
-                    self.print_pre(f"--- Validating animation compression for {len(self.exported_actions)} animations: Default Compression = {self.scene_settings.default_animation_compression}")
-                    animation.validate_compression(self.exported_actions, self.scene_settings.default_animation_compression)
+                    self.print_pre(f"--- Validating animation compression for {len(self.exported_animations)} animations: Default Compression = {self.scene_settings.default_animation_compression}")
+                    animation.validate_compression(self.exported_animations, self.scene_settings.default_animation_compression)
                     # print("--- Validated Animation Compression")
                 if self.node_usage_set:
                     self.print_pre("--- Setting node usages")
@@ -1720,8 +1721,8 @@ class ExportScene:
                             animation.set_parent_graph(self.scene_settings.parent_animation_graph)
                             # print("--- Set Parent Animation Graph")
                         if self.virtual_scene.animations:
-                            self.print_post(f"--- Validating animation compression for {len(self.exported_actions)} animations: Default Compression = {self.scene_settings.default_animation_compression}")
-                            animation.validate_compression(self.exported_actions, self.scene_settings.default_animation_compression)
+                            self.print_post(f"--- Validating animation compression for {len(self.exported_animations)} animations: Default Compression = {self.scene_settings.default_animation_compression}")
+                            animation.validate_compression(self.exported_animations, self.scene_settings.default_animation_compression)
                             # print("--- Validated Animation Compression")
                         if self.node_usage_set:
                             self.print_post("--- Setting node usages")

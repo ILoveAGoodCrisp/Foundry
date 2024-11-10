@@ -1979,36 +1979,31 @@ def base_material_name(name: str, strip_legacy_halo_names=False) -> str:
     # ignore material suffixes
     return material_name.rstrip("%#?!@*$^-&=.;)><|~({]}[' ") # excluding 0 here as it can interfere with normal naming convention
 
-
-def get_animated_objects(context) -> list[bpy.types.Object]:
-    animated_objects = set()
-    if context.object and context.object.animation_data:
-        animated_objects.add(context.object)
-    
-    animated_objects.update({ob for ob in context.view_layer.objects if ob.type == 'ARMATURE' and ob.animation_data})
-        
-    control_objects = get_object_controls(context)
-    if control_objects:
-        animated_objects.update(control_objects)
-        
-    return animated_objects
-
-def reset_to_basis(context, keep_animation=False, record_current_action=False) -> list[bpy.types.Object]:
-    animated_objects = get_animated_objects(context)
+def reset_to_basis(keep_animation=False, record_current_action=False):
     ob_actions = {}
+    animated_objects = [ob for ob in bpy.data.objects if ob.animation_data]
     for ob in animated_objects:
         ob_actions[ob] = ob.animation_data.action
         if not keep_animation:
             ob.animation_data.action = None
-        # ob.matrix_basis = Matrix()
+        ob.matrix_basis = Matrix()
         if ob.type == 'ARMATURE':
             for bone in ob.pose.bones:
                 bone.matrix_basis = Matrix()
                 
     if record_current_action:
         return ob_actions
-                      
-    return animated_objects
+
+def clear_animation(animation):
+    for group in animation.action_tracks:
+        if group.action is not None and group.object is not None and group.object.animation_data:
+            group.object.matrix_basis = Matrix.Identity(4)
+            if group.object.type == 'ARMATURE':
+                for bone in group.object.pose.bones:
+                    bone.matrix_basis = Matrix.Identity(4)
+            
+            group.object.animation_data.use_nla = False
+            group.object.animation_data.action = None
 
 def asset_path_from_blend_location() -> str | None:
     blend_path = bpy.data.filepath.lower()

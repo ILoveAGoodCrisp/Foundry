@@ -123,15 +123,17 @@ class NWO_OT_FcurveTransfer(bpy.types.Operator):
     )
 
     def execute(self, context):
-        active_action_index = context.scene.nwo.active_action_index
+        active_animation_index = context.scene.nwo.active_animation_index
+        animation = context.scene.nwo.animations[active_animation_index]
         actions = []
         if self.all_animations:
-            actions = [action for action in bpy.data.actions]
+            actions = bpy.data.actions
+            utils.reset_to_basis()
         else:
-            actions = [bpy.data.actions[active_action_index]]
+            actions = {track.action for track in animation}
+            utils.clear_animation(animation)
         
         for action in actions:
-            utils.reset_to_basis(context)
             fcurve_transfer = FCurveTransfer(action, self.source_bone, self.target_bone, self.source_channel, self.target_channel)
             fcurve_transfer.get_fcurves()
             if fcurve_transfer.source_fcurve:
@@ -141,7 +143,7 @@ class NWO_OT_FcurveTransfer(bpy.types.Operator):
             else:
                 self.report({'WARNING'}, f"Failed to find source fcurve on action {action.name}")
         
-        context.scene.nwo.active_action_index = active_action_index
+        context.scene.nwo.active_animation_index = active_animation_index
         return {"FINISHED"}
     
     def invoke(self, context, event):

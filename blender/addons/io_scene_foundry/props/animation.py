@@ -1,6 +1,9 @@
 import bpy
 from ..utils import is_marker
 
+# NOTE This is all legacy code
+# Leaving this in to support action -> animation conversion
+
 #############################################################
 # ANIMATION RENAMES
 #############################################################
@@ -535,7 +538,7 @@ class NWO_ActionPropertiesGroup(bpy.types.PropertyGroup):
         type=NWO_Animation_ListItems,
     )
 
-    animation_events_index: bpy.props.IntProperty(
+    active_animation_event_index: bpy.props.IntProperty(
         name="Index for Animation Event",
         default=0,
         min=0,
@@ -545,7 +548,7 @@ class NWO_ActionPropertiesGroup(bpy.types.PropertyGroup):
         type=NWO_AnimationRenamesItems,
     )
 
-    animation_renames_index: bpy.props.IntProperty(
+    active_animation_rename_index: bpy.props.IntProperty(
         name="Index for Animation Renames",
         default=0,
         min=0,
