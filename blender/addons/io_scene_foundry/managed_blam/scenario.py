@@ -18,8 +18,7 @@ class ScenarioTag(Tag):
         for element in self.block_bsps.Elements:
             bsp_reference = element.SelectField('structure bsp').Path
             full_bsp_name = utils.dot_partition(os.path.basename(bsp_reference.ToString()))
-            short_bsp_name = full_bsp_name.split(self.asset_name + '_')[1]
-            if short_bsp_name == bsp_name:
+            if full_bsp_name == bsp_name:
                 return element
         else:
             return print("BSP not found in Scenario Tag, perhaps you need to export the scene")
