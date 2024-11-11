@@ -65,7 +65,7 @@ class NWO_ValidateRig(bpy.types.Operator):
         pedestal: bpy.types.EditBone = edit_bones.get(scene_nwo.node_usage_pedestal)
         aim_yaw: bpy.types.EditBone = edit_bones.get(scene_nwo.node_usage_pose_blend_pitch)
         aim_pitch: bpy.types.EditBone = edit_bones.get(scene_nwo.node_usage_pose_blend_yaw)
-        validated = aim_pitch.matrix == pedestal.matrix and aim_yaw.matrix == pedestal.matrix
+        validated = pedestal.matrix == aim_pitch.matrix == aim_yaw.matrix
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         return validated
     
@@ -249,11 +249,11 @@ class NWO_ValidateRig(bpy.types.Operator):
             scene_nwo.multiple_root_bones = False
         
         
-        # if self.validate_root_rot(self.rig, root_bone_name, scene):
-        #     scene_nwo.invalid_root_bone = False
-        # else:
-        #     self.report({'WARNING'}, f'Root bone [{root_bone_name}] has non-standard transforms. This may cause issues at export')
-        #     scene_nwo.invalid_root_bone = True
+        if self.validate_root_rot(self.rig, root_bone_name, scene):
+            scene_nwo.invalid_root_bone = False
+        else:
+            self.report({'WARNING'}, f'Root bone [{root_bone_name}] has non-standard transforms. This may cause issues at export')
+            scene_nwo.invalid_root_bone = True
             
         if self.needs_pose_bones(scene_nwo):
             scene_nwo.needs_pose_bones = True
