@@ -1,192 +1,153 @@
 """UI for the asset editor sub-panel"""
 
+import os
+from pathlib import Path
 import bpy
 
 from ...icons import get_icon_id
 from ... import utils
 
-class NWO_UL_SceneProps_SharedAssets(bpy.types.UIList):
-    use_name_reverse: bpy.props.BoolProperty(
-        name="Reverse Name",
-        default=False,
-        options=set(),
-        description="Reverse name sort order",
-    )
-
-    use_order_name: bpy.props.BoolProperty(
-        name="Name",
-        default=False,
-        options=set(),
-        description="Sort groups by their name (case-insensitive)",
-    )
-
-    filter_string: bpy.props.StringProperty(
-        name="filter_string", default="", description="Filter string for name"
-    )
-
-    filter_invert: bpy.props.BoolProperty(
-        name="Invert",
-        default=False,
-        options=set(),
-        description="Invert Filter",
-    )
-
-    def filter_items(self, context, data, property):
-        items = getattr(data, property)
-        if not len(items):
-            return [], []
-
-        if self.filter_string:
-            flt_flags = bpy.types.UI_UL_list.filter_items_by_name(
-                self.filter_string,
-                self.bitflag_filter_item,
-                items,
-                propname="name",
-                reverse=self.filter_invert,
-            )
-        else:
-            flt_flags = [self.bitflag_filter_item] * len(items)
-
-        if self.use_order_name:
-            flt_neworder = bpy.types.UI_UL_list.sort_items_by_name(items, "name")
-            if self.use_name_reverse:
-                flt_neworder.reverse()
-        else:
-            flt_neworder = []
-
-        return flt_flags, flt_neworder
-
-    def draw_filter(self, context, layout):
-        row = layout.row(align=True)
-        row.prop(self, "filter_string", text="Filter", icon="VIEWZOOM")
-        row.prop(self, "filter_invert", text="", icon="ARROW_LEFTRIGHT")
-
-        row = layout.row(align=True)
-        row.label(text="Order by:")
-        row.prop(self, "use_order_name", toggle=True)
-
-        icon = "TRIA_UP" if self.use_name_reverse else "TRIA_DOWN"
-        row.prop(self, "use_name_reverse", text="", icon=icon)
-
+import xml.etree.ElementTree as ET
+    
+class NWO_UL_ChildAsset(bpy.types.UIList):
     def draw_item(
-        self, context, layout, data, item, icon, active_data, active_propname
+        self,
+        context,
+        layout,
+        data,
+        item,
+        icon,
+        active_data,
+        active_propname,
+        index,
     ):
-        scene = context.scene
-        scene_nwo = scene.nwo
-        if self.layout_type in {"DEFAULT", "COMPACT"}:
-            if scene:
-                layout.label(text=item.shared_asset_name, icon="BOOKMARKS")
-            else:
-                layout.label(text="")
-        elif self.layout_type == "GRID":
-            layout.alignment = "CENTER"
-            layout.label(text="", icon_value=icon)
-
-
-class NWO_SceneProps_SharedAssets(bpy.types.Panel):
-    bl_label = "Shared Assets"
-    bl_idname = "NWO_PT_GameVersionPanel_SharedAssets"
-    bl_space_type = "PROPERTIES"
-    bl_region_type = "WINDOW"
-    bl_context = "scene"
-    bl_parent_id = "NWO_PT_ScenePropertiesPanel"
-
+        name = item.sidecar_path[:-12]
+                
+        layout.label(text=name, icon='FILE')
+        layout.prop(item, "enabled", icon='CHECKBOX_HLT' if item.enabled else 'CHECKBOX_DEHLT', text="", emboss=False)
+        
+class NWO_OT_OpenChildAsset(bpy.types.Operator):
+    bl_idname = "nwo.open_child_asset"
+    bl_label = "Open Blend"
+    bl_description = "Opens the source blend file for this asset"
+    bl_options = {"UNDO"}
+    
     @classmethod
     def poll(cls, context):
-        return False  # hiding this menu until it actually does something
-
-    def draw(self, context):
-        scene = context.scene
-        scene_nwo = scene.nwo
-        layout = self.layout
-
-        layout.template_list(
-            "NWO_UL_SceneProps_SharedAssets",
-            "",
-            scene_nwo,
-            "shared_assets",
-            scene_nwo,
-            "shared_assets_index",
-        )
-        # layout.template_list("NWO_UL_SceneProps_SharedAssets", "compact", scene_nwo, "shared_assets", scene_nwo, "shared_assets_index", type='COMPACT') # not needed
-
-        row = layout.row()
-        col = row.column(align=True)
-        col.operator("nwo_shared_asset.list_add", text="Add")
-        col = row.column(align=True)
-        col.operator("nwo_shared_asset.list_remove", text="Remove")
-
-        if len(scene_nwo.shared_assets) > 0:
-            item = scene_nwo.shared_assets[scene_nwo.shared_assets_index]
-            row = layout.row()
-            # row.prop(item, "shared_asset_name", text='Asset Name') # debug only
-            row.prop(item, "shared_asset_path", text="Path")
-            row = layout.row()
-            row.prop(item, "shared_asset_type", text="Type")
-
-
-class NWO_List_Add_Shared_Asset(bpy.types.Operator):
-    """Add an Item to the UIList"""
-
-    bl_idname = "nwo_shared_asset.list_add"
-    bl_label = "Add"
-    bl_description = "Add a new shared asset (sidecar) to the list."
-    filename_ext = ""
-    bl_options = {"REGISTER", "UNDO"}
-
+        return context.scene.nwo.child_assets and context.scene.nwo.active_child_asset_index > -1
+    
+    def execute(self, context):
+        asset_path = context.scene.nwo.child_assets[context.scene.nwo.active_child_asset_index].sidecar_path
+        full_path = Path(utils.get_data_path(), asset_path)
+        
+        source_blend_element = None
+        try:
+            tree = ET.parse(full_path)
+            root = tree.getroot()
+            source_blend_element = root.find(".//SourceBlend")
+        except:
+            pass
+        
+        if source_blend_element is None:
+            self.report({'WARNING'}, f"Failed to identify source blend file from {full_path}")
+            return {'CANCELLED'}
+        
+        relative_blend_path = source_blend_element.text
+        
+        full_blend_path = Path(utils.get_data_path(), relative_blend_path)
+        if not full_blend_path.exists():
+            self.report({'WARNING'}, f"Source blend file does not exist: {full_blend_path}")
+            return {'CANCELLED'}
+        
+        os.startfile(full_blend_path)
+        
+        return {'FINISHED'}
+        
+        
+class NWO_OT_AddChildAsset(bpy.types.Operator):
+    bl_idname = "nwo.add_child_asset"
+    bl_label = "Add Child Asset"
+    bl_description = "Adds a path to the sidecar which should contribute to this asset"
+    bl_options = {"UNDO"}
+    
+    @classmethod
+    def poll(cls, context):
+        return context.scene and utils.get_prefs().projects
+    
     filter_glob: bpy.props.StringProperty(
-        default="*.xml",
+        default="*.sidecar.xml",
         options={"HIDDEN"},
     )
 
+    use_filter_folder: bpy.props.BoolProperty(default=True)
+
     filepath: bpy.props.StringProperty(
-        name="Sidecar",
-        description="Set path for the Sidecar file",
+        name="Sidecar Path",
+        description="",
         subtype="FILE_PATH",
     )
+    
+    filename: bpy.props.StringProperty()
+
+    def execute(self, context):
+        scene_nwo = context.scene.nwo
+        fp = Path(self.filepath)
+        if fp.is_absolute() and fp.is_relative_to(utils.get_data_path()):
+            relative_filepath = utils.relative_path(fp)
+            if relative_filepath == context.scene.nwo.sidecar_path:
+                self.report({'WARNING'}, f"Cannot add own asset sidecar")
+                return {'CANCELLED'}
+            child = scene_nwo.child_assets.add()
+            child.sidecar_path = relative_filepath
+            scene_nwo.active_child_asset_index = len(scene_nwo.child_assets) - 1
+        else:
+            self.report({'WARNING'}, f"sidecar.xml path [{fp}] is not relative to current project data directory [{utils.get_data_path()}]. Cannot add child asset")
+            return {'CANCELLED'}
+        
+        return {'FINISHED'}
+    
+    def invoke(self, context, _):
+        self.filepath = utils.get_asset_path_full() + os.sep
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+    
+class NWO_OT_RemoveChildAsset(bpy.types.Operator):
+    bl_idname = "nwo.remove_child_asset"
+    bl_label = "Remove"
+    bl_description = "Remove a child asset from the list"
+    bl_options = {"UNDO"}
 
     @classmethod
     def poll(cls, context):
-        return context.scene
+        return context.scene.nwo.child_assets and context.scene.nwo.active_child_asset_index > -1
 
     def execute(self, context):
-        scene = context.scene
-        scene_nwo = scene.nwo
-        scene_nwo.shared_assets.add()
-
-        path = self.filepath
-        path = path.replace(utils.get_data_path(), "")
-        scene_nwo.shared_assets[-1].shared_asset_path = path
-        scene_nwo.shared_assets_index = len(scene_nwo.shared_assets) - 1
+        nwo = context.scene.nwo
+        index = nwo.active_child_asset_index
+        nwo.child_assets.remove(index)
+        if nwo.active_child_asset_index > len(nwo.child_assets) - 1:
+            nwo.active_child_asset_index -= 1
         context.area.tag_redraw()
         return {"FINISHED"}
-
-    def invoke(self, context, event):
-        context.window_manager.fileselect_add(self)
-
-        return {"RUNNING_MODAL"}
-
-
-class NWO_List_Remove_Shared_Asset(bpy.types.Operator):
-    """Remove an Item from the UIList"""
-
-    bl_idname = "nwo_shared_asset.list_remove"
-    bl_label = "Remove"
-    bl_description = "Remove a shared asset (sidecar) from the list."
-    bl_options = {"REGISTER", "UNDO"}
-
-    @classmethod
-    def poll(cls, context):
-        scene = context.scene
-        scene_nwo = scene.nwo
-        return context.scene and len(scene_nwo.shared_assets) > 0
+    
+class NWO_OT_MoveChildAsset(bpy.types.Operator):
+    bl_idname = "nwo.move_child_asset"
+    bl_label = "Move"
+    bl_description = "Moves the child asset up/down the list"
+    bl_options = {"UNDO"}
+    
+    direction: bpy.props.StringProperty()
 
     def execute(self, context):
-        scene = context.scene
-        scene_nwo = scene.nwo
-        index = scene_nwo.shared_assets_index
-        scene_nwo.shared_assets.remove(index)
-        return {"FINISHED"}
+        nwo = context.scene.nwo
+        assets = nwo.child_assets
+        delta = {"down": 1, "up": -1,}[self.direction]
+        current_index = nwo.active_child_asset_index
+        to_index = (current_index + delta) % len(assets)
+        assets.move(current_index, to_index)
+        nwo.active_child_asset_index = to_index
+        context.area.tag_redraw()
+        return {'FINISHED'}
     
 class NWO_UL_IKChain(bpy.types.UIList):
     # Called for each drawn item.
@@ -255,97 +216,6 @@ class NWO_OT_MoveIKChain(bpy.types.Operator):
         nwo.ik_chains_active_index = to_index
         context.area.tag_redraw()
         return {'FINISHED'}
-    
-class NWO_UL_ObjectControls(bpy.types.UIList):
-    def draw_item(self, context, layout: bpy.types.UILayout, data, item, icon, active_data, active_propname, index, flt_flag):
-        if item.ob:
-            layout.label(text=item.ob.name, icon='OBJECT_DATA')
-            layout.operator("nwo.remove_object_control", text='', icon='X', emboss=False).given_index = index
-        
-class NWO_OT_RemoveObjectControl(bpy.types.Operator):
-    bl_idname = "nwo.remove_object_control"
-    bl_label = "Remove Highlighted Object"
-    bl_description = "Removes the highlighted object from the object controls list"
-    bl_options = {"UNDO"}
-    
-    given_index: bpy.props.IntProperty(default=-1, options={'SKIP_SAVE'})
-    
-    def execute(self, context):
-        nwo = context.scene.nwo
-        if self.given_index > -1:
-            index = self.given_index
-        else:
-            index = nwo.object_controls_active_index
-        nwo.object_controls.remove(index)
-        if nwo.object_controls_active_index > len(nwo.object_controls) - 1:
-            nwo.object_controls_active_index -= 1
-        context.area.tag_redraw()
-            
-        return {'FINISHED'}
-    
-class NWO_OT_BatchAddObjectControls(bpy.types.Operator):
-    bl_idname = "nwo.batch_add_object_controls"
-    bl_label = "Add Selected Objects"
-    bl_description = "Adds selected objects to the object controls list"
-    bl_options = {"UNDO"}
-
-    def execute(self, context):
-        scene_nwo = context.scene.nwo
-        object_controls = scene_nwo.object_controls
-        current_control_objects = [control.ob for control in object_controls]
-        armatures = [scene_nwo.main_armature]
-        valid_control_objects = [ob for ob in context.selected_objects if ob not in armatures and ob not in current_control_objects]
-        for ob in valid_control_objects:
-            object_controls.add().ob = ob
-            
-        return {"FINISHED"}
-    
-class NWO_OT_BatchRemoveObjectControls(bpy.types.Operator):
-    bl_idname = "nwo.batch_remove_object_controls"
-    bl_label = "Remove Selected Objects"
-    bl_description = "Removes selected objects from the object controls list"
-    bl_options = {"UNDO"}
-
-    def execute(self, context):
-        scene_nwo = context.scene.nwo
-        object_controls = scene_nwo.object_controls
-        selected_objects = context.selected_objects
-        controls_to_remove = []
-        for idx, control in enumerate(object_controls):
-            if control.ob in selected_objects:
-                controls_to_remove.append(idx)
-        
-        controls_to_remove.reverse()
-        
-        while controls_to_remove:
-            object_controls.remove(controls_to_remove[0])
-            controls_to_remove.pop(0)
-            
-        return {"FINISHED"}
-    
-class NWO_OT_SelectObjectControl(bpy.types.Operator):
-    bl_idname = "nwo.select_object_control"
-    bl_label = "Select"
-    
-    select: bpy.props.BoolProperty(default=True)
-
-    def execute(self, context):
-        scene_nwo = context.scene.nwo
-        ob: bpy.types.Object = scene_nwo.object_controls[scene_nwo.object_controls_active_index].ob
-        if not ob.visible_get():
-            self.report({'WARNING'}, f"{ob.name} is hidden")
-            return {'CANCELLED'}
-        
-        ob.select_set(self.select)
-        # context.view_layer.objects.active = ob
-        return {"FINISHED"}
-    
-    @classmethod
-    def description(cls, context, properties) -> str:
-        if properties.select:
-            return 'Select highlighted control object'
-        else:
-            return 'Deselect highlighted control object'
         
 class NWO_OT_ClearAsset(bpy.types.Operator):
     bl_idname = "nwo.clear_asset"
@@ -382,89 +252,3 @@ class NWO_OT_RegisterIcons(bpy.types.Operator):
             icons.icons_activate()
             
         return {"FINISHED"}
-    
-# class NWO_OT_LinkArmatures(bpy.types.Operator):
-#     bl_idname = "nwo.link_armatures"
-#     bl_label = "Link Armatures"
-#     bl_description = "Links a support armature to the main armature by assinging the parent bone and adding child of constraints"
-#     bl_options = {"UNDO"}
-    
-#     support_arm: bpy.props.IntProperty(options={'HIDDEN'})
-    
-#     parent_bone: bpy.props.StringProperty(
-#         name="Parent Bone",
-#         description="Bone from the main armature which acts as the parent of all root bones in the support armature"
-#     )
-    
-#     @classmethod
-#     def poll(cls, context):
-#         return context.scene.nwo.main_armature
-    
-#     def invoke(self, context, event):
-#         return context.window_manager.invoke_props_dialog(self)
-    
-#     def draw(self, context):
-#         self.layout.prop_search(self, 'parent_bone', context.scene.nwo.main_armature.pose, 'bones')
-
-#     def execute(self, context):
-#         scene_nwo = context.scene.nwo
-#         main_armature = scene_nwo.main_armature
-
-#         support_armature = None
-#         parent_bone = main_armature.pose.bones.get(self.parent_bone)
-#         field_prop_name = ""
-#         match self.support_arm:
-#             case 0:
-#                 support_armature = scene_nwo.support_armature_a
-#                 field_prop_name = "support_armature_a_parent_bone"
-#             case 1:
-#                 support_armature = scene_nwo.support_armature_b
-#                 field_prop_name = "support_armature_b_parent_bone"
-#             case 2:
-#                 support_armature = scene_nwo.support_armature_c
-#                 field_prop_name = "support_armature_c_parent_bone"
-                
-#         if support_armature is None:
-#             self.report({'WARNING'}, "Support armature is None")
-#             return {'CANCELLED'}
-        
-#         elif parent_bone is None:
-#             self.report({'WARNING'}, f"Parent Bone not found in {main_armature}")
-#             return {'CANCELLED'}
-        
-#         def has_child_of_constraint(pbone: bpy.types.PoseBone):
-#             for con in pbone.constraints:
-#                 con: bpy.types.Constraint
-#                 if con.type == 'CHILD_OF':
-#                     return True
-                
-#             return False
-        
-#         main_posed = main_armature.data.pose_position == 'POSE'
-#         support_posed = support_armature.data.pose_position == 'POSE'
-        
-#         if main_posed:
-#             main_armature.data.pose_position = 'REST'
-#         if support_posed:
-#             support_armature.data.pose_position = 'REST'
-            
-#         if main_posed or support_posed:
-#             context.view_layer.update()
-        
-#         for pbone in support_armature.pose.bones:
-#             pbone: bpy.types.PoseBone
-#             if pbone.parent or has_child_of_constraint(pbone):
-#                 continue
-#             constraint = pbone.constraints.new('CHILD_OF')
-#             constraint.target = main_armature
-#             constraint.subtarget = parent_bone.name
-#             constraint.inverse_matrix = (main_armature.matrix_world @ parent_bone.matrix).inverted()
-            
-#         if main_posed:
-#             main_armature.data.pose_position = 'POSE'
-#         if support_posed:
-#             support_armature.data.pose_position = 'POSE'
-            
-#         setattr(scene_nwo, field_prop_name, parent_bone.name)  
-            
-#         return {"FINISHED"}

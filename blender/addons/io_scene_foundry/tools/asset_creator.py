@@ -4,6 +4,8 @@ import os
 from pathlib import Path
 import bpy
 
+from ..export.build_sidecar import Sidecar
+
 from .. import managed_blam
 from ..tools.append_grid_materials import append_grid_materials
 from ..tools.rigging.create_rig import add_rig
@@ -262,11 +264,11 @@ class NWO_OT_NewAsset(bpy.types.Operator):
             asset_directory.mkdir(parents=True)
         
         # Create a sidecar file, this serves as a marker to check whether an asset is setup or not
-        sidecar_path_full = Path(asset_directory, asset_name).with_suffix(".sidecar.xml")
-        if not sidecar_path_full.exists():
-            with open(sidecar_path_full, 'x') as _: pass
-            
-        sidecar_path = str(sidecar_path_full.relative_to(project.data_directory))
+        asset_path = Path(asset_directory, asset_name)
+        sidecar_path_full = asset_path.with_suffix(".sidecar.xml")
+        sidecar_path = sidecar_path_full.relative_to(project.data_directory)
+        scene_settings = context.scene
+        Sidecar(sidecar_path_full, sidecar_path, asset_path, asset_name, None, scene_settings.nwo, utils.is_corinth(context), context).build
         
         if self.work_dir:
             blender_filepath = Path(asset_directory, "models", "work", asset_name).with_suffix(".blend")
@@ -285,12 +287,11 @@ class NWO_OT_NewAsset(bpy.types.Operator):
             print("Failed to save current file")
         
         # Set blender scene settings for new file
-        scene_settings = context.scene
         scene_settings.render.fps = 30
         scene_settings.render.image_settings.tiff_codec = 'LZW'
         # Set Foundry scene settings
         scene_settings.nwo.scene_project = project.name
-        scene_settings.nwo.sidecar_path = sidecar_path
+        scene_settings.nwo.sidecar_path = str(sidecar_path)
         scene_settings.nwo.asset_type = self.asset_type
         if scene_settings.nwo.scale != self.scale:
             scene_settings.nwo.scale = self.scale
@@ -479,6 +480,19 @@ class NWO_OT_NewAsset(bpy.types.Operator):
     def invoke(self, context, _):
         self.scale = context.scene.nwo.scale
         self.forward_direction = context.scene.nwo.forward_direction
+        self.output_biped = context.scene.nwo.output_biped
+        self.output_crate = context.scene.nwo.output_crate
+        self.output_creature = context.scene.nwo.output_creature
+        self.output_giant = context.scene.nwo.output_giant
+        self.output_device_control = context.scene.nwo.output_device_control
+        self.output_device_dispenser = context.scene.nwo.output_device_dispenser
+        self.output_device_machine = context.scene.nwo.output_device_machine
+        self.output_device_terminal = context.scene.nwo.output_device_terminal
+        self.output_effect_scenery = context.scene.nwo.output_effect_scenery
+        self.output_equipment = context.scene.nwo.output_equipment
+        self.output_scenery = context.scene.nwo.output_scenery
+        self.output_weapon = context.scene.nwo.output_weapon
+        self.output_vehicle = context.scene.nwo.output_vehicle
         
         if context.scene.nwo.scene_project:
             self.project = context.scene.nwo.scene_project

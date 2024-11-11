@@ -967,9 +967,29 @@ def prefab_warning(self, context):
 #         items=shared_asset_types,
 #     )
 
-class NWO_ScenePropertiesGroup(PropertyGroup):
-    # ANIMATION
+class NWO_ChildAsset(PropertyGroup):
+    sidecar_path: bpy.props.StringProperty(options=set())
+    enabled: bpy.props.BoolProperty(name="Enabled", default=True, options=set())
 
+class NWO_ScenePropertiesGroup(PropertyGroup):
+    # CHILD ASSET
+    child_assets: bpy.props.CollectionProperty(
+        name="Child Assets",
+        type=NWO_ChildAsset,
+        options=set(),
+    )
+    
+    active_child_asset_index: bpy.props.IntProperty(
+        name="Active Child Asset Index",
+        options=set(),
+    )
+    
+    is_child_asset: bpy.props.BoolProperty(
+        name="Mark as Child Asset",
+        description="Mark if this asset is a child of another. Setting this will prevent this file from building tags, instead only building intermediary data for use by its parent file"
+    )
+    
+    # ANIMATION
     def update_active_animation_index(self, context):
         if self.active_animation_index > -1:
             animation = self.animations[self.active_animation_index]
@@ -1480,6 +1500,8 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     ik_chains_expanded: bpy.props.BoolProperty(default=False, options=set())
     animation_copies_expanded: bpy.props.BoolProperty(default=False, options=set())
     animation_composites_expanded: bpy.props.BoolProperty(default=False, options=set())
+    
+    child_assets_expanded: bpy.props.BoolProperty(default=False, options=set())
     
     asset_shaders_expanded: bpy.props.BoolProperty(default=True, options=set())
     importer_expanded: bpy.props.BoolProperty(default=True, options=set())

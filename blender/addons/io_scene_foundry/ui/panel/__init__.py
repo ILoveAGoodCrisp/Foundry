@@ -188,54 +188,61 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             row.operator("nwo.new_asset", text="New Asset", icon_value=get_icon_id("halo_asset"))
             return
         
-        if nwo.asset_type == 'model':
-            self.draw_expandable_box(self.box.box(), nwo, 'output_tags')
-            self.draw_expandable_box(self.box.box(), nwo, 'model')
-            # self.draw_expandable_box(self.box.box(), nwo, 'model_overrides')
-            self.draw_rig_ui(self.context, nwo)
-            
-        if self.h4 and nwo.asset_type in ('model', 'sky'):
-            self.draw_expandable_box(self.box.box(), nwo, 'lighting')
+        col.prop(nwo, "is_child_asset")
         
-        if nwo.asset_type == "animation":
-            box = self.box.box()
-            col = box.column()
-            col.use_property_split = True
-            col.prop(nwo, "asset_animation_type")
-            if nwo.asset_animation_type == 'first_person':
-                row = col.row(align=True)
-                row.prop(nwo, "fp_model_path", text="FP Render Model", icon_value=get_icon_id("tags"))
-                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "fp_model_path"
-                row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'fp_model_path'
-                row = col.row(align=True)
-                row.prop(nwo, "gun_model_path", text="Gun Render Model", icon_value=get_icon_id("tags"))
-                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "gun_model_path"
-                row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'gun_model_path'
-            else:
-                row = col.row(align=True)
-                row.prop(nwo, "render_model_path", text="Render Model", icon_value=get_icon_id("tags"))
-                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "render_model_path"
-                row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'render_model_path'
+        if not nwo.is_child_asset:
+            
+            if nwo.asset_type == 'model':
+                self.draw_expandable_box(self.box.box(), nwo, 'output_tags')
+                self.draw_expandable_box(self.box.box(), nwo, 'model')
+                # self.draw_expandable_box(self.box.box(), nwo, 'model_overrides')
+                self.draw_rig_ui(self.context, nwo)
                 
-            self.draw_expandable_box(self.box.box(), nwo, 'animation_graph')
-            self.draw_rig_ui(self.context, nwo)
+            if self.h4 and nwo.asset_type in ('model', 'sky'):
+                self.draw_expandable_box(self.box.box(), nwo, 'lighting')
             
-        elif nwo.asset_type == "scenario":
-            self.draw_expandable_box(self.box.box(), nwo, 'scenario')
-            self.draw_expandable_box(self.box.box(), nwo, 'zone_sets')
-            self.draw_expandable_box(self.box.box(), nwo, 'lighting')
-            # self.draw_expandable_box(self.box.box(), nwo, 'objects')
-            if self.h4:
-                self.draw_expandable_box(self.box.box(), nwo, 'prefabs')
+            if nwo.asset_type == "animation":
+                box = self.box.box()
+                col = box.column()
+                col.use_property_split = True
+                col.prop(nwo, "asset_animation_type")
+                if nwo.asset_animation_type == 'first_person':
+                    row = col.row(align=True)
+                    row.prop(nwo, "fp_model_path", text="FP Render Model", icon_value=get_icon_id("tags"))
+                    row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "fp_model_path"
+                    row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'fp_model_path'
+                    row = col.row(align=True)
+                    row.prop(nwo, "gun_model_path", text="Gun Render Model", icon_value=get_icon_id("tags"))
+                    row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "gun_model_path"
+                    row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'gun_model_path'
+                else:
+                    row = col.row(align=True)
+                    row.prop(nwo, "render_model_path", text="Render Model", icon_value=get_icon_id("tags"))
+                    row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "render_model_path"
+                    row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'render_model_path'
+                    
+                self.draw_expandable_box(self.box.box(), nwo, 'animation_graph')
+                self.draw_rig_ui(self.context, nwo)
+                
+            elif nwo.asset_type == "scenario":
+                self.draw_expandable_box(self.box.box(), nwo, 'scenario')
+                self.draw_expandable_box(self.box.box(), nwo, 'zone_sets')
+                self.draw_expandable_box(self.box.box(), nwo, 'lighting')
+                # self.draw_expandable_box(self.box.box(), nwo, 'objects')
+                if self.h4:
+                    self.draw_expandable_box(self.box.box(), nwo, 'prefabs')
+                
+            elif nwo.asset_type == 'camera_track_set':
+                box = self.box.box()
+                col = box.column()
+                col.operator('nwo.import', text="Import Camera Track", icon='IMPORT').scope = 'camera_track'
+                col.prop(nwo, 'camera_track_camera', text="Camera")
+                
+            elif nwo.asset_type == 'particle_model':
+                col.prop(nwo, 'particle_uses_custom_points')
             
-        elif nwo.asset_type == 'camera_track_set':
-            box = self.box.box()
-            col = box.column()
-            col.operator('nwo.import', text="Import Camera Track", icon='IMPORT').scope = 'camera_track'
-            col.prop(nwo, 'camera_track_camera', text="Camera")
-            
-        elif nwo.asset_type == 'particle_model':
-            col.prop(nwo, 'particle_uses_custom_points')
+        if nwo.asset_type in {'model', 'sky', 'scenario', 'animation'}:
+            self.draw_expandable_box(self.box.box(), nwo, "child_assets")
     
     def draw_expandable_box(self, box: bpy.types.UILayout, nwo, name, panel_display_name='', ob=None, material=None):
         if not panel_display_name:
@@ -354,7 +361,26 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 break
             if bsp.lower() != "shared":
                 grid.prop(zone_set, f"bsp_{index}", text=bsp)
-        
+                
+    def draw_child_assets(self, box: bpy.types.UILayout, nwo):
+        row = box.row()
+        row.template_list(
+            "NWO_UL_ChildAsset",
+            "",
+            nwo,
+            "child_assets",
+            nwo,
+            "active_child_asset_index",
+        )
+        col = row.column(align=True)
+        col.operator("nwo.add_child_asset", text="", icon="ADD")
+        col.operator("nwo.remove_child_asset", icon="REMOVE", text="")
+        col.separator()
+        col.operator("nwo.move_child_asset", text="", icon="TRIA_UP").direction = 'up'
+        col.operator("nwo.move_child_asset", icon="TRIA_DOWN", text="").direction = 'down'
+        if nwo.child_assets and nwo.active_child_asset_index > -1:
+            row = box.row()
+            row.operator("nwo.open_child_asset", icon='BLENDER')
     
     def draw_output_tags(self, box: bpy.types.UILayout, nwo):
         col = box.column()
@@ -682,23 +708,6 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         row.prop_search(nwo, 'control_aim', nwo.main_armature.data, 'bones')
         if not nwo.control_aim:
             row.operator('nwo.add_pose_bones', text='', icon='ADD').skip_invoke = True
-            
-    def draw_rig_object_controls(self, box: bpy.types.UILayout, nwo):
-        box.use_property_split = True
-        row = box.row()
-        row.template_list(
-            "NWO_UL_ObjectControls",
-            "",
-            nwo,
-            "object_controls",
-            nwo,
-            "object_controls_active_index",
-        )
-        row = box.row(align=True)
-        row.operator('nwo.batch_add_object_controls', text='Add')
-        row.operator('nwo.batch_remove_object_controls', text='Remove')
-        row.operator('nwo.select_object_control', text='Select').select = True
-        row.operator('nwo.select_object_control', text='Deselect').select = False
     
     def draw_rig_usages(self, box, nwo):
         box.use_property_split = True
@@ -961,7 +970,6 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         box = self.box.box()
         if self.draw_expandable_box(box, nwo, 'model_rig') and nwo.main_armature:
             self.draw_expandable_box(box.box(), nwo, 'rig_controls', 'Bone Controls')
-            self.draw_expandable_box(box.box(), nwo, 'rig_object_controls', 'Object Controls')
 
     def draw_sets_manager(self):
         self.box.operator('nwo.update_sets', icon='FILE_REFRESH')

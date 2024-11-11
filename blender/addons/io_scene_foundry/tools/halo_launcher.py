@@ -131,7 +131,7 @@ def launch_foundation(settings, context):
                     for file in asset_path_full.glob("*.scenario_structure_bsp"):
                         launch_args.append(str(file))
                 else:
-                    bsp = Path(asset_path_full, f"{asset_name}_{settings.bsp_name}.scenario_structure_bsp")
+                    bsp = Path(asset_path_full, f"{settings.bsp_name}.scenario_structure_bsp")
                     if bsp.exists():
                         launch_args.append(str(bsp))
 
@@ -140,7 +140,7 @@ def launch_foundation(settings, context):
                     for file in asset_path_full.glob("*.scenario_lightmap_bsp_data"):
                         launch_args.append(str(file))
                 else:
-                    bsp = Path(asset_path_full, f"{asset_name}_{settings.bsp_name}.scenario_lightmap_bsp_data")
+                    bsp = Path(asset_path_full, f"{settings.bsp_name}.scenario_lightmap_bsp_data")
                     if bsp.exists():
                         launch_args.append(str(bsp))
                         
@@ -149,7 +149,7 @@ def launch_foundation(settings, context):
                     for file in asset_path_full.glob("*.scenario_structure_lighting_info"):
                         launch_args.append(str(file))
                 else:
-                    bsp = Path(asset_path_full, f"{asset_name}_{settings.bsp_name}.scenario_structure_lighting_info")
+                    bsp = Path(asset_path_full, f"{settings.bsp_name}.scenario_structure_lighting_info")
                     if bsp.exists():
                         launch_args.append(str(bsp))
 

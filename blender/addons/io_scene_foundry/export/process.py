@@ -1561,12 +1561,26 @@ class ExportScene:
             return Path(self.models_export_dir, f"{self.asset_name}_{name}.gr2")
         
     def write_sidecar(self):
+        print("\n\nWriting Sidecar")
+        print("-----------------------------------------------------------------------\n")
         self.sidecar.has_armature = bool(self.virtual_scene.skeleton_node)
         self.sidecar.regions = self.regions
         self.sidecar.global_materials = self.global_materials_list
         self.sidecar.structure = [region for region in self.regions if region in self.virtual_scene.structure]
         self.sidecar.design = self.virtual_scene.design
+        for child_asset in self.scene_settings.child_assets:
+            if child_asset.enabled:
+                full_path = Path(self.data_dir, child_asset.sidecar_path)
+                if full_path.exists():
+                    print(f"--- Adding data from {child_asset.sidecar_path}")
+                    self.sidecar.child_sidecar_paths.append(full_path)
+                else:
+                    utils.print_warning(f"--- Child asset path does not exist in project data directory: {child_asset}")
+        
+        self.sidecar.get_child_elements()
         self.sidecar.build()
+                    
+        print(f"--- Saved to: {self.sidecar.sidecar_path}")
         
     def restore_scene(self):
         for ob in self.temp_objects:

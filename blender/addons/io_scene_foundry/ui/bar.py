@@ -453,8 +453,9 @@ class NWO_HaloExportSettings(bpy.types.Panel):
         col.separator()
         col = flow.column()
         col.use_property_split = False
-        col.prop(scene_nwo_export, "export_mode", text="")
-        col.prop(scene_nwo_export, "event_level", text="")
+        if not scene.nwo.is_child_asset:
+            col.prop(scene_nwo_export, "export_mode", text="")
+            col.prop(scene_nwo_export, "event_level", text="")
         if asset_type == 'camera_track_set':
             return
         scenario = asset_type == "scenario"

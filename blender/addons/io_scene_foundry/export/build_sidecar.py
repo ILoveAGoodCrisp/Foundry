@@ -41,6 +41,7 @@ class Sidecar:
     def __init__(self, sidecar_path_full: Path, sidecar_path: Path, asset_path: Path, asset_name: str, asset_type: AssetType, scene_settings: NWO_ScenePropertiesGroup, corinth: bool, context: bpy.types.Context):
         self.reach_world_animations = set()
         self.pose_overlays = set()
+        self.relative_asset_path = relative_path(asset_path)
         self.tag_path = relative_path(Path(asset_path, asset_name))
         self.asset_path = asset_path
         self.asset_name = asset_name
@@ -61,6 +62,12 @@ class Sidecar:
         self.regions = []
         self.global_materials = []
         self.file_data: dict[list[SidecarFileData]] = defaultdict(list)
+        self.child_sidecar_paths = []
+        self.child_animation_elements = []
+        self.child_physics_elements = []
+        self.child_collision_elements = []
+        self.child_render_elements = []
+        self.child_bsp_elements = []
         
     def add_file_data(self, tag_type: str, permutation: str, region: str, gr2_path: Path, blend_path: Path):
         self.file_data[tag_type].append(SidecarFileData(utils.relative_path(gr2_path), utils.relative_path(blend_path), permutation, region))
@@ -74,6 +81,52 @@ class Sidecar:
         data.space = space
         data.pose_overlay = pose_overlay
         self.file_data["animation"].append(data)
+                
+    def get_child_elements(self):
+        for path in self.child_sidecar_paths:
+            try:
+                tree = ET.parse(path)
+                root = tree.getroot()
+                content_objects = [element for element in root.findall(".//ContentObject")]
+                if self.asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.ANIMATION}:
+                    is_animation_only = False
+                    anim_only_element = root.find(".//AnimationOnly")
+                    if anim_only_element is not None and anim_only_element.text == "True":
+                        is_animation_only = True
+                        
+                    for content_object in content_objects:
+                        content_type = content_object.attrib.get("Type")
+                        if content_type == "model_animation_graph":
+                            self.child_animation_elements.extend([content_network for content_network in content_object.findall(".//ContentNetwork")])
+                            continue
+                        elif is_animation_only:
+                            continue
+                        
+                        match content_type:
+                            case "render_model":
+                                self.child_render_elements.extend([content_network for content_network in content_object.findall(".//ContentNetwork")])
+                            case "collision_model":
+                                self.child_collision_elements.extend([content_network for content_network in content_object.findall(".//ContentNetwork")])
+                            case "physics_model":
+                                self.child_physics_elements.extend([content_network for content_network in content_object.findall(".//ContentNetwork")])
+                
+                elif self.asset_type == AssetType.SCENARIO:
+                    contents = [element for element in root.findall(".//Content")]
+                    for content in contents:
+                        content_type = content.attrib.get("Type")
+                        if content_type not in {"bsp", "design"}:
+                            continue
+                        content_name = content.attrib.get("Name")
+                        if not content_name:
+                            continue
+                        
+                        for output in content.findall(".//OutputTag"):
+                            output.text = str(Path(self.tag_path, content_name))
+                            
+                        self.child_bsp_elements.append(content)
+                    
+            except:
+                utils.print_warning(f"--- Failed to parse {path}")
 
     def build(self):
         m_encoding = "utf-8"
@@ -123,12 +176,11 @@ class Sidecar:
             if not os.access(self.sidecar_path_full, os.W_OK):
                 raise RuntimeError(f"Sidecar is read only, cannot complete export: {self.sidecar_path_full}\n")
         
-        with open(self.sidecar_path_full, "w") as xfile:
-            xfile.write(
-                part1
-                + 'encoding="{}" standalone="{}"?>'.format(m_encoding, m_standalone)
-                + part2
-            )
+        with open(self.sidecar_path_full, "w") as f:
+            f.write(part1 + 'encoding="{}" standalone="{}"?>'.format(m_encoding, m_standalone))
+            for line in part2.splitlines():
+                if line.strip():
+                    f.write(line + "\n")
 
     def _write_header(self, metadata):
         header = ET.SubElement(metadata, "Header")
@@ -142,6 +194,7 @@ class Sidecar:
         ET.SubElement(header, "SourceBlend").text = self.relative_blend
         ET.SubElement(header, "BlenderVersion").text = bpy.app.version_string
         ET.SubElement(header, "FoundryVersion").text = utils.get_version_string()
+        ET.SubElement(header, "AnimationOnly").text = str(self.asset_type == AssetType.ANIMATION)
 
     def _get_model_tags(self):
         tags = ["model"]
@@ -267,35 +320,56 @@ class Sidecar:
         network = ET.SubElement(content_object, "ContentNetwork", Name=file_data.permutation, Type="")
         ET.SubElement(network, "InputFile").text = file_data.blend_path
         ET.SubElement(network, "IntermediateFile").text = file_data.gr2_path
+        
+        return network.attrib["Name"]
 
     def _write_model_contents(self, metadata):
         contents = ET.SubElement(metadata, "Contents")
         content = ET.SubElement(contents, "Content", Name=self.asset_name, Type="model")
         ##### RENDER #####
-        content_object = ET.SubElement(content, "ContentObject", Name="", Type="render_model")
         render_data = self.file_data.get("render")
-        for data in render_data:
-            self._write_network_files(content_object, data)
+        if render_data or self.child_render_elements:
+            network_names = set()
+            content_object = ET.SubElement(content, "ContentObject", Name="", Type="render_model")
+            if render_data is not None:
+                for data in render_data:
+                    network_names.add(self._write_network_files(content_object, data))
+            
+            for element in self.child_render_elements:
+                if element.attrib.get("Name") not in network_names:
+                    content_object.append(element)
 
-        output = ET.SubElement(content_object, "OutputTagCollection")
-        ET.SubElement(output, "OutputTag", Type="render_model").text = self.tag_path
+            output = ET.SubElement(content_object, "OutputTagCollection")
+            ET.SubElement(output, "OutputTag", Type="render_model").text = self.tag_path
 
         ##### PHYSICS #####
         physics_data = self.file_data.get("physics")
-        if physics_data:
+        if physics_data or self.child_physics_elements:
+            network_names = set()
             content_object = ET.SubElement(content, "ContentObject", Name="", Type="physics_model")
-            for data in physics_data:
-                self._write_network_files(content_object, data)
+            if physics_data is not None:
+                for data in physics_data:
+                    network_names.add(self._write_network_files(content_object, data))
+                
+            for element in self.child_physics_elements:
+                if element.attrib.get("Name") not in network_names:
+                    content_object.append(element)
 
             output = ET.SubElement(content_object, "OutputTagCollection")
             ET.SubElement(output, "OutputTag", Type="physics_model").text = self.tag_path
 
         ##### COLLISION #####
         collision_data = self.file_data.get("collision")
-        if collision_data:
+        if collision_data or self.child_collision_elements:
+            network_names = set()
             content_object = ET.SubElement(content, "ContentObject", Name="", Type="collision_model")
-            for data in collision_data:
-                self._write_network_files(content_object, data)
+            if collision_data is not None:
+                for data in collision_data:
+                    network_names.add(self._write_network_files(content_object, data))
+                
+            for element in self.child_collision_elements:
+                if element.attrib.get("Name") not in network_names:
+                    content_object.append(element)
 
             output = ET.SubElement(content_object, "OutputTagCollection")
             ET.SubElement(output, "OutputTag", Type="collision_model").text = self.tag_path
@@ -316,60 +390,83 @@ class Sidecar:
             self._write_animation_content(content)
 
     def _write_network_files_bsp(self, content_object, file_data: SidecarFileData, shared=False):
-        if file_data.permutation == 'default':
-            network = ET.SubElement(content_object, "ContentNetwork", Name=f'{self.asset_name}_{file_data.region}', Type="")
-        else:
-            network = ET.SubElement(content_object, "ContentNetwork", Name=f'{self.asset_name}_{file_data.region}_{file_data.permutation}', Type="")
+        network = ET.SubElement(content_object, "ContentNetwork", Name=f'{self.asset_name}_{file_data.region}_{file_data.permutation}', Type="")
         if shared:
             network.attrib["Name"] += "_shared"
         ET.SubElement(network, "InputFile").text = file_data.blend_path
         ET.SubElement(network, "IntermediateFile").text = file_data.gr2_path
+        
+        return network.attrib["Name"]
 
     def _write_scenario_contents(self, metadata):
         contents = ET.SubElement(metadata, "Contents")
         ##### STRUCTURE #####
         shared_data = self.file_data.get("shared")
         bsp_data = self.file_data.get("structure")
+        this_contents = {}
+        network_names = set()
         for bsp in self.structure:
-            content = ET.SubElement(contents, "Content", Name=f"{self.asset_name}_{bsp}", Type="bsp")
+            content_name = bsp
+            content = ET.SubElement(contents, "Content", Name=content_name, Type="bsp")
+            this_contents[content_name] = content
             content_object = ET.SubElement(content, "ContentObject", Name="", Type="scenario_structure_bsp")
             bsp_data = self.file_data.get("structure")
             for data in bsp_data:
                 if data.region == bsp:
-                    self._write_network_files_bsp(content_object, data)
+                    network_names.add(self._write_network_files_bsp(content_object, data))
             if shared_data:
                 for data in shared_data:
-                    self._write_network_files_bsp(content_object, data, True)
+                    network_names.add(self._write_network_files_bsp(content_object, data, True))
 
             output = ET.SubElement(content_object, "OutputTagCollection")
-            ET.SubElement(output, "OutputTag", Type="scenario_structure_bsp").text = f"{self.tag_path}_{bsp}"
-            ET.SubElement(output, "OutputTag", Type="scenario_structure_lighting_info").text = f"{self.tag_path}_{bsp}"
+            ET.SubElement(output, "OutputTag", Type="scenario_structure_bsp").text = f"{self.relative_asset_path}\\{content_name}"
+            ET.SubElement(output, "OutputTag", Type="scenario_structure_lighting_info").text = f"{self.relative_asset_path}\\{content_name}"
 
         ##### STRUCTURE DESIGN #####
         for bsp in self.design:
             design_data = self.file_data.get("design")
-            content = ET.SubElement(contents, "Content", Name=f"{self.asset_name}_{bsp}_structure_design", Type="design")
+            content_name = f"{bsp}_design"
+            content = ET.SubElement(contents, "Content", Name=content_name, Type="design")
+            this_contents[content_name] = content
             content_object = ET.SubElement(content, "ContentObject", Name="", Type="structure_design")
 
             if not design_data: continue
             for data in design_data:
                 if data.region == bsp:
-                    self._write_network_files_bsp(content_object, data)
+                    network_names.add(self._write_network_files_bsp(content_object, data))
 
             output = ET.SubElement(content_object, "OutputTagCollection")
-            ET.SubElement(output, "OutputTag", Type="structure_design").text = f"{self.tag_path}_{bsp}_structure_design"
+            ET.SubElement(output, "OutputTag", Type="structure_design").text = f"{self.relative_asset_path}\\{content_name}"
+            
+        for bsp_content in self.child_bsp_elements:
+            existing_bsp_content = this_contents.get(bsp_content.attrib.get("Name"))
+            if existing_bsp_content is None:
+                contents.append(bsp_content)
+            else:
+                existing_bsp_content_object = existing_bsp_content.find(".//ContentObject")
+                if existing_bsp_content_object:
+                    for element in bsp_content.findall(".//ContentNetwork"):
+                        if element.attrib.get("Name") not in network_names:
+                            existing_bsp_content_object.append(element)
+                            # existing_bsp_content_object.insert(len(existing_bsp_content_object) - 2, element)
 
     def _write_sky_contents(self, metadata):
         contents = ET.SubElement(metadata, "Contents")
         content = ET.SubElement(contents, "Content", Name=self.asset_name, Type="model")
-        content_object = ET.SubElement(content, "ContentObject", Name="", Type="render_model")
-
         render_data = self.file_data.get("render")
-        for data in render_data:
-            self._write_network_files(content_object, data)
-            
-        output = ET.SubElement(content_object, "OutputTagCollection")
-        ET.SubElement(output, "OutputTag", Type="render_model").text = self.tag_path
+        if render_data or self.child_render_elements:
+            content_object = ET.SubElement(content, "ContentObject", Name="", Type="render_model")
+            network_names = set()
+            if render_data is not None:
+                for data in render_data:
+                    network_names.add(self._write_network_files(content_object, data))
+                
+            for element in self.child_render_elements:
+                if element.attrib.get("Name") not in network_names:
+                    content_object.append(element)
+                
+            output = ET.SubElement(content_object, "OutputTagCollection")
+            ET.SubElement(output, "OutputTag", Type="render_model").text = self.tag_path
 
         if self.has_armature:
             self._write_skeleton_content(content)
@@ -451,69 +548,69 @@ class Sidecar:
 
     def _write_animation_content(self, content):
         animation_data = self.file_data.get("animation")
-        if animation_data:
+        if animation_data or self.child_animation_elements:
             content_object = ET.SubElement(content, "ContentObject", Name="", Type="model_animation_graph")
-            for data in animation_data:
-                compression = data.compression if data.compression != "Default" else None
-                network_attribs = {"Name": data.name, "Type": "Base"}
-                if data.animation_type == 'overlay':
-                    network_attribs['Type'] = "Overlay"
-                    network_attribs['ModelAnimationOverlayBlending'] = "Additive"
-                    if data.pose_overlay:
-                        network_attribs['ModelAnimationOverlayType'] = "Pose"
-                        self.pose_overlays.add(data.name.replace(' ', ':'))
-                    else:
+            if animation_data is not None:
+                for data in animation_data:
+                    compression = data.compression if data.compression != "Default" else None
+                    network_attribs = {"Name": data.name, "Type": "Base"}
+                    if data.animation_type == 'overlay':
+                        network_attribs['Type'] = "Overlay"
+                        network_attribs['ModelAnimationOverlayBlending'] = "Additive"
+                        if data.pose_overlay:
+                            network_attribs['ModelAnimationOverlayType'] = "Pose"
+                            self.pose_overlays.add(data.name.replace(' ', ':'))
+                        else:
+                            network_attribs['ModelAnimationOverlayType'] = "Keyframe"
+                    elif data.animation_type == 'world' and is_corinth():
+                        network_attribs['Type'] = "World"
+                        network_attribs['ModelAnimationMovementData'] = "XYZAbsolute"
+                    elif data.animation_type == 'replacement':
+                        network_attribs['Type'] = "Overlay"
                         network_attribs['ModelAnimationOverlayType'] = "Keyframe"
-                elif data.animation_type == 'world' and is_corinth():
-                    network_attribs['Type'] = "World"
-                    network_attribs['ModelAnimationMovementData'] = "XYZAbsolute"
-                elif data.animation_type == 'replacement':
-                    network_attribs['Type'] = "Overlay"
-                    network_attribs['ModelAnimationOverlayType'] = "Keyframe"
-                    if data.space == 'object':
-                        network_attribs['ModelAnimationOverlayBlending'] = "ReplacementObjectSpace"
+                        if data.space == 'object':
+                            network_attribs['ModelAnimationOverlayBlending'] = "ReplacementObjectSpace"
+                        else:
+                            network_attribs['ModelAnimationOverlayBlending'] = "ReplacementLocalSpace"
                     else:
-                        network_attribs['ModelAnimationOverlayBlending'] = "ReplacementLocalSpace"
-                else:
-                    match data.movement:
-                        case 'world':
-                            self.reach_world_animations.add(data.name.replace(' ', ':'))
-                        case 'none':
-                            network_attribs['ModelAnimationMovementData'] = "None"
-                        case 'xy':
-                            network_attribs['ModelAnimationMovementData'] = "XY"
-                        case 'xyyaw':
-                            network_attribs['ModelAnimationMovementData'] = "XYYaw"
-                        case 'xyzyaw':
-                            network_attribs['ModelAnimationMovementData'] = "XYZYaw"
-                        case _:
-                            network_attribs['ModelAnimationMovementData'] = "XYZFullRotation"
-                    
-                if compression is not None:
-                    network_attribs['Compression'] = compression
+                        match data.movement:
+                            case 'world':
+                                self.reach_world_animations.add(data.name.replace(' ', ':'))
+                            case 'none':
+                                network_attribs['ModelAnimationMovementData'] = "None"
+                            case 'xy':
+                                network_attribs['ModelAnimationMovementData'] = "XY"
+                            case 'xyyaw':
+                                network_attribs['ModelAnimationMovementData'] = "XYYaw"
+                            case 'xyzyaw':
+                                network_attribs['ModelAnimationMovementData'] = "XYZYaw"
+                            case _:
+                                network_attribs['ModelAnimationMovementData'] = "XYZFullRotation"
+                        
+                    if compression is not None:
+                        network_attribs['Compression'] = compression
 
-                network = ET.SubElement(content_object, "ContentNetwork", network_attribs)
+                    network = ET.SubElement(content_object, "ContentNetwork", network_attribs)
 
-                ET.SubElement(network, "InputFile").text = data.blend_path
-                ET.SubElement(network, "IntermediateFile").text = data.gr2_path
+                    ET.SubElement(network, "InputFile").text = data.blend_path
+                    ET.SubElement(network, "IntermediateFile").text = data.gr2_path
 
-            for action in bpy.data.actions:
-                if not action.use_frame_range:
+            for animation in self.scene_settings.animations:
+                if not animation.export_this:
                     continue
 
-                nwo = action.nwo
-                renames = nwo.animation_renames
+                renames = animation.animation_renames
                 for rename in renames:
-                    network = ET.SubElement(
+                    ET.SubElement(
                         content_object,
                         "ContentNetwork",
                         Name=rename.name,
                         Type="Rename",
-                        NetworkReference=nwo.name_override,
+                        NetworkReference=animation.name,
                     )
                     
-            for item in self.context.scene.nwo.animation_copies:
-                network = ET.SubElement(
+            for item in self.scene_settings.animation_copies:
+                ET.SubElement(
                     content_object,
                     "ContentNetwork",
                     Name=item.name,
@@ -521,8 +618,8 @@ class Sidecar:
                     NetworkReference=item.source_name,
                 )
 
-            for item in self.context.scene.nwo.animation_composites:
-                network = ET.SubElement(
+            for item in self.scene_settings.animation_composites:
+                ET.SubElement(
                     content_object,
                     "ContentNetwork",
                     Name=item.name,
@@ -530,12 +627,19 @@ class Sidecar:
                     NetworkReference=write_composite_xml(item),
                 )
                 
+            for element in self.child_animation_elements:
+                content_object.append(element)
+                
             output = ET.SubElement(content_object, "OutputTagCollection")
             ET.SubElement(output, "OutputTag", Type="frame_event_list").text = self.tag_path
             if self.corinth:
                 ET.SubElement(output, "OutputTag", Type="pca_animation").text = self.tag_path
                 
             ET.SubElement(output, "OutputTag", Type="model_animation_graph").text = self.tag_path
+        
+        else:
+            for path in self.child_sidecar_paths:
+                self.append_animation_content_from_file(path, content)
 
     def _region_active_state(self, region_name):
         region = self.context.scene.nwo.regions_table[region_name]
