@@ -268,7 +268,6 @@ class NWO_OT_NewAsset(bpy.types.Operator):
         sidecar_path_full = asset_path.with_suffix(".sidecar.xml")
         sidecar_path = sidecar_path_full.relative_to(project.data_directory)
         scene_settings = context.scene
-        Sidecar(sidecar_path_full, sidecar_path, asset_path, asset_name, None, scene_settings.nwo, utils.is_corinth(context), context).build
         
         if self.work_dir:
             blender_filepath = Path(asset_directory, "models", "work", asset_name).with_suffix(".blend")
@@ -337,6 +336,9 @@ class NWO_OT_NewAsset(bpy.types.Operator):
         # Save the file to the asset folder
         if self.save_new_blend_file:
             bpy.ops.wm.save_as_mainfile(filepath=str(blender_filepath), check_existing=False)
+            
+        sidecar = Sidecar(sidecar_path_full, sidecar_path, asset_path, asset_name, None, scene_settings.nwo, utils.is_corinth(context), context)
+        sidecar.build()
         
         self.report({"INFO"}, f"Created new {self.asset_type.title()} asset for {self.project}. Asset Name = {asset_name}")
         
