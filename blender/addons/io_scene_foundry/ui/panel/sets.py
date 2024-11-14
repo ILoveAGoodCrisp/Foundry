@@ -3,6 +3,139 @@
 import bpy
 from ...icons import get_icon_id
 
+class NWO_UL_MaterialOverrides(bpy.types.UIList):
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
+        source = item.source_material
+        destination = item.destination_material
+        if source is None or destination is None:
+            layout.label(text="INVALID", icon='ERROR')
+        else:
+            layout.label(text=f"{source.name} --> {destination.name}", icon='MATERIAL')
+            
+class NWO_OT_AddMaterialOverride(bpy.types.Operator):
+    bl_label = "Add"
+    bl_idname = 'nwo.add_material_override'
+    bl_description = "Add a new material override clone"
+    bl_options = {'UNDO'}
+    
+    def execute(self, context):
+        nwo = context.scene.nwo
+        permutation = nwo.permutations[nwo.permutations_table_active_index]
+        clone = permutation.clones[permutation.active_clone_index]
+        override = clone.material_overrides.add()
+        clone.active_material_override_index = len(clone.material_overrides) - 1
+        context.area.tag_redraw()
+        return {'FINISHED'}
+    
+class NWO_OT_RemoveMaterialOverride(bpy.types.Operator):
+    bl_idname = "nwo.remove_material_override"
+    bl_label = "Remove"
+    bl_description = "Remove a material override from the list"
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        nwo = context.scene.nwo
+        permutation = nwo.permutations[nwo.permutations_table_active_index]
+        return permutation.clones and permutation.active_clone_index > -1
+
+    def execute(self, context):
+        nwo = context.scene.nwo
+        permutation = nwo.permutations[nwo.permutations_table_active_index]
+        index = permutation.active_clone_index
+        permutation.clones.remove(index)
+        if permutation.active_clone_index > len(permutation.clones) - 1:
+            permutation.active_clone_index -= 1
+        context.area.tag_redraw()
+        return {"FINISHED"}
+    
+class NWO_OT_MoveMaterialOverride(bpy.types.Operator):
+    bl_idname = "nwo.move_material_override"
+    bl_label = "Move"
+    bl_description = "Moves the material override up/down the list"
+    bl_options = {"UNDO"}
+    
+    direction: bpy.props.StringProperty()
+
+    def execute(self, context):
+        nwo = context.scene.nwo
+        permutation = nwo.permutations[nwo.permutations_table_active_index]
+        clones = permutation.clones
+        delta = {"down": 1, "up": -1,}[self.direction]
+        current_index = permutation.active_clone_index
+        to_index = (current_index + delta) % len(clones)
+        clones.move(current_index, to_index)
+        permutation.active_clone_index = to_index
+        context.area.tag_redraw()
+        return {'FINISHED'}
+
+class NWO_UL_PermutationClones(bpy.types.UIList):
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
+        layout.prop(item, "name", text="", emboss=False, icon='COPY_ID')
+        
+class NWO_OT_AddPermutationClone(bpy.types.Operator):
+    bl_label = "Add"
+    bl_idname = 'nwo.add_permutation_clone'
+    bl_description = "Add a new permutation clone"
+    bl_options = {'UNDO'}
+    
+    def execute(self, context):
+        nwo = context.scene.nwo
+        permutation = nwo.permutations[nwo.permutations_table_active_index]
+        clone = permutation.clones.add()
+        permutation.active_clone_index = len(permutation.clones) - 1
+        clone.name = f"{permutation.name}_clone"
+        context.area.tag_redraw()
+        return {'FINISHED'}
+    
+class NWO_OT_RemovePermutationClone(bpy.types.Operator):
+    bl_idname = "nwo.remove_permutation_clone"
+    bl_label = "Remove"
+    bl_description = "Remove a permutation clone from the list"
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        nwo = context.scene.nwo
+        permutation = nwo.permutations[nwo.permutations_table_active_index]
+        return permutation.clones and permutation.active_clone_index > -1
+
+    def execute(self, context):
+        nwo = context.scene.nwo
+        permutation = nwo.permutations[nwo.permutations_table_active_index]
+        index = permutation.active_clone_index
+        permutation.clones.remove(index)
+        if permutation.active_clone_index > len(permutation.clones) - 1:
+            permutation.active_clone_index -= 1
+        context.area.tag_redraw()
+        return {"FINISHED"}
+    
+class NWO_OT_MovePermutationClone(bpy.types.Operator):
+    bl_idname = "nwo.move_permutation_clone"
+    bl_label = "Move"
+    bl_description = "Moves the permutation clone up/down the list"
+    bl_options = {"UNDO"}
+    
+    direction: bpy.props.StringProperty()
+    
+    @classmethod
+    def poll(cls, context):
+        nwo = context.scene.nwo
+        permutation = nwo.permutations[nwo.permutations_table_active_index]
+        return permutation.clones and permutation.active_clone_index > -1
+
+    def execute(self, context):
+        nwo = context.scene.nwo
+        permutation = nwo.permutations[nwo.permutations_table_active_index]
+        clones = permutation.clones
+        delta = {"down": 1, "up": -1,}[self.direction]
+        current_index = permutation.active_clone_index
+        to_index = (current_index + delta) % len(clones)
+        clones.move(current_index, to_index)
+        permutation.active_clone_index = to_index
+        context.area.tag_redraw()
+        return {'FINISHED'}
+
 class NWO_RegionsContextMenu(bpy.types.Menu):
     bl_label = "Regions Context Menu"
     bl_idname = "NWO_MT_RegionsContext"

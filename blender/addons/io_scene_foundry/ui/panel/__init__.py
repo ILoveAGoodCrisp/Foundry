@@ -2713,7 +2713,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         ob = context.object
         scene_nwo = context.scene.nwo
             
-        if not bpy.data.actions:
+        if not scene_nwo.animations:
             box.operator("nwo.new_animation", icon="ANIM", text="New Animation")
             box.operator("nwo.select_armature", text="Select Armature", icon='OUTLINER_OB_ARMATURE')
             return

@@ -423,6 +423,12 @@ class NWO_OT_NewAnimation(bpy.types.Operator):
             ("airborne", "airborne", "Base animation with no root movement that plays when the object is midair"),
         ]
     )
+    
+    create_new_actions: bpy.props.BoolProperty(
+        name="Create New Actions",
+        description="Creates new actions for this animation instead of using the current action (if active). Actions will be created for selected objects",
+        default=True,
+    )
 
     def __init__(self):
         self.fp_animation = utils.poll_ui(("animation"))
@@ -439,21 +445,28 @@ class NWO_OT_NewAnimation(bpy.types.Operator):
         
         animation = scene_nwo.animations.add()
         scene_nwo.active_animation_index = len(scene_nwo.animations) - 1
-        
         if context.object:
-            action_group = animation.action_tracks.add()
-            animation.active_action_group_index = len(action_group) - 1
-            action = bpy.data.actions.new(full_name)
-            action.use_frame_range = True
-            action.use_fake_user = True
-            action_group.action = action
-            
-            ob = context.object
-            if not ob.animation_data:
-                ob.animation_data_create()
-            ob.animation_data.action = animation
-            
-            action_group.object = ob
+            if self.create_new_actions:
+                for ob in context.selected_objects:
+                    if not ob.animation_data:
+                        ob.animation_data_create()
+                    action = bpy.data.actions.new(full_name)
+                    ob.animation_data.action = action
+                    action_group = animation.action_tracks.add()
+                    action_group.action = action
+                    action_group.object = ob
+                    
+            else:
+                for ob in context.selected_objects:
+                    if not ob.animation_data or not ob.animation_data.action:
+                        continue
+                    
+                    action_group = animation.action_tracks.add()
+                    action_group.action = ob.animation_data.action
+                    action_group.object = ob
+                    
+        if animation.action_tracks:       
+            animation.active_action_group_index = len(animation.action_tracks) - 1
         
         animation.name = full_name
         animation.frame_start = self.frame_start
@@ -492,6 +505,7 @@ class NWO_OT_NewAnimation(bpy.types.Operator):
         layout = self.layout
         col = layout.column()
         col.use_property_split = True
+        col.prop(self, "create_new_actions")
         col.prop(self, "frame_start", text="First Frame")
         col.prop(self, "frame_end", text="Last Frame")
         # col.prop(self, "keep_current_pose")

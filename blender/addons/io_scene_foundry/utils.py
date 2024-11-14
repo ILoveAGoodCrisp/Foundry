@@ -1997,7 +1997,7 @@ def reset_to_basis(keep_animation=False, record_current_action=False):
 def clear_animation(animation):
     for group in animation.action_tracks:
         if group.action is not None and group.object is not None and group.object.animation_data:
-            group.object.matrix_basis = Matrix.Identity(4)
+            # group.object.matrix_basis = Matrix.Identity(4)
             if group.object.type == 'ARMATURE':
                 for bone in group.object.pose.bones:
                     bone.matrix_basis = Matrix.Identity(4)

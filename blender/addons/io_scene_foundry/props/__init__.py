@@ -27,6 +27,8 @@ classes = [
     scene.NWO_Animation_ListItems,
     scene.NWO_AnimationPropertiesGroup,
     scene.NWO_ZoneSets_ListItems,
+    scene.NWO_MaterialOverrides,
+    scene.NWO_PermutationClones,
     scene.NWO_Permutations_ListItems,
     scene.NWO_Regions_ListItems,
     scene.NWO_BSP_ListItems,

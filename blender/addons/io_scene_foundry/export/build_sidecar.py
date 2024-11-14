@@ -127,6 +127,33 @@ class Sidecar:
                     
             except:
                 utils.print_warning(f"--- Failed to parse {path}")
+                
+    def write_clone(permutations):
+        pass
+        # m_encoding = "utf-8"
+        # m_standalone = "yes"
+        # clones = ET.Element("Clones")
+        # for source_dest in permutations:
+        #     source, dest  = source_dest
+        #     clone = ET.SubElement(clones, "Clone", source=source, destination=dest)
+        #     for mat_override in material_overrides:
+        #         material_override = ET.SubElement(clone, "MaterialOverride")
+        #         ET.SubElement(material_override, "Original").text=mat_override.original
+        #         ET.SubElement(material_override, "Override").text=mat_override.override
+
+        # dom = xml.dom.minidom.parseString(ET.tostring(clones))
+        # xml_string = dom.toprettyxml(indent="  ")
+        # part1, part2 = xml_string.split("?>")
+
+        # if Path(self.sidecar_path_full).exists():
+        #     if not os.access(self.sidecar_path_full, os.W_OK):
+        #         raise RuntimeError(f"Sidecar is read only, cannot complete export: {self.sidecar_path_full}\n")
+        
+        # with open(self.sidecar_path_full, "w") as f:
+        #     f.write(part1 + 'encoding="{}" standalone="{}"?>'.format(m_encoding, m_standalone))
+        #     for line in part2.splitlines():
+        #         if line.strip():
+        #             f.write(line + "\n")
 
     def build(self):
         m_encoding = "utf-8"

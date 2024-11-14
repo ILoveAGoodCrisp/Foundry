@@ -849,6 +849,35 @@ class NWO_ZoneSets_ListItems(PropertyGroup):
     bsp_29: bpy.props.BoolProperty()
     bsp_30: bpy.props.BoolProperty()
     bsp_31: bpy.props.BoolProperty()
+    
+class NWO_MaterialOverrides(PropertyGroup):
+    source_material: bpy.props.PointerProperty(
+        name="Source Material",
+        type=bpy.types.Material,
+        options=set(),
+    )
+    destination_material: bpy.props.PointerProperty(
+        name="Destination Material",
+        type=bpy.types.Material,
+        options=set(),
+    )
+    
+class NWO_PermutationClones(PropertyGroup):
+    name: bpy.props.StringProperty(
+        name="Name",
+        options=set(),
+    )
+    
+    material_overrides: bpy.props.CollectionProperty(
+        name="Material Tag Overrides",
+        description="Materials to override for this clone",
+        type=NWO_MaterialOverrides,
+        options=set(),
+    )
+    
+    active_material_override_index: bpy.props.IntProperty(
+        options=set(),
+    )
 
 class NWO_Permutations_ListItems(PropertyGroup):
 
@@ -862,6 +891,7 @@ class NWO_Permutations_ListItems(PropertyGroup):
     name: bpy.props.StringProperty(
         name="Name",
         update=update_name,
+        options=set(),
         )
 
     def update_hidden(self, context):
@@ -878,6 +908,16 @@ class NWO_Permutations_ListItems(PropertyGroup):
         name="Active",
         description="If false, this region will not be active in the model tag except if added to a variant",
         default=True,
+    )
+    
+    clones: bpy.props.CollectionProperty(
+        name="Permutation Clones",
+        description="Clones of this permutation. Tells the game to copy this permutation to the specified name and optionally replace material paths",
+        type=NWO_PermutationClones,
+    )
+    
+    active_clone_index: bpy.props.IntProperty(
+        options=set(),
     )
 
 class NWO_Regions_ListItems(PropertyGroup):
