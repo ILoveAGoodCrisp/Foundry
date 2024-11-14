@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 import random
 import bpy
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 from ..props.scene import NWO_AnimationPropertiesGroup, NWO_Animation_ListItems
 
@@ -164,6 +164,7 @@ class ExportScene:
         self.disabled_collections = set()
         self.current_frame = context.scene.frame_current
         self.current_animation = None
+        self.action_map = {}
         self.current_mode = context.mode
         
         self.atten_scalar = 1 if corinth else 100
@@ -372,6 +373,8 @@ class ExportScene:
         with utils.Spinner():
             utils.update_job_count(process, "", 0, num_export_objects)
             for idx, ob in enumerate(self.export_objects):
+                if ob.animation_data is not None:
+                    self.action_map[ob] = (ob.matrix_world.copy(), ob.animation_data.action)
                 ob: bpy.types.Object
                 # if ob.type == 'ARMATURE':
                 #     self.armature_poses[ob.data] = ob.data.pose_position
@@ -1237,7 +1240,16 @@ class ExportScene:
     def sample_animations(self):
         if self.asset_type not in {AssetType.MODEL, AssetType.ANIMATION}:
             return
-        valid_animations = [animation for animation in self.context.scene.nwo.animations if animation.export_this]
+        animation_names = set()
+        valid_animations = []
+        for idx, animation in enumerate(self.context.scene.nwo.animations):
+            if animation.export_this:
+                if animation.name in animation_names:
+                    self.warnings.append(f"Duplicate animation name found: {animation.name} [index {idx}]. Skipping animation")
+                else:
+                    animation_names.add(animation.name)
+                    valid_animations.append(animation)
+                
         if not valid_animations:
             return
         process = "--- Sampling Animations"
@@ -1595,11 +1607,14 @@ class ExportScene:
         for collection in self.disabled_collections:
             collection.exclude = False
         
-        if self.current_animation is not None:
-            for track in self.current_animation.action_tracks:
-                if track.object and track.action:
-                    track.object.animation_data.action = track.action
-            
+        if self.action_map:
+            for ob, (matrix, action) in self.action_map.items():
+                if ob.type == 'ARMATURE':
+                    for bone in ob.pose.bones:
+                        bone.matrix_basis = Matrix.Identity(4)
+                ob.matrix_world = matrix
+                ob.animation_data.action = action
+
         self.context.scene.frame_set(self.current_frame)
         
         utils.restore_mode(self.current_mode)
