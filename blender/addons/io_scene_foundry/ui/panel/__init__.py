@@ -1103,6 +1103,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 row = box.row()
                 return row.operator("nwo.add_permutation_clone", text="New Permutation Clone", icon='ADD')
             
+            box.label(text="Clones")
             row = box.row()
             rows = 4
             row.template_list(
@@ -1125,6 +1126,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 row = box.row()
                 return row.operator("nwo.add_material_override", text="New Material Override", icon='ADD')
             
+            box.label(text="Material Overrides")
             row = box.row()
             rows = 4
             row.template_list(
@@ -1148,6 +1150,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col.use_property_split = True
             col.prop(override, "source_material")
             col.prop(override, "destination_material")
+            col.separator()
+            col.operator("nwo.swap_material", icon='UV_SYNC_SELECT')
             
             
             
@@ -2770,6 +2774,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         if not scene_nwo.animations:
             box.operator("nwo.new_animation", icon="ANIM", text="New Animation")
             box.operator("nwo.select_armature", text="Select Armature", icon='OUTLINER_OB_ARMATURE')
+            box.operator("nwo.animations_from_actions", icon='UV_SYNC_SELECT')
             return
 
         row.template_list(

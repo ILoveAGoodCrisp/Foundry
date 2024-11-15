@@ -1,7 +1,67 @@
 """UI for the sets manager"""
 
 import bpy
+
+from ...constants import VALID_MESHES
+
+from ... import utils
 from ...icons import get_icon_id
+
+class NWO_OT_SwapMaterial(bpy.types.Operator):
+    bl_idname = "nwo.swap_material"
+    bl_label = "Swap Material"
+    bl_description = "Switches the source and destination material on all objects with the current permutation"
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        nwo = context.scene.nwo
+        permutation = nwo.permutations_table[nwo.permutations_table_active_index]
+        if not permutation.clones:
+            return False
+        clone = permutation.clones[permutation.active_clone_index]
+        if not clone.material_overrides:
+            return False
+        
+        if not clone.material_overrides:
+            return False
+        
+        override = clone.material_overrides[clone.active_material_override_index]
+        
+        return override.source_material is not None and override.destination_material is not None
+
+    def execute(self, context):
+        nwo = context.scene.nwo
+        permutation = nwo.permutations_table[nwo.permutations_table_active_index]
+        clone = permutation.clones[permutation.active_clone_index]
+        override = clone.material_overrides[clone.active_material_override_index]
+        
+        source = override.source_material
+        dest = override.destination_material
+        
+        pname = permutation.name
+        
+        for ob in bpy.data.objects:
+            if ob.type not in VALID_MESHES:
+                continue
+            if utils.true_permutation(ob.nwo) == pname:
+                for slot in ob.material_slots:
+                    if slot.material is source:
+                        slot.material = dest
+                        
+                
+        override.source_material = dest
+        override.destination_material = source
+        
+        for other_clone in permutation.clones:
+            if other_clone is clone:
+                continue
+            for other_override in other_clone.material_overrides:
+                if other_override.source_material is source:
+                    other_override.source_material = dest
+        
+        return {"FINISHED"}
+
 
 class NWO_UL_MaterialOverrides(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname):

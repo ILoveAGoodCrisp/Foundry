@@ -335,6 +335,8 @@ class NWO_AddAimAnimation(bpy.types.Operator):
         if not already_in_pose_mode:
             bpy.ops.object.posemode_toggle()
             
+        animation.frame_end = action.frame_end
+            
         scene.frame_current = current
         return {'FINISHED'}
     

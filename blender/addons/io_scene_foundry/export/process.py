@@ -7,7 +7,7 @@ import random
 import bpy
 from mathutils import Matrix, Vector
 
-from ..props.scene import NWO_AnimationPropertiesGroup, NWO_Animation_ListItems
+from ..props.scene import NWO_Animation_ListItems
 
 from ..tools.scenario.lightmap import run_lightmapper
 

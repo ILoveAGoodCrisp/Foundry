@@ -127,6 +127,7 @@ classes = [
     panel.NWO_OT_PanelUnpin,
     panel.NWO_OT_PanelSet,
     panel.NWO_OT_PanelExpand,
+    sets.NWO_OT_SwapMaterial,
     sets.NWO_UL_MaterialOverrides,
     sets.NWO_OT_AddMaterialOverride,
     sets.NWO_OT_RemoveMaterialOverride,
