@@ -148,7 +148,7 @@ class LightMapper:
     def bsp_to_lightmap(self, lightmap_all_bsps, lightmap_specific_bsp):
         bsp = "all"
         if not lightmap_all_bsps:
-            bsp = f"{self.asset_name}_{lightmap_specific_bsp}"
+            bsp = lightmap_specific_bsp
 
         return bsp
 
@@ -307,7 +307,7 @@ class LightMapper:
                             [
                                 "faux_lightmap",
                                 self.scenario,
-                                f"{self.asset_name}_{bsp}",
+                                bsp,
                                 self.suppress_dialog,
                                 self.force_reatlas,
                             ]
@@ -317,7 +317,7 @@ class LightMapper:
                             [
                                 "faux_lightmap_with_settings",
                                 self.scenario,
-                                f"{self.asset_name}_{bsp}",
+                                bsp,
                                 self.suppress_dialog,
                                 self.force_reatlas,
                                 self.settings,

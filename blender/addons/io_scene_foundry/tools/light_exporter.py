@@ -193,7 +193,7 @@ def export_lights(light_objects = None):
     lights = [BlamLightInstance(ob, utils.true_region(ob.nwo)) for ob in light_objects]
     if asset_type == 'scenario':
         bsps = [r.name for r in context.scene.nwo.regions_table if r.name.lower() != 'shared']
-        lighting_info_paths = [str(Path(asset_path, f'{asset_name}_{b}.scenario_structure_lighting_info')) for b in bsps]
+        lighting_info_paths = [str(Path(asset_path, f'{b}.scenario_structure_lighting_info')) for b in bsps]
         for idx, info_path in enumerate(lighting_info_paths):
             b = bsps[idx]
             lights_list = [light for light in lights if light.bsp == b]
