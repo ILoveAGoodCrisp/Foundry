@@ -1101,7 +1101,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         if self.h4 and nwo.asset_type in {'model', 'sky'}:
             if not permutation.clones:
                 row = box.row()
-                return row.operator("nwo.add_permutation_clone")
+                return row.operator("nwo.add_permutation_clone", text="New Permutation Clone", icon='ADD')
             
             row = box.row()
             rows = 4
@@ -1114,10 +1114,16 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 "active_clone_index",
                 rows=rows,
             )
+            col = row.column(align=True)
+            col.operator("nwo.add_permutation_clone", text="", icon="ADD")
+            col.operator("nwo.remove_permutation_clone", icon="REMOVE", text="")
+            col.separator()
+            col.operator("nwo.move_permutation_clone", text="", icon="TRIA_UP").direction = 'up'
+            col.operator("nwo.move_permutation_clone", icon="TRIA_DOWN", text="").direction = 'down'
             clone = permutation.clones[permutation.active_clone_index]
             if not clone.material_overrides:
                 row = box.row()
-                return row.operator("nwo.add_material_override")
+                return row.operator("nwo.add_material_override", text="New Material Override", icon='ADD')
             
             row = box.row()
             rows = 4
@@ -1130,8 +1136,20 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 "active_material_override_index",
                 rows=rows,
             )
+            col = row.column(align=True)
+            col.operator("nwo.add_material_override", text="", icon="ADD")
+            col.operator("nwo.remove_material_override", icon="REMOVE", text="")
+            col.separator()
+            col.operator("nwo.move_material_override", text="", icon="TRIA_UP").direction = 'up'
+            col.operator("nwo.move_material_override", icon="TRIA_DOWN", text="").direction = 'down'
             
             override = clone.material_overrides[clone.active_material_override_index]
+            col = box.column()
+            col.use_property_split = True
+            col.prop(override, "source_material")
+            col.prop(override, "destination_material")
+            
+            
             
 
     def draw_object_properties(self):

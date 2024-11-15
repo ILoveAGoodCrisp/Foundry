@@ -121,7 +121,7 @@ class ExportScene:
         self.game_version = 'corinth' if corinth else 'reach'
         self.export_settings = export_settings
         self.scene_settings = scene_settings
-        self.sidecar = Sidecar(sidecar_path_full, sidecar_path, asset_path, asset_name, self.asset_type, scene_settings, corinth, context)
+        self.sidecar = Sidecar(sidecar_path_full, sidecar_path, asset_path, asset_name, self.asset_type, scene_settings, corinth, context, self.tags_dir)
         
         self.selected_permutations = set()
         self.selected_bsps = set()
@@ -1588,6 +1588,25 @@ class ExportScene:
                     self.sidecar.child_sidecar_paths.append(full_path)
                 else:
                     utils.print_warning(f"--- Child asset path does not exist in project data directory: {child_asset}")
+                    
+        if self.corinth and self.asset_type in {AssetType.MODEL, AssetType.SKY}:
+            clones = {}
+            set_perms = frozenset(self.permutations)
+            for perm in self.context.scene.nwo.permutations_table:
+                tmp_clone_names = set()
+                if perm.clones and perm.name in set_perms:
+                    tmp_clones = []
+                    for clone in perm.clones:
+                        if not clone.enabled or clone.name in tmp_clone_names:
+                            continue
+                        
+                        tmp_clone_names.add(clone.name)
+                        tmp_clones.append(clone)
+                        
+                    clones[perm.name] = tmp_clones
+                    
+            if clones:
+                self.sidecar.write_clone(clones)
         
         self.sidecar.get_child_elements()
         self.sidecar.build()

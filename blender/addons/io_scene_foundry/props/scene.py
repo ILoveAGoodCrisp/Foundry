@@ -851,14 +851,26 @@ class NWO_ZoneSets_ListItems(PropertyGroup):
     bsp_31: bpy.props.BoolProperty()
     
 class NWO_MaterialOverrides(PropertyGroup):
+    
+    def poll_material(self, material: bpy.types.Material):
+        return not material.is_grease_pencil
+    
     source_material: bpy.props.PointerProperty(
         name="Source Material",
         type=bpy.types.Material,
+        poll=poll_material,
         options=set(),
     )
     destination_material: bpy.props.PointerProperty(
         name="Destination Material",
         type=bpy.types.Material,
+        poll=poll_material,
+        options=set(),
+    )
+    
+    enabled: bpy.props.BoolProperty(
+        name="Enabled",
+        default=True,
         options=set(),
     )
     
@@ -876,6 +888,12 @@ class NWO_PermutationClones(PropertyGroup):
     )
     
     active_material_override_index: bpy.props.IntProperty(
+        options=set(),
+    )
+    
+    enabled: bpy.props.BoolProperty(
+        name="Enabled",
+        default=True,
         options=set(),
     )
 

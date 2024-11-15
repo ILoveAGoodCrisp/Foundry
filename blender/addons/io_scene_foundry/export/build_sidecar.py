@@ -38,7 +38,7 @@ class SidecarFileData:
         
 
 class Sidecar:
-    def __init__(self, sidecar_path_full: Path, sidecar_path: Path, asset_path: Path, asset_name: str, asset_type: AssetType, scene_settings: NWO_ScenePropertiesGroup, corinth: bool, context: bpy.types.Context):
+    def __init__(self, sidecar_path_full: Path, sidecar_path: Path, asset_path: Path, asset_name: str, asset_type: AssetType, scene_settings: NWO_ScenePropertiesGroup, corinth: bool, context: bpy.types.Context, tags_dir=None):
         self.reach_world_animations = set()
         self.pose_overlays = set()
         self.relative_asset_path = relative_path(asset_path)
@@ -46,6 +46,7 @@ class Sidecar:
         self.asset_path = asset_path
         self.asset_name = asset_name
         self.asset_type = asset_type
+        self.tags_dir = tags_dir
         self.sidecar_path = sidecar_path
         self.sidecar_path_full = sidecar_path_full
         self.relative_blend = bpy.data.filepath
@@ -55,6 +56,8 @@ class Sidecar:
         self.corinth = corinth
         self.context = context
         self.lods = set()
+        
+        self.clone = None
         
         self.structure = set()
         self.design = set()
@@ -128,33 +131,56 @@ class Sidecar:
             except:
                 utils.print_warning(f"--- Failed to parse {path}")
                 
-    def write_clone(permutations):
-        pass
-        # m_encoding = "utf-8"
-        # m_standalone = "yes"
-        # clones = ET.Element("Clones")
-        # for source_dest in permutations:
-        #     source, dest  = source_dest
-        #     clone = ET.SubElement(clones, "Clone", source=source, destination=dest)
-        #     for mat_override in material_overrides:
-        #         material_override = ET.SubElement(clone, "MaterialOverride")
-        #         ET.SubElement(material_override, "Original").text=mat_override.original
-        #         ET.SubElement(material_override, "Override").text=mat_override.override
+    def write_clone(self, clones: dict):
+        m_encoding = "utf-8"
+        m_standalone = "yes"
+        clones_element = ET.Element("Clones")
+        for perm, clone_list in clones.items():
+            for clone in clone_list:
+                clone_element = ET.SubElement(clones_element, "Clone", source=perm, destination=clone.name)
+                for override in clone.material_overrides:
+                    if not override.enabled:
+                        continue
+                    
+                    if not override.source_material or not override.destination_material:
+                        continue
+                    
+                    source_path = override.source_material.nwo.shader_path
+                    destination_path = override.destination_material.nwo.shader_path
+                    
+                    if not source_path or not destination_path:
+                        continue
+                    
+                    source_path_rel = utils.relative_path(source_path)
+                    destination_path_rel = utils.relative_path(destination_path)
+                    
+                    source_path_full = Path(self.tags_dir, source_path_rel)
+                    destination_path_full = Path(self.tags_dir, destination_path_rel)
+                    
+                    if (not source_path_full.exists() and source_path_full.is_file()) or (not destination_path_full.exists() and destination_path_full.is_file()):
+                        continue
+                    
+                    material_override = ET.SubElement(clone_element, "MaterialOverride")
+                    ET.SubElement(material_override, "Original").text=source_path_rel
+                    ET.SubElement(material_override, "Override").text=destination_path_rel
 
-        # dom = xml.dom.minidom.parseString(ET.tostring(clones))
-        # xml_string = dom.toprettyxml(indent="  ")
-        # part1, part2 = xml_string.split("?>")
-
-        # if Path(self.sidecar_path_full).exists():
-        #     if not os.access(self.sidecar_path_full, os.W_OK):
-        #         raise RuntimeError(f"Sidecar is read only, cannot complete export: {self.sidecar_path_full}\n")
+        dom = xml.dom.minidom.parseString(ET.tostring(clones_element))
+        xml_string = dom.toprettyxml(indent="  ")
+        part1, part2 = xml_string.split("?>")
         
-        # with open(self.sidecar_path_full, "w") as f:
-        #     f.write(part1 + 'encoding="{}" standalone="{}"?>'.format(m_encoding, m_standalone))
-        #     for line in part2.splitlines():
-        #         if line.strip():
-        #             f.write(line + "\n")
+        clone_path = Path(self.asset_path, f"{self.asset_name}.clone.xml")
 
+        try:
+            with open(clone_path, "w") as f:
+                f.write(part1 + 'encoding="{}" standalone="{}"?>'.format(m_encoding, m_standalone))
+                for line in part2.splitlines():
+                    if line.strip():
+                        f.write(line + "\n")
+                        
+                self.clone = utils.relative_path(clone_path)
+        except:
+            utils.print_warning("Failed to write clone xml")
+        
     def build(self):
         m_encoding = "utf-8"
         m_standalone = "yes"
@@ -352,7 +378,10 @@ class Sidecar:
 
     def _write_model_contents(self, metadata):
         contents = ET.SubElement(metadata, "Contents")
-        content = ET.SubElement(contents, "Content", Name=self.asset_name, Type="model")
+        if self.clone is None:
+            content = ET.SubElement(contents, "Content", Name=self.asset_name, Type="model")
+        else:
+            content = ET.SubElement(contents, "Content", Name=self.asset_name, PermutationClones=self.clone, Type="model")
         ##### RENDER #####
         render_data = self.file_data.get("render")
         if render_data or self.child_render_elements:
@@ -479,7 +508,10 @@ class Sidecar:
 
     def _write_sky_contents(self, metadata):
         contents = ET.SubElement(metadata, "Contents")
-        content = ET.SubElement(contents, "Content", Name=self.asset_name, Type="model")
+        if self.clone is None:
+            content = ET.SubElement(contents, "Content", Name=self.asset_name, Type="model")
+        else:
+            content = ET.SubElement(contents, "Content", Name=self.asset_name, PermutationClones=self.clone, Type="model")
         render_data = self.file_data.get("render")
         if render_data or self.child_render_elements:
             content_object = ET.SubElement(content, "ContentObject", Name="", Type="render_model")

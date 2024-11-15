@@ -54,9 +54,6 @@ sidecar_read = False
 
 sidecar_path = ""
 
-def toggle_output():
-    bpy.context.scene.nwo_export.show_output = False
-
 def menu_func_export(self, context):
     self.layout.operator(NWO_ExportScene.bl_idname, text="Halo Foundry Export")
 
@@ -199,7 +196,7 @@ class NWO_ExportScene(Operator, ExportHelper):
         os.system("cls")
         if context.scene.nwo_export.show_output:
             bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
-            bpy.app.timers.register(toggle_output)
+            scene_nwo.show_output = False
 
         export_title = f"►►► {scene_nwo.asset_type.replace('_', ' ').upper()} EXPORT ◄◄◄"
 
