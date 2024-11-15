@@ -1097,6 +1097,42 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         sub = row.row(align=True)
         sub.operator("nwo.permutation_select", text="Select").select = True
         sub.operator("nwo.permutation_select", text="Deselect").select = False
+        
+        if self.h4 and nwo.asset_type in {'model', 'sky'}:
+            if not permutation.clones:
+                row = box.row()
+                return row.operator("nwo.add_permutation_clone")
+            
+            row = box.row()
+            rows = 4
+            row.template_list(
+                "NWO_UL_PermutationClones",
+                "",
+                permutation,
+                "clones",
+                permutation,
+                "active_clone_index",
+                rows=rows,
+            )
+            clone = permutation.clones[permutation.active_clone_index]
+            if not clone.material_overrides:
+                row = box.row()
+                return row.operator("nwo.add_material_override")
+            
+            row = box.row()
+            rows = 4
+            row.template_list(
+                "NWO_UL_MaterialOverrides",
+                "",
+                clone,
+                "material_overrides",
+                clone,
+                "active_material_override_index",
+                rows=rows,
+            )
+            
+            override = clone.material_overrides[clone.active_material_override_index]
+            
 
     def draw_object_properties(self):
         box = self.box

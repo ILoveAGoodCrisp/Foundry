@@ -15,6 +15,7 @@ class NWO_AddAimAnimation(bpy.types.Operator):
         scene_nwo = context.scene.nwo
         arm = scene_nwo.main_armature
         if not arm: return False
+        if not scene_nwo.animations: return False
         return context.object and context.object == arm and scene_nwo.node_usage_pose_blend_yaw and scene_nwo.node_usage_pose_blend_pitch
     
     aim_animation: bpy.props.EnumProperty(
@@ -282,6 +283,7 @@ class NWO_AddAimAnimation(bpy.types.Operator):
     def execute(self, context):
         scene_nwo = context.scene.nwo
         arm = scene_nwo.main_armature
+        animation = scene_nwo.animations[scene_nwo.active_animation_index]
         if not arm.animation_data:
             arm.animation_data_create()
         yaw_name = scene_nwo.node_usage_pose_blend_yaw
@@ -305,7 +307,7 @@ class NWO_AddAimAnimation(bpy.types.Operator):
                 return {'CANCELLED'}
         else:
             aim = None
-        start = int(arm.animation_data.action.frame_start)
+        start = animation.frame_start
         scene = context.scene
         current = int(scene.frame_current)
         already_in_pose_mode = False

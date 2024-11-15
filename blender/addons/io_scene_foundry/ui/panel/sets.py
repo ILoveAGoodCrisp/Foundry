@@ -18,14 +18,31 @@ class NWO_OT_AddMaterialOverride(bpy.types.Operator):
     bl_description = "Add a new material override clone"
     bl_options = {'UNDO'}
     
+    source: bpy.props.PointerProperty(
+        name="Source Material",
+    )
+    destination: bpy.props.PointerProperty(
+        name="Destination Material",
+    )
+    
     def execute(self, context):
         nwo = context.scene.nwo
         permutation = nwo.permutations[nwo.permutations_table_active_index]
         clone = permutation.clones[permutation.active_clone_index]
         override = clone.material_overrides.add()
+        override.source_material = self.source
+        override.destination_material = self.destination
         clone.active_material_override_index = len(clone.material_overrides) - 1
         context.area.tag_redraw()
         return {'FINISHED'}
+    
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+    
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "soruce")
+        layout.prop(self, "destination")
     
 class NWO_OT_RemoveMaterialOverride(bpy.types.Operator):
     bl_idname = "nwo.remove_material_override"
@@ -42,10 +59,11 @@ class NWO_OT_RemoveMaterialOverride(bpy.types.Operator):
     def execute(self, context):
         nwo = context.scene.nwo
         permutation = nwo.permutations[nwo.permutations_table_active_index]
-        index = permutation.active_clone_index
-        permutation.clones.remove(index)
-        if permutation.active_clone_index > len(permutation.clones) - 1:
-            permutation.active_clone_index -= 1
+        clone = permutation.clones[permutation.active_clone_index]
+        index = clone.active_material_override_index
+        clone.material_overrides.remove(index)
+        if clone.active_material_override_index > len(clone.material_overrides) - 1:
+            clone.active_material_override_index -= 1
         context.area.tag_redraw()
         return {"FINISHED"}
     
@@ -60,12 +78,13 @@ class NWO_OT_MoveMaterialOverride(bpy.types.Operator):
     def execute(self, context):
         nwo = context.scene.nwo
         permutation = nwo.permutations[nwo.permutations_table_active_index]
-        clones = permutation.clones
+        clone = permutation.clones[permutation.active_clone_index]
+        overrides = clone.material_overrides
         delta = {"down": 1, "up": -1,}[self.direction]
         current_index = permutation.active_clone_index
-        to_index = (current_index + delta) % len(clones)
-        clones.move(current_index, to_index)
-        permutation.active_clone_index = to_index
+        to_index = (current_index + delta) % len(overrides)
+        overrides.move(current_index, to_index)
+        clone.active_material_override_index = to_index
         context.area.tag_redraw()
         return {'FINISHED'}
 
