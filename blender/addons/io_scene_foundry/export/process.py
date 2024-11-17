@@ -1801,9 +1801,12 @@ class ExportScene:
             self.print_post(f"--- Updating scenario zone sets: {[zs.name for zs in self.scene_settings.zone_sets]}")
             write_zone_sets_to_scenario(self.scene_settings, self.asset_name)
 
-        if self.lights:
-            self.print_post(f"--- Writing lighting data from {len(self.lights)} light{'s' if len(self.lights) > 1 else ''}")
-            export_lights(self.lights)
+        if self.export_settings.update_lighting_info:
+            if self.lights:
+                self.print_post(f"--- Writing lighting data from {len(self.lights)} light{'s' if len(self.lights) > 1 else ''}")
+                export_lights(self.lights)
+            elif self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB} or (self.corinth and self.asset_type in {AssetType.MODEL, AssetType.SKY}):
+                export_lights([]) # this will clear the lighting info tag
         
     def _setup_model_overrides(self):
         model_override = self.asset_type == AssetType.MODEL and any((

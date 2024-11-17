@@ -466,6 +466,7 @@ class NWO_HaloExportSettings(bpy.types.Panel):
             else:
                 lighting_name = "Light Model"
 
+            col.prop(scene_nwo_export, "update_lighting_info")
             col.prop(scene_nwo_export, "lightmap_structure", text=lighting_name)
             if scene_nwo_export.lightmap_structure:
                 if asset_type == "scenario":
@@ -828,6 +829,13 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
     lightmap_structure: bpy.props.BoolProperty(
         name="Burn Lighting",
         default=False,
+        options=set(),
+    )
+    
+    update_lighting_info: bpy.props.BoolProperty(
+        name="Update Lighting Info",
+        description="Update the lighting info tags for this asset based on the lighting data in blender. If disabled, any existing lighting info tags will be untouched during exports",
+        default=True,
         options=set(),
     )
 

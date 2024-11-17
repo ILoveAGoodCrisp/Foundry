@@ -196,7 +196,7 @@ class NWO_ExportScene(Operator, ExportHelper):
         os.system("cls")
         if context.scene.nwo_export.show_output:
             bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
-            scene_nwo.show_output = False
+            scene_nwo_export.show_output = False
 
         export_title = f"►►► {scene_nwo.asset_type.replace('_', ' ').upper()} EXPORT ◄◄◄"
 
@@ -342,6 +342,7 @@ class NWO_ExportScene(Operator, ExportHelper):
             else:
                 lighting_name = "Light Model"
 
+            col.prop(scene_nwo_export, "update_lighting_info")
             col.prop(scene_nwo_export, "lightmap_structure", text=lighting_name)
             if scene_nwo_export.lightmap_structure:
                 if scene_nwo.asset_type == "scenario":
