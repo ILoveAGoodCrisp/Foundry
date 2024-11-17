@@ -10,6 +10,7 @@ from ..constants import WU_SCALAR
 from .. import utils
 
 def calc_attenutation(power: float, intensity_threshold=0.5, cutoff_intensity=0.1) -> tuple[float, float]:
+    power = abs(power)
     falloff = math.sqrt(power / (4 * math.pi * intensity_threshold))
     cutoff = math.sqrt(power / (4 * math.pi * cutoff_intensity))
     return falloff, cutoff
