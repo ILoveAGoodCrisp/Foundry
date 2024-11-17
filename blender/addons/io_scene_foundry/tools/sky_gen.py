@@ -1,42 +1,53 @@
-class ImageToVertexColor():
-    def __init__():
-        """"""
-        pass
+import bpy
 
-    def get_verts_color_dict(self, ob):
-        """Loops through each vert, gets the color of the material using the UV, and creates a dict in the form vert: [r,g,b]"""
-        me = ob.data
-        faces = me.polygons
-        for f in faces:
-            mat_index = f.material_index
-            # get image texture
-            material = me.materials[mat_index]
-            if material and material.use_nodes and material.node_tree:
-                node_tree  = material.node_tree.nodes
-                for node in node_tree:
-                    if node.type in ('TEX_IMAGE', 'TEX_ENVIRONMENT'):
-                        image_node = node
-                        break
-                else:
-                    continue
+class NWO_OT_SkyGenerate(bpy.types.Operator):
+    bl_idname = "nwo.sky_generate"
+    bl_label = "Generate Sky"
+    bl_description = "Generates a skydome and skylights ready for export to the game"
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    # Main params
+    build_sky_from_map: bpy.props.BoolProperty()
+    input_sky_map_name: bpy.props.StringProperty()
+    generate_type: bpy.props.EnumProperty(
+        name="Type",
+        items=[
+            ('BOTH', "Skylights & Skydome", ""),
+            ('SKYLIGHT', "Skylights Only", ""),
+            ('SKYDOME', "Skydome Only", ""),
+        ]
+    )
+    
+    lit_objects_by_sky: bpy.props.BoolProperty()
+    generate_light_count: bpy.props.IntProperty()
+    
+    # Dome Params
+    lattitude_slices: bpy.props.IntProperty()
+    longitude_slices: bpy.props.IntProperty()
+    horizontal_fov: bpy.props.FloatProperty()
+    vertical_fov: bpy.props.FloatProperty()
+    
+    # Light params
+    sun_theta: bpy.props.FloatProperty()
+    sun_phi: bpy.props.FloatProperty()
+    turpidity: bpy.props.FloatProperty()
+    sky_type: bpy.props.EnumProperty()
+    cie_sky_number: bpy.props.IntProperty()
+    sky_intensity: bpy.props.FloatProperty()
+    sun_intensity: bpy.props.FloatProperty()
+    luminance_only: bpy.props.IntProperty()
+    exposure: bpy.props.FloatProperty()
+    sun_cone_angle: bpy.props.FloatProperty()
+    custom_sun_color_override: bpy.props.BoolProperty()
+    
+    
 
-            uv_layer = me.uv_layers.active.data if me.uv_layers.active else None
-            if not uv_layer:
-                continue
-            for loop_index in f.loop_indices:
-                vertex_index = me.loops[loop_index].vertex_index
-                uv_data = uv_layer[loop_index].uv
-                # get the color at this index
-                image = image_node.image
-                if image:
-                    width, height = image.size
-                    tex_x = int(uv_data[0] * width)
-                    tex_y = int(uv_data[1] * height)
-                    color = image.pixels[(tex_y * width + tex_x) * 4 : (tex_y * width + tex_x) * 4 + 3]
+    def execute(self, context):
+        
+        return {"FINISHED"}
 
-class SkyGen():
-    def __init__(self):
-        pass
 
-    def get_face_color_dict(self):
-        pass
+
+
+class SkyGen:
+    pass
