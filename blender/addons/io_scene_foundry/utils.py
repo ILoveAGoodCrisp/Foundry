@@ -303,6 +303,12 @@ def color_4p(color):
     alpha = int(color.a * 255)
     return alpha, red, green, blue
 
+def color_4p_int(color):
+    red = int(linear_to_srgb(color.r) * 255)
+    green = int(linear_to_srgb(color.g) * 255)
+    blue = int(linear_to_srgb(color.b) * 255)
+    return 255, red, green, blue
+
 def color_rgba_str(color):
     red = linear_to_srgb(color[0])
     green = linear_to_srgb(color[1])

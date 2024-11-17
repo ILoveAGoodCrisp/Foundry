@@ -62,7 +62,7 @@ face_prop_defaults = {
     "bungie_lightmap_analytical_bounce_modifier": 1.0,
     "bungie_lightmap_general_bounce_modifier": 1.0,
     "bungie_lighting_emissive_power": 0.0,
-    "bungie_lighting_emissive_color": (255, 255, 255),
+    "bungie_lighting_emissive_color": (255, 255, 255, 255),
     "bungie_lighting_emissive_per_unit": 0,
     "bungie_lighting_emissive_quality": 0.0,
     "bungie_lighting_use_shader_gel": 0,
@@ -1160,7 +1160,7 @@ class ExportScene:
                 falloff, cutoff = calc_attenutation(data_nwo.material_lighting_emissive_power * self.unit_factor ** 2)
             if test_face_prop(face_props, "emissive_override"):
                 fp_defaults["bungie_lighting_emissive_power"] = power
-                fp_defaults["bungie_lighting_emissive_color"] = utils.color_3p_int(data_nwo.material_lighting_emissive_color)
+                fp_defaults["bungie_lighting_emissive_color"] = utils.color_4p_int(data_nwo.material_lighting_emissive_color)
                 fp_defaults["bungie_lighting_emissive_per_unit"] = int(data_nwo.material_lighting_emissive_per_unit)
                 fp_defaults["bungie_lighting_emissive_quality"] = data_nwo.material_lighting_emissive_quality
                 fp_defaults["bungie_lighting_use_shader_gel"] = int(data_nwo.material_lighting_use_shader_gel)
@@ -1171,7 +1171,7 @@ class ExportScene:
                 fp_defaults["bungie_lighting_emissive_focus"] = degrees(data_nwo.material_lighting_emissive_focus) / 180
             else:
                 mesh_props["bungie_lighting_emissive_power"] = power
-                mesh_props["bungie_lighting_emissive_color"] = utils.color_3p_int(data_nwo.material_lighting_emissive_color)
+                mesh_props["bungie_lighting_emissive_color"] = utils.color_4p_int(data_nwo.material_lighting_emissive_color)
                 mesh_props["bungie_lighting_emissive_per_unit"] = int(data_nwo.material_lighting_emissive_per_unit)
                 mesh_props["bungie_lighting_emissive_quality"] = data_nwo.material_lighting_emissive_quality
                 mesh_props["bungie_lighting_use_shader_gel"] = int(data_nwo.material_lighting_use_shader_gel)
