@@ -184,7 +184,7 @@ class NWO_OT_ExportLights(bpy.types.Operator):
 def gather_lights(context):
     return [ob for ob in context.scene.objects if ob.type == 'LIGHT' and ob.data.type != 'AREA' and ob.nwo.exportable]
 
-def export_lights(light_objects = None):
+def export_lights(light_objects = None, bsps = None):
     context = bpy.context
     asset_path, asset_name = utils.get_asset_info()
     asset_type = context.scene.nwo.asset_type
@@ -192,7 +192,8 @@ def export_lights(light_objects = None):
         light_objects = gather_lights(context)
     lights = [BlamLightInstance(ob, utils.true_region(ob.nwo)) for ob in light_objects]
     if asset_type == 'scenario':
-        bsps = [r.name for r in context.scene.nwo.regions_table if r.name.lower() != 'shared']
+        if bsps is None:
+            bsps = [r.name for r in context.scene.nwo.regions_table if r.name.lower() != 'shared']
         lighting_info_paths = [str(Path(asset_path, f'{b}.scenario_structure_lighting_info')) for b in bsps]
         for idx, info_path in enumerate(lighting_info_paths):
             b = bsps[idx]
