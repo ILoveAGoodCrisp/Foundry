@@ -460,15 +460,19 @@ class NWO_HaloExportSettings(bpy.types.Panel):
             return
         scenario = asset_type == "scenario"
         render = utils.poll_ui(("model", "sky"))
-        if (h4 and render) or scenario:
+        scenario_lightmap = (h4 and render) or scenario
+        if render or scenario:
             if scenario:
                 lighting_name = "Light Scenario"
-            else:
+            elif scenario_lightmap:
                 lighting_name = "Light Model"
-
-            col.prop(scene_nwo_export, "update_lighting_info")
+            else:
+                lighting_name = "Light Model (PRT)"
+            
+            if scenario_lightmap:
+                col.prop(scene_nwo_export, "update_lighting_info")
             col.prop(scene_nwo_export, "lightmap_structure", text=lighting_name)
-            if scene_nwo_export.lightmap_structure:
+            if scene_nwo_export.lightmap_structure and scenario_lightmap:
                 if asset_type == "scenario":
                     if h4:
                         col.prop(scene_nwo_export, "lightmap_quality_h4")
@@ -479,9 +483,6 @@ class NWO_HaloExportSettings(bpy.types.Panel):
                     col.prop(scene_nwo_export, "lightmap_all_bsps")
                     if not h4:
                         col.prop(scene_nwo_export, "lightmap_threads")
-                    # if not h4:
-                    # NOTE light map regions don't appear to work
-                    #     col.prop(scene_nwo_export, "lightmap_region")
 
 class NWO_HaloExportSettingsScope(bpy.types.Panel):
     bl_label = "Scope"
@@ -820,12 +821,12 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
         default=True,
         options=set(),
     )
-    import_draft: bpy.props.BoolProperty(
-        name="Draft",
-        description="Skip generating PRT data. Faster speed, lower quality",
-        default=True,
-        options=set(),
-    )
+    # import_draft: bpy.props.BoolProperty(
+    #     name="Draft",
+    #     description="Skip generating PRT data. Faster speed, lower quality",
+    #     default=True,
+    #     options=set(),
+    # )
     lightmap_structure: bpy.props.BoolProperty(
         name="Burn Lighting",
         default=False,
@@ -1105,12 +1106,12 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
     )
 
-    import_draft: bpy.props.BoolProperty(
-        name="Draft",
-        description="Skip generating self-shadowing data. This can be a very long process on complex models",
-        default=True,
-        options=set(),
-    )
+    # import_draft: bpy.props.BoolProperty(
+    #     name="Draft",
+    #     description="Skip generating self-shadowing data. This can be a very long process on complex models",
+    #     default=True,
+    #     options=set(),
+    # )
     import_seam_debug: bpy.props.BoolProperty(
         name="Seam Debug",
         description="Write extra seam debugging information to the console",

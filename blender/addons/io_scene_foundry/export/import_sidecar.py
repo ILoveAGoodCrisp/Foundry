@@ -123,8 +123,10 @@ class SidecarImport:
             if self.export_settings.import_force_animations:
                 flags.append("force_errors")
         else:
-            if self.export_settings.import_draft and self.asset_type in {AssetType.MODEL, AssetType.SKY}:
+            if not self.export_settings.lightmap_structure and self.asset_type in {AssetType.MODEL, AssetType.SKY}:
                 flags.append("draft")
+            elif not self.export_settings.import_force:
+                flags.append("force")
             if self.export_settings.import_seam_debug:
                 flags.append("seam_debug")
             if self.export_settings.import_decompose_instances:

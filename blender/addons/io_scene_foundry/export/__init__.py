@@ -336,15 +336,19 @@ class NWO_ExportScene(Operator, ExportHelper):
             return
         scenario = scene_nwo.asset_type == "scenario"
         render = utils.poll_ui(("model", "sky"))
-        if (h4 and render) or scenario:
+        scenario_lightmap = (h4 and render) or scenario
+        if render or scenario:
             if scenario:
                 lighting_name = "Light Scenario"
-            else:
+            elif scenario_lightmap:
                 lighting_name = "Light Model"
-
-            col.prop(scene_nwo_export, "update_lighting_info")
+            else:
+                lighting_name = "Light Model (PRT)"
+            
+            if scenario_lightmap:
+                col.prop(scene_nwo_export, "update_lighting_info")
             col.prop(scene_nwo_export, "lightmap_structure", text=lighting_name)
-            if scene_nwo_export.lightmap_structure:
+            if scene_nwo_export.lightmap_structure and scenario_lightmap:
                 if scene_nwo.asset_type == "scenario":
                     if h4:
                         col.prop(scene_nwo_export, "lightmap_quality_h4")
@@ -365,9 +369,9 @@ class NWO_ExportScene(Operator, ExportHelper):
             col.prop(scene_nwo_export, "export_collision", text="Collision")
             col.prop(scene_nwo_export, "export_physics", text="Physics")
             col.prop(scene_nwo_export, "export_markers")
-            col.prop(scene_nwo_export, "export_skeleton", icon='OUTLINER_OB_ARMATURE')
+            col.prop(scene_nwo_export, "export_skeleton")
         elif scene_nwo.asset_type == "animation":
-            col.prop(scene_nwo_export, "export_skeleton", icon='OUTLINER_OB_ARMATURE')
+            col.prop(scene_nwo_export, "export_skeleton")
         elif scene_nwo.asset_type == "scenario":
             # col.prop(scene_nwo_export, "export_hidden", text="Hidden")
             col.prop(scene_nwo_export, "export_structure")
@@ -482,8 +486,8 @@ class NWO_ExportScene(Operator, ExportHelper):
                     "import_decompose_instances",
                     text="Run convex physics decomposition",
                 )
-            else:
-                col.prop(scene_nwo_export, "import_draft", text="Skip PRT generation")
+            # else:
+            #     col.prop(scene_nwo_export, "import_draft", text="Skip PRT generation")
                 
         flow = col.grid_flow(
             row_major=True,
