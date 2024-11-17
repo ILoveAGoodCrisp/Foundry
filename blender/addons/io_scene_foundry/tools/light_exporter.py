@@ -186,6 +186,7 @@ def gather_lights(context):
     return [ob for ob in context.scene.objects if ob.type == 'LIGHT' and ob.data.type != 'AREA' and ob.nwo.exportable]
 
 def export_lights(light_objects = None, bsps = None):
+    tags_dir = utils.get_tags_path()
     context = bpy.context
     asset_path, asset_name = utils.get_asset_info()
     asset_type = context.scene.nwo.asset_type
@@ -200,7 +201,7 @@ def export_lights(light_objects = None, bsps = None):
             b = bsps[idx]
             lights_list = [light for light in lights if light.bsp == b]
             if not lights_list:
-                if Path(utils.get_tags_path(), utils.relative_path(info_path)).exists():
+                if Path(tags_dir, utils.relative_path(info_path)).exists():
                     with ScenarioStructureLightingInfoTag(path=info_path) as tag: tag.clear_lights()
             else:
                 light_instances = [light for light in lights_list]
@@ -211,7 +212,8 @@ def export_lights(light_objects = None, bsps = None):
     elif utils.is_corinth(context) and asset_type in ('model', 'sky', 'prefab'):
         info_path = str(Path(asset_path, f'{asset_name}.scenario_structure_lighting_info'))
         if not lights:
-            with ScenarioStructureLightingInfoTag(path=info_path) as tag: tag.clear_lights()
+            if Path(tags_dir, utils.relative_path(info_path)).exists():
+                with ScenarioStructureLightingInfoTag(path=info_path) as tag: tag.clear_lights()
         else:
             light_instances = [light for light in lights]
             light_data = {bpy.data.lights.get(light.data_name) for light in lights}
