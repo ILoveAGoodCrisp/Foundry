@@ -850,8 +850,6 @@ class RigidBody:
                     
                 list_shapes_count = list_element.SelectField("child shapes size").Data
                 self.list_shapes_offset += list_shapes_count
-                print(list_shapes_count)
-                print(range(list_shapes_offset, list_shapes_offset + list_shapes_count))
                 for i in range(list_shapes_offset, list_shapes_offset + list_shapes_count):
                     l_element = tag.block_list_shapes.Elements[i]
                     list_shape_ref = l_element.SelectField("Struct:shape reference").Elements[0]
