@@ -27,6 +27,7 @@ class PhysicsTag(Tag):
         self.block_regions = self.tag.SelectField("Block:regions")
         self.block_mopps = self.tag.SelectField("Block:mopps")
         self.block_list_shapes = self.tag.SelectField("Block:list shapes")
+        self.block_lists = self.tag.SelectField("Block:lists")
         
     def to_blend_objects(self, collection: bpy.types.Collection, armature=None):
         if armature is None:
