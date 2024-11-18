@@ -1555,7 +1555,7 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
             else:
                 falloff, cutoff = calc_attenutation(face_prop.material_lighting_emissive_power * scene.unit_factor ** 2)
             face_properties.setdefault("bungie_lighting_emissive_power", FaceSet(np.full(num_faces, fp_defaults["bungie_lighting_emissive_power"], np.single))).update(bm, face_prop.layer_name, power)
-            face_properties.setdefault("bungie_lighting_emissive_color", FaceSet(np.full((num_faces, 3), fp_defaults["bungie_lighting_emissive_color"], np.single))).update(bm, face_prop.layer_name, utils.color_4p_int(face_prop.material_lighting_emissive_color))
+            face_properties.setdefault("bungie_lighting_emissive_color", FaceSet(np.full((num_faces, 4), fp_defaults["bungie_lighting_emissive_color"], np.single))).update(bm, face_prop.layer_name, utils.color_4p_int(face_prop.material_lighting_emissive_color))
             face_properties.setdefault("bungie_lighting_emissive_per_unit", FaceSet(np.full(num_faces, fp_defaults["bungie_lighting_emissive_per_unit"], dtype=np.int32))).update(bm, face_prop.layer_name, 1)
             face_properties.setdefault("bungie_lighting_emissive_quality", FaceSet(np.full(num_faces, fp_defaults["bungie_lighting_emissive_quality"], np.single))).update(bm, face_prop.layer_name, face_prop.material_lighting_emissive_quality)
             face_properties.setdefault("bungie_lighting_use_shader_gel", FaceSet(np.full(num_faces, fp_defaults["bungie_lighting_use_shader_gel"], dtype=np.int32))).update(bm, face_prop.layer_name, 1)
