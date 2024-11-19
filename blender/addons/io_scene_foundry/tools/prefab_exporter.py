@@ -51,7 +51,7 @@ def export_prefabs():
     asset_path, asset_name = utils.get_asset_info()
     prefabs = [BlamPrefab(ob, utils.true_region(ob.nwo)) for ob in gather_prefabs(bpy.context)]
     bsps = [r.name for r in bpy.context.scene.nwo.regions_table if r.name.lower() != 'shared']
-    structure_bsp_paths = [str(Path(asset_path, f'{asset_name}_{b}.scenario_structure_bsp')) for b in bsps]
+    structure_bsp_paths = [str(Path(asset_path, f'{b}.scenario_structure_bsp')) for b in bsps]
     for idx, bsp_path in enumerate(structure_bsp_paths):
         b = bsps[idx]
         prefabs_list = [prefab for prefab in prefabs if prefab.bsp == b]
