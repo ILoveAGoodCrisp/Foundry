@@ -330,7 +330,7 @@ class TableEntryHide(bpy.types.Operator):
         table = getattr(nwo, self.table_str)
         entry = get_entry(table, self.entry_name)
         should_hide = entry.hidden
-        available_objects = [ob for ob in context.view_layer.objects if has_region_or_perm(ob) and ob.nwo.exportable]
+        available_objects = [ob for ob in context.view_layer.objects if has_region_or_perm(ob) and not ob.nwo.ignore_for_export]
         entry_objects = [ob for ob in available_objects if true_table_entry(ob, self.ob_prop_str, entry.name)]
         if should_hide:
             [ob.hide_set(True) for ob in entry_objects]
@@ -349,7 +349,7 @@ class TableEntryHideSelect(bpy.types.Operator):
         table = getattr(nwo, self.table_str)
         entry = get_entry(table, self.entry_name)
         should_hide_select = entry.hide_select
-        available_objects = [ob for ob in context.view_layer.objects if has_region_or_perm(ob) and ob.nwo.exportable]
+        available_objects = [ob for ob in context.view_layer.objects if has_region_or_perm(ob) and not ob.nwo.ignore_for_export]
         entry_objects = [ob for ob in available_objects if true_table_entry(ob, self.ob_prop_str, entry.name)]
         regions_table = getattr(nwo, 'regions_table')
         permutations_table = getattr(nwo, 'permutations_table')
@@ -1060,12 +1060,12 @@ class NWO_OT_HideObjectType(bpy.types.Operator):
     
 def objects_by_type(context: bpy.types.Context, object_type: str) -> list[bpy.types.Object]:
     if object_type == '_connected_geometry_object_type_light':
-        return [ob for ob in context.view_layer.objects if ob.type == 'LIGHT' and ob.nwo.exportable]
+        return [ob for ob in context.view_layer.objects if ob.type == 'LIGHT' and not ob.nwo.ignore_for_export]
     elif object_type == '_connected_geometry_object_type_frame':
-        return [ob for ob in context.view_layer.objects if is_frame(ob) and ob.nwo.exportable]
+        return [ob for ob in context.view_layer.objects if is_frame(ob) and not ob.nwo.ignore_for_export]
     elif object_type.startswith("_connected_geometry_marker_type"):
-        return [ob for ob in context.view_layer.objects if is_marker(ob) and ob.nwo.marker_type == object_type and ob.nwo.exportable]
+        return [ob for ob in context.view_layer.objects if is_marker(ob) and ob.nwo.marker_type == object_type and not ob.nwo.ignore_for_export]
     elif object_type.startswith("_connected_geometry_mesh_type"):
-        return [ob for ob in context.view_layer.objects if is_mesh(ob) and ob.data.nwo.mesh_type == object_type and ob.nwo.exportable]
+        return [ob for ob in context.view_layer.objects if is_mesh(ob) and ob.data.nwo.mesh_type == object_type and not ob.nwo.ignore_for_export]
 
             

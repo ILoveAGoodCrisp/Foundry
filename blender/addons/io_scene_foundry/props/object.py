@@ -1,10 +1,26 @@
+from enum import Enum
 from math import radians
 import random
 import uuid
 import bpy
 
-from ..icons import get_icon_id
+from ..constants import VALID_OBJECTS
+
 from .. import utils
+
+class IgnoreReason(Enum):
+    none = 0
+    export_this = 1
+    invalid_type = 2
+    view_layer = 3
+    exclude = 4
+    parent = 5
+
+def recursive_parentage(ob):
+    if ob.parent:
+        return recursive_parentage(ob.parent)
+        
+    return ob.nwo.ignore_for_export
 
 # MARKER PERM PROPERTIES
 # ----------------------------------------------------------
@@ -95,31 +111,35 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
     )
     
+    
     emissive_active: bpy.props.BoolProperty(options=set())
     
-    def get_exportable(self):
+    def get_ignore_for_export(self):
         if not self.export_this:
-            return False
+            return IgnoreReason.export_this.value
         ob = self.id_data
         ob: bpy.types.Object
-        if utils.get_object_type(ob) == '_connected_geometry_object_type_none':
-            return False
-        if not ob.users_collection:
-            return False
+        if ob.type not in VALID_OBJECTS:
+            return IgnoreReason.invalid_type.value
         
-        if not bpy.context.view_layer.objects.get(ob.name):
-            return False
+        # if not ob.users_collection:
+        #     return IgnoreReason.collection.value
         
-        exclude_collections = utils.get_exclude_collections()
-        exclude_collections_with_this_ob = [c for c in ob.users_collection if c in exclude_collections]
-        if exclude_collections_with_this_ob:
-            return False
+        if bpy.context.view_layer.objects.get(ob.name) is None:
+            return IgnoreReason.view_layer.value
         
-        return True
+        in_exclude_collection = utils.get_prop_from_collection(ob, 'exclude')
+        if in_exclude_collection:
+            return IgnoreReason.exclude.value
+
+        if ob.parent and recursive_parentage(ob):
+            return IgnoreReason.parent.value
+        
+        return IgnoreReason.none.value
     
-    exportable: bpy.props.BoolProperty(
+    ignore_for_export: bpy.props.IntProperty(
         options={'HIDDEN', 'SKIP_SAVE'},
-        get=get_exportable,
+        get=get_ignore_for_export,
     )
 
     # OBJECT LEVEL PROPERTIES
@@ -1125,7 +1145,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
 
     permutation_name_locked: bpy.props.StringProperty(
         name="Permutation",
-        description="The permutation of this object. Leave blank for default",
+        description="The permutation of this object",
         get=get_permutation_from_collection,
         override={'LIBRARY_OVERRIDABLE'},
     )

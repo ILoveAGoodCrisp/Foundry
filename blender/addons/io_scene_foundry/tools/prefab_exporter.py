@@ -45,7 +45,7 @@ class NWO_OT_ExportPrefabs(bpy.types.Operator):
         return {"FINISHED"}
     
 def gather_prefabs(context):
-    return [ob for ob in context.scene.objects if utils.is_marker(ob) and ob.nwo.exportable and ob.nwo.marker_type == '_connected_geometry_marker_type_game_instance' and ob.nwo.marker_game_instance_tag_name.lower().endswith(".prefab")]
+    return [ob for ob in context.scene.objects if utils.is_marker(ob) and not ob.nwo.ignore_for_export and ob.nwo.marker_type == '_connected_geometry_marker_type_game_instance' and ob.nwo.marker_game_instance_tag_name.lower().endswith(".prefab")]
 
 def export_prefabs():
     asset_path, asset_name = utils.get_asset_info()

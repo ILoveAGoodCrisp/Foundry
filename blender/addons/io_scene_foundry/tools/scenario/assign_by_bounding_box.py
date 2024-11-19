@@ -21,7 +21,7 @@ class NWO_OT_AssignByBoundingBox(bpy.types.Operator):
     
 def create_bsp_bounding_box(context: bpy.types.Context, bsp: str):
     """Finds all structure geometry for a bsp and creates a bounding box representation"""
-    bsp_structure = [ob for ob in context.view_layer.objects if ob.type == 'MESH' and ob.nwo.mesh_type == "_connected_geometry_mesh_type_structure" and ob.nwo.exportable]
+    bsp_structure = [ob for ob in context.view_layer.objects if ob.type == 'MESH' and ob.nwo.mesh_type == "_connected_geometry_mesh_type_structure" and not ob.nwo.ignore_for_export]
     if not bsp_structure:
         return
     for ob in bsp_structure:

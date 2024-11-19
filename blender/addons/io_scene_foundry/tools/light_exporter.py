@@ -183,7 +183,7 @@ class NWO_OT_ExportLights(bpy.types.Operator):
         return {"FINISHED"}
     
 def gather_lights(context):
-    return [ob for ob in context.scene.objects if ob.type == 'LIGHT' and ob.data.type != 'AREA' and ob.nwo.exportable]
+    return [ob for ob in context.scene.objects if ob.type == 'LIGHT' and ob.data.type != 'AREA' and not ob.nwo.ignore_for_export]
 
 def export_lights(light_objects = None, bsps = None):
     tags_dir = utils.get_tags_path()

@@ -267,7 +267,7 @@ class ExportScene:
                     break
                     
         if self.main_armature:
-            self.support_armatures = [ob for ob in self.main_armature.children if ob.type == 'ARMATURE' and ob.nwo.exportable]
+            self.support_armatures = [ob for ob in self.main_armature.children if ob.type == 'ARMATURE' and not ob.nwo.ignore_for_export]
             # self.support_armatures = {self.context.scene.nwo.support_armature_a, self.context.scene.nwo.support_armature_b, self.context.scene.nwo.support_armature_c}
             
         self.depsgraph = self.context.evaluated_depsgraph_get()
@@ -413,12 +413,16 @@ class ExportScene:
                             continue
                 
                 parent = ob.parent
+                has_parent = parent is not None
+                # if has_parent and object_parent_dict.get(ob.parent) is None:
+                #     return
                 proxies = tuple()
                 # Write object as if it has no parent if this is not a model and it is parented to an empty/armature. It solves an issue where instancing fails
-                if (parent or (armature and not is_armature)) and (parent and ob.parent.type not in {'EMPTY', 'ARMATURE'} or self.is_model):
+                # if (parent or (armature and not is_armature)) and (parent and ob.parent.type not in {'EMPTY', 'ARMATURE'} or self.is_model):
+                if has_parent or (self.is_model and not is_armature and not has_parent):
                     if parent in support_armatures:
                         object_parent_dict[ob] = self.main_armature
-                    elif not parent:
+                    elif not has_parent:
                         object_parent_dict[ob] = armature
                     else:
                         object_parent_dict[ob] = parent

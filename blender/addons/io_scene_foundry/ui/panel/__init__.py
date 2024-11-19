@@ -8,6 +8,8 @@ from ... import constants
 from ... import utils
 import bpy
 
+from ...props.object import IgnoreReason
+
 FOUNDRY_DOCS = r"https://c20.reclaimers.net/general/community-tools/foundry"
 FOUNDRY_GITHUB = r"https://github.com/ILoveAGoodCrisp/Foundry-Halo-Blender-Creation-Kit"
 
@@ -1162,11 +1164,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         context = self.context
         ob = context.object
         h4 = self.h4
-        if not ob:
+        if ob is None:
             row.label(text="No Active Object")
-            return
-        elif not utils.is_halo_object(ob):
-            row.label(text="Not a Halo Object")
             return
 
         nwo = ob.nwo
@@ -1178,6 +1177,22 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
 
         if not nwo.export_this:
             box.label(text="Object is excluded from export")
+            return
+        
+        elif nwo.ignore_for_export:
+            txt = "Object is excluded from export. "
+            col2.enabled = False
+            match IgnoreReason(ob.nwo.ignore_for_export):
+                case IgnoreReason.invalid_type:
+                    txt += "Object is an unsupported type"
+                case IgnoreReason.view_layer:
+                    txt += "Object is not in the view layer"
+                case IgnoreReason.exclude:
+                    txt += "Object is in an exclude collection"
+                case IgnoreReason.parent:
+                    txt += "Object's parent is set to not export"
+                    
+            box.label(text=txt)
             return
         
         instanced = ob.is_instancer and ob.instance_collection and ob.instance_collection.all_objects

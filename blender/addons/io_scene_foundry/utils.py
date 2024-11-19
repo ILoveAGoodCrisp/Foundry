@@ -664,9 +664,10 @@ def get_coll_prefix(coll, prefixes):
 
 
 def get_prop_from_collection(ob, valid_type):
-    if len(bpy.data.collections) > 0:
+    if bpy.context.scene.collection.children:
         collection = None
-        all_collections = bpy.data.collections
+        all_collections = bpy.context.scene.collection.children_recursive
+        print(all_collections)
         # get direct parent collection
         for c in all_collections:
             if ob in tuple(c.objects):
@@ -680,10 +681,14 @@ def get_prop_from_collection(ob, valid_type):
             for c in collection_list:
                 c_type = c.nwo.type
                 if c_type != valid_type: continue
-                if c_type == 'region':
-                    return c.nwo.region
-                elif c_type == 'permutation':
-                    return c.nwo.permutation
+                print(valid_type)
+                match c_type:
+                    case 'region':
+                        return c.nwo.region
+                    case 'permutation':
+                        return c.nwo.permutation
+                    case 'exclude':
+                        return True
             
     return ''
 
@@ -757,7 +762,7 @@ def bpy_enum_seam(name, index):
     return (name, name, "", get_icon_id("seam"), index)
 
 def export_objects(context):
-    return {ob for ob in context.view_layer.objects if ob.nwo.exportable}
+    return {ob for ob in context.view_layer.objects if not ob.nwo.ignore_for_export}
 
 def export_objects_no_arm():
     context = bpy.context
