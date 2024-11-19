@@ -417,9 +417,9 @@ class ExportScene:
                 # if has_parent and object_parent_dict.get(ob.parent) is None:
                 #     return
                 proxies = tuple()
-                # Write object as if it has no parent if this is not a model and it is parented to an empty/armature. It solves an issue where instancing fails
-                # if (parent or (armature and not is_armature)) and (parent and ob.parent.type not in {'EMPTY', 'ARMATURE'} or self.is_model):
-                if has_parent or (self.is_model and not is_armature and not has_parent):
+                mesh_type = props.get("bungie_mesh_type")
+                # Write object as if it has no parent if it is a poop. This solves an issue where instancing fails in Reach
+                if (has_parent or (armature and not is_armature)) and mesh_type != MeshType.poop.value:
                     if parent in support_armatures:
                         object_parent_dict[ob] = self.main_armature
                     elif not has_parent:
@@ -429,7 +429,7 @@ class ExportScene:
                 else:
                     self.no_parent_objects.append(ob)
                     
-                if self.supports_bsp and props.get("bungie_mesh_type") == MeshType.poop.value and ob.data not in self.processed_poop_meshes:
+                if self.supports_bsp and mesh_type == MeshType.poop.value and ob.data not in self.processed_poop_meshes:
                     self.ob_halo_data, proxies, has_collision_proxy = self.create_instance_proxies(ob, self.ob_halo_data, region, permutation)
                     if has_collision_proxy:
                         current_face_mode = mesh_props.get("bungie_face_mode")
