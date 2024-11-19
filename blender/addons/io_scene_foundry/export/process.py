@@ -108,7 +108,9 @@ class ExportScene:
         self.animations_export_dir = Path(asset_path, "export", "animations")
         
         self.regions = [i.name for i in context.scene.nwo.regions_table]
+        self.regions_set = frozenset(self.regions)
         self.permutations = [i.name for i in context.scene.nwo.permutations_table]
+        self.permutations_set = frozenset(self.permutations)
         self.global_materials = set()
         self.global_materials_list = []
         
@@ -161,7 +163,7 @@ class ExportScene:
         
         # self.armature_poses = {}
         self.ob_halo_data = {}
-        self.disabled_collections = set()
+        # self.disabled_collections = set()
         self.current_frame = context.scene.frame_current
         self.current_animation = None
         self.action_map = {}
@@ -210,7 +212,7 @@ class ExportScene:
         utils.exit_local_view(self.context)
         self.context.view_layer.update()
         utils.set_object_mode(self.context)
-        self.disabled_collections = utils.disable_excluded_collections(self.context)
+        # self.disabled_collections = utils.disable_excluded_collections(self.context)
         if self.asset_type in {AssetType.MODEL, AssetType.ANIMATION}:
             animation_index = self.context.scene.nwo.active_animation_index
             if animation_index > -1:
@@ -355,7 +357,7 @@ class ExportScene:
     def map_halo_properties(self):
         process = "--- Mapping Halo Properties"
         num_export_objects = len(self.export_objects)
-        self.collection_map = create_parent_mapping()
+        self.collection_map = create_parent_mapping(self.context)
         object_parent_dict = {}
         support_armatures = set()
         for ob in self.support_armatures:
@@ -441,7 +443,7 @@ class ExportScene:
                         case ObjectCopy.SEAM:
                             copy_ob.nwo.invert_topology = True
                             back_ui = ob.nwo.seam_back
-                            if (not back_ui or back_ui == region or back_ui not in self.regions):
+                            if (not back_ui or back_ui == region or back_ui not in self.regions_set):
                                 self.warnings.append(f"{ob.name} has bad back facing bsp reference. Removing Seam from export")
                                 continue
                             
@@ -473,7 +475,7 @@ class ExportScene:
         self.global_materials_list.insert(0, 'default')
         self.export_info = ExportInfo(self.regions if self.asset_type.supports_regions else None, self.global_materials_list if self.asset_type.supports_global_materials else None).create_info()
         self.virtual_scene.regions = self.regions
-        self.virtual_scene.regions_set = set(self.regions)
+        self.virtual_scene.regions_set = self.regions_set
         self.virtual_scene.global_materials = self.global_materials_list
         self.virtual_scene.global_materials_set = set(self.global_materials_list)
         self.virtual_scene.object_parent_dict = object_parent_dict
@@ -523,22 +525,25 @@ class ExportScene:
         collection = bpy.data.collections.get(ob.nwo.export_collection)
         nwo.export_collection = ""
         if collection and collection != self.context.scene.collection:
-            export_coll = self.collection_map[collection]
+            export_coll = self.collection_map.get(collection)
+            if export_coll is None: raise
+            if export_coll.non_export:
+                return
             coll_region, coll_permutation = export_coll.region, export_coll.permutation
-            if coll_region:
+            if coll_region is not None:
                 tmp_region = coll_region
-            if coll_permutation:
-                tmp_region = coll_permutation
+            if coll_permutation is not None:
+                tmp_permutation = coll_permutation
                 
         if self.asset_type.supports_permutations:
             if not instanced_object and (is_mesh or self.asset_type.supports_bsp or nwo.marker_uses_regions):
-                if tmp_region in self.regions:
+                if tmp_region in self.regions_set:
                     region = tmp_region
                 else:
                     self.warnings.append(f"Object [{ob.name}] has {self.reg_name} [{tmp_region}] which is not present in the {self.reg_name}s table. Setting {self.reg_name} to: {self.default_region}")
                     
             if self.asset_type.supports_permutations and not instanced_object:
-                if tmp_permutation in self.permutations:
+                if tmp_permutation in self.permutations_set:
                     permutation = tmp_permutation
                 else:
                     self.warnings.append(f"Object [{ob.name}] has {self.perm_name} [{tmp_permutation}] which is not present in the {self.perm_name}s table. Setting {self.perm_name} to: {self.default_permutation}")
@@ -546,7 +551,7 @@ class ExportScene:
             elif nwo.marker_uses_regions and nwo.marker_permutation_type == 'include' and nwo.marker_permutations:
                 marker_perms = [item.name for item in nwo.marker_permutations]
                 for perm in marker_perms:
-                    if perm not in self.permutations:
+                    if perm not in self.permutations_set:
                         self.warnings.append(f"Object [{ob.name}] has {self.perm_name} [{perm}] in its include list which is not present in the {self.perm_name}s table. Ignoring {self.perm_name}")
             
         if object_type == ObjectType.mesh:
@@ -948,7 +953,7 @@ class ExportScene:
         for idx, face_prop in enumerate(data_nwo.face_props):
             if face_prop.region_name_override:
                 region = face_prop.region_name
-                if region not in self.regions:
+                if region not in self.regions_set:
                     self.warnings.append(f"Object [{ob.name}] has {self.reg_name} [{region}] on face property index {idx} which is not present in the {self.reg_name}s table. Setting {self.reg_name} to: {self.default_region}")
             if self.asset_type.supports_global_materials and face_prop.face_global_material_override:
                 mat = face_prop.face_global_material.strip().replace(' ', "_")
@@ -1591,10 +1596,9 @@ class ExportScene:
                     
         if self.corinth and self.asset_type in {AssetType.MODEL, AssetType.SKY}:
             clones = {}
-            set_perms = frozenset(self.permutations)
             for perm in self.context.scene.nwo.permutations_table:
                 tmp_clone_names = set()
-                if perm.clones and perm.name in set_perms:
+                if perm.clones and perm.name in self.permutations_set:
                     tmp_clones = []
                     for clone in perm.clones:
                         if not clone.enabled or clone.name in tmp_clone_names:
@@ -1623,8 +1627,8 @@ class ExportScene:
         # for armature, pose in self.armature_poses.items():
         #     armature.pose_position = pose
             
-        for collection in self.disabled_collections:
-            collection.exclude = False
+        # for collection in self.disabled_collections:
+        #     collection.exclude = False
         
         if self.action_map:
             for ob, (matrix, action) in self.action_map.items():
@@ -1920,39 +1924,41 @@ def decorator_int(ob):
         
 class ExportCollection:
     def __init__(self, collection: bpy.types.Collection):
-        self.region, self.permutation = coll_region_perm(collection)
+        self.region = None
+        self.permutation = None
+        self.non_export = False
+        
+        match collection.nwo.type:
+            case 'region':
+                self.region = collection.nwo.region
+            case 'permutation':
+                self.permutation = collection.nwo.permutation
+            case 'exclude':
+                self.non_export = True
+
         for ob in collection.objects:
             ob.nwo.export_collection = collection.name
-        
-def coll_region_perm(coll) -> tuple[str, str]:
-    r, p = '', ''
-    colltype = coll.nwo.type
-    match colltype:
-        case 'region':
-            r = coll.nwo.region
-        case 'permutation':
-            p = coll.nwo.permutation
-            
-    return r, p
 
-def create_parent_mapping():
+def create_parent_mapping(context):
     collection_map: dict[bpy.types.Collection: ExportCollection] = {}
-    for collection in bpy.data.collections:
-        export_coll = ExportCollection(collection)
-        collection_map[collection] = export_coll
-        for child in collection.children_recursive:
-            export_child = collection_map.get(child)
-            if not export_child:
-                export_child = ExportCollection(child)
-                collection_map[collection] = export_child
-                
-            parent_region, parent_permutation = export_coll.region, export_coll.permutation
-            if parent_region:
-                export_child.region = parent_region
-            if parent_permutation:
-                export_child.permutation = parent_permutation
+    for collection in context.scene.collection.children:
+        recursive_parent_mapper(collection, collection_map, None)
             
     return collection_map
+
+def recursive_parent_mapper(collection: bpy.types.Collection, collection_map: dict[bpy.types.Collection: ExportCollection], parent_export_collection: ExportCollection | None):
+    export_collection = ExportCollection(collection)
+    collection_map[collection] = export_collection
+    if parent_export_collection is not None:
+        if parent_export_collection.region is not None and export_collection.region is None:
+            export_collection.region = parent_export_collection.region
+        if parent_export_collection.permutation is not None and export_collection.permutation is None:
+            export_collection.permutation = parent_export_collection.permutation
+        if parent_export_collection.non_export:
+            export_collection.non_export = True
+            
+    for child in collection.children:
+        recursive_parent_mapper(child, collection_map, export_collection)
 
 def test_face_prop(face_props: NWO_MeshPropertiesGroup, attribute: str):
     for item in face_props:
