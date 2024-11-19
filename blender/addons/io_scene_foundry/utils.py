@@ -667,7 +667,6 @@ def get_prop_from_collection(ob, valid_type):
     if bpy.context.scene.collection.children:
         collection = None
         all_collections = bpy.context.scene.collection.children_recursive
-        print(all_collections)
         # get direct parent collection
         for c in all_collections:
             if ob in tuple(c.objects):
@@ -681,7 +680,6 @@ def get_prop_from_collection(ob, valid_type):
             for c in collection_list:
                 c_type = c.nwo.type
                 if c_type != valid_type: continue
-                print(valid_type)
                 match c_type:
                     case 'region':
                         return c.nwo.region

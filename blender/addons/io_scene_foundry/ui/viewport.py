@@ -511,7 +511,7 @@ class NWO_OT_ApplyTypeMarkerSingle(NWO_OT_ApplyTypeMarker):
         ob = context.object
         nwo = ob.nwo
         nwo.marker_type, display_type = self.get_marker_type()
-        if apply_display:
+        if apply_display and display_type:
             ob.empty_display_type = display_type
         apply_prefix(ob, self.m_type, prefix_setting)
         return {"FINISHED"}
