@@ -98,7 +98,6 @@ def halo_material(mat_name):
     bsdf.inputs[0].default_value = convention.color
     bsdf.inputs[4].default_value = convention.color[3]
     new_material.blend_method = 'BLEND'
-    new_material.shadow_method = 'NONE'
 
     return new_material
 

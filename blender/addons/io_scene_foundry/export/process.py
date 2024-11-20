@@ -419,7 +419,7 @@ class ExportScene:
                 proxies = tuple()
                 mesh_type = props.get("bungie_mesh_type")
                 # Write object as if it has no parent if it is a poop. This solves an issue where instancing fails in Reach
-                if (has_parent or (armature and not is_armature)) and mesh_type != MeshType.poop.value:
+                if not is_armature and (has_parent or (armature and not is_armature)) and mesh_type != MeshType.poop.value:
                     if parent in support_armatures:
                         object_parent_dict[ob] = self.main_armature
                     elif not has_parent:
@@ -1247,7 +1247,7 @@ class ExportScene:
             self.virtual_scene.add_automatic_structure(self.default_permutation, self.inverse_scale)
             
     def sample_animations(self):
-        if self.asset_type not in {AssetType.MODEL, AssetType.ANIMATION}:
+        if self.asset_type not in {AssetType.MODEL, AssetType.ANIMATION} or not self.virtual_scene.skeleton_node:
             return
         animation_names = set()
         valid_animations = []
