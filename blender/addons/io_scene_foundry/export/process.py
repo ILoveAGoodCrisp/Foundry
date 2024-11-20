@@ -1810,15 +1810,17 @@ class ExportScene:
             write_zone_sets_to_scenario(self.scene_settings, self.asset_name)
 
         if self.export_settings.update_lighting_info:
-            if self.limit_bsps_to_selection:
-                bsps = [bsp for bsp in self.selected_bsps if bsp.lower() != "shared"]
-            else:
-                bsps = [bsp for bsp in self.regions if bsp.lower() != "shared"]
-            if self.lights:
-                self.print_post(f"--- Writing lighting data from {len(self.lights)} light{'s' if len(self.lights) > 1 else ''}")
-                export_lights(self.lights, bsps)
-            elif self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB} or (self.corinth and self.asset_type in {AssetType.MODEL, AssetType.SKY}):
-                export_lights([], bsps) # this will clear the lighting info tag
+            light_asset = self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB} or (self.corinth and self.asset_type in {AssetType.MODEL, AssetType.SKY})
+            if light_asset:
+                if self.limit_bsps_to_selection:
+                    bsps = [bsp for bsp in self.selected_bsps if bsp.lower() != "shared"]
+                else:
+                    bsps = [bsp for bsp in self.regions if bsp.lower() != "shared"]
+                if self.lights:
+                    self.print_post(f"--- Writing lighting data from {len(self.lights)} light{'s' if len(self.lights) > 1 else ''}")
+                    export_lights(self.lights, bsps)
+                else:
+                    export_lights([], bsps) # this will clear the lighting info tag
         
     def _setup_model_overrides(self):
         model_override = self.asset_type == AssetType.MODEL and any((

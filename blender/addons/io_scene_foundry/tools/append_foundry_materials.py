@@ -35,7 +35,6 @@ def add_special_materials(game, asset_type):
             bsdf.inputs[0].default_value = m.color
             bsdf.inputs[4].default_value = m.color[3]
             mat.blend_method = 'BLEND'
-            mat.shadow_method = 'NONE'
             count += 1
             
     return count
