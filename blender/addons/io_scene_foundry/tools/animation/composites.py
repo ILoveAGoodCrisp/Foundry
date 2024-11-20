@@ -397,8 +397,7 @@ class CompositeXML:
         
     def build_xml(self):
         element_composite = ET.Element("composite")
-        timing_action = self.data.timing_source
-        timing_name = timing_action.nwo.name_override
+        timing_name = self.data.timing_source
         ET.SubElement(element_composite, "timing", source=timing_name)
         for blend_axis in self.data.blend_axis:
             self.write_blend_axis_entry(element_composite, blend_axis)

@@ -820,7 +820,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col = box.column()
             col.use_property_split = True
             col.prop(item, "overlay")
-            col.prop(item, "timing_source")
+            col.prop_search(item, "timing_source", nwo, "animations", icon='ANIM')
             box = col.box()
             box.label(text="Blend Axes")
             row = box.row()

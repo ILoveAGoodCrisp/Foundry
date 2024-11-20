@@ -119,7 +119,7 @@ class NWO_AnimationCompositesItems(PropertyGroup):
     name: bpy.props.StringProperty(name="Name", options=set())
     overlay: bpy.props.BoolProperty(name="Overlay", options=set())
     
-    timing_source: bpy.props.PointerProperty(name="Timing Source", type=bpy.types.Action)
+    timing_source: bpy.props.StringProperty(name="Timing Source", description="Name of the animation to use as the timing source")
     blend_axis_active_index: bpy.props.IntProperty(options=set())
     blend_axis: bpy.props.CollectionProperty(name="Blend Axis", options=set(), type=NWO_AnimationBlendAxisItems)
     
