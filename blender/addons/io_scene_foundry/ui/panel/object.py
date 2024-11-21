@@ -274,6 +274,8 @@ def toggle_override(option, bool_var, item):
             item.lightmap_translucency_tint_color_override = bool_var
         case "lightmap_lighting_from_both_sides":
             item.lightmap_lighting_from_both_sides_override = bool_var
+        case "lightmap_ignore_default_resolution_scale":
+            item.lightmap_ignore_default_resolution_scale_override = bool_var
         case "lightmap_transparency_override":
             item.lightmap_transparency_override_override = bool_var
         # material lighting
@@ -411,6 +413,8 @@ class NWO_OT_FaceLayerAdd(bpy.types.Operator):
                 self.fm_name = "Translucency Tint Color"
             case "lightmap_lighting_from_both_sides":
                 self.fm_name = "Lighting Form Both Sides"
+            case "lightmap_ignore_default_resolution_scale":
+                self.fm_name = "Ignore Default Resolution Scale"
             case "lightmap_transparency_override":
                 self.fm_name = "Disable Lightmap Transparency"
             # material lighting
@@ -655,6 +659,7 @@ class NWO_OT_FaceLayerAddLightmap(NWO_OT_FaceLayerAdd):
                 "Lighting from Both Sides",
                 "",
             ),
+            ('lightmap_ignore_default_resolution_scale', 'Ignore Default Resolution Scale', ''),
             ('lightmap_transparency_override', 'Disable Lightmap Transparency', ''),
             ('lightmap_analytical_bounce_modifier', 'Analytical Bounce Modifier', ''),
             ('lightmap_general_bounce_modifier', 'General Bounce Modifier', ''),
@@ -699,6 +704,7 @@ class NWO_OT_FacePropRemove(bpy.types.Operator):
             ("lightmap_general_bounce_modifier", "", ""),
             ("lightmap_translucency_tint_color", "", ""),
             ("lightmap_lighting_from_both_sides", "", ""),
+            ('lightmap_ignore_default_resolution_scale', '', ''),
             ("lightmap_transparency_override", "", ""),
             ("lightmap_analytical_bounce_modifier", "", ""),
             ("lightmap_general_bounce_modifier", "", ""),
@@ -1202,6 +1208,8 @@ def toggle_active(context, option, bool_var):
             ob_nwo.lightmap_translucency_tint_color_active = bool_var
         case "lightmap_lighting_from_both_sides":
             ob_nwo.lightmap_lighting_from_both_sides_active = bool_var
+        case "lightmap_ignore_default_resolution_scale":
+            ob_nwo.lightmap_ignore_default_resolution_scale_active = bool_var
         case "lightmap_transparency_override":
             ob_nwo.lightmap_transparency_override_active = bool_var
         case "lightmap_analytical_bounce_modifier":
@@ -1295,6 +1303,7 @@ class NWO_OT_MeshPropRemove(bpy.types.Operator):
             ("lightmap_type", "Lightmap Type", ""),
             ("lightmap_translucency_tint_color", "Translucency Tint Color", ""),
             ("lightmap_lighting_from_both_sides", "Lighting from Both Sides", ""),
+            ('lightmap_ignore_default_resolution_scale', 'Ignore Default Resolution Scale', ''),
             ("lightmap_transparency_override", "Disable Lightmap Transparency", ""),
             ("lightmap_analytical_bounce_modifier", "Analytical Bounce Modifier", ""),
             ("lightmap_general_bounce_modifier", "General Bounce Modifier", ""),
@@ -1328,6 +1337,7 @@ class NWO_OT_MeshPropAddLightmap(NWO_OT_MeshPropAdd):
                 "Lighting from Both Sides",
                 "",
             ),
+            ('lightmap_ignore_default_resolution_scale', 'Ignore Default Resolution Scale', ''),
             ('lightmap_transparency_override', 'Disable Lightmap Transparency', ''),
             ('lightmap_analytical_bounce_modifier', 'Analytical Bounce Modifier', ''),
             ('lightmap_general_bounce_modifier', 'General Bounce Modifier', ''),

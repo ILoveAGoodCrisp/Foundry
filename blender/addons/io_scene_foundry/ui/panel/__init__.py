@@ -2217,6 +2217,9 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 if item.lightmap_lighting_from_both_sides_override:
                     row = col.row()
                     row.label(text="Lightmap Lighting From Both Sides")
+                if item.lightmap_ignore_default_resolution_scale_override:
+                    row = col.row()
+                    row.label(text="Ignore Default Resolution Scale")
                 if item.lightmap_transparency_override_override:
                     row = col.row()
                     row.label(text="Disable Lightmap Transparency")
@@ -2460,6 +2463,16 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     row.operator(
                         "nwo.remove_mesh_property", text="", icon="X"
                     ).options = "lightmap_lighting_from_both_sides"
+                if mesh_nwo.lightmap_ignore_default_resolution_scale_active:
+                    row = col_ob.row(align=True)
+                    row.prop(
+                        mesh_nwo,
+                        "lightmap_ignore_default_resolution_scale",
+                        text="Ignore Default Resolution Scale",
+                    )
+                    row.operator(
+                        "nwo.remove_mesh_property", text="", icon="X"
+                    ).options = "lightmap_ignore_default_resolution_scale"
                 if mesh_nwo.lightmap_transparency_override_active:
                     row = col_ob.row(align=True)
                     row.prop(

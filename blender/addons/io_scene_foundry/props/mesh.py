@@ -47,6 +47,7 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
     lightmap_translucency_tint_color_override: bpy.props.BoolProperty()
     lightmap_transparency_override_override: bpy.props.BoolProperty()
     lightmap_lighting_from_both_sides_override: bpy.props.BoolProperty()
+    lightmap_ignore_default_resolution_scale_override: bpy.props.BoolProperty()
     # material lighting
     emissive_override: bpy.props.BoolProperty()
     # Collision stuff
@@ -226,6 +227,13 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
         subtype="COLOR",
         min=0.0,
         max=1.0,
+    )
+    
+    lightmap_ignore_default_resolution_scale: bpy.props.BoolProperty(
+        name="Ignore Default Lightmap Resolution Scale",
+        options=set(),
+        description="Different render mesh types can have different default lightmap resolutions. Enabling this prevents the default for a given type being used",
+        default=True,
     )
 
     lightmap_resolution_scale: bpy.props.IntProperty(
@@ -724,10 +732,10 @@ class NWO_MeshPropertiesGroup(bpy.types.PropertyGroup):
 
     lightmap_ignore_default_resolution_scale_active: bpy.props.BoolProperty()
     lightmap_ignore_default_resolution_scale: bpy.props.BoolProperty(
-        name="Lightmap Resolution Scale",
+        name="Ignore Default Lightmap Resolution Scale",
         options=set(),
-        description="",
-        default=False,
+        description="Different render mesh types can have different default lightmap resolutions. Enabling this prevents the default for a given type being used",
+        default=True,
         update=update_lightmap_ignore_default_resolution_scale,
     )
 

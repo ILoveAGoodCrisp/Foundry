@@ -53,6 +53,7 @@ face_prop_defaults = {
     "bungie_no_lightmap": 0,
     "bungie_precise_position": 0,
     "bungie_mesh_tessellation_density": 0,
+    "bungie_lightmap_ignore_default_resolution_scale": 0,
     "bungie_lightmap_additive_transparency": (0, 0, 0),
     "bungie_lightmap_resolution_scale": 3,
     "bungie_lightmap_type": 0,
@@ -1108,6 +1109,12 @@ class ExportScene:
                         fp_defaults["bungie_mesh_tessellation_density"] = MeshTessellationDensity._36x.value
             else:
                 mesh_props["bungie_mesh_tessellation_density"] = data_nwo.mesh_tessellation_density
+                
+        if data_nwo.lightmap_ignore_default_resolution_scale_active:
+            if test_face_prop(face_props, "lightmap_ignore_default_resolution_scale_override"):
+                fp_defaults["bungie_lightmap_ignore_default_resolution_scale"] = 1
+            else:
+                mesh_props["bungie_lightmap_ignore_default_resolution_scale"] = 1
                 
         if data_nwo.lightmap_additive_transparency_active:
             if test_face_prop(face_props, "lightmap_additive_transparency_override"):

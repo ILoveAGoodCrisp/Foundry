@@ -1533,10 +1533,11 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
                     face_properties.setdefault("bungie_mesh_tessellation_density", FaceSet(np.full(num_faces, fp_defaults["bungie_mesh_tessellation_density"], dtype=np.int32))).update(bm, face_prop.layer_name, 3)
             
         # Lightmap Props
+        if face_prop.lightmap_ignore_default_resolution_scale_override and props.get("bungie_lightmap_ignore_default_resolution_scale") is None:
+            face_properties.setdefault("bungie_lightmap_ignore_default_resolution_scale", FaceSet(np.full(num_faces, fp_defaults["bungie_lightmap_ignore_default_resolution_scale"], dtype=np.int32))).update(bm, face_prop.layer_name, 1)
         if face_prop.lightmap_additive_transparency_override and props.get("bungie_lightmap_additive_transparency") is None:
             face_properties.setdefault("bungie_lightmap_additive_transparency", FaceSet(np.full((num_faces, 3), fp_defaults["bungie_lightmap_additive_transparency"], np.single))).update(bm, face_prop.layer_name, utils.color_3p_int(face_prop.lightmap_additive_transparency))
         if face_prop.lightmap_resolution_scale_override and props.get("bungie_lightmap_additive_transparency") is None:
-            # face_properties.setdefault("bungie_lightmap_ignore_default_resolution_scale", FaceSet(np.zeros(num_faces, np.int32))).update(bm, face_prop.layer_name, 1) # TODO needs to be own settable prop
             face_properties.setdefault("bungie_lightmap_resolution_scale", FaceSet(np.full(num_faces, fp_defaults["bungie_lightmap_resolution_scale"], dtype=np.int32))).update(bm, face_prop.layer_name, face_prop.lightmap_resolution_scale)
         if face_prop.lightmap_type_override and props.get("bungie_lightmap_type") is None:
             if face_prop.lightmap_type == '_connected_geometry_lightmap_type_per_vertex':
