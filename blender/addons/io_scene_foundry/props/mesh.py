@@ -307,7 +307,7 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
     lightmap_translucency_tint_color: bpy.props.FloatVectorProperty(
         name="Translucency Tint Color",
         options=set(),
-        description="",
+        description="Overrides the color of the shadow and color of light after it passes through a surface",
         default=(1.0, 1.0, 1.0),
         subtype="COLOR",
         min=0.0,
@@ -836,7 +836,7 @@ class NWO_MeshPropertiesGroup(bpy.types.PropertyGroup):
     lightmap_translucency_tint_color: bpy.props.FloatVectorProperty(
         name="Lightmap Translucency Tint Color",
         options=set(),
-        description="",
+        description="Overrides the color of the shadow and color of light after it passes through a surface",
         default=(1.0, 1.0, 1.0),
         subtype="COLOR",
         min=0.0,
