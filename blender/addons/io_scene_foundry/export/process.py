@@ -512,7 +512,7 @@ class ExportScene:
         nwo = ob.nwo
         object_type = self._get_object_type(ob)
         # Frames go unused in non-model exports
-        if object_type == ObjectType.none or (not self.is_model and object_type == ObjectType.frame):
+        if object_type == ObjectType.none:
             return 
         
         props["bungie_object_type"] = object_type.value
@@ -531,7 +531,7 @@ class ExportScene:
         nwo.export_collection = ""
         if collection and collection != self.context.scene.collection:
             export_coll = self.collection_map.get(collection)
-            if export_coll is None: raise
+            if export_coll is None: return
             if export_coll.non_export:
                 return
             coll_region, coll_permutation = export_coll.region, export_coll.permutation
