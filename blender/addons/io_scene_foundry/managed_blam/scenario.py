@@ -17,7 +17,9 @@ class ScenarioTag(Tag):
     def _get_bsp_from_name(self, bsp_name: str):
         for element in self.block_bsps.Elements:
             bsp_reference = element.SelectField('structure bsp').Path
-            full_bsp_name = utils.dot_partition(os.path.basename(bsp_reference.ToString()))
+            if bsp_reference is None:
+                continue
+            full_bsp_name = utils.dot_partition(os.path.basename(bsp_reference.RelativePath))
             if full_bsp_name == bsp_name:
                 return element
         else:
