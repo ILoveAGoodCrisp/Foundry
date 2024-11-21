@@ -127,8 +127,8 @@ class ExportScene:
         
         self.selected_permutations = set()
         self.selected_bsps = set()
-        self.limit_perms_to_selection = export_settings.export_all_perms == 'selected'
-        self.limit_bsps_to_selection = export_settings.export_all_bsps == 'selected'
+        self.limit_perms_to_selection = export_settings.export_all_perms == 'selected' and self.asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.SCENARIO, AssetType.PREFAB}
+        self.limit_bsps_to_selection = export_settings.export_all_bsps == 'selected' and self.asset_type == AssetType.SCENARIO
         
         self.project_root = self.tags_dir.parent
         self.warnings = []
@@ -404,13 +404,9 @@ class ExportScene:
                     if self.limit_perms_to_selection:
                         if ob.select_get():
                             self.selected_permutations.add(permutation)
-                        elif permutation not in self.selected_permutations:
-                            continue
                     if self.limit_bsps_to_selection:
                         if ob.select_get():
                             self.selected_bsps.add(region)
-                        elif region not in self.selected_bsps:
-                            continue
                 
                 parent = ob.parent
                 has_parent = parent is not None
@@ -486,6 +482,10 @@ class ExportScene:
         self.virtual_scene.object_halo_data = self.ob_halo_data
         self.virtual_scene.export_tag_types = self.export_tag_types
         self.virtual_scene.support_armatures = self.support_armatures
+        self.virtual_scene.selected_bsps = self.selected_bsps
+        self.virtual_scene.selected_permutations = self.selected_permutations
+        self.virtual_scene.limit_bsps = self.limit_bsps_to_selection
+        self.virtual_scene.limit_permutations = self.limit_perms_to_selection
         self.context.view_layer.update()
         
     def _get_object_type(self, ob) -> ObjectType:

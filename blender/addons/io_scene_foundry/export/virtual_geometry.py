@@ -723,6 +723,9 @@ class VirtualNode:
         self.bone_bindings: list[str] = []
         self.granny_vertex_data = None
         if not self.invalid and self.tag_type in scene.export_tag_types:
+            # Skip writing mesh data for non-selected bsps/permutations
+            if scene.limit_bsps and region not in scene.selected_bsps: return
+            if scene.limit_permutations and permutation not in scene.selected_permutations: return
             self._setup(id, scene, fp_defaults, proxies, template_node, bones, parent_matrix)
         
     def _setup(self, id: bpy.types.Object | bpy.types.PoseBone, scene: 'VirtualScene', fp_defaults: dict, proxies: list, template_node: 'VirtualNode', bones: list[str], parent_matrix: Matrix):
@@ -1201,6 +1204,11 @@ class VirtualScene:
         self.light_scale = light_scale
         self.unit_factor = unit_factor
         self.atten_scalar = atten_scalar
+        
+        self.selected_bsps = set()
+        self.selected_permutations = set()
+        self.limit_bsps = False
+        self.limit_permutations = False
         
         spath = "shaders\invalid"
         stype = "material" if corinth else "shader"

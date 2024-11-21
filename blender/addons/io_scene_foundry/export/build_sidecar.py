@@ -445,8 +445,8 @@ class Sidecar:
         if self.has_armature:
             self._write_animation_content(content)
 
-    def _write_network_files_bsp(self, content_object, file_data: SidecarFileData, shared=False):
-        network = ET.SubElement(content_object, "ContentNetwork", Name=f'{self.asset_name}_{file_data.region}_{file_data.permutation}', Type="")
+    def _write_network_files_bsp(self, content_object, file_data: SidecarFileData, shared=False, design=False):
+        network = ET.SubElement(content_object, "ContentNetwork", Name=f'{self.asset_name}_{"design" if design else "structure"}_{file_data.region}_{file_data.permutation}', Type="")
         if shared:
             network.attrib["Name"] += "_shared"
         ET.SubElement(network, "InputFile").text = file_data.blend_path
@@ -489,7 +489,7 @@ class Sidecar:
             if not design_data: continue
             for data in design_data:
                 if data.region == bsp:
-                    network_names.add(self._write_network_files_bsp(content_object, data))
+                    network_names.add(self._write_network_files_bsp(content_object, data, design=True))
 
             output = ET.SubElement(content_object, "OutputTagCollection")
             ET.SubElement(output, "OutputTag", Type="structure_design").text = f"{self.relative_asset_path}\\{content_name}"
