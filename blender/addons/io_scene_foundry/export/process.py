@@ -452,7 +452,7 @@ class ExportScene:
                                 continue
                             
                             copy_region = back_ui
-                            copy_props["bungie_mesh_seam_associated_bsp"] = f"{self.asset_name}_{copy_region}"
+                            copy_props["bungie_mesh_seam_associated_bsp"] = copy_region
                             
                         case ObjectCopy.INSTANCE:
                             copy_props["bungie_mesh_type"] = MeshType.poop.value
@@ -605,7 +605,7 @@ class ExportScene:
             if nwo.proxy_instance:
                 copy = ObjectCopy.INSTANCE
         elif mesh_type == '_connected_geometry_mesh_type_seam':
-            props["bungie_mesh_seam_associated_bsp"] = f"{self.asset_name}_{region}"
+            props["bungie_mesh_seam_associated_bsp"] = region
             if not nwo.seam_back_manual:
                 copy = ObjectCopy.SEAM
         elif mesh_type == "_connected_geometry_mesh_type_portal":

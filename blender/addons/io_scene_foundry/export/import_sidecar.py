@@ -80,7 +80,7 @@ class SidecarImport:
                 utils.print_warning(f'Tried to set up template for {tag_type} tag but given template tag [{full_path}] does not exist')
     
     def save_lighting_infos(self):
-        lighting_info_paths = [str(Path(self.tags_dir, self.relative_asset_path, f'{self.asset_name}_{b}.scenario_structure_lighting_info')) for b in self.bsps]
+        lighting_info_paths = [str(Path(self.tags_dir, self.relative_asset_path, f'{b}.scenario_structure_lighting_info')) for b in self.bsps]
         for file in lighting_info_paths:
             if Path(file).exists():
                 with open(file, 'r+b') as f:
@@ -136,7 +136,7 @@ class SidecarImport:
 
         if self.selected_bsps:
             for bsp in self.selected_bsps:
-                flags.append(f"{self.asset_name}_{bsp}")
+                flags.append(bsp)
 
         return flags
     

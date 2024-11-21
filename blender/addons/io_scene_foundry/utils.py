@@ -527,6 +527,9 @@ def run_tool_sidecar(tool_args: list, asset_path, event_level='WARNING'):
                 elif "animation graph update failed!" in line:
                     # Always outputs on new animation graph creation
                     continue
+                elif "Mesh marked to include per-vertex alpha has entirely opaque values!" in line:
+                    # Always outputs on new animation graph creation
+                    continue
                 else:
                     # need to handle animation stuff. Most animation output is written to stderr...
                     if line.startswith("animation:import:"):
