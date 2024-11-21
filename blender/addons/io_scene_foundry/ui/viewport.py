@@ -149,9 +149,9 @@ class NWO_OT_ApplyTypeMesh(bpy.types.Operator):
             items.append(
                 utils.nwo_enum(
                     "boundary_surface",
-                    "SBoundary Surface",
+                    "Boundary Surface",
                     "Surfaces which prevent the player leaving the intended playspace",
-                    "boundary_surface",
+                    "soft_ceiling",
                     index,
                 )
             )
