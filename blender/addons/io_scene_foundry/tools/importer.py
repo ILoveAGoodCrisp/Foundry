@@ -42,6 +42,27 @@ legacy_frame_prefixes = "frame_", "frame ", "bip_", "bip ", "b_", "b "
 
 formats = "amf", "jms", "jma", "bitmap", "camera_track", "model", "render_model", "scenario", "scenario_structure_bsp"
 
+xref_tag_types = (
+    ".crate",
+    ".scenery",
+    ".device_machine"
+)
+
+tag_files_cache = set()
+
+class XREF:
+    def __init__(self, object_name: str, xref_path: str, xref_name: str):
+        self.preferred_type = ".crate"
+        self.preferred_dir = None
+        if object_name.lower().startswith("?"):
+            self.preferred_type = ".device_machine"
+        if xref_path:
+            relative_path = utils.any_partition(xref_path, "\\data\\", True)
+            relative_dir = Path(relative_path).parent
+            self.preferred_dir = Path(utils.get_tags_path(), relative_dir)
+        
+        self.name = xref_name
+
 class NWO_OT_ConvertScene(bpy.types.Operator):
     bl_label = "Convert Scene"
     bl_idname = "nwo.convert_scene"
@@ -1297,7 +1318,13 @@ class NWOImporter:
             if file_name:
                 utils.unlink(ob)
                 new_coll.objects.link(ob)
-            if ob.name.lower().startswith(legacy_frame_prefixes) or ob.type == 'ARMATURE':
+                
+            if ob.type == 'MESH' and ob.data.ass_jms.XREF_name:
+                xref = XREF(ob.name, ob.data.ass_jms.XREF_path, ob.data.ass_jms.XREF_name)
+                ob = convert_to_marker(ob, maintain_mesh=True)
+                self.setup_jms_marker(ob, is_model, xref)
+                
+            elif ob.name.lower().startswith(legacy_frame_prefixes) or ob.type == 'ARMATURE':
                 self.setup_jms_frame(ob)
             elif ob.name.startswith('#') or (is_model and ob.type =='EMPTY' and ob.name.startswith('$')):
                 self.setup_jms_marker(ob, is_model)
@@ -1341,7 +1368,7 @@ class NWOImporter:
         else:
             self.jms_other_objects.append(ob)
             
-    def setup_jms_marker(self, ob, is_model):
+    def setup_jms_marker(self, ob, is_model, xref: XREF = None):
         perm, region = None, None
         constraint = is_model and ob.name.startswith('$')
         name = ob.name[1:]
@@ -1387,7 +1414,46 @@ class NWOImporter:
                 marker.nwo.marker_permutations.add().name = perm
                 marker.nwo.marker_permutation_type = 'include'
                 
-        if constraint:
+        if xref is not None:
+            marker.nwo.marker_type = "_connected_geometry_marker_type_game_instance"
+            tag_path = ""
+            fallback_tag_path = ""
+            if xref.preferred_dir is not None:
+                path = Path(xref.preferred_dir, xref.name, f"{xref.name}{xref.preferred_type}")
+                fallback_tag_path = path
+                if path.exists():
+                    tag_path = utils.relative_path(path)
+                elif xref.preferred_dir.exists():
+                    for xtype in xref_tag_types:
+                        path = Path(xref.preferred_dir, xref.name, f"{xref.name}{xtype}")
+                        if path.exists():
+                            tag_path = utils.relative_path(path)
+                            break
+                        
+            if not tag_path:
+                if not tag_files_cache:
+                    for root, _, files in os.walk(utils.get_tags_path()):
+                        for file in files:
+                            tag_files_cache.add(Path(root, file).with_suffix(""))
+                
+                for path_no_ext in tag_files_cache:
+                    if path_no_ext.name == xref.name:
+                        path = path_no_ext.with_suffix(xref.preferred_type)
+                        if path.exists():
+                            tag_path = utils.relative_path(path)
+                        else:
+                            for xtype in xref_tag_types:
+                                path = path_no_ext.with_suffix(xtype)
+                                if path.exists():
+                                    tag_path = utils.relative_path(path)
+                                    break
+                            
+            if tag_path:
+                marker.nwo.marker_game_instance_tag_name = tag_path
+            elif fallback_tag_path:
+                marker.nwo.marker_game_instance_tag_name = fallback_tag_path
+
+        elif constraint:
             marker.nwo.marker_type = '_connected_geometry_marker_type_physics_constraint'
             marker.nwo.physics_constraint_parent = marker.rigid_body_constraint.object1
             marker.nwo.physics_constraint_child = marker.rigid_body_constraint.object2
@@ -1409,7 +1475,7 @@ class NWOImporter:
                     if marker.rigid_body_constraint.use_limit_ang_z:
                         marker.nwo.plane_constraint_minimum = marker.rigid_body_constraint.limit_ang_z_lower
                         marker.nwo.plane_constraint_maximum = marker.rigid_body_constraint.limit_ang_z_upper
-                
+
         elif name.startswith('fx'):
             marker.nwo.marker_type = '_connected_geometry_marker_type_effects'
         elif name.startswith('target'):

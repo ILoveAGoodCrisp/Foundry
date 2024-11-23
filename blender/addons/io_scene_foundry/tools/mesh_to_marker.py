@@ -291,6 +291,7 @@ def convert_to_marker(ob: bpy.types.Object, maintain_mesh=False) -> bpy.types.Ob
         secret_coll.objects.link(ob)
         marker.instance_type = 'COLLECTION'
         marker.instance_collection = secret_coll
+        marker.nwo.marker_instance = True
         
     for child_ob, matrix_world in children.items():
         child_ob.parent = marker
