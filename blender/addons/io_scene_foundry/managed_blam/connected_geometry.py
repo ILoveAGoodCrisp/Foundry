@@ -2,7 +2,8 @@
 
 from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
-from math import radians
+from math import radians, sqrt
+import math
 from pathlib import Path
 from statistics import mean
 from typing import Iterable
@@ -666,7 +667,6 @@ class Shape:
         self.material_index = base.SelectField("material").Value
         self.material = materials[self.material_index]
     
-    
 class Sphere(Shape):
     radius: float
     translation: Vector
@@ -732,22 +732,34 @@ class Box(Shape):
     matrix: Matrix
     ob: bpy.types.Object
     
-    def __init__(self, element: TagFieldBlockElement, materials):
+    def __init__(self, element: TagFieldBlockElement, materials, corinth: bool):
         super().__init__(element, materials)
         self.translation = Vector([n for n in element.SelectField("Struct:convex transform shape[0]/RealVector3d:translation").Data]) * 100
         self.width, self.length, self.height = (n * 2 * 100 for n in element.SelectField("RealVector3d:half extents").Data)
         ii, ij, ik = element.SelectField("Struct:convex transform shape[0]/RealVector3d:rotation i").Data
         ji, jj, jk = element.SelectField("Struct:convex transform shape[0]/RealVector3d:rotation j").Data
         ki, kj, kk = element.SelectField("Struct:convex transform shape[0]/RealVector3d:rotation k").Data
-        rotation_matrix = Matrix((
-            (ii, ij, ik, self.translation[0]),
-            (ji, jj, jk, self.translation[1]),
-            (ki, kj, kk, self.translation[2]),
-            (0, 0, 0, 1)
-        ))
+        iw = element.SelectField("Struct:convex transform shape[0]/Real:havok w rotation i").Data
+        jw = element.SelectField("Struct:convex transform shape[0]/Real:havok w rotation j").Data
+        kw = element.SelectField("Struct:convex transform shape[0]/Real:havok w rotation k").Data
         
-        rotation = rotation_matrix.to_quaternion()
+        rotation = self.calculate_box_rotation(ii, ik, ij, ji, jj, jk, ki, kj, kk)
+            
         self.matrix = Matrix.LocRotScale(self.translation, rotation, Vector((self.width, self.length, self.height)))
+    
+    @staticmethod
+    def calculate_box_rotation(ii, ik, ij, ji, jj, jk, ki, kj, kk):
+        #TODO this doesn't quite work right for corinth, need to figure this out
+        qw = math.sqrt(max(0, 1 + ii + jj + kk)) / 2
+        qx = math.sqrt(max(0, 1 + ii - jj - kk)) / 2
+        qy = math.sqrt(max(0, 1 - ii + jj - kk)) / 2
+        qz = math.sqrt(max(0, 1 - ii - jj + kk)) / 2
+
+        qx = math.copysign(qx, ki - ik)
+        qy = math.copysign(qy, kj - jk)
+        qz = math.copysign(qz, ji - ij)
+
+        return Quaternion((qw, qx, qy, qz))
         
     def to_object(self):
         mesh = bpy.data.meshes.new(self.name)
@@ -818,7 +830,7 @@ class RigidBody:
     valid: bool
     list_shapes_offset: int
     
-    def __init__(self, element: TagFieldBlockElement, region, permutation, materials, four_vectors_map, tag, list_shapes_offset):
+    def __init__(self, element: TagFieldBlockElement, region, permutation, materials, four_vectors_map, tag, list_shapes_offset, corinth: bool):
         self.valid = False
         self.list_shapes_offset = list_shapes_offset
         self.index = element.ElementIndex
@@ -831,20 +843,28 @@ class RigidBody:
         self.shape_type = ShapeType(shape_element.SelectField("shape type").Value)
         self.shapes = []
         shape_index = shape_element.SelectField("shape").Value
+        self.get_shape(shape_index, materials, four_vectors_map, tag, list_shapes_offset, corinth)
+        self.valid = True
+        
+    def get_shape(self, shape_index, materials, four_vectors_map, tag, list_shapes_offset, corinth: bool):
         match self.shape_type:
             case ShapeType.sphere:
                 self.shapes.append(Sphere(tag.block_spheres.Elements[shape_index], materials))
             case ShapeType.pill:
                 self.shapes.append(Pill(tag.block_pills.Elements[shape_index], materials))
             case ShapeType.box:
-                self.shapes.append(Box(tag.block_boxes.Elements[shape_index], materials))
+                self.shapes.append(Box(tag.block_boxes.Elements[shape_index], materials, corinth))
             case ShapeType.polyhedron:
                 self.shapes.append(Polyhedron(tag.block_polyhedra.Elements[shape_index], materials, tag.block_polyhedron_four_vectors, four_vectors_map))
                 self.four_vectors_offset = self.shapes[-1].offset
             case ShapeType.mopp | ShapeType._list:
                 if self.shape_type == ShapeType.mopp:
                     mopp = tag.block_mopps.Elements[shape_index]
-                    list_element = tag.block_list_shapes.Elements[mopp.SelectField("list").Value]
+                    if corinth:
+                        self.shape_type = ShapeType(mopp.SelectField("Struct:childShapePointer[0]/ShortEnum:shape type").Value)
+                        return self.get_shape(mopp.SelectField("Struct:childShapePointer[0]/ShortBlockIndexCustomSearch:shape").Value, materials, four_vectors_map, tag, list_shapes_offset, corinth)
+                    else:
+                        list_element = tag.block_lists.Elements[mopp.SelectField("list").Value]
                 else:
                     list_element = tag.block_lists.Elements[shape_index]
                     
@@ -860,7 +880,7 @@ class RigidBody:
                         case ShapeType.pill:
                             self.shapes.append(Pill(tag.block_pills.Elements[list_shape_index], materials))
                         case ShapeType.box:
-                            self.shapes.append(Box(tag.block_boxes.Elements[list_shape_index], materials))
+                            self.shapes.append(Box(tag.block_boxes.Elements[list_shape_index], materials, corinth))
                         case ShapeType.polyhedron:
                             self.shapes.append(Polyhedron(tag.block_polyhedra.Elements[list_shape_index], materials, tag.block_polyhedron_four_vectors, four_vectors_map))
                             self.four_vectors_offset = self.shapes[-1].offset
@@ -868,8 +888,6 @@ class RigidBody:
                             print(f"Unsupported physics shape type: {self.shape_type.name}")
             case _:
                 print(f"Unsupported physics shape type: {self.shape_type.name}")
-                
-        self.valid = True
                 
     def to_objects(self) -> bpy.types.Object:
         for shape in self.shapes:
