@@ -37,6 +37,7 @@ class ObjectCopy(Enum):
     SEAM = 1
     INSTANCE = 2
     WATER_PHYSICS = 3
+    PHYSICS = 4
 
 face_prop_defaults = {
     "bungie_face_region": "default",
@@ -137,9 +138,8 @@ class ExportScene:
         self.granny = Granny(Path(self.project_root, "granny2_x64.dll"), self.corinth)
         
         self.forward = scene_settings.forward_direction
-        self.scale = 1 if scene_settings.scale == 'max' else 0.03048
-        self.inverse_scale = 1 if scene_settings.scale == 'blender' else 1 / 0.03048
-        self.light_scale = utils.get_export_scale(context)
+        self.from_halo_scale = 1 if scene_settings.scale == 'max' else 0.03048
+        self.to_halo_scale = utils.get_export_scale(context)
         self.mirror = export_settings.granny_mirror
         self.has_animations = False
         self.exported_animations = []
@@ -282,7 +282,7 @@ class ExportScene:
         else:    
             self.export_objects = [ob for ob in self.context.view_layer.objects if ob.nwo.export_this and ob.type in VALID_OBJECTS and ob not in self.support_armatures and ob not in skip_obs]
         
-        self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir, self.granny, self.export_settings, self.context.scene.render.fps / self.context.scene.render.fps_base, self.scene_settings.default_animation_compression, utils.blender_halo_rotation_diff(self.forward), self.scene_settings.maintain_marker_axis, self.granny_textures, utils.get_project(self.context.scene.nwo.scene_project), self.light_scale, self.unit_factor, self.atten_scalar)
+        self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir, self.granny, self.export_settings, self.context.scene.render.fps / self.context.scene.render.fps_base, self.scene_settings.default_animation_compression, utils.blender_halo_rotation_diff(self.forward), self.scene_settings.maintain_marker_axis, self.granny_textures, utils.get_project(self.context.scene.nwo.scene_project), self.to_halo_scale, self.unit_factor, self.atten_scalar)
         
     def create_instance_proxies(self, ob: bpy.types.Object, ob_halo_data: dict, region: str, permutation: str):
         self.processed_poop_meshes.add(ob.data)
@@ -309,7 +309,8 @@ class ExportScene:
                     
             fp_defaults, mesh_props = self.processed_meshes.get(proxy_collision.data, (None, None))
             if mesh_props is None:
-                fp_defaults, mesh_props = self._setup_mesh_level_props(proxy_collision, "default", {})
+                mesh_props = {}
+                fp_defaults = self._setup_mesh_level_props(proxy_collision, "default", mesh_props)
                 # Collision proxies must not be breakable, else tool will crash
                 if mesh_props.get("bungie_face_mode") == FaceMode.breakable.value:
                     mesh_props["bungie_face_mode"] = FaceMode.normal.value
@@ -333,7 +334,8 @@ class ExportScene:
                         
                 fp_defaults, mesh_props = self.processed_meshes.get(proxy_physics.data, (None, None))
                 if mesh_props is None:
-                    fp_defaults, mesh_props = self._setup_mesh_level_props(proxy_physics, "default", {})
+                    mesh_props = {}
+                    fp_defaults, self._setup_mesh_level_props(proxy_physics, "default", mesh_props)
                     self.processed_meshes[proxy_physics.data] = (fp_defaults, mesh_props)
                 
                 phys_props.update(mesh_props)
@@ -346,7 +348,8 @@ class ExportScene:
             cookie_props["bungie_mesh_type"] = MeshType.cookie_cutter.value
             fp_defaults, mesh_props = self.processed_meshes.get(proxy_cookie_cutter.data, (None, None))
             if mesh_props is None:
-                fp_defaults, mesh_props = self._setup_mesh_level_props(proxy_cookie_cutter, "default", {})
+                mesh_props = {}
+                fp_defaults = self._setup_mesh_level_props(proxy_cookie_cutter, "default", mesh_props)
                 self.processed_meshes[proxy_cookie_cutter.data] = (fp_defaults, mesh_props)
             
             cookie_props.update(mesh_props)
@@ -411,20 +414,8 @@ class ExportScene:
                 
                 parent = ob.parent
                 has_parent = parent is not None
-                # if has_parent and object_parent_dict.get(ob.parent) is None:
-                #     return
                 proxies = tuple()
                 mesh_type = props.get("bungie_mesh_type")
-                # Write object as if it has no parent if it is a poop. This solves an issue where instancing fails in Reach
-                if not is_armature and (has_parent or (armature and not is_armature)) and mesh_type != MeshType.poop.value:
-                    if parent in support_armatures:
-                        object_parent_dict[ob] = self.main_armature
-                    elif not has_parent:
-                        object_parent_dict[ob] = armature
-                    else:
-                        object_parent_dict[ob] = parent
-                else:
-                    self.no_parent_objects.append(ob)
                     
                 if self.supports_bsp and mesh_type == MeshType.poop.value and ob.data not in self.processed_poop_meshes:
                     self.ob_halo_data, proxies, has_collision_proxy = self.create_instance_proxies(ob, self.ob_halo_data, region, permutation)
@@ -434,7 +425,7 @@ class ExportScene:
                             mesh_props["bungie_face_mode"] = FaceMode.render_only.value
                 
                 props.update(mesh_props)
-                
+                copy_only = False
                 if copy is not None:
                     copy_props = props.copy()
                     copy_ob = ob.copy()
@@ -455,19 +446,46 @@ class ExportScene:
                             copy_props["bungie_mesh_type"] = MeshType.poop.value
                             if copy_props.get("bungie_face_type") == FaceType.sky.value:
                                 copy_props.pop("bungie_face_type")
-                            copy_props, copy_mesh_props = self._setup_poop_props(copy_ob, ob.nwo, ob.data.nwo, copy_props, mesh_props)
+                            copy_mesh_props = mesh_props.copy()
+                            self._setup_poop_props(copy_ob, ob.nwo, ob.data.nwo, copy_props, copy_mesh_props)
                             copy_props.update(copy_mesh_props)
                             copy_ob.data = copy_ob.data.copy()
                             self.temp_meshes.add(copy_ob.data)
                             
                         case ObjectCopy.WATER_PHYSICS:
                             copy_props["bungie_mesh_type"] = MeshType.water_physics_volume.value
-                            copy_props = self._setup_water_physics_props(copy_ob.nwo, copy_props)
+                            self._setup_water_physics_props(copy_ob.nwo, copy_props)
+                            
+                        case ObjectCopy.PHYSICS:
+                            copy_ob.data = ob.data.copy()
+                            self.temp_meshes.add(copy_ob.data)
+                            name = self._set_primitive_props(copy_ob, copy_ob.nwo.mesh_primitive_type, copy_props)
+                            copy_ob.name = f"{ob.name}_{name}"
+                            copy_only = True
                     
                     self.ob_halo_data[copy_ob] = [copy_props, copy_region, permutation, fp_defaults, proxies]
-                    self.no_parent_objects.append(copy_ob)
-                    
-                self.ob_halo_data[ob] = [props, region, permutation, fp_defaults, proxies]
+                    if not is_armature and (has_parent or (armature and not is_armature)) and copy_props["bungie_mesh_type"] != MeshType.poop.value:
+                        if parent in support_armatures:
+                            object_parent_dict[copy_ob] = self.main_armature
+                        elif not has_parent:
+                            object_parent_dict[copy_ob] = armature
+                        else:
+                            object_parent_dict[copy_ob] = parent
+                    else:
+                        self.no_parent_objects.append(copy_ob)
+                
+                if not copy_only:
+                    # Write object as if it has no parent if it is a poop. This solves an issue where instancing fails in Reach
+                    if not is_armature and (has_parent or (armature and not is_armature)) and mesh_type != MeshType.poop.value:
+                        if parent in support_armatures:
+                            object_parent_dict[ob] = self.main_armature
+                        elif not has_parent:
+                            object_parent_dict[ob] = armature
+                        else:
+                            object_parent_dict[ob] = parent
+                    else:
+                        self.no_parent_objects.append(ob)
+                    self.ob_halo_data[ob] = [props, region, permutation, fp_defaults, proxies]
                     
                 utils.update_job_count(process, "", idx, num_export_objects)
             utils.update_job_count(process, "", num_export_objects, num_export_objects)
@@ -560,33 +578,32 @@ class ExportScene:
                         self.warnings.append(f"Object [{ob.name}] has {self.perm_name} [{perm}] in its include list which is not present in the {self.perm_name}s table. Ignoring {self.perm_name}")
             
         if object_type == ObjectType.mesh:
-            if nwo.mesh_type == '':
+            if not nwo.mesh_type:
                 nwo.mesh_type = '_connected_geometry_mesh_type_default'
             if utils.type_valid(nwo.mesh_type, self.asset_type.name.lower(), self.game_version):
-                props, fp_defaults, mesh_props, copy = self._setup_mesh_properties(ob, ob.nwo, self.asset_type.supports_bsp, props, region, mesh_props, copy)
-                if props is None:
+                mesh_result = self._setup_mesh_properties(ob, ob.nwo, self.asset_type.supports_bsp, props, region, mesh_props)
+                if mesh_result is None:
                     return
+                fp_defaults, copy = mesh_result
                 
             else:
                 return self.warnings.append(f"{ob.name} has invalid mesh type [{nwo.mesh_type}] for asset [{self.asset_type}]. Skipped")
                 
         elif object_type == ObjectType.marker:
-            if nwo.marker_type == '':
+            if not nwo.marker_type:
                 nwo.marker_type = '_connected_geometry_marker_type_model'
             if utils.type_valid(nwo.marker_type, self.asset_type.name.lower(), self.game_version):
-                props = self._setup_marker_properties(ob, ob.nwo, props, region)
-                if props is None:
-                    return
+                self._setup_marker_properties(ob, ob.nwo, props, region)
             else:
                 return self.warnings.append(f"{ob.name} has invalid marker type [{nwo.mesh_type}] for asset [{self.asset_type}]. Skipped")
 
         return props, region, permutation, fp_defaults, mesh_props, copy
     
-    def _setup_mesh_properties(self, ob: bpy.types.Object, nwo: NWO_ObjectPropertiesGroup, supports_bsp: bool, props: dict, region: str, mesh_props: dict, copy):
+    def _setup_mesh_properties(self, ob: bpy.types.Object, nwo: NWO_ObjectPropertiesGroup, supports_bsp: bool, props: dict, region: str, mesh_props: dict):
         mesh_type = ob.data.nwo.mesh_type
         mesh = ob.data
         data_nwo: NWO_MeshPropertiesGroup = mesh.nwo
-        
+        copy = None
         if supports_bsp:
             # Foundry stores instances as the default mesh type, so switch them back to poops and structure to default
             match mesh_type:
@@ -596,11 +613,15 @@ class ExportScene:
                     mesh_type = '_connected_geometry_mesh_type_default'
         
         if mesh_type == "_connected_geometry_mesh_type_physics":
-            props = self._setup_physics_props(ob, nwo, props)
+            if nwo.mesh_primitive_type != '_connected_geometry_primitive_type_none':
+                copy = ObjectCopy.PHYSICS
+            elif self.corinth and nwo.mopp_physics:
+                props["bungie_mesh_primitive_type"] = "_connected_geometry_primitive_type_mopp"
+                props["bungie_havok_isshape"] = 1
         elif mesh_type == '_connected_geometry_mesh_type_object_instance':
-            props = self._setup_instanced_object_props(nwo, props, region)
+            self._setup_instanced_object_props(nwo, props, region)
         elif mesh_type == '_connected_geometry_mesh_type_poop':
-            props, mesh_props = self._setup_poop_props(ob, nwo, data_nwo, props, mesh_props)
+            self._setup_poop_props(ob, nwo, data_nwo, props, mesh_props)
         elif mesh_type == '_connected_geometry_mesh_type_default' and self.corinth and self.asset_type == AssetType.SCENARIO:
             props["bungie_face_type"] = FaceType.sky.value
             if nwo.proxy_instance:
@@ -668,23 +689,12 @@ class ExportScene:
         
         fp_defaults, tmp_mesh_props = self.processed_meshes.get(ob.data, (None, None))
         if tmp_mesh_props is None:
-            fp_defaults, mesh_props = self._setup_mesh_level_props(ob, region, mesh_props)
+            fp_defaults = self._setup_mesh_level_props(ob, region, mesh_props)
             self.processed_meshes[ob.data] = (fp_defaults, mesh_props)
         else:
             mesh_props.update(tmp_mesh_props)
 
-        return props, fp_defaults, mesh_props, copy
-        
-    def _setup_physics_props(self, ob: bpy.types.Object, nwo: NWO_ObjectPropertiesGroup, props: dict):
-        prim_type = nwo.mesh_primitive_type
-        props["bungie_mesh_primitive_type"] = prim_type
-        if prim_type != '_connected_geometry_primitive_type_none':
-            props = self._set_primitive_props(ob, prim_type, props)
-        elif self.corinth and nwo.mopp_physics:
-            props["bungie_mesh_primitive_type"] = "_connected_geometry_primitive_type_mopp"
-            props["bungie_havok_isshape"] = 1
-            
-        return props
+        return fp_defaults, copy
     
     def _setup_water_physics_props(self, nwo: NWO_ObjectPropertiesGroup, props: dict):
         props["bungie_mesh_water_volume_depth"] = nwo.water_volume_depth
@@ -695,8 +705,6 @@ class ExportScene:
             props["bungie_mesh_water_volume_fog_color"] = utils.color_rgba(nwo.water_volume_fog_color)
         else:
             props["bungie_mesh_water_volume_fog_color"] = utils.color_argb(nwo.water_volume_fog_color)
-            
-        return props
     
     def _setup_instanced_object_props(self, nwo: NWO_ObjectPropertiesGroup, props: dict, region: str):
         props["bungie_marker_all_regions"] = int(not nwo.marker_uses_regions)
@@ -712,15 +720,12 @@ class ExportScene:
                     props["bungie_marker_exclude_from_permutations"] = m_perm_json_value
                 else:
                     props["bungie_marker_include_in_permutations"] = m_perm_json_value
-                
-        return props
     
     def _setup_poop_props(self, ob: bpy.types.Object, nwo: NWO_ObjectPropertiesGroup, data_nwo: NWO_MeshPropertiesGroup, props: dict, mesh_props: dict):
         if self.corinth and not data_nwo.render_only and data_nwo.collision_only:
             props["bungie_mesh_type"] = MeshType.poop_collision.value
             props["bungie_mesh_poop_collision_type"] = data_nwo.poop_collision_type
             props["bungie_mesh_poop_pathfinding"] = PoopInstancePathfindingPolicy[nwo.poop_pathfinding].value
-            return props, mesh_props
         
         props["bungie_mesh_poop_lighting"] = PoopLighting[nwo.poop_lighting].value
         props["bungie_mesh_poop_pathfinding"] = PoopInstancePathfindingPolicy[nwo.poop_pathfinding].value
@@ -761,8 +766,6 @@ class ExportScene:
                 props["bungie_mesh_poop_remove_from_shadow_geometry"] = 1
             if nwo.poop_disallow_lighting_samples:
                 props["bungie_mesh_poop_disallow_object_lighting_samples"] = 1
-
-        return props, mesh_props
         
     def _setup_marker_properties(self, ob: bpy.types.Object, nwo: NWO_ObjectPropertiesGroup, props: dict, region: str):
         marker_type = nwo.marker_type
@@ -787,7 +790,7 @@ class ExportScene:
                 if self.corinth:
                     scale = ob.matrix_world.to_scale()
                     max_abs_scale = max(abs(scale.x), abs(scale.y), abs(scale.z))
-                    props["bungie_marker_hint_length"] = ob.empty_display_size * 2 * max_abs_scale * self.inverse_scale
+                    props["bungie_marker_hint_length"] = ob.empty_display_size * 2 * max_abs_scale * self.to_halo_scale
 
                         
             elif marker_type == "_connected_geometry_marker_type_pathfinding_sphere":
@@ -930,8 +933,6 @@ class ExportScene:
                 props["bungie_marker_light_color_alpha"] = nwo.marker_light_cone_length
                 props["bungie_marker_light_cone_intensity"] = nwo.marker_light_cone_intensity
                 props["bungie_marker_light_cone_curve"] = nwo.marker_light_cone_curve
-                
-        return props
     
     def _setup_mesh_level_props(self, ob: bpy.types.Object, region: str, mesh_props: dict):
         data_nwo: NWO_MeshPropertiesGroup = ob.data.nwo
@@ -1168,7 +1169,7 @@ class ExportScene:
                 mesh_props["bungie_lightmap_general_bounce_modifier"] = data_nwo.lightmap_general_bounce_modifier
                 
         if data_nwo.emissive_active:
-            power = max(utils.calc_emissive_intensity(data_nwo.material_lighting_emissive_power, self.light_scale ** 2), 0.0001)
+            power = max(utils.calc_emissive_intensity(data_nwo.material_lighting_emissive_power, self.to_halo_scale ** 2), 0.0001)
             if data_nwo.material_lighting_attenuation_cutoff > 0:
                 falloff = data_nwo.material_lighting_attenuation_falloff
                 cutoff = data_nwo.material_lighting_attenuation_cutoff
@@ -1197,7 +1198,7 @@ class ExportScene:
                 mesh_props["bungie_lighting_attenuation_falloff"] = falloff * self.atten_scalar * WU_SCALAR
                 mesh_props["bungie_lighting_emissive_focus"] = degrees(data_nwo.material_lighting_emissive_focus) / 180
                 
-        return fp_defaults, mesh_props
+        return fp_defaults
          
     def set_template_node_order(self):
         nodes = []
@@ -1251,7 +1252,7 @@ class ExportScene:
             utils.update_job_count(process, "", num_no_parents, num_no_parents)
 
         if self.asset_type == AssetType.SCENARIO:
-            self.virtual_scene.add_automatic_structure(self.default_permutation, self.inverse_scale)
+            self.virtual_scene.add_automatic_structure(self.default_permutation, 1 if self.scene_settings.scale == 'blender' else 1 / 0.03048)
             
     def sample_animations(self):
         if self.asset_type not in {AssetType.MODEL, AssetType.ANIMATION} or not self.virtual_scene.skeleton_node:
@@ -1555,7 +1556,7 @@ class ExportScene:
             print("--- No geometry to export")
         
     def _export_granny_file(self, filepath: Path, virtual_objects: list[VirtualNode], animation: VirtualAnimation = None):
-        self.granny.new(filepath, self.forward, self.scale, self.mirror)
+        self.granny.new(filepath, self.forward, self.from_halo_scale, self.mirror)
         self.granny.from_tree(self.virtual_scene, virtual_objects)
         
         animation_export = animation is not None
@@ -1862,22 +1863,29 @@ class ExportScene:
     def get_marker_sphere_size(self, ob):
         scale = ob.matrix_world.to_scale()
         max_abs_scale = max(abs(scale.x), abs(scale.y), abs(scale.z))
-        return ob.empty_display_size * max_abs_scale * self.inverse_scale
+        return ob.empty_display_size * max_abs_scale * self.to_halo_scale
     
     def _set_primitive_props(self, ob, prim_type, props):
-        # TODO fix the calcs here
+        props["bungie_mesh_primitive_type"] = prim_type
+        name = ""
         match prim_type:
             case '_connected_geometry_primitive_type_sphere':
-                props["bungie_mesh_primitive_sphere_radius"] = utils.radius(ob, scale=self.inverse_scale)
+                utils.set_origin_to_centre(ob)
+                props["bungie_mesh_primitive_sphere_radius"] = utils.radius(ob, scale=self.to_halo_scale)
+                name = "sphere"
             case '_connected_geometry_primitive_type_pill':
-                props["bungie_mesh_primitive_pill_radius"] = utils.radius(ob, True, scale=self.inverse_scale)
-                props["bungie_mesh_primitive_pill_height"] = ob.dimensions.z * self.inverse_scale
+                utils.set_origin_to_floor(ob)
+                props["bungie_mesh_primitive_pill_radius"] = utils.radius(ob, True, scale=self.to_halo_scale)
+                props["bungie_mesh_primitive_pill_height"] = ob.dimensions.z * self.to_halo_scale
+                name = "pill"
             case '_connected_geometry_primitive_type_box':
-                props["bungie_mesh_primitive_box_width"] =  ob.dimensions.x * self.inverse_scale
-                props["bungie_mesh_primitive_box_length"] = ob.dimensions.y * self.inverse_scale
-                props["bungie_mesh_primitive_box_height"] = ob.dimensions.z * self.inverse_scale
+                utils.set_origin_to_floor(ob)
+                props["bungie_mesh_primitive_box_width"] =  ob.dimensions.x * self.to_halo_scale
+                props["bungie_mesh_primitive_box_length"] = ob.dimensions.y * self.to_halo_scale
+                props["bungie_mesh_primitive_box_height"] = ob.dimensions.z * self.to_halo_scale
+                name = "box"
                 
-        return props
+        return name
     
     def _setup_skylights(self, props):
         if not self.sky_lights: return

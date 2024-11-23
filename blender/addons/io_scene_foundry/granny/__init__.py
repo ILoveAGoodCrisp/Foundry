@@ -40,24 +40,24 @@ class Granny:
         if not parent_dir.exists():
             parent_dir.mkdir(parents=True, exist_ok=True)
         # File Transforms
-        self.units_per_meter = (1  / 0.03048) * scale
+        self.units_per_meter = (1 / 0.03048) * scale
         self.origin = (c_float * 3)(0, 0, 0)
         self.up_vector = (c_float * 3)(0, 0, 1)
-        match forward:
-            case 'y-':
-                self.back_vector = (c_float * 3)(0, 1, 0)
-                self.right_vector = (c_float * 3)(1 if mirror else -1, 0, 0)
-            case 'y':
-                self.back_vector = (c_float * 3)(0, -1, 0)
-                self.right_vector = (c_float * 3)(-1 if mirror else 1, 0, 0)
-            case 'x-':
-                self.back_vector = (c_float * 3)(1, 0, 0)
-                self.right_vector = (c_float * 3)(0, -1 if mirror else 1, 0)
-            case 'x':
-                self.back_vector = (c_float * 3)(-1, 0, 0)
-                self.right_vector = (c_float * 3)(0, 1 if mirror else -1, 0)
-            case _:
-                raise(f"Invalid forward provided: {forward}")
+        # match forward:
+        #     case 'y-':
+        #         self.back_vector = (c_float * 3)(0, 1, 0)
+        #         self.right_vector = (c_float * 3)(1 if mirror else -1, 0, 0)
+        #     case 'y':
+        #         self.back_vector = (c_float * 3)(0, -1, 0)
+        #         self.right_vector = (c_float * 3)(-1 if mirror else 1, 0, 0)
+        #     case 'x-':
+        #         self.back_vector = (c_float * 3)(1, 0, 0)
+        #         self.right_vector = (c_float * 3)(0, -1 if mirror else 1, 0)
+        #     case 'x':
+        #         self.back_vector = (c_float * 3)(-1, 0, 0)
+        #         self.right_vector = (c_float * 3)(0, 1 if mirror else -1, 0)
+        #     case _:
+        #         raise(f"Invalid forward provided: {forward}")
             
         self.back_vector = (c_float * 3)(-1, 0, 0)
         self.right_vector = (c_float * 3)(0, 1 if mirror else -1, 0)
