@@ -159,7 +159,8 @@ class Granny:
                 if bone.node and nodes.get(bone.name) and bone.node.mesh:
                     self.export_vertex_datas.append(bone.node.granny_vertex_data)
                     # self.export_tri_topologies.append(bone.node.granny_tri_topology)
-                    self.export_meshes.append(Mesh(bone.node, valid_siblings))
+                    export_mesh = Mesh(bone.node, valid_siblings)
+                    self.export_meshes.append(export_mesh)
                     materials.update(bone.node.mesh.materials)
                     meshes.add(bone.node.mesh)
                     mesh_binding_indices.append(len(self.export_meshes) - 1)
@@ -180,11 +181,18 @@ class Granny:
                 
     def transform(self):
         '''Transforms the granny file to Halo (Big scale + X forward)'''
-        halo_units_per_meter = 1 / 0.03048
         halo_origin = (c_float * 3)(0, 0, 0)
-        halo_right_vector = (c_float * 3)(0, -1, 0)
-        halo_up_vector = (c_float * 3)(0, 0, 1)
-        halo_back_vector = (c_float * 3)(-1, 0, 0)
+        if self.corinth: # basically transform it to maya
+            halo_units_per_meter = 1 / 0.3048
+            halo_right_vector = (c_float * 3)(-1, 0, 0)
+            halo_up_vector = (c_float * 3)(0, 1, 0)
+            halo_back_vector = (c_float * 3)(0, 0, -1)
+        else: # otherwise for halo
+            halo_units_per_meter = 1 / 0.03048
+            halo_right_vector = (c_float * 3)(0, -1, 0)
+            halo_up_vector = (c_float * 3)(0, 0, 1)
+            halo_back_vector = (c_float * 3)(-1, 0, 0)
+            
         affine3 = (c_float * 3)(0, 0, 0)
         linear3x3 = (c_float * 9)(0, 0, 0, 0, 0, 0, 0, 0, 0)
         inverse_linear3x3 = (c_float * 9)(0, 0, 0, 0, 0, 0, 0, 0, 0)
@@ -285,20 +293,22 @@ class Granny:
         self.file_info.tri_topology_count = num_tri_topologies
         self.file_info.tri_topologies = tri_topologies
         
-    def write_meshes(self):
+    def write_meshes(self, animation=None):
         num_meshes = len(self.export_meshes)
         meshes = (POINTER(GrannyMesh) * num_meshes)()
-
         for i, export_mesh in enumerate(self.export_meshes):
             granny_mesh = GrannyMesh()
             meshes[i] = pointer(granny_mesh)
             export_mesh.granny = meshes[i]
-            self._populate_mesh(granny_mesh, export_mesh)
+            if animation is None or not animation.granny_morph_targets_counts:
+                self._populate_mesh(granny_mesh, export_mesh)
+            else:
+                self._populate_mesh(granny_mesh, export_mesh, animation.granny_morph_targets_counts[i], animation.granny_morph_targets[i])            
 
         self.file_info.mesh_count = num_meshes
         self.file_info.meshes = meshes
 
-    def _populate_mesh(self, granny_mesh, export_mesh: Mesh):
+    def _populate_mesh(self, granny_mesh, export_mesh: Mesh, granny_morph_targets_count=None, granny_morph_target=None):
         granny_mesh.name = export_mesh.name
         self.create_extended_data(export_mesh.props, granny_mesh, export_mesh.siblings, export_mesh.name)
         granny_mesh.primary_vertex_data = export_mesh.primary_vertex_data
@@ -326,6 +336,10 @@ class Granny:
 
             granny_mesh.bone_bindings_count = num_bone_bindings
             granny_mesh.bone_bindings = cast(bone_bindings, POINTER(GrannyBoneBinding))
+            
+        if granny_morph_targets_count is not None:
+            granny_mesh.morph_targets = granny_morph_target
+            granny_mesh.morph_target_count = granny_morph_targets_count
         
     def write_models(self):
         num_models = len(self.export_models) + int(bool(self.granny_export_info))

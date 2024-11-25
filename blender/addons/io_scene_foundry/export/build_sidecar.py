@@ -35,6 +35,7 @@ class SidecarFileData:
         self.movement = "none"
         self.space = "object"
         self.pose_overlay = False
+        self.is_pca = False
         
 
 class Sidecar:
@@ -75,7 +76,7 @@ class Sidecar:
     def add_file_data(self, tag_type: str, permutation: str, region: str, gr2_path: Path, blend_path: Path):
         self.file_data[tag_type].append(SidecarFileData(utils.relative_path(gr2_path), utils.relative_path(blend_path), permutation, region))
         
-    def add_animation_file_data(self, gr2_path: Path, blend_path: Path, name: str, compression: str, animation_type: str, movement: str, space: str, pose_overlay: bool):
+    def add_animation_file_data(self, gr2_path: Path, blend_path: Path, name: str, compression: str, animation_type: str, movement: str, space: str, pose_overlay: bool, is_pca: bool):
         data = SidecarFileData(utils.relative_path(gr2_path), utils.relative_path(blend_path))
         data.name = name
         data.compression = compression
@@ -83,6 +84,7 @@ class Sidecar:
         data.movement = movement
         data.space = space
         data.pose_overlay = pose_overlay
+        data.is_pca = is_pca
         self.file_data["animation"].append(data)
                 
     def get_child_elements(self):
@@ -648,6 +650,9 @@ class Sidecar:
                         
                     if compression is not None:
                         network_attribs['Compression'] = compression
+                    
+                    if data.is_pca:
+                        network_attribs["PCA"] = "True"
 
                     network = ET.SubElement(content_object, "ContentNetwork", network_attribs)
 

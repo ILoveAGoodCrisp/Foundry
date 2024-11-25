@@ -492,6 +492,7 @@ class NWO_ActionGroup(bpy.types.PropertyGroup):
     object: bpy.props.PointerProperty(type=bpy.types.Object)
     action: bpy.props.PointerProperty(type=bpy.types.Action)
     nla_uuid: bpy.props.StringProperty(options={'HIDDEN'})
+    is_shape_key_action: bpy.props.BoolProperty(options={'HIDDEN'})
 
 class NWO_AnimationPropertiesGroup(bpy.types.PropertyGroup):
     active_action_group_index: bpy.props.IntProperty()
@@ -1056,9 +1057,14 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
                 if previous_animation:
                     utils.clear_animation(previous_animation)
                     
-            for group in animation.action_tracks:
-                if group.action is not None and group.object is not None and group.object.animation_data:
-                    group.object.animation_data.action = group.action
+            for track in animation.action_tracks:
+                if track.object and track.action:
+                    if track.is_shape_key_action:
+                        if track.object.type == 'MESH' and track.object.data.shape_keys and track.object.data.shape_keys.animation_data:
+                            track.object.data.shape_keys.animation_data.action = track.action
+                    else:
+                        if track.object.animation_data:
+                            track.object.animation_data.action = track.action
 
             if utils.get_prefs().sync_timeline_range:
                 bpy.ops.nwo.set_timeline()

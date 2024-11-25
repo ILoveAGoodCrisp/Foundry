@@ -534,6 +534,8 @@ class ExportScene:
             return 
         
         props["bungie_object_type"] = object_type.value
+        # props["bungie_mesh_ispca"] = 1
+        props["bungie_mesh_use_uncompressed_verts"] = 1
         # props["bungie_object_type"] = object_type
         is_mesh = object_type == ObjectType.mesh
         instanced_object = (is_mesh and nwo.mesh_type == '_connected_geometry_mesh_type_object_instance')
@@ -1285,12 +1287,19 @@ class ExportScene:
                 with utils.Spinner():
                     utils.update_job_count(process, "", 0, num_animations)
                     for idx, animation in enumerate(valid_animations):
+                        shape_key_objects = []
                         for track in animation.action_tracks:
                             if track.object and track.action:
-                                track.object.animation_data.action = track.action
+                                if track.is_shape_key_action:
+                                    if track.object.type == 'MESH' and track.object.data.shape_keys and track.object.data.shape_keys.animation_data:
+                                        track.object.data.shape_keys.animation_data.action = track.action
+                                        shape_key_objects.append(track.object)
+                                else:
+                                    if track.object.animation_data:
+                                        track.object.animation_data.action = track.action
                                 
                         controls = self.create_event_objects(animation)
-                        self.virtual_scene.add_animation(animation, controls=controls)
+                        self.virtual_scene.add_animation(animation, controls=controls, shape_key_objects=shape_key_objects)
                         self.exported_animations.append(animation)
                         utils.update_job_count(process, "", idx, num_animations)
                     utils.update_job_count(process, "", num_animations, num_animations)
@@ -1506,11 +1515,12 @@ class ExportScene:
                 print("-----------------------------------------------------------------------\n")
             for animation in self.virtual_scene.animations:
                 granny_path = self._get_export_path(animation.name, True)
-                self.sidecar.add_animation_file_data(granny_path, bpy.data.filepath, animation.name, animation.compression, animation.animation_type, animation.movement, animation.space, animation.pose_overlay)
+                self.sidecar.add_animation_file_data(granny_path, bpy.data.filepath, animation.name, animation.compression, animation.animation_type, animation.movement, animation.space, animation.pose_overlay, animation.is_pca)
                 if export and (not active_only or (self.current_animation is not None and animation.anim == self.current_animation)):
                     job = f"--- {animation.name}"
                     utils.update_job(job, 0)
                     nodes = self.animation_groups.get(animation.name, [])
+                    nodes.extend(animation.nodes)
                     nodes_dict = {node.name: node for node in nodes + [self.virtual_scene.skeleton_node]}
                     self._export_granny_file(granny_path, nodes_dict, animation)
                     utils.update_job(job, 1)
@@ -1555,7 +1565,7 @@ class ExportScene:
         if not exported_something:
             print("--- No geometry to export")
         
-    def _export_granny_file(self, filepath: Path, virtual_objects: list[VirtualNode], animation: VirtualAnimation = None):
+    def _export_granny_file(self, filepath: Path, virtual_objects: dict[str: VirtualNode], animation: VirtualAnimation = None):
         self.granny.new(filepath, self.forward, self.from_halo_scale, self.mirror)
         self.granny.from_tree(self.virtual_scene, virtual_objects)
         
@@ -1567,7 +1577,10 @@ class ExportScene:
             self.granny.write_materials()
             self.granny.write_vertex_data()
             self.granny.write_tri_topologies()
-            self.granny.write_meshes()
+            self.granny.write_meshes(animation)
+        elif animation_export and animation.is_pca:
+            self.granny.write_vertex_data()
+            self.granny.write_meshes(animation)
             
         self.granny.write_skeletons(export_info=self.export_info)
         self.granny.write_models()

@@ -131,9 +131,9 @@ class PoopInstanceImposterPolicy(BungieEnumPoop):
     
 class ExportInfo:
     def __init__(self, regions, global_materials):
-        self.export_user = getuser()[:19]
+        self.export_user = getuser()[:19] # Limited because a string longer than 19 chars will cause a Tool assert
         self.export_machine = gethostname()[:11]
-        self.export_toolset = "bungie"
+        self.export_toolset = "Foundry"
         time = datetime.today()
         self.export_date = time.strftime("%Y-%m-%d")
         self.export_time = time.strftime("%H:%M:%S")

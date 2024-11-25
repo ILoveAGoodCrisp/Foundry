@@ -1420,7 +1420,7 @@ class NWOImporter:
             fallback_tag_path = ""
             if xref.preferred_dir is not None:
                 path = Path(xref.preferred_dir, xref.name, f"{xref.name}{xref.preferred_type}")
-                fallback_tag_path = path
+                fallback_tag_path = str(path)
                 if path.exists():
                     tag_path = utils.relative_path(path)
                 elif xref.preferred_dir.exists():
