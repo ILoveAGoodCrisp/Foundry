@@ -648,6 +648,10 @@ class VirtualMesh:
         self.vertex_array = (c_ubyte * self.len_vertex_array).from_buffer_copy(vertex_byte_array)
         
     def _setup(self, ob: bpy.types.Object, scene: 'VirtualScene', fp_defaults: dict, render_mesh: bool, props: dict, bones: list[str]):
+        old_shape_key_index = 0
+        if ob.data.shape_keys:
+            old_shape_key_index = ob.active_shape_key_index
+            ob.active_shape_key_index = 0
         eval_ob = ob.evaluated_get(scene.depsgraph)
         def add_triangle_mod(ob: bpy.types.Object) -> bpy.types.Modifier:
             mods = ob.modifiers
@@ -896,6 +900,9 @@ class VirtualMesh:
             self.face_properties = gather_face_props(ob.data.nwo, mesh, num_polygons, scene, sorted_order, special_mats_dict, fp_defaults, props)
             
         eval_ob.to_mesh_clear()
+        
+        if old_shape_key_index:
+            ob.active_shape_key_index = old_shape_key_index
     
 class VirtualNode:
     def __init__(self, id: bpy.types.Object | bpy.types.PoseBone, props: dict, region: str = None, permutation: str = None, fp_defaults: dict = None, scene: 'VirtualScene' = None, proxies = [], template_node: 'VirtualNode' = None, bones: list[str] = [], parent_matrix: Matrix = IDENTITY_MATRIX, animation_owner=None):
