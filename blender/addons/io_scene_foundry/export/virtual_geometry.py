@@ -422,7 +422,7 @@ class VirtualMorphTargetData:
                 colors = colors[loop_vertex_indices]
 
             if is_tension:
-                self.tension = colors
+                self.tension = np.concatenate((colors[:, 3:4], colors[:, :3]), axis=1)
             else:
                 self.vertex_colors.append(colors)
                 
@@ -796,7 +796,7 @@ class VirtualMesh:
                     colors = colors[loop_vertex_indices]
     
                 if is_tension:
-                    self.tension = colors
+                    self.tension = np.concatenate((colors[:, 3:4], colors[:, :3]), axis=1)
                 else:
                     self.vertex_colors.append(colors)
                     
