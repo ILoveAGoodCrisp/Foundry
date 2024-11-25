@@ -3376,7 +3376,7 @@ def add_face_layer(bm: bmesh.types.BMesh, mesh: bpy.types.Mesh, prop: str, value
             other_props = {"no_shadow": value}
         case "precise_position":
             layer_name = f"precise_position{str(uuid4())}"
-            display_name = "Uncompressed"
+            display_name = "Precise"
             override_prop = "precise_position_override"
             other_props = {"precise_position": value}
         case "no_lightmap":

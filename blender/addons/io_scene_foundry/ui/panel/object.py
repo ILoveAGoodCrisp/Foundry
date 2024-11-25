@@ -177,7 +177,7 @@ class NWO_MT_FaceLayerAddMenu(bpy.types.Menu):
                 "_connected_geometry_mesh_type_structure",
             ):
                 layout.operator(
-                    self.op_prefix, text="Uncompressed"
+                    self.op_prefix, text="Precise"
                 ).options = "precise_position"
                 
             if utils.poll_ui(("scenario", "prefab")) and nwo.mesh_type in ('_connected_geometry_mesh_type_default', '_connected_geometry_mesh_type_structure', '_connected_geometry_mesh_type_collision'):
@@ -458,7 +458,7 @@ class NWO_OT_FaceLayerAdd(bpy.types.Operator):
             case "seam":
                 self.fm_name = f"seam {utils.true_region(ob.nwo)}:"
             case "precise_position":
-                self.fm_name = "Uncompressed"
+                self.fm_name = "Precise"
             case "render_only":
                 self.fm_name = "Render Only"
             case "collision_only":

@@ -670,9 +670,26 @@ class NWO_MeshPropertiesGroup(bpy.types.PropertyGroup):
     )
 
     precise_position: bpy.props.BoolProperty(
-        name="Uncompressed",
+        name="Precise",
         options=set(),
         description="Lowers the degree of compression of vertices during export, resulting in more accurate (and expensive) meshes in game. Only use this when you need to",
+    )
+    
+    uncompressed: bpy.props.BoolProperty(
+        name="Uncompressed",
+        options=set(),
+        description="Mesh vertex data is stored in an uncompressed format",
+    )
+    
+    additional_compression: bpy.props.EnumProperty(
+        name="Additional Compression",
+        options=set(),
+        description="Additional level of compression to apply to this mesh",
+        items=[
+            ('default', "Default", ""),
+            ('_connected_geometry_mesh_additional_compression_force_on', "Force On", ""),
+            ('_connected_geometry_mesh_additional_compression_force_off', "Force Off", ""),
+        ]
     )
 
     no_lightmap: bpy.props.BoolProperty(

@@ -1830,11 +1830,11 @@ class NWOImporter:
                                 layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "Disable Lightmap Transparency", "lightmap_transparency_override_override")))
                                 
                         if jms_mat.precise:
-                            l_name = 'uncompressed'
+                            l_name = 'precise'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "Uncompressed", "precise_position_override")))
+                                layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "Precise", "precise_position_override")))
                                 
                         if jms_mat.ignored_by_lightmaps:
                             l_name = 'no_lightmap'

@@ -534,9 +534,6 @@ class ExportScene:
             return 
         
         props["bungie_object_type"] = object_type.value
-        # props["bungie_mesh_ispca"] = 1
-        props["bungie_mesh_use_uncompressed_verts"] = 1
-        # props["bungie_object_type"] = object_type
         is_mesh = object_type == ObjectType.mesh
         instanced_object = (is_mesh and nwo.mesh_type == '_connected_geometry_mesh_type_object_instance')
         tmp_region, tmp_permutation = nwo.region_name, nwo.permutation_name
@@ -758,6 +755,10 @@ class ExportScene:
             props["bungie_mesh_poop_decal_spacing"] = 1 
         if data_nwo.precise_position:
             props["bungie_mesh_poop_precise_geometry"] = 1
+        if self.corinth and data_nwo.uncompressed:
+            props["bungie_mesh_use_uncompressed_verts"] = 1
+        if data_nwo.additional_compression != "default":
+            props["bungie_mesh_additional_compression"] = data_nwo.additional_compression
 
         if self.corinth:
             props["bungie_mesh_poop_lightmap_resolution_scale"] = nwo.poop_lightmap_resolution_scale

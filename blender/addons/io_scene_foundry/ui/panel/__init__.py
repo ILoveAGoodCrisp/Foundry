@@ -2144,7 +2144,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                         )
                 if item.precise_position_override:
                     row = col.row()
-                    row.label(text='Uncompressed')
+                    row.label(text='Precise')
                 if item.ladder_override:
                     row = col.row()
                     row.label(text='Ladder')
@@ -2293,7 +2293,9 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             )
             row.scale_x = 0.8
             if nwo.mesh_type in ("_connected_geometry_mesh_type_default", '_connected_geometry_mesh_type_object_instance'):
-                row.prop(mesh_nwo, "precise_position", text="Uncompressed")
+                if self.h4:
+                    row.prop(mesh_nwo, "uncompressed")
+                row.prop(mesh_nwo, "precise_position", text="Precise")
             if nwo.mesh_type in constants.TWO_SIDED_MESH_TYPES:
                 row.prop(mesh_nwo, "face_two_sided", text="Two Sided")
                 if nwo.mesh_type in constants.RENDER_MESH_TYPES:
@@ -2343,6 +2345,9 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 row.prop(mesh_nwo, "face_two_sided_type", text="Backside Normals")
                 
         if nwo.mesh_type in constants.RENDER_MESH_TYPES:
+            row = box.row()
+            row.use_property_split = True
+            row.prop(mesh_nwo, "additional_compression")
             row = box.row()
             row.use_property_split = True
             row.prop(mesh_nwo, "mesh_tessellation_density", text="Tessellation Density")
@@ -2841,9 +2846,9 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             rows=rows,
         )
         if ob is not None:
-            col.label(text=f"Current Action: {ob.name} -> {ob.animation_data.action.name if ob.animation_data else 'NONE'}")
+            col.label(text=f"Current Action: {ob.name} -> {ob.animation_data.action.name if ob.animation_data and ob.animation_data.action else 'NONE'}")
             if ob.type == 'MESH' and ob.data.shape_keys:
-                col.label(text=f"Current Shape Key Action: {ob.name} -> {context.object.data.shape_keys.animation_data.action.name if context.object.data.shape_keys.animation_data else 'NONE'}")
+                col.label(text=f"Current Shape Key Action: {ob.name} -> {ob.data.shape_keys.animation_data.action.name if ob.data.shape_keys.animation_data and ob.data.shape_keys.animation_data.action else 'NONE'}")
         col = row.column(align=True)
         col.operator("nwo.action_track_add", text="", icon="ADD")
         col.operator("nwo.action_track_remove", icon="REMOVE", text="")
