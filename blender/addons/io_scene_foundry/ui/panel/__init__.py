@@ -1806,18 +1806,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     col.prop(nwo, "prefab_excluded_from_lightprobe")
                     
             if nwo.marker_type == "_connected_geometry_marker_type_hint":
-                row = col.row(align=True)
-                row.prop(nwo, "marker_hint_type")
-                if nwo.marker_hint_type == "corner":
-                    row = col.row(align=True)
-                    row.prop(nwo, "marker_hint_side", expand=True)
-                elif nwo.marker_hint_type in (
-                    "vault",
-                    "mount",
-                    "hoist",
-                ):
-                    row = col.row(align=True)
-                    row.prop(nwo, "marker_hint_height", expand=True)
+                col.operator("nwo.set_hint_name", icon='GREASEPENCIL')
 
             elif nwo.marker_type == "_connected_geometry_marker_type_garbage":
                 col.prop(nwo, "marker_velocity", text="Marker Velocity")

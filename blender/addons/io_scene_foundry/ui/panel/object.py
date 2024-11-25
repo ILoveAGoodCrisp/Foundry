@@ -35,6 +35,101 @@ class NWO_OT_SelectChildObjects(bpy.types.Operator):
             child.select_set(True)
         self.report({'INFO'}, f"Selected {len(children)} child objects")
         return {"FINISHED"}
+    
+# MARKER
+
+class NWO_OT_SetHintName(bpy.types.Operator):
+    bl_idname = "nwo.set_hint_name"
+    bl_label = "Set Hint Name"
+    bl_description = "Sets a valid hint marker name"
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    marker_hint_type: bpy.props.EnumProperty(
+        name="Type",
+        options=set(),
+        description="",
+        items=[
+            ("bunker", "Bunker", ""),
+            ("corner", "Corner", ""),
+            ("vault", "Vault", ""),
+            ("mount", "Mount", ""),
+            ("hoist", "Hoist", ""),
+        ],
+    )
+    
+    marker_hint_side: bpy.props.EnumProperty(
+        name="Side",
+        options=set(),
+        description="",
+        items=[
+            ("right", "Right", ""),
+            ("left", "Left", ""),
+        ],
+    )
+
+    marker_hint_height: bpy.props.EnumProperty(
+        name="Height",
+        options=set(),
+        description="",
+        items=[
+            ("step", "Step", ""),
+            ("crouch", "Crouch", ""),
+            ("stand", "Stand", ""),
+        ],
+    )
+    
+    @classmethod
+    def poll(cls, context):
+        return context.object and context.object.type == 'EMPTY'
+    
+    def execute(self, context):
+        ob = context.object
+        name = "hint_"
+        if self.marker_hint_type == "bunker":
+            name += "bunker"
+        elif self.marker_hint_type == "corner":
+            name += "corner_"
+            if self.marker_hint_side == "right":
+                name += "right"
+            else:
+                name += "left"
+
+        else:
+            if self.marker_hint_type == "vault":
+                name += "vault_"
+            elif self.marker_hint_type == "mount":
+                name += "mount_"
+            else:
+                name += "hoist_"
+
+            if self.marker_hint_height == "step":
+                name += "step"
+            elif self.marker_hint_height == "crouch":
+                name += "crouch"
+            else:
+                name += "stand"
+        
+        ob.name = name
+        
+        return {'FINISHED'}
+    
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+    
+    def draw(self, context):
+        layout = self.layout
+        row = layout.row(align=True)
+        row.prop(self, "marker_hint_type", expand=True)
+        if self.marker_hint_type == "corner":
+            row = layout.row(align=True)
+            row.prop(self, "marker_hint_side", expand=True)
+        elif self.marker_hint_type in (
+            "vault",
+            "mount",
+            "hoist",
+        ):
+            row = layout.row(align=True)
+            row.prop(self, "marker_hint_height", expand=True)
 
 # FACE PROPERTIES #
 class NWO_MT_FaceLayerAddMenu(bpy.types.Menu):

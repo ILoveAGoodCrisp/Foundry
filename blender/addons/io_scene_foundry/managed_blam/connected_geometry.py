@@ -1968,17 +1968,6 @@ class MarkerGroup:
                 ob.empty_display_type = "SPHERE"
             elif self.type == MarkerType._connected_geometry_marker_type_garbage:
                 ob.nwo.marker_velocity = marker.direction
-            elif self.type == MarkerType._connected_geometry_marker_type_hint:
-                hint_parts = self.name.split('_')
-                if len(hint_parts) > 1:
-                    hint_type = hint_parts[1]
-                    nwo.marker_hint_type = hint_type
-                    if nwo.marker_hint_type != 'bunker' and len(hint_parts) > 2:
-                        hint_subtype = hint_parts[2]
-                        if hint_subtype in ('right', 'left'):
-                            nwo.marker_hint_side = hint_subtype
-                        elif hint_subtype in ('step', 'crouch', 'stand'):
-                            nwo.marker_hint_height = hint_subtype
             
             objects.append(ob)
             
