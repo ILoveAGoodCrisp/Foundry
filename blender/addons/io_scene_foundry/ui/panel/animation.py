@@ -743,15 +743,54 @@ class NWO_UL_AnimationRename(bpy.types.UIList):
     ):
         layout.prop(item, "name", text="", emboss=False, icon_value=get_icon_id("animation_rename"))
         
+class NWO_OT_SetActionTracksActive(bpy.types.Operator):
+    bl_label = "Make Tracks Active"
+    bl_idname = "nwo.action_tracks_set_active"
+    bl_description = "Sets all actions in the current action track list to be active on their respective objects"
+    bl_options = {"UNDO"}
+    
+    @classmethod
+    def poll(cls, context):
+        if context.scene.nwo.animations and context.scene.nwo.active_animation_index >= 0:
+            return context.scene.nwo.animations[context.scene.nwo.active_animation_index].action_tracks
+        return False
+    
+    def execute(self, context):
+        animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
+        for track in animation.action_tracks:
+            if track.object and track.action:
+                if track.is_shape_key_action:
+                    if track.object.type == 'MESH' and track.object.data.shape_keys and track.object.data.shape_keys.animation_data:
+                        track.object.data.shape_keys.animation_data.action = track.action
+                else:
+                    if track.object.animation_data:
+                        track.object.animation_data.action = track.action
+                        
+        return {"FINISHED"}
+        
 class NWO_OT_AddActionTrack(bpy.types.Operator):
     bl_label = "New Action Track"
     bl_idname = "nwo.action_track_add"
     bl_description = "Adds new action tracks based on current object selection and their active actions"
-    bl_options = {"REGISTER", "UNDO"}
+    bl_options = {"UNDO"}
     
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.animations and context.scene.nwo.active_animation_index > -1
+        if not (context.scene.nwo.animations and context.scene.nwo.active_animation_index) > -1:
+            return False
+        ob = context.object
+        if not ob:
+            return False
+        
+        has_action = context.object.animation_data and context.object.animation_data.action
+        if has_action:
+            return True
+        
+        is_mesh = context.object and context.object.type == 'MESH'
+        if is_mesh:
+            return context.object.data.shape_keys and context.object.data.shape_keys.animation_data and context.object.data.shape_keys.animation_data.action
+        else:
+            return False
     
     def execute(self, context):
         if not context.selected_objects:
@@ -765,6 +804,8 @@ class NWO_OT_AddActionTrack(bpy.types.Operator):
         for ob in context.selected_objects:
             if ob not in current_track_objects:
                 self.add_track(animation, ob)
+            else:
+                self.report({'WARNING'}, f"Action '{ob.animation_data.action.name}' for object '{ob.name}' already set as track")
             
         context.area.tag_redraw()
         return {"FINISHED"}
@@ -778,6 +819,11 @@ class NWO_OT_AddActionTrack(bpy.types.Operator):
             #     group.nla_uuid = str(uuid4())
             #     group.object.animation_data.nla_tracks.active
             animation.active_action_group_index = len(animation.action_tracks) - 1
+        if ob.type == 'MESH' and ob.data.shape_keys and ob.data.shape_keys.animation_data and ob.data.shape_keys.animation_data.action:
+            group = animation.action_tracks.add()
+            group.object = ob
+            group.action = ob.data.shape_keys.animation_data.action
+            group.is_shape_key_action = True
         else:
             return self.report({'WARNING'}, f"No active action for object [{ob.name}], cannot add action track")
         
@@ -841,7 +887,7 @@ class NWO_UL_ActionTrack(bpy.types.UIList):
         index,
     ):
         name = ""
-        icon = 'ACTION'
+        icon = 'SHAPEKEY_DATA' if item.is_shape_key_action else 'ACTION'
         if item.object:
             name += f"{item.object.name} -> "
             if item.action:
@@ -862,13 +908,16 @@ class NWO_UL_AnimationList(bpy.types.UIList):
     #                                           description="Whether to filter empty vertex groups")
 
     # Called for each drawn item.
-    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index, flt_flag):
+    def draw_item(self, context, layout: bpy.types.UILayout, data, item, icon, active_data, active_propname, index, flt_flag):
+        layout.prop(item, "name", text="", emboss=False, icon='ANIM')
         row = layout.row()
-        row.scale_x = 1.5
-        row.prop(item, "name", text="", emboss=False, icon='ANIM')
-        row = layout.row()
-        row.label(text=str(math.floor(item.frame_end + 1) - math.floor(item.frame_start)), icon='KEYFRAME_HLT')
-        row.label(text=str(len(item.action_tracks)), icon='ACTION')
+        row.alignment = 'RIGHT'
+        row.label(text=str((item.frame_end + 1) - item.frame_start), icon='KEYFRAME_HLT')
+        num_action_tracks = len([track for track in item.action_tracks if not track.is_shape_key_action])
+        num_shape_key_tracks = len(item.action_tracks) - num_action_tracks
+        row.label(text=str(num_action_tracks), icon='ACTION')
+        if num_shape_key_tracks:
+            row.label(text=str(num_shape_key_tracks), icon='SHAPEKEY_DATA')
         if item.animation_renames:
             row.label(text=str(len(item.animation_renames)), icon_value=get_icon_id("animation_rename"))
         else:
@@ -885,7 +934,7 @@ class NWO_UL_AnimationList(bpy.types.UIList):
         elif anim_type_display == 'replacement':
             anim_type_display += f'[{item.animation_space}]'
         row.label(text=anim_type_display)
-        row.prop(item, 'export_this', text="", icon='CHECKBOX_HLT' if item.export_this else 'CHECKBOX_DEHLT', emboss=False)
+        layout.prop(item, 'export_this', text="", icon='CHECKBOX_HLT' if item.export_this else 'CHECKBOX_DEHLT', emboss=False)
     
 class NWO_OT_AnimationEventSetFrame(bpy.types.Operator):
     bl_idname = "nwo.animation_event_set_frame"

@@ -2851,6 +2851,10 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             "active_action_group_index",
             rows=rows,
         )
+        if ob is not None:
+            col.label(text=f"Current Action: {ob.name} -> {ob.animation_data.action.name if ob.animation_data else 'NONE'}")
+            if ob.type == 'MESH' and ob.data.shape_keys:
+                col.label(text=f"Current Shape Key Action: {ob.name} -> {context.object.data.shape_keys.animation_data.action.name if context.object.data.shape_keys.animation_data else 'NONE'}")
         col = row.column(align=True)
         col.operator("nwo.action_track_add", text="", icon="ADD")
         col.operator("nwo.action_track_remove", icon="REMOVE", text="")
@@ -2859,11 +2863,12 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         col.operator("nwo.action_track_move", icon="TRIA_DOWN", text="").direction = 'down'
         
         col = box.column(align=True)
-        
         col.separator()
-        col.operator("nwo.animation_frames_sync_to_keyframes", text="Sync Frame Range to Keyframes", icon='FILE_REFRESH', depress=scene_nwo.keyframe_sync_active)
+        row = col.row()
+        row.operator("nwo.animation_frames_sync_to_keyframes", text="Sync Frame Range to Keyframes", icon='FILE_REFRESH', depress=scene_nwo.keyframe_sync_active)
+        row.operator("nwo.action_tracks_set_active", icon='ACTION_TWEAK')
         col.separator()
-        
+
         row = col.row()
         row.use_property_split = False
         row.prop(animation, "frame_start", text='Start Frame', icon='KEYFRAME_HLT')
