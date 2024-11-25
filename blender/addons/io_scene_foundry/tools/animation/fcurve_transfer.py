@@ -127,12 +127,11 @@ class NWO_OT_FcurveTransfer(bpy.types.Operator):
         animation = context.scene.nwo.animations[active_animation_index]
         actions = []
         if self.all_animations:
-            actions = bpy.data.actions
-            utils.reset_to_basis()
+            actions = set(bpy.data.actions)
         else:
-            actions = {track.action for track in animation}
-            utils.clear_animation(animation)
-        
+            actions = {track.action for track in animation.action_tracks}
+            
+        utils.clear_animation(animation)
         for action in actions:
             fcurve_transfer = FCurveTransfer(action, self.source_bone, self.target_bone, self.source_channel, self.target_channel)
             fcurve_transfer.get_fcurves()
