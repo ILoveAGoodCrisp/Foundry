@@ -804,7 +804,7 @@ class NWO_OT_AddActionTrack(bpy.types.Operator):
         for ob in context.selected_objects:
             if ob not in current_track_objects:
                 self.add_track(animation, ob)
-            else:
+            elif ob.animation_data and ob.animation_data.action:
                 self.report({'WARNING'}, f"Action '{ob.animation_data.action.name}' for object '{ob.name}' already set as track")
             
         context.area.tag_redraw()
