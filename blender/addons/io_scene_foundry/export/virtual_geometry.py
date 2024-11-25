@@ -386,7 +386,7 @@ class VirtualMorphTargetData:
             # if for whatever reason to_mesh() failed to triangulate the mesh
             bm = bmesh.new()
             bm.from_mesh(mesh)
-            bmesh.ops.triangulate(bm, faces=bm.faces, quad_method=tri_mod_to_bmesh_tri(scene.quad_method), ngon_method=tri_mod_to_bmesh_tri(scene.ngon_method))
+            bmesh.ops.triangulate(bm, faces=bm.faces, quad_method=utils.tri_mod_to_bmesh_tri(scene.quad_method), ngon_method=utils.tri_mod_to_bmesh_tri(scene.ngon_method))
             bm.to_mesh(mesh)
             bm.free()
             
@@ -680,7 +680,7 @@ class VirtualMesh:
             # if for whatever reason to_mesh() failed to triangulate the mesh
             bm = bmesh.new()
             bm.from_mesh(mesh)
-            bmesh.ops.triangulate(bm, faces=bm.faces, quad_method=tri_mod_to_bmesh_tri(scene.quad_method), ngon_method=tri_mod_to_bmesh_tri(scene.ngon_method))
+            bmesh.ops.triangulate(bm, faces=bm.faces, quad_method=utils.tri_mod_to_bmesh_tri(scene.quad_method), ngon_method=utils.tri_mod_to_bmesh_tri(scene.ngon_method))
             bm.to_mesh(mesh)
             bm.free()
             
@@ -1876,14 +1876,3 @@ def deep_copy_granny_tri_topology(original):
         copy.tri_annotation_sets = cast(tri_annotation_sets, POINTER(GrannyTriAnnotationSet))
 
     return pointer(copy)
-
-def tri_mod_to_bmesh_tri(txt: str) -> str:
-    match txt:
-        case 'CLIP':
-            return 'EAR_CLIP'
-        case 'SHORTEST_DIAGONAL':
-            return 'SHORT_EDGE'
-        case 'LONGEST_DIAGONAL':
-            return 'LONG_EDGE'
-        
-    return txt

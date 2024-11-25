@@ -3948,3 +3948,14 @@ def mesh_and_material(m_type, context):
 
 def clamp(number: float | int, minimum: float | int, maximum: float | int) -> float | int:
     return max(min(maximum, number), minimum)
+
+def tri_mod_to_bmesh_tri(txt: str) -> str:
+    match txt:
+        case 'CLIP':
+            return 'EAR_CLIP'
+        case 'SHORTEST_DIAGONAL':
+            return 'SHORT_EDGE'
+        case 'LONGEST_DIAGONAL':
+            return 'LONG_EDGE'
+        
+    return txt

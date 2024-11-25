@@ -218,6 +218,11 @@ class Granny:
             3, # 3 represents the flags GrannyRenormalizeNormals & GrannyReorderTriangleIndices
         )
         
+        self.file_info.art_tool_info.contents.right_vector = halo_right_vector
+        self.file_info.art_tool_info.contents.up_vector = halo_up_vector
+        self.file_info.art_tool_info.contents.back_vector = halo_back_vector
+        self.file_info.art_tool_info.contents.units_per_meter = halo_units_per_meter
+        
     def write_track_groups(self, export_track_group):
         self.file_info.track_group_count = 1
         self.file_info.track_groups = pointer(export_track_group)

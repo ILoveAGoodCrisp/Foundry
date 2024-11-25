@@ -4,6 +4,7 @@ from math import degrees
 import os
 from pathlib import Path
 import random
+import bmesh
 import bpy
 from mathutils import Matrix, Vector
 
@@ -172,6 +173,8 @@ class ExportScene:
         
         self.atten_scalar = 1 if corinth else 100
         self.unit_factor = utils.get_unit_conversion_factor(context)
+        
+        self.data_remap = {}
         
     def _get_export_tag_types(self):
         tag_types = set()
@@ -400,7 +403,7 @@ class ExportScene:
                 result = self.get_halo_props(ob)
                 if result is None:
                     continue
-                props, region, permutation, fp_defaults, mesh_props, copy = result
+                props, region, permutation, fp_defaults, mesh_props, copy, is_pca = result
                 
                 is_armature = ob.type == 'ARMATURE'
                 
@@ -425,12 +428,30 @@ class ExportScene:
                             mesh_props["bungie_face_mode"] = FaceMode.render_only.value
                 
                 props.update(mesh_props)
+                
+                if is_pca:
+                    # pre triangulate the mesh for PCA
+                    eval_ob = ob.evaluated_get(self.depsgraph)
+                    eval_mesh = eval_ob.to_mesh(preserve_all_data_layers=True, depsgraph=self.depsgraph)
+                    # copy_ob.data = ob.data.copy()
+                    bm = bmesh.new()
+                    bm.from_mesh(eval_mesh)
+                    bmesh.ops.triangulate(bm, faces=bm.faces, quad_method=utils.tri_mod_to_bmesh_tri(self.export_settings.triangulate_quad_method), ngon_method=utils.tri_mod_to_bmesh_tri(self.export_settings.triangulate_ngon_method))
+                    bm.to_mesh(eval_mesh)
+                    bm.free()
+                    self.data_remap[ob] = ob.data
+                    ob.data = eval_mesh.copy()
+                    eval_ob.to_mesh_clear()
+                    self.temp_meshes.add(ob.data)
+                
                 copy_only = False
                 if copy is not None:
                     copy_props = props.copy()
                     copy_ob = ob.copy()
                     self.temp_objects.add(copy_ob)
                     copy_region = region
+                    # for coll in ob.users_collection:
+                    #     coll.objects.link(copy_ob)
                     match copy:
                         case ObjectCopy.SEAM:
                             copy_ob.nwo.invert_topology = True
@@ -524,6 +545,7 @@ class ExportScene:
         props = {}
         mesh_props = {}
         copy = None
+        is_pca = False
         region = self.default_region
         permutation = self.default_permutation
         fp_defaults = {}
@@ -584,6 +606,8 @@ class ExportScene:
                 if mesh_result is None:
                     return
                 fp_defaults, copy = mesh_result
+                if ob.data.shape_keys and self.asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.ANIMATION}:
+                    is_pca = True
                 
             else:
                 return self.warnings.append(f"{ob.name} has invalid mesh type [{nwo.mesh_type}] for asset [{self.asset_type}]. Skipped")
@@ -596,7 +620,7 @@ class ExportScene:
             else:
                 return self.warnings.append(f"{ob.name} has invalid marker type [{nwo.mesh_type}] for asset [{self.asset_type}]. Skipped")
 
-        return props, region, permutation, fp_defaults, mesh_props, copy
+        return props, region, permutation, fp_defaults, mesh_props, copy, is_pca
     
     def _setup_mesh_properties(self, ob: bpy.types.Object, nwo: NWO_ObjectPropertiesGroup, supports_bsp: bool, props: dict, region: str, mesh_props: dict):
         mesh_type = ob.data.nwo.mesh_type
@@ -1644,6 +1668,9 @@ class ExportScene:
         print(f"--- Saved to: {self.sidecar.sidecar_path}")
         
     def restore_scene(self):
+        for ob, data in self.data_remap.items():
+            ob.data = data
+        
         for ob in self.temp_objects:
             bpy.data.objects.remove(ob)
             
