@@ -221,7 +221,6 @@ class ExportScene:
             animation_index = self.context.scene.nwo.active_animation_index
             if animation_index > -1:
                 self.current_animation = self.context.scene.nwo.animations[animation_index]
-                utils.clear_animation(self.current_animation)
         
     def get_initial_export_objects(self):
         self.temp_objects = set()
@@ -384,6 +383,8 @@ class ExportScene:
             for idx, ob in enumerate(self.export_objects):
                 if ob.animation_data is not None:
                     self.action_map[ob] = (ob.matrix_world.copy(), ob.animation_data.action)
+                if ob.type == 'MESH' and ob.data.shape_keys and ob.data.shape_keys.animation_data:
+                    self.action_map[ob.data.shape_keys] = (ob.matrix_world.copy(), ob.data.shape_keys.animation_data.action)
                 ob: bpy.types.Object
                 # if ob.type == 'ARMATURE':
                 #     self.armature_poses[ob.data] = ob.data.pose_position
@@ -510,6 +511,9 @@ class ExportScene:
                     
                 utils.update_job_count(process, "", idx, num_export_objects)
             utils.update_job_count(process, "", num_export_objects, num_export_objects)
+            
+        if self.current_animation:
+            utils.clear_animation(self.current_animation)
             
         self.global_materials_list = list(self.global_materials - {'default'})
         self.global_materials_list.insert(0, 'default')
@@ -1305,7 +1309,7 @@ class ExportScene:
         #     if ob.type != 'ARMATURE':
         #         utils.unlink(ob)
         armature_mods = utils.mute_armature_mods()
-        self.context.view_layer.update()
+        # self.context.view_layer.update()
         self.has_animations = True
         try:
             if self.export_settings.export_animations == 'ALL':
@@ -1332,13 +1336,21 @@ class ExportScene:
                 active_only = self.export_settings.export_animations == 'ACTIVE'
                 for animation in valid_animations:
                     if active_only and animation == self.current_animation:
+                        shape_key_objects = []
                         for track in animation.action_tracks:
                             if track.object and track.action:
-                                track.object.animation_data.action = track.action
+                                if track.is_shape_key_action:
+                                    if track.object.type == 'MESH' and track.object.data.shape_keys and track.object.data.shape_keys.animation_data:
+                                        track.object.data.shape_keys.animation_data.action = track.action
+                                        shape_key_objects.append(track.object)
+                                else:
+                                    if track.object.animation_data:
+                                        track.object.animation_data.action = track.action
+                                        
                         print("--- Sampling Active Animation ", end="")
                         with utils.Spinner():
                             controls = self.create_event_objects(animation)
-                            self.virtual_scene.add_animation(animation, controls=controls)
+                            self.virtual_scene.add_animation(animation, controls=controls, shape_key_objects=shape_key_objects)
                         print(" ", end="")
                     else:
                         self.virtual_scene.add_animation(animation, sample=False)
@@ -1684,12 +1696,13 @@ class ExportScene:
         #     collection.exclude = False
         
         if self.action_map:
-            for ob, (matrix, action) in self.action_map.items():
-                if ob.type == 'ARMATURE':
-                    for bone in ob.pose.bones:
-                        bone.matrix_basis = Matrix.Identity(4)
-                ob.matrix_world = matrix
-                ob.animation_data.action = action
+            for id, (matrix, action) in self.action_map.items():
+                if isinstance(id, bpy.types.Object):
+                    if id.type == 'ARMATURE':
+                        for bone in id.pose.bones:
+                            bone.matrix_basis = Matrix.Identity(4)
+                    id.matrix_world = matrix
+                id.animation_data.action = action
 
         self.context.scene.frame_set(self.current_frame)
         

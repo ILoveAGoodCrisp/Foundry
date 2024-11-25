@@ -305,15 +305,15 @@ class Granny:
             granny_mesh = GrannyMesh()
             meshes[i] = pointer(granny_mesh)
             export_mesh.granny = meshes[i]
-            if animation is None or not animation.granny_morph_targets_counts:
+            if animation is None or animation.granny_morph_targets_counts.get(export_mesh.node) is None:
                 self._populate_mesh(granny_mesh, export_mesh)
             else:
-                self._populate_mesh(granny_mesh, export_mesh, animation.granny_morph_targets_counts[i], animation.granny_morph_targets[i])            
+                self._populate_mesh(granny_mesh, export_mesh, animation)            
 
         self.file_info.mesh_count = num_meshes
         self.file_info.meshes = meshes
 
-    def _populate_mesh(self, granny_mesh, export_mesh: Mesh, granny_morph_targets_count=None, granny_morph_target=None):
+    def _populate_mesh(self, granny_mesh, export_mesh: Mesh, animation=None):
         granny_mesh.name = export_mesh.name
         self.create_extended_data(export_mesh.props, granny_mesh, export_mesh.siblings, export_mesh.name)
         granny_mesh.primary_vertex_data = export_mesh.primary_vertex_data
@@ -342,9 +342,9 @@ class Granny:
             granny_mesh.bone_bindings_count = num_bone_bindings
             granny_mesh.bone_bindings = cast(bone_bindings, POINTER(GrannyBoneBinding))
             
-        if granny_morph_targets_count is not None:
-            granny_mesh.morph_targets = granny_morph_target
-            granny_mesh.morph_target_count = granny_morph_targets_count
+        if animation is not None:
+            granny_mesh.morph_targets = animation.granny_morph_targets.get(export_mesh.node)
+            granny_mesh.morph_target_count = animation.granny_morph_targets_counts.get(export_mesh.node)
         
     def write_models(self):
         num_models = len(self.export_models) + int(bool(self.granny_export_info))

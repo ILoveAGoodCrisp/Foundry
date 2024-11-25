@@ -315,6 +315,7 @@ class Mesh():
     def __init__(self, node, valid_siblings):
         self.granny = None
         self.name = node.name.encode()
+        self.node = node
         self.props = node.props
         mesh = node.mesh
         self.siblings = [s.encode() for s in mesh.siblings if s != node.name and s in valid_siblings]

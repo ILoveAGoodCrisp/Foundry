@@ -82,8 +82,8 @@ class VirtualAnimation:
         self.granny_animation = None
         self.granny_track_group = None
         
-        self.granny_morph_targets_counts = []
-        self.granny_morph_targets = []
+        self.granny_morph_targets_counts = {}
+        self.granny_morph_targets = {}
         
         self.nodes = []
 
@@ -97,7 +97,7 @@ class VirtualAnimation:
         scales = defaultdict(list)
         tracks = []
         # scale_matrix = Matrix.Diagonal(scene.armature_matrix.to_scale()).to_4x4()
-        morph_target_datas = []
+        morph_target_datas = defaultdict(list)
         shape_key_data = {}
         for ob in shape_key_objects:
             node = scene.nodes.get(ob.name)
@@ -108,10 +108,10 @@ class VirtualAnimation:
         if shape_key_data:
             self.is_pca = True
                 
-        for frame_idx, frame in enumerate(range(self.frame_range[0], self.frame_range[1] + 1)):
+        for frame in range(self.frame_range[0], self.frame_range[1] + 1):
             bpy.context.scene.frame_set(frame)
             bone_inverse_matrices = {}
-            for idx, bone in enumerate(bones):
+            for bone in bones:
                 if bone.is_object:
                     matrix = scene.rotation_matrix @ bone.pbone.matrix_world
                 elif bone.parent:
@@ -134,7 +134,7 @@ class VirtualAnimation:
             
             if shape_key_data:
                 for ob, node in shape_key_data.items():
-                    morph_target_datas.append(VirtualMorphTargetData(ob, scene, node))
+                    morph_target_datas[node].append(VirtualMorphTargetData(ob, scene, node))
 
         for bone in bones:
             tracks.append((c_float * (self.frame_count * 3))(*positions[bone]))
@@ -221,9 +221,10 @@ class VirtualAnimation:
         self.granny_track_group = pointer(granny_track_group)
         # self.granny_track_group = scene.granny.end_track_group(group_builder)
         
-        morphs = [morph.granny_morph_target for morph in morph_target_datas]
-        self.granny_morph_targets_counts.append(len(morphs))
-        self.granny_morph_targets.append((GrannyMorphTarget * len(morphs))(*morphs))
+        for node, data in morph_target_datas.items():
+            morphs = [morph.granny_morph_target for morph in data]
+            self.granny_morph_targets_counts[node] = len(morphs)
+            self.granny_morph_targets[node] = (GrannyMorphTarget * len(morphs))(*morphs)
 
     def to_granny_animation(self, scene: 'VirtualScene'):
         frame_total = self.frame_count - 1
