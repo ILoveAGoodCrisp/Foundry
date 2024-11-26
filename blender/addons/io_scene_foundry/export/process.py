@@ -879,7 +879,7 @@ class ExportScene:
                 
             elif marker_type == "_connected_geometry_marker_type_effects":
                 props["bungie_marker_type"] = "_connected_geometry_marker_type_model"
-                if not ob.name.startswith("fx_"):
+                if not nwo.marker_model_group.startswith("fx_"):
                     ob.name = "fx_" + ob.name
                     
             elif marker_type == "_connected_geometry_marker_type_garbage":
