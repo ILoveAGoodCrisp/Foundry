@@ -2008,14 +2008,21 @@ def reset_to_basis(keep_animation=False, record_current_action=False):
 
 def clear_animation(animation):
     for group in animation.action_tracks:
-        if group.action is not None and group.object is not None and group.object.animation_data:
-            # group.object.matrix_basis = Matrix.Identity(4)
-            if group.object.type == 'ARMATURE':
-                for bone in group.object.pose.bones:
-                    bone.matrix_basis = Matrix.Identity(4)
-            
-            group.object.animation_data.use_nla = False
-            group.object.animation_data.action = None
+        if group.action is not None and group.object is not None:
+            if group.is_shape_key_action:
+                if group.object.type == 'MESH' and group.object.data.shape_keys and group.object.data.shape_keys.animation_data:
+                    group.object.data.shape_keys.animation_data.action = None
+                    for kb in group.object.data.shape_keys.key_blocks:
+                        kb.value = 0
+                        
+            else:
+                if group.object.animation_data:
+                    if group.object.type == 'ARMATURE':
+                        for bone in group.object.pose.bones:
+                            bone.matrix_basis = Matrix.Identity(4)
+                    
+                    group.object.animation_data.use_nla = False
+                    group.object.animation_data.action = None
 
 def asset_path_from_blend_location() -> str | None:
     blend_path = bpy.data.filepath.lower()
