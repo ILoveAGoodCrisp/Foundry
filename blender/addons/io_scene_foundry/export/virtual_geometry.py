@@ -107,7 +107,7 @@ class VirtualAnimation:
                 
         if shape_key_data:
             self.is_pca = True
-                
+            
         for frame in range(self.frame_range[0], self.frame_range[1] + 1):
             bpy.context.scene.frame_set(frame)
             bone_inverse_matrices = {}
@@ -133,6 +133,8 @@ class VirtualAnimation:
                 scales[bone].extend(scale_shear)
             
             if shape_key_data:
+                global debug_frame
+                debug_frame = frame
                 for ob, node in shape_key_data.items():
                     morph_target_datas[node].append(VirtualMorphTargetData(ob, scene, node))
 
@@ -360,39 +362,11 @@ class VirtualMorphTargetData:
     
     def _setup(self, ob: bpy.types.Object, scene: 'VirtualScene' , node: 'VirtualNode'):
         eval_ob = ob.evaluated_get(scene.depsgraph)
-        def add_triangle_mod(ob: bpy.types.Object) -> bpy.types.Modifier:
-            mods = ob.modifiers
-            for m in mods:
-                if m.type == 'TRIANGULATE': return
-                
-            tri_mod = mods.new('Triangulate', 'TRIANGULATE')
-            tri_mod.quad_method = scene.quad_method
-            tri_mod.ngon_method = scene.ngon_method
-        
-        add_triangle_mod(eval_ob)
-
-        mesh = eval_ob.to_mesh(preserve_all_data_layers=True, depsgraph=scene.depsgraph)
+        mesh = eval_ob.to_mesh(preserve_all_data_layers=False, depsgraph=scene.depsgraph)
         
         self.name = mesh.name
         if not mesh.polygons:
-            scene.warnings.append(f"Mesh data [{self.name}] of object [{ob.name}] has no faces. {ob.name} removed from geometry tree")
-            self.invalid = True
-            return
-        
-        indices = np.empty(len(mesh.polygons))
-        mesh.polygons.foreach_get("loop_total", indices)
-        unique_indices = np.unique(indices)
-        
-        if len(unique_indices) > 1 or unique_indices[0] != 3:
-            # if for whatever reason to_mesh() failed to triangulate the mesh
-            bm = bmesh.new()
-            bm.from_mesh(mesh)
-            bmesh.ops.triangulate(bm, faces=bm.faces, quad_method=utils.tri_mod_to_bmesh_tri(scene.quad_method), ngon_method=utils.tri_mod_to_bmesh_tri(scene.ngon_method))
-            bm.to_mesh(mesh)
-            bm.free()
-            
-        if not mesh.polygons:
-            scene.warnings.append(f"Mesh data [{self.name}] of object [{ob.name}] has no faces. {ob.name} removed from geometry tree")
+            scene.warnings.append(f"Mesh data [{self.name}] of object [{ob.name}] has no faces. Skipping writing morph target data")
             self.invalid = True
             return
             
@@ -417,18 +391,19 @@ class VirtualMorphTargetData:
             layer.data.foreach_get("color", colors.ravel())
             is_tension = layer.name.lower() == "tension"
             
-            if not is_tension:
-                colors = colors[:, :3]
+            #if not is_tension:
+            colors = colors[:, :3]
             if layer.domain == 'POINT':
                 colors = colors[loop_vertex_indices]
 
             if is_tension:
-                self.tension = np.concatenate((colors[:, 3:4], colors[:, :3]), axis=1)
+                self.tension = colors
+                # self.tension = np.concatenate((colors[:, 3:4], colors[:, :3]), axis=1)
             else:
                 self.vertex_colors.append(colors)
                 
         if self.tension is None:
-            self.tension = np.zeros((num_loops, 4), dtype=np.single)
+            self.tension = np.zeros((num_loops, 3), dtype=np.single)
         
         new_indices = node.mesh.new_indices
         
@@ -470,9 +445,9 @@ class VirtualMorphTargetData:
             
         if self.tension is not None:
             data.append(self.tension)
-            types.append(GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, b"DiffuseColor0", None, 4))
+            types.append(GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, b"DiffuseColor0", None, 3))
             type_names.append(b"tension")
-            dtypes.append(("tension", np.single, (4,)))
+            dtypes.append(("tension", np.single, (3,)))
 
         types.append((GrannyMemberType.granny_end_member.value, None, None, 0))
         
@@ -619,9 +594,9 @@ class VirtualMesh:
             
         if self.tension is not None:
             data.append(self.tension)
-            types.append(GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, f"DiffuseColor{len(self.vertex_colors)}".encode(), None, 4))
+            types.append(GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, f"DiffuseColor{len(self.vertex_colors)}".encode(), None, 3))
             type_names.append(b"tension")
-            dtypes.append(("tension", np.single, (4,)))
+            dtypes.append(("tension", np.single, (3,)))
             
         if self.vertex_ids is not None:
             data.append(self.vertex_ids)
@@ -791,18 +766,18 @@ class VirtualMesh:
                 layer.data.foreach_get("color", colors.ravel())
                 is_tension = scene.corinth and layer.name.lower() == "tension"
                 
-                if not is_tension:
-                    colors = colors[:, :3]
+                #if not is_tension:
+                colors = colors[:, :3]
                 if layer.domain == 'POINT':
                     colors = colors[loop_vertex_indices]
     
                 if is_tension:
-                    self.tension = np.concatenate((colors[:, 3:4], colors[:, :3]), axis=1)
+                    self.tension = colors #np.concatenate((colors[:, 3:4], colors[:, :3]), axis=1)
                 else:
                     self.vertex_colors.append(colors)
                     
             if scene.corinth and self.tension is None and ob.data.shape_keys:
-                self.tension = np.zeros((num_loops, 4), dtype=np.single)
+                self.tension = np.zeros((num_loops, 3), dtype=np.single)
                 
 
         # Remove duplicate vertex data
