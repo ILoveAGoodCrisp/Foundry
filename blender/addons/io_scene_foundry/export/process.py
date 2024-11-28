@@ -1674,6 +1674,9 @@ class ExportScene:
             if clones:
                 self.sidecar.write_clone(clones)
         
+        # if self.asset_type == AssetType.MODEL and self.scene_settings.output_biped and self.has_animations: TODO uncomment once implemented in UI
+        #     self.sidecar.write_verification()
+
         self.sidecar.get_child_elements()
         self.sidecar.build()
                     

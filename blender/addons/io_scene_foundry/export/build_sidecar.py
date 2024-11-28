@@ -59,6 +59,7 @@ class Sidecar:
         self.lods = set()
         
         self.clone = None
+        self.verification = None
         
         self.structure = set()
         self.design = set()
@@ -133,6 +134,52 @@ class Sidecar:
             except:
                 utils.print_warning(f"--- Failed to parse {path}")
                 
+    def write_verification(self):
+        m_encoding = "utf-8"
+        m_standalone = "yes"
+        root = ET.Element("verification")
+        
+        # COMBAT CROUCH
+        mode = ET.SubElement(root, "mode", name="combat, crouch")
+        weapon = ET.SubElement(mode, "weapon", name="pistol, unarmed")
+        ET.SubElement(weapon, "action", name="idle")
+        
+        # COMBAT
+        mode = ET.SubElement(root, "mode", name="combat")
+        weapon = ET.SubElement(mode, "weapon", name="pistol, unarmed")
+        ET.SubElement(weapon, "action", name="walk_front")
+        ET.SubElement(weapon, "action", name="move_front")
+        ET.SubElement(weapon, "action", name="walk_back")
+        ET.SubElement(weapon, "action", name="move_back")
+        ET.SubElement(weapon, "action", name="walk_left")
+        ET.SubElement(weapon, "action", name="move_left")
+        ET.SubElement(weapon, "action", name="move_right")
+        ET.SubElement(weapon, "action", name="turn_left")
+        ET.SubElement(weapon, "action", name="turn_right")
+        ET.SubElement(weapon, "action", name="dive_front")
+        ET.SubElement(weapon, "action", name="dive_left")
+        ET.SubElement(weapon, "action", name="dive_right")
+        ET.SubElement(weapon, "action", name="throw_grenade")
+        ET.SubElement(weapon, "action", name="airborne")
+        ET.SubElement(weapon, "overlay", name="aim_still_up")
+        
+        dom = xml.dom.minidom.parseString(ET.tostring(root))
+        xml_string = dom.toprettyxml(indent="  ")
+        part1, part2 = xml_string.split("?>")
+        
+        verification_path = Path(self.asset_path, f"{self.asset_name}.verification.xml")
+
+        try:
+            with open(verification_path, "w") as f:
+                f.write(part1 + 'encoding="{}" standalone="{}"?>\n'.format(m_encoding, m_standalone))
+                for line in part2.splitlines():
+                    if line.strip():
+                        f.write(line + "\n")
+                        
+                self.verification = utils.relative_path(verification_path)
+        except:
+            utils.print_warning("Failed to write verification xml")
+            
     def write_clone(self, clones: dict):
         m_encoding = "utf-8"
         m_standalone = "yes"
@@ -174,7 +221,7 @@ class Sidecar:
 
         try:
             with open(clone_path, "w") as f:
-                f.write(part1 + 'encoding="{}" standalone="{}"?>'.format(m_encoding, m_standalone))
+                f.write(part1 + 'encoding="{}" standalone="{}"?>\n'.format(m_encoding, m_standalone))
                 for line in part2.splitlines():
                     if line.strip():
                         f.write(line + "\n")
@@ -232,7 +279,7 @@ class Sidecar:
                 raise RuntimeError(f"Sidecar is read only, cannot complete export: {self.sidecar_path_full}\n")
         
         with open(self.sidecar_path_full, "w") as f:
-            f.write(part1 + 'encoding="{}" standalone="{}"?>'.format(m_encoding, m_standalone))
+            f.write(part1 + 'encoding="{}" standalone="{}"?>\n'.format(m_encoding, m_standalone))
             for line in part2.splitlines():
                 if line.strip():
                     f.write(line + "\n")
@@ -379,11 +426,16 @@ class Sidecar:
         return network.attrib["Name"]
 
     def _write_model_contents(self, metadata):
-        contents = ET.SubElement(metadata, "Contents")
+        if self.verification is None:
+            contents = ET.SubElement(metadata, "Contents")
+        else:
+            contents = ET.SubElement(metadata, "Contents", VerifyAnimation=self.verification)
+            
         if self.clone is None:
-            content = ET.SubElement(contents, "Content", Name=self.asset_name, Type="model")
+            content = ET.SubElement(contents, "Content", Name=self.asset_name, VerifyAnimation="", Type="model")
         else:
             content = ET.SubElement(contents, "Content", Name=self.asset_name, PermutationClones=self.clone, Type="model")
+            
         ##### RENDER #####
         render_data = self.file_data.get("render")
         if render_data or self.child_render_elements:
