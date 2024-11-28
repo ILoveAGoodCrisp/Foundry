@@ -81,7 +81,8 @@ class NWO_ExportScene(Operator, ExportHelper):
         if d is not None:
             return "Export Unavaliable: " + d
         
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         # SETUP #
         scene = bpy.context.scene
         data_dir = get_data_path()

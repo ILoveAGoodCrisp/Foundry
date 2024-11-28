@@ -136,7 +136,8 @@ class NWO_MT_FaceLayerAddMenu(bpy.types.Menu):
     bl_label = "Add Face Property"
     bl_idname = "NWO_MT_FaceLayerAdd"
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.op_prefix = "nwo.face_layer_add"
 
     def draw(self, context):
@@ -248,7 +249,8 @@ class NWO_MT_FacePropAddMenu(NWO_MT_FaceLayerAddMenu):
     bl_label = "Add Face Property"
     bl_idname = "NWO_MT_FacePropAdd"
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.op_prefix = "nwo.face_prop_add"
 
 

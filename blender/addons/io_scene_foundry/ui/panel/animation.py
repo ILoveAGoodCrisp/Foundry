@@ -430,7 +430,8 @@ class NWO_OT_NewAnimation(bpy.types.Operator):
         default=True,
     )
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.fp_animation = utils.poll_ui(("animation"))
         if self.fp_animation:
             self.mode = "first_person"
@@ -641,7 +642,8 @@ class NWO_OT_List_Add_Animation_Rename(NWO_OT_NewAnimation):
     def poll(cls, context):
         return context.scene.nwo.animations and context.scene.nwo.active_animation_index > -1
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         animation = bpy.context.scene.nwo.animations[bpy.context.scene.nwo.active_animation_index]
         state = animation.state.lower().strip(" :_,-")
         state = "idle" if state == "" else state

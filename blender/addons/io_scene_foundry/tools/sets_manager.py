@@ -367,7 +367,8 @@ class NWO_RegionAdd(TableEntryAdd):
     bl_idname = "nwo.region_add"
     bl_description = "Add a new Region"
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.type_str = "Region"
         self.table_str = "regions_table"
         self.ob_prop_str = "region_name"
@@ -437,7 +438,8 @@ class NWO_RegionRemove(TableEntryRemove):
     def poll(cls, context):
         return len(context.scene.nwo.regions_table) > 1
 
-    def __init__(self):
+    def __init__(self, args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.table_str = "regions_table"
         self.ob_prop_str = "region_name"
 
@@ -458,7 +460,8 @@ class NWO_RegionMove(TableEntryMove):
     def poll(cls, context):
         return len(context.scene.nwo.regions_table) > 1
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.table_str = "regions_table"
 
     @classmethod
@@ -478,7 +481,8 @@ class NWO_RegionAssignSingle(TableEntryAssignSingle):
     def poll(cls, context):
         return context.scene.nwo.regions_table and context.object
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.table_str = "regions_table"
         self.ob_prop_str = "region_name"
 
@@ -520,7 +524,8 @@ class NWO_RegionAssign(TableEntryAssign):
     def poll(cls, context):
         return context.scene.nwo.regions_table and context.selected_objects
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.table_str = "regions_table"
         self.ob_prop_str = "region_name"
 
@@ -541,7 +546,8 @@ class NWO_RegionSelect(TableEntrySelect):
     def poll(cls, context):
         return context.scene.nwo.regions_table
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.table_str = "regions_table"
         self.ob_prop_str = "region_name"
 
@@ -568,7 +574,8 @@ class NWO_RegionRename(TableEntryRename):
     def poll(cls, context):
         return context.scene.nwo.regions_table
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.type_str = "Region"
         self.table_str = "regions_table"
         self.ob_prop_str = "region_name"
@@ -590,7 +597,8 @@ class NWO_RegionHide(TableEntryHide):
     def poll(cls, context):
         return context.scene.nwo.regions_table
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.table_str = "regions_table"
         self.ob_prop_str = "region_name"
 
@@ -617,7 +625,8 @@ class NWO_RegionHideSelect(TableEntryHideSelect):
     def poll(cls, context):
         return context.scene.nwo.regions_table
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.table_str = "regions_table"
         self.ob_prop_str = "region_name"
 
@@ -641,7 +650,8 @@ class NWO_PermutationAdd(TableEntryAdd):
     bl_idname = "nwo.permutation_add"
     bl_description = "Add a new Permutation"
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.type_str = "Permutation"
         self.table_str = "permutations_table"
         self.ob_prop_str = "permutation_name"
@@ -663,7 +673,8 @@ class NWO_PermutationRemove(TableEntryRemove):
     def poll(cls, context):
         return len(context.scene.nwo.permutations_table) > 1
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.table_str = "permutations_table"
         self.ob_prop_str = "permutation_name"
 
@@ -684,7 +695,8 @@ class NWO_PermutationMove(TableEntryMove):
     def poll(cls, context):
         return len(context.scene.nwo.permutations_table) > 1
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.table_str = "permutations_table"
 
     @classmethod
@@ -704,7 +716,8 @@ class NWO_PermutationAssignSingle(TableEntryAssignSingle):
     def poll(cls, context):
         return context.scene.nwo.permutations_table and context.object
     
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.table_str = "permutations_table"
         self.ob_prop_str = "permutation_name"
 
@@ -725,7 +738,8 @@ class NWO_PermutationAssign(TableEntryAssign):
     def poll(cls, context):
         return context.scene.nwo.permutations_table and context.selected_objects
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.table_str = "permutations_table"
         self.ob_prop_str = "permutation_name"
 
@@ -746,7 +760,8 @@ class NWO_PermutationSelect(TableEntrySelect):
     def poll(cls, context):
         return context.scene.nwo.permutations_table
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.table_str = "permutations_table"
         self.ob_prop_str = "permutation_name"
 
@@ -773,7 +788,8 @@ class NWO_PermutationRename(TableEntryRename):
     def poll(cls, context):
         return context.scene.nwo.permutations_table
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.type_str = "Permutation"
         self.table_str = "permutations_table"
         self.ob_prop_str = "permutation_name"
@@ -795,7 +811,8 @@ class NWO_PermutationHide(TableEntryHide):
     def poll(cls, context):
         return context.scene.nwo.permutations_table
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.table_str = "permutations_table"
         self.ob_prop_str = "permutation_name"
 
@@ -822,7 +839,8 @@ class NWO_PermutationHideSelect(TableEntryHideSelect):
     def poll(cls, context):
         return context.scene.nwo.permutations_table
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.table_str = "permutations_table"
         self.ob_prop_str = "permutation_name"
 
@@ -850,7 +868,8 @@ class NWO_SeamAssignSingle(TableEntryAssignSingle):
     def poll(cls, context):
         return context.scene.nwo.regions_table and context.object
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.table_str = "regions_table"
         self.ob_prop_str = "seam_back"
 
