@@ -518,9 +518,9 @@ class ExportScene:
         self.global_materials_list = list(self.global_materials - {'default'})
         self.global_materials_list.insert(0, 'default')
         self.export_info = ExportInfo(self.regions if self.asset_type.supports_regions else None, self.global_materials_list if self.asset_type.supports_global_materials else None).create_info()
-        self.virtual_scene.regions = self.regions
+        self.virtual_scene.regions = {region: idx for (idx, region) in enumerate(self.regions)}
         self.virtual_scene.regions_set = self.regions_set
-        self.virtual_scene.global_materials = self.global_materials_list
+        self.virtual_scene.global_materials = {gm: idx for (idx, gm) in enumerate(self.global_materials_list)}
         self.virtual_scene.global_materials_set = set(self.global_materials_list)
         self.virtual_scene.object_parent_dict = object_parent_dict
         self.virtual_scene.object_halo_data = self.ob_halo_data

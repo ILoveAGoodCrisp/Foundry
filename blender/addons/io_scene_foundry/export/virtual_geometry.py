@@ -1338,10 +1338,10 @@ class VirtualScene:
         self.depsgraph = depsgraph
         self.tags_dir = tags_dir
         self.granny = granny
-        self.regions: list = []
+        self.regions: dict = {}
         self.regions_set = set()
         self.permutations: list = []
-        self.global_materials: list = []
+        self.global_materials: dict = {}
         self.global_materials_set = set()
         self.skeleton_node: VirtualNode = None
         self.skeleton_model: VirtualModel = None
@@ -1676,17 +1676,16 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
                     face_properties.setdefault("bungie_face_draw_distance", FaceSet(np.full(num_faces, fp_defaults["bungie_face_draw_distance"], dtype=np.int32))).update(bm, face_prop.layer_name, FaceDrawDistance.detail_close.value)
 
         if face_prop.face_global_material_override and props.get("bungie_face_global_material") is None:
-            gmv = 0
-            default_global_material = fp_defaults["bungie_face_global_material"]
-            if default_global_material in scene.global_materials_set:
-                gmv = scene.global_materials.index(fp_defaults["bungie_face_global_material"])
-            face_properties.setdefault("bungie_face_global_material", FaceSet(np.full(num_faces, gmv, np.int32))).update(bm, face_prop.layer_name, scene.global_materials.index(face_prop.face_global_material.strip().replace(' ', "_")))
+            gmv = scene.global_materials.get(fp_defaults["bungie_face_global_material"], 0)
+            face_gmv = scene.global_materials.get(face_prop.face_global_material.strip().replace(' ', "_"))
+            if face_gmv is not None:
+                face_properties.setdefault("bungie_face_global_material", FaceSet(np.full(num_faces, gmv, np.int32))).update(bm, face_prop.layer_name, face_gmv)
+                
         if scene.asset_type.supports_regions and face_prop.region_name_override and props.get("bungie_face_region") is None:
-            rv = 0
-            default_region = fp_defaults["bungie_face_region"]
-            if default_region in scene.regions_set:
-                rv = scene.regions.index(fp_defaults["bungie_face_region"])
-            face_properties.setdefault("bungie_face_region", FaceSet(np.full(num_faces, rv, np.int32))).update(bm, face_prop.layer_name, scene.regions.index(face_prop.region_name))
+            rv = scene.regions.get(fp_defaults["bungie_face_region"], 0)
+            face_rv = scene.regions.get(face_prop.region_name)
+            if face_rv is not None:
+                face_properties.setdefault("bungie_face_region", FaceSet(np.full(num_faces, rv, np.int32))).update(bm, face_prop.layer_name, face_rv)
         
         if not scene.corinth:
             if face_prop.ladder_override and props.get("bungie_ladder") is None:
