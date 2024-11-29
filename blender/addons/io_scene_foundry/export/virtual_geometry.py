@@ -107,9 +107,9 @@ class VirtualAnimation:
                 
         if shape_key_data:
             self.is_pca = True
-            
+        
         for frame in range(self.frame_range[0], self.frame_range[1] + 1):
-            bpy.context.scene.frame_set(frame)
+            scene.context.scene.frame_set(frame)
             bone_inverse_matrices = {}
             for bone in bones:
                 if bone.is_object:
@@ -133,8 +133,6 @@ class VirtualAnimation:
                 scales[bone].extend(scale_shear)
             
             if shape_key_data:
-                global debug_frame
-                debug_frame = frame
                 for ob, node in shape_key_data.items():
                     morph_target_datas[node].append(VirtualMorphTargetData(ob, scene, node))
 
@@ -625,10 +623,18 @@ class VirtualMesh:
         
     def _setup(self, ob: bpy.types.Object, scene: 'VirtualScene', fp_defaults: dict, render_mesh: bool, props: dict, bones: list[str]):
         old_shape_key_index = 0
-        if ob.data.shape_keys:
+        shape_key_unmutes = []
+        has_shape_keys = bool(ob.data.shape_keys)
+        if has_shape_keys:
             old_shape_key_index = ob.active_shape_key_index
             ob.active_shape_key_index = 0
+            for key_block in ob.data.shape_keys.key_blocks[1:]:
+                if not key_block.mute:
+                    shape_key_unmutes.append(key_block)
+                    key_block.mute = True
+                
         eval_ob = ob.evaluated_get(scene.depsgraph)
+        
         def add_triangle_mod(ob: bpy.types.Object) -> bpy.types.Modifier:
             mods = ob.modifiers
             for m in mods:
@@ -641,13 +647,12 @@ class VirtualMesh:
         add_triangle_mod(eval_ob)
 
         mesh = eval_ob.to_mesh(preserve_all_data_layers=True, depsgraph=scene.depsgraph)
-        
         self.name = mesh.name
         if not mesh.polygons:
             scene.warnings.append(f"Mesh data [{self.name}] of object [{ob.name}] has no faces. {ob.name} removed from geometry tree")
             self.invalid = True
             return
-
+        
         indices = np.empty(len(mesh.polygons))
         mesh.polygons.foreach_get("loop_total", indices)
         unique_indices = np.unique(indices)
@@ -877,8 +882,11 @@ class VirtualMesh:
             
         eval_ob.to_mesh_clear()
         
-        if old_shape_key_index:
-            ob.active_shape_key_index = old_shape_key_index
+        if has_shape_keys:
+            for key_block in shape_key_unmutes:
+                key_block.mute = False
+            if old_shape_key_index:
+                ob.active_shape_key_index = old_shape_key_index
     
 class VirtualNode:
     def __init__(self, id: bpy.types.Object | bpy.types.PoseBone, props: dict, region: str = None, permutation: str = None, fp_defaults: dict = None, scene: 'VirtualScene' = None, proxies = [], template_node: 'VirtualNode' = None, bones: list[str] = [], parent_matrix: Matrix = IDENTITY_MATRIX, animation_owner=None):
@@ -1143,7 +1151,7 @@ class VirtualSkeleton:
     def _get_bones(self, ob, scene: 'VirtualScene', is_main_armature: bool):
         if ob.type == 'ARMATURE':
             main_arm = ob
-            scene_nwo = bpy.context.scene.nwo
+            scene_nwo = scene.context.scene.nwo
             aim_bone_names = {scene_nwo.node_usage_pose_blend_pitch, scene_nwo.node_usage_pose_blend_yaw}
             special_bone_names = {scene_nwo.node_usage_pedestal, scene_nwo.node_usage_pose_blend_pitch, scene_nwo.node_usage_pose_blend_yaw}
             # Get all bones at fake_bones, so we can more easily create a virtual skeleton containing multiple armatures
@@ -1315,7 +1323,7 @@ class VirtualModel:
         if node and not node.invalid:
             self.node = node
             if ob.type == 'ARMATURE':
-                if not scene.skeleton_node or bpy.context.scene.nwo.main_armature == ob:
+                if not scene.skeleton_node or scene.context.scene.nwo.main_armature == ob:
                     scene.skeleton_node = self.node
                     scene.skeleton_model = self
                     scene.skeleton_object = ob
@@ -1325,7 +1333,7 @@ class VirtualModel:
             self.matrix: Matrix = ob.matrix_world.copy()
             
 class VirtualScene:
-    def __init__(self, asset_type: AssetType, depsgraph: bpy.types.Depsgraph, corinth: bool, tags_dir: Path, granny: Granny, export_settings, fps: float, animation_compression: str, rotation: float, maintain_marker_axis: bool, granny_textures: bool, project, light_scale: float, unit_factor: float, atten_scalar: int):
+    def __init__(self, asset_type: AssetType, depsgraph: bpy.types.Depsgraph, corinth: bool, tags_dir: Path, granny: Granny, export_settings, fps: float, animation_compression: str, rotation: float, maintain_marker_axis: bool, granny_textures: bool, project, light_scale: float, unit_factor: float, atten_scalar: int, context: bpy.types.Context):
         self.nodes: dict[VirtualNode] = {}
         self.meshes: dict[VirtualMesh] = {}
         self.materials: dict[VirtualMaterial] = {}
@@ -1388,6 +1396,8 @@ class VirtualScene:
         self.selected_permutations = set()
         self.limit_bsps = False
         self.limit_permutations = False
+        
+        self.context = context
         
         spath = "shaders\invalid"
         stype = "material" if corinth else "shader"
