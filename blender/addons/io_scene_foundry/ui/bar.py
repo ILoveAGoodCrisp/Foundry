@@ -745,6 +745,7 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
         default='DEFAULT',
         items=[
             ("DEFAULT", "Default Events", "Shows most events, but culls out unnecessary warnings"),
+            ("LOG", "Log Events", "Errors & warnings are logged to a seperate file instead of being shown in the Blender output. This file will be opened once Tool has finished executing if any warnings or errors were reported"),
             ("VERBOSE", "Verbose Events", ""),
             ("STATUS", "Status Events", ""),
             ("MESSAGE", "Message Events", ""),

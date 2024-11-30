@@ -38,7 +38,8 @@ class NWO_OT_Lightmap(bpy.types.Operator):
 
     def execute(self, context):
         asset_type = context.scene.nwo.asset_type
-        _, asset_name = utils.get_asset_info()
+        asset_path, _ = utils.get_asset_info()
+        scenario_path = str(Path(asset_path, asset_path))
         scene_nwo_export = context.scene.nwo_export
         is_corinth = utils.is_corinth(context)
         os.system("cls")
@@ -60,7 +61,7 @@ class NWO_OT_Lightmap(bpy.types.Operator):
         run_lightmapper(
             is_corinth,
             [],
-            asset_name,
+            scenario_path,
             scene_nwo_export.lightmap_quality,
             scene_nwo_export.lightmap_quality_h4,
             scene_nwo_export.lightmap_all_bsps,
@@ -74,7 +75,7 @@ class NWO_OT_Lightmap(bpy.types.Operator):
 def run_lightmapper(
     not_bungie_game,
     misc_halo_objects,
-    asset,
+    scenario_path,
     lightmap_quality="direct_only",
     lightmap_quality_h4="__custom__",
     lightmap_all_bsps=True,
@@ -92,7 +93,7 @@ def run_lightmapper(
         lightmap_all_bsps,
         lightmap_specific_bsp,
         lightmap_region,
-        asset,
+        scenario_path,
         model_lightmap,
         cpu_threads,
         structure_bsps,
@@ -115,16 +116,15 @@ class LightMapper:
         lightmap_all_bsps,
         lightmap_specific_bsp,
         lightmap_region,
-        asset,
+        scenario_path,
         model_lightmap,
         cpu_threads,
         structure_bsps,
     ):
-        self.asset_name = asset
         self.lightmap_message = "Lightmap Successful"
         self.lightmap_failed = False
         self.model_lightmap = model_lightmap
-        self.scenario = os.path.join(utils.get_asset_path(), self.asset_name)
+        self.scenario = scenario_path
         self.bsp = self.bsp_to_lightmap(lightmap_all_bsps, lightmap_specific_bsp)
         self.quality = lightmap_quality_h4 if not_bungie_game else lightmap_quality
         self.light_group = self.get_light_group(lightmap_region, misc_halo_objects, not_bungie_game)

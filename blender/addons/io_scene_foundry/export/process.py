@@ -1903,7 +1903,7 @@ class ExportScene:
             run_lightmapper(
                 self.corinth,
                 [],
-                self.asset_name,
+                str(Path(self.asset_path, self.asset_name)),
                 self.export_settings.lightmap_quality,
                 self.export_settings.lightmap_quality_h4,
                 self.export_settings.lightmap_all_bsps,

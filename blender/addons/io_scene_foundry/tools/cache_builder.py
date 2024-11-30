@@ -6,13 +6,10 @@ import bpy
 import json
 from uuid import uuid4
 
+from .scenario.lightmap import run_lightmapper
+
 from ..managed_blam.scenario import ScenarioTag
 from .. import utils
-
-class GameEngine(Enum):
-    halo_reach = 6
-    halo_4 = 3
-    halo_2amp = 4
     
 class ScenarioType(Enum):
     CAMPAIGN = 0
@@ -20,7 +17,7 @@ class ScenarioType(Enum):
     FIREFIGHT = 2
     
 class CacheBuilder:
-    def __init__(self, scenario_path: Path, context: bpy.types.Context):
+    def __init__(self, scenario_path: Path, context: bpy.types.Context, mp_validation: bool):
         project_dir = utils.get_project_path()
         self.scenario = scenario_path.with_suffix("")
         self.mod_name = self.scenario.name
@@ -29,11 +26,53 @@ class CacheBuilder:
         self.mod_dir = Path(self.mcc_mods, self.mod_name)
         self.game_engine = utils.project_game_for_mcc(context)
         self.scenario_type = ScenarioType.CAMPAIGN
+        self.context = context
+        self.do_mp_validation = mp_validation and self.scenario_type != ScenarioType.CAMPAIGN
+        self.zone_sets = None
+        self.bsps = None
         with ScenarioTag(path=scenario_path) as tag:
             if tag.survival_mode():
                 self.scenario_type = ScenarioType.FIREFIGHT
             elif tag.read_scenario_type() == 1:
                 self.scenario_type = ScenarioType.MULTIPLAYER
+                
+            self.zone_sets = [element.Fields[0].GetStringData() for element in tag.block_zone_sets.Elements]
+            
+            self.bsps = [os.path.basename(element.Fields[0].Path.RelativePath) for element in tag.block_bsps.Elements if element.Fields[0].Path is not None]
+                
+            if self.do_mp_validation:
+                self._multiplayer_validation()
+                
+    def _multiplayer_validation(self):
+        print("\n\nMultiplayer Validation\n")
+        print("-----------------------------------------------------------------------\n")
+                
+    def texture_analysis(self):
+        for zone_set in self.zone_sets:
+            utils.run_tool(
+                [
+                    "faux_perform_texture_analysis",
+                    str(self.scenario),
+                    zone_set,
+                    "true",
+                    "false",
+                ]
+            )
+        
+    def lightmap(self):
+        export = self.context.scene.nwo_export
+        run_lightmapper(
+            self.game_engine != "HaloReach",
+            [],
+            str(self.scenario),
+            export.lightmap_quality,
+            export.lightmap_quality_h4,
+            export.lightmap_all_bsps,
+            export.lightmap_specific_bsp,
+            export.lightmap_region,
+            False,
+            export.lightmap_threads,
+            self.bsps)
     
     def build_cache(self, event_level=None) -> bool:
         # Get scenario type
@@ -85,8 +124,11 @@ class CacheBuilder:
         mod_maps_dir = Path(self.mod_dir, "maps")
         if not mod_maps_dir.exists():
             mod_maps_dir.mkdir()
-            
-        utils.copy_file(self.map, Path(mod_maps_dir, self.map.name))
+        
+        try:
+            utils.copy_file(self.map, Path(mod_maps_dir, self.map.name))
+        except:
+            return "Failed to copy compiled .map file to mod folder. This .map file may be open in MCC"
                 
         # Create JSON data
         # Mod info JSON
@@ -158,7 +200,7 @@ class CacheBuilder:
                 }
                 
                 with open(campaign_info, "w") as file:
-                    json.dump(campaign_info_dict, file)
+                    json.dump(campaign_info_dict, file, indent=4)
                 
                 campaign_dir = Path(self.mod_dir, "campaign")
                 if not campaign_dir.exists():
@@ -266,7 +308,7 @@ class CacheBuilder:
                 }
                 
                 with open(campaign_map_info, "w") as file:
-                    json.dump(campaign_map_info_dict, file)
+                    json.dump(campaign_map_info_dict, file, indent=4)
                 
             case ScenarioType.MULTIPLAYER:
                 mp_dir = Path(self.mod_dir, "multiplayer")
@@ -305,7 +347,7 @@ class CacheBuilder:
                     }
                 
                 with open(mp_info, "w") as file:
-                    json.dump(mp_info_dict, file)
+                    json.dump(mp_info_dict, file, indent=4)
                     
                 mod_info_dict["GameModContents"]["MultiplayerMaps"] = [str(mp_info.relative_to(self.mod_dir))]
                     
@@ -314,7 +356,23 @@ class CacheBuilder:
                 # mod_info_dict["GameModContents"]["FirefightMaps"] = [str(ff_info.relative_to(self.mod_dir))]
             
         with open(mod_info, "w") as file:
-            json.dump(mod_info_dict, file)
+            json.dump(mod_info_dict, file, indent=4)
+            
+    def validate_multiplayer(self):
+        pass
+    
+    def generate_multiplayer_object_types(self):
+        pass
+            
+class NWO_OT_LaunchMCC(bpy.types.Operator):
+    bl_idname = "nwo.launch_mcc"
+    bl_label = "Launch MCC"
+    bl_description = "Launches the Steam version of The Masterchief Collection provied you have this installed"
+    bl_options = {"UNDO"}
+    
+    def execute(self, context):
+        os.startfile("steam://launch/976730/option2")
+        return {'FINISHED'}
 
 class NWO_OT_CacheBuild(bpy.types.Operator):
     bl_idname = "nwo.cache_build"
@@ -326,6 +384,7 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
         name='Scenario Filepath',
         subtype='FILE_PATH',
         description="Path to the scenario tag file to generate a cache file (.map) from",
+        options={"HIDDEN"},
     )
     
     filter_glob: bpy.props.StringProperty(
@@ -341,7 +400,14 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
     
     launch_mcc: bpy.props.BoolProperty(
         name="Launch MCC",
-        description="Launches MCC once the cache file and optional mod files have been built"
+        description="Launches MCC once the cache file and optional mod files have been built",
+        options={'SKIP_SAVE'}
+    )
+    
+    rebuild_cache: bpy.props.BoolProperty(
+        name="Rebuild Cache File",
+        description="Rebuilds the compiled .map file even if it already exists. If the map file does not exist inside of your project /maps directory, this operator will create it regardless of whether rebuild_cache is set",
+        default=True
     )
     
     event_level: bpy.props.EnumProperty(
@@ -351,6 +417,7 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
         default='DEFAULT',
         items=[
             ("DEFAULT", "Default Events", ""),
+            ("LOG", "Log Events", "Errors & warnings are logged to a seperate file instead of being shown in the Blender output. This file will be opened once Tool has finished executing if any warnings or errors were reported"),
             ("VERBOSE", "Verbose Events", ""),
             ("STATUS", "Status Events", ""),
             ("MESSAGE", "Message Events", ""),
@@ -359,6 +426,23 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
             ("CRITICAL", "Critical Events", ""),
             ("NONE", "No Events", "No errors or warnings are reported"),
         ]
+    )
+    
+    texture_analysis: bpy.props.BoolProperty(
+        name="Run Faux Texture Analysis",
+        description="Runs the faux_perform_texture_analysis Tool command which is necessary for textures to display correctly in MCC",
+        default=True,
+    )
+    
+    lightmap: bpy.props.BoolProperty(
+        name="Lightmap",
+        description="Lightmaps the scenario prior to build the cache file",
+    )
+    
+    validate_multiplayer: bpy.props.BoolProperty(
+        name="Validate Multiplayer",
+        description="If this is a multiplayer scenario, ensures scenario tag settings for multiplayer are set up correctly for loading in MCC. This will also regenerate the multiplayer_object_types.bin file",
+        default=True,
     )
 
     @classmethod
@@ -372,7 +456,7 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
             self.report({'WARNING'}, f"Specified scenario file does not exist: {full_path}")
             return {'CANCELLED'}
         
-        builder = CacheBuilder(relative_path, context)
+        builder = CacheBuilder(relative_path, context, self.validate_multiplayer)
         
         scene_nwo_export = context.scene.nwo_export
         os.system("cls")
@@ -385,13 +469,26 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
         print(title)
         print("\nIf you did not intend to run this, hold CTRL+C")
         try:
-            print("\n\nBuilding Cache File\n")
-            print("-----------------------------------------------------------------------\n")
-            if not builder.build_cache(self.event_level if self.event_level != 'DEFAULT' else None):
-                utils.print_error("Cache Build Failed")
-                self.report({'WARNING'}, "Failed to build .map file for scenario")
-                return {'CANCELLED'}
+            if self.lightmap:
+                builder.lightmap()
             
+            if utils.is_corinth(context) and self.texture_analysis:
+                print("\n\nFaux Texture Analysis\n")
+                print("-----------------------------------------------------------------------\n")
+                builder.texture_analysis()
+                
+            if self.rebuild_cache or not builder.map.exists(): 
+                print("\n\nBuilding Cache File\n")
+                print("-----------------------------------------------------------------------\n")
+                if not builder.build_cache(self.event_level if self.event_level != 'DEFAULT' else None):
+                    utils.print_error("Cache Build Failed")
+                    self.report({'WARNING'}, "Failed to build .map file for scenario")
+                    return {'CANCELLED'}
+            
+            if builder.do_mp_validation:
+                print("\n\nGenerating Multiplayer Object Types\n")
+                print("-----------------------------------------------------------------------\n")
+                builder.generate_multiplayer_object_types()
             
             if self.build_mod:
                 if builder.game_engine is None:
@@ -433,7 +530,25 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
         return {"RUNNING_MODAL"}
     
     def draw(self, context):
+        corinth = utils.is_corinth(context)
         layout = self.layout
+        layout.scale_x = 2
         layout.prop(self, "event_level", text="")
+        layout.prop(self, "rebuild_cache")
         layout.prop(self, "build_mod")
+        layout.prop(self, "validate_multiplayer")
         layout.prop(self, "launch_mcc")
+        layout.prop(self, "lightmap")
+        if self.lightmap:
+            export = context.scene.nwo_export
+            if corinth:
+                layout.prop(export, "lightmap_quality_h4")
+            else:
+                layout.prop(export, "lightmap_quality")
+            if not export.lightmap_all_bsps:
+                layout.prop(export, "lightmap_specific_bsp")
+            layout.prop(export, "lightmap_all_bsps")
+            if not corinth:
+                layout.prop(export, "lightmap_threads")
+        if corinth:
+            layout.prop(self, "texture_analysis")

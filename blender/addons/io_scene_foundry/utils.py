@@ -9,6 +9,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from uuid import uuid4
@@ -471,23 +472,33 @@ def run_tool(tool_args: list, in_background=False, null_output=False, event_leve
     command = f"""{get_tool_type()} {' '.join(f'"{arg}"' for arg in tool_args)}"""
     # print(command)
     
-    if event_level is not None:
+    log_warnings = event_level == 'LOG'
+    tmp_log = None
+    if log_warnings:
+        tmp_log = Path(tempfile.gettempdir(), "halo_errors.txt")
+    if event_level is not None and event_level not in {'DEFAULT', 'LOG'}:
         set_tool_event_level(event_level)
     
     if in_background:
         if null_output:
             return Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        elif log_warnings:
+            return Popen(command, stderr=str(tmp_log))
         else:
             return Popen(command)  # ,stderr=PIPE)
     else:
-        try:
-            if null_output:
-                return check_call(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            else:
-                return check_call(command)  # ,stderr=PIPE)
+        if null_output:
+            return check_call(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        elif log_warnings:
+            with open(tmp_log, "w") as file:
+                result = check_call(command, stderr=file)
+                
+            if tmp_log.exists() and os.path.getsize(tmp_log) > 0:
+                os.startfile(tmp_log)
+            return result
+        else:
+            return check_call(command)  # ,stderr=PIPE)
 
-        except Exception as e:
-            return e
 
 
 def run_tool_sidecar(tool_args: list, asset_path, event_level='WARNING'):
@@ -498,12 +509,18 @@ def run_tool_sidecar(tool_args: list, asset_path, event_level='WARNING'):
     # print(command)
     error = ""
     cull_warnings = event_level == 'DEFAULT'
+    log_warnings = event_level == 'LOG'
+    tmp_log = None
     if cull_warnings:
         p = Popen(command, stderr=subprocess.PIPE)
+    elif log_warnings:
+        tmp_log = Path(tempfile.gettempdir(), "halo_errors.txt")
+        with open(tmp_log, "w") as file:
+            p = Popen(command, stderr=file)
     else:
         p = Popen(command)
     # error_log = os.path.join(asset_path, "error.log")
-    if not cull_warnings:
+    if not (cull_warnings or log_warnings):
         set_tool_event_level(event_level)
             
     # Read and print stderr contents while writing to the file
@@ -556,6 +573,9 @@ def run_tool_sidecar(tool_args: list, asset_path, event_level='WARNING'):
                         print_warning(line)
 
     p.wait()
+    
+    if tmp_log is not None and tmp_log.exists() and os.path.getsize(tmp_log) > 0:
+        os.startfile(tmp_log)
 
     return failed, error
 

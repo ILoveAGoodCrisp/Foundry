@@ -283,7 +283,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         col.separator()
         col.operator("nwo.new_sky", text="Add New Sky to Scenario", icon_value=get_icon_id('sky'))
         col.separator()
-        col.operator("nwo.cache_build")
+        col.operator("nwo.cache_build", icon_value=get_icon_id("excession"))
+        col.operator("nwo.launch_mcc", icon_value=get_icon_id("tag_test"))
         
     def draw_lighting(self, box: bpy.types.UILayout, nwo):
         box_lights = box.box()
@@ -354,7 +355,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             return
         zone_set = nwo.zone_sets[nwo.zone_sets_active_index]
         box.label(text=f"Zone Set BSPs")
-        if zone_set.name.lower() == "all":
+        if zone_set.name.lower() == "default_all":
             return box.label(text="All BSPs included in Zone Set")
         grid = box.grid_flow()
         grid.scale_x = 0.8
