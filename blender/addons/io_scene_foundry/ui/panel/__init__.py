@@ -282,6 +282,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         col.prop(nwo, "scenario_type")
         col.separator()
         col.operator("nwo.new_sky", text="Add New Sky to Scenario", icon_value=get_icon_id('sky'))
+        col.separator()
+        col.operator("nwo.cache_build")
         
     def draw_lighting(self, box: bpy.types.UILayout, nwo):
         box_lights = box.box()

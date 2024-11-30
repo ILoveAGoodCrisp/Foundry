@@ -175,7 +175,6 @@ class NWO_ExportScene(Operator, ExportHelper):
         
         global process
         process = self.as_keywords()
-        
 
         start = time.perf_counter()
         # get the asset name and path to the asset folder

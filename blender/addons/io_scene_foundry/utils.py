@@ -248,12 +248,18 @@ def relative_path(path: str | Path):
 
 def get_asset_path_full(tags=False):
     """Returns the full system path to the asset folder. For tags, add a True arg to the function call"""
+    if not bpy.context.scene.nwo.sidecar_path:
+        return None
     asset_path = bpy.context.scene.nwo.sidecar_path.rpartition(os.sep)[0].lower()
     if tags:
         return str(Path(get_tags_path(), asset_path))
     else:
         return str(Path(get_data_path(), asset_path))
-
+    
+def get_asset_name():
+    if not bpy.context.scene.nwo.sidecar_path:
+        return None
+    return Path(get_asset_path()).name
 
 # -------------------------------------------------------------------------------------------------------------------
 
@@ -444,12 +450,30 @@ def print_box(text, line_char="-", char_count=100):
         f"{line_char * side_char_count} {text} {line_char * (side_char_count + side_fix)}"
     )
     print(line_char * char_count)
+    
+def set_tool_event_level(event_level):
+    try:
+        with open(Path(get_project_path(), "bonobo_init.txt"), "w") as init:
+            if event_level == 'NONE':
+                init.write("events_enabled 0\n")
+            else:
+                level_txt = event_level.lower()
+                init.write("events_enabled 1\n")
+                init.write(f"events_global_display {level_txt}\n")
+                init.write(f"events_global_log {level_txt}\n")
+                init.write(f"events_global_debugger {level_txt}\n")
+    except:
+        print("Unable to replace bonobo_init.txt to set event level. It is currently read only")
 
-def run_tool(tool_args: list, in_background=False, null_output=False):
+def run_tool(tool_args: list, in_background=False, null_output=False, event_level=None):
     """Runs Tool using the specified function and arguments. Do not include 'tool' in the args passed"""
     os.chdir(get_project_path())
     command = f"""{get_tool_type()} {' '.join(f'"{arg}"' for arg in tool_args)}"""
     # print(command)
+    
+    if event_level is not None:
+        set_tool_event_level(event_level)
+    
     if in_background:
         if null_output:
             return Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -469,7 +493,6 @@ def run_tool(tool_args: list, in_background=False, null_output=False):
 def run_tool_sidecar(tool_args: list, asset_path, event_level='WARNING'):
     """Runs Tool using the specified function and arguments. Do not include 'tool' in the args passed"""
     failed = False
-    project_path = get_project_path()
     os.chdir(get_project_path())
     command = f"""{get_tool_type()} {' '.join(f'"{arg}"' for arg in tool_args)}"""
     # print(command)
@@ -479,20 +502,9 @@ def run_tool_sidecar(tool_args: list, asset_path, event_level='WARNING'):
         p = Popen(command, stderr=subprocess.PIPE)
     else:
         p = Popen(command)
-    error_log = os.path.join(asset_path, "error.log")
+    # error_log = os.path.join(asset_path, "error.log")
     if not cull_warnings:
-        try:
-            with open(Path(project_path, "bonobo_init.txt"), "w") as init:
-                if event_level == 'NONE':
-                    init.write("events_enabled 0\n")
-                else:
-                    level_txt = event_level.lower()
-                    init.write("events_enabled 1\n")
-                    init.write(f"events_global_display {level_txt}\n")
-                    init.write(f"events_global_log {level_txt}\n")
-                    init.write(f"events_global_debugger {level_txt}\n")
-        except:
-            print("Unable to replace bonobo_init.txt to set event level. It is currently read only")
+        set_tool_event_level(event_level)
             
     # Read and print stderr contents while writing to the file
     if cull_warnings:
@@ -3590,6 +3602,17 @@ def project_game_icon(context, project=None):
             return get_icon_id('halo_4')
         case 'episql.343i.selfhost.corp.microsoft.com':
             return get_icon_id('halo_2amp')
+        
+def project_game_for_mcc(context, project=None):
+    if project is None:
+        project = get_project(context.scene.nwo.scene_project)
+    match project.remote_server_name:
+        case 'bngtoolsql':
+            return 'HaloReach'
+        case 'metawins':
+            return 'Halo4'
+        case 'episql.343i.selfhost.corp.microsoft.com':
+            return 'Halo2A'
         
 def project_icon(context, project=None):
     if project is None:
