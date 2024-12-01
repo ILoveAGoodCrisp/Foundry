@@ -190,10 +190,15 @@ class CacheBuilder:
         mod_info = Path(self.mod_dir, "ModInfo.json")
         # Use existing guid if available
         existing_mod_info_guid = None
+        steam_guid = None
         if mod_info.exists():
             try:
                 with open(mod_info, "r") as file:
-                    existing_mod_info_guid = json.load(file)["ModIdentifier"]["ModGuid"]
+                    jfile = json.load(file)
+                    existing_mod_info_guid = jfile["ModIdentifier"]["ModGuid"]
+                    hosted_mod_ids = jfile["ModIdentifier"].get("HostedModIds")
+                    if hosted_mod_ids is not None:
+                        steam_guid = hosted_mod_ids.get("SteamWorkshopId")
             except: ...
         
         # Write json data as dict
@@ -218,7 +223,7 @@ class CacheBuilder:
             },
             "Engine": self.game_engine,
             "Title": {
-                "Neutral": self.mod_name
+                "Neutral": self.mod_name.upper()
             },
             "InheritSharedFiles": "FromMCC",
             "ModContents": {
@@ -232,6 +237,9 @@ class CacheBuilder:
                 "HasController": False
             }
         }
+        
+        if steam_guid is not None:
+            mod_info_dict["ModIdentifier"]["HostedModIds"]["SteamWorkshopId"] = steam_guid
         
         match self.scenario_type:
             case ScenarioType.CAMPAIGN:
@@ -274,7 +282,10 @@ class CacheBuilder:
                     "MapGuid": existing_campaign_map_info_guid if existing_campaign_map_info_guid is not None else str(uuid4()),
                     "ScenarioFile": str(self.scenario),
                     "Title": {
-                        "Neutral": self.mod_name
+                        "Neutral": self.mod_name.upper()
+                    },
+                    "Description": {
+                        "Neutral": f"Forged in Foundry at {time.strftime('%Y-%m-%d-%H:%M:%S')}"
                     },
                     "Images": {
                         "Large": r"images\large.png",
@@ -291,65 +302,65 @@ class CacheBuilder:
                             "ZoneSetIndex": 0,
                             "Valid": True,
                             "Title": {
-                                "Neutral": "Alpha"
+                                "Neutral": "ALPHA"
                             },
                             "Description": {
                                 "Neutral": "Loads level with game_insertion_point set to 0"
                             },
                             "ODST": {},
-                            "Thumbnail": ""
+                            "Thumbnail": r"images\rally_point_small.png"
                         },
                         {
                             "ZoneSetName": "",
                             "ZoneSetIndex": 1,
                             "Valid": True,
                             "Title": {
-                                "Neutral": "Bravo"
+                                "Neutral": "BRAVO"
                             },
                             "Description": {
                                 "Neutral": "Loads level with game_insertion_point set to 1"
                             },
                             "ODST": {},
-                            "Thumbnail": ""
+                            "Thumbnail": r"images\rally_point_small.png"
                         },
                         {
                             "ZoneSetName": "",
                             "ZoneSetIndex": 2,
                             "Valid": True,
                             "Title": {
-                                "Neutral": "Charlie"
+                                "Neutral": "CHARLIE"
                             },
                             "Description": {
                                 "Neutral": "Loads level with game_insertion_point set to 2"
                             },
                             "ODST": {},
-                            "Thumbnail": ""
+                            "Thumbnail": r"images\rally_point_small.png"
                         },
                         {
                             "ZoneSetName": "",
                             "ZoneSetIndex": 3,
                             "Valid": True,
                             "Title": {
-                                "Neutral": "Delta"
+                                "Neutral": "DELTA"
                             },
                             "Description": {
                                 "Neutral": "Loads level with game_insertion_point set to 3"
                             },
                             "ODST": {},
-                            "Thumbnail": ""
+                            "Thumbnail": r"images\rally_point_small.png"
                         },
                         {
                             "ZoneSetName": "",
                             "ZoneSetIndex": 4,
                             "Valid": True,
                             "Title": {
-                                "Neutral": "Echo"
+                                "Neutral": "ECHO"
                             },
                             "Description": {
                                 "Neutral": "Loads level with game_insertion_point set to 4"
                             },
                             "ODST": {},
-                            "Thumbnail": ""
+                            "Thumbnail": r"images\rally_point_small.png"
                         }
                     ],
                     "CampaignMapKind": "Default",
@@ -383,7 +394,7 @@ class CacheBuilder:
                         "MapGuid": existing_mp_info_guid if existing_mp_info_guid is not None else str(uuid4()),
                         "ScenarioFile": str(self.scenario),
                         "Title": {
-                            "Neutral": self.mod_name
+                            "Neutral": self.mod_name.upper()
                         },
                         "Description": {
                             "Neutral": f"Forged in Foundry at {time.strftime('%Y-%m-%d-%H:%M:%S')}"
@@ -407,14 +418,49 @@ class CacheBuilder:
                 mod_info_dict["GameModContents"]["MultiplayerMaps"] = [str(mp_info.relative_to(self.mod_dir))]
                     
             case ScenarioType.FIREFIGHT:
-                pass
-                # mod_info_dict["GameModContents"]["FirefightMaps"] = [str(ff_info.relative_to(self.mod_dir))]
+                ff_dir = Path(self.mod_dir, "firefight")
+                if not ff_dir.exists():
+                    ff_dir.mkdir()
+                    
+                ff_info = Path(ff_dir, f"{self.mod_name}.json")
+                
+                existing_ff_info_guid = None
+                if ff_info.exists():
+                    try:
+                        with open(ff_info, "r") as file:
+                            existing_ff_info_guid = json.load(file)["MapGuid"]
+                    except: ...
+                
+                ff_info_dict = {
+                        "MapGuid": existing_ff_info_guid if existing_ff_info_guid is not None else str(uuid4()),
+                        "ScenarioFile": str(self.scenario),
+                        "Title": {
+                            "Neutral": self.mod_name.upper()
+                        },
+                        "Description": {
+                            "Neutral": f"Forged in Foundry at {time.strftime('%Y-%m-%d-%H:%M:%S')}"
+                        },
+                        "Images": {
+                            "Large": r"images\large.png",
+                            "Thumbnail": r"images\small.png",
+                            "LoadingScreen": r"images\loading_screen.png",
+                            "TopDown": r"images\top_down.png"
+                        },
+                        "Flags": [
+                            "DisableSavedFilms"
+                        ],
+                        "InsertionPoints": [],
+                    }
+                
+                with open(ff_info, "w") as file:
+                    json.dump(ff_info_dict, file, indent=4)
+                    
+                mod_info_dict["GameModContents"]["FirefightMaps"] = [str(ff_info.relative_to(self.mod_dir))]
             
         with open(mod_info, "w") as file:
             json.dump(mod_info_dict, file, indent=4)
             
         # Add in MCC images
-        
         images_dir = Path(self.mod_dir, "images")
         if not images_dir.exists():
             images_dir.mkdir()
@@ -424,10 +470,12 @@ class CacheBuilder:
         placeholder_large = Path(placeholder_images_dir, "large.png")
         placeholder_small = Path(placeholder_images_dir, "small.png")
         placeholder_loading_screen = Path(placeholder_images_dir, "loading_screen.png")
+        placeholder_rally_point = Path(placeholder_images_dir, "rally_point_small.png")
         
         mod_large = Path(images_dir, "large.png")
         mod_small = Path(images_dir, "small.png")
         mod_loading_screen = Path(images_dir, "loading_screen.png")
+        mod_rally_point = Path(images_dir, "rally_point_small.png")
         
         if placeholder_large.exists() and not mod_large.exists():
             utils.copy_file(placeholder_large, mod_large)
@@ -437,6 +485,9 @@ class CacheBuilder:
             
         if placeholder_loading_screen.exists() and not mod_loading_screen.exists():
             utils.copy_file(placeholder_loading_screen, mod_loading_screen)
+            
+        if self.scenario_type == ScenarioType.CAMPAIGN and placeholder_rally_point.exists() and not mod_rally_point.exists():
+            utils.copy_file(placeholder_rally_point, mod_rally_point)
             
     def validate_multiplayer(self):
         pass
@@ -466,7 +517,11 @@ class CacheBuilder:
             for file in files:
                 full = Path(root, file)
                 relative = full.relative_to(self.sound_dir)
-                if custom_only and str(relative) in default_files:
+                
+                if not relative.suffix.lower() in {".info", ".fsb", ".pck"}:
+                    continue
+                
+                if custom_only and str(relative).lower() in default_files:
                     continue
                 
                 mod_full = Path(mod_sound_dir, relative)
@@ -503,7 +558,7 @@ class NWO_OT_LaunchMCC(bpy.types.Operator):
     
     def execute(self, context):
         os.startfile("steam://launch/976730/option2")
-        time.sleep(2) # Give MCC a moment to launch to avoid the user double clicking the operator
+        time.sleep(5) # Give MCC a moment to launch to avoid the user double clicking the operator
         return {'FINISHED'}
 
 class NWO_OT_CacheBuild(bpy.types.Operator):
@@ -691,7 +746,7 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
         layout.prop(self, "sounds", text="")
         layout.prop(self, "rebuild_cache")
         layout.prop(self, "build_mod")
-        layout.prop(self, "validate_multiplayer")
+        # layout.prop(self, "validate_multiplayer")
         layout.prop(self, "launch_mcc")
         layout.prop(self, "lightmap")
         if self.lightmap:
