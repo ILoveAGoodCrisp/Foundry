@@ -135,13 +135,16 @@ class CacheBuilder:
         # clear existing map file
         if self.map.exists():
             self.map.unlink()
-        utils.run_tool(
-            [
-                "build-cache-file",
-                str(self.scenario)
-            ],
-            event_level=event_level
-        )
+        try:
+            utils.run_tool(
+                [
+                    "build-cache-file",
+                    str(self.scenario)
+                ],
+                event_level=event_level
+            )
+        except:
+            return False
         
         return self.map.exists()
     
