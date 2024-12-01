@@ -472,6 +472,9 @@ class NWO_OT_NewAsset(bpy.types.Operator):
                 icon_value=get_icon_id("equipment"),
             )
             
+        elif self.asset_type == 'scenario':
+            col.prop(context.scene.nwo, 'scenario_type')
+            
         elif self.asset_type == 'animation':
             col.prop(self, 'animation_type')
             

@@ -761,7 +761,7 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
                 print("\n\nBuilding Cache File")
                 print("-----------------------------------------------------------------------\n")
                 if not builder.build_cache(self.event_level if self.event_level != 'DEFAULT' else None):
-                    utils.print_error("Cache Build Failed")
+                    utils.print_error("\nCache Build Failed")
                     self.report({'WARNING'}, "Failed to build .map file for scenario")
                     return {'CANCELLED'}
             

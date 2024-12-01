@@ -1997,32 +1997,9 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     
     parent_animation_graph_helper: bpy.props.StringProperty(options=set())
     
-    def get_scenario_type(self):
-        asset_scenario = utils.get_asset_tag(".scenario")
-        if asset_scenario:
-            print(asset_scenario)
-            with ScenarioTag(path=asset_scenario) as scenario:
-                type_value = scenario.tag.SelectField("type").Value
-                if type_value > 2:
-                    return self.scenario_type_helper
-                else:
-                    return type_value
-        else:
-            return self.scenario_type_helper
-        
-    def set_scenario_type(self, context):
-        value = self.scenario_type
-        asset_scenario = utils.get_asset_tag(".scenario")
-        if asset_scenario:
-            with ScenarioTag(path=asset_scenario) as scenario:
-                scenario.tag.SelectField("type").Value = value
-                scenario.tag_has_changes = True
-    
-    scenario_type: bpy.props.EnumProperty(
+    scenario_type: bpy.props.EnumProperty( # this is only used at asset creation
         name="Scenario Type",
         description="Select whether this is a Solo, Multiplayer, or Main Menu scenario",
-        # get=get_scenario_type,
-        update=set_scenario_type,
         options=set(),
         items=[
             ("solo", "Singleplayer", "For campaign levels, but also valid for Firefight & Spartan Ops scenarios"),

@@ -279,8 +279,6 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             box.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text="Open Scenario Tag").tag_path = tag_path
         col = box.column()
         col.use_property_split = True
-        col.prop(nwo, "scenario_type")
-        col.separator()
         col.operator("nwo.new_sky", text="Add New Sky to Scenario", icon_value=get_icon_id('sky'))
         col.separator()
         col.operator("nwo.cache_build", icon_value=get_icon_id("excession"))
@@ -357,7 +355,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             return
         zone_set = nwo.zone_sets[nwo.zone_sets_active_index]
         box.label(text=f"Zone Set BSPs")
-        if zone_set.name.lower() == "default_all":
+        if zone_set.name.lower() == "default":
             return box.label(text="All BSPs included in Zone Set")
         grid = box.grid_flow()
         grid.scale_x = 0.8

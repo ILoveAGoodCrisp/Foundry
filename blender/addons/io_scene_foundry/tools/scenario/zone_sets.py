@@ -36,7 +36,7 @@ class NWO_OT_ZoneSetRemove(bpy.types.Operator):
     def execute(self, context):
         nwo = context.scene.nwo
         table = nwo.zone_sets
-        if table[nwo.zone_sets_active_index].name.lower() == "default_all":
+        if table[nwo.zone_sets_active_index].name.lower() == "default":
             nwo.user_removed_all_zone_set = True
         table.remove(nwo.zone_sets_active_index)
         if nwo.zone_sets_active_index > len(table) - 1:
@@ -78,7 +78,7 @@ def write_zone_sets_to_scenario(scene_nwo, asset_name):
                 zs = foundry_zone_sets[foundry_zone_set_names.index(tag_zs_name)]
                 missing_zone_sets.remove(zs)
                 
-                if tag_zs_name == "default_all":
+                if tag_zs_name == "default":
                     for item in bsp_flags.Items:
                         item.IsSet = True
                     for item in sd_flags.Items:
@@ -105,7 +105,7 @@ def write_zone_sets_to_scenario(scene_nwo, asset_name):
             element.SelectField("name").SetStringData(zs.name.lower())
             bsp_flags = element.SelectField("bsp zone flags")
             sd_flags = element.SelectField("structure design zone flags")
-            if zs.name.lower() == "default_all":
+            if zs.name.lower() == "default":
                 for item in bsp_flags.Items:
                     item.IsSet = True
                 for item in sd_flags.Items:
