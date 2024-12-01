@@ -162,9 +162,11 @@ class CacheBuilder:
             utils.run_tool(
                 [
                     "build-cache-file",
-                    str(self.scenario)
+                    str(self.scenario),
+                    "pc",
                 ],
-                event_level=event_level
+                event_level=event_level,
+                force_tool=True,
             )
         except:
             return False
