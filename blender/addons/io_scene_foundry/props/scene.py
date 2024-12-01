@@ -1048,6 +1048,8 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         description="Mark if this asset is a child of another. Setting this will prevent this file from building tags, instead only building intermediary data for use by its parent file"
     )
     
+    mod_name: bpy.props.StringProperty(options={'HIDDEN'}, default="")
+    
     # ANIMATION
     def update_active_animation_index(self, context):
         if self.active_animation_index > -1:

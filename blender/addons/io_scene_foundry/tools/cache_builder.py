@@ -10,6 +10,55 @@ from .scenario.lightmap import run_lightmapper
 
 from ..managed_blam.scenario import ScenarioTag
 from .. import utils
+
+mcc_reach_sounds = {
+       "english.fsb",
+       "english.fsb.info",
+       "french.fsb",
+       "french.fsb.info",
+       "german.fsb",
+       "german.fsb.info",
+       "italian.fsb",
+       "italian.fsb.info",
+       "mexican.fsb",
+       "mexican.fsb.info"
+       "sfx.fsb",
+       "sfx.fsb.info",
+       "spanish.fsb",
+       "spanish.fsb.info"
+}
+
+mcc_halo4_sounds = {
+    "sfxbank.pck",
+    "sfxbank_dlc.pck",
+    "sfxstream.pck",
+    "sfxstream_dlc.pck",
+    "english(us)\\dlc.pck",
+    "english(us)\\soundbank.pck",
+    "english(us)\\soundstream.pck",
+    "french(france)\\dlc.pck",
+    "french(france)\\soundbank.pck",
+    "french(france)\\soundstream.pck",
+    "german\\dlc.pck",
+    "german\\soundbank.pck",
+    "german\\soundstream.pck",
+    "italian\\dlc.pck",
+    "italian\\soundbank.pck",
+    "italian\\soundstream.pck",
+    "spanish(mexico)\\dlc.pck",
+    "spanish(mexico)\\soundbank.pck",
+    "spanish(mexico)\\soundstream.pck",
+    "spanish(spain)\\dlc.pck",
+    "spanish(spain)\\soundbank.pck",
+    "spanish(spain)\\soundstream.pck",
+}
+
+mcc_halo2amp_sounds = {
+    "sfxbank.pck",
+    "sfxstream.pck",
+    "english(us)\\soundbank.pck",
+    "english(us)\\soundstream.pck",
+}
     
 class ScenarioType(Enum):
     CAMPAIGN = 0
@@ -30,6 +79,12 @@ class CacheBuilder:
         self.do_mp_validation = mp_validation and self.scenario_type != ScenarioType.CAMPAIGN
         self.zone_sets = None
         self.bsps = None
+        
+        if self.game_engine == "HaloReach":
+            self.sound_dir = Path(project_dir, "fmod", "pc")
+        else:
+            self.sound_dir = Path(project_dir, "sound", "pc")
+        
         with ScenarioTag(path=scenario_path) as tag:
             if tag.survival_mode():
                 self.scenario_type = ScenarioType.FIREFIGHT
@@ -44,7 +99,7 @@ class CacheBuilder:
                 self._multiplayer_validation()
                 
     def _multiplayer_validation(self):
-        print("\n\nMultiplayer Validation\n")
+        print("\n\nMultiplayer Validation")
         print("-----------------------------------------------------------------------\n")
                 
     def texture_analysis(self):
@@ -223,7 +278,7 @@ class CacheBuilder:
                     },
                     "Images": {
                         "Large": r"images\large.png",
-                        "Thumbnail": r"images\thumbnail.png",
+                        "Thumbnail": r"images\small.png",
                         "LoadingScreen": r"images\loading_screen.png",
                         "TopDown": r"images\top_down.png"
                     },
@@ -335,7 +390,7 @@ class CacheBuilder:
                         },
                         "Images": {
                             "Large": r"images\large.png",
-                            "Thumbnail": r"images\thumbnail.png",
+                            "Thumbnail": r"images\small.png",
                             "LoadingScreen": r"images\loading_screen.png",
                             "TopDown": r"images\top_down.png"
                         },
@@ -358,11 +413,87 @@ class CacheBuilder:
         with open(mod_info, "w") as file:
             json.dump(mod_info_dict, file, indent=4)
             
+        # Add in MCC images
+        
+        images_dir = Path(self.mod_dir, "images")
+        if not images_dir.exists():
+            images_dir.mkdir()
+            
+        placeholder_images_dir = Path(utils.addon_root(), "mcc", "images")
+        
+        placeholder_large = Path(placeholder_images_dir, "large.png")
+        placeholder_small = Path(placeholder_images_dir, "small.png")
+        placeholder_loading_screen = Path(placeholder_images_dir, "loading_screen.png")
+        
+        mod_large = Path(images_dir, "large.png")
+        mod_small = Path(images_dir, "small.png")
+        mod_loading_screen = Path(images_dir, "loading_screen.png")
+        
+        if placeholder_large.exists() and not mod_large.exists():
+            utils.copy_file(placeholder_large, mod_large)
+            
+        if placeholder_small.exists() and not mod_small.exists():
+            utils.copy_file(placeholder_small, mod_small)
+            
+        if placeholder_loading_screen.exists() and not mod_loading_screen.exists():
+            utils.copy_file(placeholder_loading_screen, mod_loading_screen)
+            
     def validate_multiplayer(self):
         pass
     
     def generate_multiplayer_object_types(self):
         pass
+    
+    def copy_sounds(self, custom_only: bool):
+        match self.game_engine:
+            case "HaloReach":
+                default_files = mcc_reach_sounds
+                game_dir = "haloreach"
+            case "Halo4":
+                default_files = mcc_halo4_sounds
+                game_dir = "halo4"
+            case "Halo2A":
+                default_files = mcc_halo2amp_sounds
+                game_dir = "groundhog"
+            case _:
+                raise
+                
+        if self.game_engine == "HaloReach":
+            mod_sound_dir = Path(self.mod_dir, game_dir, "fmod", "pc")
+        else:
+            mod_sound_dir = Path(self.mod_dir, game_dir, "sound", "pc")
+        for root, dirs, files in os.walk(self.sound_dir):
+            for file in files:
+                full = Path(root, file)
+                relative = full.relative_to(self.sound_dir)
+                if custom_only and str(relative) in default_files:
+                    continue
+                
+                mod_full = Path(mod_sound_dir, relative)
+                
+                if not mod_full.parent.exists():
+                    mod_full.parent.mkdir(parents=True, exist_ok=True)
+                
+                utils.copy_file(full, mod_full)
+                print(f"--- Copied {relative}")
+    
+class NWO_OT_OpenModFolder(bpy.types.Operator):
+    bl_idname = "nwo.open_mod_folder"
+    bl_label = "Open Mod Folder"
+    bl_description = "Opens the mod folder for this asset"
+    bl_options = {"UNDO"}
+    
+    @classmethod
+    def poll(cls, context):
+        if not context.scene.nwo.mod_name:
+            return False
+        path = Path(utils.get_project_path(), "MCC", context.scene.nwo.mod_name)
+        return path.exists()
+    
+    def execute(self, context):
+        path = Path(utils.get_project_path(), "MCC", context.scene.nwo.mod_name)
+        os.startfile(path)
+        return {'FINISHED'}
             
 class NWO_OT_LaunchMCC(bpy.types.Operator):
     bl_idname = "nwo.launch_mcc"
@@ -372,6 +503,7 @@ class NWO_OT_LaunchMCC(bpy.types.Operator):
     
     def execute(self, context):
         os.startfile("steam://launch/976730/option2")
+        time.sleep(2) # Give MCC a moment to launch to avoid the user double clicking the operator
         return {'FINISHED'}
 
 class NWO_OT_CacheBuild(bpy.types.Operator):
@@ -444,6 +576,16 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
         description="If this is a multiplayer scenario, ensures scenario tag settings for multiplayer are set up correctly for loading in MCC. This will also regenerate the multiplayer_object_types.bin file",
         default=True,
     )
+    
+    sounds: bpy.props.EnumProperty(
+        name="Sounds",
+        description="Sound files to include in mod directory. Sound files (fsb/pck) must exist in the sound folder of your project",
+        items=[
+            ('NONE', "Don't Copy Sounds", "Sound files are not copied to the mod folder. The mod will use the existing sound files in MCC"),
+            ('CUSTOM', "Copy Custom Sounds", "Copies custom sound files to the mod folder. Custom sound files are defined as files whos name do not match any of the existing sound files that come with MCC. For example a MCC .FSB file with new sounds appended to it would not be copied over"),
+            ('ALL', "Copy All Sounds", "All sounds files in this project are copied over to the mod folder")
+        ]
+    )
 
     @classmethod
     def poll(cls, context):
@@ -473,12 +615,12 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
                 builder.lightmap()
             
             if utils.is_corinth(context) and self.texture_analysis:
-                print("\n\nFaux Texture Analysis\n")
+                print("\n\nFaux Texture Analysis")
                 print("-----------------------------------------------------------------------\n")
                 builder.texture_analysis()
                 
             if self.rebuild_cache or not builder.map.exists(): 
-                print("\n\nBuilding Cache File\n")
+                print("\n\nBuilding Cache File")
                 print("-----------------------------------------------------------------------\n")
                 if not builder.build_cache(self.event_level if self.event_level != 'DEFAULT' else None):
                     utils.print_error("Cache Build Failed")
@@ -486,7 +628,7 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
                     return {'CANCELLED'}
             
             if builder.do_mp_validation:
-                print("\n\nGenerating Multiplayer Object Types\n")
+                print("\n\nGenerating Multiplayer Object Types")
                 print("-----------------------------------------------------------------------\n")
                 builder.generate_multiplayer_object_types()
             
@@ -496,7 +638,7 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
                     self.report({'WARNING'}, "Failed to determine game engine")
                     return {'CANCELLED'}
                 
-                print("\n\nBuilding MCC Mod Files\n")
+                print("\n\nBuilding MCC Mod Files")
                 print("-----------------------------------------------------------------------\n")
                 report = builder.build_mod()
                 if report is not None:
@@ -506,6 +648,18 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
                 
                 print(f"Mod files generated and saved to: {builder.mod_dir}")
                 
+                context.scene.nwo.mod_name = builder.mod_name
+                
+            match self.sounds:
+                case 'CUSTOM':
+                    print("\n\nCopying Custom Sounds")
+                    print("-----------------------------------------------------------------------\n")
+                    builder.copy_sounds(True)
+                case 'ALL':
+                    print("\n\nCopying All Sounds")
+                    print("-----------------------------------------------------------------------\n")
+                    builder.copy_sounds(False)
+                
             print("\n-----------------------------------------------------------------------")
             print(f"Cache Build Completed in {utils.human_time(time.perf_counter() - start, True)}")
             print("-----------------------------------------------------------------------\n")
@@ -513,7 +667,7 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
             if self.launch_mcc:
                 print("Launching MCC...")
                 os.startfile("steam://launch/976730/option2")
-                
+            
             self.report({'INFO'}, "Cache Build Successful")
         
         except KeyboardInterrupt:
@@ -532,8 +686,9 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
     def draw(self, context):
         corinth = utils.is_corinth(context)
         layout = self.layout
-        layout.scale_x = 2
+        layout.scale_y = 1.5
         layout.prop(self, "event_level", text="")
+        layout.prop(self, "sounds", text="")
         layout.prop(self, "rebuild_cache")
         layout.prop(self, "build_mod")
         layout.prop(self, "validate_multiplayer")

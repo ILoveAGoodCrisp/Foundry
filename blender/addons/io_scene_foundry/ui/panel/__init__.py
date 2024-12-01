@@ -285,6 +285,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         col.separator()
         col.operator("nwo.cache_build", icon_value=get_icon_id("excession"))
         col.operator("nwo.launch_mcc", icon_value=get_icon_id("tag_test"))
+        if bpy.ops.nwo.open_mod_folder.poll():
+            col.operator("nwo.open_mod_folder", icon='FILE_FOLDER')
         
     def draw_lighting(self, box: bpy.types.UILayout, nwo):
         box_lights = box.box()

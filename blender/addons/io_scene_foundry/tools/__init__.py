@@ -2,7 +2,7 @@
 
 import bpy
 
-from .cache_builder import NWO_OT_CacheBuild, NWO_OT_LaunchMCC
+from .cache_builder import NWO_OT_CacheBuild, NWO_OT_LaunchMCC, NWO_OT_OpenModFolder
 from .collection_manager import NWO_CollectionManager_Create, NWO_CollectionManager_CreateMove
 from .append_grid_materials import NWO_OT_AppendGridMaterials
 from .shader_duplicate import NWO_OT_ShaderDuplicate
@@ -182,6 +182,7 @@ classeshalo = (
     NWO_OT_AppendGridMaterials,
     NWO_OT_CacheBuild,
     NWO_OT_LaunchMCC,
+    NWO_OT_OpenModFolder,
 )
 
 def register():
