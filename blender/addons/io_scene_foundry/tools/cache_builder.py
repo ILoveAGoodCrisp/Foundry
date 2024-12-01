@@ -67,23 +67,25 @@ class ScenarioType(Enum):
     
 class CacheBuilder:
     def __init__(self, scenario_path: Path, context: bpy.types.Context, mp_validation: bool):
-        project_dir = utils.get_project_path()
+        self.project_dir = utils.get_project_path()
+        self.tags_dir = Path(self.project_dir, "tags")
         self.scenario = scenario_path.with_suffix("")
         self.mod_name = self.scenario.name
-        self.map = Path(project_dir, "maps", f"{self.mod_name}.map")
-        self.mcc_mods = Path(project_dir, "MCC")
+        self.map = Path(self.project_dir, "maps", f"{self.mod_name}.map")
+        self.mcc_mods = Path(self.project_dir, "MCC")
         self.mod_dir = Path(self.mcc_mods, self.mod_name)
         self.game_engine = utils.project_game_for_mcc(context)
         self.scenario_type = ScenarioType.CAMPAIGN
         self.context = context
-        self.do_mp_validation = mp_validation and self.scenario_type != ScenarioType.CAMPAIGN
+        self.do_mp_validation = False
         self.zone_sets = None
         self.bsps = None
-        
+        self.mp_object_types = None
+
         if self.game_engine == "HaloReach":
-            self.sound_dir = Path(project_dir, "fmod", "pc")
+            self.sound_dir = Path(self.project_dir, "fmod", "pc")
         else:
-            self.sound_dir = Path(project_dir, "sound", "pc")
+            self.sound_dir = Path(self.project_dir, "sound", "pc")
         
         with ScenarioTag(path=scenario_path) as tag:
             if tag.survival_mode():
@@ -91,16 +93,37 @@ class CacheBuilder:
             elif tag.read_scenario_type() == 1:
                 self.scenario_type = ScenarioType.MULTIPLAYER
                 
+            self.do_mp_validation = mp_validation and self.scenario_type != ScenarioType.CAMPAIGN
+                
             self.zone_sets = [element.Fields[0].GetStringData() for element in tag.block_zone_sets.Elements]
             
             self.bsps = [os.path.basename(element.Fields[0].Path.RelativePath) for element in tag.block_bsps.Elements if element.Fields[0].Path is not None]
                 
             if self.do_mp_validation:
-                self._multiplayer_validation()
+                self._multiplayer_validation(tag)
                 
-    def _multiplayer_validation(self):
+    def _multiplayer_validation(self, tag):
         print("\n\nMultiplayer Validation")
         print("-----------------------------------------------------------------------\n")
+        # Add MP resources
+        resource_field = tag.tag.SelectField("Reference:required resources")
+        if resource_field.Path is None:
+            if self.scenario_type == ScenarioType.MULTIPLAYER:
+                if self.game_engine == "HaloReach":
+                    path = Path("levels\multi\multiplayer.scenario_required_resource")
+                else:
+                    path = Path("levels\multi\mp_required_resources.scenario_required_resource")
+            else:
+                path = Path("levels\firefight\firefight_required_resources.scenario_required_resource")
+                
+            if Path(self.tags_dir, path).exists():
+                resource_field.Path = tag._TagPath_from_string(str(path))
+                print(f"--- Added reference to {path}")
+                tag.tag_has_changes = True
+            else:
+                return utils.print_warning(f"--- Failed to find required resources file for {self.scenario_type}. File does not exist at: {path}")
+        
+        print("--- Scenario validated for multiplayer")
                 
     def texture_analysis(self):
         for zone_set in self.zone_sets:
@@ -387,10 +410,13 @@ class CacheBuilder:
                 mp_info = Path(mp_dir, f"{self.mod_name}.json")
                 
                 existing_mp_info_guid = None
+                existing_mp_object_types = None
                 if mp_info.exists():
                     try:
                         with open(mp_info, "r") as file:
-                            existing_mp_info_guid = json.load(file)["MapGuid"]
+                            fjson = json.load(file)
+                            existing_mp_info_guid = fjson["MapGuid"]
+                            existing_mp_object_types = fjson.get("ValidMultiplayerObjectTypes")
                     except: ...
                 
                 mp_info_dict = {
@@ -414,6 +440,11 @@ class CacheBuilder:
                         "InsertionPoints": [],
                         "MaximumTeamsByGameCategory": {},
                     }
+                
+                if self.mp_object_types is not None:
+                    mp_info_dict["ValidMultiplayerObjectTypes"] = self.mp_object_types
+                elif existing_mp_object_types is not None:
+                    mp_info_dict["ValidMultiplayerObjectTypes"] = existing_mp_object_types
                 
                 with open(mp_info, "w") as file:
                     json.dump(mp_info_dict, file, indent=4)
@@ -491,12 +522,61 @@ class CacheBuilder:
             
         if self.scenario_type == ScenarioType.CAMPAIGN and placeholder_rally_point.exists() and not mod_rally_point.exists():
             utils.copy_file(placeholder_rally_point, mod_rally_point)
-            
-    def validate_multiplayer(self):
-        pass
     
     def generate_multiplayer_object_types(self):
-        pass
+        gestalt = Path(self.project_dir, "reports", self.mod_name, f"{self.mod_name}.cache_file_resource_gestalt")
+        if not gestalt.exists():
+            utils.print_warning(f"Failed to find cache_file_resource_gestalt at [{gestalt}]. Unable to build multiplayer object types")
+            return
+        
+        tag_gestalt = Path(self.tags_dir, f"{self.scenario}.cache_file_resource_gestalt")
+        utils.copy_file(gestalt, tag_gestalt)
+        relative_gestalt = tag_gestalt.relative_to(self.tags_dir).with_suffix("")
+        output = "multiplayer_object_types.bin"
+        bin_path = Path(self.project_dir, output)
+        
+        # remove .bin if it already exists
+        if bin_path.exists():
+            bin_path.unlink()
+            
+        try:
+            utils.run_tool(
+                [
+                    "multiplayer-generate-scenario-object-type-bitvector",
+                    str(self.scenario),
+                    str(relative_gestalt),
+                    output
+                ]
+                
+            )
+            print("")
+        except:
+            return utils.print_warning("Failed to build multiplayer object types")
+        
+        
+        if bin_path.exists():
+            with open(bin_path, "r+b") as f:
+                binary_data = f.read()
+            
+            if len(binary_data) != 256:
+                return utils.print_warning(f"{output} should be exactly 256 btyes, but was {len(binary_data)} bytes")
+            
+            valid_indices = []
+            for byte_index, byte in enumerate(binary_data):
+                for bit in range(8):
+                    if (byte >> bit) & 1:
+                        valid_indices.append(byte_index * 8 + bit)
+                        
+            if valid_indices:
+                self.mp_object_types = valid_indices
+                        
+            bin_path.unlink()
+            print("--- Successfully read valid multiplayer object types")
+            
+        else:
+            return utils.print_warning("Failed to build multiplayer object types")
+            
+        
     
     def copy_sounds(self, custom_only: bool):
         match self.game_engine:
@@ -656,19 +736,19 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
             self.report({'WARNING'}, f"Specified scenario file does not exist: {full_path}")
             return {'CANCELLED'}
         
-        builder = CacheBuilder(relative_path, context, self.validate_multiplayer)
-        
         scene_nwo_export = context.scene.nwo_export
         os.system("cls")
         if context.scene.nwo_export.show_output:
             bpy.ops.wm.console_toggle()
             scene_nwo_export.show_output = False
         
+
         start = time.perf_counter()
         title = f"►►► CACHE BUILDER ◄◄◄"
         print(title)
         print("\nIf you did not intend to run this, hold CTRL+C")
         try:
+            builder = CacheBuilder(relative_path, context, self.validate_multiplayer)
             if self.lightmap:
                 builder.lightmap()
             
@@ -749,7 +829,7 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
         layout.prop(self, "sounds", text="")
         layout.prop(self, "rebuild_cache")
         layout.prop(self, "build_mod")
-        # layout.prop(self, "validate_multiplayer")
+        layout.prop(self, "validate_multiplayer")
         layout.prop(self, "launch_mcc")
         layout.prop(self, "lightmap")
         if self.lightmap:
