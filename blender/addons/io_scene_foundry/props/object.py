@@ -108,7 +108,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         name="Export",
         default=True,
         description="Whether this object is exported or not",
-        options=set(),
+        options={'LIBRARY_OVERRIDABLE'},
     )
     
     
