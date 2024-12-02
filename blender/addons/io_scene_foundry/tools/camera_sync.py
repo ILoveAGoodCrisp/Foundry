@@ -94,23 +94,6 @@ def write_rot(pm, address, floats):
 def write_camera(pm, address, floats):
     byte_array = struct.pack('6f', *floats)
     pm.write_bytes(address, byte_array, len(byte_array))
-    
-def quaternion_to_ypr(q):
-    w, x, y, z = q.w, q.x, q.y, q.z
-    t0 = +2.0 * (w * x + y * z)
-    t1 = +1.0 - 2.0 * (x * x + y * y)
-    pitch = math.atan2(t0, t1)
-
-    t2 = +2.0 * (w * y - z * x)
-    t2 = +1.0 if t2 > +1.0 else t2
-    t2 = -1.0 if t2 < -1.0 else t2
-    roll = math.asin(t2)
-
-    t3 = +2.0 * (w * z + x * y)
-    t4 = +1.0 - 2.0 * (y * y + z * z)
-    yaw = math.atan2(t3, t4)
-
-    return round(yaw, 3), round(pitch, 3), round(roll, 3)
 
 def sync_reach_tag_test(location, yaw, pitch, roll, in_camera, context):
     try:
@@ -145,7 +128,7 @@ def sync_camera_to_game(context: bpy.types.Context):
     # matrix = utils.halo_transform_matrix(view_matrix)
     matrix = utils.halo_transform_matrix(r3d.view_matrix.inverted())
     location = [round(t, 3) for t in matrix.translation]
-    yaw, pitch, roll = quaternion_to_ypr(matrix.to_quaternion())
+    yaw, pitch, roll = utils.quaternion_to_ypr(matrix.to_quaternion())
     in_camera = r3d.view_perspective == 'CAMERA' and context.scene.camera
     if not in_camera:
         roll = 0

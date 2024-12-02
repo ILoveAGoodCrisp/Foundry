@@ -1,4 +1,5 @@
 from enum import Enum
+from math import degrees, radians
 import os
 from pathlib import Path
 import time
@@ -66,7 +67,7 @@ class ScenarioType(Enum):
     FIREFIGHT = 2
     
 class CacheBuilder:
-    def __init__(self, scenario_path: Path, context: bpy.types.Context, mp_validation: bool):
+    def __init__(self, scenario_path: Path, context: bpy.types.Context, mp_validation: bool, own_asset: bool):
         self.project_dir = utils.get_project_path()
         self.tags_dir = Path(self.project_dir, "tags")
         self.scenario = scenario_path.with_suffix("")
@@ -99,7 +100,7 @@ class CacheBuilder:
             
             self.bsps = [os.path.basename(element.Fields[0].Path.RelativePath) for element in tag.block_bsps.Elements if element.Fields[0].Path is not None]
                 
-            if self.do_mp_validation:
+            if self.do_mp_validation and own_asset:
                 self._multiplayer_validation(tag)
                 
     def _multiplayer_validation(self, tag):
@@ -133,7 +134,7 @@ class CacheBuilder:
             # Abort if child scenarios
             if tag.tag.SelectField("Block:child scenarios").Elements.Count > 0:
                 return print(f"Scenario has child scenarios, skipping spawn point check. If you do not spawn in MCC, then you will need to set up initial spawn points with the following tag: {initial_spawn_point}")
-                
+            
             # Check for initial spawn points tags
             if not Path(self.tags_dir, initial_spawn_point).exists():
                 return utils.print_warning(f"Cannot validate MP spawns. Failed to find initial spawn point tag: {initial_spawn_point}")
@@ -146,17 +147,27 @@ class CacheBuilder:
             has_respawn_ref = respawn_point_ref is not None
             initial_spawn_point_ref = tag._TagPath_from_string(initial_spawn_point)
             
+            camera = r"objects\multi\generic\mp_cinematic_camera.scenery"
+            camera_ref = None
+            if Path(self.tags_dir, camera).exists():
+                camera_ref = tag._TagPath_from_string(camera)
+            
+            has_camera_ref = camera_ref is not None
+            
             # Search scenery palette for ref
             initial_palette_index = -1
             respawn_palette_index = -1
+            camera_palette_index = -1
             scenery_palette = tag.tag.SelectField("Block:scenery palette")
             for element in scenery_palette.Elements:
                 if element.Fields[0].Path == initial_spawn_point_ref:
                     initial_palette_index = element.ElementIndex
                 elif has_respawn_ref and element.Fields[0].Path == respawn_point_ref:
                     respawn_palette_index = element.ElementIndex
+                elif has_camera_ref and element.Fields[0].Path == camera_ref:
+                    camera_palette_index = element.ElementIndex
                 
-                if initial_palette_index != -1 and respawn_palette_index != -1:
+                if initial_palette_index != -1 and respawn_palette_index != -1 and camera_palette_index != -1:
                     break
             
             if initial_palette_index == -1:
@@ -171,9 +182,16 @@ class CacheBuilder:
                 respawn_palette_index = element.ElementIndex
                 tag.tag_has_changes = True
                 print("--- Added reference to respawn point tag")
+            if has_camera_ref and camera_palette_index == -1:
+                element = scenery_palette.AddElement()
+                element.Fields[0].Path = camera_ref
+                camera_palette_index = element.ElementIndex
+                tag.tag_has_changes = True
+                print("--- Added reference to camera tag")
 
             has_initial_spawns = False
             has_respawns = False
+            has_camera = False
             
             scenery = tag.tag.SelectField("Block:scenery")
             
@@ -182,11 +200,13 @@ class CacheBuilder:
                     has_initial_spawns = True
                 elif has_respawn_ref and respawn_palette_index != -1 and element.Fields[1].Value == respawn_palette_index:
                     has_respawns = True
+                elif has_camera_ref and camera_palette_index != -1 and element.Fields[1].Value == camera_palette_index:
+                    has_camera = True
                     
-                if has_initial_spawns and has_respawns:
+                if has_initial_spawns and has_respawns and has_camera:
                     break
                 
-            if has_initial_spawns and has_respawns:
+            if has_initial_spawns and has_respawns and has_camera:
                 print("--- Spawns validated")
             else:
                 tag.tag_has_changes = True
@@ -208,8 +228,10 @@ class CacheBuilder:
                         element.Fields[1].Value = initial_palette_index
                         element.SelectField("Struct:object data[0]/RealPoint3d:position").Data = co[0]
                         element.SelectField("Struct:object data[0]/RealEulerAngles3d:rotation").Data = co[1]
+                        element.SelectField("Struct:object data[0]/Struct:object id[0]/LongInteger:unique id").Data = utils.unique_id()
                         element.SelectField("Struct:object data[0]/Struct:object id[0]/CharEnum:type").Value = 6 # Scenery
                         element.SelectField("Struct:multiplayer data[0]/CharEnum:owner team").Value = 8 # Neutral
+                    print("--- Added initial spawn points")
                         
                 if has_respawn_ref and not has_respawns:
                     for co in spawn_coordinates:
@@ -217,10 +239,29 @@ class CacheBuilder:
                         element.Fields[1].Value = respawn_palette_index
                         element.SelectField("Struct:object data[0]/RealPoint3d:position").Data = co[0]
                         element.SelectField("Struct:object data[0]/RealEulerAngles3d:rotation").Data = co[1]
+                        element.SelectField("Struct:object data[0]/Struct:object id[0]/LongInteger:unique id").Data = utils.unique_id()
                         element.SelectField("Struct:object data[0]/Struct:object id[0]/CharEnum:type").Value = 6 # Scenery
                         element.SelectField("Struct:multiplayer data[0]/CharEnum:owner team").Value = 8 # Neutral
-                        
-                print("--- Added spawn points")
+                    print("--- Added respawn points")
+                    
+                if has_camera_ref and not has_camera:
+                    # try:
+                    blender_cameras = [ob for ob in self.context.view_layer.objects if ob.type == 'CAMERA']
+                    if blender_cameras:
+                        loc, rot, sca = utils.halo_loc_rot_sca(blender_cameras[0].matrix_world)
+                        print(f"--- Added multiplayer camera from blender camera: {blender_cameras[0].name}")
+                    else:
+                        loc, rot, sca = utils.halo_loc_rot_sca(self.context.space_data.region_3d.view_matrix.inverted())
+                        print(f"--- Added multiplayer camera from blender viewport")
+                    element = scenery.AddElement()
+                    element.Fields[1].Value = camera_palette_index
+                    element.SelectField("Struct:object data[0]/RealPoint3d:position").Data = loc
+                    element.SelectField("Struct:object data[0]/RealEulerAngles3d:rotation").Data = rot
+                    element.SelectField("Struct:object data[0]/Struct:object id[0]/LongInteger:unique id").Data = utils.unique_id()
+                    element.SelectField("Struct:object data[0]/Struct:object id[0]/CharEnum:type").Value = 6 # Scenery
+                    element.SelectField("Struct:multiplayer data[0]/CharEnum:owner team").Value = 8 # Neutral 
+                    # except:
+                    #     pass
         
         print(f"--- Scenario validated for {type_txt}")
                 
@@ -775,6 +816,12 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
         options={'SKIP_SAVE'}
     )
     
+    rexport_scenario: bpy.props.BoolProperty(
+        name="Export Scenario",
+        description="Exports this scenario using the current export settings. Will run regardless if the scenario doesn't exist in the tags folder",
+        default=False,
+    )
+    
     rebuild_cache: bpy.props.BoolProperty(
         name="Rebuild Cache File",
         description="Rebuilds the compiled .map file even if it already exists. If the map file does not exist inside of your project /maps directory, this operator will create it regardless of whether rebuild_cache is set",
@@ -833,9 +880,15 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
     def execute(self, context):
         relative_path = Path(utils.relative_path(self.filepath))
         full_path = Path(utils.get_tags_path(), relative_path)
+        force_asset_export = False
+        own_asset = relative_path.with_suffix("").name == utils.get_asset_name()
         if not full_path.exists():
-            self.report({'WARNING'}, f"Specified scenario file does not exist: {full_path}")
-            return {'CANCELLED'}
+            if own_asset:
+                force_asset_export = True
+                print("--- Asset scenario does not exist, exporting")
+            else:
+                self.report({'WARNING'}, f"Specified scenario file does not exist: {full_path}")
+                return {'CANCELLED'}
         
         scene_nwo_export = context.scene.nwo_export
         os.system("cls")
@@ -849,7 +902,18 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
         print(title)
         print("\nIf you did not intend to run this, hold CTRL+C")
         try:
-            builder = CacheBuilder(relative_path, context, self.validate_multiplayer)
+            if force_asset_export or (self.rexport_scenario and own_asset):
+                if bpy.ops.nwo.export_scene.poll():
+                    bpy.ops.nwo.export_scene(for_cache_build=True)
+                else:
+                    utils.print_warning("Unable to export scenario")
+
+            if not full_path.exists():
+                self.report({'WARNING'}, f"Scenario file does not exist: {full_path}")
+                return {'CANCELLED'}
+            
+            builder = CacheBuilder(relative_path, context, self.validate_multiplayer, own_asset)
+            
             if self.lightmap:
                 builder.lightmap()
             
@@ -866,7 +930,7 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
                     self.report({'WARNING'}, "Failed to build .map file for scenario")
                     return {'CANCELLED'}
             
-            if builder.do_mp_validation:
+            if builder.do_mp_validation and builder.map.exists():
                 print("\n\nGenerating Multiplayer Object Types")
                 print("-----------------------------------------------------------------------\n")
                 builder.generate_multiplayer_object_types()
@@ -918,7 +982,10 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
         if not self.filepath.lower().endswith(".scenario"):
             asset_path = utils.get_asset_path_full(True)
             if asset_path is not None:
-                self.filepath = str(Path(asset_path, f"{utils.get_asset_name()}.scenario"))
+                path = Path(asset_path, f"{utils.get_asset_name()}.scenario")
+                if not path.parent.exists():
+                    path.parent.mkdir(parents=True)
+                self.filepath = str(path)
         context.window_manager.fileselect_add(self)
         return {"RUNNING_MODAL"}
     
@@ -931,7 +998,10 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
         layout.prop(self, "rebuild_cache")
         layout.prop(self, "build_mod")
         layout.prop(self, "validate_multiplayer")
+        if corinth:
+            layout.prop(self, "texture_analysis")
         layout.prop(self, "launch_mcc")
+        layout.prop(self, "rexport_scenario")
         layout.prop(self, "lightmap")
         if self.lightmap:
             export = context.scene.nwo_export
@@ -944,5 +1014,3 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
             layout.prop(export, "lightmap_all_bsps")
             if not corinth:
                 layout.prop(export, "lightmap_threads")
-        if corinth:
-            layout.prop(self, "texture_analysis")

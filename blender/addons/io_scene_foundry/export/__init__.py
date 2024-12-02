@@ -71,6 +71,8 @@ class NWO_ExportScene(Operator, ExportHelper):
         maxlen=1024,
     )
     
+    for_cache_build: bpy.props.BoolProperty(options={'HIDDEN', 'SKIP_SAVE'})
+    
     @classmethod
     def poll(cls, context):
         return not validate_ek() and not context.scene.nwo.storage_only and context.scene.nwo.asset_type != 'resource'
@@ -192,17 +194,18 @@ class NWO_ExportScene(Operator, ExportHelper):
             self.report({"WARNING"}, "Export aborted")
             return {"CANCELLED"}
         
-        # toggle the console
-        os.system("cls")
-        if context.scene.nwo_export.show_output:
-            bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
-            scene_nwo_export.show_output = False
+        if not self.for_cache_build:
+            # toggle the console
+            os.system("cls")
+            if context.scene.nwo_export.show_output:
+                bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
+                scene_nwo_export.show_output = False
 
-        export_title = f"►►► {scene_nwo.asset_type.replace('_', ' ').upper()} EXPORT ◄◄◄"
+            export_title = f"►►► {scene_nwo.asset_type.replace('_', ' ').upper()} EXPORT ◄◄◄"
 
-        print(export_title)
+            print(export_title)
 
-        print("\nIf you did not intend to export, hold CTRL+C")
+            print("\nIf you did not intend to export, hold CTRL+C")
 
         self.failed = False
         self.fail_explanation = ""

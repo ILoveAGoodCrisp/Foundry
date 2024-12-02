@@ -4,6 +4,7 @@ from enum import Enum, auto
 import itertools
 import json
 from math import radians
+import math
 from pathlib import Path, PureWindowsPath
 import re
 import shutil
@@ -25,7 +26,7 @@ import random
 import xml.etree.ElementTree as ET
 import numpy as np
 from ctypes import c_float, c_int
-from .constants import COLLISION_MESH_TYPES, PROTECTED_MATERIALS, VALID_MESHES
+from .constants import COLLISION_MESH_TYPES, PROTECTED_MATERIALS, VALID_MESHES, WU_SCALAR
 from .tools.materials import special_materials, convention_materials
 from .icons import get_icon_id, get_icon_id_in_directory
 import requests
@@ -2191,17 +2192,15 @@ def rotation_and_pivot(rotation):
     
     return rotation_matrix, pivot_matrix
 
-def halo_transforms(ob: bpy.types.Object, scale=None, rotation=None, marker=False):
+def halo_transforms(ob: bpy.types.Object, scale=None, rotation=None, marker=False) -> Matrix:
     '''
     Returns an object's matrix_world transformed for Halo. Used when writing object transforms directly to tags
     '''
     if scale is None:
         if bpy.context.scene.nwo.scale == 'max':
-            scale = 0.03048
+            scale = 0.03048 * WU_SCALAR
         else:
-            scale = 1
-            
-    scale *= 0.328084
+            scale = WU_SCALAR
     
     if rotation is None:
         rotation = blender_halo_rotation_diff(bpy.context.scene.nwo.forward_direction)
@@ -2220,22 +2219,82 @@ def halo_transforms(ob: bpy.types.Object, scale=None, rotation=None, marker=Fals
     
     return final_matrix
 
-def halo_transform_matrix(matrix: Matrix):
-    scale = 1
-    if bpy.context.scene.nwo.scale == 'max':
-        scale = 0.03048
-            
-    scale *= 0.328084
+def halo_transforms_matrix(matrix: Matrix, scale=None, rotation=None, marker=False) -> Matrix:
+    '''
+    Returns an object's matrix_world transformed for Halo. Used when writing object transforms directly to tags
+    '''
+    if scale is None:
+        if bpy.context.scene.nwo.scale == 'max':
+            scale = 0.03048 * WU_SCALAR
+        else:
+            scale = WU_SCALAR
     
-    rotation = blender_halo_rotation_diff(bpy.context.scene.nwo.forward_direction)
-    
+    if rotation is None:
+        rotation = blender_halo_rotation_diff(bpy.context.scene.nwo.forward_direction)
+        
     rotation_matrix, pivot_matrix = rotation_and_pivot(rotation)
     
     scale_matrix = Matrix.Scale(scale, 4)
-
-    final_matrix = rotation_matrix @ scale_matrix
+    
+    final_matrix = rotation_matrix @ scale_matrix @ matrix
+    
+    # If it's a marker and we have been asked to maintain marker axis
+    if marker and bpy.context.scene.nwo.maintain_marker_axis:
+        marker_rotation_matrix = Matrix.Rotation(-rotation, 4, 'Z')
+        final_matrix = final_matrix @ marker_rotation_matrix
     
     return final_matrix
+
+def halo_transform_matrix(matrix: Matrix) -> Matrix:
+    scale = WU_SCALAR
+    if bpy.context.scene.nwo.scale == 'max':
+        scale = 0.03048 * WU_SCALAR
+    
+    rotation = blender_halo_rotation_diff(bpy.context.scene.nwo.forward_direction)
+    
+    rotation_matrix, _ = rotation_and_pivot(rotation)
+    scale_matrix = Matrix.Scale(scale, 4)
+
+    transform_matrix = rotation_matrix @ scale_matrix
+    
+    return transform_matrix @ matrix
+
+def halo_loc_rot_sca(matrix: Matrix, scale=None, rotation=None, marker=False) -> Matrix:
+    matrix = halo_transforms_matrix(matrix, scale, rotation, marker)
+    matrix_3x3 = matrix.to_3x3().normalized()
+    forward = matrix_3x3.col[0]
+    left = matrix_3x3.col[1]
+    up = matrix_3x3.col[2]
+    
+    return matrix.translation, ypr_from_flu(forward, left, up), 1
+
+import math
+
+def ypr_from_flu(forward, left, up):
+    # Construct the rotation matrix
+    R = [
+        [left[0], up[0], forward[0]],
+        [left[1], up[1], forward[1]],
+        [left[2], up[2], forward[2]],
+    ]
+    
+    # Extract Euler angles (assuming ZYX order)
+    # Yaw (rotation around Y-axis)
+    yaw = math.atan2(R[1][2], R[0][2])
+    
+    # Pitch (rotation around X-axis)
+    pitch = math.asin(-R[2][2])
+    
+    # Roll (rotation around Z-axis)
+    roll = math.atan2(R[2][1], R[2][0])
+    
+    # Convert to degrees for readability (optional)
+    yaw_deg = math.degrees(yaw) + 90
+    pitch_deg = math.degrees(pitch)
+    roll_deg = math.degrees(roll)
+    
+    return yaw_deg, pitch_deg, roll_deg
+
 
 def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forward, new_forward, keep_marker_axis=None, objects=None, actions=None, apply_rotation=False, exclude_scale_models=False, skip_data=False):
     """Transform blender objects by the given scale factor and rotation. Optionally this can be scoped to a set of objects and animations rather than all"""
@@ -4012,3 +4071,23 @@ def tri_mod_to_bmesh_tri(txt: str) -> str:
             return 'LONG_EDGE'
         
     return txt
+
+def quaternion_to_ypr(q):
+    w, x, y, z = q.w, q.x, q.y, q.z
+    t0 = +2.0 * (w * x + y * z)
+    t1 = +1.0 - 2.0 * (x * x + y * y)
+    pitch = math.atan2(t0, t1)
+
+    t2 = +2.0 * (w * y - z * x)
+    t2 = +1.0 if t2 > +1.0 else t2
+    t2 = -1.0 if t2 < -1.0 else t2
+    roll = math.asin(t2)
+
+    t3 = +2.0 * (w * z + x * y)
+    t4 = +1.0 - 2.0 * (y * y + z * z)
+    yaw = math.atan2(t3, t4)
+
+    return round(yaw, 3), round(pitch, 3), round(roll, 3)
+
+def unique_id() -> int:
+    return random.randint(-2147483648, 2147483648)
