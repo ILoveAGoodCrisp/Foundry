@@ -2936,7 +2936,7 @@ def human_time(time: float | int, decimal_seconds=False) -> str:
                 final_str += ", "
             else:
                 final_str += " and "
-        final_str += f"{minutes} minutes"
+        final_str += f"{minutes} minute{'s' if int(minutes) != 1 else ''}"
         
     if seconds:
         if hours or minutes:
@@ -2944,12 +2944,12 @@ def human_time(time: float | int, decimal_seconds=False) -> str:
         if decimals and decimal_seconds:
             final_str += f"{seconds}.{decimals} seconds"
         else:
-            final_str += f"{seconds} seconds"
+            final_str += f"{seconds} second{'s' if int(seconds) != 1 else ''}"
             
     elif decimals:
         if hours or minutes:
             final_str += " and "
-        final_str += f"{decimals} milliseconds"
+        final_str += f"{decimals} millisecond{'s' if int(decimals) != 1 else ''}"
         
     return final_str
 

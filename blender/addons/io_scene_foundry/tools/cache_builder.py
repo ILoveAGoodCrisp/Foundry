@@ -103,27 +103,126 @@ class CacheBuilder:
                 self._multiplayer_validation(tag)
                 
     def _multiplayer_validation(self, tag):
-        print("\n\nMultiplayer Validation")
+        is_mp = self.scenario_type == ScenarioType.MULTIPLAYER
+        type_txt = "multiplayer" if is_mp else "firefight"
+        print(f"\n\n{type_txt.capitalize()} Validation")
         print("-----------------------------------------------------------------------\n")
         # Add MP resources
         resource_field = tag.tag.SelectField("Reference:required resources")
         if resource_field.Path is None:
-            if self.scenario_type == ScenarioType.MULTIPLAYER:
+            if is_mp:
                 if self.game_engine == "HaloReach":
-                    path = Path("levels\multi\multiplayer.scenario_required_resource")
+                    path = r"levels\multi\multiplayer.scenario_required_resource"
                 else:
-                    path = Path("levels\multi\mp_required_resources.scenario_required_resource")
+                    path = r"levels\multi\mp_required_resources.scenario_required_resource"
             else:
-                path = Path("levels\firefight\firefight_required_resources.scenario_required_resource")
+                path = r"levels\firefight\firefight_required_resources.scenario_required_resource"
                 
             if Path(self.tags_dir, path).exists():
-                resource_field.Path = tag._TagPath_from_string(str(path))
+                resource_field.Path = tag._TagPath_from_string(path)
                 print(f"--- Added reference to {path}")
                 tag.tag_has_changes = True
             else:
-                return utils.print_warning(f"--- Failed to find required resources file for {self.scenario_type}. File does not exist at: {path}")
+                return utils.print_warning(f"Failed to find required resources file for {type_txt}. File does not exist at: {path}")
+        else:
+            print(f"--- Required resources validated: {resource_field.Path.RelativePath}")
+            
+        if is_mp: # Don't do this for firefight
+            initial_spawn_point = r"objects\multi\spawning\initial_spawn_point.scenery"
+                
+            # Abort if child scenarios
+            if tag.tag.SelectField("Block:child scenarios").Elements.Count > 0:
+                return print(f"Scenario has child scenarios, skipping spawn point check. If you do not spawn in MCC, then you will need to set up initial spawn points with the following tag: {initial_spawn_point}")
+                
+            # Check for initial spawn points tags
+            if not Path(self.tags_dir, initial_spawn_point).exists():
+                return utils.print_warning(f"Cannot validate MP spawns. Failed to find initial spawn point tag: {initial_spawn_point}")
+            
+            respawn_point = r"objects\multi\spawning\respawn_point.scenery"
+            respawn_point_ref = None
+            if Path(self.tags_dir, respawn_point).exists():
+                respawn_point_ref = tag._TagPath_from_string(respawn_point)
+            
+            has_respawn_ref = respawn_point_ref is not None
+            initial_spawn_point_ref = tag._TagPath_from_string(initial_spawn_point)
+            
+            # Search scenery palette for ref
+            initial_palette_index = -1
+            respawn_palette_index = -1
+            scenery_palette = tag.tag.SelectField("Block:scenery palette")
+            for element in scenery_palette.Elements:
+                if element.Fields[0].Path == initial_spawn_point_ref:
+                    initial_palette_index = element.ElementIndex
+                elif has_respawn_ref and element.Fields[0].Path == respawn_point_ref:
+                    respawn_palette_index = element.ElementIndex
+                
+                if initial_palette_index != -1 and respawn_palette_index != -1:
+                    break
+            
+            if initial_palette_index == -1:
+                element = scenery_palette.AddElement()
+                element.Fields[0].Path = initial_spawn_point_ref
+                initial_palette_index = element.ElementIndex
+                tag.tag_has_changes = True
+                print("--- Added reference to initial spawn point tag")
+            if has_respawn_ref and respawn_palette_index == -1:
+                element = scenery_palette.AddElement()
+                element.Fields[0].Path = respawn_point_ref
+                respawn_palette_index = element.ElementIndex
+                tag.tag_has_changes = True
+                print("--- Added reference to respawn point tag")
+
+            has_initial_spawns = False
+            has_respawns = False
+            
+            scenery = tag.tag.SelectField("Block:scenery")
+            
+            for element in scenery.Elements:
+                if initial_palette_index != -1 and element.Fields[1].Value == initial_palette_index:
+                    has_initial_spawns = True
+                elif has_respawn_ref and respawn_palette_index != -1 and element.Fields[1].Value == respawn_palette_index:
+                    has_respawns = True
+                    
+                if has_initial_spawns and has_respawns:
+                    break
+                
+            if has_initial_spawns and has_respawns:
+                print("--- Spawns validated")
+            else:
+                tag.tag_has_changes = True
+                # Get valid positions from player starting points if possible
+                # spawn_coordinates = x, y, z, yaw, pitch
+                spawn_coordinates = []
+                for element in tag.tag.SelectField("Block:player starting locations").Elements:
+                    x, y, z = element.Fields[0].Data
+                    yaw = element.SelectField("Angle:facing").Data
+                    pitch = element.SelectField("Angle:pitch").Data
+                    spawn_coordinates.append(tuple((tuple((x, y, z)), tuple((yaw, pitch, 0.0)))))
+                    
+                if not spawn_coordinates:
+                    spawn_coordinates.append(tuple((tuple((0.0, 0.0, 0.0)), tuple((0.0, 0.0, 0.0)))))
+                    
+                if not has_initial_spawns:
+                    for co in spawn_coordinates:
+                        element = scenery.AddElement()
+                        element.Fields[1].Value = initial_palette_index
+                        element.SelectField("Struct:object data[0]/RealPoint3d:position").Data = co[0]
+                        element.SelectField("Struct:object data[0]/RealEulerAngles3d:rotation").Data = co[1]
+                        element.SelectField("Struct:object data[0]/Struct:object id[0]/CharEnum:type").Value = 6 # Scenery
+                        element.SelectField("Struct:multiplayer data[0]/CharEnum:owner team").Value = 8 # Neutral
+                        
+                if has_respawn_ref and not has_respawns:
+                    for co in spawn_coordinates:
+                        element = scenery.AddElement()
+                        element.Fields[1].Value = respawn_palette_index
+                        element.SelectField("Struct:object data[0]/RealPoint3d:position").Data = co[0]
+                        element.SelectField("Struct:object data[0]/RealEulerAngles3d:rotation").Data = co[1]
+                        element.SelectField("Struct:object data[0]/Struct:object id[0]/CharEnum:type").Value = 6 # Scenery
+                        element.SelectField("Struct:multiplayer data[0]/CharEnum:owner team").Value = 8 # Neutral
+                        
+                print("--- Added spawn points")
         
-        print("--- Scenario validated for multiplayer")
+        print(f"--- Scenario validated for {type_txt}")
                 
     def texture_analysis(self):
         for zone_set in self.zone_sets:
