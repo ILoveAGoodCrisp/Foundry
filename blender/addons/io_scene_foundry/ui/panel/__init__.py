@@ -2788,6 +2788,9 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col_props.use_property_split = True
             col_props.prop(bitmap, "bitmap_type", text="Type")
             col_props.prop(bitmap, "reexport_tiff", text="Always Export Image")
+            
+    def draw_cinematic_shots(self):
+        pass
 
     def draw_animation_manager(self):
         box = self.box.box()

@@ -25,6 +25,7 @@ animation_description = "Animation graphs enable animations to play on objects.\
 camera_track_set_description = "Camera tracks represent the position of a third person camera on a unit (such as a vehicle) at different look angles"
 resource_description = "Resource assets cannot be exported but offer access to all object/mesh/marker types and tools.\n\nThey are designed to contain data (such as materials of meshes) that can then be referenced in other scenes"
 prefab_description = "Prefabs act like standalone bits of instanced geometry that can be referenced in BSPs.\n\nTo reference a prefab in a Scenario asset, add a Game Object Marker and add the relative tag path to your the tag path field"
+cinematic_description = "Cinematic"
   
 model = NWOAsset("model", "Model", "model", False, model_description)
 scenario = NWOAsset("scenario", "Scenario", "scenario", False, scenario_description)
@@ -35,8 +36,9 @@ animation = NWOAsset("animation", "Animation Graph", "animation", False, animati
 camera_track_set = NWOAsset("camera_track_set", "Camera Track Set", 'CON_CAMERASOLVER', False, camera_track_set_description)
 resource = NWOAsset("resource", "Resource", "LINKED", False, resource_description)
 prefab = NWOAsset("prefab", "Prefab", "prefab", True, prefab_description)
+cinematic = NWOAsset("cinematic", "Cinematic", "VIEW_CAMERA_UNSELECTED", False, cinematic_description)
 
-asset_types = [model, scenario, sky, decorator_set, particle_model, animation, camera_track_set, resource, prefab]
+asset_types = [model, scenario, sky, decorator_set, particle_model, animation, camera_track_set, resource, prefab, cinematic]
 
 def asset_type_items(self, context):
     items = []
@@ -67,6 +69,7 @@ class AssetType(Enum):
     CAMERA_TRACK_SET = 6
     RESOURCE = 7
     PREFAB = 8
+    CINEMATIC = 9
     
     @property
     def supports_permutations(self):
@@ -74,7 +77,7 @@ class AssetType(Enum):
     
     @property
     def supports_animations(self):
-        return self.value in {0, 5}
+        return self.value in {0, 5, 9}
     
     @property
     def supports_bsp(self):

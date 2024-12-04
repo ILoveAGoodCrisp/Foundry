@@ -250,6 +250,8 @@ class Sidecar:
                 self._get_object_output_types(metadata, "prefab", "prefab")
             case AssetType.ANIMATION:
                 self._get_object_output_types(metadata, "model")
+            case AssetType.CINEMATIC:
+                self._get_object_output_types(metadata, "cinematic")
 
         self._write_folders(metadata)
         self._write_face_collections(metadata)
@@ -363,6 +365,9 @@ class Sidecar:
             case AssetType.SKY | AssetType.ANIMATION:
                 ET.SubElement(tagcollection, "OutputTag", Type="model").text = self.tag_path
                 ET.SubElement(tagcollection, "OutputTag", Type="scenery").text = self.tag_path
+                
+            case AssetType.CINEMATIC:
+                ET.SubElement(tagcollection, "OutputTag", Type="cinematic").text = self.tag_path
 
     def _write_folders(self, metadata):
         folders = ET.SubElement(metadata, "Folders")
