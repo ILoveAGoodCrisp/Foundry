@@ -475,6 +475,7 @@ class ExportScene:
                             self.temp_meshes.add(copy_ob.data)
                             
                         case ObjectCopy.WATER_PHYSICS:
+                            copy_ob.data = copy_ob.data.copy()
                             copy_props["bungie_mesh_type"] = MeshType.water_physics_volume.value
                             self._setup_water_physics_props(copy_ob.nwo, copy_props)
                             
