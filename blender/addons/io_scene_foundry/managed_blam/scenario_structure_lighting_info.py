@@ -109,6 +109,7 @@ class ScenarioStructureLightingInfoTag(Tag):
         element.SelectField("jitter sphere radius").Data = light.jitter_sphere
         element.SelectField("jitter angle").Data = light.jitter_angle
         element.SelectField("jitter quality").Value = light.jitter_quality
+        element.SelectField("indirect only").Value = light.indirect_only
         element.SelectField("static analytic").Value = light.static_analytic
         
         
