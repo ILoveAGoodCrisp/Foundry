@@ -531,7 +531,7 @@ def run_tool_sidecar(tool_args: list, asset_path, event_level='WARNING'):
     if cull_warnings:
         for line in p.stderr:
             line = line.decode().rstrip("\n")
-            if failed or is_error_line(line, p):
+            if is_error_line(line):
                 print_error(line)
                 failed = True
             elif cull_warnings:
@@ -584,17 +584,8 @@ def run_tool_sidecar(tool_args: list, asset_path, event_level='WARNING'):
     return failed, error
 
 
-def is_error_line(line, process):
-    words = line.split()
-    if words:
-        # Need to abort import if we got a corrupt granny file
-        if line.startswith('importing an invalid granny file,'):
-            print_error('Corrupt GR2 File encountered. Please re-run export')
-            process.kill()
-            raise RuntimeError(line)
-        return 'ASSERTION FAILED' in line
-
-    return False
+def is_error_line(line):
+    return line.startswith("IMPORT FAILED")
 
 def set_project_in_registry():
     """Sets the current project in the users registry"""
