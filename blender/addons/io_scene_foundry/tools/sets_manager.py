@@ -438,7 +438,7 @@ class NWO_RegionRemove(TableEntryRemove):
     def poll(cls, context):
         return len(context.scene.nwo.regions_table) > 1
 
-    def __init__(self, args, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.table_str = "regions_table"
         self.ob_prop_str = "region_name"

@@ -936,9 +936,9 @@ class VirtualNode:
                 negative_scaling = id.matrix_world.is_negative
                 if id.nwo.invert_topology:
                     negative_scaling = not negative_scaling
-                    
+
                 materials  = tuple(slot.material for slot in id.material_slots)
-                    
+                
                 existing_mesh = scene.meshes.get((id.data.name_full, negative_scaling, materials))
                     
                 if existing_mesh:
@@ -1436,7 +1436,10 @@ class VirtualScene:
             self.nodes[node.name] = node
             if node.new_mesh:
                 # This is a tuple containing whether the object has a negative scale. This because we need to create seperate mesh data for negatively scaled objects
-                self.meshes[(node.mesh.name, id.matrix_world.is_negative, node.mesh.bpy_materials)] = node.mesh
+                negative_scaling = id.matrix_world.is_negative
+                if id.nwo.invert_topology:
+                    negative_scaling = not negative_scaling
+                self.meshes[(node.mesh.name, negative_scaling, node.mesh.bpy_materials)] = node.mesh
             
         return node
             

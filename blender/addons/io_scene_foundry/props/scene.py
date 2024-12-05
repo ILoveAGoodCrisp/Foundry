@@ -10,6 +10,9 @@ from ..managed_blam.scenario import ScenarioTag
 from ..icons import get_icon_id
 from .. import utils
 
+def poll_armature(self, object: bpy.types.Object):
+    return object.type == 'ARMATURE'
+
 #############################################################
 # ANIMATION COPIES
 #############################################################
@@ -815,6 +818,32 @@ class NWO_AnimationPropertiesGroup(bpy.types.PropertyGroup):
 
     created_with_foundry: bpy.props.BoolProperty(options={'HIDDEN'})
 
+class NWO_CinematicShotActor(bpy.types.PropertyGroup):
+    active: bpy.props.BoolProperty(
+        name="Active",
+        description="Actor is active for this shot"
+    )
+    pca: bpy.props.BoolProperty(
+        name="PCA",
+        description="Actor uses PCA animation for this shot. This will only have an effect if a mesh parented under this actor has shape keys"
+    )
+    actor: bpy.props.PointerProperty(
+        name="Actor",
+        description="The object representing an actor. Must be an armature object",
+        type=bpy.types.Object,
+        poll=poll_armature,
+    )
+
+class NWO_CinematicShot(bpy.types.PropertyGroup):
+    frame_count: bpy.props.IntProperty(
+        name="Shot Frame Count",
+        description="Number of frames that this shot will play for"
+    )
+    actors: bpy.props.CollectionProperty(
+        name="Actors",
+        type=NWO_CinematicShotActor,
+    )
+    active_actor_index: bpy.props.IntProperty()
 
 class NWO_ZoneSets_ListItems(PropertyGroup):
     name: bpy.props.StringProperty()
@@ -1780,9 +1809,6 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     global_material_active_index: bpy.props.IntProperty(options=set())
     
     # Rig Validation
-    
-    def poll_armature(self, object: bpy.types.Object):
-        return object.type == 'ARMATURE'
     
     armature_has_parent: bpy.props.BoolProperty(options=set())
     armature_bad_transforms: bpy.props.BoolProperty(options=set())
