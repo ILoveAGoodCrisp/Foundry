@@ -64,7 +64,7 @@ class NWO_NewSky(bpy.types.Operator):
             return {'CANCELLED'}
         with ScenarioTag() as scenario:
             sky_name, sky_index = scenario.add_new_sky(rel_path)
-            scenario.save()
+            # scenario.save()
         if self.type == 'material' and NWO_SetSky.poll(context):
             return new_sky_material(context, self.report, sky_index, sky_name)
         elif self.type == 'bsp':

@@ -57,8 +57,15 @@ class ScenarioTag(Tag):
         sky_name = utils.dot_partition(os.path.basename(path))
         new_object_name_element.SelectField('name').SetStringData(sky_name)
         new_sky_element.SelectField('name').Value = new_object_name_element.ElementIndex
+        sky_index = new_sky_element.ElementIndex
+        if self.corinth and sky_index == 0: # if this is h4+ and is the first sky, add it to all bsps that currently have no default sky
+            for element in self.block_bsps.Elements:
+                default_sky = element.SelectField("default sky")
+                if default_sky.Value == -1:
+                    default_sky.Value = sky_index
+                    
         self.tag_has_changes = True
-        return sky_name, new_sky_element.ElementIndex
+        return sky_name, sky_index
     
     def set_bsp_default_sky(self, bsp_name: str, sky_index: int):
         """Sets the default sky of the given bsp"""
@@ -66,7 +73,6 @@ class ScenarioTag(Tag):
         bsp_element = self._get_bsp_from_name(bsp_name)
         if bsp_element is None: return
         # Check current sky to see if we need to update it
-        print(bsp_element)
         for f in bsp_element.Fields:
             print(f.DisplayName)
         sky_block_index = bsp_element.SelectField('default sky').Value
