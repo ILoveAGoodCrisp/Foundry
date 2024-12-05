@@ -38,8 +38,8 @@ class NWO_OT_Lightmap(bpy.types.Operator):
 
     def execute(self, context):
         asset_type = context.scene.nwo.asset_type
-        asset_path, _ = utils.get_asset_info()
-        scenario_path = str(Path(asset_path, asset_path))
+        asset_path, asset_name = utils.get_asset_info()
+        scenario_path = str(Path(asset_path, asset_name))
         scene_nwo_export = context.scene.nwo_export
         is_corinth = utils.is_corinth(context)
         os.system("cls")
