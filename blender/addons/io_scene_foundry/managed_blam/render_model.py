@@ -172,27 +172,33 @@ class RenderModelTag(Tag):
                             self.collection.objects.link(ob)
                         
         
-        for clone in clone_meshes:
-            true_mesh: Mesh
+        for cmesh in clone_meshes:
             for tmesh in original_meshes:
-                if tmesh.permutation.name == clone.permutation.clone_name:
-                    true_mesh = tmesh
+                if tmesh.permutation.name == cmesh.permutation.clone_name:
+                    permutation = self.context.scene.nwo.permutations_table.get(tmesh.permutation.name)
+                    if permutation is None:
+                        continue
+                    clone = permutation.clones.get(cmesh.permutation.name)
+                    if clone is None:
+                        clone = permutation.clones.add()
+                        clone.name = cmesh.permutation.name
+                        print(f"\n--- Added permutation clone: {permutation.name} --> {clone.name}")
+                    for true_part, clone_part in zip(tmesh.parts, cmesh.parts):
+                        source_material = true_part.material
+                        destination_material = clone_part.material
+                        if source_material is None or destination_material is None or source_material.blender_material is None or destination_material.blender_material is None or source_material.blender_material is destination_material.blender_material:
+                            continue
+                        # check existing
+                        for override in clone.material_overrides:
+                            if source_material.blender_material is override.source_material:
+                                break
+                        else:
+                            override = clone.material_overrides.add()
+                            override.source_material = source_material.blender_material
+                            override.destination_material = destination_material.blender_material
+                            print(f"--- Material Override added for clone {clone.name}: {override.source_material.name} --> {override.destination_material.name}")
                     break
-                    
-            if true_mesh is None: continue
-            # pclone = nwo.permutation_clones.add(clone.permutation.name)
-            source_material: bpy.types.Material
-            destination_material: bpy.types.Material
-            for true_part, clone_part in zip(true_mesh.parts, clone.parts):
-                source_material = true_part.material
-                destination_material = clone_part.material
-                if source_material:
-                    pass
-                    # pclone.source_material = 
-                if destination_material:
-                    pass
-                    # pclone.destination_material = 
-            
+
         for ob in objects:
             region, permutation = utils.dot_partition(ob.name).split(":")
             utils.set_region(ob, region)
