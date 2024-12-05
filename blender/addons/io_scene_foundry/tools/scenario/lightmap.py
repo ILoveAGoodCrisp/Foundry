@@ -290,24 +290,48 @@ class LightMapper:
         print(
             "-------------------------------------------------------------------------\n"
         )
-        if self.model_lightmap:
-            utils.run_tool(
-                [
-                    "faux_lightmap_model",
-                    self.scenario,
-                    self.suppress_dialog,
-                    self.force_reatlas,
-                ]
-            )
-        else:
-            if self.bsp == "all":
-                for bsp in self.bsps:
+        try:
+            if self.model_lightmap:
+                utils.run_tool(
+                    [
+                        "faux_lightmap_model",
+                        self.scenario,
+                        self.suppress_dialog,
+                        self.force_reatlas,
+                    ]
+                )
+            else:
+                if self.bsp == "all":
+                    for bsp in self.bsps:
+                        if using_asset_settings:
+                            utils.run_tool(
+                                [
+                                    "faux_lightmap",
+                                    self.scenario,
+                                    bsp,
+                                    self.suppress_dialog,
+                                    self.force_reatlas,
+                                ]
+                            )
+                        else:
+                            utils.run_tool(
+                                [
+                                    "faux_lightmap_with_settings",
+                                    self.scenario,
+                                    bsp,
+                                    self.suppress_dialog,
+                                    self.force_reatlas,
+                                    self.settings,
+                                ]
+                            )
+                        # self.suppress_dialog = "true"
+                else:
                     if using_asset_settings:
                         utils.run_tool(
                             [
                                 "faux_lightmap",
                                 self.scenario,
-                                bsp,
+                                self.bsp,
                                 self.suppress_dialog,
                                 self.force_reatlas,
                             ]
@@ -317,35 +341,14 @@ class LightMapper:
                             [
                                 "faux_lightmap_with_settings",
                                 self.scenario,
-                                bsp,
+                                self.bsp,
                                 self.suppress_dialog,
                                 self.force_reatlas,
                                 self.settings,
                             ]
                         )
-                    # self.suppress_dialog = "true"
-            else:
-                if using_asset_settings:
-                    utils.run_tool(
-                        [
-                            "faux_lightmap",
-                            self.scenario,
-                            self.bsp,
-                            self.suppress_dialog,
-                            self.force_reatlas,
-                        ]
-                    )
-                else:
-                    utils.run_tool(
-                        [
-                            "faux_lightmap_with_settings",
-                            self.scenario,
-                            self.bsp,
-                            self.suppress_dialog,
-                            self.force_reatlas,
-                            self.settings,
-                        ]
-                    )
+        except:
+            utils.print_error("Failed to run lightmapper")
 
         return self
 
