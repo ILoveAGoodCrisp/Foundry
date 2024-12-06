@@ -11,7 +11,7 @@ import bpy
 from ...props.object import IgnoreReason
 
 FOUNDRY_DOCS = r"https://c20.reclaimers.net/general/community-tools/foundry"
-FOUNDRY_GITHUB = r"https://github.com/ILoveAGoodCrisp/Foundry-Halo-Blender-Creation-Kit"
+FOUNDRY_GITHUB = r"https://github.com/ILoveAGoodCrisp/Foundry"
 
 BLENDER_TOOLSET = r"https://github.com/General-101/Halo-Asset-Blender-Development-Toolset/releases"
 AMF_ADDON = r"https://github.com/Gravemind2401/Reclaimer/blob/master/Reclaimer.Blam/Resources/Blender%20AMF2.py"

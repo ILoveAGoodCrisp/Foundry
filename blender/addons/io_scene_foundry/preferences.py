@@ -5,7 +5,7 @@ from pathlib import Path
 from bpy.types import Operator, AddonPreferences
 from bpy.props import BoolProperty, StringProperty, EnumProperty, CollectionProperty
 from .utils import ProjectXML, get_prefs, get_tags_path, is_corinth, project_game_icon, project_icon, read_projects_list, relative_path, setup_projects_list, write_projects_list
-FOUNDRY_GITHUB = r"https://github.com/ILoveAGoodCrisp/Foundry-Halo-Blender-Creation-Kit"
+FOUNDRY_GITHUB = r"https://github.com/ILoveAGoodCrisp/Foundry"
 import bpy
 
 class NWO_Project_ListItems(bpy.types.PropertyGroup):
