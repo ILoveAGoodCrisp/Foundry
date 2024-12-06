@@ -1182,13 +1182,23 @@ class VirtualSkeleton:
                     parent_fb.export = True
                     
                 return fb
-                    
+            
+            fb_names = []
+            fbs = []
             for pbone in main_arm.pose.bones:
                 fb = create_fake_bone(main_arm, pbone)
+                fb_names.append(fb.name)
+                fbs.append(fb)
                 if fb.name in support_armature_bone_parent_names:
                     for child in scene.support_armatures:
                         for pbone_s in child.pose.bones:
-                            create_fake_bone(child, pbone_s, fb if pbone_s.parent is None else None)
+                            cfb = create_fake_bone(child, pbone_s, fb if pbone_s.parent is None else None)
+                            fb_names.append(cfb.name)
+                            fbs.append(cfb)
+                            
+            if len(set(fb_names)) != len(fb_names):
+                error_str = [f"{fb.ob.name_full} --> {fb.name}" for fb in fbs]
+                raise RuntimeError(f"Duplicate bone names found. Ensure that all exported armatures have unique bone names. Armature Bones list:\n{error_str}\n")
                 
             start_bones = list(start_bones_dict.values())
             
