@@ -31,6 +31,20 @@ class NWO_MarkerPermutationItems(bpy.types.PropertyGroup):
 # ----------------------------------------------------------
 class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     scale_model: bpy.props.BoolProperty(options={'HIDDEN'})
+    
+    # CINEMATIC
+    
+    def cinematic_object_clean_tag_path(self, context):
+        self["cinematic_object"] = utils.clean_tag_path(self["cinematic_object"]).strip('"')
+    
+    cinematic_object: bpy.props.StringProperty(
+        name="Cinematic Object",
+        description="The object that should represent this actor in cinematic scene tags. This should be any high level object tag such as .scenery or .biped",
+        update=cinematic_object_clean_tag_path,
+        options=set(),
+        override={'LIBRARY_OVERRIDABLE'}
+    )
+    
     ### PROXY
     proxy_parent: bpy.props.PointerProperty(type=bpy.types.Mesh)
     proxy_type : bpy.props.StringProperty()

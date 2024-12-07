@@ -1209,6 +1209,12 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             box.label(text='Frame')
             col = box.column()
             col.operator("nwo.select_child_objects", icon='CON_CHILDOF')
+            if utils.poll_ui(("cinematic",)):
+                col.separator()
+                row = col.row(align=True)
+                row.prop(nwo, "cinematic_object", icon_value=get_icon_id("tags"))
+                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "cinematic_object"
+                row.operator("nwo.tag_explore", text="", icon='FILE_FOLDER').prop = 'cinematic_object'
             # box = box.box()
             # box.use_property_split = True
             # box.label(text="Bone Properties")

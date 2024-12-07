@@ -125,6 +125,11 @@ def extensions_from_type(list_type):
             return ('.vehicle')
         case 'template_weapon':
             return ('.weapon')
+        case 'template_weapon':
+            return ('.weapon')
+        case 'cinematic_object':
+            return (".crate", ".scenery", ".effect_scenery", ".device_control", ".device_machine", ".device_terminal",
+                        ".device_dispenser", ".biped", ".creature", ".giant", ".vehicle", ".weapon", ".equipment")
         
 def walk_tags_dir(tags_dir, ext_list):
     tags_set = set()
@@ -257,5 +262,7 @@ def get_glob_from_prop(prop):
             return ('*.vehicle')
         case 'template_weapon':
             return ('*.weapon')
+        case 'cinematic_object':
+            return "*.biped;*.crate;*.creature;*.device_*;*.effect_sc*;*.equipment;*.giant;*.scenery;*.vehicle;*.weapon"
         case _:
             return "*"
