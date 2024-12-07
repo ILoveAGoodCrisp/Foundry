@@ -98,7 +98,7 @@ class CacheBuilder:
                 
             self.zone_sets = [element.Fields[0].GetStringData() for element in tag.block_zone_sets.Elements]
             
-            self.bsps = [os.path.basename(element.Fields[0].Path.RelativePath) for element in tag.block_bsps.Elements if element.Fields[0].Path is not None]
+            self.bsps = tag.get_bsp_names()
                 
             if self.do_mp_validation and own_asset:
                 self._multiplayer_validation(tag)
@@ -915,7 +915,10 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
             builder = CacheBuilder(relative_path, context, self.validate_multiplayer, own_asset)
             
             if self.lightmap:
-                builder.lightmap()
+                if not scene_nwo_export.lightmap_all_bsps and scene_nwo_export.lightmap_specific_bsp not in builder.bsps:
+                    utils.print_error(f"Skipping Lightmap. Specified BSP [{scene_nwo_export.lightmap_specific_bsp}] does not exist in the scenario tag: {builder.scenario.with_suffix('.scenario')}")
+                else:
+                    builder.lightmap()
             
             if utils.is_corinth(context) and self.texture_analysis:
                 print("\n\nFaux Texture Analysis")

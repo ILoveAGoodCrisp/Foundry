@@ -1,6 +1,8 @@
 import datetime
 from pathlib import Path
 import bpy
+
+from ...managed_blam.scenario import ScenarioTag
 from ... import utils
 import os
 
@@ -49,14 +51,12 @@ class NWO_OT_Lightmap(bpy.types.Operator):
 
         export_title = f"►►► LIGHTMAPPER ◄◄◄"
         print(export_title)
-        bsps = [region.name for region in context.scene.nwo.regions_table]
-        valid_bsps = set()
-        for ob in context.scene.objects:
-            region = utils.true_region(ob.nwo)
-            if region in bsps:
-                valid_bsps.add(region)
-                
-        bsps = [b for b in bsps if b in valid_bsps]
+        with ScenarioTag() as scenario:
+            bsps = scenario.get_bsp_names()
+            if not scene_nwo_export.lightmap_all_bsps and scene_nwo_export.lightmap_specific_bsp not in bsps:
+                utils.print_error(f"Cancelling Lightmap. Specified BSP [{scene_nwo_export.lightmap_specific_bsp}] does not exist in the scenario tag: {scenario.tag_path.RelativePathWithExtension}")
+                self.report({'WARNING'}, f"Specified BSP [{scene_nwo_export.lightmap_specific_bsp}] does not exist in the scenario tag: {scenario.tag_path.RelativePathWithExtension}")
+                return {'CANCELLED'}
                 
         run_lightmapper(
             is_corinth,

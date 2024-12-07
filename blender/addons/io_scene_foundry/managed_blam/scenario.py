@@ -126,6 +126,9 @@ class ScenarioTag(Tag):
                     
         return bsps
     
+    def get_bsp_names(self) -> list[str]:
+        return [os.path.basename(element.Fields[0].Path.RelativePath) for element in self.block_bsps.Elements if element.Fields[0].Path is not None]
+    
     def to_blend(self):
         # Import Seams
         print("Importing Seams")

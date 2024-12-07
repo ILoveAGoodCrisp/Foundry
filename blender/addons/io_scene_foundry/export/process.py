@@ -96,6 +96,7 @@ class ExportScene:
         self.supports_bsp = self.asset_type.supports_bsp
         self.asset_name = asset_name
         self.asset_path = asset_path
+        self.asset_path_relative = utils.relative_path(asset_path)
         self.sidecar_path = sidecar_path
         self.corinth = corinth
         self.tags_dir = Path(utils.get_tags_path())
@@ -1901,10 +1902,16 @@ class ExportScene:
                 
     def lightmap(self):
         if self.export_settings.lightmap_structure and (self.asset_type == AssetType.SCENARIO or (self.corinth and self.is_model)):
+            with ScenarioTag() as scenario:
+                valid_bsps = scenario.get_bsp_names()
+                bsps = [b for b in valid_bsps if b in self.virtual_scene.structure]
+                if not self.export_settings.lightmap_all_bsps and self.export_settings.lightmap_specific_bsp not in bsps:
+                    return utils.print_warning(f"Skipping Lightmap. Specified BSP [{self.export_settings.lightmap_specific_bsp}] does not exist in the scenario tag: {scenario.tag_path.RelativePathWithExtension}")
+            
             run_lightmapper(
                 self.corinth,
                 [],
-                str(Path(self.asset_path, self.asset_name)),
+                str(Path(self.asset_path_relative, self.asset_name)),
                 self.export_settings.lightmap_quality,
                 self.export_settings.lightmap_quality_h4,
                 self.export_settings.lightmap_all_bsps,
@@ -1912,7 +1919,7 @@ class ExportScene:
                 self.export_settings.lightmap_region,
                 self.is_model and self.corinth,
                 self.export_settings.lightmap_threads,
-                self.virtual_scene.structure)
+                bsps)
     
     def get_marker_sphere_size(self, ob):
         scale = ob.matrix_world.to_scale()
