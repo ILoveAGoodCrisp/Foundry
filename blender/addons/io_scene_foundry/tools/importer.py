@@ -944,10 +944,10 @@ class NWOImporter:
                     if not scenario.valid: continue
                     bsps = scenario.get_bsp_paths()
                     scenario_name = scenario.tag_path.ShortName
-                    scenario_collection = bpy.data.collections.new(scenario.tag_path.ShortName)
+                    scenario_collection = bpy.data.collections.new(scenario_name)
                     self.context.scene.collection.children.link(scenario_collection)
                     for bsp in bsps:
-                        bsp_objects, seams, collision = self.import_bsp(bsp, scenario_collection, scenario_name, seams)
+                        bsp_objects, seams, collision = self.import_bsp(bsp, scenario_collection, seams)
                         imported_objects.extend(bsp_objects)
                     
                     if seams:
@@ -962,16 +962,11 @@ class NWOImporter:
         
         return imported_objects
     
-    def import_bsp(self, file, scenario_collection=None, scenario_name=None, seams=[]):
-        if scenario_name is None:
-            name = Path(file).with_suffix("").name
-        else:
-            name = Path(file).with_suffix("").name[len(scenario_name) + 1:]
-        if not name:
-            name = "default"
-        print(f"Importing BSP {name}")
+    def import_bsp(self, file, scenario_collection=None, seams=[]):
+        bsp_name = Path(file).with_suffix("").name
+        print(f"Importing BSP {bsp_name}")
         bsp_objects = []
-        collection = bpy.data.collections.new(name)
+        collection = bpy.data.collections.new(bsp_name)
         if scenario_collection is None:
             self.context.scene.collection.children.link(collection)
         else:
@@ -979,9 +974,9 @@ class NWOImporter:
         with utils.TagImportMover(self.project.tags_directory, file) as mover:
             with ScenarioStructureBspTag(path=mover.tag_path) as bsp:
                 bsp_objects = bsp.to_blend_objects(collection, scenario_collection is not None)
-                seams = bsp.get_seams(name, seams)
+                seams = bsp.get_seams(bsp_name, seams)
         
-        bsp_name = utils.add_region(name)
+        bsp_name = utils.add_region(bsp_name)
         collection.name = "bsp::" + bsp_name
         collection.nwo.type = "region"
         collection.nwo.region = bsp_name
@@ -1061,7 +1056,7 @@ class NWOImporter:
         
     def process_amf_objects(self, objects, file_name):
         is_model = bool([ob for ob in objects if ob.type == 'ARMATURE'])
-        possible_bsp = file_name.rpartition('_')[2]
+        possible_bsp = file_name
         if possible_bsp.lower() == 'shared': possible_bsp = "default_shared"
         # Add all objects to a collection
         if not self.existing_scene:
@@ -1228,7 +1223,7 @@ class NWOImporter:
                 new_coll = bpy.data.collections.new(file_name)
                 self.context.scene.collection.children.link(new_coll)
         if not is_model and not self.existing_scene:
-            possible_bsp = file_name.rpartition('_')[2]
+            possible_bsp = file_name
             if possible_bsp.lower() == 'shared': possible_bsp = "default_shared"
             new_coll.name = 'bsp::' + possible_bsp
             regions_table = self.context.scene.nwo.regions_table
