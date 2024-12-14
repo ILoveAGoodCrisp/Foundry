@@ -252,7 +252,7 @@ class Tag():
         value_string = items[value]
         return value_string
     
-    def _TagPath_from_string(self, path: str) -> TagPath:
+    def _TagPath_from_string(self, path: str | Path) -> TagPath:
         """Returns a Bungie TagPath from the given tag filepath. Filepath must include file extension"""
         rel_path = relative_path(path)
         return Tags.TagPath.FromPathAndExtension(*self._get_path_and_ext(rel_path))

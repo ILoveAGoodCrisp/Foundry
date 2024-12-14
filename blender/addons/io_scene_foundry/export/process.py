@@ -8,6 +8,8 @@ import bmesh
 import bpy
 from mathutils import Matrix, Vector
 
+from .cinematic import QUA, Actor
+
 from ..props.scene import NWO_Animation_ListItems
 
 from ..tools.scenario.lightmap import run_lightmapper
@@ -32,6 +34,9 @@ from ..granny import Granny
 from .. import utils
 from ..constants import VALID_MESHES, VALID_OBJECTS, WU_SCALAR
 from ..tools.asset_types import AssetType
+
+MAXIMUM_CINEMATIC_SHOTS = 64
+MAXIMUM_CINEMATIC_SCENES = 32
 
 class ObjectCopy(Enum):
     NONE = 0
@@ -110,6 +115,7 @@ class ExportScene:
         
         self.models_export_dir = Path(asset_path, "export", "models")
         self.animations_export_dir = Path(asset_path, "export", "animations")
+        self.cinematics_export_dir = Path(asset_path, "export", "cinematics")
         
         self.regions = [i.name for i in context.scene.nwo.regions_table]
         self.regions_set = frozenset(self.regions)
@@ -176,6 +182,8 @@ class ExportScene:
         self.unit_factor = utils.get_unit_conversion_factor(context)
         
         self.data_remap = {}
+        
+        self.cinematic_actors = []
         
     def _get_export_tag_types(self):
         tag_types = set()
@@ -313,7 +321,7 @@ class ExportScene:
             fp_defaults, mesh_props = self.processed_meshes.get(proxy_collision.data, (None, None))
             if mesh_props is None:
                 mesh_props = {}
-                fp_defaults = self._setup_mesh_level_props(proxy_collision, "default", mesh_props)
+                fp_defaults = self._setup_mesh_level_props(proxy_collision, "default", mesh_props, coll_props["bungie_mesh_type"])
                 # Collision proxies must not be breakable, else tool will crash
                 if mesh_props.get("bungie_face_mode") == FaceMode.breakable.value:
                     mesh_props["bungie_face_mode"] = FaceMode.normal.value
@@ -338,7 +346,7 @@ class ExportScene:
                 fp_defaults, mesh_props = self.processed_meshes.get(proxy_physics.data, (None, None))
                 if mesh_props is None:
                     mesh_props = {}
-                    fp_defaults, self._setup_mesh_level_props(proxy_physics, "default", mesh_props)
+                    fp_defaults, self._setup_mesh_level_props(proxy_physics, "default", mesh_props, phys_props["bungie_mesh_type"])
                     self.processed_meshes[proxy_physics.data] = (fp_defaults, mesh_props)
                 
                 phys_props.update(mesh_props)
@@ -352,7 +360,7 @@ class ExportScene:
             fp_defaults, mesh_props = self.processed_meshes.get(proxy_cookie_cutter.data, (None, None))
             if mesh_props is None:
                 mesh_props = {}
-                fp_defaults = self._setup_mesh_level_props(proxy_cookie_cutter, "default", mesh_props)
+                fp_defaults = self._setup_mesh_level_props(proxy_cookie_cutter, "default", mesh_props, cookie_props["bungie_mesh_type"])
                 self.processed_meshes[proxy_cookie_cutter.data] = (fp_defaults, mesh_props)
             
             cookie_props.update(mesh_props)
@@ -390,6 +398,8 @@ class ExportScene:
                 if ob.type == 'ARMATURE':
                     self.armature_poses[ob.data] = ob.data.pose_position
                     ob.data.pose_position = 'REST'
+                    if self.asset_type == AssetType.CINEMATIC and utils.actor_valid(ob):
+                        self.cinematic_actors.append(Actor(ob, self.asset_name, self.asset_path_relative))
                 if ob.type == 'LIGHT':
                     if ob.data.type == 'AREA':
                         ob = utils.area_light_to_emissive(ob)
@@ -718,7 +728,7 @@ class ExportScene:
         
         fp_defaults, tmp_mesh_props = self.processed_meshes.get(ob.data, (None, None))
         if tmp_mesh_props is None:
-            fp_defaults = self._setup_mesh_level_props(ob, region, mesh_props)
+            fp_defaults = self._setup_mesh_level_props(ob, region, mesh_props, props["bungie_mesh_type"])
             self.processed_meshes[ob.data] = (fp_defaults, mesh_props)
         else:
             mesh_props.update(tmp_mesh_props)
@@ -785,10 +795,6 @@ class ExportScene:
             props["bungie_mesh_poop_decal_spacing"] = 1 
         if data_nwo.precise_position:
             props["bungie_mesh_poop_precise_geometry"] = 1
-        if self.corinth and data_nwo.uncompressed:
-            props["bungie_mesh_use_uncompressed_verts"] = 1
-        if data_nwo.additional_compression != "default":
-            props["bungie_mesh_additional_compression"] = data_nwo.additional_compression
 
         if self.corinth:
             props["bungie_mesh_poop_lightmap_resolution_scale"] = nwo.poop_lightmap_resolution_scale
@@ -967,10 +973,17 @@ class ExportScene:
                 props["bungie_marker_light_cone_intensity"] = nwo.marker_light_cone_intensity
                 props["bungie_marker_light_cone_curve"] = nwo.marker_light_cone_curve
     
-    def _setup_mesh_level_props(self, ob: bpy.types.Object, region: str, mesh_props: dict):
+    def _setup_mesh_level_props(self, ob: bpy.types.Object, region: str, mesh_props: dict, mesh_type_index: int):
         data_nwo: NWO_MeshPropertiesGroup = ob.data.nwo
         face_props = data_nwo.face_props
         fp_defaults = face_prop_defaults.copy()
+        mesh_type = MeshType(mesh_type_index)
+        
+        if self.corinth and data_nwo.uncompressed and mesh_type in {MeshType.default, MeshType.poop}:
+            mesh_props["bungie_mesh_use_uncompressed_verts"] = 1
+        if data_nwo.additional_compression != "default" and mesh_type in {MeshType.default, MeshType.decorator, MeshType.poop, MeshType.water_surface}:
+            mesh_props["bungie_mesh_additional_compression"] = data_nwo.additional_compression
+        
         if self.asset_type.supports_global_materials:
             global_material = ob.data.nwo.face_global_material.strip().replace(' ', "_")
             if global_material:
@@ -1283,6 +1296,61 @@ class ExportScene:
         if self.asset_type == AssetType.SCENARIO:
             self.virtual_scene.add_automatic_structure(self.default_permutation, 1 if self.scene_settings.scale == 'blender' else 1 / 0.03048)
             
+    def sample_shots(self):
+        process = "--- Sampling Cinematic Shots"
+        for armature in self.armature_poses.keys():
+            armature.pose_position = 'POSE'
+        armature_mods = utils.mute_armature_mods()
+        try:
+            self.has_animations = True
+            # Frame
+            scene = self.context.scene
+            frame_start = scene.frame_start
+            frame_end = scene.frame_end
+            # marker check is exclusive as we don't care about markers on the first frame
+            markers = [m for m in scene.timeline_markers if m.camera is not None and m.frame > scene.frame_start and m.frame <= scene.frame_end]
+            shot_count = min(len(markers) + 1, MAXIMUM_CINEMATIC_SHOTS)
+            if shot_count == MAXIMUM_CINEMATIC_SHOTS:
+                self.warnings.append(f"Maximum shot count of 64 exceeeded (You have {len(markers) + 1} shots). Shots have been limited")
+            
+            # Set shot bit mask for actors
+            for actor in self.cinematic_actors:
+                actor.set_shot_bit_mask(shot_count)
+            
+            shot_frame_start = frame_start
+            fallback_camera = None
+            with utils.Spinner():
+                utils.update_job_count(process, "", 0, shot_count)
+                
+                for i in range(shot_count):
+                    if len(markers) > i:
+                        shot_frame_end = markers[i].frame - 1
+                    else:
+                        shot_frame_end = frame_end
+                        
+                    shot_actors = [actor for actor in self.cinematic_actors if getattr(actor.ob.nwo, f"shot_{i + 1}", False)]
+                    
+                    camera = scene.camera
+                    if camera is None:
+                        if fallback_camera is None:
+                            for ob in self.context.view_layer.objects:
+                                if ob.type == 'CAMERA':
+                                    fallback_camera = ob
+                                    break
+                            else:
+                                raise RuntimeError("Scene has no cameras. Cannot export cinematic")
+                            
+                        camera = fallback_camera
+                        
+                    self.virtual_scene.add_shot(shot_frame_start, shot_frame_end, shot_actors, camera, i)
+                    
+                    shot_frame_start = shot_frame_end + 1
+                    
+                    utils.update_job_count(process, "", i, shot_count)
+                utils.update_job_count(process, "", shot_count, shot_count)
+        finally:
+            utils.unmute_armature_mods(armature_mods)
+            
     def sample_animations(self):
         if self.asset_type not in {AssetType.MODEL, AssetType.ANIMATION} or not self.virtual_scene.skeleton_node:
             return
@@ -1538,7 +1606,43 @@ class ExportScene:
     def export_files(self):
         self._create_export_groups()
         self._export_models()
-        self._export_animations()
+        if self.asset_type == AssetType.CINEMATIC:
+            self._export_shots()
+        else:
+            self._export_animations()
+            
+    def _export_shots(self):
+        
+        if self.virtual_scene.shots:
+            exported_something = False
+            print("\n\nExporting Cinematic Animations")
+            print("-----------------------------------------------------------------------\n")
+            self.sidecar.shots = self.virtual_scene.shots
+            export = True
+            print("--- Writing QUA File")
+            self._write_qua()
+            for shot in self.virtual_scene.shots:
+                for actor, animation in shot.actor_animation.items():
+                    self.sidecar.actor_animations[actor].append(animation)
+                    granny_path = Path(self.asset_path, "export", "cinematics", f"{animation.name}.gr2")
+                    granny_path_relative = str(Path(self.asset_path_relative, "export", "cinematics", f"{animation.name}.gr2"))
+                    animation.gr2_path = granny_path_relative
+                    if export:
+                        job = f"--- {animation.name}"
+                        utils.update_job(job, 0)
+                        nodes = [self.virtual_scene.nodes.get(actor.name)]
+                        nodes_dict = {node.name: node for node in nodes}
+                        self._export_granny_file(granny_path, nodes_dict, animation)
+                        utils.update_job(job, 1)
+                        exported_something = True
+                        
+            if export and not exported_something:
+                print("--- No cinematic animations to export")
+                
+    def _write_qua(self):
+        path = Path(self.asset_path, f"{self.asset_name}.qua")
+        writer = QUA(self.asset_name, self.virtual_scene.shots, self.cinematic_actors, self.corinth, False)
+        writer.write_to_file(path)
                 
     def _export_animations(self):
         if self.virtual_scene.skeleton_node and self.virtual_scene.animations:
@@ -1578,24 +1682,36 @@ class ExportScene:
         exported_something = False
         print("\n\nExporting Geometry")
         print("-----------------------------------------------------------------------\n")
-        for name, nodes in self.model_groups.items():
-            granny_path = self._get_export_path(name)
-            perm = nodes[0].permutation
-            region = nodes[0].region
-            tag_type = nodes[0].tag_type
-            self.sidecar.add_file_data(tag_type, perm, region, granny_path, bpy.data.filepath)
-            in_permutation_selection = self.asset_type not in {AssetType.MODEL, AssetType.SCENARIO, AssetType.SKY, AssetType.PREFAB} or not self.limit_perms_to_selection or perm in self.selected_permutations or tag_type in {'markers', 'skeleton'}
-            in_bsp_selection = self.asset_type != AssetType.SCENARIO or not self.limit_bsps_to_selection or region in self.selected_bsps
-            if in_permutation_selection and in_bsp_selection and tag_type in self.export_tag_types:
-                job = f"--- {name}"
+        if self.asset_type == AssetType.CINEMATIC:
+            for actor in self.cinematic_actors:
+                job = f"--- {actor.name}"
                 utils.update_job(job, 0)
-                if self.virtual_scene.skeleton_node:
-                    nodes_dict = {node.name: node for node in nodes + [self.virtual_scene.skeleton_node]}
-                else:
-                    nodes_dict = {node.name: node for node in nodes}
+                nodes = [self.virtual_scene.nodes.get(actor.name)]
+                nodes_dict = {node.name: node for node in nodes}
+                granny_path = Path(self.models_export_dir, f"{actor.name}_skeleton.gr2")
                 self._export_granny_file(granny_path, nodes_dict)
                 utils.update_job(job, 1)
                 exported_something = True
+                self.sidecar.create_actor_sidecar(actor, bpy.data.filepath)
+        else:
+            for name, nodes in self.model_groups.items():
+                granny_path = self._get_export_path(name)
+                perm = nodes[0].permutation
+                region = nodes[0].region
+                tag_type = nodes[0].tag_type
+                self.sidecar.add_file_data(tag_type, perm, region, granny_path, bpy.data.filepath)
+                in_permutation_selection = self.asset_type not in {AssetType.MODEL, AssetType.SCENARIO, AssetType.SKY, AssetType.PREFAB} or not self.limit_perms_to_selection or perm in self.selected_permutations or tag_type in {'markers', 'skeleton'}
+                in_bsp_selection = self.asset_type != AssetType.SCENARIO or not self.limit_bsps_to_selection or region in self.selected_bsps
+                if in_permutation_selection and in_bsp_selection and tag_type in self.export_tag_types:
+                    job = f"--- {name}"
+                    utils.update_job(job, 0)
+                    if self.virtual_scene.skeleton_node:
+                        nodes_dict = {node.name: node for node in nodes + [self.virtual_scene.skeleton_node]}
+                    else:
+                        nodes_dict = {node.name: node for node in nodes}
+                    self._export_granny_file(granny_path, nodes_dict)
+                    utils.update_job(job, 1)
+                    exported_something = True
         
         if not exported_something:
             print("--- No geometry to export")

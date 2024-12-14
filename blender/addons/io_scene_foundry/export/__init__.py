@@ -22,6 +22,8 @@ import logging
 
 from bpy_extras.io_utils import ExportHelper
 
+from ..tools.asset_types import AssetType
+
 from ..tools.camera_track_sync import export_current_action_as_camera_track
 
 from .process import ExportScene
@@ -532,7 +534,10 @@ def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_pat
             export_scene.map_halo_properties()
             export_scene.set_template_node_order()
             export_scene.create_virtual_tree()
-            export_scene.sample_animations()
+            if export_scene.asset_type == AssetType.CINEMATIC:
+                export_scene.sample_shots()
+            else:
+                export_scene.sample_animations()
             export_scene.report_warnings()
             export_scene.export_files()
             export_scene.write_sidecar()

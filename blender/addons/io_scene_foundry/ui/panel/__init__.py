@@ -1215,6 +1215,15 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 row.prop(nwo, "cinematic_object", icon_value=get_icon_id("tags"))
                 row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "cinematic_object"
                 row.operator("nwo.tag_explore", text="", icon='FILE_FOLDER').prop = 'cinematic_object'
+                if nwo.cinematic_object:
+                    row = col.grid_flow()
+                    timeline_markers = [m for m in self.scene.timeline_markers if m.camera is not None and m.frame > self.scene.frame_start and m.frame <= self.scene.frame_end]
+                    if timeline_markers:
+                        for i in range(1, min(len(timeline_markers) + 1, 65)):
+                            row.prop(nwo, f"shot_{i}")
+                    else:
+                        row.prop(nwo, "shot_1")
+
             # box = box.box()
             # box.use_property_split = True
             # box.label(text="Bone Properties")

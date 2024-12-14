@@ -26,7 +26,7 @@ import random
 import xml.etree.ElementTree as ET
 import numpy as np
 from ctypes import c_float, c_int
-from .constants import COLLISION_MESH_TYPES, PROTECTED_MATERIALS, VALID_MESHES, WU_SCALAR
+from .constants import COLLISION_MESH_TYPES, OBJECT_TAG_EXTS, PROTECTED_MATERIALS, VALID_MESHES, WU_SCALAR
 from .tools.materials import special_materials, convention_materials
 from .icons import get_icon_id, get_icon_id_in_directory
 import requests
@@ -270,7 +270,7 @@ def vector_str(velocity):
     x = velocity.x
     y = velocity.y
     z = velocity.z
-    return f"1 {jstr(x)} {jstr(y)} {jstr(z)}"
+    return f"{str(x)} {str(y)} {str(z)}"
 
 def vector(velocity):
     x = velocity.x
@@ -2250,6 +2250,29 @@ def halo_transform_matrix(matrix: Matrix) -> Matrix:
     
     return transform_matrix @ matrix
 
+def maya_transform_matrix(matrix: Matrix) -> Matrix:
+    matrix = halo_transform_matrix(matrix)
+    
+    linear3x3 = Matrix((
+        (0.0, 0.1, 0.0),
+        (0.0, 0.0, 0.1),
+        (0.1, 0.0, 0.0)
+    ))  # Linear transformation matrix
+
+    inverse_linear3x3 = Matrix((
+        (0.0, -0.0, 10.0),
+        (10.0, 0.0, -0.0),
+        (0.0, 10.0, 0.0)
+    ))  # Inverse of the linear transformation
+
+    # Convert linear transformations to 4x4 matrices
+    linear_matrix = linear3x3.to_4x4()
+    inverse_linear_matrix = inverse_linear3x3.to_4x4()
+
+    # Apply transformations: input_matrix → linear → inverse_linear
+    transformed_matrix = inverse_linear_matrix @ linear_matrix @ matrix
+    return transformed_matrix
+
 def halo_loc_rot_sca(matrix: Matrix, scale=None, rotation=None, marker=False) -> Matrix:
     matrix = halo_transforms_matrix(matrix, scale, rotation, marker)
     matrix_3x3 = matrix.to_3x3().normalized()
@@ -4082,3 +4105,11 @@ def quaternion_to_ypr(q):
 
 def unique_id() -> int:
     return random.randint(-2147483648, 2147483648)
+
+def actor_valid(ob) -> bool:
+    if ob.type != 'ARMATURE':
+        return False
+    if not ob.nwo.cinematic_object:
+        return False
+    tag_path = Path(ob.nwo.cinematic_object)
+    return Path(get_tags_path(), tag_path).exists() and tag_path.suffix in OBJECT_TAG_EXTS

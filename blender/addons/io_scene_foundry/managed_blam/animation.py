@@ -382,4 +382,8 @@ class AnimationTag(Tag):
         for bone in nodes_bones.keys():
             bone.keyframe_insert(data_path='location', frame=frame)
             bone.keyframe_insert(data_path='rotation_quaternion', frame=frame)
-            bone.keyframe_insert(data_path='scale', frame=frame) 
+            bone.keyframe_insert(data_path='scale', frame=frame)
+            
+    def get_play_text(self, animation, loop: bool, game_object: str = "(player_get 0)") -> str:
+        hs_func = "custom_animation_loop" if loop else "custom_animation"
+        return f"{hs_func} {game_object} {self.tag_path.RelativePath} {animation.name.replace(' ', ':')} FALSE"

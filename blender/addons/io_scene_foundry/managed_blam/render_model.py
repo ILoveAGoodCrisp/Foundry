@@ -99,7 +99,7 @@ class RenderModelTag(Tag):
     
     def _create_armature(self, existing_armature=None):
         print("Creating Armature")
-        arm = RenderArmature(f"{self.tag.Path.ShortName}_world", existing_armature)
+        arm = RenderArmature(f"{self.tag.Path.ShortName}", existing_armature)
         self.nodes: list[Node] = []
         for element in self.block_nodes.Elements:
             node = Node(element.SelectField("name").GetStringData(), )

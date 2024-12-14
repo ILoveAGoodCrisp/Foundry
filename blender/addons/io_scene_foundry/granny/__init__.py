@@ -208,6 +208,10 @@ class Granny:
                                       inverse_linear3x3,
                                       )
         
+        # print("affine ", [i for i in affine3])
+        # print("linear3x3 ", [i for i in linear3x3])
+        # print("inverse_linear3x3 ", [i for i in inverse_linear3x3])
+        
         self.transform_file(
             self.file_info,
             affine3,

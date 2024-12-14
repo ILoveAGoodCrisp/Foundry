@@ -7,6 +7,8 @@ import bpy
 import xml.etree.cElementTree as ET
 import xml.dom.minidom
 
+from .cinematic import Actor
+
 from ..props.scene import NWO_ScenePropertiesGroup
 from ..tools.asset_types import AssetType
 from ..tools.animation.composites import CompositeXML
@@ -23,7 +25,7 @@ class SidecarFileData:
     blend_path: Path
     permutation: str
     
-    def __init__(self, gr2_path: Path, blend_path: Path, permutation: str = "default", region: str = "default"):
+    def __init__(self, gr2_path: str, blend_path: str, permutation: str = "default", region: str = "default"):
         self.gr2_path = gr2_path
         self.blend_path = blend_path
         self.permutation = permutation
@@ -36,6 +38,10 @@ class SidecarFileData:
         self.space = "object"
         self.pose_overlay = False
         self.is_pca = False
+        # Cinematic only
+        self.frame_start = 0
+        self.frame_end = 0
+        self.shot_index = 0
         
 
 class Sidecar:
@@ -48,6 +54,7 @@ class Sidecar:
         self.asset_name = asset_name
         self.asset_type = asset_type
         self.tags_dir = tags_dir
+        self.data_dir = Path(utils.get_data_path())
         self.sidecar_path = sidecar_path
         self.sidecar_path_full = sidecar_path_full
         self.relative_blend = bpy.data.filepath
@@ -67,12 +74,22 @@ class Sidecar:
         self.regions = []
         self.global_materials = []
         self.file_data: dict[list[SidecarFileData]] = defaultdict(list)
+        self.shots = []
+        self.actor_animations = defaultdict(list)
         self.child_sidecar_paths = []
         self.child_animation_elements = []
         self.child_physics_elements = []
         self.child_collision_elements = []
         self.child_render_elements = []
         self.child_bsp_elements = []
+        
+    def create_actor_sidecar(self, actor: Actor, blend_path: Path):
+        # This is awful but ultimately the best solution given the modder workflow
+        actor_asset_path = Path(actor.sidecar)
+        actor_sidecar_path_relative = Path(f"{actor.sidecar}.sidecar.xml")
+        actor_sidecar_path_full = Path(self.data_dir, actor_sidecar_path_relative)
+        actor_sidecar = Sidecar(actor_sidecar_path_full, actor_sidecar_path_relative, actor_asset_path, actor_asset_path.name, AssetType.MODEL, None, self.corinth, self.context, self.tags_dir)
+        actor_sidecar.build(for_actor=True)
         
     def add_file_data(self, tag_type: str, permutation: str, region: str, gr2_path: Path, blend_path: Path):
         self.file_data[tag_type].append(SidecarFileData(utils.relative_path(gr2_path), utils.relative_path(blend_path), permutation, region))
@@ -230,47 +247,55 @@ class Sidecar:
         except:
             utils.print_warning("Failed to write clone xml")
         
-    def build(self):
+    def build(self, for_actor=False):
         m_encoding = "utf-8"
         m_standalone = "yes"
         metadata = ET.Element("Metadata")
         self._write_header(metadata)
-        match self.asset_type:
-            case AssetType.MODEL:
-                self._get_object_output_types(metadata, "model", self._get_model_tags())
-            case AssetType.SCENARIO:
-                self._get_object_output_types(metadata, "scenario")
-            case AssetType.SKY:
-                self._get_object_output_types(metadata, "model" if self.corinth else "sky")
-            case AssetType.DECORATOR_SET:
-                self._get_object_output_types(metadata, "decorator_set", "decorator_set")
-            case AssetType.PARTICLE_MODEL:
-                self._get_object_output_types(metadata, "particle_model", "particle_model")
-            case AssetType.PREFAB:
-                self._get_object_output_types(metadata, "prefab", "prefab")
-            case AssetType.ANIMATION:
-                self._get_object_output_types(metadata, "model")
-            case AssetType.CINEMATIC:
-                self._get_object_output_types(metadata, "cinematic")
+        if for_actor:
+            self._get_object_output_types(metadata, "model", for_actor=True)
+        else:
+            match self.asset_type:
+                case AssetType.MODEL:
+                    self._get_object_output_types(metadata, "model", self._get_model_tags())
+                case AssetType.SCENARIO:
+                    self._get_object_output_types(metadata, "scenario")
+                case AssetType.SKY:
+                    self._get_object_output_types(metadata, "model" if self.corinth else "sky")
+                case AssetType.DECORATOR_SET:
+                    self._get_object_output_types(metadata, "decorator_set", "decorator_set")
+                case AssetType.PARTICLE_MODEL:
+                    self._get_object_output_types(metadata, "particle_model", "particle_model")
+                case AssetType.PREFAB:
+                    self._get_object_output_types(metadata, "prefab", "prefab")
+                case AssetType.ANIMATION:
+                    self._get_object_output_types(metadata, "model")
+                case AssetType.CINEMATIC:
+                    self._get_object_output_types(metadata, "cinematic")
 
         self._write_folders(metadata)
         self._write_face_collections(metadata)
-
-        match self.asset_type:
-            case AssetType.MODEL:
-                self._write_model_contents(metadata)
-            case AssetType.SCENARIO:
-                self._write_scenario_contents(metadata)
-            case AssetType.SKY:
-                self._write_sky_contents(metadata)
-            case AssetType.DECORATOR_SET:
-                self._write_decorator_contents(metadata)
-            case AssetType.PARTICLE_MODEL:
-                self._write_particle_contents(metadata)
-            case AssetType.PREFAB:
-                self._write_prefab_contents(metadata)
-            case AssetType.ANIMATION:
-                self._write_animation_contents(metadata)
+        
+        if for_actor:
+            self._write_actor_contents(metadata)
+        else:
+            match self.asset_type:
+                case AssetType.MODEL:
+                    self._write_model_contents(metadata)
+                case AssetType.SCENARIO:
+                    self._write_scenario_contents(metadata)
+                case AssetType.SKY:
+                    self._write_sky_contents(metadata)
+                case AssetType.DECORATOR_SET:
+                    self._write_decorator_contents(metadata)
+                case AssetType.PARTICLE_MODEL:
+                    self._write_particle_contents(metadata)
+                case AssetType.PREFAB:
+                    self._write_prefab_contents(metadata)
+                case AssetType.ANIMATION:
+                    self._write_animation_contents(metadata)
+                case AssetType.CINEMATIC:
+                    self._write_cinematic_contents(metadata)
 
         dom = xml.dom.minidom.parseString(ET.tostring(metadata))
         xml_string = dom.toprettyxml(indent="  ")
@@ -335,39 +360,44 @@ class Sidecar:
 
         return tags
 
-    def _get_object_output_types(self, metadata, sidecar_type, output_tags=[]):
+    def _get_object_output_types(self, metadata, sidecar_type, output_tags=[], for_actor=False):
         if sidecar_type == "sky":
             asset = ET.SubElement(metadata, "Asset", Name=self.asset_name, Type=sidecar_type, Sky="true")
         else:
             asset = ET.SubElement(metadata, "Asset", Name=self.asset_name, Type=sidecar_type)
             
         tagcollection = ET.SubElement(asset, "OutputTagCollection")
+        
+        if for_actor:
+            ET.SubElement(tagcollection, "OutputTag", Type="model").text = self.tag_path
+            ET.SubElement(tagcollection, "OutputTag", Type="scenery").text = self.tag_path
+        else:
+            match self.asset_type:
+                case AssetType.MODEL:
+                # models are the only sidecar type with optional high level tags exports, all others are fixed
+                    for tag in output_tags:
+                        ET.SubElement(tagcollection, "OutputTag", Type=tag).text = self.tag_path
+                case AssetType.SCENARIO:
+                    ET.SubElement(tagcollection, "OutputTag", Type="scenario_lightmap").text = f"{self.tag_path}_faux_lightmap"
+                    ET.SubElement(tagcollection, "OutputTag", Type="structure_seams").text = self.tag_path
+                    ET.SubElement(tagcollection, "OutputTag", Type="scenario").text = self.tag_path
 
-        match self.asset_type:
-            case AssetType.MODEL:
-            # models are the only sidecar type with optional high level tags exports, all others are fixed
-                for tag in output_tags:
-                    ET.SubElement(tagcollection, "OutputTag", Type=tag).text = self.tag_path
-            case AssetType.SCENARIO:
-                ET.SubElement(tagcollection, "OutputTag", Type="scenario_lightmap").text = f"{self.tag_path}_faux_lightmap"
-                ET.SubElement(tagcollection, "OutputTag", Type="structure_seams").text = self.tag_path
-                ET.SubElement(tagcollection, "OutputTag", Type="scenario").text = self.tag_path
+                case AssetType.DECORATOR_SET:
+                    ET.SubElement(tagcollection, "OutputTag", Type="decorator_set").text = self.tag_path
 
-            case AssetType.DECORATOR_SET:
-                ET.SubElement(tagcollection, "OutputTag", Type="decorator_set").text = self.tag_path
+                case AssetType.PARTICLE_MODEL:
+                    ET.SubElement(tagcollection, "OutputTag", Type="particle_model").text = self.tag_path
 
-            case AssetType.PARTICLE_MODEL:
-                ET.SubElement(tagcollection, "OutputTag", Type="particle_model").text = self.tag_path
+                case AssetType.PREFAB:
+                    ET.SubElement(tagcollection, "OutputTag", Type="prefab").text = self.tag_path
 
-            case AssetType.PREFAB:
-                ET.SubElement(tagcollection, "OutputTag", Type="prefab").text = self.tag_path
-
-            case AssetType.SKY | AssetType.ANIMATION:
-                ET.SubElement(tagcollection, "OutputTag", Type="model").text = self.tag_path
-                ET.SubElement(tagcollection, "OutputTag", Type="scenery").text = self.tag_path
-                
-            case AssetType.CINEMATIC:
-                ET.SubElement(tagcollection, "OutputTag", Type="cinematic").text = self.tag_path
+                case AssetType.SKY | AssetType.ANIMATION:
+                    ET.SubElement(tagcollection, "OutputTag", Type="model").text = self.tag_path
+                    ET.SubElement(tagcollection, "OutputTag", Type="scenery").text = self.tag_path
+                    
+                case AssetType.CINEMATIC:
+                    ET.SubElement(tagcollection, "OutputTag", Type="model").text = self.tag_path
+                    ET.SubElement(tagcollection, "OutputTag", Type="cinematic").text = self.tag_path
 
     def _write_folders(self, metadata):
         folders = ET.SubElement(metadata, "Folders")
@@ -655,6 +685,17 @@ class Sidecar:
 
         ##### ANIMATIONS #####
         self._write_animation_content(content)
+        
+    def _write_actor_contents(self, metadata):
+        contents = ET.SubElement(metadata, "Contents")
+        content = ET.SubElement(contents, "Content", Name=self.asset_name, Type="model")
+        content_object = ET.SubElement(content, "ContentObject", Name="", Type="render_model")
+        self._write_network_files(content_object, SidecarFileData(str(Path(Path(self.relative_asset_path).parent, f"{self.asset_name}_render.gr2")), utils.relative_path(bpy.data.filepath)))
+        output = ET.SubElement(content_object, "OutputTagCollection")
+        ET.SubElement(output, "OutputTag", Type="render_model").text = self.tag_path
+        content_object = ET.SubElement(content, "ContentObject", Name="", Type="skeleton")
+        self._write_network_files(content_object, SidecarFileData(str(Path(Path(self.relative_asset_path).parent, f"{self.asset_name}_skeleton.gr2")), utils.relative_path(bpy.data.filepath)))
+        # ET.SubElement(content_object, "OutputTagCollection")
 
     def _write_skeleton_content(self, content):
         skeleton_data = self.file_data.get("skeleton")
@@ -708,7 +749,7 @@ class Sidecar:
                     if compression is not None:
                         network_attribs['Compression'] = compression
                     
-                    if data.is_pca:
+                    if self.corinth and data.is_pca:
                         network_attribs["PCA"] = "True"
 
                     network = ET.SubElement(content_object, "ContentNetwork", network_attribs)
@@ -765,6 +806,53 @@ class Sidecar:
     def _region_active_state(self, region_name):
         region = self.context.scene.nwo.regions_table[region_name]
         return 'true' if region.active else 'false'
+    
+    
+    def _write_cinematic_contents(self, metadata):
+        contents = ET.SubElement(metadata, "Contents")
+        content = ET.SubElement(contents, "Content", Name=self.asset_name, Type="scene")
+        
+        # AUDIO
+        sound_sequences = [sequence for sequence in self.context.scene.sequence_editor.sequences if sequence.type == 'SOUND']
+        audio_content_object = ET.SubElement(content, "ContentObject", Name="", Type="cinematic_audio")
+        for sequence in sound_sequences:
+            sound = sequence.sound
+            filepath = Path(sound.filepath)
+            if filepath.is_absolute() and filepath.is_relative_to(self.data_dir):
+                relative = Path(utils.relative_path(filepath))
+                sound_name = relative.with_suffix("").name
+                tag_path = Path(self.relative_asset_path, "dialog", f"{sound_name}.sound")
+                network = ET.SubElement(audio_content_object, "ContentNetwork", Name=sound_name, Type="", Target=sound.nwo.target if sound.nwo.target else "NONE", StartFrame=sequence.frame, SoundTagFile=tag_path, DialogColor="NONE")
+                ET.SubElement(network, "InputFile").text = str(relative)
+            else:
+                utils.print_warning(f"Cannot add audio file because it is not saved to the project data folder: {filepath}")
+        ET.SubElement(audio_content_object, "OutputTagCollection")
+        
+        # QUA
+        scene_content_object = ET.SubElement(content, "ContentObject", Name="", Type="cinematic_scene")
+        network = ET.SubElement(scene_content_object, "ContentNetwork", Name="", Type="")
+        ET.SubElement(network, "InputFile").text = self.relative_blend
+        ET.SubElement(network, "IntermediateFile").text = str(Path(self.relative_asset_path, f"{self.asset_name}.qua"))
+        # collection = ET.SubElement(scene_content_object, "OutputTagCollection")
+        # ET.SubElement(collection, "OutputTag", Type="cinematic_scene").text = str(Path(self.relative_asset_path, self.asset_name))
+        # if self.corinth:
+        #     ET.SubElement(collection, "OutputTag", Type="cinematic_scene_data").text = str(Path(self.relative_asset_path, self.asset_name))
+        
+        # Shots
+        shots_content_object = ET.SubElement(content, "ContentObject", Name="", Type="cinematic_shots") # Sequencer="True"
+        for shot in self.shots:
+            ET.SubElement(shots_content_object, "ContentNetwork", Name=str(shot.shot_index + 1), Type="", StartFrame=str(shot.frame_start), EndFrame=str(shot.frame_end))
+        
+        # Animations
+        for actor, animations in self.actor_animations.items():
+            actor_content_object = ET.SubElement(content, "ContentObject", Name=actor.name, Type="model_animation_graph", Sidecar=actor.sidecar)
+            for animation in animations:
+                network = ET.SubElement(actor_content_object, "ContentNetwork", Name=animation.name, Type="Base", ShotId=str(animation.shot_index + 1), ModelAnimationMovementData="None")
+                if self.corinth:
+                    network["PCA"] = animation.is_pca
+                ET.SubElement(network, "IntermediateFile").text = animation.gr2_path
+            collection = ET.SubElement(actor_content_object, "OutputTagCollection")
+            ET.SubElement(collection, "OutputTag", Type="model_animation_graph").text = utils.dot_partition(actor.graph)
     
 def write_composite_xml(composite) -> str:
     composite_xml = CompositeXML(composite)
