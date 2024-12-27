@@ -1079,6 +1079,25 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     
     mod_name: bpy.props.StringProperty(options={'HIDDEN'}, default="")
     
+    cinematic_scenario: bpy.props.StringProperty(
+        name="Scenario",
+        description="The tag relative path to the scenario which this cinematic should be added to",
+        options=set(),
+    )
+    
+    cinematic_zone_set: bpy.props.StringProperty(
+        name="Zone Set",
+        description="The name of the zone set which this cinematic should be loaded in. If this zone set doesn't already exist, it will be created for you with all bsps active by default",
+        options=set(),
+    )
+    
+    cinematic_anchor: bpy.props.PointerProperty(
+        name="Cinematic Anchor",
+        description="The object to use as the anchor point (or reference point) or the cinematic scene. On export this anchor point will be added to the specified scenario if you have set one",
+        type=bpy.types.Object,
+        options=set(),
+    )
+    
     # ANIMATION
     def update_active_animation_index(self, context):
         if self.active_animation_index > -1:

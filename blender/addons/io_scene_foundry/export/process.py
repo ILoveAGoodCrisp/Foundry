@@ -8,6 +8,8 @@ import bmesh
 import bpy
 from mathutils import Matrix, Vector
 
+from ..managed_blam.cinematic import CinematicTag
+
 from .cinematic import QUA, Actor
 
 from ..props.scene import NWO_Animation_ListItems
@@ -683,7 +685,7 @@ class ExportScene:
                     copy = ObjectCopy.WATER_PHYSICS
                 else:
                     mesh_type = '_connected_geometry_mesh_type_water_physics_volume'
-                    self._setup_water_physics_props()
+                    self._setup_water_physics_props(nwo, props)
                     
         elif mesh_type in ("_connected_geometry_mesh_type_poop_vertical_rain_sheet", "_connected_geometry_mesh_type_poop_rain_blocker"):
             mesh_props["bungie_face_mode"] = FaceMode.render_only.value
@@ -2000,6 +2002,25 @@ class ExportScene:
                     export_lights(self.lights, bsps)
                 else:
                     export_lights([], bsps) # this will clear the lighting info tag
+                    
+        if self.asset_type == AssetType.CINEMATIC:
+            scenario_path = Path(self.tags_dir, self.scene_settings.cinematic_scenario)
+            with CinematicTag() as cinematic:
+                term = "Created" if cinematic.tag_is_new else "Updated"
+                self.print_post(f"--- {term} create new cinematic tag: {cinematic.tag_path.RelativePathWithExtension}")
+                scenario_path = Path(self.tags_dir, self.scene_settings.cinematic_scenario)
+                if self.scene_settings.cinematic_scenario.strip() and scenario_path.exists() and scenario_path.is_file():
+                    cinematic.create(self.asset_name, self.cinematic_scenes, Path(self.scene_settings.cinematic_scenario), self.scene_settings.cinematic_zone_set, self.cinematic_anchors)
+                    
+                    self.print_post(f"--- Linked cinematic to scenario: {self.scene_settings.cinematic_scenario}")
+                    if self.scene_settings.cinematic_zone_set:
+                        self.print_post(f"--- Linked to zone set: {self.scene_settings.cinematic_zone_set}")
+                    self.print_post(f"--- {term} cutscene flags for {len(self.cinematic_anchors)} cinematic anchors")
+                else:
+                    cinematic.create(self.asset_name, self.cinematic_scenes)
+                    self.print_post(f"--- {term} cinematic tag")
+                    if self.scene_settings.cinematic_scenario.strip():
+                        utils.print_warning(f"Cinematic Scenario does not exist: {self.scene_settings.cinematic_scenario}")
         
     def _setup_model_overrides(self):
         model_override = self.asset_type == AssetType.MODEL and any((
