@@ -11,6 +11,8 @@ import bpy
 import addon_utils
 from mathutils import Color
 
+from ..managed_blam.particle_model import ParticleModelTag
+
 from ..managed_blam.structure_seams import StructureSeamsTag
 
 from ..managed_blam.scenario_structure_bsp import ScenarioStructureBspTag
@@ -40,7 +42,17 @@ legacy_animation_formats = '.jmm', '.jma', '.jmt', '.jmz', '.jmv', '.jmw', '.jmo
 legacy_poop_prefixes = '%', '+', '-', '?', '!', '>', '*', '&', '^', '<', '|',
 legacy_frame_prefixes = "frame_", "frame ", "bip_", "bip ", "b_", "b "
 
-formats = "amf", "jms", "jma", "bitmap", "camera_track", "model", "render_model", "scenario", "scenario_structure_bsp"
+### Steps for adding a new file type ###
+########################################
+# 1. Add the name of the file extension to formats
+# 2. Add this to bl_file_extensions under the NWO_FH_Import class
+# 3. Add NWO_Import.invoke condition for type and add to the filter glob
+# 4. Add elif for type to NWOImporter.group_filetypes
+# 5. Add import function to NWOImporter
+# 6. Add an if with conditions for handling this import under NWO_Import.execute
+# 7. Update scope variable to importer calls in other python files where appropriate
+
+formats = "amf", "jms", "jma", "bitmap", "camera_track", "model", "render_model", "scenario", "scenario_structure_bsp", "particle_model"
 
 xref_tag_types = (
     ".crate",
@@ -385,6 +397,17 @@ class NWO_Import(bpy.types.Operator):
                         utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_bsp_objects, actions=[])
                         
                     imported_objects.extend(imported_bsp_objects)
+                    
+                if 'particle_model' in importer.extensions:
+                    particle_model_files = importer.sorted_filepaths["particle_model"]
+                    imported_particle_model_objects = []
+                    for file in particle_model_files:
+                        particle_objects = importer.import_particle_model(file)
+                        imported_particle_model_objects.extend(particle_objects)
+                    if needs_scaling:
+                        utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_particle_model_objects, actions=[])
+                        
+                    imported_objects.extend(imported_particle_model_objects)
 
                 new_materials = [mat for mat in bpy.data.materials if mat not in starting_materials]
                 # Clear duplicate materials
@@ -488,6 +511,8 @@ class NWO_Import(bpy.types.Operator):
                 self.filter_glob += '*.scenario;'
             if (not self.scope or 'scenario_structure_bsp' in self.scope):
                 self.filter_glob += '*.scen*_bsp;'
+            if (not self.scope or 'particle_model' in self.scope):
+                self.filter_glob += '*particle_model;'
                 
         if utils.amf_addon_installed() and (not self.scope or 'amf' in self.scope):
             self.amf_okay = True
@@ -811,6 +836,9 @@ class NWOImporter:
             elif 'scenario_structure_bsp' in valid_exts and path.lower().endswith('.scenario_structure_bsp'):
                 self.extensions.add('scenario_structure_bsp')
                 filetype_dict["scenario_structure_bsp"].append(path)
+            elif 'particle_model' in valid_exts and path.lower().endswith('.particle_model'):
+                self.extensions.add('particle_model')
+                filetype_dict["particle_model"].append(path)
                 
         return filetype_dict
         
@@ -982,6 +1010,18 @@ class NWOImporter:
         collection.nwo.region = bsp_name
         
         return bsp_objects, seams, bsp.structure_collision
+    
+    def import_particle_model(self, file):
+        filename = Path(file).with_suffix("").name
+        print(f"Importing Particle Model: {filename}")
+        particle_model_objects = []
+        collection = bpy.data.collections.new(f"{filename}_particle")
+        self.context.scene.collection.children.link(collection)
+        with utils.TagImportMover(self.project.tags_directory, file) as mover:
+            with ParticleModelTag(path=mover.tag_path) as particle_model:
+                particle_model_objects = particle_model.to_blend_objects(collection, filename)
+            
+        return particle_model_objects
         
     # Bitmap Import
     def extract_bitmaps(self, bitmap_files, image_format):
@@ -2115,7 +2155,7 @@ class NWO_FH_Import(bpy.types.FileHandler):
     bl_idname = "NWO_FH_Import"
     bl_label = "File handler Foundry Importer"
     bl_import_operator = "nwo.import"
-    bl_file_extensions = ".jms;.amf;.ass;.bitmap;.model;.render_model;.scenario;.scenario_structure_bsp;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track"
+    bl_file_extensions = ".jms;.amf;.ass;.bitmap;.model;.render_model;.scenario;.scenario_structure_bsp;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track;.particle_model"
 
     @classmethod
     def poll_drop(cls, context):

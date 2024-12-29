@@ -1375,13 +1375,22 @@ class IndexBuffer:
     def get_faces(self, mesh: 'Mesh') -> list[Face]:
         idx = 0
         faces = []
-        for subpart in mesh.subparts:
-            start = subpart.index_start
-            count = subpart.index_count
+        if mesh.subparts:
+            for subpart in mesh.subparts:
+                start = subpart.index_start
+                count = subpart.index_count
+                list_indices = list(self._get_indices(start, count))
+                indices = (list_indices[n:n+3] for n in range(0, len(list_indices), 3))
+                for i in indices:
+                    faces.append(Face(indices=i, subpart=subpart, index=idx))
+                    idx += 1
+        else:
+            start = 0
+            count = len(self.indices)
             list_indices = list(self._get_indices(start, count))
             indices = (list_indices[n:n+3] for n in range(0, len(list_indices), 3))
             for i in indices:
-                faces.append(Face(indices=i, subpart=subpart, index=idx))
+                faces.append(Face(indices=i, subpart=None, index=idx))
                 idx += 1
                 
         return faces
@@ -1565,7 +1574,7 @@ class Mesh:
     face_draw_distance: bool
     valid: bool
     
-    def __init__(self, element: TagFieldBlockElement, bounds: CompressionBounds = None, permutation=None, materials=[], block_node_map=None):
+    def __init__(self, element: TagFieldBlockElement, bounds: CompressionBounds = None, permutation=None, materials=[], block_node_map=None, does_not_need_parts=False):
         self.index = element.ElementIndex
         self.permutation = permutation
         self.rigid_node_index = element.SelectField("rigid node index").Data
@@ -1579,7 +1588,9 @@ class Mesh:
         for subpart_element in element.SelectField("subparts").Elements:
             self.subparts.append(MeshSubpart(subpart_element, self.parts))
             
-        self.valid = bool(self.parts) and bool(self.subparts)
+        self.valid = (bool(self.parts) and bool(self.subparts)) or does_not_need_parts
+        
+        self.does_not_need_parts = does_not_need_parts
             
         self.face_transparent = len({p.transparent for p in self.parts}) > 1
         self.face_tesselation = len({p.tessellation for p in self.parts}) > 1
@@ -1726,24 +1737,25 @@ class Mesh:
                                 group.add([idx], w, 'REPLACE')
                     ob.modifiers.new(name="Armature", type="ARMATURE").object = parent
 
-        if not self.face_transparent:
-            mesh.nwo.face_transparent = self.parts[0].transparent
-        if not self.face_draw_distance:
-            mesh.nwo.face_draw_distance = self.parts[0].draw_distance.name
-        if not self.face_tesselation:
-            mesh.nwo.mesh_tessellation_density = self.parts[0].tessellation.name
-        if not self.face_no_shadow:
-            mesh.nwo.no_shadow = self.parts[0].no_shadow
-        if not self.face_lightmap_only:
-            mesh.nwo.lightmap_only = self.parts[0].lightmap_only
+        if not self.does_not_need_parts:
+            if not self.face_transparent:
+                mesh.nwo.face_transparent = self.parts[0].transparent
+            if not self.face_draw_distance:
+                mesh.nwo.face_draw_distance = self.parts[0].draw_distance.name
+            if not self.face_tesselation:
+                mesh.nwo.mesh_tessellation_density = self.parts[0].tessellation.name
+            if not self.face_no_shadow:
+                mesh.nwo.no_shadow = self.parts[0].no_shadow
+            if not self.face_lightmap_only:
+                mesh.nwo.lightmap_only = self.parts[0].lightmap_only
 
-        water_surface_parts = {p for p in self.parts if p.water_surface}
+            water_surface_parts = {p for p in self.parts if p.water_surface}
 
-        if subpart:
-            mesh.materials.append(subpart.part.material.blender_material)
-        else:
-            for subpart in self.subparts:
-                subpart.create(ob, self.tris, self.face_transparent, self.face_draw_distance, self.face_tesselation, self.face_no_shadow, self.face_lightmap_only, water_surface_parts)
+            if subpart:
+                mesh.materials.append(subpart.part.material.blender_material)
+            else:
+                for subpart in self.subparts:
+                    subpart.create(ob, self.tris, self.face_transparent, self.face_draw_distance, self.face_tesselation, self.face_no_shadow, self.face_lightmap_only, water_surface_parts)
 
 
         self._set_two_sided(mesh, is_io)
@@ -1756,7 +1768,7 @@ class Mesh:
                 face_layer.face_count = utils.layer_face_count(bm, bm.faces.layers.int.get(face_layer.layer_name))
             bm.free()
 
-        if mean(ob.dimensions.to_tuple()) < 20:
+        if not self.does_not_need_parts and mean(ob.dimensions.to_tuple()) < 20:
             mesh.nwo.precise_position = True
 
         return ob
@@ -1785,7 +1797,6 @@ class Mesh:
             if len(bm.faces) == len(to_remove):
                 mesh.nwo.face_two_sided = True
             elif is_io:
-                print(mesh)
                 return bm.free()
             else:
                 layer = utils.add_face_layer(bm, mesh, "two_sided", True)
