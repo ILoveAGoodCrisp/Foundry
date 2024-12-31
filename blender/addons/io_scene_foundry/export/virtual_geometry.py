@@ -102,7 +102,6 @@ class VirtualShot:
         self.sounds = []
         self.effects = []
         self.scripts = []
-        print(index + 1, " ", camera.name)
     
     def perform(self, scene: 'VirtualScene'):
         for frame in range(self.frame_start, self.frame_end + 1):
@@ -114,11 +113,11 @@ class VirtualShot:
                 bone_inverse_matrices = {}
                 for bone in shot_actor.bones:
                     if bone.parent:
-                        matrix_world = scene.rotation_matrix @ (bone.parent_matrix_rest_inverted @ bone.ob.matrix_world) @ bone.pbone.matrix
+                        matrix_world = scene.rotation_matrix @ bone.ob.matrix_world @ bone.pbone.matrix
                         bone_inverse_matrices[bone.pbone] = matrix_world.inverted()
                         matrix = bone_inverse_matrices[bone.parent] @ matrix_world
                     else:
-                        matrix = scene.rotation_matrix @ (bone.parent_matrix_rest_inverted @ bone.ob.matrix_world) @ bone.pbone.matrix
+                        matrix = scene.rotation_matrix @ bone.ob.matrix_world @ bone.pbone.matrix
                         bone_inverse_matrices[bone.pbone] = matrix.inverted()
 
                     loc, rot, sca = matrix.decompose()
