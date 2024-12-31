@@ -4,6 +4,8 @@ from ..managed_blam import Tag
 import os
 from .. import utils
 
+# TODO Handle resources
+
 class ScenarioTag(Tag):
     tag_ext = 'scenario'
         

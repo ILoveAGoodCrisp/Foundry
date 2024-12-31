@@ -99,7 +99,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 if not utils.poll_ui(('model', 'animation', 'camera_track_set')):
                     continue
             elif p in ("object_properties", "material_properties", 'sets_manager'):
-                if nwo.asset_type in ('camera_track_set',) or (p == "material_properties" and nwo.asset_type == "animation"):
+                if nwo.asset_type in ('camera_track_set', 'animation') or (p == "material_properties" and nwo.asset_type == "animation"):
                     continue
             
             row_icon = box.row(align=True)
@@ -242,6 +242,25 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 
             elif nwo.asset_type == 'particle_model':
                 col.prop(nwo, 'particle_uses_custom_points')
+                
+            elif nwo.asset_type == 'cinematic':
+                box = self.box.box()
+                row = box.row(align=True)
+                row.prop(nwo, 'cinematic_scenario', icon_value=get_icon_id("scenario"))
+                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "cinematic_scenario"
+                row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'cinematic_scenario'
+                scenario_path = Path(utils.get_tags_path(), utils.relative_path(nwo.cinematic_scenario))
+                scenario_exists = scenario_path.exists() and scenario_path.is_absolute() and scenario_path.is_file()
+                if scenario_exists:
+                    box.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text="Open Scenario Tag").tag_path = nwo.cinematic_scenario
+                col = box.column()
+                col.separator()
+                row = col.row(align=True)
+                row.enabled = scenario_exists
+                row.prop(nwo, 'cinematic_zone_set')
+                row.operator_menu_enum("nwo.get_zone_sets", "zone_set", icon="DOWNARROW_HLT", text="")
+                col.separator()
+                col.prop(nwo, 'cinematic_anchor')
             
         if nwo.asset_type in {'model', 'sky', 'scenario', 'animation'}:
             self.draw_expandable_box(self.box.box(), nwo, "child_assets")
@@ -1785,7 +1804,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                         "marker_game_instance_tag_variant_name",
                         text="Tag Variant",
                     )
-                    row.operator_menu_enum("nwo.get_model_variants", "variant", icon="DOWNARROW_HLT", text="")
+                    if bpy.ops.nwo.get_model_variants.poll():
+                        row.operator_menu_enum("nwo.get_model_variants", "variant", icon="DOWNARROW_HLT", text="")
                     if h4:
                         col.prop(nwo, "marker_always_run_scripts")
                         

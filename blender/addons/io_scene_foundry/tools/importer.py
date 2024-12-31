@@ -274,8 +274,11 @@ class NWO_Import(bpy.types.Operator):
         imported_objects = []
         imported_actions = []
         starting_materials = bpy.data.materials[:]
+        for_cinematic = context.scene.nwo.asset_type == 'cinematic'
+        self.anchor = None
         self.nothing_imported = False
         self.user_cancelled = False
+        utils.set_object_mode(context)
         with utils.ExportManager():
             os.system("cls")
             if context.scene.nwo_export.show_output:
@@ -387,6 +390,11 @@ class NWO_Import(bpy.types.Operator):
                         
                     imported_objects.extend(imported_scenario_objects)
                     
+                    if for_cinematic:
+                        if not context.scene.nwo.cinematic_scenario and scenario_files:
+                            context.scene.nwo.cinematic_scenario = scenario_files[0]
+                        self.link_anchor(context, imported_scenario_objects)
+                    
                 elif 'scenario_structure_bsp' in importer.extensions:
                     bsp_files = importer.sorted_filepaths["scenario_structure_bsp"]
                     imported_bsp_objects = []
@@ -397,6 +405,9 @@ class NWO_Import(bpy.types.Operator):
                         utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_bsp_objects, actions=[])
                         
                     imported_objects.extend(imported_bsp_objects)
+                    
+                    if for_cinematic:
+                        self.link_anchor(context, imported_bsp_objects)
                     
                 if 'particle_model' in importer.extensions:
                     particle_model_files = importer.sorted_filepaths["particle_model"]
@@ -478,6 +489,18 @@ class NWO_Import(bpy.types.Operator):
             )
             
         return {'FINISHED'}
+    
+    def link_anchor(self, context, objects):
+        if self.anchor is None:
+            if context.scene.nwo.cinematic_anchor is None:
+                self.anchor = bpy.data.objects.new(name="Anchor", object_data=None)
+                context.scene.collection.objects.link(self.anchor)
+                context.scene.nwo.cinematic_anchor = self.anchor
+            else:
+                self.anchor = context.scene.nwo.cinematic_anchor
+        for ob in objects:
+            if not ob.parent:
+                ob.parent = self.anchor
     
     def invoke(self, context, event):
         skip_fileselect = False

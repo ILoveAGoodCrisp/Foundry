@@ -8,9 +8,11 @@ import bmesh
 import bpy
 from mathutils import Matrix, Vector
 
+from ..managed_blam.object import ObjectTag
+
 from ..managed_blam.cinematic import CinematicTag
 
-from .cinematic import QUA, Actor
+from .cinematic import QUA, Actor, CinematicScene
 
 from ..props.scene import NWO_Animation_ListItems
 
@@ -27,7 +29,7 @@ from ..managed_blam.render_model import RenderModelTag
 from ..managed_blam.animation import AnimationTag
 from ..managed_blam.model import ModelTag
 from .import_sidecar import SidecarImport
-from .build_sidecar import Sidecar
+from .build_sidecar import Sidecar, get_cinematic_scenes
 from .export_info import BoundarySurfaceType, ExportInfo, FaceDrawDistance, FaceMode, FaceSides, FaceType, LightmapType, MeshObbVolumeType, PoopInstanceImposterPolicy, PoopLighting, PoopInstancePathfindingPolicy, MeshTessellationDensity, MeshType, ObjectType
 from ..props.mesh import NWO_MeshPropertiesGroup
 from ..props.object import NWO_ObjectPropertiesGroup
@@ -186,6 +188,9 @@ class ExportScene:
         self.data_remap = {}
         
         self.cinematic_actors = []
+        self.cinematic_scene: CinematicScene = None
+        
+        self.type_is_relevant = self.asset_type in {AssetType.MODEL, AssetType.SCENARIO, AssetType.SKY, AssetType.DECORATOR_SET, AssetType.PARTICLE_MODEL, AssetType.PREFAB}
         
     def _get_export_tag_types(self):
         tag_types = set()
@@ -544,6 +549,7 @@ class ExportScene:
         self.virtual_scene.selected_permutations = self.selected_permutations
         self.virtual_scene.limit_bsps = self.limit_bsps_to_selection
         self.virtual_scene.limit_permutations = self.limit_perms_to_selection
+        self.virtual_scene.actors = {actor.ob: actor for actor in self.cinematic_actors}
         self.context.view_layer.update()
         
     def _get_object_type(self, ob) -> ObjectType:
@@ -624,19 +630,23 @@ class ExportScene:
                 if mesh_result is None:
                     return
                 fp_defaults, copy = mesh_result
-                if ob.data.shape_keys and self.asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.ANIMATION}:
+                if ob.data.shape_keys and self.asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.ANIMATION, AssetType.CINEMATIC}:
                     is_pca = True
                 
-            else:
+            elif self.type_is_relevant:
                 return self.warnings.append(f"{ob.name} has invalid mesh type [{nwo.mesh_type}] for asset [{self.asset_type}]. Skipped")
+            else:
+                return
                 
         elif object_type == ObjectType.marker:
             if not nwo.marker_type:
                 nwo.marker_type = '_connected_geometry_marker_type_model'
             if utils.type_valid(nwo.marker_type, self.asset_type.name.lower(), self.game_version):
                 self._setup_marker_properties(ob, ob.nwo, props, region)
-            else:
+            elif self.type_is_relevant:
                 return self.warnings.append(f"{ob.name} has invalid marker type [{nwo.mesh_type}] for asset [{self.asset_type}]. Skipped")
+            else:
+                return
 
         return props, region, permutation, fp_defaults, mesh_props, copy, is_pca
     
@@ -725,6 +735,9 @@ class ExportScene:
             lod = decorator_int(ob)
             self.sidecar.lods.add(lod)
             props["bungie_mesh_decorator_lod"] = lod
+            
+        if mesh_type == '_connected_geometry_mesh_type_structure':
+            mesh_type = '_connected_geometry_mesh_type_default'
         
         props["bungie_mesh_type"] = MeshType[mesh_type[30:]].value
         
@@ -1250,7 +1263,7 @@ class ExportScene:
          
     def set_template_node_order(self):
         nodes = []
-        if self.asset_type not in {AssetType.MODEL, AssetType.ANIMATION}:
+        if self.asset_type not in {AssetType.MODEL, AssetType.ANIMATION, AssetType.CINEMATIC}:
             return
         if self.asset_type == AssetType.MODEL:
             if self.scene_settings.template_model_animation_graph and Path(self.tags_dir, utils.relative_path(self.scene_settings.template_model_animation_graph)).exists():
@@ -1259,6 +1272,34 @@ class ExportScene:
             elif self.scene_settings.template_render_model and Path(self.tags_dir, utils.relative_path(self.scene_settings.template_render_model)).exists():
                 with RenderModelTag(path=self.scene_settings.template_render_model) as render_model:
                     nodes = render_model.get_nodes()
+        elif self.asset_type == AssetType.CINEMATIC:
+            # every armature gets their own order
+            for actor in self.cinematic_actors:
+                if not actor.tag.strip():
+                    continue
+                path = Path(self.tags_dir, utils.relative_path(actor.tag))
+                if path.exists() and path.is_file() and path.is_absolute():
+                    with ObjectTag(path=path) as cinematic_object:
+                        model_path = cinematic_object.get_model_tag_path()
+                        if model_path is None:
+                            continue
+                        if not Path(self.tags_dir, model_path).exists():
+                            self.warnings.append(f"{model_path} does not exist in tag: {path}")
+                            continue
+                        with ModelTag(path=model_path) as model:
+                            render_path = model.reference_render_model.Path
+                            if render_path is None:
+                                self.warnings.append(f"{model_path} has no render model")
+                                continue
+                            if not Path(render_path.Filename).exists():
+                                self.warnings.append(f"{render_path.RelativePathWithExtension} does not exist")
+                                continue
+                            with RenderModelTag(path=render_path.RelativePathWithExtension) as render_model:
+                                cin_nodes = render_model.get_nodes()
+                                if cin_nodes:
+                                    actor.node_order = {v: i for i, v in enumerate(cin_nodes)}
+                else:
+                    self.warnings.append(f"Tag path for cinematic actor [{actor.name}] cannot be found: {path}")
         else:
             if self.scene_settings.asset_animation_type == 'first_person':
                 if self.scene_settings.fp_model_path and Path(self.tags_dir, utils.relative_path(self.scene_settings.fp_model_path)).exists():
@@ -1330,6 +1371,8 @@ class ExportScene:
                     else:
                         shot_frame_end = frame_end
                         
+                    scene.frame_set(shot_frame_end - 1)
+                        
                     shot_actors = [actor for actor in self.cinematic_actors if getattr(actor.ob.nwo, f"shot_{i + 1}", False)]
                     
                     camera = scene.camera
@@ -1350,6 +1393,8 @@ class ExportScene:
                     
                     utils.update_job_count(process, "", i, shot_count)
                 utils.update_job_count(process, "", shot_count, shot_count)
+                self.cinematic_scene = CinematicScene(self.asset_path_relative, self.asset_name, scene)
+                self.sidecar.cinematic_scene = self.cinematic_scene
         finally:
             utils.unmute_armature_mods(armature_mods)
             
@@ -1643,8 +1688,8 @@ class ExportScene:
                 
     def _write_qua(self):
         path = Path(self.asset_path, f"{self.asset_name}.qua")
-        writer = QUA(self.asset_name, self.virtual_scene.shots, self.cinematic_actors, self.corinth, False)
-        writer.write_to_file(path)
+        writer = QUA(self.cinematic_scene.name, self.virtual_scene.shots, self.cinematic_actors, self.corinth, False)
+        writer.write_to_file(Path(self.data_dir, self.cinematic_scene.path_qua))
                 
     def _export_animations(self):
         if self.virtual_scene.skeleton_node and self.virtual_scene.animations:
@@ -2005,19 +2050,20 @@ class ExportScene:
                     
         if self.asset_type == AssetType.CINEMATIC:
             scenario_path = Path(self.tags_dir, self.scene_settings.cinematic_scenario)
+            cinematic_scenes = get_cinematic_scenes(self.sidecar.sidecar_path_full)
             with CinematicTag() as cinematic:
                 term = "Created" if cinematic.tag_is_new else "Updated"
-                self.print_post(f"--- {term} create new cinematic tag: {cinematic.tag_path.RelativePathWithExtension}")
+                self.print_post(f"--- {term} cinematic tag: {cinematic.tag_path.RelativePathWithExtension}")
                 scenario_path = Path(self.tags_dir, self.scene_settings.cinematic_scenario)
                 if self.scene_settings.cinematic_scenario.strip() and scenario_path.exists() and scenario_path.is_file():
-                    cinematic.create(self.asset_name, self.cinematic_scenes, Path(self.scene_settings.cinematic_scenario), self.scene_settings.cinematic_zone_set, self.cinematic_anchors)
+                    cinematic.create(self.asset_name, self.cinematic_scene, cinematic_scenes, Path(self.scene_settings.cinematic_scenario), self.scene_settings.cinematic_zone_set if self.scene_settings.cinematic_zone_set.strip() else "cinematic")
                     
                     self.print_post(f"--- Linked cinematic to scenario: {self.scene_settings.cinematic_scenario}")
                     if self.scene_settings.cinematic_zone_set:
                         self.print_post(f"--- Linked to zone set: {self.scene_settings.cinematic_zone_set}")
-                    self.print_post(f"--- {term} cutscene flags for {len(self.cinematic_anchors)} cinematic anchors")
+                    self.print_post(f"--- {term} cutscene flags for cinematic anchor")
                 else:
-                    cinematic.create(self.asset_name, self.cinematic_scenes)
+                    cinematic.create(self.asset_name, self.cinematic_scene, cinematic_scenes)
                     self.print_post(f"--- {term} cinematic tag")
                     if self.scene_settings.cinematic_scenario.strip():
                         utils.print_warning(f"Cinematic Scenario does not exist: {self.scene_settings.cinematic_scenario}")

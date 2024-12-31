@@ -82,6 +82,8 @@ class Sidecar:
         self.child_collision_elements = []
         self.child_render_elements = []
         self.child_bsp_elements = []
+        self.child_scene_elements = []
+        self.cinematic_scene = None
         
     def create_actor_sidecar(self, actor: Actor, blend_path: Path):
         # This is awful but ultimately the best solution given the modder workflow
@@ -689,10 +691,10 @@ class Sidecar:
     def _write_actor_contents(self, metadata):
         contents = ET.SubElement(metadata, "Contents")
         content = ET.SubElement(contents, "Content", Name=self.asset_name, Type="model")
-        content_object = ET.SubElement(content, "ContentObject", Name="", Type="render_model")
-        self._write_network_files(content_object, SidecarFileData(str(Path(Path(self.relative_asset_path).parent, f"{self.asset_name}_render.gr2")), utils.relative_path(bpy.data.filepath)))
-        output = ET.SubElement(content_object, "OutputTagCollection")
-        ET.SubElement(output, "OutputTag", Type="render_model").text = self.tag_path
+        # content_object = ET.SubElement(content, "ContentObject", Name="", Type="render_model")
+        # self._write_network_files(content_object, SidecarFileData(str(Path(Path(self.relative_asset_path).parent, f"{self.asset_name}_render.gr2")), utils.relative_path(bpy.data.filepath)))
+        # output = ET.SubElement(content_object, "OutputTagCollection")
+        # ET.SubElement(output, "OutputTag", Type="render_model").text = self.tag_path
         content_object = ET.SubElement(content, "ContentObject", Name="", Type="skeleton")
         self._write_network_files(content_object, SidecarFileData(str(Path(Path(self.relative_asset_path).parent, f"{self.asset_name}_skeleton.gr2")), utils.relative_path(bpy.data.filepath)))
         # ET.SubElement(content_object, "OutputTagCollection")
@@ -832,7 +834,7 @@ class Sidecar:
         scene_content_object = ET.SubElement(content, "ContentObject", Name="", Type="cinematic_scene")
         network = ET.SubElement(scene_content_object, "ContentNetwork", Name="", Type="")
         ET.SubElement(network, "InputFile").text = self.relative_blend
-        ET.SubElement(network, "IntermediateFile").text = str(Path(self.relative_asset_path, f"{self.asset_name}.qua"))
+        ET.SubElement(network, "IntermediateFile").text = str(self.cinematic_scene.path_qua)
         # collection = ET.SubElement(scene_content_object, "OutputTagCollection")
         # ET.SubElement(collection, "OutputTag", Type="cinematic_scene").text = str(Path(self.relative_asset_path, self.asset_name))
         # if self.corinth:
@@ -857,3 +859,19 @@ class Sidecar:
 def write_composite_xml(composite) -> str:
     composite_xml = CompositeXML(composite)
     return composite_xml.build_xml()
+
+def get_cinematic_scenes(filepath: Path | str) -> list[Path] | None:
+    """Opens the specified sidecar and gets a list of all cinematic scenes"""
+    scene_paths = []
+    try:
+        tree = ET.parse(filepath)
+        root = tree.getroot()
+        content_objects = [element for element in root.findall(".//ContentObject")]
+        for content_object in content_objects:
+            content_type = content_object.attrib.get("Type")
+            if content_type == "cinematic_scene":
+                qua_path = content_object.findtext(".//IntermediateFile")
+                if qua_path is not None:
+                    scene_paths.append(Path(qua_path).with_suffix(".cinematic_scene"))
+    finally:
+        return scene_paths

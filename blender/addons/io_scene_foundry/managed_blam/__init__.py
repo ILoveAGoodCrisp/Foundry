@@ -125,8 +125,10 @@ class Tag():
                 # Enforce extension if tag has one defined
                 if self.tag_ext:
                     self.path = dot_partition(self.path) + '.' + self.tag_ext
-            else:
+            elif self.tag_ext:
                 self.path = str(Path(self.asset_dir, self.asset_name).with_suffix("." + self.tag_ext))
+            else:
+                raise RuntimeError("Could not load tag")
 
             self.system_path = str(Path(self.tags_dir, self.path))
             

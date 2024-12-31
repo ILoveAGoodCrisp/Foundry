@@ -36,6 +36,7 @@ from .shader_farm import NWO_FarmShaders
 from .shader_finder import NWO_ShaderFinder_Find, NWO_ShaderFinder_FindSingle
 from .shader_reader import NWO_ShaderToNodes
 from .get_model_variants import NWO_GetModelVariants
+from .get_zone_sets import NWO_GetZoneSets
 from .get_tag_list import NWO_GetTagsList, NWO_TagExplore
 from .halo_launcher import NWO_HaloLauncher_Data, NWO_HaloLauncher_Foundation, NWO_HaloLauncher_Sapien, NWO_HaloLauncher_TagTest, NWO_HaloLauncher_Tags, NWO_OpenFoundationTag
 from .shader_builder import NWO_ListMaterialShaders, NWO_Shader_BuildSingle, NWO_ShaderPropertiesGroup
@@ -95,6 +96,7 @@ classeshalo = (
     NWO_HaloLauncher_TagTest,
     NWO_ExportBitmapsSingle,
     NWO_GetModelVariants,
+    NWO_GetZoneSets,
     NWO_GetTagsList,
     NWO_TagExplore,
     NWO_ProxyInstanceCancel,

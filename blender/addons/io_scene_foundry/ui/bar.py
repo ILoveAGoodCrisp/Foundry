@@ -634,8 +634,8 @@ class NWO_HaloExportSettingsFlags(bpy.types.Panel):
                     "import_decompose_instances",
                     text="Run convex physics decomposition",
                 )
-            else:
-                col.prop(scene_nwo_export, "import_draft", text="Skip PRT generation")
+            # else:
+            #     col.prop(scene_nwo_export, "import_draft", text="Skip PRT generation")
                 
 class NWO_HaloExportCoordinateSystem(bpy.types.Panel):
     bl_label = "Coordinate System"

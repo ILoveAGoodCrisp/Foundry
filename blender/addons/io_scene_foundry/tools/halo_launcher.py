@@ -216,18 +216,25 @@ def launch_foundation(settings, context):
 def launch_game(is_sapien, settings, filepath, scene_nwo, ignore_play=False):
     asset_path = scene_nwo.asset_directory
     asset_name = scene_nwo.asset_name
-    using_filepath = filepath.endswith(".scenario")
     if scene_nwo.asset_type == 'model' and get_prefs().debug_menu_on_launch:
         update_debug_menu(asset_path, asset_name)
     # get the program to launch
+    
+    asset_type = scene_nwo.asset_type
+    if asset_type in {"scenario", "cinematic"} and settings.game_default == "asset":
+        if asset_type == "scenario":
+            filepath = get_tag_if_exists(asset_path, asset_name, "scenario")
+        else:
+            cin_scen_path = Path(get_tags_path(), relative_path(scene_nwo.cinematic_scenario))
+            if cin_scen_path.exists() and cin_scen_path.is_file() and cin_scen_path.is_absolute():
+                filepath = str(cin_scen_path)
+    
     if is_sapien:
         if not ignore_play and settings.use_play:
             args = [get_exe("sapien_play")]
         else:
             args = [get_exe("sapien")]
         # Sapien needs the scenario in the launch args so adding this here
-        if nwo_asset_type() == "scenario" and settings.game_default == "asset":
-            filepath = get_tag_if_exists(asset_path, asset_name, "scenario")
         
         args.append(filepath)
         
@@ -429,14 +436,9 @@ def launch_game(is_sapien, settings, filepath, scene_nwo, ignore_play=False):
                         
                         
             if not is_sapien:
-                if using_filepath:
-                    file.write(
-                        f'game_start "{str(Path(relative_path(filepath)).with_suffix(""))}"\n'
-                    )
-                else:
-                    file.write(
-                        f'game_start "{str(Path(relative_path(get_tag_if_exists(asset_path, asset_name, "scenario"))).with_suffix(""))}"\n'
-                    )
+                file.write(
+                    f'game_start "{str(Path(relative_path(filepath)).with_suffix(""))}"\n'
+                )
 
     run_ek_cmd(args, True)
 
@@ -590,7 +592,7 @@ class NWO_HaloLauncher_Sapien(bpy.types.Operator):
         if (
             scene_nwo_halo_launcher.game_default == "default"
             or not scene.nwo.is_valid_asset
-            or scene.nwo.asset_type != "scenario"
+            or scene.nwo.asset_type not in {'cinematic', 'sceneario'}
         ):
             self.filepath = get_tags_path() + os.sep
             context.window_manager.fileselect_add(self)
@@ -638,7 +640,7 @@ class NWO_HaloLauncher_TagTest(bpy.types.Operator):
         if (
             scene_nwo_halo_launcher.game_default == "default"
             or not scene.nwo.is_valid_asset
-            or scene.nwo.asset_type != "scenario"
+            or scene.nwo.asset_type not in {'cinematic', 'sceneario'}
         ):
             self.filepath = get_tags_path() + os.sep
             context.window_manager.fileselect_add(self)

@@ -13,8 +13,11 @@ class NWO_GetModelVariants(bpy.types.Operator):
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
-    def poll(self, context):
-        return context.object.nwo.marker_game_instance_tag_name and Path(get_tags_path(), context.object.nwo.marker_game_instance_tag_name).exists()
+    def poll(cls, context):
+        if not context.object.nwo.marker_game_instance_tag_name:
+            return False
+        tag_path = Path(get_tags_path(), context.object.nwo.marker_game_instance_tag_name)
+        return tag_path.is_absolute() and tag_path.exists() and tag_path.is_file()
     
     def variant_items(self, context):
         with ObjectTag(path=context.object.nwo.marker_game_instance_tag_name) as object:

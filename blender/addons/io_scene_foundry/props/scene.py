@@ -1079,10 +1079,14 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     
     mod_name: bpy.props.StringProperty(options={'HIDDEN'}, default="")
     
+    def cinematic_scenario_clean_tag_path(self, context):
+        self["cinematic_scenario"] = utils.clean_tag_path(self["cinematic_scenario"], "scenario").strip('"')
+    
     cinematic_scenario: bpy.props.StringProperty(
         name="Scenario",
         description="The tag relative path to the scenario which this cinematic should be added to",
         options=set(),
+        update=cinematic_scenario_clean_tag_path,
     )
     
     cinematic_zone_set: bpy.props.StringProperty(
@@ -1093,7 +1097,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     
     cinematic_anchor: bpy.props.PointerProperty(
         name="Cinematic Anchor",
-        description="The object to use as the anchor point (or reference point) or the cinematic scene. On export this anchor point will be added to the specified scenario if you have set one",
+        description="The object to use as the anchor point (or reference point) of the cinematic scene. On export this anchor point will be added to the specified scenario if you have set one",
         type=bpy.types.Object,
         options=set(),
     )

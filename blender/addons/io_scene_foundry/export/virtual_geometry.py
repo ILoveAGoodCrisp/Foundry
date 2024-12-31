@@ -83,9 +83,10 @@ class VirtualShotActor:
             skeleton = model.skeleton
             if skeleton is not None:
                 self.bones = skeleton.animated_bones
-        self.positions = None
-        self.orientations = None
-        self.scales = None
+                
+        self.positions = defaultdict(list)
+        self.orientations = defaultdict(list)
+        self.scales = defaultdict(list)
 
 class VirtualShot:
     def __init__(self,  frame_start: int, frame_end: int, actors: list[Actor], camera: bpy.types.Object, index, scene: 'VirtualScene', shape_key_objects=[]):
@@ -101,6 +102,7 @@ class VirtualShot:
         self.sounds = []
         self.effects = []
         self.scripts = []
+        print(index + 1, " ", camera.name)
     
     def perform(self, scene: 'VirtualScene'):
         for frame in range(self.frame_start, self.frame_end + 1):
@@ -109,10 +111,6 @@ class VirtualShot:
             self.frames.append(Frame(self.camera, scene.corinth))
             # Bone Animation
             for shot_actor in self.shot_actors:
-                positions = defaultdict(list)
-                orientations = defaultdict(list)
-                scales = defaultdict(list)
-                tracks = []
                 bone_inverse_matrices = {}
                 for bone in shot_actor.bones:
                     if bone.parent:
@@ -128,17 +126,14 @@ class VirtualShot:
                     position = (c_float * 3)(loc.x, loc.y, loc.z)
                     orientation = (c_float * 4)(rot.x, rot.y, rot.z, rot.w)
                     scale_shear = (c_float * 9)(sca.x, 0.0, 0.0, 0.0, sca.y, 0.0, 0.0, 0.0, sca.z)
-                    positions[bone].extend(position)
-                    orientations[bone].extend(orientation)
-                    scales[bone].extend(scale_shear)
-                    
-                shot_actor.positions = positions
-                shot_actor.orientations = orientations
-                shot_actor.scales = scales
+                    shot_actor.positions[bone].extend(position)
+                    shot_actor.orientations[bone].extend(orientation)
+                    shot_actor.scales[bone].extend(scale_shear)
                 
         frame_total = self.frame_count - 1
                 
         for shot_actor in self.shot_actors:
+            tracks = []
             for bone in shot_actor.bones:
                 tracks.append((c_float * (self.frame_count * 3))(*shot_actor.positions[bone]))
                 tracks.append((c_float * (self.frame_count * 4))(*shot_actor.orientations[bone]))
@@ -1385,7 +1380,13 @@ class VirtualSkeleton:
             bone_inverse_matrices = {}
             for idx, fb in enumerate(valid_bones):
                 b = VirtualBone(fb.bone)
-                frame_ids_index = scene.template_node_order.get(b.name)
+                frame_ids_index = None
+                if scene.asset_type == AssetType.CINEMATIC:
+                    actor = scene.actors.get(ob)
+                    if actor is not None and actor.node_order is not None:
+                        frame_ids_index = actor.node_order.get(b.name)
+                else:
+                    frame_ids_index = scene.template_node_order.get(b.name)
                 if frame_ids_index is None:
                     frame_ids_index = idx
                 b.create_bone_props(scene.frame_ids[frame_ids_index])
@@ -1581,6 +1582,7 @@ class VirtualScene:
         self.limit_permutations = False
         
         self.context = context
+        self.actors = []
         
         spath = "shaders\invalid"
         stype = "material" if corinth else "shader"

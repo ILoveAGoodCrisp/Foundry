@@ -1,8 +1,12 @@
 from enum import Enum
 from pathlib import Path
 
+from ..export.cinematic import CinematicScene
+
 from .scenario import ScenarioTag
 from . import Tag
+
+# TODO Handle resources
 
 class ShotType(Enum):
     ALL = 0
@@ -15,7 +19,7 @@ class CinematicTag(Tag):
     def _read_fields(self):
         self.cinematic_playback = self.tag.SelectField('Custom:custom playback')
         self.scenario = self.tag.SelectField("Struct:scenario and zone set[0]/Reference:scenario")
-        self.zone_set = self.tag.SelectField("Struct:scenario and zone set[0]/Reference:zone set")
+        self.zone_set = self.tag.SelectField("Struct:scenario and zone set[0]/LongInteger:zone set")
         self.name = self.tag.SelectField("StringId:name")
         self.channel_type = self.tag.SelectField("ShortEnum:channel type")
         self.flags = self.tag.SelectField("Flags:flags")
@@ -34,21 +38,20 @@ class CinematicTag(Tag):
     def get_stop_text(self, loop) -> str:
         return self.cinematic_playback.GetStopCinematicText(loop)
     
-    def create(self, name: str, scenes: list[Path], scenario_path: Path | None = None, zone_set: str = "cinematic", anchors: dict = {}):
+    def create(self, name: str, cinematic_scene: CinematicScene, all_scene_paths: list[Path], scenario_path: Path | None = None, zone_set: str = "cinematic"):
         self.tag_has_changes = True
         
         # Add scenes to cinematic
-        if self.scenes.Elements.Count > 0:
-            self.scenes.RemoveAllElements()
-        
-        for scene in scenes:
-            element = self.scenes.AddElement()
-            element.Fields[0].Path = self._TagPath_from_string(scene)
+        if all_scene_paths:
+            if self.scenes.Elements.Count > 0:
+                self.scenes.RemoveAllElements()
             
-        zone_set_set = self.zone_set.Value > -1
+            for scene_path in all_scene_paths:
+                element = self.scenes.AddElement()
+                element.Fields[0].Path = self._TagPath_from_string(scene_path)
         
         if scenario_path is not None:
-            with ScenarioTag(path=scenario) as scenario:
+            with ScenarioTag(path=scenario_path) as scenario:
                 scenario.tag_has_changes = True
                 # Set link to scenario in cinematic tag
                 self.name = name
@@ -67,10 +70,10 @@ class CinematicTag(Tag):
                 zone_set_index = -1
                 # Add to given zone set name if this exists
                 for element in scenario.block_zone_sets.Elements:
-                    if element.Fields[0] == zone_set:
+                    if element.Fields[0].GetStringData() == zone_set:
                         zone_set_index = element.ElementIndex
                         for item in element.SelectField("BlockFlags:cinematic zones").Items:
-                            if item.FlagIndex == scenario_cinematic_index:
+                            if item.FlagBit == scenario_cinematic_index:
                                 item.IsSet = True
                                 break
                         break
@@ -81,7 +84,7 @@ class CinematicTag(Tag):
                     zone_set_index = element.ElementIndex
                         
                     for item in element.SelectField("BlockFlags:cinematic zones").Items:
-                        if item.FlagIndex == scenario_cinematic_index:
+                        if item.FlagBit == scenario_cinematic_index:
                             item.IsSet = True
                         break
                     
@@ -93,23 +96,20 @@ class CinematicTag(Tag):
                         item.IsSet = True
                 
                 
-                self.zone_set.Value = zone_set_index
+                self.zone_set.Data = zone_set_index
                         
                 # Add cinematic anchor object to scenario
-                cutscene_flags = scenario.tag.SelectField("Block:cutscene flags")
-                for element in cutscene_flags.Elements:
-                    for key, value in anchors.items():
-                        if key == element.Fields[0].GetStringData():
-                            anchors.pop(key)
-                            if value is not None:
-                                element.Fields[1].Data = value
+                if cinematic_scene.anchor is not None:
+                    cutscene_flags = scenario.tag.SelectField("Block:cutscene flags")
+                    for element in cutscene_flags.Elements:
+                        if cinematic_scene.anchor_name == element.Fields[0].GetStringData():
+                            element.Fields[1].Data = cinematic_scene.anchor_location
+                            element.Fields[2].Data = cinematic_scene.anchor_yaw_pitch
                             break
-                            
-                    if not anchors:
-                        break
-                else:
-                    for key, value in anchors.items():
+                                
+                    else:
                         element = cutscene_flags.AddElement()
-                        element.Fields[0].SetStringData(key)
-                        if value is not None:
-                            element.Fields[1].Data = value
+                        element.Fields[0].SetStringData(cinematic_scene.anchor_name)
+                        element.Fields[1].Data = cinematic_scene.anchor_location
+                        element.Fields[2].Data = cinematic_scene.anchor_yaw_pitch
+                        

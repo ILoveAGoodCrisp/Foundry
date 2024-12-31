@@ -8,7 +8,7 @@ from ..utils import get_project_path, get_tags_path, is_corinth, os_sep_partitio
 global_items = {}
 scene_props = ('template_render_model', 'template_collision_model', 'template_physics_model', 'template_model_animation_graph', 'parent_animation_graph', 'fp_model_path', 'gun_model_path', 'render_model_path', 
                'template_model', 'template_biped', 'template_crate', 'template_creature', 'template_device_control', 'template_device_dispenser', 'template_device_machine',
-               'template_device_terminal', 'template_effect_scenery', 'template_equipment', 'template_giant', 'template_scenery', 'template_vehicle', 'template_weapon')
+               'template_device_terminal', 'template_effect_scenery', 'template_equipment', 'template_giant', 'template_scenery', 'template_vehicle', 'template_weapon', 'cinematic_scenario')
 
 class NWO_GetTagsList(bpy.types.Operator):
     bl_label = ""
@@ -130,6 +130,8 @@ def extensions_from_type(list_type):
         case 'cinematic_object':
             return (".crate", ".scenery", ".effect_scenery", ".device_control", ".device_machine", ".device_terminal",
                         ".device_dispenser", ".biped", ".creature", ".giant", ".vehicle", ".weapon", ".equipment")
+        case 'cinematic_scenario':
+            return (".scenario")
         
 def walk_tags_dir(tags_dir, ext_list):
     tags_set = set()
@@ -264,5 +266,7 @@ def get_glob_from_prop(prop):
             return ('*.weapon')
         case 'cinematic_object':
             return "*.biped;*.crate;*.creature;*.device_*;*.effect_sc*;*.equipment;*.giant;*.scenery;*.vehicle;*.weapon"
+        case 'cinematic_scenario':
+            return ('*.scenario')
         case _:
             return "*"

@@ -1,8 +1,30 @@
 from io import TextIOWrapper
 from pathlib import Path
 import bpy
-from .. import utils
 
+from .. import utils
+from ..managed_blam.camera_track import camera_correction_matrix
+
+class CinematicScene:
+    def __init__(self, asset_path, asset_name, scene: bpy.types.Scene):
+        self.name = f"{asset_name}_000"
+        self.path_no_ext = Path(asset_path, self.name)
+        self.path = self.path_no_ext.with_suffix(".cinematic_scene")
+        self.path_qua = Path(self.path_no_ext).with_suffix(".qua")
+        self.anchor = scene.nwo.cinematic_anchor
+        self.anchor_name = f"{self.name}_anchor"
+        self.anchor_location = 0.0, 0.0, 0.0
+        self.anchor_yaw_pitch = 0.0, 0.0
+        if self.anchor is not None:
+            anchor_matrix = utils.halo_transforms_matrix(self.anchor.matrix_world.inverted())
+            self.anchor_location = anchor_matrix.translation.to_tuple()
+            matrix_3x3 = anchor_matrix.normalized().to_3x3()
+            forward = matrix_3x3.col[0]
+            left = matrix_3x3.col[1]
+            up = matrix_3x3.col[2]
+            yaw, pitch, roll = utils.ypr_from_flu(forward, left, up)
+            self.anchor_yaw_pitch = yaw - 180, pitch
+        
 def calculate_focal_depths(focus_distance, aperture, coc=0.03, focal_length=50):
     """
     Calculate near and far focal depths based on depth of field parameters.
@@ -51,12 +73,15 @@ def calculate_blur_amount(focal_length, focus_distance, aperture, object_distanc
 class Actor:
     def __init__(self, ob: bpy.types.Object, scene_name: str, asset_path: str):
         self.ob = ob
+        if "." in ob.name:
+            ob.name = ob.name.replace(".", "_")
         self.name = ob.name
         self.tag = ob.nwo.cinematic_object
         self.graph = str(Path(asset_path, "objects", scene_name, f"{ob.name}.model_animation_graph"))
         self.sidecar = str(Path(asset_path, "export", "models", self.name))
         self.bones: list = []
         self.shot_bit_mask = None
+        self.node_order = None
         
     def set_shot_bit_mask(self, shot_count: int):
         self.shot_bit_mask = " ".join(str(int(getattr(self.ob.nwo, f"shot_{i + 1}"))) for i in range(shot_count))
@@ -84,8 +109,8 @@ class Frame:
         aperture = data.dof.aperture_fstop
         focal_length = data.lens  # Focal length in mm
             
-        self.position = utils.vector_str(matrix.translation)
-        matrix_3x3 = matrix.to_3x3()
+        self.position = utils.vector_str(matrix.translation * 100)
+        matrix_3x3 = matrix.to_3x3() @ camera_correction_matrix.inverted()
         self.up = utils.vector_str(matrix_3x3.col[2])
         self.forward = utils.vector_str(matrix_3x3.col[0])
         self.horizontal_fov = 0.6911112070083618
