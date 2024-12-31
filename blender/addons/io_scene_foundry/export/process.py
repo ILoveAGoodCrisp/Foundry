@@ -530,7 +530,7 @@ class ExportScene:
                     
                 utils.update_job_count(process, "", idx, num_export_objects)
             utils.update_job_count(process, "", num_export_objects, num_export_objects)
-            
+
         if self.current_animation:
             utils.clear_animation(self.current_animation)
             
@@ -551,7 +551,7 @@ class ExportScene:
         self.virtual_scene.limit_permutations = self.limit_perms_to_selection
         self.virtual_scene.actors = {actor.ob: actor for actor in self.cinematic_actors}
         self.context.view_layer.update()
-        
+
     def _get_object_type(self, ob) -> ObjectType:
         if ob.type in VALID_MESHES:
             return ObjectType.mesh
@@ -1376,7 +1376,8 @@ class ExportScene:
                     shot_actors = [actor for actor in self.cinematic_actors if getattr(actor.ob.nwo, f"shot_{i + 1}", False)]
                     
                     camera = scene.camera
-                    if camera is None:
+                    
+                    if camera is None or camera.type != 'CAMERA':
                         if fallback_camera is None:
                             for ob in self.context.view_layer.objects:
                                 if ob.type == 'CAMERA':
@@ -1386,6 +1387,7 @@ class ExportScene:
                                 raise RuntimeError("Scene has no cameras. Cannot export cinematic")
                             
                         camera = fallback_camera
+                    fallback_camera = camera
                         
                     self.virtual_scene.add_shot(shot_frame_start, shot_frame_end, shot_actors, camera, i)
                     
@@ -1859,6 +1861,9 @@ class ExportScene:
         # for collection in self.disabled_collections:
         #     collection.exclude = False
         
+
+        self.context.scene.frame_set(self.current_frame)
+        
         if self.action_map:
             for id, (matrix, action) in self.action_map.items():
                 if isinstance(id, bpy.types.Object):
@@ -1867,9 +1872,7 @@ class ExportScene:
                             bone.matrix_basis = Matrix.Identity(4)
                     id.matrix_world = matrix
                 id.animation_data.action = action
-
-        self.context.scene.frame_set(self.current_frame)
-        
+                
         utils.restore_mode(self.current_mode)
             
         self.context.view_layer.update()

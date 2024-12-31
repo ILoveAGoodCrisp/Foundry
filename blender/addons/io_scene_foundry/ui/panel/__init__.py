@@ -1236,7 +1236,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 row.operator("nwo.tag_explore", text="", icon='FILE_FOLDER').prop = 'cinematic_object'
                 if nwo.cinematic_object:
                     row = col.grid_flow()
-                    timeline_markers = [m for m in self.scene.timeline_markers if m.camera is not None and m.frame > self.scene.frame_start and m.frame <= self.scene.frame_end]
+                    timeline_markers = [m for m in self.scene.timeline_markers if m.camera is not None and m.frame >= self.scene.frame_start and m.frame <= self.scene.frame_end]
                     if timeline_markers:
                         for i in range(1, min(len(timeline_markers) + 1, 65)):
                             row.prop(nwo, f"shot_{i}")

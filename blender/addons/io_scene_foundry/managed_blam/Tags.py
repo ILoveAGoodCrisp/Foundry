@@ -750,7 +750,7 @@ class TagFieldBlock(TagField, ITagElementContainer, ITagFieldSerializable, _IEnu
         """"""
     def PasteReplaceElement(self, elementIndex: int):
         """"""
-    def PasteEntireBlock(self):
+    def PasteReplaceEntireBlock(self):
         """"""
     def RemoveAllElements(self):
         """"""

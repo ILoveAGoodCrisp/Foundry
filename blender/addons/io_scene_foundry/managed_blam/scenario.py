@@ -178,6 +178,24 @@ class ScenarioTag(Tag):
         if not self.corinth and equipment is not None:
             element.SelectField("Reference:starting equipment").Path = self._TagPath_from_string(equipment)
 
-        
-
         self.tag_has_changes = True
+        
+    def update_cinematic_resource(self):
+        resources = self.tag.SelectField("Block:scenario resources[0]/Block:new split resources")
+        if not resources:
+            return
+        if not resources.Elements.Count:
+            return
+        element = resources.Elements[0]
+        cinematic_resource = element.SelectField("Reference:cutscene data resource")
+        if cinematic_resource.Path is None:
+            return
+        if not Path(self.tags_dir, cinematic_resource.Path.RelativePathWithExtension).exists():
+            return
+
+        with Tag(path=cinematic_resource.Path.RelativePathWithExtension) as resource:
+            self.tag.SelectField("Block:cinematics").CopyEntireTagBlock()
+            resource.tag.SelectField("Block:cinematics").PasteReplaceEntireBlock()
+            self.tag.SelectField("Block:cutscene flags").CopyEntireTagBlock()
+            resource.tag.SelectField("Block:flags").PasteReplaceEntireBlock()
+            resource.tag_has_changes = True
