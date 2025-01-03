@@ -132,7 +132,7 @@ class CacheBuilder:
             initial_spawn_point = r"objects\multi\spawning\initial_spawn_point.scenery"
                 
             # Abort if child scenarios
-            if tag.tag.SelectField("Block:child scenarios").Elements.Count > 0:
+            if self.corinth and tag.tag.SelectField("Block:child scenarios").Elements.Count > 0:
                 return print(f"Scenario has child scenarios, skipping spawn point check. If you do not spawn in MCC, then you will need to set up initial spawn points with the following tag: {initial_spawn_point}")
             
             # Check for initial spawn points tags
