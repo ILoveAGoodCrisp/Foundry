@@ -671,17 +671,20 @@ class BSDFParameter():
             mapping_node.node_tree = utils.add_node_from_resources('Texture Tiling')
             mapping_node.location.x = data_node.location.x - 300
             mapping_node.location.y = data_node.location.y
-            scale_uni = self.mapping.get('scale_uni', 0)
-            if scale_uni:
-                mapping_node.inputs[0].default_value = scale_uni
-            scale_x = self.mapping.get('scale_x', 0)
-            if scale_x:
-                mapping_node.inputs[1].default_value = scale_x
-            scale_y = self.mapping.get('scale_y', 0)
-            if scale_y:
-                mapping_node.inputs[2].default_value = scale_y
-                
-            self.tree.links.new(input=data_node.inputs[0], output=mapping_node.outputs[0])
+            try:
+                scale_uni = self.mapping.get('scale_uni', 0)
+                if scale_uni:
+                    mapping_node.inputs[0].default_value = scale_uni
+                scale_x = self.mapping.get('scale_x', 0)
+                if scale_x:
+                    mapping_node.inputs[1].default_value = scale_x
+                scale_y = self.mapping.get('scale_y', 0)
+                if scale_y:
+                    mapping_node.inputs[2].default_value = scale_y
+                    
+                self.tree.links.new(input=data_node.inputs[0], output=mapping_node.outputs[0])
+            except:
+                pass
 
 class ShaderDecalTag(ShaderTag):
     tag_ext = 'shader_decal'

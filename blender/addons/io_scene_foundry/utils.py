@@ -267,9 +267,9 @@ def get_asset_name():
 
 
 def vector_str(velocity):
-    x = velocity.x
-    y = velocity.y
-    z = velocity.z
+    x = round(velocity.x, 11)
+    y = round(velocity.y, 11)
+    z = round(velocity.z, 11)
     return f"{str(x)} {str(y)} {str(z)}"
 
 def vector(velocity):

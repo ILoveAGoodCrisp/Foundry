@@ -79,6 +79,7 @@ class Actor:
         self.tag = ob.nwo.cinematic_object
         self.graph = str(Path(asset_path, "objects", scene_name, f"{ob.name}.model_animation_graph"))
         self.sidecar = str(Path(asset_path, "export", "models", self.name))
+        self.render_model = None
         self.bones: list = []
         self.shot_bit_mask = None
         self.node_order = None
@@ -310,7 +311,7 @@ class QUA:
             ";          <Female audio filename (string)>\n"
             ";          <Frame number (int)>\n"
             ";          <Character (string)>\n"
-            ";          <Dialog Color (string)>\n"
+            ";          <Dialog Color (string)>\n\n"
         )
         for sound in shot.sounds:
             file.write(

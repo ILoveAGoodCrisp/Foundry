@@ -91,7 +91,7 @@ class Sidecar:
         actor_sidecar_path_relative = Path(f"{actor.sidecar}.sidecar.xml")
         actor_sidecar_path_full = Path(self.data_dir, actor_sidecar_path_relative)
         actor_sidecar = Sidecar(actor_sidecar_path_full, actor_sidecar_path_relative, actor_asset_path, actor_asset_path.name, AssetType.MODEL, None, self.corinth, self.context, self.tags_dir)
-        actor_sidecar.build(for_actor=True)
+        actor_sidecar.build(actor_render_model_path=actor.render_model)
         
     def add_file_data(self, tag_type: str, permutation: str, region: str, gr2_path: Path, blend_path: Path):
         self.file_data[tag_type].append(SidecarFileData(utils.relative_path(gr2_path), utils.relative_path(blend_path), permutation, region))
@@ -249,12 +249,12 @@ class Sidecar:
         except:
             utils.print_warning("Failed to write clone xml")
         
-    def build(self, for_actor=False):
+    def build(self, actor_render_model_path=None):
         m_encoding = "utf-8"
         m_standalone = "yes"
         metadata = ET.Element("Metadata")
         self._write_header(metadata)
-        if for_actor:
+        if actor_render_model_path is not None:
             self._get_object_output_types(metadata, "model", for_actor=True)
         else:
             match self.asset_type:
@@ -278,8 +278,8 @@ class Sidecar:
         self._write_folders(metadata)
         self._write_face_collections(metadata)
         
-        if for_actor:
-            self._write_actor_contents(metadata)
+        if actor_render_model_path is not None:
+            self._write_actor_contents(metadata, actor_render_model_path)
         else:
             match self.asset_type:
                 case AssetType.MODEL:
@@ -398,7 +398,8 @@ class Sidecar:
                     ET.SubElement(tagcollection, "OutputTag", Type="scenery").text = self.tag_path
                     
                 case AssetType.CINEMATIC:
-                    ET.SubElement(tagcollection, "OutputTag", Type="model").text = self.tag_path
+                    # if not self.corinth:
+                    #     ET.SubElement(tagcollection, "OutputTag", Type="model").text = self.tag_path
                     ET.SubElement(tagcollection, "OutputTag", Type="cinematic").text = self.tag_path
 
     def _write_folders(self, metadata):
@@ -688,13 +689,13 @@ class Sidecar:
         ##### ANIMATIONS #####
         self._write_animation_content(content)
         
-    def _write_actor_contents(self, metadata):
+    def _write_actor_contents(self, metadata, actor_render_model_path):
         contents = ET.SubElement(metadata, "Contents")
         content = ET.SubElement(contents, "Content", Name=self.asset_name, Type="model")
-        # content_object = ET.SubElement(content, "ContentObject", Name="", Type="render_model")
-        # self._write_network_files(content_object, SidecarFileData(str(Path(Path(self.relative_asset_path).parent, f"{self.asset_name}_render.gr2")), utils.relative_path(bpy.data.filepath)))
-        # output = ET.SubElement(content_object, "OutputTagCollection")
-        # ET.SubElement(output, "OutputTag", Type="render_model").text = self.tag_path
+        content_object = ET.SubElement(content, "ContentObject", Name="", Type="render_model")
+        self._write_network_files(content_object, SidecarFileData(str(Path(Path(self.relative_asset_path).parent, f"{self.asset_name}_render.gr2")), utils.relative_path(bpy.data.filepath)))
+        output = ET.SubElement(content_object, "OutputTagCollection")
+        ET.SubElement(output, "OutputTag", Type="render_model").text = actor_render_model_path
         content_object = ET.SubElement(content, "ContentObject", Name="", Type="skeleton")
         self._write_network_files(content_object, SidecarFileData(str(Path(Path(self.relative_asset_path).parent, f"{self.asset_name}_skeleton.gr2")), utils.relative_path(bpy.data.filepath)))
         # ET.SubElement(content_object, "OutputTagCollection")
@@ -812,7 +813,7 @@ class Sidecar:
     
     def _write_cinematic_contents(self, metadata):
         contents = ET.SubElement(metadata, "Contents")
-        content = ET.SubElement(contents, "Content", Name=self.asset_name, Type="scene")
+        content = ET.SubElement(contents, "Content", Name=self.cinematic_scene.name, Type="scene")
         
         # AUDIO
         sound_sequences = [sequence for sequence in self.context.scene.sequence_editor.sequences if sequence.type == 'SOUND']
@@ -836,9 +837,9 @@ class Sidecar:
         ET.SubElement(network, "InputFile").text = self.relative_blend
         ET.SubElement(network, "IntermediateFile").text = str(self.cinematic_scene.path_qua)
         # collection = ET.SubElement(scene_content_object, "OutputTagCollection")
-        # ET.SubElement(collection, "OutputTag", Type="cinematic_scene").text = str(Path(self.relative_asset_path, self.asset_name))
+        # ET.SubElement(collection, "OutputTag", Type="cinematic_scene").text = str(self.cinematic_scene.path_no_ext)
         # if self.corinth:
-        #     ET.SubElement(collection, "OutputTag", Type="cinematic_scene_data").text = str(Path(self.relative_asset_path, self.asset_name))
+        #     ET.SubElement(collection, "OutputTag", Type="cinematic_scene_data").text = str(self.cinematic_scene.path_no_ext)
         
         # Shots
         shots_content_object = ET.SubElement(content, "ContentObject", Name="", Type="cinematic_shots") # Sequencer="True"
@@ -851,7 +852,7 @@ class Sidecar:
             for animation in animations:
                 network = ET.SubElement(actor_content_object, "ContentNetwork", Name=animation.name, Type="Base", ShotId=str(animation.shot_index + 1), ModelAnimationMovementData="None")
                 if self.corinth:
-                    network["PCA"] = animation.is_pca
+                    network.attrib["PCA"] = str(animation.is_pca).capitalize()
                 ET.SubElement(network, "IntermediateFile").text = animation.gr2_path
             collection = ET.SubElement(actor_content_object, "OutputTagCollection")
             ET.SubElement(collection, "OutputTag", Type="model_animation_graph").text = utils.dot_partition(actor.graph)

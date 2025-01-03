@@ -188,7 +188,9 @@ class ExportScene:
         self.data_remap = {}
         
         self.cinematic_actors = []
-        self.cinematic_scene: CinematicScene = None
+        self.cinematic_scene = None
+        if self.asset_type == AssetType.CINEMATIC:
+            self.cinematic_scene = CinematicScene(self.asset_path_relative, self.asset_name, context.scene)
         
         self.type_is_relevant = self.asset_type in {AssetType.MODEL, AssetType.SCENARIO, AssetType.SKY, AssetType.DECORATOR_SET, AssetType.PARTICLE_MODEL, AssetType.PREFAB}
         
@@ -406,7 +408,7 @@ class ExportScene:
                     self.armature_poses[ob.data] = ob.data.pose_position
                     ob.data.pose_position = 'REST'
                     if self.asset_type == AssetType.CINEMATIC and utils.actor_valid(ob):
-                        self.cinematic_actors.append(Actor(ob, self.asset_name, self.asset_path_relative))
+                        self.cinematic_actors.append(Actor(ob, self.cinematic_scene.name, self.asset_path_relative))
                 if ob.type == 'LIGHT':
                     if ob.data.type == 'AREA':
                         ob = utils.area_light_to_emissive(ob)
@@ -1298,6 +1300,7 @@ class ExportScene:
                                 self.warnings.append(f"{render_path.RelativePathWithExtension} does not exist")
                                 continue
                             with RenderModelTag(path=render_path.RelativePathWithExtension) as render_model:
+                                actor.render_model = render_model.tag_path.RelativePath
                                 cin_nodes = render_model.get_nodes()
                                 if cin_nodes:
                                     actor.node_order = {v: i for i, v in enumerate(cin_nodes)}
@@ -1398,7 +1401,6 @@ class ExportScene:
                     
                     utils.update_job_count(process, "", i, shot_count)
                 utils.update_job_count(process, "", shot_count, shot_count)
-                self.cinematic_scene = CinematicScene(self.asset_path_relative, self.asset_name, scene)
                 self.sidecar.cinematic_scene = self.cinematic_scene
         finally:
             utils.unmute_armature_mods(armature_mods)
@@ -2054,7 +2056,7 @@ class ExportScene:
                 else:
                     export_lights([], bsps) # this will clear the lighting info tag
                     
-        if self.asset_type == AssetType.CINEMATIC:
+        if self.asset_type == AssetType.CINEMATIC and False:
             scenario_path = Path(self.tags_dir, self.scene_settings.cinematic_scenario)
             cinematic_scenes = get_cinematic_scenes(self.sidecar.sidecar_path_full)
             with CinematicTag() as cinematic:
