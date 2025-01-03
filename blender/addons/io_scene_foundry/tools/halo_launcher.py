@@ -592,7 +592,7 @@ class NWO_HaloLauncher_Sapien(bpy.types.Operator):
         if (
             scene_nwo_halo_launcher.game_default == "default"
             or not scene.nwo.is_valid_asset
-            or scene.nwo.asset_type not in {'cinematic', 'sceneario'}
+            or scene.nwo.asset_type not in {'cinematic', 'scenario'}
         ):
             self.filepath = get_tags_path() + os.sep
             context.window_manager.fileselect_add(self)
@@ -640,7 +640,7 @@ class NWO_HaloLauncher_TagTest(bpy.types.Operator):
         if (
             scene_nwo_halo_launcher.game_default == "default"
             or not scene.nwo.is_valid_asset
-            or scene.nwo.asset_type not in {'cinematic', 'sceneario'}
+            or scene.nwo.asset_type not in {'cinematic', 'scenario'}
         ):
             self.filepath = get_tags_path() + os.sep
             context.window_manager.fileselect_add(self)
