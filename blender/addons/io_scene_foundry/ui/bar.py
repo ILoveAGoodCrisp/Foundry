@@ -567,8 +567,9 @@ class NWO_HaloExportSettingsFlags(bpy.types.Panel):
             align=False,
         )
         col = flow.column()
+        col.prop(scene_nwo_export, "force_imposter_policy_never")
+        col.prop(scene_nwo_export, "import_force", text="Force full export")
         if h4:
-            col.prop(scene_nwo_export, "import_force", text="Force full export")
             if scenario or prefab:
                 if scenario:
                     col.prop(
@@ -611,7 +612,6 @@ class NWO_HaloExportSettingsFlags(bpy.types.Panel):
                     text="Force import error animations",
                 )
         else:
-            col.prop(scene_nwo_export, "import_force", text="Force full export")
             # col.prop(scene_nwo_export, "import_verbose", text="Verbose Output")
             col.prop(
                 scene_nwo_export,
@@ -737,6 +737,12 @@ class NWO_HaloExport(bpy.types.Operator):
 
 
 class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
+    
+    force_imposter_policy_never: bpy.props.BoolProperty(
+        name="Disable Instance Imposters",
+        description="Exports all instanced geometry with their imposter policy set to 'Never'",
+        options=set(),
+    )
     
     event_level: bpy.props.EnumProperty(
         name="Event Level",

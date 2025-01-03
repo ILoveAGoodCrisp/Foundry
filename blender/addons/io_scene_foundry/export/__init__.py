@@ -424,8 +424,9 @@ class NWO_ExportScene(Operator, ExportHelper):
             align=False,
         )
         col = flow.column()
+        col.prop(scene_nwo_export, "force_imposter_policy_never")
+        col.prop(scene_nwo_export, "import_force", text="Force full export")
         if h4:
-            col.prop(scene_nwo_export, "import_force", text="Force full export")
             if scenario or prefab:
                 if scenario:
                     col.prop(
@@ -468,7 +469,6 @@ class NWO_ExportScene(Operator, ExportHelper):
                     text="Force import error animations",
                 )
         else:
-            col.prop(scene_nwo_export, "import_force", text="Force full export")
             # col.prop(scene_nwo_export, "import_verbose", text="Verbose Output")
             col.prop(
                 scene_nwo_export,

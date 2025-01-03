@@ -783,15 +783,18 @@ class ExportScene:
         
         props["bungie_mesh_poop_lighting"] = PoopLighting[nwo.poop_lighting].value
         props["bungie_mesh_poop_pathfinding"] = PoopInstancePathfindingPolicy[nwo.poop_pathfinding].value
-        props["bungie_mesh_poop_imposter_policy"] = PoopInstanceImposterPolicy[nwo.poop_imposter_policy].value
-        if (
-            nwo.poop_imposter_policy
-            != "never"
-        ):
-            if not nwo.poop_imposter_transition_distance_auto:
-                props["bungie_mesh_poop_imposter_transition_distance"] = nwo.poop_imposter_transition_distance
-            if self.corinth:
-                props["bungie_mesh_poop_imposter_brightness"] = nwo.poop_imposter_brightness
+        if self.export_settings.force_imposter_policy_never:
+            props["bungie_mesh_poop_imposter_policy"] = PoopInstanceImposterPolicy.never.value
+        else:
+            props["bungie_mesh_poop_imposter_policy"] = PoopInstanceImposterPolicy[nwo.poop_imposter_policy].value
+            if (
+                nwo.poop_imposter_policy
+                != "never"
+            ):
+                if not nwo.poop_imposter_transition_distance_auto:
+                    props["bungie_mesh_poop_imposter_transition_distance"] = nwo.poop_imposter_transition_distance
+                if self.corinth:
+                    props["bungie_mesh_poop_imposter_brightness"] = nwo.poop_imposter_brightness
 
         if nwo.poop_render_only:
             if self.corinth:
