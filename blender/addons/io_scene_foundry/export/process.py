@@ -1673,8 +1673,6 @@ class ExportScene:
             print("-----------------------------------------------------------------------\n")
             self.sidecar.shots = self.virtual_scene.shots
             export = True
-            print("--- Writing QUA File")
-            self._write_qua()
             for shot in self.virtual_scene.shots:
                 for actor, animation in shot.actor_animation.items():
                     self.sidecar.actor_animations[actor].append(animation)
@@ -1694,9 +1692,8 @@ class ExportScene:
                 print("--- No cinematic animations to export")
                 
     def _write_qua(self):
-        path = Path(self.asset_path, f"{self.asset_name}.qua")
-        writer = QUA(self.cinematic_scene.name, self.virtual_scene.shots, self.cinematic_actors, self.corinth, False)
-        writer.write_to_file(Path(self.data_dir, self.cinematic_scene.path_qua))
+        writer = QUA(self.asset_path_relative, self.cinematic_scene.name, self.virtual_scene.shots, self.cinematic_actors, self.corinth, False)
+        writer.write_to_tag()
                 
     def _export_animations(self):
         if self.virtual_scene.skeleton_node and self.virtual_scene.animations:
@@ -2056,7 +2053,9 @@ class ExportScene:
                 else:
                     export_lights([], bsps) # this will clear the lighting info tag
                     
-        if self.asset_type == AssetType.CINEMATIC and False:
+        if self.asset_type == AssetType.CINEMATIC:
+            self.print_post(f"--- Writing Cinematic Scene: {self.cinematic_scene.name}")
+            self._write_qua()
             scenario_path = Path(self.tags_dir, self.scene_settings.cinematic_scenario)
             cinematic_scenes = get_cinematic_scenes(self.sidecar.sidecar_path_full)
             with CinematicTag() as cinematic:

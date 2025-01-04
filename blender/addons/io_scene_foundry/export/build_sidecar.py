@@ -832,10 +832,10 @@ class Sidecar:
         ET.SubElement(audio_content_object, "OutputTagCollection")
         
         # QUA
-        scene_content_object = ET.SubElement(content, "ContentObject", Name="", Type="cinematic_scene")
-        network = ET.SubElement(scene_content_object, "ContentNetwork", Name="", Type="")
-        ET.SubElement(network, "InputFile").text = self.relative_blend
-        ET.SubElement(network, "IntermediateFile").text = str(self.cinematic_scene.path_qua)
+        # scene_content_object = ET.SubElement(content, "ContentObject", Name="", Type="cinematic_scene")
+        # network = ET.SubElement(scene_content_object, "ContentNetwork", Name="", Type="")
+        # ET.SubElement(network, "InputFile").text = self.relative_blend
+        # ET.SubElement(network, "IntermediateFile").text = str(self.cinematic_scene.path_qua)
         # collection = ET.SubElement(scene_content_object, "OutputTagCollection")
         # ET.SubElement(collection, "OutputTag", Type="cinematic_scene").text = str(self.cinematic_scene.path_no_ext)
         # if self.corinth:
@@ -861,18 +861,18 @@ def write_composite_xml(composite) -> str:
     composite_xml = CompositeXML(composite)
     return composite_xml.build_xml()
 
-def get_cinematic_scenes(filepath: Path | str) -> list[Path] | None:
+def get_cinematic_scenes(filepath: Path | str) -> list[str] | None:
     """Opens the specified sidecar and gets a list of all cinematic scenes"""
-    scene_paths = []
+    scene_names = []
     try:
         tree = ET.parse(filepath)
         root = tree.getroot()
-        content_objects = [element for element in root.findall(".//ContentObject")]
-        for content_object in content_objects:
-            content_type = content_object.attrib.get("Type")
-            if content_type == "cinematic_scene":
-                qua_path = content_object.findtext(".//IntermediateFile")
-                if qua_path is not None:
-                    scene_paths.append(Path(qua_path).with_suffix(".cinematic_scene"))
+        contents = [element for element in root.findall(".//Content")]
+        for content in contents:
+            content_type = content.attrib.get("Type")
+            if content_type == "scene":
+                name = content.attrib.get("Name")
+                if name is not None:
+                    scene_names.append(name)
     finally:
-        return scene_paths
+        return scene_names

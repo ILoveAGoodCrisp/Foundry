@@ -137,6 +137,9 @@ class SidecarImport:
         if self.selected_bsps:
             for bsp in self.selected_bsps:
                 flags.append(bsp)
+                
+        # if self.asset_type == AssetType.CINEMATIC:
+        #     flags.append("-no_qua")
 
         return flags
     
