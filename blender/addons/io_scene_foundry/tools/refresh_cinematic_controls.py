@@ -7,11 +7,13 @@ from .. import utils
 
 from ..managed_blam.cinematic import CinematicTag
 
+REACH_LOOP_IT_WORKS = True
+
 def new_command(command_name: str, command: str):
     return f'<item type = command name = "{command_name}" variable = "{command}">\n'
 
 def add_controls_to_debug_menu(context: bpy.types.Context, corinth: bool, cinematic_path: Path, scene_index, shot_index):
-    # using supply_depot_notification_enabled as a variable for looping. It is enabled by default in reach+
+    # using cache_file_builder_unshare_unique_map_locations as a variable for looping. It is enabled by default in reach+
     menu_commands = []
     cin_name = cinematic_path.with_suffix("").name
     scene_name = ""
@@ -23,42 +25,70 @@ def add_controls_to_debug_menu(context: bpy.types.Context, corinth: bool, cinema
             if path is not None:
                 scene_name = path.ShortName
                 scene_path = path.RelativePathWithExtension
-                
-        bsp_zone_flags = cinematic.tag.SelectField("Struct:cinematic playback[0]/LongInteger:bsp zone flags").Data
+        
+        if corinth:
+            bsp_zone_flags = cinematic.tag.SelectField("Struct:cinematic playback[0]/LongInteger:bsp zone flags").Data
         # LOOP
-        loop_command = '<item type = global name = "Cinematic: Loop" variable = "supply_depot_notification_enabled">\n'
-        menu_commands.append(loop_command)
+        if corinth or REACH_LOOP_IT_WORKS:
+            loop_command = '<item type = global name = "Cinematic: Loop" variable = "cache_file_builder_unshare_unique_map_locations">\n'
+            menu_commands.append(loop_command)
         
         # PLAY CINEMATIC
         command_name = f"Cinematic: Start {cin_name}"
-        command = f'cinematic_debug_play \\"{cin_name}\\" \\"\\" supply_depot_notification_enabled {bsp_zone_flags}'
+        if corinth:
+            command = f'cinematic_debug_play \\"{cin_name}\\" \\"\\" cache_file_builder_unshare_unique_map_locations {bsp_zone_flags}'
+        else:
+            body = f'{cin_name}_debug'
+            if REACH_LOOP_IT_WORKS:
+                command = f'(loop_clear) (if cache_file_builder_unshare_unique_map_locations (loop_it {{{body}}}) ({body}))'
+            else:
+                command = f'(loop_clear) ({body})'
         menu_commands.append(new_command(command_name, command))
         
         if scene_name:
             # PLAY SCENE
             command_name = f"Cinematic: Start Scene {scene_name}"
-            command = f'cinematic_debug_play \\"{cin_name}\\" \\"1 {scene_index} 0\\" supply_depot_notification_enabled {bsp_zone_flags}'
+            if corinth:
+                command = f'cinematic_debug_play \\"{cin_name}\\" \\"1 {scene_index} 0\\" cache_file_builder_unshare_unique_map_locations {bsp_zone_flags}'
+            else:
+                body = f'begin_{cin_name}_debug !{scene_name} end_{cin_name}_debug'
+                if REACH_LOOP_IT_WORKS:
+                    command = f"if cache_file_builder_unshare_unique_map_locations (loop it {{body}}) (begin {body})"
+                else:
+                    command = body
+            
             menu_commands.append(new_command(command_name, command))
             
             # PLAY SHOT
             command_name = f"Cinematic: Start Scene {scene_name} Shot {shot_index + 1}"
-            command = f'cinematic_debug_play \\"{cin_name}\\" \\"1 {scene_index} 1 {shot_index}\\" supply_depot_notification_enabled {bsp_zone_flags}'
+            if corinth:
+                command = f'cinematic_debug_play \\"{cin_name}\\" \\"1 {scene_index} 1 {shot_index}\\" cache_file_builder_unshare_unique_map_locations {bsp_zone_flags}'
+            else:
+                if REACH_LOOP_IT_WORKS:
+                    pass
+                else:
+                    command = f'begin_{cin_name}_debug (cinematic_print \\"beginning scene {scene_index + 1}\\") (cinematic_scripting_create_scene {scene_index}) {scene_name}_sh{shot_index + 1} (cinematic_scripting_destroy_scene {scene_index}) end_{cin_name}_debug'
             menu_commands.append(new_command(command_name, command))
             
         # PAUSE
-        command_name = "Cinematic: Play/Pause"
-        command = "cinematic_pause"
-        menu_commands.append(new_command(command_name, command))
+        if corinth:
+            command_name = "Cinematic: Play/Pause"
+            command = "cinematic_pause"
+            menu_commands.append(new_command(command_name, command))
         
         # STOP
         command_name = f"Cinematic: Stop"
-        command = "cinematic_debug_stop"
+        if corinth:
+            command = "cinematic_debug_stop"
+        else:
+            command = f"end_{cin_name}_debug"
         menu_commands.append(new_command(command_name, command))
         
         # STEP
-        command_name = "Cinematic: Step One Frame"
-        command = "cinematic_step_one_frame"
-        menu_commands.append(new_command(command_name, command))
+        if corinth:
+            command_name = "Cinematic: Step One Frame"
+            command = "cinematic_step_one_frame"
+            menu_commands.append(new_command(command_name, command))
             
             
     menu_path = Path(utils.get_project_path(), 'bin', 'debug_menu_user_init.txt')
@@ -93,7 +123,6 @@ class NWO_OT_RefreshCinematicControls(bpy.types.Operator):
         asset_name = Path(asset_path).name
         scene_index = 0
         shot_index = utils.current_shot_index(context)
-        print(shot_index)
         scene_name = add_controls_to_debug_menu(context, utils.is_corinth(context), Path(asset_path, asset_name).with_suffix(".cinematic"), scene_index, shot_index)
         self.report({'INFO'}, f"Updated debug menu with cinematic controls: [Cinematic: {asset_name}], [Scene: {scene_name}], [Shot: {shot_index + 1}]",)
         return {"FINISHED"}

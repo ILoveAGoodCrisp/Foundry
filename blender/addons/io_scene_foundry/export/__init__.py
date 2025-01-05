@@ -22,6 +22,8 @@ import logging
 
 from bpy_extras.io_utils import ExportHelper
 
+from ..tools.refresh_cinematic_controls import add_controls_to_debug_menu
+
 from ..tools.asset_types import AssetType
 
 from ..tools.camera_track_sync import export_current_action_as_camera_track
@@ -280,9 +282,15 @@ class NWO_ExportScene(Operator, ExportHelper):
                 print(
                     "-----------------------------------------------------------------------\n"
                 )
-                
-                if scene_nwo.asset_type == 'model' and get_prefs().debug_menu_on_export:
-                    update_debug_menu(self.asset_path, self.asset_name)
+                if get_prefs().debug_menu_on_export:
+                    if scene_nwo.asset_type == 'model':
+                        update_debug_menu(self.asset_path, self.asset_name)
+                    elif scene_nwo.asset_type == 'cinematic':
+                        asset_path = utils.get_asset_path()
+                        asset_name = Path(asset_path).name
+                        scene_index = 0
+                        shot_index = utils.current_shot_index(context)
+                        add_controls_to_debug_menu(context, utils.is_corinth(context), Path(asset_path, asset_name).with_suffix(".cinematic"), scene_index, shot_index)
 
         except KeyboardInterrupt:
             print_warning("\n\nEXPORT CANCELLED BY USER")
