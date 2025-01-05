@@ -117,11 +117,21 @@ class ScenarioTag(Tag):
     def survival_mode(self) -> bool:
         return self.read_scenario_type() == 0 and self.tag.SelectField('flags').TestBit('survival')
     
-    def get_bsp_paths(self):
+    def get_bsp_paths(self, zone_set=""):
         bsps = []
+        zone_set_bsp_names = set()
+        if zone_set:
+            for element in self.block_zone_sets.Elements:
+                if element.Fields[0].GetStringData() == zone_set:
+                    for flag in element.SelectField("bsp zone flags").Items:
+                        if flag.IsSet:
+                            zone_set_bsp_names.add(flag.FlagName)
+                            
         for element in self.block_bsps.Elements:
             bsp_reference = element.SelectField('structure bsp').Path
             if bsp_reference:
+                if zone_set_bsp_names and bsp_reference.ShortName not in zone_set_bsp_names:
+                    continue
                 full_path = bsp_reference.Filename
                 if Path(full_path).exists:
                     bsps.append(full_path)

@@ -45,6 +45,11 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         override={'LIBRARY_OVERRIDABLE'}
     )
     
+    cinematic_variant: bpy.props.StringProperty(
+        name="Cinematic Variant",
+        options={'HIDDEN'},
+    )
+    
     hide_when_inactive: bpy.props.BoolProperty(
         name="Hide When Not Active For Current Shot",
         description="Hides this actor and its children if it is not enabled for the current shot",

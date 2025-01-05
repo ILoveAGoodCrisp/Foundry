@@ -3115,20 +3115,23 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
     def draw_importer(self, box, nwo):
         row = box.row()
         col = row.column()
-        amf_installed = utils.amf_addon_installed()
-        toolset_installed = utils.blender_toolset_installed()
-        if amf_installed or toolset_installed:
+        if self.context.scene.nwo.asset_type == 'cinematic':
+            col.operator('nwo.import', text="Import Cinematic Objects", icon='IMPORT').scope = 'object'
+            col.operator('nwo.import', text="Import Cinematic Scenarios", icon='IMPORT').scope = 'scenario'
+        else:
+            amf_installed = utils.amf_addon_installed()
+            toolset_installed = utils.blender_toolset_installed()
             col.operator('nwo.import', text="Import Models & Animations", icon='IMPORT').scope = 'amf,jma,jms,model,render_model,scenario,scenario_structure_bsp,particle_model'
-        if not toolset_installed:
-            col.label(text="Halo Blender Toolset required for import of JMS/JMA/ASS files")
-            col.operator("nwo.open_url", text="Download", icon="BLENDER").url = BLENDER_TOOLSET
-        if not amf_installed:
-            col.label(text="AMF Importer required to import amf files")
-            col.operator("nwo.open_url", text="Download", icon_value=get_icon_id("amf")).url = AMF_ADDON
-            
-        col.operator('nwo.import', text="Import Bitmaps", icon='IMAGE_DATA').scope = 'bitmap'
-        col.operator('nwo.rename_import', text="Import Animation Renames & Copies", icon_value=get_icon_id("animation_rename"))
-        col.operator("nwo.convert_scene", text="Convert Scene", icon='RIGHTARROW')
+            if not toolset_installed:
+                col.label(text="Halo Blender Toolset required for import of JMS/JMA/ASS files")
+                col.operator("nwo.open_url", text="Download", icon="BLENDER").url = BLENDER_TOOLSET
+            if not amf_installed:
+                col.label(text="AMF Importer required to import amf files")
+                col.operator("nwo.open_url", text="Download", icon_value=get_icon_id("amf")).url = AMF_ADDON
+                
+            col.operator('nwo.import', text="Import Bitmaps", icon='IMAGE_DATA').scope = 'bitmap'
+            col.operator('nwo.rename_import', text="Import Animation Renames & Copies", icon_value=get_icon_id("animation_rename"))
+            col.operator("nwo.convert_scene", text="Convert Scene", icon='RIGHTARROW')
         
     def draw_rig_tools(self, box, nwo):
         row = box.row()

@@ -19,6 +19,13 @@ class ObjectTag(Tag):
         else:
             print(f"{self.path} has no model reference")
             
+    def get_model_tag_path_full(self):
+        model_path = self.reference_model.Path
+        if model_path:
+            return model_path.Filename
+        else:
+            print(f"{self.path} has no model reference")
+            
     def set_model_tag_path(self, new_path: str):
         self.reference_model.Path = self._TagPath_from_string(new_path)
         self.tag_has_changes = True

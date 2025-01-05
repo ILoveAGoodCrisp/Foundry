@@ -122,6 +122,7 @@ class Actor:
         self.shots_active = []
         self.shot_bit_mask = None
         self.node_order = None
+        self.variant = ob.nwo.cinematic_variant
         
     def set_shot_bit_mask(self, shot_count: int):
         self.shots_active = [getattr(self.ob.nwo, f"shot_{i + 1}") for i in range(shot_count)]
@@ -548,6 +549,7 @@ class QUA:
             if element is None:
                 element = block_objects.AddElement()
                 element.SelectField("name").SetStringData(actor.name)
+                element.SelectField("variant name").SetStringData(actor.variant)
                 actor_elements[actor] = element
 
             if not self.corinth:  

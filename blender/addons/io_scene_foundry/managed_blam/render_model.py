@@ -70,7 +70,7 @@ class RenderModelTag(Tag):
         print("#"*50 + '\n')
         print([i for i in tex_coords])
         
-    def to_blend_objects(self, collection, render: bool, markers: bool, model_collection: bpy.types.Collection, existing_armature=None):
+    def to_blend_objects(self, collection, render: bool, markers: bool, model_collection: bpy.types.Collection, existing_armature=None, allowed_region_permutations=set()):
         self.collection = collection
         self.model_collection = model_collection
         objects = []
@@ -80,7 +80,7 @@ class RenderModelTag(Tag):
         # Instances
         self.instances = []
         self.instance_mesh_index = self.tag.SelectField("LongBlockIndex:instance mesh index").Value
-        if self.instance_mesh_index > -1:
+        if self.instance_mesh_index > -1 and not allowed_region_permutations: # Skip instances if a variant has been specified
             for element in self.tag.SelectField("Block:instance placements").Elements:
                 self.instances.append(InstancePlacement(element, self.nodes))
         
@@ -90,7 +90,7 @@ class RenderModelTag(Tag):
         
         if render:
             print("Creating Render Geometry")
-            objects.extend(self._create_render_geometry())
+            objects.extend(self._create_render_geometry(allowed_region_permutations))
         if markers:
             print("Creating Markers")
             objects.extend(self._create_markers())
@@ -140,7 +140,7 @@ class RenderModelTag(Tag):
         return arm.ob
         
 
-    def _create_render_geometry(self):
+    def _create_render_geometry(self, allowed_region_permutations: set):
         objects = []
         if not self.block_compression_info.Elements.Count:
             raise RuntimeError("Render Model has no compression info. Cannot import render model mesh")
@@ -155,8 +155,12 @@ class RenderModelTag(Tag):
         mesh_node_map = self.tag.SelectField("Struct:render geometry[0]/Block:per mesh node map")
         for region in self.regions:
             for permutation in region.permutations:
+                if allowed_region_permutations:
+                    region_perm = tuple((region.name, permutation.name))
+                    if region_perm not in allowed_region_permutations:
+                        continue
+                    
                 if permutation.mesh_index < 0: continue
-                             
                 for i in range(permutation.mesh_count):
                     mesh = Mesh(self.block_meshes.Elements[permutation.mesh_index + i], self.bounds, permutation, materials, mesh_node_map)
                     for part in mesh.parts:
@@ -252,4 +256,3 @@ class RenderModelTag(Tag):
             objects.extend(marker_group.to_blender(self.armature, markers_collection, marker_size_factor))
             
         return objects
-            

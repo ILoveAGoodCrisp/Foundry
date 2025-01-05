@@ -803,6 +803,11 @@ class Sidecar:
             ET.SubElement(output, "OutputTag", Type="model_animation_graph").text = self.tag_path
         
         else:
+            if not self.scene_settings.template_model_animation_graph and (self.scene_settings.output_scenery or self.scene_settings.output_biped or self.scene_settings.output_vehicle or self.scene_settings.output_giant):
+                content_object = ET.SubElement(content, "ContentObject", Name="", Type="model_animation_graph")
+                output = ET.SubElement(content_object, "OutputTagCollection")
+                ET.SubElement(output, "OutputTag", Type="model_animation_graph").text = self.tag_path
+                
             for path in self.child_sidecar_paths:
                 self.append_animation_content_from_file(path, content)
 

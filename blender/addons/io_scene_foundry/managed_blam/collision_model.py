@@ -16,7 +16,7 @@ class CollisionTag(Tag):
         self.block_pathfinding_spheres = self.tag.SelectField("Block:pathfinding spheres")
         self.block_nodes = self.tag.SelectField("Block:nodes")
         
-    def to_blend_objects(self, collection: bpy.types.Collection, armature=None):
+    def to_blend_objects(self, collection: bpy.types.Collection, armature=None, variant=""):
         # Find Armature
         if armature is None:
             armature = utils.get_rig()

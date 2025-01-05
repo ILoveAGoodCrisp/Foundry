@@ -11,6 +11,8 @@ import bpy
 import addon_utils
 from mathutils import Color
 
+from ..managed_blam.object import ObjectTag
+
 from ..managed_blam.particle_model import ParticleModelTag
 
 from ..managed_blam.structure_seams import StructureSeamsTag
@@ -52,12 +54,17 @@ legacy_frame_prefixes = "frame_", "frame ", "bip_", "bip ", "b_", "b "
 # 6. Add an if with conditions for handling this import under NWO_Import.execute
 # 7. Update scope variable to importer calls in other python files where appropriate
 
-formats = "amf", "jms", "jma", "bitmap", "camera_track", "model", "render_model", "scenario", "scenario_structure_bsp", "particle_model"
+formats = "amf", "jms", "jma", "bitmap", "camera_track", "model", "render_model", "scenario", "scenario_structure_bsp", "particle_model", "scenery", "biped"
 
 xref_tag_types = (
     ".crate",
     ".scenery",
     ".device_machine"
+)
+
+cinematic_tag_types = (
+    ".scenery",
+    ".biped"
 )
 
 tag_files_cache = set()
@@ -263,6 +270,16 @@ class NWO_Import(bpy.types.Operator):
         default=True,
     )
     
+    tag_variant: bpy.props.StringProperty(
+        name="Variant",
+        description="Optional field to declare a variant to import. If this field is left blank, all variants will be imported (except if this is for a cinematic, in which case the first variant will be used)"
+    )
+    
+    tag_zone_set: bpy.props.StringProperty(
+        name="Zone Set",
+        description="Optional field to declare a zone set to import. This will limit the scope of imported BSPs to those within the zone set. If this field is left blank, all BSPs will be imported"
+    )
+    
     def execute(self, context):
         filepaths = [self.directory + f.name for f in self.files]
         corinth = utils.is_corinth(context)
@@ -348,6 +365,7 @@ class NWO_Import(bpy.types.Operator):
                     importer.tag_markers = self.tag_markers
                     importer.tag_collision = self.tag_collision
                     importer.tag_physics = self.tag_physics
+                    importer.tag_variant = self.tag_variant
                     model_files = importer.sorted_filepaths["model"]
                     existing_armature = None
                     if self.reuse_armature:
@@ -360,6 +378,19 @@ class NWO_Import(bpy.types.Operator):
                         utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_model_objects, actions=[])
                         
                     imported_objects.extend(imported_model_objects)
+                    
+                elif 'object' in importer.extensions:
+                    importer.tag_render = self.tag_render
+                    importer.tag_markers = self.tag_markers
+                    importer.tag_collision = self.tag_collision
+                    importer.tag_physics = self.tag_physics
+                    importer.tag_variant = self.tag_variant.lower()
+                    object_files = importer.sorted_filepaths["object"]
+                    imported_object_objects = importer.import_object(object_files)
+                    if needs_scaling:
+                        utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_object_objects, actions=[])
+                        
+                    imported_objects.extend(imported_object_objects)
                     
                 elif 'render_model' in importer.extensions:
                     importer.tag_render = self.tag_render
@@ -383,6 +414,7 @@ class NWO_Import(bpy.types.Operator):
                     imported_objects.extend(imported_render_objects)
                     
                 if 'scenario' in importer.extensions:
+                    importer.tag_zone_set = self.tag_zone_set
                     scenario_files = importer.sorted_filepaths["scenario"]
                     imported_scenario_objects = importer.import_scenarios(scenario_files)
                     if needs_scaling:
@@ -393,6 +425,8 @@ class NWO_Import(bpy.types.Operator):
                     if for_cinematic:
                         if not context.scene.nwo.cinematic_scenario and scenario_files:
                             context.scene.nwo.cinematic_scenario = scenario_files[0]
+                            if self.tag_zone_set:
+                                context.scene.nwo.cinematic_zone_set = self.tag_zone_set
                         self.link_anchor(context, imported_scenario_objects)
                     
                 elif 'scenario_structure_bsp' in importer.extensions:
@@ -419,6 +453,9 @@ class NWO_Import(bpy.types.Operator):
                         utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_particle_model_objects, actions=[])
                         
                     imported_objects.extend(imported_particle_model_objects)
+                    
+                for ob in importer.to_cursor_objects:
+                    ob.matrix_world = context.scene.cursor.matrix
 
                 new_materials = [mat for mat in bpy.data.materials if mat not in starting_materials]
                 # Clear duplicate materials
@@ -535,7 +572,9 @@ class NWO_Import(bpy.types.Operator):
             if (not self.scope or 'scenario_structure_bsp' in self.scope):
                 self.filter_glob += '*.scen*_bsp;'
             if (not self.scope or 'particle_model' in self.scope):
-                self.filter_glob += '*particle_model;'
+                self.filter_glob += '*.particle_model;'
+            if (not self.scope or 'object' in self.scope):
+                self.filter_glob += '*.scenery;*.biped;'
                 
         if utils.amf_addon_installed() and (not self.scope or 'amf' in self.scope):
             self.amf_okay = True
@@ -557,7 +596,7 @@ class NWO_Import(bpy.types.Operator):
         layout = self.layout
         layout.scale_y = 1.25
         
-        if not self.scope or ('amf' in self.scope or 'jms' in self.scope or 'model' in self.scope):
+        if not self.scope or ('amf' in self.scope or 'jms' in self.scope or 'model' in self.scope or 'object' in self.scope):
             box = layout.box()
             box.label(text="Model Settings")
             tag_type = 'material' if utils.is_corinth(context) else 'shader'
@@ -573,6 +612,17 @@ class NWO_Import(bpy.types.Operator):
             box.prop(self, 'tag_markers')
             box.prop(self, 'tag_collision')
             box.prop(self, 'tag_physics')
+            box.prop(self, 'tag_variant')
+            
+        if self.scope and 'object' in self.scope:
+            box = layout.box()
+            box.label(text='Object Tag Settings')
+            box.prop(self, 'tag_variant')
+            
+        if not self.scope or ('scenario' in self.scope):
+            box = layout.box()
+            box.label(text='Scenario Tag Settings')
+            box.prop(self, 'tag_zone_set')
         
         if not self.scope or ('jma' in self.scope or 'jms' in self.scope):
             box = layout.box()
@@ -813,6 +863,9 @@ class NWOImporter:
         self.tag_markers = False
         self.tag_collision = False
         self.tag_physics = False
+        self.to_cursor_objects = set()
+        self.tag_variant = ""
+        self.tag_zone_set = ""
         if filepaths:
             self.sorted_filepaths = self.group_filetypes(scope)
         else:
@@ -862,6 +915,9 @@ class NWOImporter:
             elif 'particle_model' in valid_exts and path.lower().endswith('.particle_model'):
                 self.extensions.add('particle_model')
                 filetype_dict["particle_model"].append(path)
+            elif 'object' in valid_exts and path.lower().endswith(cinematic_tag_types):
+                self.extensions.add('object')
+                filetype_dict["object"].append(path)
                 
         return filetype_dict
         
@@ -925,21 +981,64 @@ class NWOImporter:
                         source_tag_root = self.project.tags_directory
                         
                     render, collision, animation, physics = model.get_model_paths(optional_tag_root=source_tag_root)
+                    
+                    allowed_region_permutations = model.get_variant_regions_and_permutations(self.tag_variant, False)
                     model_collection = bpy.data.collections.new(model.tag_path.ShortName)
                     self.context.scene.collection.children.link(model_collection)
                     if render:
-                        render_objects, armature = self.import_render_model(render, model_collection, existing_armature)
+                        render_objects, armature = self.import_render_model(render, model_collection, existing_armature, allowed_region_permutations)
                         imported_objects.extend(render_objects)
                     if collision and self.tag_collision:
-                        imported_objects.extend(self.import_collision_model(collision, armature, model_collection))
+                        imported_objects.extend(self.import_collision_model(collision, armature, model_collection, allowed_region_permutations))
                     if physics and self.tag_physics:
-                        imported_objects.extend(self.import_physics_model(physics, armature, model_collection))
+                        imported_objects.extend(self.import_physics_model(physics, armature, model_collection, allowed_region_permutations))
                     # if animation:
                     #     imported_animations.extend(self.import_animation_graph(animation, armature, render))
         
         return imported_objects
+    
+    def import_object(self, paths):
+        imported_objects = []
+        for_cinematic = self.context.scene.nwo.asset_type == "cinematic"
+        if for_cinematic:
+            self.tag_markers = False
+        for file in paths:
+            print(f'Importing Object Tag: {Path(file).name} ')
+            with utils.TagImportMover(self.project.tags_directory, file) as mover:
+                with ObjectTag(path=mover.tag_path, raise_on_error=False) as scenery:
+                    model_path = scenery.get_model_tag_path_full()
+                    with utils.TagImportMover(self.project.tags_directory, model_path) as model_mover:
+                        with ModelTag(path=model_mover.tag_path, raise_on_error=False) as model:
+                            if not model.valid: continue
+                            if model_mover.needs_to_move:
+                                source_tag_root = mover.potential_source_tag_dir
+                            else:
+                                source_tag_root = self.project.tags_directory
+                                
+                            render, collision, animation, physics = model.get_model_paths(optional_tag_root=source_tag_root)
+                            
+                            temp_variant = self.tag_variant
+                            
+                            if for_cinematic and not self.tag_variant:
+                                if model.block_variants.Elements.Count:
+                                    temp_variant = model.block_variants.Elements[0].Fields[0].GetStringData()
+                            
+                            allowed_region_permutations = model.get_variant_regions_and_permutations(temp_variant, for_cinematic)
+                            model_collection = bpy.data.collections.new(model.tag_path.ShortName)
+                            self.context.scene.collection.children.link(model_collection)
+                            if render:
+                                render_objects, armature = self.import_render_model(render, model_collection, None, allowed_region_permutations)
+                                imported_objects.extend(render_objects)
+                                for ob in render_objects:
+                                    if ob.type == 'ARMATURE':
+                                        self.to_cursor_objects.add(ob)
+                                        ob.nwo.cinematic_object = scenery.tag_path.RelativePathWithExtension
+                                        if temp_variant == self.tag_variant:
+                                            ob.nwo.cinematic_variant = temp_variant
+                                        
+        return imported_objects
             
-    def import_render_model(self, file, model_collection, existing_armature, skip_print=False):
+    def import_render_model(self, file, model_collection, existing_armature, allowed_region_permutations, skip_print=False):
         if not skip_print:
             print("Importing Render Model")
         render_model_objects = []
@@ -948,29 +1047,29 @@ class NWOImporter:
         model_collection.children.link(collection)
         with utils.TagImportMover(self.project.tags_directory, file) as mover:
             with RenderModelTag(path=mover.tag_path) as render_model:
-                render_model_objects, armature = render_model.to_blend_objects(collection, self.tag_render, self.tag_markers, model_collection, existing_armature)
+                render_model_objects, armature = render_model.to_blend_objects(collection, self.tag_render, self.tag_markers, model_collection, existing_armature, allowed_region_permutations)
             
         return render_model_objects, armature
     
-    def import_collision_model(self, file, armature, model_collection):
+    def import_collision_model(self, file, armature, model_collection,allowed_region_permutations):
         print("Importing Collision Model")
         collision_model_objects = []
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_collision")
         model_collection.children.link(collection)
         with utils.TagImportMover(self.project.tags_directory, file) as mover:
             with CollisionTag(path=mover.tag_path) as collision_model:
-                collision_model_objects = collision_model.to_blend_objects(collection, armature)
+                collision_model_objects = collision_model.to_blend_objects(collection, armature, allowed_region_permutations)
             
         return collision_model_objects
     
-    def import_physics_model(self, file, armature, model_collection):
+    def import_physics_model(self, file, armature, model_collection, allowed_region_permutations):
         print("Importing Physics Model")
         physics_model_objects = []
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_physics")
         model_collection.children.link(collection)
         with utils.TagImportMover(self.project.tags_directory, file) as mover:
             with PhysicsTag(path=mover.tag_path) as physics_model:
-                physics_model_objects = physics_model.to_blend_objects(collection, armature)
+                physics_model_objects = physics_model.to_blend_objects(collection, armature, allowed_region_permutations)
             
         return physics_model_objects
     
@@ -993,7 +1092,7 @@ class NWOImporter:
             with utils.TagImportMover(self.project.tags_directory, file) as mover:
                 with ScenarioTag(path=mover.tag_path, raise_on_error=False) as scenario:
                     if not scenario.valid: continue
-                    bsps = scenario.get_bsp_paths()
+                    bsps = scenario.get_bsp_paths(self.tag_zone_set)
                     scenario_name = scenario.tag_path.ShortName
                     scenario_collection = bpy.data.collections.new(scenario_name)
                     self.context.scene.collection.children.link(scenario_collection)
@@ -2178,7 +2277,7 @@ class NWO_FH_Import(bpy.types.FileHandler):
     bl_idname = "NWO_FH_Import"
     bl_label = "File handler Foundry Importer"
     bl_import_operator = "nwo.import"
-    bl_file_extensions = ".jms;.amf;.ass;.bitmap;.model;.render_model;.scenario;.scenario_structure_bsp;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track;.particle_model"
+    bl_file_extensions = ".jms;.amf;.ass;.bitmap;.model;.render_model;.scenario;.scenario_structure_bsp;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track;.particle_model;.scenery;.biped"
 
     @classmethod
     def poll_drop(cls, context):

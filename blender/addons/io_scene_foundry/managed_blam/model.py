@@ -109,3 +109,26 @@ class ModelTag(Tag):
         if info_field.Path != info_tag_path:
             info_field.Path = info_tag_path
             self.tag_has_changes = True
+            
+    def get_variant_regions_and_permutations(self, variant: str, for_cinematic: bool):
+        region_permutations = set()
+        if not variant:
+            return region_permutations
+        for element in self.block_variants.Elements:
+            if element.Fields[0].GetStringData() != variant:
+                continue
+            
+            for relement in element.SelectField("regions").Elements:
+                    region = relement.Fields[0].GetStringData()
+                    if for_cinematic and region == "decals":
+                        continue
+                    for pelement in relement.SelectField("permutations").Elements:
+                        permutation = pelement.Fields[0].GetStringData()
+                        region_permutations.add(tuple((region, permutation)))
+                        if for_cinematic:
+                            continue
+                        for selement in pelement.SelectField("states").Elements:
+                            state = selement.Fields[0].GetStringData()
+                            region_permutations.add(tuple(region, state))
+                            
+        return region_permutations
