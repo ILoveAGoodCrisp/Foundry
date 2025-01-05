@@ -1901,7 +1901,7 @@ class ExportScene:
         
     def preprocess_tags(self):
         """ManagedBlam tasks to run before tool import is called"""
-        self.node_usage_set = self.has_animations and self.any_node_usage_override()
+        self.node_usage_set = self.asset_type != AssetType.CINEMATIC and self.has_animations and self.any_node_usage_override()
         # print("\n--- Foundry Tags Pre-Process\n")
         # Skip pre processing the graph if this is a first time export and the user has specified a template animation graph
         # This is done to ensure the templating is not skipped
