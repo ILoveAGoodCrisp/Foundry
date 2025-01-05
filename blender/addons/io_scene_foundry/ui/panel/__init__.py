@@ -245,6 +245,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 
             elif nwo.asset_type == 'cinematic':
                 box = self.box.box()
+                box.operator("nwo.refresh_cinematic_controls", icon='FILE_REFRESH')
                 row = box.row(align=True)
                 row.prop(nwo, 'cinematic_scenario', icon_value=get_icon_id("scenario"))
                 row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "cinematic_scenario"

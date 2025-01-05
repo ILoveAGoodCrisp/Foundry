@@ -4115,3 +4115,18 @@ def actor_valid(ob) -> bool:
         return False
     tag_path = Path(ob.nwo.cinematic_object)
     return Path(get_tags_path(), tag_path).exists() and tag_path.suffix in OBJECT_TAG_EXTS
+
+def current_shot_index(context: bpy.types.Context):
+    scene = context.scene
+    markers = [m for m in scene.timeline_markers if m.camera is not None and m.frame > scene.frame_start and m.frame <= scene.frame_end]
+    frame_current = scene.frame_current
+    if frame_current < all([m.frame for m in markers]):
+        return 0
+    for idx, marker in enumerate(markers):
+        if marker.frame < frame_current and (len(markers) - 1 == idx or markers[idx + 1].frame > frame_current):
+            return idx + 1
+        
+    return 0
+
+def get_cinematic_scene_name(context: bpy.types.Context):
+    pass

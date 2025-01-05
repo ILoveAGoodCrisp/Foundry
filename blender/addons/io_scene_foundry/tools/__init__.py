@@ -2,6 +2,8 @@
 
 import bpy
 
+from .refresh_cinematic_controls import NWO_OT_RefreshCinematicControls
+
 from .cache_builder import NWO_OT_CacheBuild, NWO_OT_LaunchMCC, NWO_OT_OpenModFolder
 from .collection_manager import NWO_CollectionManager_Create, NWO_CollectionManager_CreateMove
 from .append_grid_materials import NWO_OT_AppendGridMaterials
@@ -185,6 +187,7 @@ classeshalo = (
     NWO_OT_CacheBuild,
     NWO_OT_LaunchMCC,
     NWO_OT_OpenModFolder,
+    NWO_OT_RefreshCinematicControls,
 )
 
 def register():

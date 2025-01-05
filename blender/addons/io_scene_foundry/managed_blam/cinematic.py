@@ -1,7 +1,7 @@
 from enum import Enum
 from pathlib import Path
 
-from ..export.cinematic import CinematicScene
+from .. import utils
 
 from .scenario import ScenarioTag
 from . import Tag
@@ -11,7 +11,8 @@ from . import Tag
 class ShotType(Enum):
     ALL = 0
     TAG = 1
-    CURRENT = 2
+    SCENE = 2
+    CURRENT = 3
 
 class CinematicTag(Tag):
     tag_ext = 'cinematic'
@@ -26,19 +27,31 @@ class CinematicTag(Tag):
         self.scenes = self.tag.SelectField("Block:scenes")
     
     def get_play_text(self, loop: bool, shot_type: ShotType) -> str:
+        if self.corinth:
+            return f'(cinematic_debug_play "{utils.get_asset_name()}" "" 0 {self.tag.SelectField("Struct:cinematic playback[0]/LongInteger:bsp zone flags").Data})'
         match shot_type:
             case ShotType.ALL:
+                if self.corinth:
+                    return f'(cinematic_debug_play "{utils.get_asset_name()}" "" 0 {self.cinematic_playback.Elements[0].SelectField("bsp zone flags").Data})'
                 return self.cinematic_playback.GetPlayCinematicText(loop)
             case ShotType.TAG:
                 return self.cinematic_playback.GetPlayCheckedText(loop)
+            case ShotType.SCENE:
+                playback_scenes = self.cinematic_playback.Elements[0].SelectField("scenes")
+                return self.cinematic_playback.GetPlayCinematicText(loop)
             case ShotType.CURRENT:
-                pass
+                current_shot_index = utils.get_current_shot_index(self.context)
                 # TODO set all shots unchecked apart from current in blender
+                
+        self.tag_has_changes = True
     
     def get_stop_text(self, loop) -> str:
         return self.cinematic_playback.GetStopCinematicText(loop)
     
-    def create(self, name: str, cinematic_scene: CinematicScene, all_scenes: list[Path], scenario_path: Path | None = None, zone_set: str = "cinematic"):
+    def get_pause_text(self) -> str:
+        return self.cinematic_playback.GetPauseCinematicText()
+    
+    def create(self, name: str, cinematic_scene, all_scenes: list[Path], scenario_path: Path | None = None, zone_set: str = "cinematic"):
         self.tag_has_changes = True
         # Add scenes to cinematic
         if all_scenes:
