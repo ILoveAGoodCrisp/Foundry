@@ -159,7 +159,7 @@ class InstanceDefinition:
     blender_cookie: bpy.types.Object
     blender_physics: bpy.types.Object
     
-    def __init__(self, element: TagFieldBlockElement, mesh_block: TagFieldBlock, compression_bounds: list['CompressionBounds'], render_materials: list['Material'], collision_materials: list['BSPCollisionMaterial']):
+    def __init__(self, element: TagFieldBlockElement, mesh_block: TagFieldBlock, compression_bounds: list['CompressionBounds'], render_materials: list['Material'], collision_materials: list['BSPCollisionMaterial'], for_cinematic = False):
         self.index = element.ElementIndex
         self.mesh_index = element.SelectField("mesh index").Data
         self.compression_index = element.SelectField("compression index").Data
@@ -171,7 +171,7 @@ class InstanceDefinition:
         self.blender_collision = None
         self.blender_cookie = None
         self.blender_render = None
-        if not utils.is_corinth():
+        if not utils.is_corinth() and not for_cinematic:
             self.has_collision = element.SelectField("Struct:collision info[0]/Block:surfaces").Elements.Count > 0
             if self.has_collision:
                 self.collision_info = InstanceCollision(element.SelectField("Struct:collision info").Elements[0], f"instance_collision:{self.index}", collision_materials)

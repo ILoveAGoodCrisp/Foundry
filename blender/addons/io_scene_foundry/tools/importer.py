@@ -1024,7 +1024,7 @@ class NWOImporter:
             scenario_collection.children.link(collection)
         with utils.TagImportMover(self.project.tags_directory, file) as mover:
             with ScenarioStructureBspTag(path=mover.tag_path) as bsp:
-                bsp_objects = bsp.to_blend_objects(collection, scenario_collection is not None)
+                bsp_objects = bsp.to_blend_objects(collection, scenario_collection is not None, self.context.scene.nwo.asset_type == "cinematic")
                 seams = bsp.get_seams(bsp_name, seams)
         
         bsp_name = utils.add_region(bsp_name)
