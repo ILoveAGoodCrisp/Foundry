@@ -400,9 +400,9 @@ class ExportScene:
             utils.update_job_count(process, "", 0, num_export_objects)
             for idx, ob in enumerate(self.export_objects):
                 if ob.animation_data is not None:
-                    self.action_map[ob] = (ob.matrix_world.copy(), ob.animation_data.action)
+                    self.action_map[ob] = (ob.matrix_basis.copy(), ob.animation_data.action)
                 if ob.type == 'MESH' and ob.data.shape_keys and ob.data.shape_keys.animation_data:
-                    self.action_map[ob.data.shape_keys] = (ob.matrix_world.copy(), ob.data.shape_keys.animation_data.action)
+                    self.action_map[ob.data.shape_keys] = (ob.matrix_basis.copy(), ob.data.shape_keys.animation_data.action)
                 ob: bpy.types.Object
                 if ob.type == 'ARMATURE':
                     self.armature_poses[ob.data] = ob.data.pose_position
@@ -1892,7 +1892,7 @@ class ExportScene:
                     if id.type == 'ARMATURE':
                         for bone in id.pose.bones:
                             bone.matrix_basis = Matrix.Identity(4)
-                    id.matrix_world = matrix
+                    id.matrix_basis = matrix
                 id.animation_data.action = action
                 
         utils.restore_mode(self.current_mode)

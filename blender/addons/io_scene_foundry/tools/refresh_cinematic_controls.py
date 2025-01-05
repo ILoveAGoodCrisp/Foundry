@@ -7,7 +7,7 @@ from .. import utils
 
 from ..managed_blam.cinematic import CinematicTag
 
-REACH_LOOP_IT_WORKS = True
+REACH_LOOP_IT_WORKS = False
 
 def new_command(command_name: str, command: str):
     return f'<item type = command name = "{command_name}" variable = "{command}">\n'
