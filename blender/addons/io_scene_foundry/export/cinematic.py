@@ -49,7 +49,7 @@ def calculate_focal_depths(focus_distance, aperture, coc=0.03, focal_length=50):
     # Ensure far depth doesn't go negative for short focus distances
     far_depth = max(far_depth, focus_distance)
     
-    return near_depth, far_depth
+    return utils.halo_scale(near_depth), utils.halo_scale(far_depth)
 
 def calculate_blur_amount(focal_length, focus_distance, aperture, object_distance, sensor_width):
     """
@@ -72,6 +72,41 @@ def calculate_blur_amount(focal_length, focus_distance, aperture, object_distanc
     ) * (focal_length / hyperfocal)
 
     return coc
+
+def calculate_focal_distances(camera):
+    if not isinstance(camera.data, bpy.types.Camera):
+        print("Selected object is not a camera.")
+        return None
+
+    cam_data = camera.data
+    if not cam_data.dof.use_dof:
+        return 0, 0, 0
+    lens_mm = cam_data.lens  # Focal length in millimeters
+    aperture = cam_data.dof.aperture_fstop  # F-Stop value
+    sensor_width = cam_data.sensor_width    # Sensor width in mm
+    coc = 0.029  # Circle of confusion for 35mm equivalent (adjust as needed)
+
+    # Determine the focus distance
+    if cam_data.dof.focus_object:
+        # Focus object exists, calculate distance from camera to object
+        focus_object = cam_data.dof.focus_object
+        focus_distance = (camera.matrix_world.translation - focus_object.location).length
+    else:
+        # Fallback to manually set focus distance
+        focus_distance = cam_data.dof.focus_distance
+
+    # Hyperfocal Distance
+    hyperfocal_distance = (lens_mm**2) / (aperture * coc)
+
+    # Near and Far Focus Limits
+    if focus_distance > 0:
+        near_focus = (hyperfocal_distance * focus_distance) / (hyperfocal_distance + (focus_distance - lens_mm))
+        far_focus = (hyperfocal_distance * focus_distance) / (hyperfocal_distance - (focus_distance - lens_mm))
+    else:
+        near_focus = 0
+        far_focus = 0
+
+    return near_focus, far_focus, focus_distance
 
 class Actor:
     def __init__(self, ob: bpy.types.Object, scene_name: str, asset_path: str):
@@ -108,9 +143,37 @@ class Frame:
         blender_matrix = ob.matrix_world
         matrix = utils.halo_transforms_matrix(blender_matrix)
             
-        focus_distance = data.dof.focus_distance
-        aperture = data.dof.aperture_fstop
-        focal_length = data.lens  # Focal length in mm
+        if data.dof.use_dof:
+            # Focal distance
+            if data.dof.focus_object:
+                # Focus object exists, calculate distance from camera to object
+                focus_object = data.dof.focus_object
+                focal_distance = (ob.matrix_world.translation - focus_object.location).length
+            else:
+                # Fallback to manually set focus distance
+                focal_distance = data.dof.focus_distance
+
+            # Aperture (f-stop value)
+            aperture = data.dof.aperture_fstop
+
+            # Lens focal length (in mm)
+            lens = data.lens
+
+            # Calculate the depth of field region
+            # Hyperfocal distance: the distance beyond which all objects are in acceptable focus
+            hyperfocal = (lens ** 2) / (aperture * 5)
+
+            # Near and far focal planes
+            near_focal_plane = (hyperfocal * focal_distance) / (hyperfocal + (focal_distance - lens))
+            far_focal_plane = (hyperfocal * focal_distance) / (hyperfocal - (focal_distance - lens))
+
+            # Blur amount (relative to aperture)
+            blur_amount = 1 / aperture if aperture > 0 else 0
+        else:
+            focal_distance = 0
+            near_focal_plane = 0
+            far_focal_plane = 0
+            blur_amount = 0
             
         self.position = matrix.translation.to_tuple()
         matrix_3x3 = matrix.to_3x3() @ camera_correction_matrix.inverted()
@@ -118,27 +181,28 @@ class Frame:
         forward = matrix_3x3.col[0]
         self.up = up.normalized().to_tuple()
         self.forward = forward.normalized().to_tuple()
-        self.focal_length = focal_length * (0.5 if corinth else 1.3)
+        self.focal_length = data.lens * (0.5 if corinth else 1.3)
         self.depth_of_field = int(data.dof.use_dof)
-        self.near_focal_plane_distance = data.clip_start # not clip
-        self.far_focal_plane_distance = data.clip_end # not clip
-        
-        self.focal_depth = focus_distance
-        
-        near, far = calculate_focal_depths(focus_distance, aperture, focal_length=focal_length)
 
-        self.near_focal_depth = near
-        self.far_focal_depth = far
+        self.near_focal_plane_distance = utils.halo_scale(near_focal_plane) * 100
+        self.far_focal_plane_distance = utils.halo_scale(far_focal_plane) * 100
         
-        self.blur_amount = data.dof.aperture_ratio
+        self.focal_depth = focal_distance
+        
+        # near, far = calculate_focal_depths(focus_distance, aperture, focal_length=focal_length)
+
+        # self.near_focal_depth = near 
+        # self.far_focal_depth = far
+        
+        self.blur_amount = blur_amount
         
         sensor_width = data.sensor_width
         
-        near_blur = calculate_blur_amount(focal_length, focus_distance, aperture, data.clip_start, sensor_width)
-        far_blur = calculate_blur_amount(focal_length, focus_distance, aperture, data.clip_end, sensor_width)
+        # near_blur = calculate_blur_amount(focal_length, focus_distance, aperture, data.clip_start, sensor_width)
+        # far_blur = calculate_blur_amount(focal_length, focus_distance, aperture, data.clip_end, sensor_width)
         
-        self.near_blur_amount = near_blur
-        self.far_blur_amount = far_blur
+        # self.near_blur_amount = near_blur
+        # self.far_blur_amount = far_blur
 
     
 class Effect:

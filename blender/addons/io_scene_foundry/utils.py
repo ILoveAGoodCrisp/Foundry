@@ -4133,3 +4133,11 @@ def current_shot_index(context: bpy.types.Context):
 
 def get_cinematic_scene_name(context: bpy.types.Context):
     pass
+
+def halo_scale(number: float) -> float:
+    if bpy.context.scene.nwo.scale == 'max':
+        scale = 0.03048 * WU_SCALAR
+    else:
+        scale = WU_SCALAR
+        
+    return number * scale
