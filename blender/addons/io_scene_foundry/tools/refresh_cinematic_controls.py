@@ -38,11 +38,11 @@ def add_controls_to_debug_menu(context: bpy.types.Context, corinth: bool, cinema
         if corinth:
             command = f'cinematic_debug_play \\"{cin_name}\\" \\"\\" cache_file_builder_unshare_unique_map_locations {bsp_zone_flags}'
         else:
-            body = f'{cin_name}_debug'
+            body = f'({cin_name}_debug)'
             if REACH_LOOP_IT_WORKS:
-                command = f'(loop_clear) (if cache_file_builder_unshare_unique_map_locations (loop_it {{{body}}}) ({body}))'
+                command = f'(loop_clear) (if cache_file_builder_unshare_unique_map_locations (loop_it {{{body}}}) {body})'
             else:
-                command = f'(loop_clear) ({body})'
+                command = f'(loop_clear) {body}'
         menu_commands.append(new_command(command_name, command))
         
         if scene_name:
@@ -51,11 +51,11 @@ def add_controls_to_debug_menu(context: bpy.types.Context, corinth: bool, cinema
             if corinth:
                 command = f'cinematic_debug_play \\"{cin_name}\\" \\"1 {scene_index} 0\\" cache_file_builder_unshare_unique_map_locations {bsp_zone_flags}'
             else:
-                body = f'begin_{cin_name}_debug !{scene_name} end_{cin_name}_debug'
+                body = f'(begin_{cin_name}_debug) (!{scene_name}) (end_{cin_name}_debug)'
                 if REACH_LOOP_IT_WORKS:
-                    command = f"if cache_file_builder_unshare_unique_map_locations (loop it {{body}}) (begin {body})"
+                    command = f"(loop_clear) (if cache_file_builder_unshare_unique_map_locations (loop_it {{(begin {body})}}) (begin {body}))"
                 else:
-                    command = body
+                    command = f'(loop_clear) {body}'
             
             menu_commands.append(new_command(command_name, command))
             
@@ -64,10 +64,11 @@ def add_controls_to_debug_menu(context: bpy.types.Context, corinth: bool, cinema
             if corinth:
                 command = f'cinematic_debug_play \\"{cin_name}\\" \\"1 {scene_index} 1 {shot_index}\\" cache_file_builder_unshare_unique_map_locations {bsp_zone_flags}'
             else:
+                body = f'(begin_{cin_name}_debug) (cinematic_print \\"beginning scene {scene_index + 1}\\") (cinematic_scripting_create_scene {scene_index}) ({scene_name}_sh{shot_index + 1}) (cinematic_scripting_destroy_scene {scene_index}) (end_{cin_name}_debug)'
                 if REACH_LOOP_IT_WORKS:
-                    pass
+                    command  = f'(loop_clear) (if cache_file_builder_unshare_unique_map_locations (loop_it {{(begin {body})}}) (begin {body}))'
                 else:
-                    command = f'begin_{cin_name}_debug (cinematic_print \\"beginning scene {scene_index + 1}\\") (cinematic_scripting_create_scene {scene_index}) {scene_name}_sh{shot_index + 1} (cinematic_scripting_destroy_scene {scene_index}) end_{cin_name}_debug'
+                    command = f'(loop_clear) {body}'
             menu_commands.append(new_command(command_name, command))
             
         # PAUSE
@@ -81,7 +82,7 @@ def add_controls_to_debug_menu(context: bpy.types.Context, corinth: bool, cinema
         if corinth:
             command = "cinematic_debug_stop"
         else:
-            command = f"end_{cin_name}_debug"
+            command = f"(loop_clear) (end_{cin_name}_debug)"
         menu_commands.append(new_command(command_name, command))
         
         # STEP
