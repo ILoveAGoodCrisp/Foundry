@@ -560,9 +560,12 @@ def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_pat
                 export_scene.map_halo_properties()
                 
             export_scene.preprocess_tags()
-            print("\n\nWriting Tags")
-            print("-----------------------------------------------------------------------\n")
-            export_scene.invoke_tool_import()
+            if not (export_scene.asset_type == AssetType.CINEMATIC and export_settings.cinematic_scope == 'CAMERA'):
+                # No need to invoke tool if we're only writing cinematic frame data
+                print("\n\nWriting Tags")
+                print("-----------------------------------------------------------------------\n")
+                export_scene.invoke_tool_import()
+                
             export_scene.postprocess_tags()
             export_scene.lightmap()
     finally:

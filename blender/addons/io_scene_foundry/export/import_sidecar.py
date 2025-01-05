@@ -27,7 +27,7 @@ default_templates = [
 ]
 
 class SidecarImport:
-    def __init__(self, asset_path: str, asset_name: str, asset_type: AssetType, sidecar_path: Path, scene_settings: NWO_ScenePropertiesGroup, export_settings: NWO_HaloExportPropertiesGroup, selected_bsps: list[str], corinth: bool, bsps: set, tags_dir):
+    def __init__(self, asset_path: str, asset_name: str, asset_type: AssetType, sidecar_path: Path, scene_settings: NWO_ScenePropertiesGroup, export_settings: NWO_HaloExportPropertiesGroup, selected_bsps: list[str], corinth: bool, bsps: set, tags_dir, selected_actors: set):
         self.asset_path = asset_path
         self.relative_asset_path = utils.relative_path(asset_path)
         self.asset_name = asset_name
@@ -36,6 +36,7 @@ class SidecarImport:
         self.scene_settings = scene_settings
         self.export_settings = export_settings
         self.selected_bsps = selected_bsps
+        self.selected_actors = selected_actors
         self.bsps = bsps
         self.corinth = corinth
         self.lighting_infos = {}
@@ -123,10 +124,11 @@ class SidecarImport:
             if self.export_settings.import_force_animations:
                 flags.append("force_errors")
         else:
-            if not self.export_settings.lightmap_structure and self.asset_type in {AssetType.MODEL, AssetType.SKY}:
-                flags.append("draft")
-            elif not self.export_settings.import_force:
-                flags.append("force")
+            if self.asset_type in {AssetType.MODEL, AssetType.SKY}:
+                if not self.export_settings.lightmap_structure:
+                    flags.append("draft")
+                elif not self.export_settings.import_force:
+                    flags.append("force")
             if self.export_settings.import_seam_debug:
                 flags.append("seam_debug")
             if self.export_settings.import_decompose_instances:
@@ -137,9 +139,6 @@ class SidecarImport:
         if self.selected_bsps:
             for bsp in self.selected_bsps:
                 flags.append(bsp)
-                
-        # if self.asset_type == AssetType.CINEMATIC:
-        #     flags.append("-no_qua")
 
         return flags
     

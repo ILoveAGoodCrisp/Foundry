@@ -78,6 +78,7 @@ class VirtualShotActor:
         self.name_encoded = actor.name.encode()
         self.actor = actor
         self.bones = None
+        self.in_scope = scene.cinematic_scope != 'CAMERA' and (not scene.selected_cinematic_objects_only or actor.ob in scene.selected_actors)
         model = scene.models.get(actor.name)
         if model is not None:
             skeleton = model.skeleton
@@ -89,7 +90,7 @@ class VirtualShotActor:
         self.scales = defaultdict(list)
 
 class VirtualShot:
-    def __init__(self,  frame_start: int, frame_end: int, actors: list[Actor], camera: bpy.types.Object, index, scene: 'VirtualScene', shape_key_objects=[]):
+    def __init__(self,  frame_start: int, frame_end: int, actors: list[Actor], camera: bpy.types.Object, index, scene: 'VirtualScene', shape_key_objects=[], in_scope=True):
         self.shot_actors = [VirtualShotActor(actor, scene) for actor in actors]
         self.camera = camera
         self.frame_start = frame_start
@@ -102,126 +103,135 @@ class VirtualShot:
         self.sounds = []
         self.effects = []
         self.scripts = []
+        self.in_scope = in_scope
     
     def perform(self, scene: 'VirtualScene'):
-        for frame in range(self.frame_start, self.frame_end + 1):
-            scene.context.scene.frame_set(frame)
-            # Camera Animation
-            self.frames.append(Frame(self.camera, scene.corinth))
-            # Bone Animation
-            for shot_actor in self.shot_actors:
-                bone_inverse_matrices = {}
-                for bone in shot_actor.bones:
-                    if bone.parent:
-                        matrix_world = scene.rotation_matrix @ bone.ob.matrix_world @ bone.pbone.matrix
-                        bone_inverse_matrices[bone.pbone] = matrix_world.inverted()
-                        matrix = bone_inverse_matrices[bone.parent] @ matrix_world
-                    else:
-                        matrix = scene.rotation_matrix @ bone.ob.matrix_world @ bone.pbone.matrix
-                        bone_inverse_matrices[bone.pbone] = matrix.inverted()
+        if scene.cinematic_scope != 'OBJECT' and self.in_scope:
+            for frame in range(self.frame_start, self.frame_end + 1):
+                scene.context.scene.frame_set(frame)
+                # Camera Animation
+                self.frames.append(Frame(self.camera, scene.corinth))
+                # Bone Animation
+                for shot_actor in self.shot_actors: 
+                    if not shot_actor.in_scope:
+                        continue
+                    bone_inverse_matrices = {}
+                    for bone in shot_actor.bones:
+                        if bone.parent:
+                            matrix_world = scene.rotation_matrix @ bone.ob.matrix_world @ bone.pbone.matrix
+                            bone_inverse_matrices[bone.pbone] = matrix_world.inverted()
+                            matrix = bone_inverse_matrices[bone.parent] @ matrix_world
+                        else:
+                            matrix = scene.rotation_matrix @ bone.ob.matrix_world @ bone.pbone.matrix
+                            bone_inverse_matrices[bone.pbone] = matrix.inverted()
 
-                    loc, rot, sca = matrix.decompose()
-                    
-                    position = (c_float * 3)(loc.x, loc.y, loc.z)
-                    orientation = (c_float * 4)(rot.x, rot.y, rot.z, rot.w)
-                    scale_shear = (c_float * 9)(sca.x, 0.0, 0.0, 0.0, sca.y, 0.0, 0.0, 0.0, sca.z)
-                    shot_actor.positions[bone].extend(position)
-                    shot_actor.orientations[bone].extend(orientation)
-                    shot_actor.scales[bone].extend(scale_shear)
+                        loc, rot, sca = matrix.decompose()
+                        
+                        position = (c_float * 3)(loc.x, loc.y, loc.z)
+                        orientation = (c_float * 4)(rot.x, rot.y, rot.z, rot.w)
+                        scale_shear = (c_float * 9)(sca.x, 0.0, 0.0, 0.0, sca.y, 0.0, 0.0, 0.0, sca.z)
+                        shot_actor.positions[bone].extend(position)
+                        shot_actor.orientations[bone].extend(orientation)
+                        shot_actor.scales[bone].extend(scale_shear)
                 
         frame_total = self.frame_count - 1
                 
         for shot_actor in self.shot_actors:
-            tracks = []
-            for bone in shot_actor.bones:
-                tracks.append((c_float * (self.frame_count * 3))(*shot_actor.positions[bone]))
-                tracks.append((c_float * (self.frame_count * 4))(*shot_actor.orientations[bone]))
-                tracks.append((c_float * (self.frame_count * 9))(*shot_actor.scales[bone]))
-                
-            granny_tracks = []
-            for bone_idx, i in enumerate(range(0, len(tracks), 3)):
+            if shot_actor.in_scope:
+                tracks = []
+                for bone in shot_actor.bones:
+                    tracks.append((c_float * (self.frame_count * 3))(*shot_actor.positions[bone]))
+                    tracks.append((c_float * (self.frame_count * 4))(*shot_actor.orientations[bone]))
+                    tracks.append((c_float * (self.frame_count * 9))(*shot_actor.scales[bone]))
+                    
+                granny_tracks = []
+                for bone_idx, i in enumerate(range(0, len(tracks), 3)):
+                    granny_track = GrannyTransformTrack()
+                    granny_track.name = shot_actor.bones[bone_idx].pbone.name.encode()
+                    
+                    builder = scene.granny.begin_curve(scene.granny.keyframe_type, 0, 3, self.frame_count)
+                    scene.granny.push_control_array(builder, tracks[i])
+                    position_curve = scene.granny.end_curve(builder)
+                    
+                    builder = scene.granny.begin_curve(scene.granny.keyframe_type, 0, 4, self.frame_count)
+                    scene.granny.push_control_array(builder, tracks[i + 1])
+                    orientation_curve = scene.granny.end_curve(builder)
+                    
+                    builder = scene.granny.begin_curve(scene.granny.keyframe_type, 0, 9, self.frame_count)
+                    scene.granny.push_control_array(builder, tracks[i + 2])
+                    scale_curve = scene.granny.end_curve(builder)
+                    
+                    granny_track.position_curve = position_curve.contents
+                    granny_track.orientation_curve = orientation_curve.contents
+                    granny_track.scale_shear_curve = scale_curve.contents
+
+                    del position_curve
+                    del orientation_curve
+                    del scale_curve
+
+                    granny_tracks.append(granny_track)
+                    
                 granny_track = GrannyTransformTrack()
-                granny_track.name = shot_actor.bones[bone_idx].pbone.name.encode()
-                
+                granny_track.name = shot_actor.name_encoded
+                arm_tracks = []
+                loc, rot, sca = IDENTITY_MATRIX.decompose()
+                positions = []
+                orientations = []
+                scales = []
+                for frame in range(self.frame_count):
+                    position = (c_float * 3)(0, 0, 0)
+                    orientation = (c_float * 4)(0, 0, 0, 1)
+                    scale_shear = (c_float * 9)(1, 0.0, 0.0, 0.0, 1, 0.0, 0.0, 0.0, 1)
+                    positions.extend(position)
+                    orientations.extend(orientation)
+                    scales.extend(scale_shear)
+
+                arm_tracks.append((c_float * (self.frame_count * 3))(*positions))
+                arm_tracks.append((c_float * (self.frame_count * 4))(*orientations))
+                arm_tracks.append((c_float * (self.frame_count * 9))(*scales))
+
                 builder = scene.granny.begin_curve(scene.granny.keyframe_type, 0, 3, self.frame_count)
-                scene.granny.push_control_array(builder, tracks[i])
+                scene.granny.push_control_array(builder, arm_tracks[0])
                 position_curve = scene.granny.end_curve(builder)
                 
                 builder = scene.granny.begin_curve(scene.granny.keyframe_type, 0, 4, self.frame_count)
-                scene.granny.push_control_array(builder, tracks[i + 1])
+                scene.granny.push_control_array(builder, arm_tracks[1])
                 orientation_curve = scene.granny.end_curve(builder)
                 
                 builder = scene.granny.begin_curve(scene.granny.keyframe_type, 0, 9, self.frame_count)
-                scene.granny.push_control_array(builder, tracks[i + 2])
+                scene.granny.push_control_array(builder, arm_tracks[2])
                 scale_curve = scene.granny.end_curve(builder)
-                
+
                 granny_track.position_curve = position_curve.contents
                 granny_track.orientation_curve = orientation_curve.contents
                 granny_track.scale_shear_curve = scale_curve.contents
 
-                del position_curve
-                del orientation_curve
-                del scale_curve
-
                 granny_tracks.append(granny_track)
+
+                granny_tracks.sort(key=lambda track: track.name)
+                granny_transform_tracks = (GrannyTransformTrack * len(granny_tracks))(*granny_tracks)
+                    
+                granny_track_group = GrannyTrackGroup()
+                granny_track_group.name = shot_actor.name_encoded
+                granny_track_group.transform_track_count = len(granny_tracks)
+                granny_track_group.transform_tracks = granny_transform_tracks
+                granny_track_group.flags = 2
+                ptr_granny_track_group = pointer(granny_track_group)
                 
-            granny_track = GrannyTransformTrack()
-            granny_track.name = shot_actor.name_encoded
-            arm_tracks = []
-            loc, rot, sca = IDENTITY_MATRIX.decompose()
-            positions = []
-            orientations = []
-            scales = []
-            for frame in range(self.frame_count):
-                position = (c_float * 3)(0, 0, 0)
-                orientation = (c_float * 4)(0, 0, 0, 1)
-                scale_shear = (c_float * 9)(1, 0.0, 0.0, 0.0, 1, 0.0, 0.0, 0.0, 1)
-                positions.extend(position)
-                orientations.extend(orientation)
-                scales.extend(scale_shear)
-
-            arm_tracks.append((c_float * (self.frame_count * 3))(*positions))
-            arm_tracks.append((c_float * (self.frame_count * 4))(*orientations))
-            arm_tracks.append((c_float * (self.frame_count * 9))(*scales))
-
-            builder = scene.granny.begin_curve(scene.granny.keyframe_type, 0, 3, self.frame_count)
-            scene.granny.push_control_array(builder, arm_tracks[0])
-            position_curve = scene.granny.end_curve(builder)
-            
-            builder = scene.granny.begin_curve(scene.granny.keyframe_type, 0, 4, self.frame_count)
-            scene.granny.push_control_array(builder, arm_tracks[1])
-            orientation_curve = scene.granny.end_curve(builder)
-            
-            builder = scene.granny.begin_curve(scene.granny.keyframe_type, 0, 9, self.frame_count)
-            scene.granny.push_control_array(builder, arm_tracks[2])
-            scale_curve = scene.granny.end_curve(builder)
-
-            granny_track.position_curve = position_curve.contents
-            granny_track.orientation_curve = orientation_curve.contents
-            granny_track.scale_shear_curve = scale_curve.contents
-
-            granny_tracks.append(granny_track)
-
-            granny_tracks.sort(key=lambda track: track.name)
-            granny_transform_tracks = (GrannyTransformTrack * len(granny_tracks))(*granny_tracks)
-                
-            granny_track_group = GrannyTrackGroup()
-            granny_track_group.name = shot_actor.name_encoded
-            granny_track_group.transform_track_count = len(granny_tracks)
-            granny_track_group.transform_tracks = granny_transform_tracks
-            granny_track_group.flags = 2
-            ptr_granny_track_group = pointer(granny_track_group)
-            
-            granny_animation = GrannyAnimation()
-            animation_name = f"{shot_actor.name}_{self.index + 1}"
-            granny_animation.name = animation_name.encode()
-            granny_animation.duration = scene.time_step * frame_total
-            granny_animation.time_step = scene.time_step
-            granny_animation.oversampling = 1
-            granny_animation.track_group_count = 1
-            granny_animation.track_groups = pointer(ptr_granny_track_group)
-            animation = VirtualShotAnimation(animation_name, ptr_granny_track_group, pointer(granny_animation), self.index, False)
-            self.actor_animation[shot_actor.actor] = animation
+                granny_animation = GrannyAnimation()
+                animation_name = f"{shot_actor.name}_{self.index + 1}"
+                granny_animation.name = animation_name.encode()
+                granny_animation.duration = scene.time_step * frame_total
+                granny_animation.time_step = scene.time_step
+                granny_animation.oversampling = 1
+                granny_animation.track_group_count = 1
+                granny_animation.track_groups = pointer(ptr_granny_track_group)
+                animation = VirtualShotAnimation(animation_name, ptr_granny_track_group, pointer(granny_animation), self.index, False)
+                self.actor_animation[shot_actor] = animation
+            else:
+                animation_name = f"{shot_actor.name}_{self.index + 1}"
+                animation = VirtualShotAnimation(animation_name, None, None, self.index, False)
+                self.actor_animation[shot_actor] = animation
             
 class VirtualAnimation:
     def __init__(self, animation, scene: 'VirtualScene', sample: bool, animation_controls=[], shape_key_objects=[]):
@@ -1582,6 +1592,9 @@ class VirtualScene:
         
         self.context = context
         self.actors = []
+        self.selected_actors = set()
+        self.selected_cinematic_objects_only = False
+        self.cinematic_scope = 'BOTH'
         
         spath = "shaders\invalid"
         stype = "material" if corinth else "shader"
@@ -1650,8 +1663,8 @@ class VirtualScene:
         self.animations.append(animation)
         return animation.name
     
-    def add_shot(self, frame_start: int, frame_end: int, actors: list[bpy.types.Object], camera: bpy.types.Object, index: int):
-        shot = VirtualShot(frame_start, frame_end, actors, camera, index, self)
+    def add_shot(self, frame_start: int, frame_end: int, actors: list[bpy.types.Object], camera: bpy.types.Object, index: int, in_scope: bool):
+        shot = VirtualShot(frame_start, frame_end, actors, camera, index, self, in_scope)
         shot.perform(self)
         self.shots.append(shot)
         

@@ -410,11 +410,16 @@ class QUA:
             block_shots.AddElement()
             
         if self.corinth:
-            block_data_shots.RemoveAllElements()
+            while block_data_shots.Elements.Count > len(self.shots):
+                block_data_shots.RemoveElement(block_data_shots.Elements.Count - 1)
+            while block_data_shots.Elements.Count < len(self.shots):
+                block_data_shots.AddElement()
                 
         for idx, shot in enumerate(self.shots):
+            if not shot.frames:
+                continue
             if self.corinth:
-                element = block_data_shots.AddElement()
+                element = block_data_shots.Elements[idx]
             else:
                 element = block_shots.Elements[idx]
             # DIALOGUE TODO

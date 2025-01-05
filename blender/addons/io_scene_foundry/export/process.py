@@ -191,7 +191,7 @@ class ExportScene:
         self.cinematic_scene = None
         if self.asset_type == AssetType.CINEMATIC:
             self.cinematic_scene = CinematicScene(self.asset_path_relative, self.asset_name, context.scene)
-        
+        self.selected_actors = set()
         self.type_is_relevant = self.asset_type in {AssetType.MODEL, AssetType.SCENARIO, AssetType.SKY, AssetType.DECORATOR_SET, AssetType.PARTICLE_MODEL, AssetType.PREFAB}
         
     def _get_export_tag_types(self):
@@ -428,7 +428,10 @@ class ExportScene:
                 
                 is_armature = ob.type == 'ARMATURE'
                 
-                if not is_armature:
+                if is_armature:
+                    if self.asset_type == AssetType.CINEMATIC and self.export_settings.selected_cinematic_objects_only and ob.select_get():
+                        self.selected_actors.add(ob)
+                else:
                     if self.limit_perms_to_selection:
                         if ob.select_get():
                             self.selected_permutations.add(permutation)
@@ -552,6 +555,9 @@ class ExportScene:
         self.virtual_scene.limit_bsps = self.limit_bsps_to_selection
         self.virtual_scene.limit_permutations = self.limit_perms_to_selection
         self.virtual_scene.actors = {actor.ob: actor for actor in self.cinematic_actors}
+        self.virtual_scene.selected_cinematic_objects_only = self.export_settings.selected_cinematic_objects_only
+        self.virtual_scene.selected_actors = self.selected_actors
+        self.virtual_scene.cinematic_scope = self.export_settings.cinematic_scope
         self.context.view_layer.update()
 
     def _get_object_type(self, ob) -> ObjectType:
@@ -1368,8 +1374,13 @@ class ExportScene:
             
             shot_frame_start = frame_start
             fallback_camera = None
+            current_shot = utils.current_shot_index(self.context)
+            single_shot_only = self.export_settings.current_shot_only
             with utils.Spinner():
-                utils.update_job_count(process, "", 0, shot_count)
+                if single_shot_only:
+                    utils.update_job_count(process, "", 0, 1)
+                else:
+                    utils.update_job_count(process, "", 0, shot_count)
                 
                 for i in range(shot_count):
                     if len(markers) > i:
@@ -1378,7 +1389,7 @@ class ExportScene:
                         shot_frame_end = frame_end
                         
                     scene.frame_set(shot_frame_end - 1)
-                        
+                    
                     shot_actors = [actor for actor in self.cinematic_actors if getattr(actor.ob.nwo, f"shot_{i + 1}", False)]
                     
                     camera = scene.camera
@@ -1394,13 +1405,19 @@ class ExportScene:
                             
                         camera = fallback_camera
                     fallback_camera = camera
+                    
+                    in_scope = not self.export_settings.current_shot_only or i == current_shot
                         
-                    self.virtual_scene.add_shot(shot_frame_start, shot_frame_end, shot_actors, camera, i)
+                    self.virtual_scene.add_shot(shot_frame_start, shot_frame_end, shot_actors, camera, i, in_scope)
                     
                     shot_frame_start = shot_frame_end + 1
-                    
-                    utils.update_job_count(process, "", i, shot_count)
-                utils.update_job_count(process, "", shot_count, shot_count)
+                    if not single_shot_only:
+                        utils.update_job_count(process, "", i, shot_count)
+                
+                if single_shot_only:
+                    utils.update_job_count(process, "", 1, 1)
+                else:
+                    utils.update_job_count(process, "", shot_count, shot_count)
                 self.sidecar.cinematic_scene = self.cinematic_scene
         finally:
             utils.unmute_armature_mods(armature_mods)
@@ -1668,28 +1685,31 @@ class ExportScene:
     def _export_shots(self):
         
         if self.virtual_scene.shots:
-            exported_something = False
-            print("\n\nExporting Cinematic Animations")
+            match self.export_settings.cinematic_scope:
+                case 'BOTH':
+                    print("\n\nExporting Cinematic Animations & Cameras")
+                case 'CAMERA':
+                    print("\n\nExporting Cinematic Cameras Only")
+                case 'OBJECT':
+                    print("\n\nExporting Cinematic Animations Only")
             print("-----------------------------------------------------------------------\n")
             self.sidecar.shots = self.virtual_scene.shots
-            export = True
             for shot in self.virtual_scene.shots:
                 for actor, animation in shot.actor_animation.items():
-                    self.sidecar.actor_animations[actor].append(animation)
+                    self.sidecar.actor_animations[actor.actor].append(animation)
                     granny_path = Path(self.asset_path, "export", "cinematics", f"{animation.name}.gr2")
                     granny_path_relative = str(Path(self.asset_path_relative, "export", "cinematics", f"{animation.name}.gr2"))
                     animation.gr2_path = granny_path_relative
-                    if export:
+                    if shot.in_scope and actor.in_scope:
                         job = f"--- {animation.name}"
                         utils.update_job(job, 0)
                         nodes = [self.virtual_scene.nodes.get(actor.name)]
                         nodes_dict = {node.name: node for node in nodes}
                         self._export_granny_file(granny_path, nodes_dict, animation)
                         utils.update_job(job, 1)
-                        exported_something = True
-                        
-            if export and not exported_something:
-                print("--- No cinematic animations to export")
+
+            shot_count = 1 if self.export_settings.current_shot_only else len(self.virtual_scene.shots)
+            print(f'--- Built cinematic camera data for {shot_count} shot{"s" if shot_count != 1 else ""}')
                 
     def _write_qua(self):
         writer = QUA(self.asset_path_relative, self.cinematic_scene.name, self.virtual_scene.shots, self.cinematic_actors, self.corinth, False)
@@ -1729,7 +1749,7 @@ class ExportScene:
                 self.model_groups[node.group].append(node)
     
     def _export_models(self):
-        if not self.model_groups: return
+        if not self.model_groups or (self.asset_type == AssetType.CINEMATIC and self.export_settings.cinematic_scope == 'CAMERA'): return
         exported_something = False
         print("\n\nExporting Geometry")
         print("-----------------------------------------------------------------------\n")
@@ -1963,7 +1983,7 @@ class ExportScene:
             structure = [region.name for region in self.context.scene.nwo.regions_table]
         else:
             structure = self.virtual_scene.structure
-        sidecar_importer = SidecarImport(self.asset_path, self.asset_name, self.asset_type, self.sidecar_path, self.scene_settings, self.export_settings, self.selected_bsps, self.corinth, structure, self.tags_dir)
+        sidecar_importer = SidecarImport(self.asset_path, self.asset_name, self.asset_type, self.sidecar_path, self.scene_settings, self.export_settings, self.selected_bsps, self.corinth, structure, self.tags_dir, self.selected_actors)
         if self.corinth and self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB}:
             sidecar_importer.save_lighting_infos()
         sidecar_importer.setup_templates()
@@ -2054,7 +2074,7 @@ class ExportScene:
                     export_lights([], bsps) # this will clear the lighting info tag
                     
         if self.asset_type == AssetType.CINEMATIC:
-            self.print_post(f"--- Writing Cinematic Scene: {self.cinematic_scene.name}")
+            self.print_post(f"--- Writing cinematic scene: {self.cinematic_scene.name}")
             self._write_qua()
             scenario_path = Path(self.tags_dir, self.scene_settings.cinematic_scenario)
             cinematic_scenes = get_cinematic_scenes(self.sidecar.sidecar_path_full)

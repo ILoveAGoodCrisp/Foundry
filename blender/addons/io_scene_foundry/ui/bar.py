@@ -493,7 +493,7 @@ class NWO_HaloExportSettingsScope(bpy.types.Panel):
 
     @classmethod
     def poll(self, context):
-        return utils.poll_ui(('model', 'scenario', 'prefab', 'animation'))
+        return utils.poll_ui(('model', 'scenario', 'prefab', 'animation', 'cinematic'))
 
     def draw(self, context):
         layout = self.layout
@@ -510,7 +510,6 @@ class NWO_HaloExportSettingsScope(bpy.types.Panel):
             align=False,
         )
         if scene_nwo.asset_type == "model":
-            # col.prop(scene_nwo_export, "export_hidden", text="Hidden")
             flow.prop(scene_nwo_export, "export_render", text="Render", icon_value=get_icon_id("render"))
             flow.prop(scene_nwo_export, "export_collision", text="Collision", icon_value=get_icon_id("collision"))
             flow.prop(scene_nwo_export, "export_physics", text="Physics", icon_value=get_icon_id("physics"))
@@ -519,23 +518,27 @@ class NWO_HaloExportSettingsScope(bpy.types.Panel):
         elif scene_nwo.asset_type == "animation":
             flow.prop(scene_nwo_export, "export_skeleton", icon='OUTLINER_OB_ARMATURE')
         elif scene_nwo.asset_type == "scenario":
-            # col.prop(scene_nwo_export, "export_hidden", text="Hidden")
             flow.prop(scene_nwo_export, "export_structure", icon_value=get_icon_id("render"))
             flow.prop(scene_nwo_export, "export_design", text="Design", icon_value=get_icon_id("soft_ceiling"))
-        elif scene_nwo.asset_type != "prefab":
-            # col.prop(scene_nwo_export, "export_hidden", text="Hidden")
-            flow.prop(scene_nwo_export, "export_render", icon_value=get_icon_id("render"))
+
 
         col = layout.column()
         col.use_property_split = False
-        col.separator()
         if scene_nwo.asset_type == "scenario":
+            col.separator()
             col.prop(scene_nwo_export, "export_all_bsps", expand=True, text=" ")
             col.separator()
-        col.prop(scene_nwo_export, "export_all_perms", expand=True, text=" ")
-        col.separator()
+        if scene_nwo.asset_type in {'scenario', 'model', 'prefab'}:
+            col.separator()
+            col.prop(scene_nwo_export, "export_all_perms", expand=True, text=" ")
         if scene_nwo.asset_type in {'animation', 'model'}:
+            col.separator()
             col.prop(scene_nwo_export, "export_animations", expand=True)
+        if scene_nwo.asset_type == 'cinematic':
+            col.prop(scene_nwo_export, "selected_cinematic_objects_only")
+            col.prop(scene_nwo_export, "current_shot_only")
+            col.separator()
+            col.prop(scene_nwo_export, "cinematic_scope", expand=True)
 
 
 class NWO_HaloExportSettingsFlags(bpy.types.Panel):
@@ -737,6 +740,29 @@ class NWO_HaloExport(bpy.types.Operator):
 
 
 class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
+    
+    cinematic_scope: bpy.props.EnumProperty(
+        name="Cinematic Scope",
+        description="Whether to export object animation or camera animation, or both",
+        items=[
+            ('BOTH', "Camera & Object Animation", ""),
+            ('CAMERA', "Camera Only", ""),
+            ('OBJECT', "Object Animation Only", ""),
+        ],
+        options=set(),
+    )
+    
+    selected_cinematic_objects_only: bpy.props.BoolProperty(
+        name="Selected Actors Only",
+        description="Exports only the armature objects which are currently selected",
+        options=set(),
+    )
+    
+    current_shot_only: bpy.props.BoolProperty(
+        name="Current Shot Only",
+        description="Only exports object animation for the current shot",
+        options=set(),
+    )
     
     force_imposter_policy_never: bpy.props.BoolProperty(
         name="Disable Instance Imposters",

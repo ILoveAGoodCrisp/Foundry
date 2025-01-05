@@ -563,6 +563,9 @@ def run_tool_sidecar(tool_args: list, asset_path, event_level='WARNING'):
                 elif "Mesh marked to include per-vertex alpha has entirely opaque values!" in line:
                     # Always outputs on new animation graph creation
                     continue
+                elif "sidecar does not specify a model path" in line:
+                    # Invalid error for cinematic sidecars
+                    continue
                 else:
                     # need to handle animation stuff. Most animation output is written to stderr...
                     if line.startswith("animation:import:"):
