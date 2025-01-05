@@ -118,7 +118,7 @@ class Frame:
         forward = matrix_3x3.col[0]
         self.up = up.normalized().to_tuple()
         self.forward = forward.normalized().to_tuple()
-        self.focal_length = focal_length * 0.5 if corinth else 1
+        self.focal_length = focal_length * (0.5 if corinth else 1.3)
         self.depth_of_field = int(data.dof.use_dof)
         self.near_focal_plane_distance = data.clip_start # not clip
         self.far_focal_plane_distance = data.clip_end # not clip

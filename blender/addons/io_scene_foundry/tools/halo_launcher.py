@@ -206,6 +206,11 @@ def launch_foundation(settings, context):
                 launch_args.append(
                     get_tag_if_exists(asset_path, settings.camera_track_name, "camera_track")
                 )
+                
+        elif nwo_asset_type() == "cinematic":
+                launch_args.append(
+                    get_tag_if_exists(asset_path, asset_name, "cinematic")
+                )
 
     # first, get and set the project so we can avoid the Foundation prompt
     run_ek_cmd(launch_args, True)
