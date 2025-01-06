@@ -1385,7 +1385,7 @@ class ExportScene:
                 if single_shot_only:
                     utils.update_job_count(process, "", 0, 1)
                 else:
-                    utils.update_job_count(process, "0 ", 0, shot_count)
+                    utils.update_job_count(process, "0", 0, shot_count)
                     
                 for i in range(shot_count):
                     if len(markers) > i:
