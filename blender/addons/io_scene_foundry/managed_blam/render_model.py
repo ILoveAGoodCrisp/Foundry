@@ -76,7 +76,6 @@ class RenderModelTag(Tag):
         objects = []
         self.armature = self._create_armature(existing_armature)
         objects.append(self.armature)
-        
         # Instances
         self.instances = []
         self.instance_mesh_index = self.tag.SelectField("LongBlockIndex:instance mesh index").Value
@@ -153,6 +152,7 @@ class RenderModelTag(Tag):
         original_meshes: list[Mesh] = []
         clone_meshes: list[Mesh] = []
         mesh_node_map = self.tag.SelectField("Struct:render geometry[0]/Block:per mesh node map")
+            
         for region in self.regions:
             for permutation in region.permutations:
                 if allowed_region_permutations:

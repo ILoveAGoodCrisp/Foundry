@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+from .render_model import RenderModelTag
+
 from ..managed_blam import Tag
 
 class ModelTag(Tag):
@@ -118,17 +120,63 @@ class ModelTag(Tag):
             if element.Fields[0].GetStringData() != variant:
                 continue
             
+            render_path = self.reference_render_model.Path
+            if render_path is None or not Path(render_path.Filename).exists():
+                return region_permutations
+            
+            default_region = "default"
+            region_default_perms = {}
+            all_regions = set()
+            all_permutations = set()
+            
+            with RenderModelTag(path=render_path.RelativePathWithExtension) as render:
+                for render_relement in render.block_regions.Elements:
+                    region_name = render_relement.Fields[0].GetStringData()
+                    all_regions.add(region_name)
+                    if region_name == "default":
+                        default_region = "default"
+                    elif render_relement.ElementIndex == 0:
+                        default_region = region_name
+                        
+                    for render_pelement in render_relement.SelectField("Block:permutations").Elements:
+                        permutation_name = render_pelement.Fields[0].GetStringData()
+                        all_permutations.add(permutation_name)
+                        if permutation_name == "default":
+                            region_default_perms[region_name] = "default"
+                        elif render_pelement.ElementIndex == 0:
+                            region_default_perms[region_name] = permutation_name
+            
+            variant_regions = set()
             for relement in element.SelectField("regions").Elements:
-                    region = relement.Fields[0].GetStringData()
-                    if for_cinematic and region == "decals":
+                region = relement.Fields[0].GetStringData()
+                if region == "default":
+                    region = default_region
+                variant_regions.add(region)
+                if for_cinematic and region == "decals":
+                    continue
+                for pelement in relement.SelectField("permutations").Elements:
+                    permutation = pelement.Fields[0].GetStringData()
+                    if not permutation:
                         continue
-                    for pelement in relement.SelectField("permutations").Elements:
-                        permutation = pelement.Fields[0].GetStringData()
-                        region_permutations.add(tuple((region, permutation)))
-                        if for_cinematic:
-                            continue
-                        for selement in pelement.SelectField("states").Elements:
-                            state = selement.Fields[0].GetStringData()
-                            region_permutations.add(tuple(region, state))
+                    elif permutation == "default":
+                        permutation = region_default_perms[region]
+                        
+                    region_permutations.add(tuple((region, permutation)))
+                    
+                    if for_cinematic:
+                        continue
+
+                    for selement in pelement.SelectField("states").Elements:
+                        state = selement.Fields[0].GetStringData()
+                        if state == "default":
+                            state = region_default_perms[region]
+                        region_permutations.add(tuple(region, state))
+                        
+            for reg in all_regions:
+                if reg not in variant_regions:
+                    for perm in all_permutations:
+                        region_permutations.add(tuple((reg, perm)))
+                        
+            break
                             
         return region_permutations
