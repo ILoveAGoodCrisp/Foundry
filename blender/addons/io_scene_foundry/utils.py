@@ -4111,13 +4111,17 @@ def quaternion_to_ypr(q):
 def unique_id() -> int:
     return random.randint(-2147483648, 2147483648)
 
-def actor_valid(ob) -> bool:
+def actor_validation(ob) -> str | None:
     if ob.type != 'ARMATURE':
-        return False
+        return f"{ob.name} is not an armature"
     if not ob.nwo.cinematic_object:
-        return False
+        return f"{ob.name} does not have a cinematic object specified. You can set this by selecting the object and updating its Foundry object properties"
     tag_path = Path(ob.nwo.cinematic_object)
-    return Path(get_tags_path(), tag_path).exists() and tag_path.suffix in OBJECT_TAG_EXTS
+    full_tag_path = Path(get_tags_path(), tag_path)
+    if not full_tag_path.exists():
+        return f"{ob.name}'s cinematic object does not exist: {full_tag_path}"
+    elif tag_path.suffix not in OBJECT_TAG_EXTS:
+        return f"{ob.name}'s cinematic object does is not a valid object tag type. Must be one of: {OBJECT_TAG_EXTS}"
 
 def current_shot_index(context: bpy.types.Context):
     scene = context.scene

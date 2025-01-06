@@ -407,8 +407,12 @@ class ExportScene:
                 if ob.type == 'ARMATURE':
                     self.armature_poses[ob.data] = ob.data.pose_position
                     ob.data.pose_position = 'REST'
-                    if self.asset_type == AssetType.CINEMATIC and utils.actor_valid(ob):
-                        self.cinematic_actors.append(Actor(ob, self.cinematic_scene.name, self.asset_path_relative))
+                    if self.asset_type == AssetType.CINEMATIC:
+                        warning = utils.actor_validation(ob)
+                        if warning is None:
+                            self.cinematic_actors.append(Actor(ob, self.cinematic_scene.name, self.asset_path_relative))
+                        else:
+                            self.warnings.append(warning)
                 if ob.type == 'LIGHT':
                     if ob.data.type == 'AREA':
                         ob = utils.area_light_to_emissive(ob)
