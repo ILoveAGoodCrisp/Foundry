@@ -4126,6 +4126,7 @@ def actor_validation(ob) -> str | None:
 def current_shot_index(context: bpy.types.Context):
     scene = context.scene
     markers = [m for m in scene.timeline_markers if m.camera is not None and m.frame > scene.frame_start and m.frame <= scene.frame_end]
+    markers.sort(key=lambda m: m.frame)
     frame_current = scene.frame_current
     if frame_current < all([m.frame for m in markers]):
         return 0

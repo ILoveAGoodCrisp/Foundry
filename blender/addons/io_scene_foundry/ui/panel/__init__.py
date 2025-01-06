@@ -1238,6 +1238,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 if nwo.cinematic_object:
                     row = col.grid_flow()
                     timeline_markers = [m for m in self.scene.timeline_markers if m.camera is not None and m.frame >= self.scene.frame_start and m.frame <= self.scene.frame_end]
+                    timeline_markers.sort(key=lambda m: m.frame)
                     if timeline_markers:
                         for i in range(1, min(len(timeline_markers) + 1, 65)):
                             row.prop(nwo, f"shot_{i}")

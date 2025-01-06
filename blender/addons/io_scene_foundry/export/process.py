@@ -1368,6 +1368,7 @@ class ExportScene:
             frame_end = scene.frame_end
             # marker check is exclusive as we don't care about markers on the first frame
             markers = [m for m in scene.timeline_markers if m.camera is not None and m.frame > scene.frame_start and m.frame <= scene.frame_end]
+            markers.sort(key=lambda m: m.frame)
             shot_count = min(len(markers) + 1, MAXIMUM_CINEMATIC_SHOTS)
             if shot_count == MAXIMUM_CINEMATIC_SHOTS:
                 self.warnings.append(f"Maximum shot count of 64 exceeeded (You have {len(markers) + 1} shots). Shots have been limited")
@@ -1384,8 +1385,8 @@ class ExportScene:
                 if single_shot_only:
                     utils.update_job_count(process, "", 0, 1)
                 else:
-                    utils.update_job_count(process, "", 0, shot_count)
-                
+                    utils.update_job_count(process, "0 ", 0, shot_count)
+                    
                 for i in range(shot_count):
                     if len(markers) > i:
                         shot_frame_end = markers[i].frame - 1
@@ -1411,7 +1412,7 @@ class ExportScene:
                     fallback_camera = camera
                     
                     in_scope = not self.export_settings.current_shot_only or i == current_shot
-                        
+
                     self.virtual_scene.add_shot(shot_frame_start, shot_frame_end, shot_actors, camera, i, in_scope)
                     
                     shot_frame_start = shot_frame_end + 1
