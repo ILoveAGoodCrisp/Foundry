@@ -405,7 +405,7 @@ class NWO_Import(bpy.types.Operator):
                     imported_render_objects = []
                     for file in render_model_files:
                         print(f'Importing Render Model Tag: {Path(file).with_suffix("").name} ')
-                        render_model_objects, armature = importer.import_render_model(file, context.scene.collection, existing_armature, skip_print=True)
+                        render_model_objects, armature = importer.import_render_model(file, context.scene.collection, existing_armature, set(), skip_print=True)
                         imported_render_objects.extend(render_model_objects)
                         
                     if needs_scaling:
