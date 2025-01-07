@@ -1,6 +1,5 @@
 import bpy
-
-from . import bar, node_editor, outliner, viewport, panel
+from . import bar, node_editor, outliner, viewport, panel, timeline
 from .panel import animation, asset, help, material, object, scene, sets, setting, tools
 
 classes = [
@@ -157,6 +156,7 @@ def register():
     bpy.types.OUTLINER_HT_header.append(viewport.create_halo_collection)
     bpy.types.VIEW3D_MT_object.append(viewport.add_halo_join)
     bpy.types.TOPBAR_MT_file_import.append(bar.menu_func_import)
+    bpy.types.DOPESHEET_HT_header.append(timeline.draw_cinematic_info)
     
     bpy.types.Scene.nwo_export = bpy.props.PointerProperty(
         type=bar.NWO_HaloExportPropertiesGroup, name="Halo Export", description=""
@@ -164,6 +164,7 @@ def register():
     
 def unregister():
     del bpy.types.Scene.nwo_export
+    bpy.types.DOPESHEET_HT_header.remove(timeline.draw_cinematic_info)
     bpy.types.TOPBAR_MT_file_import.remove(bar.menu_func_import)
     bpy.types.VIEW3D_HT_tool_header.remove(bar.draw_foundry_toolbar)
     bpy.types.NODE_HT_header.remove(bar.draw_foundry_nodes_toolbar)

@@ -1060,6 +1060,80 @@ class NWO_ChildAsset(PropertyGroup):
     enabled: bpy.props.BoolProperty(name="Enabled", default=True, options=set())
 
 class NWO_ScenePropertiesGroup(PropertyGroup):
+    
+    def get_game_frame(self):
+        return self.id_data.frame_current - self.id_data.frame_start
+    
+    def set_game_frame(self, value):
+        # self.id_data.frame_set(value + self.id_data.frame_start)
+        self.id_data.frame_current = value + self.id_data.frame_start
+    
+    # CINEMATIC SCENE
+    game_frame: bpy.props.IntProperty(
+        name="Game Frame",
+        description="The current blender frame represented as the frame index the game uses",
+        get=get_game_frame,
+        set=set_game_frame,
+        min=0,
+    )
+    
+    def get_current_shot(self):
+        scene = self.id_data
+        markers = utils.get_timeline_markers(scene)
+        frame_current = scene.frame_current
+        if frame_current < all([m.frame for m in markers]):
+            return 1
+        for idx, marker in enumerate(markers):
+            if marker.frame <= frame_current and (len(markers) - 1 == idx or markers[idx + 1].frame > frame_current):
+                return idx + 2
+            
+        return 1
+    
+    def set_current_shot(self, value):
+        scene = self.id_data
+        if value == 1:
+            scene.frame_current = scene.frame_start
+            return
+        markers = utils.get_timeline_markers(scene)
+        marker_index = value - 2
+        scene.frame_current = markers[marker_index].frame
+    
+    current_shot: bpy.props.IntProperty(
+        name="Current Shot",
+        description="Current cinematic shot indicated by the current frame",
+        get=get_current_shot,
+        set=set_current_shot,
+        min=1,
+        max=65,
+    )
+    
+    def get_shot_frame(self):
+        scene = self.id_data
+        marker_index = self.current_shot - 2
+        if marker_index < 0:
+            return scene.frame_current - scene.frame_start
+        markers = utils.get_timeline_markers(scene) 
+        marker_frame = markers[marker_index].frame
+        return scene.frame_current - marker_frame
+        
+    def set_shot_frame(self, value):
+        scene = self.id_data
+        marker_index = self.current_shot - 2
+        if marker_index < 0:
+            scene.frame_current = scene.frame_start + value
+            return
+        markers = utils.get_timeline_markers(scene)
+        marker_frame = markers[marker_index].frame
+        scene.frame_current = marker_frame + value
+    
+    shot_frame: bpy.props.IntProperty(
+        name="Shot Frame",
+        description="Current game frame of the current shot",
+        get=get_shot_frame,
+        set=set_shot_frame,
+        min=0,
+    )
+    
     # CHILD ASSET
     child_assets: bpy.props.CollectionProperty(
         name="Child Assets",

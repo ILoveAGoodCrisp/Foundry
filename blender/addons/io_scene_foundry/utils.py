@@ -4131,10 +4131,34 @@ def current_shot_index(context: bpy.types.Context):
     if frame_current < all([m.frame for m in markers]):
         return 0
     for idx, marker in enumerate(markers):
-        if marker.frame < frame_current and (len(markers) - 1 == idx or markers[idx + 1].frame > frame_current):
+        if marker.frame <= frame_current and (len(markers) - 1 == idx or markers[idx + 1].frame > frame_current):
             return idx + 1
         
     return 0
+
+def get_cinematic_info(context):
+    """Returns a tuple of cinematic info: Current game frame, current shot index, current shot frame"""
+    scene = context.scene
+    markers = [m for m in scene.timeline_markers if m.camera is not None and m.frame > scene.frame_start and m.frame <= scene.frame_end]
+    markers.sort(key=lambda m: m.frame)
+    frame_current = scene.frame_current
+    frame_start = scene.frame_start
+    game_frame = frame_current - frame_start
+    shot_frame = game_frame
+    shot_index = 0
+    if not frame_current < all([m.frame for m in markers]):
+        for idx, marker in enumerate(markers):
+            if marker.frame <= frame_current and (len(markers) - 1 == idx or markers[idx + 1].frame > frame_current):
+                shot_index = idx + 1
+                shot_frame = frame_current - marker.frame
+                break
+            
+    return game_frame, shot_index, shot_frame
+
+def get_timeline_markers(scene: bpy.types.Scene) -> list[bpy.types.TimelineMarker]:
+    markers = [m for m in scene.timeline_markers if m.camera is not None and m.frame > scene.frame_start and m.frame <= scene.frame_end]
+    markers.sort(key=lambda m: m.frame)
+    return markers
 
 def get_cinematic_scene_name(context: bpy.types.Context):
     pass
