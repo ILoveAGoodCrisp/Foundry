@@ -551,7 +551,7 @@ def run_tool_sidecar(tool_args: list, asset_path, event_level='WARNING'):
                 elif "Do you really want this?" in line:
                     # No but don't whine about shaders on imported geometry
                     continue
-                elif "Failed to find any animated nodes" and "idle" in line:
+                elif "Failed to find any animated nodes" in line: # 07/01/2025 removed and "idle" from this
                     # Skip because we often want the idle to not have animation e.g. for vehicles
                     continue
                 elif "graph was imported with old codec which is no longer supported!" in line:

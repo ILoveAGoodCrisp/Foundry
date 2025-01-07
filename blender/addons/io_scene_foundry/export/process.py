@@ -193,6 +193,8 @@ class ExportScene:
             self.cinematic_scene = CinematicScene(self.asset_path_relative, self.asset_name, context.scene)
         self.selected_actors = set()
         self.type_is_relevant = self.asset_type in {AssetType.MODEL, AssetType.SCENARIO, AssetType.SKY, AssetType.DECORATOR_SET, AssetType.PARTICLE_MODEL, AssetType.PREFAB}
+        self.main_armature = None
+        self.uses_main_armature = self.asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.ANIMATION}
         
     def _get_export_tag_types(self):
         tag_types = set()
@@ -242,7 +244,8 @@ class ExportScene:
         
     def get_initial_export_objects(self):
         self.temp_objects = set()
-        self.main_armature = self.context.scene.nwo.main_armature
+        if self.uses_main_armature:
+            self.main_armature = self.context.scene.nwo.main_armature
         self.support_armatures = {}
         self.export_objects = []
         
@@ -281,7 +284,7 @@ class ExportScene:
                     else:
                         value.matrix_world = ob.matrix_world @ value.matrix_world
             
-        if not self.main_armature:
+        if self.uses_main_armature and not self.main_armature:
             for ob in self.context.view_layer.objects:
                 if ob.type == 'ARMATURE' and ob.parent is None:
                     self.main_armature = ob
@@ -1359,7 +1362,7 @@ class ExportScene:
         process = "--- Sampling Cinematic Shots"
         for armature in self.armature_poses.keys():
             armature.pose_position = 'POSE'
-        armature_mods = utils.mute_armature_mods()
+        armature_mods = utils.mute_armature_mods() if self.export_settings.faster_animation_export else None
         try:
             self.has_animations = True
             # Frame
@@ -1425,7 +1428,8 @@ class ExportScene:
                     utils.update_job_count(process, "", shot_count, shot_count)
                 self.sidecar.cinematic_scene = self.cinematic_scene
         finally:
-            utils.unmute_armature_mods(armature_mods)
+            if armature_mods is not None:
+                utils.unmute_armature_mods(armature_mods)
             
     def sample_animations(self):
         if self.asset_type not in {AssetType.MODEL, AssetType.ANIMATION} or not self.virtual_scene.skeleton_node:
@@ -1450,7 +1454,7 @@ class ExportScene:
         #     ob: bpy.types.Object
         #     if ob.type != 'ARMATURE':
         #         utils.unlink(ob)
-        armature_mods = utils.mute_armature_mods()
+        armature_mods = utils.mute_armature_mods() if self.export_settings.faster_animation_export else None
         # self.context.view_layer.update()
         self.has_animations = True
         try:
@@ -1499,7 +1503,8 @@ class ExportScene:
                         
                     self.exported_animations.append(animation)
         finally:
-            utils.unmute_armature_mods(armature_mods)
+            if armature_mods is not None:
+                utils.unmute_armature_mods(armature_mods)
             
     def create_event_objects(self, animation):
         name = animation.name

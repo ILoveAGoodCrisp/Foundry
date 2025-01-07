@@ -1226,22 +1226,26 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 return box.label(text="This object will be made real at export")
 
         elif ob.type == "ARMATURE":
-            box.label(text='Frame')
+            box.label(text='Frame' if self.asset_type != 'cinematic' else "Cinematic Actor")
             col = box.column()
             col.operator("nwo.select_child_objects", icon='CON_CHILDOF')
             if utils.poll_ui(("cinematic",)):
                 col.separator()
-                row = col.row(align=True)
-                row.prop(nwo, "cinematic_object", icon_value=get_icon_id("tags"))
+                box = col.box()
+                box.label(text="Cinematic Properties")
+                row = box.row(align=True)
+                row.prop(nwo, "cinematic_object", icon_value=get_icon_id("tags"), text="Tag")
                 row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "cinematic_object"
                 row.operator("nwo.tag_explore", text="", icon='FILE_FOLDER').prop = 'cinematic_object'
                 if nwo.cinematic_object:
-                    row = col.grid_flow()
-                    timeline_markers = [m for m in self.scene.timeline_markers if m.camera is not None and m.frame >= self.scene.frame_start and m.frame <= self.scene.frame_end]
+                    box = box.box()
+                    box.label(text="Shots Active")
+                    row = box.grid_flow()
+                    timeline_markers = [m for m in self.scene.timeline_markers if m.camera is not None and m.frame > self.scene.frame_start and m.frame <= self.scene.frame_end]
                     timeline_markers.sort(key=lambda m: m.frame)
                     if timeline_markers:
-                        for i in range(1, min(len(timeline_markers) + 1, 65)):
-                            row.prop(nwo, f"shot_{i}")
+                        for i in range(0, min(len(timeline_markers) + 1, 64)):
+                            row.prop(nwo, f"shot_{i + 1}")
                     else:
                         row.prop(nwo, "shot_1")
 

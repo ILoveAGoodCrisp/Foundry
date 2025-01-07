@@ -741,6 +741,12 @@ class NWO_HaloExport(bpy.types.Operator):
 
 class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
     
+    faster_animation_export: bpy.props.BoolProperty(
+        name="Faster Animation Export",
+        description="Drastically speeds up process of animation sampling by muting armature deform modifiers during the animation sample section of the export. If you were require armature modifiers to be active (such as using constraints which rely on mesh vertex group animation), disable this option",
+        default=True,
+    )
+    
     cinematic_scope: bpy.props.EnumProperty(
         name="Cinematic Scope",
         description="Whether to export object animation or camera animation, or both",
