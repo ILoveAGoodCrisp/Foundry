@@ -1244,11 +1244,6 @@ def foundry_nodes_toolbar(layout, context):
 def draw_foundry_toolbar(self, context):
     #if context.region.alignment == 'RIGHT':
     foundry_toolbar(self.layout, context)
-    
-def draw_cinematic_info(context, box: bpy.types.UILayout):
-    game_frame, shot_index, shot_frame = utils.get_cinematic_info(context)
-    row = box.row(align=True)
-    row.label(text=f"Game Frame: {game_frame} Shot: {shot_index + 1} Shot Frame: {shot_frame}")
 
 def foundry_toolbar(layout, context):
     #layout.label(text=" ")
@@ -1266,8 +1261,6 @@ def foundry_toolbar(layout, context):
         sub = row.row()
         sub.operator("nwo.launch_foundry")
         return
-    if context.scene.nwo.asset_type == 'cinematic':
-        draw_cinematic_info(context, box)
     if not export_scene.toolbar_expanded:
         sub_foundry = row.row(align=True)
         sub_foundry.prop(export_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))

@@ -275,7 +275,7 @@ class Sidecar:
                 case AssetType.CINEMATIC:
                     self._get_object_output_types(metadata, "cinematic")
 
-        self._write_folders(metadata)
+        # self._write_folders(metadata)
         self._write_face_collections(metadata)
         
         if actor_render_model_path is not None:
@@ -819,22 +819,6 @@ class Sidecar:
     def _write_cinematic_contents(self, metadata):
         contents = ET.SubElement(metadata, "Contents")
         content = ET.SubElement(contents, "Content", Name=self.cinematic_scene.name, Type="scene")
-        
-        # AUDIO
-        sound_sequences = [sequence for sequence in self.context.scene.sequence_editor.sequences if sequence.type == 'SOUND']
-        audio_content_object = ET.SubElement(content, "ContentObject", Name="", Type="cinematic_audio")
-        for sequence in sound_sequences:
-            sound = sequence.sound
-            filepath = Path(sound.filepath)
-            if filepath.is_absolute() and filepath.is_relative_to(self.data_dir):
-                relative = Path(utils.relative_path(filepath))
-                sound_name = relative.with_suffix("").name
-                tag_path = Path(self.relative_asset_path, "dialog", f"{sound_name}.sound")
-                network = ET.SubElement(audio_content_object, "ContentNetwork", Name=sound_name, Type="", Target=sound.nwo.target if sound.nwo.target else "NONE", StartFrame=sequence.frame, SoundTagFile=tag_path, DialogColor="NONE")
-                ET.SubElement(network, "InputFile").text = str(relative)
-            else:
-                utils.print_warning(f"Cannot add audio file because it is not saved to the project data folder: {filepath}")
-        ET.SubElement(audio_content_object, "OutputTagCollection")
         
         # QUA
         # scene_content_object = ET.SubElement(content, "ContentObject", Name="", Type="cinematic_scene")

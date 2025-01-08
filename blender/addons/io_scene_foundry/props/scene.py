@@ -1062,7 +1062,7 @@ class NWO_ChildAsset(PropertyGroup):
 class NWO_ScenePropertiesGroup(PropertyGroup):
     
     def get_game_frame(self):
-        return self.id_data.frame_current - self.id_data.frame_start
+        return self.id_data.frame_current - self.id_data.frame_start + int(utils.is_corinth(bpy.context))
     
     def set_game_frame(self, value):
         # self.id_data.frame_set(value + self.id_data.frame_start)
@@ -1114,7 +1114,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
             return scene.frame_current - scene.frame_start
         markers = utils.get_timeline_markers(scene) 
         marker_frame = markers[marker_index].frame
-        return scene.frame_current - marker_frame
+        return scene.frame_current - marker_frame + int(utils.is_corinth(bpy.context))
         
     def set_shot_frame(self, value):
         scene = self.id_data
