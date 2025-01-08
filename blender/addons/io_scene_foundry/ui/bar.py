@@ -450,6 +450,8 @@ class NWO_HaloExportSettings(bpy.types.Panel):
         col = flow.column()
         col.prop(scene_nwo_export, "export_quick", text="Quick Export")
         col.prop(scene_nwo_export, "show_output", text="Toggle Output")
+        if asset_type in {'cinematic', 'model', 'animation'}:
+            col.prop(scene_nwo_export, "faster_animation_export")
         col.separator()
         col = flow.column()
         col.use_property_split = False
@@ -743,7 +745,7 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
     
     faster_animation_export: bpy.props.BoolProperty(
         name="Faster Animation Export",
-        description="Drastically speeds up process of animation sampling by muting armature deform modifiers during the animation sample section of the export. If you were require armature modifiers to be active (such as using constraints which rely on mesh vertex group animation), disable this option",
+        description="Drastically speeds up process of animation sampling by muting armature deform modifiers during export.\nIf you require armature modifiers to be active (such as using constraints for animation which rely on mesh vertex groups), disable this option",
         default=True,
     )
     

@@ -340,6 +340,8 @@ class NWO_ExportScene(Operator, ExportHelper):
         col.prop(scene_nwo, "asset_type", text="Asset Type")
         col.prop(scene_nwo_export, "export_quick", text="Quick Export")
         col.prop(scene_nwo_export, "show_output", text="Toggle Output")
+        if scene_nwo.asset_type in {'cinematic', 'model', 'animation'}:
+            col.prop(scene_nwo_export, "faster_animation_export")
         col.separator()
         col.use_property_split = False
         if not scene_nwo.is_child_asset:

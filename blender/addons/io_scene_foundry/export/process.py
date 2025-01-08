@@ -1360,9 +1360,9 @@ class ExportScene:
             
     def sample_shots(self):
         process = "--- Sampling Cinematic Shots"
+        armature_mods = utils.mute_armature_mods() if self.export_settings.faster_animation_export else None
         for armature in self.armature_poses.keys():
             armature.pose_position = 'POSE'
-        armature_mods = utils.mute_armature_mods() if self.export_settings.faster_animation_export else None
         try:
             self.has_animations = True
             # Frame
