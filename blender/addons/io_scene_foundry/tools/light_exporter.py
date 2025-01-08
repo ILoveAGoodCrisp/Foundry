@@ -179,16 +179,29 @@ class NWO_OT_ExportLights(bpy.types.Operator):
         return utils.valid_nwo_asset(context)
 
     def execute(self, context):
-        export_lights()
+        if context.scene.nwo.is_child_asset:
+            parent = context.scene.nwo.parent_asset
+            if not parent.strip():
+                self.report({'WARNING'}, "Parent asset not specified, cannot export lights")
+                return {"CANCELLED"}
+            parent_path = Path(parent)
+            parent_sidecar = Path(utils.get_tags_path(), parent, f"{parent.name}.sidecar.xml")
+            if parent_sidecar.exists():
+                export_lights(parent_path, parent_path.name)
+            else:
+                self.report({'WARNING'}, "Parent asset invalid, cannot export lights")
+                return {"CANCELLED"}
+        else:
+            asset_path, asset_name = utils.get_asset_info()
+            export_lights(asset_path, asset_name)
         return {"FINISHED"}
     
 def gather_lights(context):
     return [ob for ob in context.scene.objects if ob.type == 'LIGHT' and ob.data.type != 'AREA' and not ob.nwo.ignore_for_export]
 
-def export_lights(light_objects = None, bsps = None):
+def export_lights(asset_path, asset_name, light_objects = None, bsps = None):
     tags_dir = utils.get_tags_path()
     context = bpy.context
-    asset_path, asset_name = utils.get_asset_info()
     asset_type = context.scene.nwo.asset_type
     if light_objects is None:
         light_objects = gather_lights(context)

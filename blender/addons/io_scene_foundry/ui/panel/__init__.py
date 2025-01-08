@@ -194,6 +194,11 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         
         if nwo.is_child_asset:
             col.prop(nwo, "parent_asset")
+            if nwo.asset_type == 'cinematic':
+                box = self.box.box()
+                box.label(text="Cinematic Scene")
+                box.operator("nwo.refresh_cinematic_controls", icon='FILE_REFRESH')
+                box.prop(nwo, 'cinematic_anchor')
         else:
             if nwo.asset_type == 'model':
                 self.draw_expandable_box(self.box.box(), nwo, 'output_tags')
@@ -246,6 +251,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 
             elif nwo.asset_type == 'cinematic':
                 box = self.box.box()
+                box.label(text="Cinematic")
                 box.operator("nwo.refresh_cinematic_controls", icon='FILE_REFRESH')
                 row = box.row(align=True)
                 row.prop(nwo, 'cinematic_scenario', icon_value=get_icon_id("scenario"))

@@ -1056,7 +1056,7 @@ def prefab_warning(self, context):
 #     )
 
 class NWO_ChildAsset(PropertyGroup):
-    sidecar_path: bpy.props.StringProperty(options=set())
+    asset_path: bpy.props.StringProperty(options=set())
     enabled: bpy.props.BoolProperty(name="Enabled", default=True, options=set())
 
 class NWO_ScenePropertiesGroup(PropertyGroup):
@@ -1066,7 +1066,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     
     def set_game_frame(self, value):
         # self.id_data.frame_set(value + self.id_data.frame_start)
-        self.id_data.frame_current = value + self.id_data.frame_start
+        self.id_data.frame_current = value + self.id_data.frame_start 
     
     # CINEMATIC SCENE
     game_frame: bpy.props.IntProperty(

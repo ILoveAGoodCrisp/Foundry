@@ -455,7 +455,7 @@ class NWO_HaloExportSettings(bpy.types.Panel):
         col.separator()
         col = flow.column()
         col.use_property_split = False
-        if not scene.nwo.is_child_asset:
+        if not scene.nwo.is_child_asset or asset_type == 'cinematic':
             col.prop(scene_nwo_export, "export_mode", text="")
             col.prop(scene_nwo_export, "event_level", text="")
         if asset_type == 'camera_track_set':
@@ -747,6 +747,7 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
         name="Faster Animation Export",
         description="Drastically speeds up process of animation sampling by muting armature deform modifiers during export.\nIf you require armature modifiers to be active (such as using constraints for animation which rely on mesh vertex groups), disable this option",
         default=True,
+        options=set(),
     )
     
     cinematic_scope: bpy.props.EnumProperty(

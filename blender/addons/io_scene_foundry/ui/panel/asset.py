@@ -21,7 +21,7 @@ class NWO_UL_ChildAsset(bpy.types.UIList):
         active_propname,
         index,
     ):
-        name = item.sidecar_path[:-12]
+        name = item.asset_path
                 
         layout.label(text=name, icon='FILE')
         layout.prop(item, "enabled", icon='CHECKBOX_HLT' if item.enabled else 'CHECKBOX_DEHLT', text="", emboss=False)
@@ -37,8 +37,8 @@ class NWO_OT_OpenChildAsset(bpy.types.Operator):
         return context.scene.nwo.child_assets and context.scene.nwo.active_child_asset_index > -1
     
     def execute(self, context):
-        asset_path = context.scene.nwo.child_assets[context.scene.nwo.active_child_asset_index].sidecar_path
-        full_path = Path(utils.get_data_path(), asset_path)
+        asset_path = Path(context.scene.nwo.child_assets[context.scene.nwo.active_child_asset_index].asset_path)
+        full_path = Path(utils.get_data_path(), asset_path, f"{asset_path.name}.sidecar.xml")
         
         source_blend_element = None
         try:
@@ -98,7 +98,7 @@ class NWO_OT_AddChildAsset(bpy.types.Operator):
                 self.report({'WARNING'}, f"Cannot add own asset sidecar")
                 return {'CANCELLED'}
             child = scene_nwo.child_assets.add()
-            child.sidecar_path = relative_filepath
+            child.asset_path = str(Path(relative_filepath).parent)
             scene_nwo.active_child_asset_index = len(scene_nwo.child_assets) - 1
         else:
             self.report({'WARNING'}, f"sidecar.xml path [{fp}] is not relative to current project data directory [{utils.get_data_path()}]. Cannot add child asset")

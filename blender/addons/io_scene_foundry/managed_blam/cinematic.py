@@ -65,53 +65,64 @@ class CinematicTag(Tag):
                 if self.corinth:
                     element.Fields[1].Path = self._TagPath_from_string(scene_path.with_suffix(".cinematic_scene_data"))
         
+        needs_cinematic_scenario_update = True
+        if scenario_path is None:
+            tag_path = self.scenario.Path
+            if tag_path is not None:
+                path = Path(tag_path.Filename)
+                if path.exists():
+                    scenario_path = path
+                    needs_cinematic_scenario_update = False
+        
         if scenario_path is not None:
             with ScenarioTag(path=scenario_path) as scenario:
                 scenario.tag_has_changes = True
                 # Set link to scenario in cinematic tag
-                self.name = name
-                self.scenario.Path = scenario.tag_path
-                # Add cinematic to scenario tag, first checking to see if the reference exists
-                block_cinematics = scenario.tag.SelectField("Block:cinematics")
-                for element in scenario.tag.SelectField("Block:cinematics").Elements:
-                    if element.Fields[1].Path == self.tag_path:
+                if needs_cinematic_scenario_update:
+                    self.name = name
+                    self.scenario.Path = scenario.tag_path
+                    # Add cinematic to scenario tag, first checking to see if the reference exists
+                    block_cinematics = scenario.tag.SelectField("Block:cinematics")
+                    for element in scenario.tag.SelectField("Block:cinematics").Elements:
+                        if element.Fields[1].Path == self.tag_path:
+                            scenario_cinematic_index = element.ElementIndex
+                            break
+                    else:
+                        element = block_cinematics.AddElement()
+                        element.Fields[1].Path = self.tag_path
                         scenario_cinematic_index = element.ElementIndex
-                        break
-                else:
-                    element = block_cinematics.AddElement()
-                    element.Fields[1].Path = self.tag_path
-                    scenario_cinematic_index = element.ElementIndex
                 
-                zone_set_index = -1
-                # Add to given zone set name if this exists
-                for element in scenario.block_zone_sets.Elements:
-                    if element.Fields[0].GetStringData() == zone_set:
-                        zone_set_index = element.ElementIndex
-                        for item in element.SelectField("BlockFlags:cinematic zones").Items:
-                            if item.FlagBit == scenario_cinematic_index:
-                                item.IsSet = True
+                    if zone_set:
+                        zone_set_index = -1
+                        # Add to given zone set name if this exists
+                        for element in scenario.block_zone_sets.Elements:
+                            if element.Fields[0].GetStringData() == zone_set:
+                                zone_set_index = element.ElementIndex
+                                for item in element.SelectField("BlockFlags:cinematic zones").Items:
+                                    if item.FlagBit == scenario_cinematic_index:
+                                        item.IsSet = True
+                                        break
                                 break
-                        break
-                else:
-                    # Create a new zone set if needed
-                    element = scenario.block_zone_sets.AddElement()
-                    element.Fields[0].SetStringData(zone_set)
-                    zone_set_index = element.ElementIndex
-                        
-                    for item in element.SelectField("BlockFlags:cinematic zones").Items:
-                        if item.FlagBit == scenario_cinematic_index:
-                            item.IsSet = True
-                        break
-                    
-                    # Enable all zone bsp and design tags for this 
-                    for item in element.SelectField("bsp zone flags").Items:
-                        item.IsSet = True
+                        else:
+                            # Create a new zone set if needed
+                            element = scenario.block_zone_sets.AddElement()
+                            element.Fields[0].SetStringData(zone_set)
+                            zone_set_index = element.ElementIndex
+                                
+                            for item in element.SelectField("BlockFlags:cinematic zones").Items:
+                                if item.FlagBit == scenario_cinematic_index:
+                                    item.IsSet = True
+                                break
                             
-                    for item in element.SelectField("structure design zone flags").Items:
-                        item.IsSet = True
-                
-                
-                self.zone_set.Data = zone_set_index
+                            # Enable all zone bsp and design tags for this 
+                            for item in element.SelectField("bsp zone flags").Items:
+                                item.IsSet = True
+                                    
+                            for item in element.SelectField("structure design zone flags").Items:
+                                item.IsSet = True
+                    
+                    
+                        self.zone_set.Data = zone_set_index
                         
                 # Add cinematic anchor object to scenario
                 if cinematic_scene.anchor is not None:

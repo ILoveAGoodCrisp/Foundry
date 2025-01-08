@@ -9,8 +9,8 @@ from .. import utils
 from ..managed_blam.camera_track import camera_correction_matrix
 
 class CinematicScene:
-    def __init__(self, asset_path, asset_name, scene: bpy.types.Scene):
-        self.name = f"{asset_name}_000"
+    def __init__(self, asset_path, scene_name, scene: bpy.types.Scene):
+        self.name = scene_name
         self.path_no_ext = Path(asset_path, self.name)
         self.path = self.path_no_ext.with_suffix(".cinematic_scene")
         self.path_qua = Path(self.path_no_ext).with_suffix(".qua")
@@ -109,14 +109,17 @@ def calculate_focal_distances(camera):
     return near_focus, far_focus, focus_distance
 
 class Actor:
-    def __init__(self, ob: bpy.types.Object, scene_name: str, asset_path: str):
+    def __init__(self, ob: bpy.types.Object, scene_name: str, asset_path: str, child_asset_name=""):
         self.ob = ob
         if "." in ob.name:
             ob.name = ob.name.replace(".", "_")
         self.name = ob.name
         self.tag = ob.nwo.cinematic_object
         self.graph = str(Path(asset_path, "objects", scene_name, f"{ob.name}.model_animation_graph"))
-        self.sidecar = str(Path(asset_path, "export", "models", self.name))
+        if child_asset_name:
+            self.sidecar = str(Path(asset_path, child_asset_name, "export", "models", self.name))
+        else:
+            self.sidecar = str(Path(asset_path, "export", "models", self.name))
         self.render_model = None
         self.bones: list = []
         self.shots_active = []

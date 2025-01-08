@@ -14,7 +14,7 @@ from ..icons import get_icon_id
 from ..tools.asset_types import asset_type_items_creator
 from .. import utils
 
-protected_folder_names = "models", "export", "animations", "cinematics", "work"
+protected_folder_names = "models", "export", "animations", "cinematics", "work", "000"
 
 class NWO_OT_NewChildAsset(bpy.types.Operator):
     bl_idname = "nwo.new_child_asset"
@@ -54,15 +54,19 @@ class NWO_OT_NewChildAsset(bpy.types.Operator):
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
-        layout.prop(self, "name")
+        if context.scene.nwo.asset_type != "cinematic":
+            layout.prop(self, "name")
         layout.prop(self, "copy_type", expand=True)
         layout.prop(self, "load")
     
     def execute(self, context):
         asset_directory = Path(utils.get_asset_path_full())
         sidecar_path = Path(utils.relative_path(Path(asset_directory, f"{asset_directory.name}.sidecar.xml")))
-        name = self.name
-        if not name:
+        if context.scene.nwo.asset_type == "cinematic":
+            name = ""
+        else:
+            name = self.name.strip().lower().replace(" ", "_")
+        if not name or name in protected_folder_names:
             name = "010"
         child_asset_dir = Path(asset_directory, name)
         asset_num = 0
@@ -85,7 +89,7 @@ class NWO_OT_NewChildAsset(bpy.types.Operator):
         
         child_assets = context.scene.nwo.child_assets
         new_asset = child_assets.add()
-        new_asset.sidecar_path = str(child_sidecar_path_relative)
+        new_asset.asset_path = str(child_sidecar_path_relative.parent)
         
         bpy.ops.wm.save_mainfile()
         
@@ -102,7 +106,8 @@ class NWO_OT_NewChildAsset(bpy.types.Operator):
             context.scene.nwo.child_assets.remove(0)
             
         context.scene.nwo.is_child_asset = True
-        context.scene.nwo.parent_asset = str(sidecar_path.with_suffix(""))
+        context.scene.nwo.parent_asset = str(sidecar_path.parent)
+        context.scene.nwo.sidecar_path = str(child_sidecar_path_relative)
         
         sidecar = Sidecar(child_sidecar_path, child_sidecar_path_relative, child_asset_dir, child_asset_dir.name, None, context.scene.nwo, utils.is_corinth(context), context)
         sidecar.build()

@@ -286,11 +286,15 @@ class NWO_ExportScene(Operator, ExportHelper):
                     if scene_nwo.asset_type == 'model':
                         update_debug_menu(self.asset_path, self.asset_name)
                     elif scene_nwo.asset_type == 'cinematic':
-                        asset_path = utils.get_asset_path()
+                        if context.scene.nwo.is_child_asset:
+                            asset_path = context.scene.nwo.parent_asset
+                        else:
+                            asset_path = utils.get_asset_path()
+                            
                         asset_name = Path(asset_path).name
-                        scene_index = 0
+                        scene_name = f"{asset_name}_{utils.get_asset_name()}" if context.scene.nwo.is_child_asset else f"{asset_name}_000"
                         shot_index = utils.current_shot_index(context)
-                        add_controls_to_debug_menu(context, utils.is_corinth(context), Path(asset_path, asset_name).with_suffix(".cinematic"), scene_index, shot_index)
+                        add_controls_to_debug_menu(utils.is_corinth(context), Path(asset_path, asset_name).with_suffix(".cinematic"), scene_name, shot_index)
 
         except KeyboardInterrupt:
             print_warning("\n\nEXPORT CANCELLED BY USER")
@@ -530,13 +534,12 @@ def unregister():
     bpy.utils.unregister_class(NWO_ExportScene)
 
 def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_path, scene_settings, export_settings, corinth):
-    is_child_asset = scene_settings.is_child_asset
     asset_type = scene_settings.asset_type
     if asset_type == 'camera_track_set':
         return export_current_action_as_camera_track(context,asset_path) # Return early if this is a camera track export
     export_scene = ExportScene(context, sidecar_path_full, sidecar_path, asset_type, asset_name, asset_path, corinth, export_settings, scene_settings)
     try:
-        if is_child_asset or export_settings.export_mode in {'FULL', 'GRANNY'}:
+        if export_settings.export_mode in {'FULL', 'GRANNY'}:
             print("\n\nProcessing Scene")
             print("-----------------------------------------------------------------------\n")
             export_scene.ready_scene()
@@ -552,7 +555,7 @@ def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_pat
             export_scene.export_files()
             export_scene.write_sidecar()
             
-        if not is_child_asset and export_settings.export_mode in {'FULL', 'TAGS'}:
+        if export_settings.export_mode in {'FULL', 'TAGS'}:
             if export_settings.export_mode == 'TAGS' and (export_scene.limit_perms_to_selection or export_scene.limit_bsps_to_selection):
                 # Need to figure out what perms/bsps are selected in this case
                 print("\n\nQuick Scene Process")
