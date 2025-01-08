@@ -190,10 +190,11 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             row.operator("nwo.new_asset", text="New Asset", icon_value=get_icon_id("halo_asset"))
             return
         
-        col.prop(nwo, "is_child_asset")
+        col.prop(nwo, "is_child_asset", text="Child Asset" if self.asset_type != "cinematic" else "Cinematic Scene Only")
         
-        if not nwo.is_child_asset:
-            
+        if nwo.is_child_asset:
+            col.prop(nwo, "parent_asset")
+        else:
             if nwo.asset_type == 'model':
                 self.draw_expandable_box(self.box.box(), nwo, 'output_tags')
                 self.draw_expandable_box(self.box.box(), nwo, 'model')
@@ -263,8 +264,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 col.separator()
                 col.prop(nwo, 'cinematic_anchor')
             
-        if nwo.asset_type in {'model', 'sky', 'scenario', 'animation'}:
-            self.draw_expandable_box(self.box.box(), nwo, "child_assets")
+            if nwo.asset_type in {'model', 'sky', 'scenario', 'animation', 'cinematic'}:
+                self.draw_expandable_box(self.box.box(), nwo, "child_assets", panel_display_name="Child Assets" if nwo.asset_type != 'cinematic' else "Other Cinematic Scenes")
     
     def draw_expandable_box(self, box: bpy.types.UILayout, nwo, name, panel_display_name='', ob=None, material=None):
         if not panel_display_name:
@@ -388,6 +389,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 grid.prop(zone_set, f"bsp_{index}", text=bsp)
                 
     def draw_child_assets(self, box: bpy.types.UILayout, nwo):
+        box.operator("nwo.new_child_asset", text="New Child Asset" if self.asset_type != 'cinematic' else "New Cinematic Scene", icon='NEWFOLDER')
         row = box.row()
         row.template_list(
             "NWO_UL_ChildAsset",

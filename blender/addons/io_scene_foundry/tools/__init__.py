@@ -11,7 +11,7 @@ from .shader_duplicate import NWO_OT_ShaderDuplicate
 from .camera_sync import NWO_OT_CameraSync
 from .prefab_exporter import NWO_OT_ExportPrefabs
 from .light_exporter import NWO_OT_ExportLights
-from .asset_creator import NWO_OT_NewAsset
+from .asset_creator import NWO_OT_NewAsset, NWO_OT_NewChildAsset
 from .animation.rename_importer import NWO_OT_RenameImporter
 from .animation.fcurve_transfer import NWO_OT_FcurveTransfer
 from .animation.composites import NWO_OT_AnimationBlendAxisAdd, NWO_OT_AnimationBlendAxisMove, NWO_OT_AnimationBlendAxisRemove, NWO_OT_AnimationCompositeAdd, NWO_OT_AnimationCompositeMove, NWO_OT_AnimationCompositeRemove, NWO_OT_AnimationDeadZoneAdd, NWO_OT_AnimationDeadZoneMove, NWO_OT_AnimationDeadZoneRemove, NWO_OT_AnimationLeafAdd, NWO_OT_AnimationLeafMove, NWO_OT_AnimationLeafRemove, NWO_OT_AnimationPhaseSetAdd, NWO_OT_AnimationPhaseSetMove, NWO_OT_AnimationPhaseSetRemove, NWO_UL_AnimationBlendAxis, NWO_UL_AnimationComposites, NWO_UL_AnimationDeadZone, NWO_UL_AnimationLeaf, NWO_UL_AnimationPhaseSet
@@ -188,6 +188,7 @@ classeshalo = (
     NWO_OT_LaunchMCC,
     NWO_OT_OpenModFolder,
     NWO_OT_RefreshCinematicControls,
+    NWO_OT_NewChildAsset,
 )
 
 def register():

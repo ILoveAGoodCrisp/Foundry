@@ -1147,8 +1147,13 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     )
     
     is_child_asset: bpy.props.BoolProperty(
-        name="Mark as Child Asset",
+        name="Child Asset",
         description="Mark if this asset is a child of another. Setting this will prevent this file from building tags, instead only building intermediary data for use by its parent file"
+    )
+    
+    parent_asset: bpy.props.StringProperty(
+        name="Parent Asset",
+        description="Data relative filepath to the parent asset (without file extension)"
     )
     
     mod_name: bpy.props.StringProperty(options={'HIDDEN'}, default="")
