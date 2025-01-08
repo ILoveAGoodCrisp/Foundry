@@ -142,3 +142,6 @@ class CinematicTag(Tag):
                             source_files.RemoveElement(element.ElementIndex)
                             break
                         
+                if scenario.read_scenario_type() == 1:
+                    utils.print_warning(f"{scenario.tag_path.RelativePathWithExtension} is set to Multiplayer. Cinematics will crash if you attempt to run them\nSwitch the scenario type to Solo before playing cinematic")
+                        

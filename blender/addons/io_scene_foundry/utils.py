@@ -566,6 +566,9 @@ def run_tool_sidecar(tool_args: list, asset_path, event_level='WARNING'):
                 elif "sidecar does not specify a model path" in line:
                     # Invalid error for cinematic sidecars
                     continue
+                elif "unrecognized output tag type cinematic_scene for object cinematic_scene" in line:
+                    # Bungie what you doing
+                    continue
                 else:
                     # need to handle animation stuff. Most animation output is written to stderr...
                     if line.startswith("animation:import:"):

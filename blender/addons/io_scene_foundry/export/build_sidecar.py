@@ -820,15 +820,30 @@ class Sidecar:
         contents = ET.SubElement(metadata, "Contents")
         content = ET.SubElement(contents, "Content", Name=self.cinematic_scene.name, Type="scene")
         
+        # sound_sequences = [sequence for sequence in self.context.scene.sequence_editor.sequences if sequence.type == 'SOUND']
+        # audio_content_object = ET.SubElement(content, "ContentObject", Name="", Type="cinematic_audio")
+        # for sequence in sound_sequences:
+        #     sound = sequence.sound
+        #     filepath = Path(sound.filepath)
+        #     if filepath.is_absolute() and filepath.is_relative_to(self.data_dir):
+        #         relative = Path(utils.relative_path(filepath))
+        #         sound_name = relative.with_suffix("").name
+        #         tag_path = Path(self.relative_asset_path, "dialog", f"{sound_name}.sound")
+        #         network = ET.SubElement(audio_content_object, "ContentNetwork", Name=sound_name, Type="", Target="spartans", StartFrame=str(int(sequence.frame_start)), SoundTagFile=r"foundry\cinematic_test\kat_sniped\test.aif", DialogColor="NONE")
+        #         ET.SubElement(network, "InputFile").text = str(relative)
+        #     else:
+        #         utils.print_warning(f"Cannot add audio file because it is not saved to the project data folder: {filepath}")
+        # ET.SubElement(audio_content_object, "OutputTagCollection")
+        
         # QUA
-        # scene_content_object = ET.SubElement(content, "ContentObject", Name="", Type="cinematic_scene")
-        # network = ET.SubElement(scene_content_object, "ContentNetwork", Name="", Type="")
-        # ET.SubElement(network, "InputFile").text = self.relative_blend
-        # ET.SubElement(network, "IntermediateFile").text = str(self.cinematic_scene.path_qua)
-        # collection = ET.SubElement(scene_content_object, "OutputTagCollection")
-        # ET.SubElement(collection, "OutputTag", Type="cinematic_scene").text = str(self.cinematic_scene.path_no_ext)
-        # if self.corinth:
-        #     ET.SubElement(collection, "OutputTag", Type="cinematic_scene_data").text = str(self.cinematic_scene.path_no_ext)
+        scene_content_object = ET.SubElement(content, "ContentObject", Name="", Type="cinematic_scene")
+        network = ET.SubElement(scene_content_object, "ContentNetwork", Name="", Type="")
+        ET.SubElement(network, "InputFile").text = self.relative_blend
+        ET.SubElement(network, "IntermediateFile").text = self.relative_blend
+        collection = ET.SubElement(scene_content_object, "OutputTagCollection")
+        ET.SubElement(collection, "OutputTag", Type="cinematic_scene").text = str(self.cinematic_scene.path_no_ext)
+        if self.corinth:
+            ET.SubElement(collection, "OutputTag", Type="cinematic_scene_data").text = str(self.cinematic_scene.path_no_ext)
         
         # Shots
         shots_content_object = ET.SubElement(content, "ContentObject", Name="", Type="cinematic_shots") # Sequencer="True"
