@@ -51,6 +51,12 @@ def display_fading_text(text, position=(200, 200), size=50, fade_in_start=1, fad
 
     bpy.context.area.tag_redraw()
     bpy.ops.screen.animation_play()
+    
+temp_area = None
+    
+def invoke_project_add():
+    with bpy.context.temp_override(area=temp_area):
+        bpy.ops.nwo.project_add("INVOKE_DEFAULT")
 
 class NWO_OT_StartFoundry(bpy.types.Operator):
     bl_idname = "nwo.launch_foundry"
@@ -68,6 +74,13 @@ class NWO_OT_StartFoundry(bpy.types.Operator):
         startup.save_object_positions_to_tags(context)
         context.space_data.show_region_ui = True
         bpy.app.timers.register(utils.set_foundry_panel_active, first_interval=0.01)
+        projects = utils.get_prefs().projects
+        if not projects:
+            global temp_area
+            temp_area = context.area
+            bpy.app.timers.register(invoke_project_add, first_interval=0.02)
+        elif not context.scene.nwo.scene_project:
+            context.scene.nwo.scene_project = projects[0].name
         # self.report({'INFO'}, "Welcome to Foundry!")
         # display_fading_text("Foundry Loaded")
         return {"FINISHED"}
@@ -1227,22 +1240,28 @@ def draw_foundry_nodes_toolbar(self, context):
 
 def foundry_nodes_toolbar(layout, context):
     row = layout.row()
-    export_scene = context.scene.nwo
+    nwo = context.scene.nwo
     row.scale_x = 1
     box = row.box()
     box.scale_x = 0.3
     box.label(text="")
-    if not export_scene.toolbar_expanded:
+    if not nwo.toolbar_expanded:
         sub_foundry = row.row(align=True)
-        sub_foundry.prop(export_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
-    if export_scene.toolbar_expanded:
-            error = utils.validate_ek()
-            if error is not None:
-                sub_error = row.row()
-                sub_error.label(text=error, icon="ERROR")
-                sub_foundry = row.row(align=True)
-                sub_foundry.prop(export_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
-                return
+        sub_foundry.prop(nwo, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
+    if nwo.toolbar_expanded:
+        # Check we have any projects
+        projects = utils.get_prefs().projects
+        if not projects:
+            return box.operator("nwo.project_add", text="Add New Project (Editing Kit)")
+        if not nwo.scene_project:
+            return box.menu("NWO_MT_ProjectChooser")
+        error = utils.validate_ek()
+        if error is not None:
+            sub_error = row.row()
+            sub_error.label(text=error, icon="ERROR")
+            sub_foundry = row.row(align=True)
+            sub_foundry.prop(nwo, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
+            return
 
 def draw_foundry_toolbar(self, context):
     #if context.region.alignment == 'RIGHT':
@@ -1251,8 +1270,8 @@ def draw_foundry_toolbar(self, context):
 def foundry_toolbar(layout, context):
     #layout.label(text=" ")
     row = layout.row()
-    export_scene = context.scene.nwo
-    if export_scene.storage_only:
+    nwo = context.scene.nwo
+    if nwo.storage_only:
         row.label(text='Scene is used by Foundry for object storage', icon_value=get_icon_id('foundry'))
         return
     icons_only = utils.get_prefs().toolbar_icons_only
@@ -1264,10 +1283,18 @@ def foundry_toolbar(layout, context):
         sub = row.row()
         sub.operator("nwo.launch_foundry")
         return
-    if not export_scene.toolbar_expanded:
+    if not nwo.toolbar_expanded:
         sub_foundry = row.row(align=True)
-        sub_foundry.prop(export_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
-    if export_scene.toolbar_expanded:
+        sub_foundry.prop(nwo, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
+    if nwo.toolbar_expanded:
+        # Check we have any projects
+        projects = utils.get_prefs().projects
+        if not projects:
+            sub_button = row.row(align=True)
+            return sub_button.operator("nwo.project_add", text="Add New Project (Editing Kit)")
+        if not nwo.scene_project:
+            sub_button = row.row(align=True)
+            return sub_button.menu("NWO_MT_ProjectChooser")
         sub_project = row.row(align=True)
         sub_project.menu("NWO_MT_ProjectChooser", text="", icon_value=utils.project_icon(context))
         error = utils.validate_ek()
@@ -1275,24 +1302,24 @@ def foundry_toolbar(layout, context):
             sub_error = row.row()
             sub_error.label(text=error, icon="ERROR")
             sub_foundry = row.row(align=True)
-            sub_foundry.prop(export_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
+            sub_foundry.prop(nwo, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
             return
         
         # sub_game_version = row.row(align=True)
         # sub_game_version.label(text="", icon_value=project_game_icon(context))
 
         sub0 = row.row(align=True)
-        if export_scene.is_valid_asset and export_scene.asset_type != 'resource':
+        if nwo.is_valid_asset and nwo.asset_type != 'resource':
             sub0.operator(
                 "nwo.export_quick",
                 text="" if icons_only else "Export",
                 icon_value=get_icon_id("quick_export"),
             )
             sub0.popover(panel="NWO_PT_HaloExportSettings", text="")
-        elif export_scene.sidecar_path:
+        elif nwo.sidecar_path:
             sub0.operator(
                 "nwo.new_asset",
-                text=f"Copy {export_scene.asset_name}",
+                text=f"Copy {nwo.asset_name}",
                 icon_value=get_icon_id("halo_asset"),
             ) 
         else:
@@ -1334,7 +1361,7 @@ def foundry_toolbar(layout, context):
         sub3.popover(panel="NWO_PT_HaloLauncherExplorerSettings", text="")
 
         sub_foundry = row.row(align=True)
-        sub_foundry.prop(export_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
+        sub_foundry.prop(nwo, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
         
 def menu_func_import(self, context):
     self.layout.operator("nwo.import", text="Halo Foundry Import")

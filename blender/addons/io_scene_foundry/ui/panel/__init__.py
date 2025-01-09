@@ -51,7 +51,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
     
     @classmethod
     def poll(cls, context):
-        return not context.scene.nwo.storage_only
+        return not context.scene.nwo.storage_only and utils.get_prefs().projects and context.scene.nwo.scene_project
 
     def draw(self, context):
         self.context = context
@@ -167,6 +167,11 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         if scene.nwo.scale_display == 'halo' and scene.unit_settings.length_unit != 'METERS':
             row = col.row()
             row.label(text='World Units only accurate when Unit Length is Meters', icon='ERROR')
+        
+        col.label(text="Scene Project")
+        row = col.row()
+        row.scale_y = 1.1
+        row.menu("NWO_MT_ProjectChooser", text=nwo.scene_project, icon_value=utils.project_icon(bpy.context))
 
 
     def draw_asset_editor(self):

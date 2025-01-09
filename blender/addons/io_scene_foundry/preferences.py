@@ -63,16 +63,17 @@ class NWO_ProjectAdd(Operator):
         projects_list = read_projects_list()
         if projects_list is None:
             projects_list = []
+        had_no_projects = not projects_list
         projects_list.append(str(new_project_path))
         projects_list = list(dict.fromkeys(projects_list))
 
         write_projects_list(projects_list)
         projects = setup_projects_list(report=self.report)
 
-        if self.set_scene_project:
+        if self.set_scene_project or had_no_projects:
             nwo = context.scene.nwo
             nwo.scene_project = projects[-1].name
-
+        
         context.area.tag_redraw()
         return {'FINISHED'}
     
