@@ -778,7 +778,7 @@ class NWO_OT_AddActionTrack(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        if not (context.scene.nwo.animations and context.scene.nwo.active_animation_index) > -1:
+        if not context.scene.nwo.animations or context.scene.nwo.active_animation_index == -1:
             return False
         ob = context.object
         if not ob:

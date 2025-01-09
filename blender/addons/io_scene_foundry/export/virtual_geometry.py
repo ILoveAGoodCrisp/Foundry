@@ -816,6 +816,7 @@ class VirtualMesh:
             tri_mod = mods.new('Triangulate', 'TRIANGULATE')
             tri_mod.quad_method = scene.quad_method
             tri_mod.ngon_method = scene.ngon_method
+            tri_mod.keep_custom_normals = True
         
         add_triangle_mod(eval_ob)
 
