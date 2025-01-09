@@ -47,10 +47,13 @@ def load_handler(dummy):
     blend_path = bpy.data.filepath
     project_names = [p.name for p in projects]
     if projects and (not context.scene.nwo.scene_project or context.scene.nwo.scene_project not in project_names):
-        for p in projects:
-            if Path(blend_path).is_relative_to(p.project_path):
-                context.scene.nwo.scene_project = p.name
-                break
+        if blend_path:
+            for p in projects:
+                if Path(blend_path).is_relative_to(p.project_path):
+                    context.scene.nwo.scene_project = p.name
+                    break
+            else:
+                context.scene.nwo.scene_project = projects[0].name
         else:
             context.scene.nwo.scene_project = projects[0].name
 
