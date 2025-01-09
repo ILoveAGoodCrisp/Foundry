@@ -1,5 +1,7 @@
 def draw_cinematic_info(self, context):
     nwo = context.scene.nwo
+    if nwo.asset_type != "cinematic":
+        return
     layout = self.layout
     layout.separator()
     layout.label(text="Halo Cinematic:")

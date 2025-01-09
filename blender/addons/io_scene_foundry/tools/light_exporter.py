@@ -220,6 +220,7 @@ def export_lights(asset_path, asset_name, light_objects = None, bsps = None):
                 light_instances = [light for light in lights_list]
                 light_data = {bpy.data.lights.get(light.data_name) for light in lights_list}
                 light_definitions = [BlamLightDefinition(data) for data in light_data]
+                print(info_path)
                 with ScenarioStructureLightingInfoTag(path=info_path) as tag: tag.build_tag(light_instances, light_definitions)
     
     elif utils.is_corinth(context) and asset_type in ('model', 'sky', 'prefab'):

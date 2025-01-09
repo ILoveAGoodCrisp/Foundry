@@ -2104,9 +2104,15 @@ class ExportScene:
                     bsps = [bsp for bsp in self.regions if bsp.lower() != "shared"]
                 if self.lights:
                     self.print_post(f"--- Writing lighting data from {len(self.lights)} light{'s' if len(self.lights) > 1 else ''}")
-                    export_lights(str(self.parent_asset_path_relative), self.parent_asset_name, self.lights, bsps)
+                    if self.is_child_asset:
+                        export_lights(str(self.parent_asset_path_relative), self.parent_asset_name, self.lights, bsps)
+                    else:
+                        export_lights(self.asset_path_relative, self.asset_name, self.lights, bsps)
                 else:
-                    export_lights(self.asset_path_relative, self.asset_name, [], bsps, self.parent_asset_path_relative) # this will clear the lighting info tag
+                    if self.is_child_asset:
+                        export_lights(str(self.parent_asset_path_relative), self.parent_asset_name, [], bsps) # this will clear the lighting info tag
+                    else:
+                        export_lights(self.asset_path_relative, self.asset_name, [], bsps)
                     
         if self.asset_type == AssetType.CINEMATIC:
             self.print_post(f"--- Writing cinematic scene: {self.cinematic_scene.name}")
