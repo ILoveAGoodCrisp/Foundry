@@ -45,6 +45,7 @@ from ..utils import (
     print_error,
     print_warning,
     update_debug_menu,
+    valid_child_asset,
     validate_ek,
 )
 from .. import managed_blam
@@ -132,7 +133,8 @@ class NWO_ExportScene(Operator, ExportHelper):
             or not file_exists(f"{get_tool_path()}.exe")
             or self.asset_path.lower() + os.sep == get_data_path().lower()
         ):  # check the user is saving the file to a location in their editing kit data directory AND tool exists. AND prevent exports to root data dir
-            game = bpy.context.scene.nwo.scene_project
+            nwo = bpy.context.scene.nwo
+            game = nwo.scene_project
             if get_project_path() is None or get_project_path() == "":
                 ctypes.windll.user32.MessageBoxW(
                     0,
@@ -152,6 +154,13 @@ class NWO_ExportScene(Operator, ExportHelper):
                     0,
                     f'You cannot export directly to your root {game} editing kit data directory. Please create a valid asset directory such as "data\my_asset" and direct your export to this folder',
                     f"Root Data Folder Export",
+                    0,
+                )
+            elif nwo.is_child_asset and not valid_child_asset():
+                ctypes.windll.user32.MessageBoxW(
+                    0,
+                    f'Asset is marked as a child asset but does not specify a parent asset. Ensure the data relative path to the parent asset directory is set in the asset editor panel',
+                    f"Invalid Child Asset",
                     0,
                 )
             else:
