@@ -535,7 +535,7 @@ class VirtualMorphTargetData:
         eval_ob = ob.evaluated_get(scene.depsgraph)
         mesh = eval_ob.to_mesh(preserve_all_data_layers=False, depsgraph=scene.depsgraph)
         
-        self.name = mesh.name
+        self.name = mesh.name_full
         if not mesh.polygons:
             scene.warnings.append(f"Mesh data [{self.name}] of object [{ob.name}] has no faces. Skipping writing morph target data")
             self.invalid = True
@@ -642,7 +642,7 @@ class VirtualMorphTargetData:
     
 class VirtualMesh:
     def __init__(self, vertex_weighted: bool, scene: 'VirtualScene', bone_bindings: list[str], ob: bpy.types.Object, fp_defaults: dict, render_mesh: bool, proxies: list, props: dict, negative_scaling: bool, bones: list[str], materials: tuple[bpy.types.Material]):
-        self.name = ob.data.name
+        self.name = ob.data.name_full
         self.proxies = proxies
         self.positions: np.ndarray = None
         self.normals: np.ndarray = None
@@ -821,7 +821,7 @@ class VirtualMesh:
         add_triangle_mod(eval_ob)
 
         mesh = eval_ob.to_mesh(preserve_all_data_layers=True, depsgraph=scene.depsgraph)
-        self.name = mesh.name
+        self.name = mesh.name_full
         if not mesh.polygons:
             scene.warnings.append(f"Mesh data [{self.name}] of object [{ob.name}] has no faces. {ob.name} removed from geometry tree")
             self.invalid = True
@@ -1234,7 +1234,7 @@ def granny_transform_parts(matrix_local: Matrix):
 class VirtualBone:
     '''Describes an blender object/bone which is a child'''
     def __init__(self, id: bpy.types.Object | bpy.types.PoseBone):
-        self.name: str = id.name
+        self.name: str = id.name_full
         self.parent_index: int = -1
         self.node: VirtualNode = None
         self.matrix_local: Matrix = IDENTITY_MATRIX
@@ -1299,7 +1299,7 @@ def sort_bones_by_hierachy(fake_bones: list[FakeBone]):
 class VirtualSkeleton:
     '''Describes a list of bones'''
     def __init__(self, ob: bpy.types.Object, scene: 'VirtualScene', node: VirtualNode, is_main_armature = False):
-        self.name: str = ob.name
+        self.name: str = ob.name_full
         self.node = node
         self.pbones = {}
         self.animated_bones = []
@@ -1505,7 +1505,7 @@ class VirtualSkeleton:
 class VirtualModel:
     '''Describes a blender object which has no parent'''
     def __init__(self, ob: bpy.types.Object, scene: 'VirtualScene', props=None, region=None, permutation=None, animation_owner=None):
-        self.name: str = ob.name
+        self.name: str = ob.name_full
         self.node = None
         self.skeleton = None
         is_main_armature = False

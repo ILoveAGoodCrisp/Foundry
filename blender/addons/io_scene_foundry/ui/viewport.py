@@ -12,6 +12,10 @@ from ..constants import VALID_MESHES
 class NWO_MT_PIE_ApplyTypeMesh(bpy.types.Menu):
     bl_label = "Mesh Type"
     bl_idname = "NWO_MT_PIE_ApplyTypeMesh"
+    
+    @classmethod
+    def poll(cls, context):
+        return bpy.ops.object.mode_set.poll()
 
     def draw(self, context):
         layout = self.layout
@@ -28,7 +32,7 @@ class NWO_PIE_ApplyTypeMesh(bpy.types.Operator):
     @classmethod
     def poll(self, context):
         asset_type = context.scene.nwo.asset_type
-        return asset_type in ("model", "scenario", "prefab")
+        return asset_type in ("model", "scenario", "prefab") and bpy.ops.object.mode_set.poll()
 
     def execute(self, context):
         bpy.ops.wm.call_menu_pie(name="NWO_MT_PIE_ApplyTypeMesh")
@@ -41,6 +45,10 @@ class NWO_OT_ApplyTypeMesh(bpy.types.Operator):
     bl_idname = "nwo.apply_type_mesh"
     bl_description = "Applies the specified mesh type to the selected objects"
     bl_options = {"REGISTER", "UNDO"}
+    
+    @classmethod
+    def poll(cls, context):
+        return bpy.ops.object.mode_set.poll()
     
     convert_mesh: bpy.props.EnumProperty(
         options={'SKIP_SAVE'},
@@ -336,6 +344,10 @@ class NWO_OT_ApplyTypeMeshSingle(NWO_OT_ApplyTypeMesh):
 class NWO_MT_PIE_ApplyTypeMarker(bpy.types.Menu):
     bl_label = "Marker Type"
     bl_idname = "NWO_MT_PIE_ApplyTypeMarker"
+    
+    @classmethod
+    def poll(cls, context):
+        return context.object and not context.object.library
 
     def draw(self, context):
         layout = self.layout
@@ -352,7 +364,7 @@ class NWO_PIE_ApplyTypeMarker(bpy.types.Operator):
     @classmethod
     def poll(self, context):
         asset_type = context.scene.nwo.asset_type
-        return asset_type in ("model", "sky", "scenario", "prefab")
+        return asset_type in ("model", "sky", "scenario", "prefab") and context.object and not context.object.library
 
     def execute(self, context):
         bpy.ops.wm.call_menu_pie(name="NWO_MT_PIE_ApplyTypeMarker")
@@ -365,6 +377,10 @@ class NWO_OT_ApplyTypeMarker(bpy.types.Operator):
     bl_idname = "nwo.apply_type_marker"
     bl_description = "Applies the specified marker type to the selected objects"
     bl_options = {"REGISTER", "UNDO"}
+    
+    @classmethod
+    def poll(cls, context):
+        return context.object and not context.object.library
 
     def m_type_items(self, context):
         items = []

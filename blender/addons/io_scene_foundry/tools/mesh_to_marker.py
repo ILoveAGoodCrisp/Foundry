@@ -14,7 +14,7 @@ class NWO_MeshToMarker(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return context.object
+        return bpy.ops.object.mode_set.poll()
     
     def items_marker_type(self, context):
         h4 = is_corinth()

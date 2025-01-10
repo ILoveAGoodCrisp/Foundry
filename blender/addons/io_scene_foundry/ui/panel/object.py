@@ -393,6 +393,7 @@ class NWO_OT_EditMode(bpy.types.Operator):
             context.object
             and context.object.type == "MESH"
             and context.object.mode in ("OBJECT", "EDIT")
+            and bpy.ops.object.mode_set.poll()
         )
 
     def execute(self, context):
@@ -1357,7 +1358,7 @@ class NWO_OT_MeshPropAdd(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.object and utils.is_mesh(context.object)
+        return context.object and utils.is_mesh(context.object) and bpy.ops.object.mode_set.poll()
 
     options: bpy.props.EnumProperty(
         items=[

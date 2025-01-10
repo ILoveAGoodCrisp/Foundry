@@ -283,7 +283,6 @@ class ExportScene:
                 for source_ob in ob.instance_collection.all_objects:
                     source_ob: bpy.types.Object
                     temp_ob = source_ob.copy()
-                        
                     lookup_dict[source_ob] = temp_ob
                     for collection in users_collection:
                         collection.objects.link(temp_ob)
@@ -331,7 +330,7 @@ class ExportScene:
         proxy_physics_list = [getattr(data_nwo, f"proxy_physics{i}", None) for i in range(10) if getattr(data_nwo, f"proxy_physics{i}") is not None]
         proxy_collision = data_nwo.proxy_collision
         proxy_cookie_cutter = data_nwo.proxy_cookie_cutter
-        
+
         has_coll = proxy_collision is not None
         has_phys = bool(proxy_physics_list)
         has_cookie = proxy_cookie_cutter is not None and not self.corinth
@@ -1811,6 +1810,7 @@ class ExportScene:
                         nodes_dict = {node.name: node for node in nodes + [self.virtual_scene.skeleton_node]}
                     else:
                         nodes_dict = {node.name: node for node in nodes}
+                        
                     self._export_granny_file(granny_path, nodes_dict)
                     utils.update_job(job, 1)
                     exported_something = True

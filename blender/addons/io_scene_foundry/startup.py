@@ -50,7 +50,6 @@ def import_handler(import_context):
             utils.unlink(ob)
             proxy_scene.collection.objects.link(ob)
     
-
 @persistent
 def load_handler(dummy):
     context = bpy.context

@@ -17,6 +17,10 @@ class NWO_ProxyInstanceEdit(bpy.types.Operator):
     proxy : bpy.props.StringProperty()
 
     _timer = None
+    
+    @classmethod
+    def poll(cls, context):
+        return bpy.ops.object.mode_set.poll()
 
     def exit_local_view(self, context):
         for area in context.screen.areas:
@@ -116,6 +120,10 @@ class NWO_ProxyInstanceNew(bpy.types.Operator):
     bl_description = "New Proxy Instance"
     bl_label = "Instance Proxy New"
     bl_options = {'REGISTER', 'UNDO'}
+    
+    @classmethod
+    def poll(cls, context):
+        return bpy.ops.object.mode_set.poll()
 
     def proxy_type_items(self, context):
         items = []
@@ -304,6 +312,10 @@ class NWO_ProxyInstanceDelete(bpy.types.Operator):
     bl_options = {'UNDO'}
 
     proxy : bpy.props.StringProperty()
+    
+    @classmethod
+    def poll(cls, context):
+        return bpy.ops.object.mode_set.poll()
 
     def execute(self, context):
         proxy_ob = bpy.data.objects[self.proxy]
