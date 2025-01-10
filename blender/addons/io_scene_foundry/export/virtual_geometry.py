@@ -1234,7 +1234,7 @@ def granny_transform_parts(matrix_local: Matrix):
 class VirtualBone:
     '''Describes an blender object/bone which is a child'''
     def __init__(self, id: bpy.types.Object | bpy.types.PoseBone):
-        self.name: str = id.name_full
+        self.name: str = id.name
         self.parent_index: int = -1
         self.node: VirtualNode = None
         self.matrix_local: Matrix = IDENTITY_MATRIX
