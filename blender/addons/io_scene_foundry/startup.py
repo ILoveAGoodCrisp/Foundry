@@ -36,6 +36,20 @@ def subscribe(owner):
 @persistent
 def load_set_output_state(dummy):
     bpy.context.scene.nwo_export.show_output = utils.foundry_output_state
+    
+@persistent
+def import_handler(import_context):
+    proxies = []
+    for item in import_context.import_items:
+        if item.id_type == 'OBJECT' and item.id.type == 'MESH' and item.id.nwo.proxy_parent is not None:
+            proxies.append(item.id)
+    
+    if proxies:
+        proxy_scene = utils.get_foundry_storage_scene()
+        for ob in proxies:
+            utils.unlink(ob)
+            proxy_scene.collection.objects.link(ob)
+    
 
 @persistent
 def load_handler(dummy):
