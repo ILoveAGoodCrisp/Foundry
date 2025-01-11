@@ -1734,8 +1734,8 @@ class ExportScene:
                     if shot.in_scope and actor.in_scope:
                         job = f"--- {animation.name}"
                         utils.update_job(job, 0)
-                        nodes = [self.virtual_scene.nodes.get(actor.name)]
-                        nodes_dict = {node.name: node for node in nodes}
+                        nodes = [self.virtual_scene.nodes.get(actor.pointer)]
+                        nodes_dict = {node.pointer: node for node in nodes}
                         self._export_granny_file(granny_path, nodes_dict, animation)
                         utils.update_job(job, 1)
 
@@ -1765,7 +1765,7 @@ class ExportScene:
                     utils.update_job(job, 0)
                     nodes = self.animation_groups.get(animation.name, [])
                     nodes.extend(animation.nodes)
-                    nodes_dict = {node.name: node for node in nodes + [self.virtual_scene.skeleton_node]}
+                    nodes_dict = {node.pointer: node for node in nodes + [self.virtual_scene.skeleton_node]}
                     self._export_granny_file(granny_path, nodes_dict, animation)
                     utils.update_job(job, 1)
                     exported_something = True
@@ -1791,8 +1791,8 @@ class ExportScene:
             for actor in self.cinematic_actors:
                 job = f"--- {actor.name}"
                 utils.update_job(job, 0)
-                nodes = [self.virtual_scene.nodes.get(actor.name)]
-                nodes_dict = {node.name: node for node in nodes}
+                nodes = [self.virtual_scene.nodes.get(actor.pointer)]
+                nodes_dict = {node.pointer: node for node in nodes}
                 granny_path = Path(self.models_export_dir, f"{actor.name}_skeleton.gr2")
                 self._export_granny_file(granny_path, nodes_dict)
                 utils.update_job(job, 1)
@@ -1811,10 +1811,9 @@ class ExportScene:
                     job = f"--- {name}"
                     utils.update_job(job, 0)
                     if self.virtual_scene.skeleton_node:
-                        nodes_dict = {node.name: node for node in nodes + [self.virtual_scene.skeleton_node]}
+                        nodes_dict = {node.pointer: node for node in nodes + [self.virtual_scene.skeleton_node]}
                     else:
-                        nodes_dict = {node.name: node for node in nodes}
-                        
+                        nodes_dict = {node.pointer: node for node in nodes}
                     self._export_granny_file(granny_path, nodes_dict)
                     utils.update_job(job, 1)
                     exported_something = True

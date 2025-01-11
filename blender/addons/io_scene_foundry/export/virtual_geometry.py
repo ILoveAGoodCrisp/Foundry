@@ -3,9 +3,8 @@
 from collections import defaultdict
 import csv
 from ctypes import Array, Structure, c_char_p, c_float, c_int, POINTER, c_ubyte, c_void_p, cast, create_string_buffer, memmove, pointer, sizeof
-from io import TextIOWrapper
 import logging
-from math import degrees, radians
+from math import degrees
 from pathlib import Path
 import bmesh
 import bpy
@@ -76,10 +75,11 @@ class VirtualShotActor:
     def __init__(self, actor: Actor, scene: 'VirtualScene'):
         self.name = actor.name
         self.name_encoded = actor.name.encode()
+        self.pointer = actor.pointer
         self.actor = actor
         self.bones = None
         self.in_scope = scene.cinematic_scope != 'CAMERA' and (not scene.selected_cinematic_objects_only or actor.ob in scene.selected_actors)
-        model = scene.models.get(actor.name)
+        model = scene.models.get(actor.pointer)
         if model is not None:
             skeleton = model.skeleton
             if skeleton is not None:
@@ -273,7 +273,7 @@ class VirtualAnimation:
         morph_target_datas = defaultdict(list)
         shape_key_data = {}
         for ob in shape_key_objects:
-            node = scene.nodes.get(ob.name)
+            node = scene.nodes.get(ob.as_pointer())
             if node is not None:
                 shape_key_data[ob] = node
                 self.nodes.append(node)
@@ -494,6 +494,7 @@ class VirtualMaterial:
 
 class VirtualMorphTargetData:
     def __init__(self, ob, scene, node: 'VirtualNode'):
+        self.pointer: int = ob.as_pointer()
         self.positions: np.ndarray = None
         self.normals: np.ndarray = None
         self.vertex_colors: list[np.ndarray] = [] # Up to two sets of vert colors
@@ -535,7 +536,7 @@ class VirtualMorphTargetData:
         eval_ob = ob.evaluated_get(scene.depsgraph)
         mesh = eval_ob.to_mesh(preserve_all_data_layers=False, depsgraph=scene.depsgraph)
         
-        self.name = mesh.name_full
+        self.name = mesh.name
         if not mesh.polygons:
             scene.warnings.append(f"Mesh data [{self.name}] of object [{ob.name}] has no faces. Skipping writing morph target data")
             self.invalid = True
@@ -642,7 +643,8 @@ class VirtualMorphTargetData:
     
 class VirtualMesh:
     def __init__(self, vertex_weighted: bool, scene: 'VirtualScene', bone_bindings: list[str], ob: bpy.types.Object, fp_defaults: dict, render_mesh: bool, proxies: list, props: dict, negative_scaling: bool, bones: list[str], materials: tuple[bpy.types.Material]):
-        self.name = ob.data.name_full
+        self.name = ob.data.name
+        self.pointer: int = ob.as_pointer()
         self.proxies = proxies
         self.positions: np.ndarray = None
         self.normals: np.ndarray = None
@@ -821,7 +823,7 @@ class VirtualMesh:
         add_triangle_mod(eval_ob)
 
         mesh = eval_ob.to_mesh(preserve_all_data_layers=True, depsgraph=scene.depsgraph)
-        self.name = mesh.name_full
+        self.name = mesh.name
         if not mesh.polygons:
             scene.warnings.append(f"Mesh data [{self.name}] of object [{ob.name}] has no faces. {ob.name} removed from geometry tree")
             self.invalid = True
@@ -1064,7 +1066,8 @@ class VirtualMesh:
     
 class VirtualNode:
     def __init__(self, id: bpy.types.Object | bpy.types.PoseBone, props: dict, region: str = None, permutation: str = None, fp_defaults: dict = None, scene: 'VirtualScene' = None, proxies = [], template_node: 'VirtualNode' = None, bones: list[str] = [], parent_matrix: Matrix = IDENTITY_MATRIX, animation_owner=None):
-        self.name: str = id.name_full
+        self.name: str = id.name
+        self.pointer: int = id.as_pointer()
         self.override_name = None
         self.id = id
         self.matrix_world: Matrix = IDENTITY_MATRIX
@@ -1113,7 +1116,7 @@ class VirtualNode:
 
                 materials  = tuple(slot.material for slot in id.material_slots)
                 
-                existing_mesh = scene.meshes.get((id.data.name_full, negative_scaling, materials))
+                existing_mesh = scene.meshes.get((id.data.as_pointer(), negative_scaling, materials))
                     
                 if existing_mesh:
                     self.mesh = existing_mesh
@@ -1235,6 +1238,7 @@ class VirtualBone:
     '''Describes an blender object/bone which is a child'''
     def __init__(self, id: bpy.types.Object | bpy.types.PoseBone):
         self.name: str = id.name
+        self.pointer = id.as_pointer()
         self.parent_index: int = -1
         self.node: VirtualNode = None
         self.matrix_local: Matrix = IDENTITY_MATRIX
@@ -1267,6 +1271,7 @@ class AnimatedBone:
         self.ob = ob
         self.parent_matrix_rest_inverted = ob.matrix_world.inverted()
         self.pbone: bpy.types.PoseBone = pbone
+        self.pointer = pbone.as_pointer()
         self.parent = None
         self.is_object = False
         self.is_aim_bone = is_aim_bone
@@ -1281,6 +1286,7 @@ class AnimatedBone:
 class FakeBone:
     def __init__(self, ob: bpy.types.Object, bone: bpy.types.PoseBone, parent: 'FakeBone' = None, special_bone_names=[]):
         self.name = bone.name
+        self.pointer = bone.as_pointer()
         self.ob = ob
         self.parent = parent
         self.bone = bone
@@ -1299,7 +1305,8 @@ def sort_bones_by_hierachy(fake_bones: list[FakeBone]):
 class VirtualSkeleton:
     '''Describes a list of bones'''
     def __init__(self, ob: bpy.types.Object, scene: 'VirtualScene', node: VirtualNode, is_main_armature = False):
-        self.name: str = ob.name_full
+        self.name: str = ob.name
+        self.pointer = ob.as_pointer()
         self.node = node
         self.pbones = {}
         self.animated_bones = []
@@ -1349,9 +1356,9 @@ class VirtualSkeleton:
                 if parent_fb is None:
                     parent = pb.parent
                     if parent:
-                        parent_fb = start_bones_dict.get(parent.name)
+                        parent_fb = start_bones_dict.get(parent.as_pointer())
                 fb = FakeBone(arm, pb, parent_fb, special_bone_names)
-                start_bones_dict[pb.name] = fb
+                start_bones_dict[pb.as_pointer()] = fb
                 if fb.export and parent_fb is not None and not parent_fb.export: # Ensure parents of deform bones are themselves deform
                     scene.warnings.append(f"Bone {parent_fb.name} is marked non-deform but has deforming children. Including {parent_fb.name} in export")
                     parent_fb.export = True
@@ -1372,7 +1379,7 @@ class VirtualSkeleton:
                             fbs.append(cfb)
                             
             if len(set(fb_names)) != len(fb_names):
-                error_str = [f"{fb.ob.name_full} --> {fb.name}" for fb in fbs]
+                error_str = [f"{fb.ob.name} --> {fb.name}" for fb in fbs]
                 raise RuntimeError(f"Duplicate bone names found. Ensure that all exported armatures have unique bone names. Armature Bones list:\n{error_str}\n")
                 
             start_bones = list(start_bones_dict.values())
@@ -1394,9 +1401,9 @@ class VirtualSkeleton:
                 if scene.asset_type == AssetType.CINEMATIC:
                     actor = scene.actors.get(ob)
                     if actor is not None and actor.node_order is not None:
-                        frame_ids_index = actor.node_order.get(b.name)
+                        frame_ids_index = actor.node_order.get(b.pointer)
                 else:
-                    frame_ids_index = scene.template_node_order.get(b.name)
+                    frame_ids_index = scene.template_node_order.get(b.pointer)
                 if frame_ids_index is None:
                     frame_ids_index = idx
                 b.create_bone_props(scene.frame_ids[frame_ids_index])
@@ -1463,7 +1470,7 @@ class VirtualSkeleton:
     def find_children(self, ob: bpy.types.Object, scene: 'VirtualScene', parent_index=0):
         child_index = parent_index
         for child in scene.get_immediate_children(ob):
-            parent_node = scene.nodes.get(ob.name)
+            parent_node = scene.nodes.get(ob.as_pointer())
             if parent_node is None:
                 continue
             node = scene.add(child, *scene.object_halo_data[child], parent_matrix=parent_node.matrix_world.inverted())
@@ -1505,7 +1512,8 @@ class VirtualSkeleton:
 class VirtualModel:
     '''Describes a blender object which has no parent'''
     def __init__(self, ob: bpy.types.Object, scene: 'VirtualScene', props=None, region=None, permutation=None, animation_owner=None):
-        self.name: str = ob.name_full
+        self.name: str = ob.name
+        self.pointer = ob.as_pointer()
         self.node = None
         self.skeleton = None
         is_main_armature = False
@@ -1634,13 +1642,13 @@ class VirtualScene:
         '''Creates a new node with the given parameters and appends it to the virtual scene'''
         node = VirtualNode(id, props, region, permutation, fp_defaults, self, proxies, template_node, bones, parent_matrix, animation_owner)
         if not node.invalid:
-            self.nodes[node.name] = node
+            self.nodes[node.pointer] = node
             if node.new_mesh:
                 # This is a tuple containing whether the object has a negative scale. This because we need to create seperate mesh data for negatively scaled objects
                 negative_scaling = id.matrix_world.is_negative
                 if id.nwo.invert_topology:
                     negative_scaling = not negative_scaling
-                self.meshes[(node.mesh.name, negative_scaling, node.mesh.bpy_materials)] = node.mesh
+                self.meshes[(node.mesh.pointer, negative_scaling, node.mesh.bpy_materials)] = node.mesh
             
         return node
             
@@ -1651,12 +1659,12 @@ class VirtualScene:
     def add_model(self, ob):
         model = VirtualModel(ob, self)
         if model.node:
-            self.models[ob.name] = model
+            self.models[ob.as_pointer()] = model
             
     def add_model_for_animation(self, ob, props, animation_owner):
         model = VirtualModel(ob, self, props=props, animation_owner=animation_owner)
         if model.node:
-            self.models[ob.name] = model
+            self.models[ob.as_pointer()] = model
             return model.node
             
     def add_animation(self, anim, sample=True, controls=[], shape_key_objects=[]):
@@ -1766,7 +1774,7 @@ class VirtualScene:
         print(f"--- Adding Structure Geometry For BSPs: {[bsp for bsp in no_bsp_structure]}")
         for bsp in no_bsp_structure:
             ob, props = wrap_bounding_box([node for node in self.nodes.values() if node.region == bsp], 0 if self.corinth else 1 * scalar)
-            self.models[ob.name] = VirtualModel(ob, self, props, bsp, default_permutation)
+            self.models[ob.as_pointer()] = VirtualModel(ob, self, props, bsp, default_permutation)
 
     def supports_multiple_materials(self, ob: bpy.types.Object, props: dict) -> bool:
         mesh_type = props.get("bungie_mesh_type")
