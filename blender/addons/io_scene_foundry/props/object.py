@@ -32,6 +32,14 @@ class NWO_MarkerPermutationItems(bpy.types.PropertyGroup):
 class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     scale_model: bpy.props.BoolProperty(options={'HIDDEN'})
     
+    def node_order_source_clean_tag_path(self, context):
+        self["node_order_source"] = utils.clean_tag_path(self["node_order_source"], ".render_model").strip('"')
+    
+    node_order_source: bpy.props.StringProperty(
+        name="Bone Order Source",
+        description="Tag relative path to the render_model tag which provides the bone order for this armature",
+    )
+    
     # CINEMATIC
     
     def cinematic_object_clean_tag_path(self, context):

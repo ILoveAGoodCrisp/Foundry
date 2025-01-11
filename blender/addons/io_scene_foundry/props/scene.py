@@ -1759,16 +1759,6 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
             self["template_model_animation_graph"],
             "model_animation_graph"
         ).strip('"')
-    def fp_model_clean_tag_path(self, context):
-        self["fp_model_path"] = utils.clean_tag_path(
-            self["fp_model_path"],
-            "render_model"
-        ).strip('"')
-    def gun_model_clean_tag_path(self, context):
-        self["gun_model_path"] = utils.clean_tag_path(
-            self["gun_model_path"],
-            "render_model"
-        ).strip('"')
     def render_model_clean_tag_path(self, context):
         self["render_model_path"] = utils.clean_tag_path(
             self["render_model_path"],
@@ -1804,20 +1794,6 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         name="Animation Graph Template",
         description="Path to an existing model animation graph tag. If an animation graph does not already exist for this asset, the specified tag will be copied over prior to export. This also ensures that the imported node order for your render model (and collision/physics) matches that of the nodes in the given graph",
         update=animation_clean_tag_path,
-        options=set(),
-        )
-    
-    fp_model_path : bpy.props.StringProperty(
-        name="FP Render Model Path",
-        description="Path to the first person arms render model used by this animation. Ensures bone order matches the specified FP model",
-        update=fp_model_clean_tag_path,
-        options=set(),
-        )
-    
-    gun_model_path : bpy.props.StringProperty(
-        name="Gun Render Model Path",
-        description="Path to the gun render model used by this animation. Ensures bone order matches the specified gun model",
-        update=gun_model_clean_tag_path,
         options=set(),
         )
     

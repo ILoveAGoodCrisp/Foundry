@@ -6,7 +6,7 @@ import os
 from ..utils import get_project_path, get_tags_path, is_corinth, os_sep_partition
 
 global_items = {}
-scene_props = ('template_render_model', 'template_collision_model', 'template_physics_model', 'template_model_animation_graph', 'parent_animation_graph', 'fp_model_path', 'gun_model_path', 'render_model_path', 
+scene_props = ('template_render_model', 'template_collision_model', 'template_physics_model', 'template_model_animation_graph', 'parent_animation_graph', 'render_model_path', 
                'template_model', 'template_biped', 'template_crate', 'template_creature', 'template_device_control', 'template_device_dispenser', 'template_device_machine',
                'template_device_terminal', 'template_effect_scenery', 'template_equipment', 'template_giant', 'template_scenery', 'template_vehicle', 'template_weapon', 'cinematic_scenario')
 
@@ -228,10 +228,6 @@ def get_glob_from_prop(prop):
             return "*.model_*_graph"
         case 'template_physics_model':
             return "*.physics_model"
-        case 'fp_model_path':
-            return "*.render_model"
-        case 'gun_model_path':
-            return "*.render_model"
         case 'render_model_path':
             return "*.render_model"
         case 'shader_path':

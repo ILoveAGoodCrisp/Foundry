@@ -1307,6 +1307,10 @@ class ExportScene:
             elif self.scene_settings.template_render_model and Path(self.tags_dir, utils.relative_path(self.scene_settings.template_render_model)).exists():
                 with RenderModelTag(path=self.scene_settings.template_render_model) as render_model:
                     nodes = render_model.get_nodes()
+            elif self.main_armature and self.main_armature.nwo.node_order_source.strip() and Path(self.tags_dir, utils.relative_path(self.main_armature.nwo.node_order_source)).exists():
+                with RenderModelTag(path=self.main_armature.nwo.node_order_source) as render_model:
+                    nodes = render_model.get_nodes()
+                
         elif self.asset_type == AssetType.CINEMATIC:
             # every armature gets their own order
             for actor in self.cinematic_actors:

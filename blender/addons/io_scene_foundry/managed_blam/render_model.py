@@ -132,6 +132,8 @@ class RenderModelTag(Tag):
             for node in self.nodes: arm.create_bone(node)
             for node in self.nodes: arm.parent_bone(node)
             bpy.ops.object.editmode_toggle()
+            # Set render_model ref for node order
+            arm.ob.nwo.node_order_source = self.tag_path.RelativePathWithExtension
         else:
             for node in self.nodes:
                 node.bone = next((b for b in arm.ob.data.bones if b.name == node.name), None)

@@ -219,21 +219,6 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 col = box.column()
                 col.use_property_split = True
                 col.prop(nwo, "asset_animation_type")
-                if nwo.asset_animation_type == 'first_person':
-                    row = col.row(align=True)
-                    row.prop(nwo, "fp_model_path", text="FP Render Model", icon_value=get_icon_id("tags"))
-                    row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "fp_model_path"
-                    row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'fp_model_path'
-                    row = col.row(align=True)
-                    row.prop(nwo, "gun_model_path", text="Gun Render Model", icon_value=get_icon_id("tags"))
-                    row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "gun_model_path"
-                    row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'gun_model_path'
-                else:
-                    row = col.row(align=True)
-                    row.prop(nwo, "render_model_path", text="Render Model", icon_value=get_icon_id("tags"))
-                    row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "render_model_path"
-                    row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'render_model_path'
-                    
                 self.draw_expandable_box(self.box.box(), nwo, 'animation_graph')
                 self.draw_rig_ui(self.context, nwo)
                 
@@ -1261,6 +1246,10 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                             row.prop(nwo, f"shot_{i + 1}")
                     else:
                         row.prop(nwo, "shot_1")
+            elif utils.poll_ui(("model", "sky", "animation")):
+                col.separator()
+                box = col.box()
+                box.prop(nwo, "node_order_source", icon_value=get_icon_id("tags"))
 
             # box = box.box()
             # box.use_property_split = True
