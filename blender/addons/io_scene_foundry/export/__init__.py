@@ -180,6 +180,9 @@ class NWO_ExportScene(Operator, ExportHelper):
         scene_nwo_export = scene.nwo_export
         scene_nwo = scene.nwo
         
+        # Write last export version
+        scene_nwo.export_version = utils.get_version_string()
+        
         scene_nwo.export_in_progress = True
         if self.game_path_not_set:
             self.report(

@@ -1553,7 +1553,7 @@ class ExportScene:
                             copy_id = abs(event.event_id) + i
                             copy_props["bungie_animation_event_id"] = copy_id
                             copy_props["bungie_animation_event_frame_frame"] = event.frame_frame + i
-                            copy_props.name = f'event_export_node_frame_{str(copy_id)}'
+                            copy_ob.name = f'event_export_node_frame_{str(copy_id)}'
                             event_ob_props[copy_ob] = copy_props
                             
                 case '_connected_geometry_animation_event_type_wrinkle_map':

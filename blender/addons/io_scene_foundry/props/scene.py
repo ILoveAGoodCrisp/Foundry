@@ -1061,6 +1061,8 @@ class NWO_ChildAsset(PropertyGroup):
 
 class NWO_ScenePropertiesGroup(PropertyGroup):
     
+    export_version: bpy.props.StringProperty(options={'HIDDEN'})
+    
     def get_game_frame(self):
         return self.id_data.frame_current - self.id_data.frame_start + int(utils.is_corinth(bpy.context))
     
