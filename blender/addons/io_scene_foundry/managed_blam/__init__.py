@@ -18,6 +18,8 @@ import os
 from ..utils import get_project_path
 import sys
 import atexit
+from pythonnet import load
+load("coreclr")
 import clr
 
 last_saved_tag = None
