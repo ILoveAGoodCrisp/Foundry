@@ -1340,18 +1340,10 @@ class ExportScene:
                                     actor.node_order = {v: i for i, v in enumerate(cin_nodes)}
                 else:
                     self.warnings.append(f"Tag path for cinematic actor [{actor.name}] cannot be found: {path}")
-        else:
-            if self.scene_settings.asset_animation_type == 'first_person':
-                if self.scene_settings.fp_model_path and Path(self.tags_dir, utils.relative_path(self.scene_settings.fp_model_path)).exists():
-                    with RenderModelTag(path=self.scene_settings.fp_model_path) as render_model:
-                        nodes = render_model.get_nodes()
-                if self.scene_settings.gun_model_path and Path(self.tags_dir, utils.relative_path(self.scene_settings.gun_model_path)).exists():
-                    with RenderModelTag(path=self.scene_settings.gun_model_path) as render_model:
-                        nodes.extend(render_model.get_nodes())
                         
-            elif self.scene_settings.render_model_path and Path(self.tags_dir, utils.relative_path(self.scene_settings.render_model_path)).exists():
-                with RenderModelTag(path=self.scene_settings.render_model_path) as render_model:
-                    nodes = render_model.get_nodes()
+        elif self.asset_type in {AssetType.SKY, AssetType.ANIMATION} and self.main_armature and self.main_armature.nwo.node_order_source.strip() and Path(self.tags_dir, utils.relative_path(self.main_armature.nwo.node_order_source)).exists():
+            with RenderModelTag(path=self.main_armature.nwo.node_order_source) as render_model:
+                nodes = render_model.get_nodes()
                     
         if nodes:
             self.virtual_scene.template_node_order = {v: i for i, v in enumerate(nodes)}

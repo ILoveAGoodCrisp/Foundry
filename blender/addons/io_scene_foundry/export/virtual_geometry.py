@@ -1399,9 +1399,9 @@ class VirtualSkeleton:
                 if scene.asset_type == AssetType.CINEMATIC:
                     actor = scene.actors.get(ob)
                     if actor is not None and actor.node_order is not None:
-                        frame_ids_index = actor.node_order.get(b.bone)
+                        frame_ids_index = actor.node_order.get(b.name)
                 else:
-                    frame_ids_index = scene.template_node_order.get(b.bone)
+                    frame_ids_index = scene.template_node_order.get(b.name)
                 if frame_ids_index is None:
                     frame_ids_index = idx
                 b.create_bone_props(scene.frame_ids[frame_ids_index])
