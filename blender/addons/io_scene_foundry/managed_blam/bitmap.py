@@ -3,8 +3,6 @@
 from ctypes import c_void_p
 from math import sqrt
 import os
-from pythonnet import load
-load("coreclr")
 import clr
 from pathlib import Path
 

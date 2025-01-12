@@ -9,8 +9,6 @@ def get_bungie(report=None):
     """Get a reference to Bungie"""
     mb_path = os.path.join(get_project_path(), "bin", "managedblam")
     try:
-        from pythonnet import load
-        load("coreclr")
         import clr
 
         try:

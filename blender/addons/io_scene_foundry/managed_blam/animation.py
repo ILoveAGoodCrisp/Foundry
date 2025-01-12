@@ -322,8 +322,6 @@ class AnimationTag(Tag):
                 return print(f"Failed to use tags: {self.tag_path.RelativePath} & {render_model.tag_path.RelativePath}")
             
             nodes_count = exporter.GetGraphNodeCount()
-            from pythonnet import load
-            load("coreclr")
             import clr
             clr.AddReference('System')
             from System import Array # type: ignore
