@@ -4,6 +4,8 @@ import os
 from pathlib import Path
 from bpy.types import Operator, AddonPreferences
 from bpy.props import BoolProperty, StringProperty, EnumProperty, CollectionProperty
+
+from . import startup
 from .utils import ProjectXML, get_prefs, get_tags_path, is_corinth, project_game_icon, project_icon, read_projects_list, relative_path, setup_projects_list, write_projects_list
 FOUNDRY_GITHUB = r"https://github.com/ILoveAGoodCrisp/Foundry"
 import bpy
@@ -342,6 +344,8 @@ class FoundryPreferences(AddonPreferences):
     def draw(self, context):
         prefs = self
         layout = self.layout
+        if not startup.load_handler_complete:
+            return layout.operator("nwo.launch_foundry")
         
         box = layout.box()
         row = box.row()

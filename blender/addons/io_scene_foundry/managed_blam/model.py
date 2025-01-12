@@ -130,12 +130,15 @@ class ModelTag(Tag):
             all_permutations = set()
             
             with RenderModelTag(path=render_path.RelativePathWithExtension) as render:
+                region_is_named_default = False
+                perm_is_named_default = False
                 for render_relement in render.block_regions.Elements:
                     region_name = render_relement.Fields[0].GetStringData()
                     all_regions.add(region_name)
                     if region_name == "default":
                         default_region = "default"
-                    elif render_relement.ElementIndex == 0:
+                        region_is_named_default = True
+                    elif render_relement.ElementIndex == 0 and not region_is_named_default:
                         default_region = region_name
                         
                     for render_pelement in render_relement.SelectField("Block:permutations").Elements:
@@ -143,7 +146,8 @@ class ModelTag(Tag):
                         all_permutations.add(permutation_name)
                         if permutation_name == "default":
                             region_default_perms[region_name] = "default"
-                        elif render_pelement.ElementIndex == 0:
+                            perm_is_named_default = True
+                        elif render_pelement.ElementIndex == 0 and not perm_is_named_default:
                             region_default_perms[region_name] = permutation_name
             
             variant_regions = set()
@@ -170,7 +174,7 @@ class ModelTag(Tag):
                         state = selement.Fields[0].GetStringData()
                         if state == "default":
                             state = region_default_perms[region]
-                        region_permutations.add(tuple(region, state))
+                        region_permutations.add(tuple((region, state)))
                         
             for reg in all_regions:
                 if reg not in variant_regions:

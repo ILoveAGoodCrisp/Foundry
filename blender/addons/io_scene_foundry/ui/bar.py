@@ -72,7 +72,9 @@ class NWO_OT_StartFoundry(bpy.types.Operator):
         startup.load_handler(context)
         startup.load_set_output_state(context)
         startup.save_object_positions_to_tags(context)
-        context.space_data.show_region_ui = True
+        if context.space_data.type == 'VIEW_3D':
+            context.space_data.show_region_ui = True
+            
         bpy.app.timers.register(utils.set_foundry_panel_active, first_interval=0.01)
         projects = utils.get_prefs().projects
         if not projects:

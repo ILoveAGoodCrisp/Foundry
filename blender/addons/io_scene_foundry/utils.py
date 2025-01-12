@@ -4177,7 +4177,6 @@ def halo_scale(number: float) -> float:
 def valid_child_asset() -> bool:
     '''Returns if this scene is a valid child asset'''
     nwo = bpy.context.scene.nwo
-    assert(nwo.is_child_asset, "Message for dev: Don't run this on non child assets!")
     parent_asset = nwo.parent_asset
     if not parent_asset.strip():
         return False
