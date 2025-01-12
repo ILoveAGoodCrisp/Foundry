@@ -111,7 +111,6 @@ def calculate_focal_distances(camera):
 class Actor:
     def __init__(self, ob: bpy.types.Object, scene_name: str, asset_path: str, child_asset_name=""):
         self.ob = ob
-        self.pointer = ob.as_pointer()
         if "." in ob.name:
             ob.name = ob.name.replace(".", "_")
         self.name = ob.name
