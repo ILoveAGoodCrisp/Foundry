@@ -23,10 +23,10 @@ platforms = ["windows-amd64", "windows-x64"]
 
 wheels = [
   "./wheels/cffi-1.16.0-cp311-cp311-win_amd64.whl",
-  "./wheels/clr_loader-0.2.6-py3-none-any.whl",
+  "./wheels/clr_loader-0.2.7.post0-py3-none-any.whl",
   "./wheels/pycparser-2.22-py3-none-any.whl",
   "./wheels/pymem-1.13.1-py3-none-any.whl",
-  "./wheels/pythonnet-3.0.3-py3-none-any.whl"
+  "./wheels/pythonnet-3.0.5-py3-none-any.whl"
 ]
 
 [build]
