@@ -163,7 +163,7 @@ class ModelTag(Tag):
                     if not permutation:
                         continue
                     elif permutation == "default":
-                        permutation = region_default_perms[region]
+                        permutation = region_default_perms.get(region, "default")
                         
                     region_permutations.add(tuple((region, permutation)))
                     
@@ -173,7 +173,7 @@ class ModelTag(Tag):
                     for selement in pelement.SelectField("states").Elements:
                         state = selement.Fields[0].GetStringData()
                         if state == "default":
-                            state = region_default_perms[region]
+                            state = region_default_perms.get(region, "default")
                         region_permutations.add(tuple((region, state)))
                         
             for reg in all_regions:
