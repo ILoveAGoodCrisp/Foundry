@@ -297,11 +297,6 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         col = box.column()
         col.use_property_split = True
         col.operator("nwo.new_sky", text="Add New Sky to Scenario", icon_value=get_icon_id('sky'))
-        col.separator()
-        col.operator("nwo.cache_build", icon_value=get_icon_id("excession"))
-        col.operator("nwo.launch_mcc", icon_value=get_icon_id("tag_test"))
-        if bpy.ops.nwo.open_mod_folder.poll():
-            col.operator("nwo.open_mod_folder", icon='FILE_FOLDER')
         
     def draw_lighting(self, box: bpy.types.UILayout, nwo):
         box_lights = box.box()
@@ -3098,14 +3093,21 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         self.draw_expandable_box(self.box.box(), nwo, "camera_sync")
         if utils.poll_ui(('model', 'animation', 'sky', 'resource')):
             self.draw_expandable_box(self.box.box(), nwo, "rig_tools")
-        if utils.poll_ui(('scenario', 'resource')):
-            self.draw_expandable_box(self.box.box(), nwo, "bsp_tools", "BSP Tools")
+        self.draw_expandable_box(self.box.box(), nwo, "scenario_tools", "Scenario Tools")
+        self.draw_expandable_box(self.box.box(), nwo, "cache_tools", "MCC Tools")
             
-    def draw_bsp_tools(self, box, nwo):
+    def draw_scenario_tools(self, box, nwo):
         row = box.row()
         col = row.column()
-        col.operator('nwo.auto_seam', text='Auto-Seam', icon_value=get_icon_id('seam'))
+        # col.operator('nwo.auto_seam', text='Auto-Seam', icon_value=get_icon_id('seam'))
         col.operator('nwo.cubemap', text='Cubemap Farm', icon_value=get_icon_id("cubemap"))
+        
+    def draw_cache_tools(self, box, nwo):
+        col = box.column()
+        col.operator("nwo.cache_build", icon_value=get_icon_id("excession"))
+        col.operator("nwo.launch_mcc", icon_value=get_icon_id("tag_test"))
+        if bpy.ops.nwo.open_mod_folder.poll():
+            col.operator("nwo.open_mod_folder", icon='FILE_FOLDER')
         
     def draw_camera_sync(self, box: bpy.types.UILayout, nwo):
         col = box.column()

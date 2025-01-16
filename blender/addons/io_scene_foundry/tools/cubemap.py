@@ -98,8 +98,8 @@ class CubemapFarm:
                 return "Scenario has no cubemaps"
             for element in block_cubemaps.Elements:
                 position = element.SelectField("cubemap position")
-                points = position.GetStringData()
-                cubemaps.append(Cubemap(float(points[0]), float(points[1]), float(points[2])))
+                points = position.Data
+                cubemaps.append(Cubemap(points[0], points[1], points[2]))
         
             print("--- Generating cubemap bitmap tag")
             utils.run_tool(["cubemaps", self.scenario_path_no_ext, self.cubemaps_dir])
@@ -162,14 +162,17 @@ class NWO_OT_Cubemap(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         return True
-    
-    def update_scenario_path(self, context):
-        self["scenario_path"] = utils.clean_tag_path(self["scenario_path"]).strip('"')
-    
-    scenario_path: bpy.props.StringProperty(
-        name="Scenario Tag Path",
+        
+    filepath: bpy.props.StringProperty(
+        name='Scenario Filepath',
+        subtype='FILE_PATH',
         description="Path to the scenario tag to generate a cubemap bitmap for",
-        update=update_scenario_path,
+        options={"HIDDEN"},
+    )
+    
+    filter_glob: bpy.props.StringProperty(
+        default="*.scenario",
+        options={"HIDDEN", "SKIP_SAVE"},
     )
     
     launch_game: bpy.props.BoolProperty(
@@ -179,15 +182,10 @@ class NWO_OT_Cubemap(bpy.types.Operator):
     )
 
     def execute(self, context):
-        if not self.scenario_path:
+        if not self.filepath or Path(self.filepath).suffix.lower() != ".scenario":
             self.report({"WARNING"}, "No scenario path given. Operation cancelled")
             return {'CANCELLED'}
-        self.scenario_path = str(Path(self.scenario_path).with_suffix(".scenario"))
-        self.scenario_path = utils.relative_path(self.scenario_path)
-        if not Path(utils.get_tags_path(), self.scenario_path).exists():
-            self.report({"WARNING"}, f"Given scenario path does not exist: {self.scenario_path}")
-            return {'CANCELLED'}
-        farm = CubemapFarm(self.scenario_path)
+        farm = CubemapFarm(utils.relative_path(self.filepath))
         os.system("cls")
         if context.scene.nwo_export.show_output:
             bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
@@ -207,14 +205,19 @@ class NWO_OT_Cubemap(bpy.types.Operator):
         return {"FINISHED"}
     
     def invoke(self, context, event):
-        if not self.scenario_path and utils.valid_nwo_asset:
+        if utils.valid_nwo_asset() and context.scene.nwo.asset_type == "scenario":
             asset_path, asset_name = utils.get_asset_info()
             if asset_path and asset_name:
-                self.scenario_path = str(Path(asset_path, asset_name).with_suffix(".scenario"))
+                self.filepath = str(Path(asset_path, asset_name).with_suffix(".scenario"))
+            else:
+                self.filepath = utils.get_tags_path() + os.sep
+        else:
+            self.filepath = utils.get_tags_path() + os.sep
             
-        return context.window_manager.invoke_props_dialog(self, width=500)
+        context.window_manager.fileselect_add(self)
+        return {"RUNNING_MODAL"}
     
     def draw(self, context):
         layout = self.layout
-        layout.prop(self, "scenario_path")
+        # layout.prop(self, "scenario_path")
         layout.prop(self, "launch_game")

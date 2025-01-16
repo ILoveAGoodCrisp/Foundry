@@ -1707,6 +1707,8 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     camera_sync_expanded: bpy.props.BoolProperty(default=True, options=set())
     rig_tools_expanded: bpy.props.BoolProperty(default=True, options=set())
     bsp_tools_expanded: bpy.props.BoolProperty(default=True, options=set())
+    scenario_tools_expanded: bpy.props.BoolProperty(default=True, options=set())
+    cache_tools_expanded: bpy.props.BoolProperty(default=True, options=set())
     
     regions_table_expanded: bpy.props.BoolProperty(default=True, options=set())
     permutations_table_expanded: bpy.props.BoolProperty(default=True, options=set())

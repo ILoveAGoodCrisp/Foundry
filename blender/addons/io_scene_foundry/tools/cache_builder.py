@@ -875,7 +875,7 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return not utils.validate_ek() and context.scene.nwo.asset_type == 'scenario'
+        return not utils.validate_ek()
 
     def execute(self, context):
         relative_path = Path(utils.relative_path(self.filepath))
@@ -984,11 +984,13 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
     def invoke(self, context, event):
         if not self.filepath.lower().endswith(".scenario"):
             asset_path = utils.get_asset_path_full(True)
-            if asset_path is not None:
+            if asset_path:
                 path = Path(asset_path, f"{utils.get_asset_name()}.scenario")
                 if not path.parent.exists():
                     path.parent.mkdir(parents=True)
                 self.filepath = str(path)
+            else:
+                self.filepath = utils.get_tags_path() + os.sep
         context.window_manager.fileselect_add(self)
         return {"RUNNING_MODAL"}
     
