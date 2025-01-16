@@ -159,7 +159,7 @@ class ScenarioStructureLightingInfoTag(Tag):
                 element.SelectField("far attenuation bounds").Data = [light.far_attenuation_start, light.far_attenuation_end]
             else:
                 flags.SetBit("invere squared falloff", True)
-                element.SelectField("far attenuation bounds").Data = ["900", "4000"]
+                element.SelectField("far attenuation bounds").Data = [900, 4000]
 
             element.SelectField("aspect").Data = light.aspect
             
