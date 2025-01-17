@@ -242,21 +242,18 @@ class BitmapTag(Tag):
             for i in range(0, total_bytes, 4):
                 red = rgbValues[i + 2] / 255.0
                 green = rgbValues[i + 1] / 255.0
-                if gamma == 'linear':
-                    red = red ** 2.05
-                    green = green ** 2.05
-                else:
-                    red = utils.linear_to_srgb(red ** 2.05)
-                    green = utils.linear_to_srgb(green ** 2.05)
                 if blue_channel_fix:
                     blue = calculate_z_vector(red, green)
                 else:
                     blue = rgbValues[i] / 255.0
-                    if gamma == 'linear':
-                        blue = blue ** 2.05
-                    else:
-                        blue = utils.linear_to_srgb(blue ** 2.05)
-                        
+                if gamma == 'linear':
+                    red = red ** 2 * 0.95
+                    green = green ** 2 * 0.95
+                    blue = blue ** 2 * 0.95
+                else:
+                    red = utils.linear_to_srgb(red ** 2 * 0.95)
+                    green = utils.linear_to_srgb(green ** 2 * 0.95)
+                    blue = utils.linear_to_srgb(blue ** 2 * 0.95)
                 
                 rgbValues[i + 2] = int(red * 255)
                 rgbValues[i + 1] = int(green * 255)
