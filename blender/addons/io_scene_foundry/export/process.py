@@ -259,6 +259,39 @@ class ExportScene:
             animation_index = self.context.scene.nwo.active_animation_index
             if animation_index > -1:
                 self.current_animation = self.context.scene.nwo.animations[animation_index]
+                
+    def setup_instancers(self, instancers):
+        for ob in instancers:
+            child_instancers = []
+            ob: bpy.types.Object
+            self.skip_obs.add(ob)
+            lookup_dict = {}
+            users_collection = ob.users_collection
+            for source_ob in ob.instance_collection.all_objects:
+                source_ob: bpy.types.Object
+                if source_ob.is_instancer and source_ob.instance_collection and source_ob.instance_collection.all_objects and not source_ob.nwo.marker_instance:
+                    child_instancers.append(source_ob)
+                    continue
+                temp_ob = source_ob.copy()
+                lookup_dict[source_ob] = temp_ob
+                for collection in users_collection:
+                    collection.objects.link(temp_ob)
+                    
+                self.temp_objects.add(temp_ob)
+            
+            for value in lookup_dict.values():
+                if value.parent:
+                    new_parent = lookup_dict.get(value.parent)
+                    if new_parent is None:
+                        value.matrix_world = ob.matrix_world @ value.matrix_world
+                    else:
+                        old_local = value.matrix_local.copy()
+                        value.parent = new_parent
+                        value.matrix_local = old_local
+                else:
+                    value.matrix_world = ob.matrix_world @ value.matrix_world
+        
+            self.setup_instancers(child_instancers)
         
     def get_initial_export_objects(self):
         self.temp_objects = set()
@@ -268,38 +301,10 @@ class ExportScene:
         self.export_objects = []
         
         instancers = [ob for ob in self.context.view_layer.objects if ob.is_instancer and ob.instance_collection and ob.instance_collection.all_objects and not ob.nwo.marker_instance]
-        skip_obs = set()
+        self.skip_obs = set()
         if instancers:
-            self.instanced_collections = set()
             self.collections_to_hide = set()
-            for ob in instancers:
-                self.instanced_collections.add(ob.instance_collection)
-
-            for ob in instancers:
-                ob: bpy.types.Object
-                skip_obs.add(ob)
-                lookup_dict = {}
-                users_collection = ob.users_collection
-                for source_ob in ob.instance_collection.all_objects:
-                    source_ob: bpy.types.Object
-                    temp_ob = source_ob.copy()
-                    lookup_dict[source_ob] = temp_ob
-                    for collection in users_collection:
-                        collection.objects.link(temp_ob)
-                        
-                    self.temp_objects.add(temp_ob)
-                
-                for value in lookup_dict.values():
-                    if value.parent:
-                        new_parent = lookup_dict.get(value.parent)
-                        if new_parent is None:
-                            value.matrix_world = ob.matrix_world @ value.matrix_world
-                        else:
-                            old_local = value.matrix_local.copy()
-                            value.parent = new_parent
-                            value.matrix_local = old_local
-                    else:
-                        value.matrix_world = ob.matrix_world @ value.matrix_world
+            self.setup_instancers(instancers)
             
         if self.uses_main_armature and not self.main_armature:
             for ob in self.context.view_layer.objects:
@@ -314,13 +319,13 @@ class ExportScene:
         self.depsgraph = self.context.evaluated_depsgraph_get()
         
         if self.asset_type == AssetType.ANIMATION and not self.granny_animations_mesh:
-            self.export_objects = [ob for ob in self.context.view_layer.objects if ob.nwo.export_this and (ob.type == "ARMATURE" and ob not in self.support_armatures) and ob not in skip_obs]
+            self.export_objects = [ob for ob in self.context.view_layer.objects if ob.nwo.export_this and (ob.type == "ARMATURE" and ob not in self.support_armatures) and ob not in self.skip_obs]
             null_ob = make_default_render()
             self.temp_objects.add(null_ob)
             self.temp_meshes.add(null_ob.data)
             self.export_objects.append(null_ob)
         else:    
-            self.export_objects = [ob for ob in self.context.view_layer.objects if ob.nwo.export_this and ob.type in VALID_OBJECTS and ob not in self.support_armatures and ob not in skip_obs]
+            self.export_objects = [ob for ob in self.context.view_layer.objects if ob.nwo.export_this and ob.type in VALID_OBJECTS and ob not in self.support_armatures and ob not in self.skip_obs]
         
         self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir, self.granny, self.export_settings, self.context.scene.render.fps / self.context.scene.render.fps_base, self.scene_settings.default_animation_compression, utils.blender_halo_rotation_diff(self.forward), self.scene_settings.maintain_marker_axis, self.granny_textures, utils.get_project(self.context.scene.nwo.scene_project), self.to_halo_scale, self.unit_factor, self.atten_scalar, self.context)
         
