@@ -1086,6 +1086,7 @@ class VirtualNode:
         self.parent: VirtualNode = None
         self.bone_bindings: list[str] = []
         self.granny_vertex_data = None
+        self.negative_scaling = False
         if not self.invalid and self.tag_type in scene.export_tag_types:
             # Skip writing mesh data for non-selected bsps/permutations
             if scene.limit_bsps and region not in scene.selected_bsps: return
@@ -1108,22 +1109,26 @@ class VirtualNode:
             else:
                 self.matrix_world = template_node.matrix_world.copy()
                 # self.matrix_local = IDENTITY_MATRIX
+                if template_node.negative_scaling:
+                    id.nwo.invert_topology = not id.nwo.invert_topology
+                
             if id.type in VALID_MESHES:
                 default_bone_bindings = [self.name]
-                negative_scaling = id.matrix_world.is_negative
+                self.negative_scaling = id.matrix_world.is_negative
                 if id.nwo.invert_topology:
-                    negative_scaling = not negative_scaling
+                    self.negative_scaling = not self.negative_scaling
 
-                materials  = tuple(slot.material for slot in id.material_slots)
+                materials = tuple(slot.material for slot in id.material_slots)
                 
-                existing_mesh = scene.meshes.get((id.data, negative_scaling, materials))
+                existing_mesh = scene.meshes.get((id.data, self.negative_scaling, materials))
+                existing_linked_mesh = scene.meshes_linked.get(id.data)
                     
                 if existing_mesh:
                     self.mesh = existing_mesh
                     self.mesh.siblings.append(self.name)
                 else:
                     vertex_weighted = id.vertex_groups and id.parent and id.parent.type == 'ARMATURE' and id.parent_type != "BONE" and has_armature_deform_mod(id)
-                    mesh = VirtualMesh(vertex_weighted, scene, default_bone_bindings, id, fp_defaults, is_rendered(self.props), proxies, self.props, negative_scaling, bones, materials)
+                    mesh = VirtualMesh(vertex_weighted, scene, default_bone_bindings, id, fp_defaults, is_rendered(self.props), proxies if existing_linked_mesh is None else existing_linked_mesh.proxies, self.props, self.negative_scaling, bones, materials)
                     self.mesh = mesh
                     self.new_mesh = True
                     
@@ -1535,6 +1540,7 @@ class VirtualScene:
     def __init__(self, asset_type: AssetType, depsgraph: bpy.types.Depsgraph, corinth: bool, tags_dir: Path, granny: Granny, export_settings, fps: float, animation_compression: str, rotation: float, maintain_marker_axis: bool, granny_textures: bool, project, light_scale: float, unit_factor: float, atten_scalar: int, context: bpy.types.Context):
         self.nodes: dict[VirtualNode] = {}
         self.meshes: dict[VirtualMesh] = {}
+        self.meshes_linked: dict[VirtualMesh] = {}
         self.materials: dict[VirtualMaterial] = {}
         self.models: dict[VirtualModel] = {}
         self.root: VirtualNode = None
@@ -1647,6 +1653,7 @@ class VirtualScene:
                 if id.nwo.invert_topology:
                     negative_scaling = not negative_scaling
                 self.meshes[(node.mesh.mesh, negative_scaling, node.mesh.bpy_materials)] = node.mesh
+                self.meshes_linked[node.mesh.mesh] = node.mesh
             
         return node
             
