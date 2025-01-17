@@ -260,7 +260,7 @@ class ExportScene:
             if animation_index > -1:
                 self.current_animation = self.context.scene.nwo.animations[animation_index]
                 
-    def setup_instancers(self, instancers, collection_ob=None):
+    def setup_instancers(self, instancers, collection_ob=None, parent_matrix=None):
         for ob in instancers:
             child_instancers = []
             ob: bpy.types.Object
@@ -282,33 +282,24 @@ class ExportScene:
                     
                 self.temp_objects.add(temp_ob)
 
-            if collection_ob is None:
-                for value in lookup_dict.values():
-                    if value.parent:
-                        new_parent = lookup_dict.get(value.parent)
-                        if new_parent is None:
-                            value.matrix_world = ob.matrix_world @ value.matrix_world
-                        else:
-                            old_local = value.matrix_local.copy()
-                            value.parent = new_parent
-                            value.matrix_local = old_local
-                    else:
-                        value.matrix_world = ob.matrix_world @ value.matrix_world
+            if parent_matrix is None:
+                parent_matrix = ob.matrix_world.copy()
             else:
+                parent_matrix = parent_matrix @ ob.matrix_world
                 for value in lookup_dict.values():
                     if value.parent:
                         new_parent = lookup_dict.get(value.parent)
                         if new_parent is None:
-                            value.matrix_world = collection_ob.matrix_world @ ob.matrix_world @ value.matrix_world
+                            value.matrix_world = parent_matrix @ value.matrix_world
                         else:
                             old_local = value.matrix_local.copy()
                             value.parent = new_parent
                             value.matrix_local = old_local
                     else:
-                        value.matrix_world = collection_ob.matrix_world @ ob.matrix_world @ value.matrix_world
+                        value.matrix_world = parent_matrix @ value.matrix_world
 
             if child_instancers:
-                self.setup_instancers(child_instancers, ob)
+                self.setup_instancers(child_instancers, ob if collection_ob is None else collection_ob, parent_matrix)
         
     def get_initial_export_objects(self):
         self.temp_objects = set()
