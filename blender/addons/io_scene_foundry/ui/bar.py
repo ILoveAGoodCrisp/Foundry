@@ -231,7 +231,10 @@ def draw_game_launcher_settings(scene_nwo_halo_launcher, col):
         col.prop(scene_nwo_halo_launcher, "enable_firefight")
         if scene_nwo_halo_launcher.enable_firefight:
             col.prop(scene_nwo_halo_launcher, "firefight_mission")
-
+            
+    col.separator()
+    col.prop(scene_nwo_halo_launcher, "never_instance_imposter")
+    col.prop(scene_nwo_halo_launcher, "never_object_imposter")
 
 class NWO_HaloLauncherGamePruneSettings(bpy.types.Panel):
     bl_label = "Pruning"

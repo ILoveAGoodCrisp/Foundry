@@ -422,6 +422,11 @@ def launch_game(is_sapien, settings, filepath, scene_nwo, ignore_play=False):
                     file.write(f'game_set_variant "midnight_firefight_firefight"\n')
                 else:
                     file.write(f'game_set_variant "{settings.firefight_mission}"\n')
+                    
+            if settings.never_instance_imposter:
+                file.write(f"render_debug_instance_imposter_never 1\n")
+            if settings.never_object_imposter:
+                file.write(f"render_debug_object_imposter_never 1\n")
 
             if settings.custom_functions != "":
                 try:
@@ -818,6 +823,16 @@ class NWO_HaloLauncherPropertiesGroup(bpy.types.PropertyGroup):
         name="Show Debugging/Errors",
         description="If disabled, will turn off debugging text spew and error geometry",
         default=True,
+    )
+    
+    never_instance_imposter: bpy.props.BoolProperty(
+        name="Never Use Instance Imposters",
+        description="Forces instances to render fully without ever switching to their imposter model",
+    )
+    
+    never_object_imposter: bpy.props.BoolProperty(
+        name="Never Use Object Imposters",
+        description="Forces objects to render fully without ever switching to their imposter model",
     )
 
     prune_globals: bpy.props.BoolProperty(
