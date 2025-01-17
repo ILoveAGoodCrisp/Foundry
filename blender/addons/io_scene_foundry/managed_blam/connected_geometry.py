@@ -1758,8 +1758,8 @@ class Mesh:
                     subpart.create(ob, self.tris, self.face_transparent, self.face_draw_distance, self.face_tesselation, self.face_no_shadow, self.face_lightmap_only, water_surface_parts)
 
 
-        # self._set_two_sided(mesh, is_io)
-        # utils.loop_normal_magic(mesh)
+        self._set_two_sided(mesh, is_io)
+        utils.loop_normal_magic(mesh)
         
         if mesh.nwo.face_props:
             bm = bmesh.new()
@@ -1788,7 +1788,7 @@ class Mesh:
         for faces in face_dict.values():
             for i, f1 in enumerate(faces):
                 for f2 in faces[i+1:]:
-                    if {v.co.to_tuple() for v in f1.verts} == {v.co.to_tuple() for v in reversed(f2.verts)}:
+                    if {v.co.to_tuple() for v in f1.verts} == {v.co.to_tuple() for v in reversed(f2.verts)} and f1.material_index == f2.material_index:
                         to_remove.add(f2.index)
                         two_sided.add(f1.index)
                         break
