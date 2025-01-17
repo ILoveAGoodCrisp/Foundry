@@ -260,13 +260,16 @@ class ExportScene:
             if animation_index > -1:
                 self.current_animation = self.context.scene.nwo.animations[animation_index]
                 
-    def setup_instancers(self, instancers):
+    def setup_instancers(self, instancers, collection_ob=None):
         for ob in instancers:
             child_instancers = []
             ob: bpy.types.Object
             self.skip_obs.add(ob)
             lookup_dict = {}
-            users_collection = ob.users_collection
+            if collection_ob is None:
+                users_collection = ob.users_collection
+            else:
+                users_collection = collection_ob.users_collection
             for source_ob in ob.instance_collection.all_objects:
                 source_ob: bpy.types.Object
                 if source_ob.is_instancer and source_ob.instance_collection and source_ob.instance_collection.all_objects and not source_ob.nwo.marker_instance:
@@ -278,20 +281,34 @@ class ExportScene:
                     collection.objects.link(temp_ob)
                     
                 self.temp_objects.add(temp_ob)
-            
-            for value in lookup_dict.values():
-                if value.parent:
-                    new_parent = lookup_dict.get(value.parent)
-                    if new_parent is None:
-                        value.matrix_world = ob.matrix_world @ value.matrix_world
+
+            if collection_ob is None:
+                for value in lookup_dict.values():
+                    if value.parent:
+                        new_parent = lookup_dict.get(value.parent)
+                        if new_parent is None:
+                            value.matrix_world = ob.matrix_world @ value.matrix_world
+                        else:
+                            old_local = value.matrix_local.copy()
+                            value.parent = new_parent
+                            value.matrix_local = old_local
                     else:
-                        old_local = value.matrix_local.copy()
-                        value.parent = new_parent
-                        value.matrix_local = old_local
-                else:
-                    value.matrix_world = ob.matrix_world @ value.matrix_world
-        
-            self.setup_instancers(child_instancers)
+                        value.matrix_world = ob.matrix_world @ value.matrix_world
+            else:
+                for value in lookup_dict.values():
+                    if value.parent:
+                        new_parent = lookup_dict.get(value.parent)
+                        if new_parent is None:
+                            value.matrix_world = collection_ob.matrix_world @ ob.matrix_world @ value.matrix_world
+                        else:
+                            old_local = value.matrix_local.copy()
+                            value.parent = new_parent
+                            value.matrix_local = old_local
+                    else:
+                        value.matrix_world = collection_ob.matrix_world @ ob.matrix_world @ value.matrix_world
+
+            if child_instancers:
+                self.setup_instancers(child_instancers, ob)
         
     def get_initial_export_objects(self):
         self.temp_objects = set()
