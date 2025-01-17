@@ -2345,3 +2345,71 @@ class NWO_FH_ImportBitmapAsNode(bpy.types.FileHandler):
     @classmethod
     def poll_drop(cls, context):
         return (context.area and context.area.type == 'NODE_EDITOR')
+    
+class NWO_OT_ImportShader(bpy.types.Operator):
+    bl_idname = "nwo.import_shader"
+    bl_label = "Shader Importer"
+    bl_description = "Imports a shader/material tag"
+    bl_options = {"UNDO"}
+    
+    filepath: bpy.props.StringProperty(subtype='FILE_PATH', options={'SKIP_SAVE'})
+    filename: bpy.props.StringProperty(options={'SKIP_SAVE'})
+    filter_glob: bpy.props.StringProperty(
+        default="*.bitmap",
+        options={"HIDDEN"},
+    )
+
+    @classmethod
+    def poll(cls, context):
+        return True
+
+    def execute(self, context):
+        if Path(self.filepath).suffix not in utils.shader_exts:
+            return {'CANCELLED'}
+        
+        mat = bpy.data.materials.new(str(Path(self.filepath).with_suffix("").name))
+        shader_path = utils.relative_path(self.filepath)
+        mat.nwo.shader_path = shader_path
+        tag_to_nodes(utils.is_corinth(context), mat, shader_path)
+        
+        match self.area:
+            case 'VIEW_3D':
+                hit, face_location, face_normal, face_index, face_object, face_matrix = utils.ray_cast_mouse(context, (self.mouse_x, self.mouse_y))
+                if hit and face_object.type in VALID_MESHES:
+                    mesh = face_object.data
+                    if mesh.materials and face_object.type == 'MESH':
+                        mat_index = mesh.polygons[face_index].material_index
+                        mesh.materials[mat_index] = mat
+                    else:
+                        mesh.materials.append(mat)
+            case 'PROPERTIES' | 'NODE_EDITOR':
+                if context.object and context.object.type in VALID_MESHES:
+                    mesh = context.object.data
+                    if context.material:
+                        mat_index = mesh.materials.find(context.material.name)
+                        mesh.materials[mat_index] = mat
+                    else:
+                        mesh.materials.append(mat)
+                        
+        
+        self.report({'INFO'}, f"Imported {mat.name}")
+                    
+        return {"FINISHED"}
+    
+    def invoke(self, context, event):
+        self.mouse_x = event.mouse_region_x
+        self.mouse_y = event.mouse_region_y
+        self.area = context.area.type
+        return self.execute(context)
+    
+class NWO_FH_ImportShaderAsMaterial(bpy.types.FileHandler):
+    bl_idname = "NWO_FH_ImportBitmapAsNode"
+    bl_label = "File handler Foundry Bitmap Importer"
+    bl_import_operator = "nwo.import_shader"
+    bl_file_extensions = ".shader;.shader_cortana;.shader_custom;.shader_decal;.shader_foliage;.shader_fur;.shader_fur_stencil;.shader_glass;.shader_halogram;.shader_mux;.shader_mux_material;.shader_screen;.shader_skin;.shader_terrain;.shader_water;.material"
+    
+    @classmethod
+    def poll_drop(cls, context):
+        return (context.area and context.area.type in {'NODE_EDITOR', 'VIEW_3D', 'PROPERTIES'})
+    
+    

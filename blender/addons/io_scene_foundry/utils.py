@@ -30,6 +30,7 @@ from .constants import COLLISION_MESH_TYPES, OBJECT_TAG_EXTS, PROTECTED_MATERIAL
 from .tools.materials import special_materials, convention_materials
 from .icons import get_icon_id, get_icon_id_in_directory
 import requests
+from bpy_extras import view3d_utils
 
 from .constants import object_asset_validation, object_game_validation
 
@@ -4197,3 +4198,14 @@ def get_ultimate_asset_path(full=False) -> Path:
         return Path(get_tags_path(), path)
     else:
         return Path(path)
+
+def ray_cast_mouse(context, coords_2d):
+    scene = context.scene
+    region = context.region
+    rv3d = context.region_data
+    viewlayer = context.view_layer.depsgraph
+    view_vector = view3d_utils.region_2d_to_vector_3d(region, rv3d, coords_2d)
+    ray_origin = view3d_utils.region_2d_to_origin_3d(region, rv3d, coords_2d)
+
+    hit, location, normal, index, object, matrix = scene.ray_cast(viewlayer, ray_origin, view_vector)
+    return hit, location, normal, index, object, matrix
