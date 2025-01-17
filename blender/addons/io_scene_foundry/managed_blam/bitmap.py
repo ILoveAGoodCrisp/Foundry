@@ -243,8 +243,8 @@ class BitmapTag(Tag):
                 red = rgbValues[i + 2] / 255.0
                 green = rgbValues[i + 1] / 255.0
                 if gamma == 'linear':
-                    red = red * 0.95
-                    green = green * 0.95
+                    red = red ** 2 * 0.95
+                    green = green ** 2 * 0.95
                 # else:
                 #     red = utils.linear_to_srgb(red ** 2.0)
                 #     green = utils.linear_to_srgb(green ** 2.0)
@@ -253,7 +253,7 @@ class BitmapTag(Tag):
                 else:
                     blue = rgbValues[i] / 255.0
                     if gamma == 'linear':
-                        blue = blue * 0.95
+                        blue = blue ** 2 * 0.95
                     # else:
                     #     blue = utils.linear_to_srgb(blue ** 2.0)
                         
