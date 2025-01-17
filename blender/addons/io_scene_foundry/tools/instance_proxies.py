@@ -44,14 +44,26 @@ class NWO_ProxyInstanceEdit(bpy.types.Operator):
         self.parent = context.object
         self.proxy_ob = bpy.data.objects[self.proxy]
         self.scene_coll = context.scene.collection.objects
+        old_ob = None
+        if self.proxy_ob.nwo.proxy_parent != self.parent.data:
+            old_ob = self.proxy_ob
+            self.proxy_ob = self.proxy_ob.copy()
+            self.proxy_ob.data = self.proxy_ob.data.copy()
+            self.proxy_ob.nwo.proxy_parent = self.parent.data
+            for collection in old_ob.users_collection:
+                collection.objects.link(self.proxy_ob)
         data_nwo = self.parent.data.nwo
         if data_nwo.proxy_collision is not None:
+            if data_nwo.proxy_collision == old_ob:
+                data_nwo.proxy_collision = self.proxy_ob
             self.linked_objects.append(data_nwo.proxy_collision)
             self.scene_coll.link(data_nwo.proxy_collision)
             data_nwo.proxy_collision.hide_set(False)
             data_nwo.proxy_collision.select_set(True)
             data_nwo.proxy_collision.matrix_world = self.parent.matrix_world
         if data_nwo.proxy_cookie_cutter is not None:
+            if data_nwo.proxy_cookie_cutter == old_ob:
+                data_nwo.proxy_cookie_cutter = self.proxy_ob
             self.linked_objects.append(data_nwo.proxy_cookie_cutter)
             self.scene_coll.link(data_nwo.proxy_cookie_cutter)
             data_nwo.proxy_cookie_cutter.hide_set(False)
@@ -60,6 +72,9 @@ class NWO_ProxyInstanceEdit(bpy.types.Operator):
         for i in range(10):
             phys = getattr(data_nwo, f"proxy_physics{i}", None)
             if phys is not None:
+                if phys == old_ob:
+                    setattr(data_nwo, f"proxy_physics{i}", self.proxy_ob)
+                    phys = self.proxy_ob
                 self.linked_objects.append(phys)
                 self.scene_coll.link(phys)
                 phys.hide_set(False)
