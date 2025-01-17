@@ -1759,7 +1759,7 @@ class Mesh:
 
 
         self._set_two_sided(mesh, is_io)
-        utils.loop_normal_magic(mesh)
+        # utils.loop_normal_magic(mesh)
         
         if mesh.nwo.face_props:
             bm = bmesh.new()
