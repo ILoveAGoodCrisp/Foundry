@@ -1067,8 +1067,9 @@ class VirtualMesh:
 class VirtualNode:
     def __init__(self, id: bpy.types.Object | bpy.types.PoseBone, props: dict, region: str = None, permutation: str = None, fp_defaults: dict = None, scene: 'VirtualScene' = None, proxies = [], template_node: 'VirtualNode' = None, bones: list[str] = [], parent_matrix: Matrix = IDENTITY_MATRIX, animation_owner=None):
         self.name: str = id.name
+        if isinstance(id, bpy.types.Object) and id.nwo.export_name:
+            self.name = id.nwo.export_name
         self.ob = id
-        self.override_name = None
         self.id = id
         self.matrix_world: Matrix = IDENTITY_MATRIX
         self.matrix_local: Matrix = IDENTITY_MATRIX
@@ -1241,8 +1242,8 @@ def granny_transform_parts(matrix_local: Matrix):
     
 class VirtualBone:
     '''Describes an blender object/bone which is a child'''
-    def __init__(self, id: bpy.types.Object | bpy.types.PoseBone):
-        self.name: str = id.name
+    def __init__(self, id: bpy.types.Object | bpy.types.PoseBone, name):
+        self.name: str = name
         self.bone = id
         self.parent_index: int = -1
         self.node: VirtualNode = None
@@ -1309,11 +1310,13 @@ class VirtualSkeleton:
     '''Describes a list of bones'''
     def __init__(self, ob: bpy.types.Object, scene: 'VirtualScene', node: VirtualNode, is_main_armature = False):
         self.name: str = ob.name
+        if ob.nwo.export_name:
+            self.name = ob.nwo.export_name
         self.ob = ob
         self.node = node
         self.pbones = {}
         self.animated_bones = []
-        own_bone = VirtualBone(ob)
+        own_bone = VirtualBone(ob, self.name)
         own_bone.node = node
         if ob.type == 'ARMATURE':
             scene.armature_matrix = ob.matrix_world.copy()
@@ -1399,7 +1402,7 @@ class VirtualSkeleton:
             root_bone_found = False
             bone_inverse_matrices = {}
             for idx, fb in enumerate(valid_bones):
-                b = VirtualBone(fb.bone)
+                b = VirtualBone(fb.bone, fb.name)
                 frame_ids_index = None
                 if scene.asset_type == AssetType.CINEMATIC:
                     actor = scene.actors.get(ob)
@@ -1455,7 +1458,7 @@ class VirtualSkeleton:
                 if not bone_parented and not (node.mesh and node.mesh.vertex_weighted):
                     parent_index = 1
                     
-                b = VirtualBone(child)
+                b = VirtualBone(child, node.name)
                 b.node = node
                 if child.type != 'MESH':
                     b.props = b.node.props
@@ -1479,7 +1482,7 @@ class VirtualSkeleton:
             node = scene.add(child, *scene.object_halo_data[child], parent_matrix=parent_node.matrix_world.inverted())
             if not node or node.invalid: continue
             child_index += 1
-            b = VirtualBone(child)
+            b = VirtualBone(child, node.name)
             b.parent_index = parent_index
             b.node = node
             if child.type != 'MESH':
@@ -1494,7 +1497,7 @@ class VirtualSkeleton:
             for proxy in self.node.mesh.proxies:
                 node = scene.add(proxy, *scene.object_halo_data[proxy], self.node)
                 if not node or node.invalid: continue
-                b = VirtualBone(proxy)
+                b = VirtualBone(proxy, node.name)
                 b.parent_index = parent_index
                 b.node = node
                 b.matrix_world = b.node.matrix_world
@@ -1516,6 +1519,8 @@ class VirtualModel:
     '''Describes a blender object which has no parent'''
     def __init__(self, ob: bpy.types.Object, scene: 'VirtualScene', props=None, region=None, permutation=None, animation_owner=None):
         self.name: str = ob.name
+        if ob.nwo.export_name:
+            self.name = ob.nwo.export_name
         self.ob = ob
         self.node = None
         self.skeleton = None

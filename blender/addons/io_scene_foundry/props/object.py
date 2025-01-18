@@ -32,6 +32,8 @@ class NWO_MarkerPermutationItems(bpy.types.PropertyGroup):
 class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     scale_model: bpy.props.BoolProperty(options={'HIDDEN'})
     
+    export_name: bpy.props.StringProperty(options={'HIDDEN'})
+    
     def node_order_source_clean_tag_path(self, context):
         self["node_order_source"] = utils.clean_tag_path(self["node_order_source"], ".render_model").strip('"')
     

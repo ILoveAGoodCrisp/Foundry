@@ -735,13 +735,14 @@ class Box(Shape):
     def __init__(self, element: TagFieldBlockElement, materials, corinth: bool):
         super().__init__(element, materials)
         self.translation = Vector([n for n in element.SelectField("Struct:convex transform shape[0]/RealVector3d:translation").Data]) * 100
-        self.width, self.length, self.height = (n * 2 * 100 for n in element.SelectField("RealVector3d:half extents").Data)
+        radius = element.SelectField("Struct:box shape[0]/Real:radius").Data
+        self.width, self.length, self.height = ((n + radius) * 2 * 100 for n in element.SelectField("RealVector3d:half extents").Data)
         ii, ij, ik = element.SelectField("Struct:convex transform shape[0]/RealVector3d:rotation i").Data
         ji, jj, jk = element.SelectField("Struct:convex transform shape[0]/RealVector3d:rotation j").Data
         ki, kj, kk = element.SelectField("Struct:convex transform shape[0]/RealVector3d:rotation k").Data
-        iw = element.SelectField("Struct:convex transform shape[0]/Real:havok w rotation i").Data
-        jw = element.SelectField("Struct:convex transform shape[0]/Real:havok w rotation j").Data
-        kw = element.SelectField("Struct:convex transform shape[0]/Real:havok w rotation k").Data
+        # iw = element.SelectField("Struct:convex transform shape[0]/Real:havok w rotation i").Data
+        # jw = element.SelectField("Struct:convex transform shape[0]/Real:havok w rotation j").Data
+        # kw = element.SelectField("Struct:convex transform shape[0]/Real:havok w rotation k").Data
         
         rotation = self.calculate_box_rotation(ii, ik, ij, ji, jj, jk, ki, kj, kk)
             

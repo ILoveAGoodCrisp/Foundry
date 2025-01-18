@@ -443,6 +443,7 @@ class ExportScene:
         with utils.Spinner():
             utils.update_job_count(process, "", 0, num_export_objects)
             for idx, ob in enumerate(self.export_objects):
+                ob.nwo.export_name = ""
                 if ob.animation_data is not None:
                     self.action_map[ob] = (ob.matrix_basis.copy(), ob.animation_data.action)
                 if ob.type == 'MESH' and ob.data.shape_keys and ob.data.shape_keys.animation_data:
@@ -554,7 +555,8 @@ class ExportScene:
                             copy_ob.data = ob.data.copy()
                             self.temp_meshes.add(copy_ob.data)
                             name = self._set_primitive_props(copy_ob, copy_ob.nwo.mesh_primitive_type, copy_props)
-                            copy_ob.name = f"{ob.name}_{name}"
+                            copy_ob.nwo.export_name = ob.name
+                            # copy_ob.name = f"{ob.name}_{name}"
                             copy_only = True
                     
                     self.ob_halo_data[copy_ob] = [copy_props, copy_region, permutation, fp_defaults, proxies]
