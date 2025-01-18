@@ -231,7 +231,7 @@ class BitmapTag(Tag):
         bitmap = game_bitmap.GetBitmap()
         game_bitmap.Dispose()
         gamma = self.get_gamma_name()
-        if bitmap.PixelFormat == PixelFormat.Format32bppArgb and (blue_channel_fix or gamma != 'xrgb'):
+        if bitmap.PixelFormat == PixelFormat.Format32bppArgb and (blue_channel_fix or gamma == 'linear'):
             # Correct for gamma space + add blue channel to normal maps
             # GameBitmap always outputs a bitmap in xrgb colorspace (gamma 2.0)
             bitmap_data = bitmap.LockBits(Rectangle(0, 0, bitmap.Width, bitmap.Height), ImageLockMode.ReadWrite, bitmap.PixelFormat)
@@ -247,13 +247,9 @@ class BitmapTag(Tag):
                 else:
                     blue = rgbValues[i] / 255.0
                 if gamma == 'linear':
-                    red = red ** 2.195
-                    green = green** 2.195
-                    blue = blue** 2.195
-                # else:
-                #     red = utils.linear_to_srgb(red ** 2.2)
-                #     green = utils.linear_to_srgb(green ** 2.2)
-                #     blue = utils.linear_to_srgb(blue ** 2.2)
+                    red = utils.srgb_to_linear(red)
+                    green = utils.srgb_to_linear(green)
+                    blue = utils.srgb_to_linear(blue)
                 
                 rgbValues[i + 2] = int(red * 255)
                 rgbValues[i + 1] = int(green * 255)
