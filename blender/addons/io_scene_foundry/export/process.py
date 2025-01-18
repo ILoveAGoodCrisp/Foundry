@@ -557,6 +557,9 @@ class ExportScene:
                             name = self._set_primitive_props(copy_ob, copy_ob.nwo.mesh_primitive_type, copy_props)
                             copy_ob.nwo.export_name = ob.name
                             loc, rot, sca = copy_ob.matrix_world.decompose()
+                            scale = list(sca)
+                            scale.append(1)
+                            copy_ob.data.transform(Matrix.Diagonal(scale)) # this just corrects the mesh appearance if debugging the gr2
                             copy_ob.matrix_world = Matrix.LocRotScale(loc, rot, (1, 1, 1))
                             # copy_ob.name = f"{ob.name}_{name}"
                             copy_only = True

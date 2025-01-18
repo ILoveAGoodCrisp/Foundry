@@ -782,7 +782,7 @@ class PolyhedronFourVectors:
         self.xi, self.yi, self.zi = a[0], b[0], c[0]
         self.xj, self.yj, self.zj = a[1], b[1], c[1]
         self.xk, self.yk, self.zk = a[2], b[2], c[2]
-        self.xw, self.yw, self.zw = element.SelectField("havok w four vectors x").Data, element.SelectField("havok w four vectors y").Data, element.SelectField("havok w four vectors z").Data
+        self.xw, self.yw, self.zw = d
         
     def to_vectors(self) -> list[Vector]:
         vectors = []
@@ -810,6 +810,7 @@ class Polyhedron(Shape):
             self.vertices.extend(four_vectors.to_vectors())
             
         self.matrix = Matrix.Identity(4)
+        self.radius = element.SelectField("Struct:polyhedron shape[0]/Real:radius").Data
             
     def to_object(self) -> bpy.types.Object:
         mesh = bpy.data.meshes.new(self.name)
@@ -817,6 +818,8 @@ class Polyhedron(Shape):
         bm = bmesh.new()
         bm.from_mesh(mesh)
         bmesh.ops.convex_hull(bm, input=bm.verts)
+        scale_factor = self.radius * 2 + 1
+        bmesh.ops.scale(bm, vec=Vector((scale_factor, scale_factor, scale_factor)), verts=bm.verts)
         bm.to_mesh(mesh)
         bm.free()
         self.ob = bpy.data.objects.new(self.name, mesh)
