@@ -242,8 +242,8 @@ class BitmapTag(Tag):
             for i in range(0, total_bytes, 4):
                 red = rgbValues[i + 2] / 255.0
                 green = rgbValues[i + 1] / 255.0
-                red = utils.srgb_to_linear(red)
-                green = utils.srgb_to_linear(green)
+                red = red ** 2.2
+                green = green ** 2.2
                 blue = calculate_z_vector(red, green)
                 rgbValues[i + 2] = int(red * 255)
                 rgbValues[i + 1] = int(green * 255)
