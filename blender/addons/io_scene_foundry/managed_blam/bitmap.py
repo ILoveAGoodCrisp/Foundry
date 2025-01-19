@@ -232,8 +232,6 @@ class BitmapTag(Tag):
         game_bitmap.Dispose()
         gamma = self.get_gamma_name()
         if bitmap.PixelFormat == PixelFormat.Format32bppArgb and blue_channel_fix:
-            # Correct for gamma space + add blue channel to normal maps
-            # GameBitmap always outputs a bitmap in xrgb colorspace (gamma 2.0)
             bitmap_data = bitmap.LockBits(Rectangle(0, 0, bitmap.Width, bitmap.Height), ImageLockMode.ReadWrite, bitmap.PixelFormat)
             total_bytes = abs(bitmap_data.Stride) * bitmap_data.Height
             rgbValues = Array.CreateInstance(Byte, total_bytes)

@@ -346,29 +346,25 @@ def color_argb(color) -> tuple:
     alpha = linear_to_srgb(color[3])
     return alpha, red, green, blue
 
-def linear_to_srgb(linear):
-    if linear <= 0.0031308:
-        return 12.92 * linear
-    else:
-        return 1.055 * (linear ** (1/2.4)) - 0.055
+def linear_to_srgb(v):
+    # if linear <= 0.0031308:
+    #     return 12.92 * linear
+    # else:
+    #     return 1.055 * (linear ** (1/2.4)) - 0.055
+    return v ** (1 / 2.2)
     
-def srgb_to_linear(srgb):
-    if srgb <= 0.04045:
-        return srgb / 12.92
-    else:
-        return ((srgb + 0.055) / 1.055) ** 2.4
+def srgb_to_linear(v):
+    # if srgb <= 0.04045:
+    #     return srgb / 12.92
+    # else:
+    #     return ((srgb + 0.055) / 1.055) ** 2.4
+    return v ** 2.2
     
-def linear_to_xrgb(linear):
-    if linear <= 0.0031308:
-        return 12.55 * linear
-    else:
-        return 1.0464 * (linear ** (1/1.95)) - 0.0464
+def linear_to_xrgb(v):
+    return v ** (1 / 1.95)
     
-def xrgb_to_linear(xrgb):
-    if xrgb <= 0.03922:
-        return xrgb / 12.55
-    else:
-        return ((xrgb + 0.0464) / 1.0464) ** 1.95
+def xrgb_to_linear(v):
+    return v ** 1.95
 
 def bool_str(bool_var):
     """Returns a boolean as a string. 1 if true, 0 if false"""
