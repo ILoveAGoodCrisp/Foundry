@@ -225,7 +225,7 @@ class BitmapTag(Tag):
         if self.block_bitmaps.Elements.Count <= 0:
             return
         gamma = self.get_gamma_value()
-        if not blue_channel_fix and gamma != 2.2: # xRGB
+        if not blue_channel_fix and gamma != 1.0: # xRGB
             self.block_bitmaps.Elements[0].SelectField("CharEnum:curve").Value = 5
         clr.AddReference('System.Drawing')
         from System import Array, Byte # type: ignore
@@ -236,7 +236,7 @@ class BitmapTag(Tag):
         bitmap = game_bitmap.GetBitmap()
         game_bitmap.Dispose()
         
-        if bitmap.PixelFormat == PixelFormat.Format32bppArgb and blue_channel_fix:
+        if bitmap.PixelFormat == PixelFormat.Format32bppArgb and (blue_channel_fix or gamma == 1.0):
             bitmap_data = bitmap.LockBits(Rectangle(0, 0, bitmap.Width, bitmap.Height), ImageLockMode.ReadWrite, bitmap.PixelFormat)
             total_bytes = abs(bitmap_data.Stride) * bitmap_data.Height
             rgbValues = Array.CreateInstance(Byte, total_bytes)
@@ -248,7 +248,8 @@ class BitmapTag(Tag):
                 blue = rgbValues[i] / 255.0
                 red = red ** 2.2
                 green = green ** 2.2
-                blue = calculate_z_vector(red, green)
+                if blue_channel_fix:
+                    blue = calculate_z_vector(red, green)
                 rgbValues[i + 2] = int(red * 255)
                 rgbValues[i + 1] = int(green * 255)
                 rgbValues[i] = int(blue * 255)
