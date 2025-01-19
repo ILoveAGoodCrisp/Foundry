@@ -222,6 +222,9 @@ class BitmapTag(Tag):
         
     def save_to_tiff(self, blue_channel_fix=False, format='tiff'):
         # try:
+        if self.block_bitmaps.Elements.Count <= 0:
+            return
+        self.block_bitmaps.Elements[0].SelectField("CharEnum:curve").Value = 5
         clr.AddReference('System.Drawing')
         from System import Array, Byte # type: ignore
         from System.Runtime.InteropServices import Marshal # type: ignore
@@ -230,7 +233,7 @@ class BitmapTag(Tag):
         game_bitmap = self._GameBitmap()
         bitmap = game_bitmap.GetBitmap()
         game_bitmap.Dispose()
-        gamma = self.get_gamma_name()
+        # gamma = self.get_gamma_value()
         if bitmap.PixelFormat == PixelFormat.Format32bppArgb and blue_channel_fix:
             bitmap_data = bitmap.LockBits(Rectangle(0, 0, bitmap.Width, bitmap.Height), ImageLockMode.ReadWrite, bitmap.PixelFormat)
             total_bytes = abs(bitmap_data.Stride) * bitmap_data.Height
@@ -240,9 +243,17 @@ class BitmapTag(Tag):
             for i in range(0, total_bytes, 4):
                 red = rgbValues[i + 2] / 255.0
                 green = rgbValues[i + 1] / 255.0
-                red = red ** 2.2
-                green = green ** 2.2
-                blue = calculate_z_vector(red, green)
+                blue = rgbValues[i] / 255.0
+                # Convert to linear space
+                # red = red ** 2.2
+                # green = green ** 2.2
+                # blue = blue ** 2.2
+                # if gamma != 1.0:
+                #     red = red ** (1 / gamma)
+                #     green = green ** (1 / gamma)
+                #     blue = blue ** (1 / gamma)
+                if blue_channel_fix:
+                    blue = calculate_z_vector(red, green)
                 rgbValues[i + 2] = int(red * 255)
                 rgbValues[i + 1] = int(green * 255)
                 rgbValues[i] = int(blue * 255)
@@ -293,6 +304,22 @@ class BitmapTag(Tag):
                 return 'srgb'
             case _:
                 return 'xrgb'
+            
+    def get_gamma_value(self) -> str:
+        bm = self.block_bitmaps.Elements[0]
+        match bm.SelectField('curve').Value:
+            case 0:
+                return 1.95
+            case 1:
+                return 1.95
+            case 2:
+                return 2.0
+            case 3:
+                return 1.0
+            case 4:
+                return 1.0
+            case 5:
+                return 2.2
     
     def _source_gamma_from_color_space(self, color_space: str):
         match color_space:
