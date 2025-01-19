@@ -357,7 +357,18 @@ def srgb_to_linear(srgb):
         return srgb / 12.92
     else:
         return ((srgb + 0.055) / 1.055) ** 2.4
-
+    
+def linear_to_xrgb(linear):
+    if linear <= 0.0031308:
+        return 12.55 * linear
+    else:
+        return 1.0464 * (linear ** (1/1.95)) - 0.0464
+    
+def xrgb_to_linear(xrgb):
+    if xrgb <= 0.03922:
+        return xrgb / 12.55
+    else:
+        return ((xrgb + 0.0464) / 1.0464) ** 1.95
 
 def bool_str(bool_var):
     """Returns a boolean as a string. 1 if true, 0 if false"""

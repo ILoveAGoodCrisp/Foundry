@@ -231,7 +231,7 @@ class BitmapTag(Tag):
         bitmap = game_bitmap.GetBitmap()
         game_bitmap.Dispose()
         gamma = self.get_gamma_name()
-        if bitmap.PixelFormat == PixelFormat.Format32bppArgb and (blue_channel_fix or gamma == 'linear'):
+        if bitmap.PixelFormat == PixelFormat.Format32bppArgb and blue_channel_fix:
             # Correct for gamma space + add blue channel to normal maps
             # GameBitmap always outputs a bitmap in xrgb colorspace (gamma 2.0)
             bitmap_data = bitmap.LockBits(Rectangle(0, 0, bitmap.Width, bitmap.Height), ImageLockMode.ReadWrite, bitmap.PixelFormat)
@@ -242,15 +242,9 @@ class BitmapTag(Tag):
             for i in range(0, total_bytes, 4):
                 red = rgbValues[i + 2] / 255.0
                 green = rgbValues[i + 1] / 255.0
-                if blue_channel_fix:
-                    blue = calculate_z_vector(red, green)
-                else:
-                    blue = rgbValues[i] / 255.0
-                if gamma == 'linear':
-                    red = utils.srgb_to_linear(red)
-                    green = utils.srgb_to_linear(green)
-                    blue = utils.srgb_to_linear(blue)
-                
+                red = utils.srgb_to_linear(red)
+                green = utils.srgb_to_linear(green)
+                blue = calculate_z_vector(red, green)
                 rgbValues[i + 2] = int(red * 255)
                 rgbValues[i + 1] = int(green * 255)
                 rgbValues[i] = int(blue * 255)
@@ -309,10 +303,10 @@ class BitmapTag(Tag):
             case 'Non-Color':
                 return 1.0
             
-def lerp(a, b, t):
-    return a + (b - a) * t
+def lerp(p1: float, p2: float, fraction: float) -> float:
+    return (p1 * (1 - fraction)) + (p2 * fraction)
 
-def calculate_z_vector(r, g):
+def calculate_z_vector(r: float, g: float) -> float:
     x = lerp(-1.0, 1.0, r)
     y = lerp(-1.0, 1.0, g)
     z = sqrt(max(0, 1 - x * x - y * y))
