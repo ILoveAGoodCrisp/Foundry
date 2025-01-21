@@ -992,8 +992,8 @@ class NWOImporter:
                         imported_objects.extend(self.import_collision_model(collision, armature, model_collection, allowed_region_permutations))
                     if physics and self.tag_physics:
                         imported_objects.extend(self.import_physics_model(physics, armature, model_collection, allowed_region_permutations))
-                    # if animation:
-                    #     imported_animations.extend(self.import_animation_graph(animation, armature, render))
+                    if animation:
+                        imported_animations.extend(self.import_animation_graph(animation, armature, render))
         
         return imported_objects
     
@@ -1076,6 +1076,7 @@ class NWOImporter:
     def import_animation_graph(self, file, armature, render):
         print("Importing Animations")
         actions = []
+        # file = r'f:\modding\main\hrek\tags\cinematics\000la_prologue\objects\010la_outpost_010\warthog_new.model_animation_graph'
         with utils.TagImportMover(self.project.tags_directory, file) as mover:
             with AnimationTag(path=mover.tag_path) as graph:
                 actions = graph.to_blender(render, armature)

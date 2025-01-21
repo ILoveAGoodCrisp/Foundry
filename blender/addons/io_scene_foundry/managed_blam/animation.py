@@ -12,6 +12,8 @@ from ..managed_blam.render_model import RenderModelTag
 from ..managed_blam import Tag
 from .. import utils
 
+tolerance = 1e-6
+
 class AnimationTag(Tag):
     tag_ext = 'model_animation_graph'
 
@@ -309,6 +311,12 @@ class AnimationTag(Tag):
         # Prepare exporter
         print()
         actions = []
+        bone_base_matrices = {}
+        for bone in armature.pose.bones:
+            if bone.parent:
+                bone_base_matrices[bone] = bone.parent.matrix.inverted() @ bone.matrix
+            else:
+                bone_base_matrices[bone] = bone.matrix
         if self.block_animations.Elements.Count < 1: 
             return print("No animations found in graph")
         
@@ -337,6 +345,9 @@ class AnimationTag(Tag):
                 index = element.ElementIndex
                 shared_data = element.SelectField("Block:shared animation data")
                 overlay = shared_data.Elements[0].SelectField("animation type").Value > 1
+                if overlay:
+                    print(f"Skipping {name}, overlay animations not supported")
+                    continue
                 frame_count = exporter.GetAnimationFrameCount(index)
                 action = bpy.data.actions.new(name.replace(":", " "))
                 action.use_fake_user = True
@@ -348,7 +359,7 @@ class AnimationTag(Tag):
                     self.jma_bit = []
                     # result = exporter.GetRenderModelBasePose(animation_nodes, nodes_count)
                     result = exporter.GetAnimationFrame(index, frame, animation_nodes, nodes_count)
-                    actions.append(self._apply_frames(animation_nodes, armature, frame, action, overlay))
+                    actions.append(self._apply_frames(animation_nodes, armature, frame, action, overlay, bone_base_matrices))
                     self.jma_data.append(self.jma_bit)
                 
                 action.frame_end = frame_count
@@ -358,8 +369,9 @@ class AnimationTag(Tag):
         
         return actions
 
-    def _apply_frames(self, animation_nodes, armature, frame, action: bpy.types.Action, overlay: bool):
+    def _apply_frames(self, animation_nodes, armature, frame, action: bpy.types.Action, overlay: bool, bone_base_matrices: dict):
         nodes_bones = {bone: node for bone in armature.pose.bones for node in animation_nodes if bone.name == node.Name}
+        bone_matrices = {}
         for idx, (bone, node) in enumerate(nodes_bones.items()):
             default_rotation = utils.ijkw_to_wxyz(self.block_additional_node_dat.Elements[idx].SelectField("default rotation").Data)
             default_translation = Vector([n for n in self.block_additional_node_dat.Elements[idx].SelectField("default translation").Data])
@@ -369,17 +381,41 @@ class AnimationTag(Tag):
             scale = node.Scale * default_scale
             # print(node.Name, bone.name, armature.animation_data.action.name, frame, translation, rotation)
             default_matrix = Matrix.LocRotScale(default_translation, default_rotation, Vector.Fill(3, default_scale))
-            matrix = Matrix.LocRotScale(translation, rotation, Vector.Fill(3, scale))
-            final_matrix = default_matrix @ matrix
+            if overlay:
+                base_matrix = bone_base_matrices[bone]
+                base_matrix: Matrix
+                base_translation = base_matrix.translation
+                base_rotation = base_matrix.to_quaternion()
+                if translation.magnitude > tolerance:
+                    translation = base_translation.cross(translation)
+                else:
+                    translation = base_translation
+                if rotation.magnitude > tolerance:
+                    rotation = base_rotation @ rotation
+                else:
+                    rotation = base_rotation
             bone: bpy.types.PoseBone
-            bone.location = translation
-            bone.rotation_quaternion = rotation
-            bone.scale = Vector.Fill(3, scale)
-            # print(frame, node.Translation.ToString())
-            # bone.matrix_basis = default_matrix @ matrix
-            translation *= 100
+            # print(node.Name, bone.name, armature.animation_data.action.name, frame, translation, rotation)
+            bone_matrices[bone] = Matrix.LocRotScale(translation, rotation, Vector.Fill(3, scale))
+            
+        bone_dict = {}
+        list_node_bones = list(nodes_bones.keys())
+        for bone in list_node_bones:
+            if bone.parent:
+                bone_dict[bone] = bone_dict[bone.parent] + 1
+            else:
+                bone_dict[bone] = 0
+                
+        list_node_bones.sort(key=lambda x: bone_dict[x])
+            
+        for bone in list_node_bones:
+            matrix = bone_matrices[bone]
+            if bone.parent:
+                bone.matrix = bone.parent.matrix @ matrix
+            else:
+                bone.matrix = matrix
 
-        for bone in nodes_bones.keys():
+        for bone in list_node_bones:
             bone.keyframe_insert(data_path='location', frame=frame)
             bone.keyframe_insert(data_path='rotation_quaternion', frame=frame)
             bone.keyframe_insert(data_path='scale', frame=frame)
@@ -387,3 +423,11 @@ class AnimationTag(Tag):
     def get_play_text(self, animation, loop: bool, game_object: str = "(player_get 0)") -> str:
         hs_func = "custom_animation_loop" if loop else "custom_animation"
         return f"{hs_func} {game_object} {self.tag_path.RelativePath} {animation.name.replace(' ', ':')} FALSE"
+    
+    def resource_info(self):
+        resource_group = self.tag.SelectField("resource groups")
+        for element in resource_group.Elements:
+            resource = element.SelectField("tag_resource")
+            print("ADDRESS", resource.Address)
+            print("SERIAL", resource.Serialize())
+            print("RAW", resource.GetRawData())
