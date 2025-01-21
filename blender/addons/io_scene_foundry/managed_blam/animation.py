@@ -344,27 +344,54 @@ class AnimationTag(Tag):
                 name = element.SelectField("name").Data
                 index = element.ElementIndex
                 shared_data = element.SelectField("Block:shared animation data")
+                anim_type = shared_data.Elements[0].SelectField("animation type").Value
                 overlay = shared_data.Elements[0].SelectField("animation type").Value > 1
-                if overlay:
+                if anim_type == 2:
                     print(f"Skipping {name}, overlay animations not supported")
                     continue
                 frame_count = exporter.GetAnimationFrameCount(index)
-                action = bpy.data.actions.new(name.replace(":", " "))
-                action.use_fake_user = True
-                action.use_frame_range = True
+                new_name = name.replace(":", " ")
+                action = bpy.data.actions.new(new_name)
                 armature.animation_data.action = action
                 print(f"--- {action.name}")
-                self.jma_data = []
+                animation = self.context.scene.nwo.animations.add()
+                animation.name = new_name
+                action.use_fake_user = True
+                action.use_frame_range = True
+                animation.frame_start = int(action.frame_start)
+                animation.frame_end = int(action.frame_end)
+                match anim_type:
+                    case 0 | 1:
+                        if shared_data.Elements[0].SelectField("internal flags").TestBit("world relative"):
+                            animation.animation_type = 'world'
+                        else:
+                            animation.animation_type = 'base'
+                        match shared_data.Elements[0].SelectField("frame info type").Value:
+                            case 0:
+                                animation.animation_movement_data = 'none'
+                            case 1:
+                                animation.animation_movement_data = 'xy'
+                            case 2:
+                                animation.animation_movement_data = 'xyyaw'
+                            case 3:
+                                animation.animation_movement_data = 'xyzyaw'
+                            case 4:
+                                animation.animation_movement_data = 'full'
+                    case 2:
+                        animation.animation_type = 'overlay'
+                    case 3:
+                        animation.animation_type = 'replacement'
+                track = animation.action_tracks.add()
+                track.object = armature
+                track.action = action
                 for frame in range(frame_count):
-                    self.jma_bit = []
                     # result = exporter.GetRenderModelBasePose(animation_nodes, nodes_count)
                     result = exporter.GetAnimationFrame(index, frame, animation_nodes, nodes_count)
-                    actions.append(self._apply_frames(animation_nodes, armature, frame, action, overlay, bone_base_matrices))
-                    self.jma_data.append(self.jma_bit)
+                    self._apply_frames(animation_nodes, armature, frame, action, overlay, bone_base_matrices)
+                
+                actions.append(action)
                 
                 action.frame_end = frame_count
-                #export(frame_count, animation_nodes, self.jma_data)
-                #break
                     
         
         return actions
@@ -381,21 +408,20 @@ class AnimationTag(Tag):
             scale = node.Scale * default_scale
             # print(node.Name, bone.name, armature.animation_data.action.name, frame, translation, rotation)
             default_matrix = Matrix.LocRotScale(default_translation, default_rotation, Vector.Fill(3, default_scale))
-            if overlay:
-                base_matrix = bone_base_matrices[bone]
-                base_matrix: Matrix
-                base_translation = base_matrix.translation
-                base_rotation = base_matrix.to_quaternion()
-                if translation.magnitude > tolerance:
-                    translation = base_translation.cross(translation)
-                else:
-                    translation = base_translation
-                if rotation.magnitude > tolerance:
-                    rotation = base_rotation @ rotation
-                else:
-                    rotation = base_rotation
+            base_matrix = bone_base_matrices[bone]
+            base_matrix: Matrix
+            base_translation = base_matrix.translation
+            base_rotation = base_matrix.to_quaternion()
+            if translation.magnitude < tolerance:
+                translation = base_translation
+            if rotation.magnitude < tolerance:
+                rotation = base_rotation
+                # if rotation.magnitude > tolerance:
+                #     rotation = base_rotation @ rotation
+                # else:
+                #     rotation = base_rotation
             bone: bpy.types.PoseBone
-            # print(node.Name, bone.name, armature.animation_data.action.name, frame, translation, rotation)
+           # print(node.Name, bone.name, armature.animation_data.action.name, frame, translation, rotation)
             bone_matrices[bone] = Matrix.LocRotScale(translation, rotation, Vector.Fill(3, scale))
             
         bone_dict = {}

@@ -54,7 +54,7 @@ legacy_frame_prefixes = "frame_", "frame ", "bip_", "bip ", "b_", "b "
 # 6. Add an if with conditions for handling this import under NWO_Import.execute
 # 7. Update scope variable to importer calls in other python files where appropriate
 
-formats = "amf", "jms", "jma", "bitmap", "camera_track", "model", "render_model", "scenario", "scenario_structure_bsp", "particle_model", "scenery", "biped"
+formats = "amf", "jms", "jma", "bitmap", "camera_track", "model", "render_model", "scenario", "scenario_structure_bsp", "particle_model", "object", "animation"
 
 xref_tag_types = (
     ".crate",
@@ -269,6 +269,11 @@ class NWO_Import(bpy.types.Operator):
         name="Import Physics",
         default=True,
     )
+    tag_animation: bpy.props.BoolProperty(
+        name="Import Animations (WIP)",
+        description="Animation importer is a work in progress. Only base animations with no movement are fully supported",
+        default=False,
+    )
     
     tag_variant: bpy.props.StringProperty(
         name="Variant",
@@ -365,6 +370,7 @@ class NWO_Import(bpy.types.Operator):
                     importer.tag_markers = self.tag_markers
                     importer.tag_collision = self.tag_collision
                     importer.tag_physics = self.tag_physics
+                    importer.tag_animation = self.tag_animation
                     importer.tag_variant = self.tag_variant
                     model_files = importer.sorted_filepaths["model"]
                     existing_armature = None
@@ -373,9 +379,9 @@ class NWO_Import(bpy.types.Operator):
                         if needs_scaling:
                             utils.transform_scene(context, (1 / scale_factor), to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[existing_armature], actions=[])
                             
-                    imported_model_objects = importer.import_models(model_files, existing_armature)
+                    imported_model_objects, imported_animations = importer.import_models(model_files, existing_armature)
                     if needs_scaling:
-                        utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_model_objects, actions=[])
+                        utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_model_objects, actions=imported_animations)
                         
                     imported_objects.extend(imported_model_objects)
                     
@@ -384,6 +390,7 @@ class NWO_Import(bpy.types.Operator):
                     importer.tag_markers = self.tag_markers
                     importer.tag_collision = self.tag_collision
                     importer.tag_physics = self.tag_physics
+                    importer.tag_animation = False
                     importer.tag_variant = self.tag_variant.lower()
                     object_files = importer.sorted_filepaths["object"]
                     imported_object_objects = importer.import_object(object_files)
@@ -412,6 +419,37 @@ class NWO_Import(bpy.types.Operator):
                         utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_render_objects, actions=[])
                         
                     imported_objects.extend(imported_render_objects)
+                    
+                elif 'animation' in importer.extensions:
+                    animation_files = importer.sorted_filepaths['animation']
+                    if context.object and context.object.type == 'ARMATURE':
+                        existing_armature = context.object
+                    else:
+                        existing_armature = utils.get_rig(context)
+                    if existing_armature is None:
+                        utils.print_warning("No armature found, cannot import animations. Ensure you have the appropriate armature for this animation graph import and selected")
+                    else:
+                        good_to_go = True
+                        render_model = existing_armature.nwo.node_order_source
+                        if not render_model.strip():
+                            utils.print_warning(f"Armature [{armature.name}] has no render model set. Set this in Foundry object properties")
+                            good_to_go = False
+                        full_render_path = Path(utils.get_tags_path(), utils.relative_path(render_model))
+                        if not full_render_path.exists():
+                            utils.print_warning(f"Armature [{armature.name}] has invalid render model set (it does not exist) [{full_render_path}]")
+                            good_to_go = False
+                        
+                        if good_to_go:
+                            if needs_scaling:
+                                utils.transform_scene(context, (1 / scale_factor), to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[existing_armature], actions=[])
+                            
+                            imported_animations = []
+                            for file in animation_files:
+                                print(f'Importing Animation Graph Tag: {Path(file).with_suffix("").name} ')
+                                imported_animations.extend(importer.import_animation_graph(file, existing_armature, full_render_path))
+                                
+                            if needs_scaling:
+                                utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=[existing_armature], actions=imported_animations)
                     
                 if 'scenario' in importer.extensions:
                     importer.tag_zone_set = self.tag_zone_set
@@ -575,6 +613,8 @@ class NWO_Import(bpy.types.Operator):
                 self.filter_glob += '*.particle_model;'
             if (not self.scope or 'object' in self.scope):
                 self.filter_glob += '*.scenery;*.biped;'
+            if (not self.scope or 'animation' in self.scope):
+                self.filter_glob += '*.mod*_*_graph;'
                 
         if utils.amf_addon_installed() and (not self.scope or 'amf' in self.scope):
             self.amf_okay = True
@@ -612,6 +652,7 @@ class NWO_Import(bpy.types.Operator):
             box.prop(self, 'tag_markers')
             box.prop(self, 'tag_collision')
             box.prop(self, 'tag_physics')
+            box.prop(self, 'tag_animation')
             box.prop(self, 'tag_variant')
             
         if self.scope and 'object' in self.scope:
@@ -863,6 +904,7 @@ class NWOImporter:
         self.tag_markers = False
         self.tag_collision = False
         self.tag_physics = False
+        self.tag_animation = False
         self.to_cursor_objects = set()
         self.tag_variant = ""
         self.tag_zone_set = ""
@@ -918,6 +960,9 @@ class NWOImporter:
             elif 'object' in valid_exts and path.lower().endswith(cinematic_tag_types):
                 self.extensions.add('object')
                 filetype_dict["object"].append(path)
+            elif 'animation' in valid_exts and path.lower().endswith(".model_animation_graph"):
+                self.extensions.add('animation')
+                filetype_dict["animation"].append(path)
                 
         return filetype_dict
         
@@ -992,10 +1037,11 @@ class NWOImporter:
                         imported_objects.extend(self.import_collision_model(collision, armature, model_collection, allowed_region_permutations))
                     if physics and self.tag_physics:
                         imported_objects.extend(self.import_physics_model(physics, armature, model_collection, allowed_region_permutations))
-                    if animation:
+                    if animation and self.tag_animation:
+                        print("Importing Animations")
                         imported_animations.extend(self.import_animation_graph(animation, armature, render))
         
-        return imported_objects
+        return imported_objects, imported_animations
     
     def import_object(self, paths):
         imported_objects = []
@@ -1074,9 +1120,7 @@ class NWOImporter:
         return physics_model_objects
     
     def import_animation_graph(self, file, armature, render):
-        print("Importing Animations")
         actions = []
-        # file = r'f:\modding\main\hrek\tags\cinematics\000la_prologue\objects\010la_outpost_010\warthog_new.model_animation_graph'
         with utils.TagImportMover(self.project.tags_directory, file) as mover:
             with AnimationTag(path=mover.tag_path) as graph:
                 actions = graph.to_blender(render, armature)
@@ -2278,7 +2322,7 @@ class NWO_FH_Import(bpy.types.FileHandler):
     bl_idname = "NWO_FH_Import"
     bl_label = "File handler Foundry Importer"
     bl_import_operator = "nwo.import"
-    bl_file_extensions = ".jms;.amf;.ass;.bitmap;.model;.render_model;.scenario;.scenario_structure_bsp;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track;.particle_model;.scenery;.biped"
+    bl_file_extensions = ".jms;.amf;.ass;.bitmap;.model;.render_model;.scenario;.scenario_structure_bsp;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track;.particle_model;.scenery;.biped;.model_animation_graph"
 
     @classmethod
     def poll_drop(cls, context):
