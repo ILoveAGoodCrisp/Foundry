@@ -310,6 +310,7 @@ class AnimationTag(Tag):
     def to_blender(self, render_model: str, armature):
         # Prepare exporter
         print()
+        print(self.resource_info())
         actions = []
         bone_base_matrices = {}
         for bone in armature.pose.bones:
@@ -345,10 +346,10 @@ class AnimationTag(Tag):
                 index = element.ElementIndex
                 shared_data = element.SelectField("Block:shared animation data")
                 anim_type = shared_data.Elements[0].SelectField("animation type").Value
-                overlay = shared_data.Elements[0].SelectField("animation type").Value > 1
-                if anim_type == 2:
-                    print(f"Skipping {name}, overlay animations not supported")
-                    continue
+                overlay = anim_type == 2
+                # if overlay and shared_data.Elements[0].SelectField("Block:object-space parent nodes").Elements.Count > 0:
+                #     print(f"Skipping {name}, pose overlay animations not supported")
+                #     continue
                 frame_count = exporter.GetAnimationFrameCount(index)
                 new_name = name.replace(":", " ")
                 action = bpy.data.actions.new(new_name)
@@ -358,8 +359,8 @@ class AnimationTag(Tag):
                 animation.name = new_name
                 action.use_fake_user = True
                 action.use_frame_range = True
-                animation.frame_start = int(action.frame_start)
-                animation.frame_end = int(action.frame_end)
+                animation.frame_start = 1
+                animation.frame_end = frame_count
                 match anim_type:
                     case 0 | 1:
                         if shared_data.Elements[0].SelectField("internal flags").TestBit("world relative"):
@@ -400,14 +401,14 @@ class AnimationTag(Tag):
         nodes_bones = {bone: node for bone in armature.pose.bones for node in animation_nodes if bone.name == node.Name}
         bone_matrices = {}
         for idx, (bone, node) in enumerate(nodes_bones.items()):
-            default_rotation = utils.ijkw_to_wxyz(self.block_additional_node_dat.Elements[idx].SelectField("default rotation").Data)
-            default_translation = Vector([n for n in self.block_additional_node_dat.Elements[idx].SelectField("default translation").Data])
-            default_scale = self.block_additional_node_dat.Elements[idx].SelectField("default scale").Data
+            # default_rotation = utils.ijkw_to_wxyz(self.block_additional_node_dat.Elements[idx].SelectField("default rotation").Data)
+            # default_translation = Vector([n for n in self.block_additional_node_dat.Elements[idx].SelectField("default translation").Data])
+            # default_scale = self.block_additional_node_dat.Elements[idx].SelectField("default scale").Data
             translation = Vector((node.Translation.X, node.Translation.Y, node.Translation.Z)) * 100
             rotation = Quaternion((node.Rotation.W, node.Rotation.V.X, node.Rotation.V.Y, node.Rotation.V.Z))
-            scale = node.Scale * default_scale
+            scale = node.Scale
             # print(node.Name, bone.name, armature.animation_data.action.name, frame, translation, rotation)
-            default_matrix = Matrix.LocRotScale(default_translation, default_rotation, Vector.Fill(3, default_scale))
+            # default_matrix = Matrix.LocRotScale(default_translation, default_rotation, Vector.Fill(3, default_scale))
             base_matrix = bone_base_matrices[bone]
             base_matrix: Matrix
             base_translation = base_matrix.translation
@@ -451,9 +452,8 @@ class AnimationTag(Tag):
         return f"{hs_func} {game_object} {self.tag_path.RelativePath} {animation.name.replace(' ', ':')} FALSE"
     
     def resource_info(self):
-        resource_group = self.tag.SelectField("resource groups")
+        resource_group = self.tag.SelectField("tag resource groups")
         for element in resource_group.Elements:
             resource = element.SelectField("tag_resource")
-            print("ADDRESS", resource.Address)
-            print("SERIAL", resource.Serialize())
-            print("RAW", resource.GetRawData())
+            group = element.SelectField("group_members")
+            print(group)

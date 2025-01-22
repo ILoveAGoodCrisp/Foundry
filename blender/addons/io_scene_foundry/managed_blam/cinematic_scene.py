@@ -16,20 +16,20 @@ def get_subject_index(subject_name: str, object_block: TagFieldBlock) -> int:
 
 class CinematicLighting:
     def __init__(self):
-        self.persist_across_shots = False
+        self.persists_across_shots = False
         self.lighting: TagPath = None
         self.subject = ""
         self.marker = ""
         
     def from_element(self, element: TagFieldBlockElement, object_block: TagFieldBlock) -> bool:
-        self.persist_across_shots = element.SelectField("flags").Items[0].IsSet
+        self.persists_across_shots = element.SelectField("flags").TestBit("persists across shots")
         self.lighting = element.SelectField("lighting").Path
         self.subject = get_subject_name(element.SelectField("subject").Value, object_block)
         self.marker = element.SelectField("marker").GetStringData()
         return bool(self.subject)
         
     def to_element(self, element: TagFieldBlockElement, object_block: TagFieldBlock):
-        element.SelectField("flags").Items[0].IsSet = self.persist_across_shots
+        element.SelectField("flags").SetBit("persists across shots", self.persists_across_shots)
         element.SelectField("lighting").Path = self.lighting
         element.SelectField("subject").Value = get_subject_index(self.subject, object_block)
         element.SelectField("marker").SetStringData(self.marker)
@@ -94,19 +94,19 @@ class CinematicDialogue:
 
 class CinematicMusic:
     def __init__(self):
-        self.stop_music_at_frame = False
+        self.stops_music_at_frame = False
         self.music: TagPath = None
         self.frame = 0
         
     def from_element(self, element: TagFieldBlockElement) -> bool:
-        self.stop_music_at_frame = element.SelectField("flags").Items[0].IsSet
-        self.music = element.SelectField("music/foley").Path
+        self.stops_music_at_frame = element.SelectField("flags").TestBit("Stop Music At Frame (rather than starting it)")
+        self.music = element.SelectField(r"music\foley").Path
         self.frame = element.SelectField("frame").Data
         return self.music is not None
     
     def to_element(self, element: TagFieldBlockElement):
-        element.SelectField("flags").Items[0].IsSet = self.stop_music_at_frame
-        element.SelectField("music/foley").Path = self.music
+        element.SelectField("flags").SetBit("Stop Music At Frame (rather than starting it)", self.stops_music_at_frame)
+        element.SelectField(r"music\foley").Path = self.music
         element.SelectField("frame").Data = self.frame
         
 class CinematicEffect:
@@ -119,13 +119,13 @@ class CinematicEffect:
         self.frame = 0
         self.marker_name = ""
         self.marker_parent = ""
-        self.function_a
-        self.function_b
+        self.function_a = ""
+        self.function_b = ""
         self.node_id = 0
         self.sequence_id = 0
         
     def from_element(self, element: TagFieldBlockElement, object_block: TagFieldBlock, corinth: bool) -> bool:
-        self.use_maya_value = element.SelectField("flags").Items[0].IsSet
+        self.use_maya_value = element.SelectField("flags").TestBit("use maya value")
         self.effect = element.SelectField("effect").Path
         self.frame = element.SelectField("frame").Data
         self.marker_name = element.SelectField("marker name").GetStringData()
@@ -133,7 +133,7 @@ class CinematicEffect:
         self.node_id = element.SelectField("node id").Data
         self.sequence_id = element.SelectField("sequence id").Data
         if corinth:
-            self.looping = element.SelectField("flags").Items[1].IsSet
+            self.looping = element.SelectField("flags").TestBit("looping")
             self.state = element.SelectField("state").Value
             self.size_scale = element.SelectField("size scale").Value
             self.function_a = element.SelectField("function a").GetStringData()
@@ -143,7 +143,7 @@ class CinematicEffect:
         
     
     def to_element(self, element: TagFieldBlockElement, object_block: TagFieldBlock, corinth: bool):
-        element.SelectField("flags").Items[0].IsSet = self.use_maya_value
+        element.SelectField("flags").SetBit("use maya value", self.use_maya_value)
         element.SelectField("effect").Path = self.effect
         element.SelectField("frame").Data = self.frame
         element.SelectField("marker name").SetStringData(self.marker_name)
@@ -151,7 +151,7 @@ class CinematicEffect:
         element.SelectField("node id").Data = self.node_id
         element.SelectField("sequence id").Data = self.sequence_id
         if corinth:
-            element.SelectField("flags").Items[1].IsSet = self.looping
+            element.SelectField("flags").SetBit("looping", self.looping) 
             element.SelectField("state").Value = self.state
             element.SelectField("size scale").Value = self.size_scale
             element.SelectField("function a").SetStringData(self.function_a)
@@ -171,22 +171,22 @@ class CinematicObjectFunctionKeyframe:
         self.function_name = func
         
     def from_element(self, element: TagFieldBlockElement):
-        self.clear_function = element.SelectField("flags").Items[0].IsSet
+        self.clear_function = element.SelectField("flags").TestBit("clear function (Value and Interpolation time are unused)")
         self.frame = element.SelectField("frame").Data
         self.value = element.SelectField("value").Data
         self.interpolation_time = element.SelectField("interpolation time").Data
     
     def to_element(self, block: TagFieldBlock, object_block: TagFieldBlock):
         for element in block.Elements:
-            if self.function_name == element.SelectField("function name").GetStringData() and get_subject_name(element.SelectField("object").Data, object_block) == self.object:
+            if self.function_name == element.SelectField("function name").GetStringData() and get_subject_name(element.SelectField("object").Value, object_block) == self.object:
                 break
         else:
             element = block.AddElement()
-            element.SelectField("object").Data = get_subject_index(self.object, object_block)
-            element.SelectField("function name").SetStringData()
+            element.SelectField("object").Value = get_subject_index(self.object, object_block)
+            element.SelectField("function name").SetStringData(self.function_name)
         
         sub_element = element.SelectField("keyframes").AddElement()    
-        sub_element.SelectField("flags").Items[0].IsSet = self.clear_function
+        sub_element.SelectField("flags").SetBit("clear function (Value and Interpolation time are unused)", self.clear_function)
         sub_element.SelectField("frame").Data = self.frame
         sub_element.SelectField("value").Data = self.value
         sub_element.SelectField("interpolation time").Data = self.interpolation_time
@@ -198,7 +198,7 @@ class CinematicObjectFunction:
         self.keyframes: list[CinematicObjectFunctionKeyframe]  = []
         
     def from_element(self, element: TagFieldBlockElement, object_block: TagFieldBlock) -> bool:
-        self.object = get_subject_name(element.SelectField("object").Data, object_block)
+        self.object = get_subject_name(element.SelectField("object").Value, object_block)
         self.function_name = element.SelectField("function name").GetStringData()
         
         for sub_element in element.SelectField("keyframes").Elements:
@@ -209,7 +209,7 @@ class CinematicObjectFunction:
         return bool(self.keyframes)
     
     # def to_element(self, element: TagFieldBlockElement, object_block: TagFieldBlock):
-    #     element.SelectField("object").Data = get_subject_index(self.object, object_block)
+    #     element.SelectField("object").Value = get_subject_index(self.object, object_block)
     #     element.SelectField("function name").SetStringData()
     #     keyframes_block = element.SelectField("keyframes")
     #     for keyframe in self.keyframes:
@@ -227,14 +227,14 @@ class CinematicScreenEffect:
         self.frame = element.SelectField("frame").Data
         self.stop_frame = element.SelectField("stop frame").Data
         if corinth:
-            self.persist_entire_shot = element.SelectField("flags").Items[0].IsSet
+            self.persist_entire_shot = element.SelectField("flags").TestBit("Persist Entire Shot")
     
     def to_element(self, element: TagFieldBlockElement, corinth: bool):
         element.SelectField("screen effect").Path = self.screen_effect
         element.SelectField("frame").Data = self.frame
         element.SelectField("stop frame").Data = self.stop_frame
         if corinth:
-            element.SelectField("flags").Items[0].IsSet = self.persist_entire_shot
+            element.SelectField("flags").SetBit("Persist Entire Shot", self.persist_entire_shot)
         
         
 class CinematicCustomScript:
@@ -246,16 +246,16 @@ class CinematicCustomScript:
         self.sequence_id = 0
         
     def from_element(self, element: TagFieldBlockElement):
-        self.use_maya_value = element.SelectField("flags").Items[0].IsSet
+        self.use_maya_value = element.SelectField("flags").TestBit("use maya value")
         self.frame = element.SelectField("frame").Data
-        self.script = element.SelectField("script").Elements[0].Fields[0].GetStringData()
+        self.script = element.SelectField("script").Elements[0].Fields[0].DataAsText
         self.node_id = element.SelectField("node id").Data
         self.sequence_id = element.SelectField("sequence id").Data
     
     def to_element(self, element: TagFieldBlockElement):
-        element.SelectField("flags").Items[0].IsSet = self.use_maya_value
+        element.SelectField("flags").SetBit("use maya value", self.use_maya_value)
         element.SelectField("frame").Data = self.frame
-        element.SelectField("script").Elements[0].Fields[0].SetStringData(self.script)
+        element.SelectField("script").Elements[0].Fields[0].DataAsText = self.script
         element.SelectField("node id").Data = self.node_id
         element.SelectField("sequence id").Data = self.sequence_id
         
@@ -290,14 +290,14 @@ class CinematicTextureMovie:
         self.bink_movie: TagPath = None
         
     def from_element(self, element: TagFieldBlockElement) -> bool:
-        self.stop_movie_at_frame = element.SelectField("flags").Items[0].IsSet
+        self.stop_movie_at_frame = element.SelectField("flags").TestBit("Stop Movie At Frame (rather than starting it)")
         self.frame = element.SelectField("frame").Data
         self.bink_movie = element.SelectField("bink movie").Path
         
         return self.bink_movie is not None
     
     def to_element(self, element: TagFieldBlockElement):
-        element.SelectField("flags").Items[0].IsSet = self.stop_movie_at_frame
+        element.SelectField("flags").SetBit("Stop Movie At Frame (rather than starting it)", self.stop_movie_at_frame)
         element.SelectField("frame").Data = self.frame
         element.SelectField("bink movie").Path = self.bink_movie
 

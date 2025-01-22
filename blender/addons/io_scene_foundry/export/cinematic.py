@@ -1,7 +1,7 @@
 from pathlib import Path
 import bpy
 
-from ..managed_blam.cinematic_scene import CinematicClip, CinematicCustomScript, CinematicDialogue, CinematicEffect, CinematicMusic, CinematicObjectFunction, CinematicScreenEffect, CinematicTextureMovie, CinematicUserInputConstraints
+from ..managed_blam.cinematic_scene import CinematicClip, CinematicCustomScript, CinematicDialogue, CinematicEffect, CinematicLighting, CinematicMusic, CinematicObjectFunction, CinematicScreenEffect, CinematicTextureMovie, CinematicUserInputConstraints
 
 from ..managed_blam.Tags import TagFieldBlock
 
@@ -236,10 +236,13 @@ class QUA:
 
     def get_shot_index_and_frame(self, frame_index: int) -> tuple[int | None, int]:
         current_frame_index = 0
+        previous_frame_index = 0
         for idx, count in enumerate(self.shot_counts):
-            current_frame_index += count
-            if frame_index <= current_frame_index:
-                return idx, current_frame_index - frame_index
+            current_frame_index += (count - 1)
+            if frame_index <= current_frame_index and frame_index >= previous_frame_index:
+                return idx, frame_index - previous_frame_index
+            
+            previous_frame_index = current_frame_index
         
         return None, 0
             
@@ -484,6 +487,7 @@ class QUA:
         # EXTRA CAMERAS TODO
         
         # Read existing data
+        lighting = {}
         clips = {}
         music = {}
         object_function_keyframes = {}
@@ -493,42 +497,74 @@ class QUA:
         dialogue = {}
         effects: dict[CinematicEffect: int] = {}
         custom_scripts = {}
-        for element in block_shots.Elements:
+        current_frame_index = 0
+        if self.corinth:
+            elements_zip = zip(block_shots.Elements, block_data_shots.Elements)
+        else:
+            elements_zip = zip(block_shots.Elements, block_shots.Elements)
+        
+        for element, data_element in elements_zip:
+            block_dialogue = data_element.SelectField("dialogue")
+            block_dialogue.RemoveAllElements()
+            
+            block_effects = data_element.SelectField("effects")
+            for sub_element in block_effects.Elements:
+                c = CinematicEffect()
+                c.from_element(sub_element, block_objects, self.corinth)
+                if not c.comes_from_blender:
+                    effects[c] = current_frame_index + c.frame + int(self.corinth)
+            block_effects.RemoveAllElements()
+            
+            block_custom_script = data_element.SelectField("custom script")
+            for sub_element in block_custom_script.Elements:
+                c = CinematicCustomScript()
+                c.from_element(sub_element)
+                if not c.comes_from_blender:
+                    custom_scripts[c] = current_frame_index + c.frame + int(self.corinth)
+            block_custom_script.RemoveAllElements()
+        
             # dicts of element blocks and their overall scene frame
+            block_lighting = element.SelectField("lighting")
+            for sub_element in block_lighting.Elements:
+                c = CinematicLighting()
+                c.from_element(sub_element, block_objects)
+                lighting[c] = element.ElementIndex # lighting only stores its shot index as it isn't bound to a frame
+            block_lighting.RemoveAllElements()
+            
             block_clip = element.SelectField("clip")
             for sub_element in block_clip.Elements:
                 c = CinematicClip()
-                c.from_element(sub_element)
-                clips[c] = shot.frame_start + c.frame + int(self.corinth) # corinth uses index 1 for frames
+                c.from_element(sub_element, block_objects)
+                clips[c] = current_frame_index + c.frame_start + int(self.corinth) # corinth uses index 1 for frames
             block_clip.RemoveAllElements()
             
             block_music = element.SelectField("music")
             for sub_element in block_music.Elements:
                 c = CinematicMusic()
                 c.from_element(sub_element)
-                music[c] = shot.frame_start + c.frame + int(self.corinth)
+                music[c] = current_frame_index + c.frame + int(self.corinth)
             block_music.RemoveAllElements()
             
             block_object_functions = element.SelectField("object functions")
             for sub_element in block_object_functions.Elements:
                 c = CinematicObjectFunction()
-                c.from_element(sub_element)
+                c.from_element(sub_element, block_objects)
                 for keyframe in c.keyframes:
-                    object_function_keyframes[keyframe] = shot.frame_start + c.frame + int(self.corinth)
+                    object_function_keyframes[keyframe] = current_frame_index + keyframe.frame + int(self.corinth)
             block_object_functions.RemoveAllElements()
             
             block_screen_effects = element.SelectField("screen effects")
             for sub_element in block_screen_effects.Elements:
                 c = CinematicScreenEffect()
-                c.from_element(sub_element)
-                screen_effects[c] = shot.frame_start + c.frame + int(self.corinth)
+                c.from_element(sub_element, self.corinth)
+                screen_effects[c] = current_frame_index + c.frame + int(self.corinth)
             block_screen_effects.RemoveAllElements()
             
             block_user_input_constraints = element.SelectField("user input constraints")
             for sub_element in block_user_input_constraints.Elements:
                 c = CinematicUserInputConstraints()
                 c.from_element(sub_element)
-                user_input_constraints[c] = shot.frame_start + c.frame + int(self.corinth)
+                user_input_constraints[c] = current_frame_index + c.frame + int(self.corinth)
             block_user_input_constraints.RemoveAllElements()
             
             if self.corinth:
@@ -536,50 +572,11 @@ class QUA:
                 for sub_element in block_texture_movies.Elements:
                     c = CinematicTextureMovie()
                     c.from_element(sub_element)
-                    texture_movies[c] = shot.frame_start + c.frame + int(self.corinth)
+                    texture_movies[c] = current_frame_index + c.frame + int(self.corinth)
                 block_texture_movies.RemoveAllElements()
                 element = block_data_shots.Elements[idx]
-
-            else:
-                block_dialogue = element.SelectField("dialogue")
-                block_dialogue.RemoveAllElements()
                 
-                block_effects = element.SelectField("effects")
-                for sub_element in block_effects.Elements:
-                    c = CinematicEffect()
-                    c.from_element(sub_element)
-                    if not c.comes_from_blender:
-                        effects[c] = shot.frame_start + c.frame + int(self.corinth)
-                block_effects.RemoveAllElements()
-                
-                block_custom_script = element.SelectField("custom script")
-                for sub_element in block_custom_script.Elements:
-                    c = CinematicCustomScript()
-                    c.from_element(sub_element)
-                    if not c.comes_from_blender:
-                        custom_scripts[c] = shot.frame_start + c.frame + int(self.corinth)
-                block_custom_script.RemoveAllElements()
-                
-        if self.corinth:
-            for element in block_data_shots.Elements:
-                block_dialogue = element.SelectField("dialogue")
-                block_dialogue.RemoveAllElements()
-                
-                block_effects = element.SelectField("effects")
-                for sub_element in block_effects.Elements:
-                    c = CinematicEffect()
-                    c.from_element(sub_element)
-                    if not c.comes_from_blender:
-                        effects[c] = shot.frame_start + c.frame + int(self.corinth)
-                block_effects.RemoveAllElements()
-                
-                block_custom_script = element.SelectField("custom script")
-                for sub_element in block_custom_script.Elements:
-                    c = CinematicCustomScript()
-                    c.from_element(sub_element)
-                    if not c.comes_from_blender:
-                        custom_scripts[c] = shot.frame_start + c.frame + int(self.corinth)
-                block_custom_script.RemoveAllElements()
+            current_frame_index += (data_element.SelectField("frame count").Data - 1)
         
         # SHOTS
         # make sure shots block is same size as shots count
@@ -684,12 +681,18 @@ class QUA:
         # Dialogue comes from blender
         block = block_shots
         
+        for data, shot_index in lighting.items():
+            shot_element = block.Elements[shot_index]
+            data.to_element(shot_element.SelectField("lighting").AddElement(), block_objects)
+            
         for data, frame_index in clips.items():
             shot_index, shot_frame = self.get_shot_index_and_frame(frame_index)
             if shot_index is None:
                 continue
             shot_element = block.Elements[shot_index]
-            data.frame = shot_frame
+            end_offset = data.frame_end - data.frame_start
+            data.frame_start = shot_frame
+            data.frame_end = shot_frame + end_offset
             data.to_element(shot_element.SelectField("clip").AddElement(), block_objects)
             
         for data, frame_index in music.items():
@@ -713,7 +716,9 @@ class QUA:
             if shot_index is None:
                 continue
             shot_element = block.Elements[shot_index]
+            end_offset = data.stop_frame - data.frame
             data.frame = shot_frame
+            data.stop_frame = shot_frame + end_offset
             data.to_element(shot_element.SelectField("screen effects").AddElement(), self.corinth)
             
         for data, frame_index in user_input_constraints.items():
@@ -757,5 +762,5 @@ class QUA:
                 continue
             shot_element = block.Elements[shot_index]
             data.frame = shot_frame
-            data.to_element(shot_element.SelectField("custom script").AddElement(), block_objects)
+            data.to_element(shot_element.SelectField("custom script").AddElement())
             
