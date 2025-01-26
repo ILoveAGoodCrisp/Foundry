@@ -29,7 +29,7 @@ class NWO_OT_HaloMaterialTilingNode(bpy.types.Operator):
 
     def execute(self, context):
         tiling_node = 'Texture Tiling'
-        utils.add_node_from_resources(tiling_node)
+        utils.add_node_from_resources("shared_nodes", tiling_node)
 
         if bpy.data.node_groups.get(tiling_node, 0):
             bpy.ops.node.add_node('INVOKE_DEFAULT', use_transform=True, settings=[{"name":"node_tree", "value":f"bpy.data.node_groups['{tiling_node}']"}], type="ShaderNodeGroup")

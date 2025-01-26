@@ -130,6 +130,8 @@ class SidecarImport:
                     flags.append("draft")
                 elif not self.export_settings.import_force:
                     flags.append("force")
+            elif self.asset_type == AssetType.ANIMATION:
+                flags.append("draft")
             if self.export_settings.import_seam_debug:
                 flags.append("seam_debug")
             if self.export_settings.import_decompose_instances:

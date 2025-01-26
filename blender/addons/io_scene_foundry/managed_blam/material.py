@@ -26,6 +26,7 @@ class MaterialTag(ShaderTag):
     function_parameters = 'function parameters'
     animated_function = 'function'
     color_parameter_type = 'color'
+    group_supported = False
     
     def _read_fields(self):
         self.block_parameters = self.tag.SelectField("Block:material parameters")
@@ -48,7 +49,7 @@ class MaterialTag(ShaderTag):
         filename = group_node_name + '.material_shader'
         return utils.relative_path(utils.find_file_in_directory(str(Path(self.tags_dir, MATERIAL_SHADERS_DIR)), filename))
                 
-    def _build_custom(self):
+    def _from_nodes_group(self):
         name_type_node_dict = {}
         inputs = self.group_node.inputs
         cull_chars = " _-()'\""
@@ -71,7 +72,7 @@ class MaterialTag(ShaderTag):
             
         self.reference_material_shader.Path = self._TagPath_from_string(material_shader_path)
                 
-    def _build_basic(self, map: dict):
+    def _from_nodes_bsdf(self, map: dict):
         # Set up shader parameters
         self.group_node = map.get("bsdf")
         spec_alpha_from_diffuse = False
@@ -215,7 +216,7 @@ class MaterialTag(ShaderTag):
         return ''
         
     
-    def _build_nodes_basic(self, blender_material: bpy.types.Material):
+    def _to_nodes_bsdf(self, blender_material: bpy.types.Material):
         blender_material.use_nodes = True
         tree = blender_material.node_tree
         nodes = tree.nodes

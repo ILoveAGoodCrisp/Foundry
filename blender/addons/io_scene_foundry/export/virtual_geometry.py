@@ -15,7 +15,8 @@ from ..tools.light_exporter import calc_attenutation
 
 from ..managed_blam.material import MaterialTag
 
-from ..managed_blam.shader import ShaderDecalTag, ShaderTag
+from ..managed_blam.shader import ShaderTag
+from ..managed_blam.shader_decal import ShaderDecalTag
 
 from ..granny.formats import GrannyAnimation, GrannyBone, GrannyDataTypeDefinition, GrannyMaterial, GrannyMaterialMap, GrannyMemberType, GrannyMorphTarget, GrannyTrackGroup, GrannyTransform, GrannyTransformTrack, GrannyTriAnnotationSet, GrannyTriMaterialGroup, GrannyTriTopology, GrannyVertexData
 from ..granny import Granny

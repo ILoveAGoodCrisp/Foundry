@@ -432,7 +432,7 @@ class NWO_OT_NewAnimation(bpy.types.Operator):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fp_animation = utils.poll_ui(("animation"))
+        self.fp_animation = utils.poll_ui(("animation",)) and bpy.context.scene.nwo.asset_animation_type == 'first_person'
         if self.fp_animation:
             self.mode = "first_person"
 

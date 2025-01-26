@@ -1,7 +1,10 @@
 from pathlib import Path
 import bpy
+
+from ..managed_blam.shader_terrain import ShaderTerrainTag
 from ..managed_blam.material import MaterialTag
-from ..managed_blam.shader import ShaderDecalTag, ShaderTag
+from ..managed_blam.shader import ShaderTag
+from ..managed_blam.shader_decal import ShaderDecalTag
 from .. import utils
 
 class NWO_ShaderToNodes(bpy.types.Operator):
@@ -45,4 +48,7 @@ def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str):
                     shader.to_nodes(mat)
             case 'shader_decal':
                 with ShaderDecalTag(path=tag_path) as shader:
+                    shader.to_nodes(mat)
+            case 'shader_terrain':
+                with ShaderTerrainTag(path=tag_path) as shader:
                     shader.to_nodes(mat)

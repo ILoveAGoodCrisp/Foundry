@@ -26,6 +26,10 @@ OBJECT_TAG_EXTS = {'.biped', '.crate', '.creature', '.device_control', '.device_
 #         (0.0, 0.0, 1.0, 0.0),
 #         (0.0, 0.0, 0.0, 1.0)))
 
+class NormalType:
+    OPENGL = 0
+    DIRECTX = 1
+
 class object_type(Enum):
     _connected_geometry_object_type_none = auto()
     _connected_geometry_object_type_frame = auto()

@@ -2400,7 +2400,7 @@ class NWO_OT_ImportShader(bpy.types.Operator):
     filepath: bpy.props.StringProperty(subtype='FILE_PATH', options={'SKIP_SAVE'})
     filename: bpy.props.StringProperty(options={'SKIP_SAVE'})
     filter_glob: bpy.props.StringProperty(
-        default="*.bitmap",
+        default="*.shader;*.shader_decal;*.shader_terrain;",
         options={"HIDDEN"},
     )
 

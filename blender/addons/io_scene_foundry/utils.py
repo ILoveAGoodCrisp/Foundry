@@ -1993,9 +1993,9 @@ def find_file_in_directory(root_dir, filename) -> str:
             
     return ''
 
-def add_node_from_resources(name):
+def add_node_from_resources(blend_name, name) -> bpy.types.NodeGroup:
     if not bpy.data.node_groups.get(name, 0):
-        lib_blend = os.path.join(MATERIAL_RESOURCES, 'shared_nodes.blend')
+        lib_blend = os.path.join(MATERIAL_RESOURCES, f'{blend_name}.blend')
         with bpy.data.libraries.load(lib_blend, link=True) as (_, data_to):
             if not bpy.data.node_groups.get(name, 0):
                 data_to.node_groups = [name]

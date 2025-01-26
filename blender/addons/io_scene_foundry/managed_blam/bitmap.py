@@ -7,6 +7,8 @@ import clr
 from pathlib import Path
 
 from mathutils import Vector
+
+from ..constants import NormalType
 from ..managed_blam import Tag
 from ..utils import print_warning
 from .. import utils
@@ -225,7 +227,7 @@ class BitmapTag(Tag):
         if self.block_bitmaps.Elements.Count <= 0:
             return
         gamma = self.get_gamma_value()
-        if not blue_channel_fix and gamma != 1.0: # xRGB
+        if not blue_channel_fix and gamma == 1.95: # xRGB
             self.block_bitmaps.Elements[0].SelectField("CharEnum:curve").Value = 5
         clr.AddReference('System.Drawing')
         from System import Array, Byte # type: ignore
@@ -236,7 +238,7 @@ class BitmapTag(Tag):
         bitmap = game_bitmap.GetBitmap()
         game_bitmap.Dispose()
         
-        if bitmap.PixelFormat == PixelFormat.Format32bppArgb and (blue_channel_fix or gamma == 1.0):
+        if bitmap.PixelFormat == PixelFormat.Format32bppArgb and blue_channel_fix:
             bitmap_data = bitmap.LockBits(Rectangle(0, 0, bitmap.Width, bitmap.Height), ImageLockMode.ReadWrite, bitmap.PixelFormat)
             total_bytes = abs(bitmap_data.Stride) * bitmap_data.Height
             rgbValues = Array.CreateInstance(Byte, total_bytes)
@@ -248,8 +250,7 @@ class BitmapTag(Tag):
                 blue = rgbValues[i] / 255.0
                 red = red ** 2.2
                 green = green ** 2.2
-                if blue_channel_fix:
-                    blue = calculate_z_vector(red, green)
+                blue = calculate_z_vector(red, green)
                 rgbValues[i + 2] = int(red * 255)
                 rgbValues[i + 1] = int(green * 255)
                 rgbValues[i] = int(blue * 255)
@@ -278,7 +279,7 @@ class BitmapTag(Tag):
         return tiff_path
     
     def normal_type(self):
-        return 'opengl' if self.longenum_usage.Value == 36 else 'directx'
+        return NormalType.OPENGL if self.longenum_usage.Value == 36 else NormalType.DIRECTX
     
     def has_bitmap_data(self):
         return self.block_bitmaps.Elements.Count
@@ -288,8 +289,7 @@ class BitmapTag(Tag):
         return bm.SelectField('curve').Value == 3
     
     def used_as_normal_map(self):
-        bm = self.block_bitmaps.Elements[0]
-        return bm.SelectField('format').Value == 38
+        return self.longenum_usage.Value in {18, 19, 20, 21, 36, 38}
     
     def get_gamma_name(self) -> str:
         bm = self.block_bitmaps.Elements[0]

@@ -1,7 +1,10 @@
 
 
+from enum import Enum
 from pathlib import Path
 from mathutils import Vector
+
+from ..constants import NormalType
 from ..managed_blam import Tag
 from ..managed_blam.Tags import TagsNameSpace
 import os
@@ -15,6 +18,12 @@ from ..managed_blam.render_method_definition import RenderMethodDefinitionTag
 global_render_method_definition = None
 last_group_node = None
 
+class ChannelType(Enum):
+    DEFAULT = 0
+    RGB = 1
+    ALPHA = 2
+    RGB_ALPHA = 3
+
 class ShaderTag(Tag):
     tag_ext = 'shader'
     scale_u = 'scale x'
@@ -26,6 +35,8 @@ class ShaderTag(Tag):
     color_parameter_type = 'argb color'
     
     self_illum_map_names = 'meter_map', 'self_illum_map'
+    
+    group_supported = False
     
     def _read_fields(self):
         self.render_method = self.tag.SelectField("Struct:render_method").Elements[0]
@@ -339,13 +350,13 @@ class ShaderTag(Tag):
     # READING
     def to_nodes(self, blender_material):
         shader_path: str = blender_material.nwo.shader_path
-        if shader_path.endswith('.' + self.tag_ext):
-            self._build_nodes_basic(blender_material)
+        if self.group_supported:
+            self._to_nodes_group(blender_material)
         else:
-            print('Shader type not supported')
+            self._to_nodes_bsdf(blender_material)
             
     def _option_value_from_index(self, index):
-        option_enum = int(self.block_options.Elements[index].Fields[0].GetStringData())
+        option_enum = self.block_options.Elements[index].Fields[0].Data
         if option_enum == -1 and self.reference.Path:
             with ShaderTag(path=self.reference.Path) as shader:
                 return shader._option_value_from_index(index)
@@ -409,10 +420,12 @@ class ShaderTag(Tag):
         system_tiff_path = Path(self.data_dir, bitmap_path.RelativePath).with_suffix('.tiff')
         with BitmapTag(path=bitmap_path) as bitmap:
             is_non_color = bitmap.is_linear()
-            if system_tiff_path.exists():
-                image_path = str(system_tiff_path)
-            else:
-                image_path = bitmap.save_to_tiff(blue_channel_fix)
+            print(f"Writing Tiff from {bitmap.tag_path.RelativePathWithExtension}")
+            image_path = bitmap.save_to_tiff(bitmap.used_as_normal_map())
+            # if system_tiff_path.exists():
+            #     image_path = str(system_tiff_path)
+            # else:
+            #     image_path = bitmap.save_to_tiff(blue_channel_fix)
 
             image = bpy.data.images.load(filepath=image_path, check_existing=True)
             if is_non_color:
@@ -424,7 +437,7 @@ class ShaderTag(Tag):
     
     def _normal_type_from_parameter_name(self, name):
         if not self.corinth:
-            return 'directx' # Reach normals are always directx
+            return NormalType.DIRECTX # Reach normals are always directx
         if type(name) == str:
             element = self._Element_from_field_value(self.block_parameters, 'parameter name', name)
         else:
@@ -432,16 +445,16 @@ class ShaderTag(Tag):
                  element = self._Element_from_field_value(self.block_parameters, 'parameter name', n)
                  if element: break
         if element is None:
-            return 'opengl'
+            return NormalType.OPENGL
         bitmap_path = element.SelectField('bitmap').Path
         if bitmap_path:
             system_bitmap_path = Path(self.tags_dir, bitmap_path.RelativePathWithExtension)
             if not os.path.exists(system_bitmap_path):
-                return 'opengl'
+                return NormalType.OPENGL
             with BitmapTag(path=bitmap_path) as bitmap:
                 return bitmap.normal_type()
         else:
-            return 'opengl'
+            return NormalType.OPENGL
     
     def _color_from_parameter_name(self, name):
         color = [1, 1, 1, 1]
@@ -469,6 +482,32 @@ class ShaderTag(Tag):
         
         return color
     
+    def _value_from_parameter_name(self, name):
+        value = 0
+        if type(name) == str:
+            element = self._Element_from_field_value(self.block_parameters, 'parameter name', name)
+        else:
+            for n in name:
+                 element = self._Element_from_field_value(self.block_parameters, 'parameter name', n)
+                 if element: break
+        if element is None:
+            if not self.corinth and self.reference.Path:
+                with ShaderTag(path=self.reference.Path) as shader:
+                    return shader._value_from_parameter_name(name)
+            else:
+                return
+            
+        block_animated_parameters = element.SelectField(self.function_parameters)
+        color_element = self._Element_from_field_value(block_animated_parameters, 'type', 1)
+        if color_element:
+            game_color = color_element.SelectField(self.animated_function).Value.GetColor(0)
+            if game_color.ColorMode == 1: # Is HSV
+                game_color = game_color.ToRgb()
+                
+            color = [game_color.Red, game_color.Green, game_color.Blue, game_color.Alpha]
+        
+        return value
+    
     def _set_alpha(self, alpha_type, blender_material):
         if alpha_type == 'blend':
             blender_material.surface_render_method = 'BLENDED'
@@ -483,7 +522,7 @@ class ShaderTag(Tag):
         else:
             return ''
     
-    def _build_nodes_basic(self, blender_material: bpy.types.Material):
+    def _to_nodes_bsdf(self, blender_material: bpy.types.Material):
         blender_material.use_nodes = True
         tree = blender_material.node_tree
         nodes = tree.nodes
@@ -587,9 +626,114 @@ class ShaderTag(Tag):
             with BitmapTag(path=bitmap_path) as bitmap:
                 return bitmap.get_granny_data(fill_alpha, calc_blue)
             
+    def group_set_image(self, tree: bpy.types.NodeTree, node: bpy.types.Node, parameter_name: str, vector: Vector, channel_type=ChannelType.DEFAULT, normal_type: NormalType = None):
+        data = self._image_from_parameter_name(parameter_name, normal_type is not None)
+        mapping = self._mapping_from_parameter_name(parameter_name)
+        
+        data_node = tree.nodes.new("ShaderNodeTexImage")
+        data_node.location = vector
+        data_node.image = data
+        
+        if normal_type is not None:
+            normal_map_node = tree.nodes.new('ShaderNodeNormalMap')
+            normal_map_node.location = vector
+            tree.links.new(input=node.inputs[0], output=normal_map_node.outputs[0])
+            if normal_type == NormalType.OPENGL:
+                data_node.location.x = normal_map_node.location.x - 300
+                data_node.location.y = normal_map_node.location.y
+                tree.links.new(input=normal_map_node.inputs[1], output=data_node.outputs[0])
+            else:
+                combine_rgb = tree.nodes.new('ShaderNodeCombineColor')
+                combine_rgb.location.x = normal_map_node.location.x - 200
+                combine_rgb.location.y = normal_map_node.location.y
+                tree.links.new(input=normal_map_node.inputs[1], output=combine_rgb.outputs[0])
+                invert_color = tree.nodes.new('ShaderNodeInvert')
+                invert_color.location.x = combine_rgb.location.x - 200
+                invert_color.location.y = combine_rgb.location.y + 80
+                tree.links.new(input=combine_rgb.inputs[1], output=invert_color.outputs[0])
+                separate_rgb = tree.nodes.new('ShaderNodeSeparateColor')
+                separate_rgb.location.x = invert_color.location.x - 200
+                separate_rgb.location.y = combine_rgb.location.y
+                tree.links.new(input=combine_rgb.inputs[0], output=separate_rgb.outputs[0])
+                tree.links.new(input=invert_color.inputs[1], output=separate_rgb.outputs[1])
+                tree.links.new(input=combine_rgb.inputs[2], output=separate_rgb.outputs[2])
+                
+                tree.links.new(input=separate_rgb.inputs[0], output=data_node.outputs[0])
+                data_node.location.x = separate_rgb.location.x - 300
+                data_node.location.y = separate_rgb.location.y
+                
+        else:
+            match channel_type:
+                case ChannelType.DEFAULT:
+                    tree.links.new(input=node.inputs[parameter_name], output=data_node.outputs[0])
+                case ChannelType.RGB:
+                    tree.links.new(input=node.inputs[f"{parameter_name}.rgb"], output=data_node.outputs[0])
+                case ChannelType.ALPHA:
+                    tree.links.new(input=node.inputs[f"{parameter_name}.a"], output=data_node.outputs[1])
+                case ChannelType.RGB_ALPHA:
+                    tree.links.new(input=node.inputs[f"{parameter_name}.rgb"], output=data_node.outputs[0])
+                    tree.links.new(input=node.inputs[f"{parameter_name}.a"], output=data_node.outputs[1])
             
+        if mapping:
+            mapping_node = tree.nodes.new('ShaderNodeGroup')
+            mapping_node.node_tree = utils.add_node_from_resources("shared_nodes", 'Texture Tiling')
+            mapping_node.location.x = data_node.location.x - 300
+            mapping_node.location.y = data_node.location.y
+            try:
+                scale_uni = mapping.get('scale_uni', 0)
+                if scale_uni:
+                    mapping_node.inputs[0].default_value = scale_uni
+                scale_x = mapping.get('scale_x', 0)
+                if scale_x:
+                    mapping_node.inputs[1].default_value = scale_x
+                scale_y = mapping.get('scale_y', 0)
+                if scale_y:
+                    mapping_node.inputs[2].default_value = scale_y
+                    
+                tree.links.new(input=data_node.inputs[0], output=mapping_node.outputs[0])
+            except:
+                pass
             
-class BSDFParameter():
+        return vector
+
+    def group_set_color(self, tree: bpy.types.NodeTree, node: bpy.types.Node, parameter_name: str):
+        element = self._Element_from_field_value(self.block_parameters, 'parameter name', parameter_name)
+        if element is None:
+            if not self.corinth and self.reference.Path:
+                with ShaderTag(path=self.reference.Path) as shader:
+                    return shader.group_set_color(parameter_name)
+            else:
+                return
+            
+        block_animated_parameters = element.SelectField(self.function_parameters)
+        color_element = self._Element_from_field_value(block_animated_parameters, 'type', 1)
+        if color_element:
+            game_color = color_element.SelectField(self.animated_function).Value.GetColor(0)
+            if game_color.ColorMode == 1: # Is HSV
+                game_color = game_color.ToRgb()
+                
+            color = [game_color.Red, game_color.Green, game_color.Blue, game_color.Alpha]
+            node.inputs[parameter_name].default_value = color
+
+    def group_set_value(self, tree: bpy.types.NodeTree, node: bpy.types.Node, parameter_name: str):
+        element = self._Element_from_field_value(self.block_parameters, 'parameter name', parameter_name)
+        if element is None:
+            if not self.corinth and self.reference.Path:
+                with ShaderTag(path=self.reference.Path) as shader:
+                    return shader.group_set_value(parameter_name)
+            else:
+                return
+            
+        block_animated_parameters = element.SelectField(self.function_parameters)
+        value_element = self._Element_from_field_value(block_animated_parameters, 'type', 0)
+        if value_element:
+            value = value_element.SelectField(self.animated_function).Value.ClampRangeMin
+            node.inputs[parameter_name].default_value = value
+
+    def group_set_flag(self, tree: bpy.types.NodeTree, node: bpy.types.Node, parameter_name: str):
+        pass
+
+class BSDFParameter:
     """Representation of a Halo Shader parameter element in Blender node form"""
     tree: bpy.types.NodeTree
     main_node: bpy.types.Node
@@ -601,7 +745,7 @@ class BSDFParameter():
     normal_type: str
     alpha: str
     
-    def __init__(self, tree, main_node, input, link_node_type, data=None, default_value=None, mapping=[], normal_type='', diffalpha=False, diffillum=False, diffspec=False):
+    def __init__(self, tree, main_node, input, link_node_type, data=None, default_value=None, mapping=[], normal_type: NormalType = None, diffalpha=False, diffillum=False, diffspec=False):
         self.tree = tree
         self.main_node = main_node
         self.input = input
@@ -628,11 +772,11 @@ class BSDFParameter():
         elif self.link_node_type == 'ShaderNodeRGB':
             data_node.outputs[0].default_value = self.data
         
-        if self.normal_type in ('opengl', 'directx'):
+        if self.normal_type is not None:
             normal_map_node = self.tree.nodes.new('ShaderNodeNormalMap')
             normal_map_node.location = vector
             self.tree.links.new(input=self.input, output=normal_map_node.outputs[0])
-            if self.normal_type == 'opengl':
+            if self.normal_type == NormalType.OPENGL:
                 data_node.location.x = normal_map_node.location.x - 300
                 data_node.location.y = normal_map_node.location.y
                 self.tree.links.new(input=normal_map_node.inputs[1], output=data_node.outputs[0])
@@ -668,7 +812,7 @@ class BSDFParameter():
             
         if self.mapping:
             mapping_node = self.tree.nodes.new('ShaderNodeGroup')
-            mapping_node.node_tree = utils.add_node_from_resources('Texture Tiling')
+            mapping_node.node_tree = utils.add_node_from_resources("shared_nodes", 'Texture Tiling')
             mapping_node.location.x = data_node.location.x - 300
             mapping_node.location.y = data_node.location.y
             try:
@@ -685,53 +829,9 @@ class BSDFParameter():
                 self.tree.links.new(input=data_node.inputs[0], output=mapping_node.outputs[0])
             except:
                 pass
-
-class ShaderDecalTag(ShaderTag):
-    tag_ext = 'shader_decal'
-
-    def _build_nodes_basic(self, blender_material: bpy.types.Material):
-        blender_material.use_nodes = True
-        tree = blender_material.node_tree
-        nodes = tree.nodes
-        # Clear it out
-        nodes.clear()
-        # Make the BSDF and Output
-        output = nodes.new(type='ShaderNodeOutputMaterial')
-        output.location = Vector((300, 0))
-        bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
-        tree.links.new(input=output.inputs[0], output=bsdf.outputs[0])
-        albedo_enum = self._option_value_from_index(0)
-        bump_mapping_enum = self._option_value_from_index(4)
-        specular_mask_enum = self._option_value_from_index(3)
-        blend_mode_enum = self._option_value_from_index(1)
-        alpha_type = self._alpha_type(0, blend_mode_enum)
-        diffuse = None
-        normal = None
-        specular = None
-        if albedo_enum == 2:
-            diffuse = BSDFParameter(tree, bsdf, bsdf.inputs[0], 'ShaderNodeRGB', data=self._color_from_parameter_name('albedo_color'))
-        else:
-            diffuse = BSDFParameter(tree, bsdf, bsdf.inputs[0], 'ShaderNodeTexImage', data=self._image_from_parameter_name('base_map'), mapping=self._mapping_from_parameter_name('base_map'), diffalpha=bool(alpha_type))
-            if not diffuse.data:
-                diffuse = BSDFParameter(tree, bsdf, bsdf.inputs[0], 'ShaderNodeRGB', data=self._color_from_parameter_name('albedo_color'))
-
-        if bump_mapping_enum > 0:
-            normal = BSDFParameter(tree, bsdf, bsdf.inputs['Normal'], 'ShaderNodeTexImage', data=self._image_from_parameter_name('bump_map', True), normal_type=self._normal_type_from_parameter_name('bump_map'), mapping=self._mapping_from_parameter_name('bump_map'))
-            if not normal.data:
-                normal = None
-                
-        if specular_mask_enum == 3:
-            specular = BSDFParameter(tree, bsdf, bsdf.inputs['Specular IOR Level'], 'ShaderNodeTexImage', data=self._image_from_parameter_name('specular_mask_texture'), mapping=self._mapping_from_parameter_name('specular_mask_texture'))
-            if not specular.data:
-                specular = None
-        elif specular_mask_enum > 0 and diffuse and type(diffuse.data) == bpy.types.Image:
-            diffuse.diffspec = True
-            
-        if diffuse:
-            diffuse.build(Vector((-300, 400)))
-        if normal:
-            normal.build(Vector((-200, 100)))
-        if specular:
-            specular.build(Vector((-300, -200)))
-
-        self._set_alpha(alpha_type, blender_material)
+        
+class ParameterType(Enum):
+    IMAGE = 0
+    COLOR = 1
+    VALUE = 2
+    FLAG = 3
