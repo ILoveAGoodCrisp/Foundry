@@ -76,12 +76,6 @@ class RenderModelTag(Tag):
         objects = []
         self.armature = self._create_armature(existing_armature)
         objects.append(self.armature)
-        # Instances
-        self.instances = []
-        self.instance_mesh_index = self.tag.SelectField("LongBlockIndex:instance mesh index").Value
-        if self.instance_mesh_index > -1 and not allowed_region_permutations: # Skip instances if a variant has been specified
-            for element in self.tag.SelectField("Block:instance placements").Elements:
-                self.instances.append(InstancePlacement(element, self.nodes))
         
         self.regions: list[Region] = []
         for element in self.block_regions.Elements:
@@ -154,13 +148,16 @@ class RenderModelTag(Tag):
         original_meshes: list[Mesh] = []
         clone_meshes: list[Mesh] = []
         mesh_node_map = self.tag.SelectField("Struct:render geometry[0]/Block:per mesh node map")
-            
+        
+        valid_instance_indexes = set() if allowed_region_permutations else None
+        
         for region in self.regions:
             for permutation in region.permutations:
                 if allowed_region_permutations:
                     region_perm = tuple((region.name, permutation.name))
                     if region_perm not in allowed_region_permutations:
                         continue
+                    valid_instance_indexes.update(permutation.instance_indices)
                     
                 if permutation.mesh_index < 0: continue
                 for i in range(permutation.mesh_count):
@@ -204,6 +201,18 @@ class RenderModelTag(Tag):
                             override.destination_material = destination_material.blender_material
                             print(f"--- Material Override added for clone {clone.name}: {override.source_material.name} --> {override.destination_material.name}")
                     break
+                
+        # Instances
+        self.instances = []
+        self.instance_mesh_index = self.tag.SelectField("LongBlockIndex:instance mesh index").Value
+        if self.instance_mesh_index > -1:
+            if valid_instance_indexes is None:
+                for element in self.tag.SelectField("Block:instance placements").Elements:
+                    self.instances.append(InstancePlacement(element, self.nodes))
+            else:
+                for element in self.tag.SelectField("Block:instance placements").Elements:
+                    if element.ElementIndex in valid_instance_indexes:
+                        self.instances.append(InstancePlacement(element, self.nodes))
 
         for ob in objects:
             region, permutation = utils.dot_partition(ob.name).split(":")

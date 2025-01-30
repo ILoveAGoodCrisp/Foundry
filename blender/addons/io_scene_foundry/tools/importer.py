@@ -2471,7 +2471,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
-        layout.label(text=Path(self.filepath).name)
+        layout.label(text=f"Importing: {Path(self.filepath).name}")
         match self.import_type:
             case "model":
                 if self.has_variants:

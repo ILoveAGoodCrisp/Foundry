@@ -466,62 +466,70 @@ class ShaderTag(Tag):
                 return 0
             return option_enum
         
-    def _mapping_from_parameter_name(self, name):
+    def _mapping_from_parameter_name(self, name, mapping={}):
+        the_one = name == "bump_detail_map" and self.tag_path.RelativePathWithExtension == r"objects\characters\spartans\shaders\spartan_rubber_suit.shader"
         if type(name) == str:
             element = self._Element_from_field_value(self.block_parameters, 'parameter name', name)
         else:
             for n in name:
-                 element = self._Element_from_field_value(self.block_parameters, 'parameter name', n)
-                 if element: break
+                element = self._Element_from_field_value(self.block_parameters, 'parameter name', n)
+                if element: break
+                
         if element is None:
             if not self.corinth and self.reference.Path:
                 with ShaderTag(path=self.reference.Path) as shader:
-                    return shader._mapping_from_parameter_name(name)
+                    shader._mapping_from_parameter_name(name, mapping)
             else:
                 return
-            
-        block_animated_parameters = element.SelectField(self.function_parameters)
-        mapping = {}
-        for e in block_animated_parameters.Elements:
-            f_type = e.Fields[0].Value
-            value = e.SelectField(self.animated_function).Value
-            match f_type:
-                case 2:
-                    mapping['scale_uni'] = value.ClampRangeMin
-                case 3:
-                    mapping['scale_x'] = value.ClampRangeMin
-                case 4:
-                    mapping['scale_y'] = value.ClampRangeMin
-                case 5:
-                    mapping['offset_x'] = value.ClampRangeMin
-                case 6:
-                    mapping['offset_y'] = value.ClampRangeMin
+        else:
+            block_animated_parameters = element.SelectField(self.function_parameters)
+            for e in block_animated_parameters.Elements:
+                f_type = e.Fields[0].Value
+                value = e.SelectField(self.animated_function).Value
+                match f_type:
+                    case 2:
+                        mapping['scale_uni'] = value.ClampRangeMin
+                    case 3:
+                        mapping['scale_x'] = value.ClampRangeMin
+                    case 4:
+                        mapping['scale_y'] = value.ClampRangeMin
+                    case 5:
+                        mapping['offset_x'] = value.ClampRangeMin
+                    case 6:
+                        mapping['offset_y'] = value.ClampRangeMin
                     
-        return mapping
+            if not self.corinth and self.reference.Path:
+                with ShaderTag(path=self.reference.Path) as shader:
+                    shader._mapping_from_parameter_name(name, mapping)
         
     def _image_from_parameter_name(self, name, blue_channel_fix=False, default_bitmap=None):
         """Saves an image (or gets the already existing one) from a shader parameter element"""
-        if default_bitmap is None:
-            if type(name) == str:
-                element = self._Element_from_field_value(self.block_parameters, 'parameter name', name)
-            else:
-                for n in name:
-                    element = self._Element_from_field_value(self.block_parameters, 'parameter name', n)
-                    if element: break
-            if element is None:
-                if not self.corinth and self.reference.Path:
-                    with ShaderTag(path=self.reference.Path) as shader:
-                        return shader._image_from_parameter_name(name)
-                else:
-                    return
-            bitmap_path = element.SelectField('bitmap').Path
+        if type(name) == str:
+            element = self._Element_from_field_value(self.block_parameters, 'parameter name', name)
         else:
-            bitmap_path = default_bitmap
-        
-        if bitmap_path is None:
-            bitmap_path = default_parameter_bitmaps.get(name)
-            if bitmap_path is None:
+            for n in name:
+                element = self._Element_from_field_value(self.block_parameters, 'parameter name', n)
+                if element: break
+        if element is None:
+            if not self.corinth and self.reference.Path:
+                with ShaderTag(path=self.reference.Path) as shader:
+                    return shader._image_from_parameter_name(name)
+            else:
                 return
+            
+        bitmap_path = element.SelectField('bitmap').Path
+
+        if bitmap_path is None:
+            if not self.corinth and self.reference.Path:
+                with ShaderTag(path=self.reference.Path) as shader:
+                    result = shader._image_from_parameter_name(name)
+                    if result is not None:
+                        return result
+            bitmap_path = default_bitmap
+            if bitmap_path is None:
+                bitmap_path = default_parameter_bitmaps.get(name)
+                if bitmap_path is None:
+                    return
         
         if not os.path.exists(bitmap_path.Filename):
             return
@@ -531,13 +539,13 @@ class ShaderTag(Tag):
         with BitmapTag(path=bitmap_path) as bitmap:
             is_non_color = bitmap.is_linear()
             # print(f"Writing Tiff from {bitmap.tag_path.RelativePathWithExtension}")
-            image_path = bitmap.save_to_tiff(bitmap.used_as_normal_map())
-            # if system_tiff_path.exists():
-            #     image_path = str(system_tiff_path)
-            # elif alt_system_tiff_path.exists():
-            #     image_path = str(alt_system_tiff_path)
-            # else:
-            #     image_path = bitmap.save_to_tiff(bitmap.used_as_normal_map())
+            # image_path = bitmap.save_to_tiff(bitmap.used_as_normal_map())
+            if system_tiff_path.exists():
+                image_path = str(system_tiff_path)
+            elif alt_system_tiff_path.exists():
+                image_path = str(alt_system_tiff_path)
+            else:
+                image_path = bitmap.save_to_tiff(bitmap.used_as_normal_map())
 
             image = bpy.data.images.load(filepath=image_path, check_existing=True)
             if is_non_color:
@@ -746,7 +754,8 @@ class ShaderTag(Tag):
                 return vector, None
             return vector
         
-        mapping = self._mapping_from_parameter_name(parameter_name)
+        mapping = {}
+        self._mapping_from_parameter_name(parameter_name, mapping)
         
         data_node = tree.nodes.new("ShaderNodeTexImage")
         data_node.location = vector
@@ -791,26 +800,24 @@ class ShaderTag(Tag):
                 case ChannelType.RGB_ALPHA:
                     tree.links.new(input=node.inputs[f"{parameter_name}.rgb"], output=data_node.outputs[0])
                     tree.links.new(input=node.inputs[f"{parameter_name}.a"], output=data_node.outputs[1])
-            
+        
         if mapping:
             mapping_node = tree.nodes.new('ShaderNodeGroup')
             mapping_node.node_tree = utils.add_node_from_resources("shared_nodes", 'Texture Tiling')
             mapping_node.location.x = data_node.location.x - 300
             mapping_node.location.y = data_node.location.y
-            try:
-                scale_uni = mapping.get('scale_uni', 0)
-                if scale_uni:
-                    mapping_node.inputs[0].default_value = scale_uni
-                scale_x = mapping.get('scale_x', 0)
-                if scale_x:
-                    mapping_node.inputs[1].default_value = scale_x
-                scale_y = mapping.get('scale_y', 0)
-                if scale_y:
-                    mapping_node.inputs[2].default_value = scale_y
+            scale_uni = mapping.get('scale_uni')
+            if scale_uni is not None:
+                mapping_node.inputs[0].default_value = scale_uni
+            scale_x = mapping.get('scale_x')
+            if scale_x is not None:
+                mapping_node.inputs[1].default_value = scale_x
+            scale_y = mapping.get('scale_y')
+            if scale_y is not None:
+                mapping_node.inputs[2].default_value = scale_y
+                
+            tree.links.new(input=data_node.inputs[0], output=mapping_node.outputs[0])
                     
-                tree.links.new(input=data_node.inputs[0], output=mapping_node.outputs[0])
-            except:
-                pass
             
         vector = Vector((vector.x, vector.y - 300))
         
@@ -947,7 +954,7 @@ class ShaderTag(Tag):
                     tree.links.new(input=node_blend_mode.inputs[1], output=node_albedo.outputs[1])
             
         if e_alpha_test.value > 0:
-            node_alpha_test = self._add_group_node(tree, nodes, f"alpha_test {utils.game_str(e_alpha_test.name)}", Vector((final_node.location.x + 300, final_node.location.y)))
+            node_alpha_test = self._add_group_node(tree, nodes, f"alpha_test - {utils.game_str(e_alpha_test.name)}", Vector((final_node.location.x + 300, final_node.location.y)))
             tree.links.new(input=node_alpha_test.inputs[0], output=final_node.outputs[0])
             final_node = node_alpha_test
             
@@ -1073,7 +1080,7 @@ class BSDFParameter:
     
     def build(self, vector=Vector((0, 0))):
         if not (self.data or self.default_value):
-            print("No data and no default value")
+            # print("No data and no default value")
             return
         
         output_index = 0
