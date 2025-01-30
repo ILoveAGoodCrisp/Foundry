@@ -342,7 +342,7 @@ class AnimationTag(Tag):
             
             for element in self.block_animations.Elements:
                 name = element.SelectField("name").GetStringData()
-                if filter not in name:
+                if filter and filter not in name:
                     continue
                 index = element.ElementIndex
                 shared_data = element.SelectField("Block:shared animation data")

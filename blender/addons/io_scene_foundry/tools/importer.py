@@ -1067,7 +1067,7 @@ class NWOImporter:
             with utils.TagImportMover(self.project.tags_directory, file) as mover:
                 with ObjectTag(path=mover.tag_path, raise_on_error=False) as scenery:
                     model_path = scenery.get_model_tag_path_full()
-                    change_colors = scenery.get_change_colors()
+                    change_colors = scenery.get_change_colors(self.tag_variant)
                     with utils.TagImportMover(self.project.tags_directory, model_path) as model_mover:
                         with ModelTag(path=model_mover.tag_path, raise_on_error=False) as model:
                             if not model.valid: continue
@@ -2449,6 +2449,8 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     )
     
     def execute(self, context):
+        if self.tag_variant == "all_variants":
+            self.tag_variant = ""
         bpy.ops.nwo.foundry_import(**self.as_keywords())
         return {'FINISHED'}
     
@@ -2469,6 +2471,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
+        layout.label(text=Path(self.filepath).name)
         match self.import_type:
             case "model":
                 if self.has_variants:
