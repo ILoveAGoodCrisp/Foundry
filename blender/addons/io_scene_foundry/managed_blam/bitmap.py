@@ -289,7 +289,7 @@ class BitmapTag(Tag):
         return bm.SelectField('curve').Value == 3
     
     def used_as_normal_map(self):
-        return self.longenum_usage.Value in {18, 19, 20, 21, 36, 38}
+        return self.longenum_usage.Value in {2, 3, 18, 19, 20, 21, 36, 38}
     
     def get_gamma_name(self) -> str:
         bm = self.block_bitmaps.Elements[0]

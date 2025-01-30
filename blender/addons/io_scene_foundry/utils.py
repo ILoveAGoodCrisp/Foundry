@@ -4216,3 +4216,7 @@ def ray_cast_mouse(context, coords_2d):
 
     hit, location, normal, index, object, matrix = scene.ray_cast(viewlayer, ray_origin, view_vector)
     return hit, location, normal, index, object, matrix
+
+def game_str(text: str) -> str:
+    '''Converts a string to lower, removes leading & trailing spaces & underscores, and replaces remaining spaces with underscores'''
+    return text.strip(" _").lower().replace(" ", "_")

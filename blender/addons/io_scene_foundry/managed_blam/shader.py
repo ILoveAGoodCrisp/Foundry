@@ -6,7 +6,7 @@ from mathutils import Vector
 
 from ..constants import NormalType
 from ..managed_blam import Tag
-from ..managed_blam.Tags import TagsNameSpace
+from ..managed_blam.Tags import TagPath, TagsNameSpace
 import os
 from ..managed_blam.bitmap import BitmapTag
 from ..tools.export_bitmaps import export_bitmap
@@ -17,12 +17,109 @@ from ..managed_blam.render_method_definition import RenderMethodDefinitionTag
 
 global_render_method_definition = None
 last_group_node = None
+default_parameter_bitmaps = None
 
 class ChannelType(Enum):
     DEFAULT = 0
     RGB = 1
     ALPHA = 2
     RGB_ALPHA = 3
+
+# OPTION ENUMS
+class Albedo(Enum):
+    DEFAULT = 0
+    DETAIL_BLEND = 1
+    CONSTANT_COLOR = 2
+    TWO_CHANGE_COLOR = 3
+    FOUR_CHANGE_COLOR = 4
+    THREE_DETAIL_BLEND = 5
+    TWO_DETAIL_OVERLAY = 6
+    TWO_DETAIL = 7
+    COLOR_MASK = 8
+    TWO_DETAIL_BLACK_POINT = 9
+    FOUR_CHANGE_COLOR_APPLYING_TO_SPECULAR = 10
+    SIMPLE = 11
+    
+class BumpMapping(Enum):
+    OFF = 0
+    STANDARD = 1
+    DETAIL = 2
+    DETAIL_BLEND = 3
+    THREE_DETAIL_BLEND = 4
+    STANDARD_WRINKLE = 5
+    DETAIL_WRINKLE = 6
+    
+class AlphaTest(Enum):
+    NONE = 0
+    SIMPLE = 1
+    
+class SpecularMask(Enum):
+    NO_SPECULAR_MASK = 0
+    SPECULAR_MASK_FROM_DIFFUSE = 1
+    SPECULAR_MASK_MULT_DIFFUSE = 2
+    SPECULAR_MASK_FROM_TEXTURE = 3
+    
+class MaterialModel(Enum):
+    DIFFUSE_ONLY = 0
+    COOK_TORRANCE = 1
+    TWO_LOBE_PHONG = 2
+    FOLIAGE = 3
+    NONE = 4
+    ORGANISM = 5
+    HAIR = 6
+    
+class EnvironmentMapping(Enum):
+    NONE = 0
+    PER_PIXEL = 1
+    DYNAMIC = 2
+    FROM_FLAT_TEXTURE = 3
+    
+class SelfIllumination(Enum):
+    OFF = 0
+    SIMPLE = 1
+    _3_CHANNEL_SELF_ILLUM = 2
+    PLASMA = 3
+    FROM_DIFFUSE = 4
+    ILLUM_DETAIL = 5
+    METER = 6
+    SELF_ILLUM_TIMES_DIFFUSE = 7
+    SIMPLE_WITH_ALPHA_MASK = 8
+    MULTILAYER_ADDITIVE = 9
+    PALETTIZED_PLASMA = 10
+    CHANGE_COLOR = 11
+    CHANGE_COLOR_DETAIL = 12
+    
+class BlendMode(Enum):
+    OPAQUE = 0
+    ADDITIVE = 1
+    MULTIPLY = 2
+    ALPHA_BLEND = 3
+    DOUDBLE_MULTIPLY = 4
+    PRE_MULTIPLIED_ALPHA = 5
+    
+class Parallax(Enum):
+    OFF = 0
+    SIMPLE = 1
+    INTERPOLATED = 2
+    SIMPLE_DETAIL = 3
+    
+class Misc(Enum):
+    DEFAULT = 0
+    ROTATING_BITMAPS_SUPER_SLOW = 1
+    
+class Wetness(Enum):
+    DEFAULT = 0
+    FLOOD = 1
+    PROOF = 2
+    SIMPLE = 3
+    RIPPLES = 4
+    
+class AlphaBlendSource(Enum):
+    FROM_ALBEDO_ALPHA_WITHOUT_FRESNEL = 0
+    FROM_ALBEDO_ALPHA = 1
+    FROM_OPACITY_MAP_ALPHA = 2
+    FROM_OPACITY_MAP_RGB = 3
+    FROM_OPACITY_MAP_ALPHA_AND_ALBEDO_ALPHA = 4
 
 class ShaderTag(Tag):
     tag_ext = 'shader'
@@ -36,21 +133,24 @@ class ShaderTag(Tag):
     
     self_illum_map_names = 'meter_map', 'self_illum_map'
     
-    group_supported = False
+    group_supported = True
     
     def _read_fields(self):
         self.render_method = self.tag.SelectField("Struct:render_method").Elements[0]
         self.block_parameters = self.render_method.SelectField("parameters")
         self.block_options = self.render_method.SelectField('options')
         self.reference = self.render_method.SelectField('reference')
-    
-    def _get_info(self):
-        global global_render_method_definition
-        global last_group_node
-        if not global_render_method_definition or last_group_node != self.group_node:
-            last_group_node = self.group_node
-            with RenderMethodDefinitionTag() as render_method_definition:
-                global_render_method_definition = render_method_definition.get_categories()
+        self.definition = self.render_method.SelectField('definition')
+                
+    def _get_default_bitmaps(self):
+        global default_parameter_bitmaps
+        if default_parameter_bitmaps is None:
+            def_path = self.definition.Path
+            if def_path is None:
+                default_parameter_bitmaps = {}
+                return
+            with RenderMethodDefinitionTag(path=def_path) as render_method_definition:
+                default_parameter_bitmaps = render_method_definition.get_default_bitmaps()
     
     def write_tag(self, blender_material, linked_to_blender, material_shader=''):
         self.blender_material = blender_material
@@ -348,10 +448,11 @@ class ShaderTag(Tag):
             
             
     # READING
-    def to_nodes(self, blender_material):
+    def to_nodes(self, blender_material, change_colors=None):
         shader_path: str = blender_material.nwo.shader_path
+        self._get_default_bitmaps()
         if self.group_supported:
-            self._to_nodes_group(blender_material)
+            self._to_nodes_group(blender_material, change_colors)
         else:
             self._to_nodes_bsdf(blender_material)
             
@@ -361,6 +462,8 @@ class ShaderTag(Tag):
             with ShaderTag(path=self.reference.Path) as shader:
                 return shader._option_value_from_index(index)
         else:
+            if option_enum == -1:
+                return 0
             return option_enum
         
     def _mapping_from_parameter_name(self, name):
@@ -396,36 +499,45 @@ class ShaderTag(Tag):
                     
         return mapping
         
-    def _image_from_parameter_name(self, name, blue_channel_fix=False):
+    def _image_from_parameter_name(self, name, blue_channel_fix=False, default_bitmap=None):
         """Saves an image (or gets the already existing one) from a shader parameter element"""
-        if type(name) == str:
-            element = self._Element_from_field_value(self.block_parameters, 'parameter name', name)
-        else:
-            for n in name:
-                 element = self._Element_from_field_value(self.block_parameters, 'parameter name', n)
-                 if element: break
-        if element is None:
-            if not self.corinth and self.reference.Path:
-                with ShaderTag(path=self.reference.Path) as shader:
-                    return shader._image_from_parameter_name(name)
+        if default_bitmap is None:
+            if type(name) == str:
+                element = self._Element_from_field_value(self.block_parameters, 'parameter name', name)
             else:
+                for n in name:
+                    element = self._Element_from_field_value(self.block_parameters, 'parameter name', n)
+                    if element: break
+            if element is None:
+                if not self.corinth and self.reference.Path:
+                    with ShaderTag(path=self.reference.Path) as shader:
+                        return shader._image_from_parameter_name(name)
+                else:
+                    return
+            bitmap_path = element.SelectField('bitmap').Path
+        else:
+            bitmap_path = default_bitmap
+        
+        if bitmap_path is None:
+            bitmap_path = default_parameter_bitmaps.get(name)
+            if bitmap_path is None:
                 return
-        bitmap_path = element.SelectField('bitmap').Path
-        if not bitmap_path:
+        
+        if not os.path.exists(bitmap_path.Filename):
             return
-        system_bitmap_path = str(Path(self.tags_dir, bitmap_path.RelativePathWithExtension))
-        image_path = ''
-        if not os.path.exists(system_bitmap_path):
-            return
+        
         system_tiff_path = Path(self.data_dir, bitmap_path.RelativePath).with_suffix('.tiff')
+        alt_system_tiff_path = system_tiff_path.with_suffix(".tif")
         with BitmapTag(path=bitmap_path) as bitmap:
             is_non_color = bitmap.is_linear()
-            print(f"Writing Tiff from {bitmap.tag_path.RelativePathWithExtension}")
+            # print(f"Writing Tiff from {bitmap.tag_path.RelativePathWithExtension}")
             image_path = bitmap.save_to_tiff(bitmap.used_as_normal_map())
             # if system_tiff_path.exists():
             #     image_path = str(system_tiff_path)
+            # elif alt_system_tiff_path.exists():
+            #     image_path = str(alt_system_tiff_path)
             # else:
-            #     image_path = bitmap.save_to_tiff(blue_channel_fix)
+            #     image_path = bitmap.save_to_tiff(bitmap.used_as_normal_map())
 
             image = bpy.data.images.load(filepath=image_path, check_existing=True)
             if is_non_color:
@@ -626,8 +738,14 @@ class ShaderTag(Tag):
             with BitmapTag(path=bitmap_path) as bitmap:
                 return bitmap.get_granny_data(fill_alpha, calc_blue)
             
-    def group_set_image(self, tree: bpy.types.NodeTree, node: bpy.types.Node, parameter_name: str, vector: Vector, channel_type=ChannelType.DEFAULT, normal_type: NormalType = None):
-        data = self._image_from_parameter_name(parameter_name, normal_type is not None)
+    def group_set_image(self, tree: bpy.types.NodeTree, node: bpy.types.Node, parameter_name: str, vector: Vector, channel_type=ChannelType.DEFAULT, normal_type: NormalType = None, return_image_node=False, default_bitmap=None):
+        data = self._image_from_parameter_name(parameter_name, normal_type is not None, default_bitmap=default_bitmap)
+        
+        if data is None:
+            if return_image_node:
+                return vector, None
+            return vector
+        
         mapping = self._mapping_from_parameter_name(parameter_name)
         
         data_node = tree.nodes.new("ShaderNodeTexImage")
@@ -694,7 +812,152 @@ class ShaderTag(Tag):
             except:
                 pass
             
+        vector = Vector((vector.x, vector.y - 300))
+        
+        if return_image_node:
+            return vector, data_node
         return vector
+    
+    def _add_group_node(self, tree: bpy.types.NodeTree, nodes: bpy.types.Nodes, name: str, location: Vector) -> bpy.types.Node:
+        node = nodes.new(type='ShaderNodeGroup')
+        node.node_tree = utils.add_node_from_resources("reach_nodes", name)
+        node.location = location
+        self.populate_chiefster_node(tree, node)
+        return node
+    
+    def _add_group_material_model(self, tree: bpy.types.NodeTree, nodes: bpy.types.Nodes, name: str, location: Vector, supports_glancing_spec: bool) -> bpy.types.Node:
+        node_material_model = nodes.new(type="ShaderNodeGroup")
+        node_material_model.node_tree = utils.add_node_from_resources("reach_nodes", f"material_model - {name}")
+            
+        self.populate_chiefster_node(tree, node_material_model)
+        
+        # specular color has be dealt with specially
+        if supports_glancing_spec:
+            for element in self.block_parameters.Elements:
+                if element.Fields[0].GetStringData() == "specular_color_by_angle":
+                    for animated_element in element.SelectField("animated parameters").Elements:
+                        value = animated_element.SelectField(self.animated_function).Value
+                        normal_color = value.GetColor(0)
+                        if normal_color.ColorMode == 1:
+                            normal_color = normal_color.ToRgb()
+                        glancing_color = value.GetColor(1)
+                        if glancing_color.ColorMode == 1:
+                            glancing_color = glancing_color.ToRgb()
+                            
+                        node_material_model.inputs["glancing_specular_color"].default_value = glancing_color.Red, glancing_color.Green, glancing_color.Blue, 1
+                        node_material_model.inputs["normal_specular_color"].default_value = normal_color.Red, normal_color.Green, normal_color.Blue, 1
+                        break
+                    break
+
+        node_material_model.location = location
+        return node_material_model
+    
+    def _to_nodes_group(self, blender_material: bpy.types.Material, change_colors: list):
+        
+        # Get options
+        e_albedo = Albedo(self._option_value_from_index(0))
+        e_bump_mapping = BumpMapping(self._option_value_from_index(1))
+        e_alpha_test = AlphaTest(self._option_value_from_index(2))
+        e_specular_mask = SpecularMask(self._option_value_from_index(3))
+        e_material_model = MaterialModel(self._option_value_from_index(4))
+        e_environment_mapping = EnvironmentMapping(self._option_value_from_index(5))
+        e_self_illumination = SelfIllumination(self._option_value_from_index(6))
+        e_blend_mode = BlendMode(self._option_value_from_index(7))
+        e_parallax = Parallax(self._option_value_from_index(8))
+        e_misc = Misc(self._option_value_from_index(9))
+        e_wetness = Wetness(self._option_value_from_index(10))
+        e_alpha_blend_source = AlphaBlendSource(self._option_value_from_index(11))
+        
+        if e_material_model == MaterialModel.NONE:
+            e_material_model = MaterialModel.DIFFUSE_ONLY
+        
+        if e_material_model.value > 2:
+            old_model = e_material_model.name
+            if e_material_model == MaterialModel.FOLIAGE:
+                e_material_model = MaterialModel.DIFFUSE_ONLY
+            else:
+                e_material_model = MaterialModel.COOK_TORRANCE
+                
+            utils.print_warning(f"Unsupported material model : {old_model}. Using {e_material_model.name} instead")
+        
+        blender_material.use_nodes = True
+        tree = blender_material.node_tree
+        nodes = tree.nodes
+        # Clear it out
+        nodes.clear()
+        
+        has_bump = e_bump_mapping.value > 0
+        
+        node_material_model = self._add_group_material_model(tree, nodes, utils.game_str(e_material_model.name), Vector((0, 0)), e_material_model.value > 0)
+        final_node = node_material_model
+        
+        node_albedo = self._add_group_node(tree, nodes, f"albedo - {utils.game_str(e_albedo.name)}", Vector((node_material_model.location.x - 300, node_material_model.location.y + 500)))
+        
+        if node_albedo in {Albedo.FOUR_CHANGE_COLOR, Albedo.FOUR_CHANGE_COLOR_APPLYING_TO_SPECULAR, Albedo.TWO_CHANGE_COLOR}:
+            node_albedo.inputs["Primary Color"].default_value = change_colors[0]
+            node_albedo.inputs["Secondary Color"].default_value = change_colors[1]
+            if node_albedo != Albedo.TWO_CHANGE_COLOR:
+                node_albedo.inputs["Tertiary Color"].default_value = change_colors[2]
+                node_albedo.inputs["Quaternary Color"].default_value = change_colors[3]
+        
+        tree.links.new(input=node_material_model.inputs[0], output=node_albedo.outputs[0])
+        if e_material_model.value > 0: # Diffuse only does not have alpha input
+            tree.links.new(input=node_material_model.inputs[1], output=node_albedo.outputs[1])
+        
+        if has_bump:
+            node_bump_mapping = self._add_group_node(tree, nodes, f"bump_mapping - {utils.game_str(e_bump_mapping.name)}", Vector((node_albedo.location.x, node_material_model.location.y - 500)))
+            tree.links.new(input=node_material_model.inputs["Normal"], output=node_bump_mapping.outputs[0])
+            
+        if e_environment_mapping.value > 0:
+            node_environment_mapping = self._add_group_node(tree, nodes, f"environment_mapping - {utils.game_str(e_environment_mapping.name)}", Vector((node_material_model.location.x + 600, node_material_model.location.y - 200)))
+            tree.links.new(input=node_environment_mapping.inputs[0], output=node_material_model.outputs[1])
+            if e_environment_mapping == EnvironmentMapping.DYNAMIC:
+                tree.links.new(input=node_environment_mapping.inputs[1], output=node_material_model.outputs[2])
+                
+            node_model_environment_add = nodes.new(type='ShaderNodeAddShader')
+            node_model_environment_add.location.x = node_environment_mapping.location.x + 300
+            node_model_environment_add.location.y = node_material_model.location.y
+            tree.links.new(input=node_model_environment_add.inputs[0], output=node_material_model.outputs[0])
+            tree.links.new(input=node_model_environment_add.inputs[1], output=node_environment_mapping.outputs[0])
+            final_node = node_model_environment_add
+            if has_bump:
+                tree.links.new(input=node_environment_mapping.inputs["Normal"], output=node_bump_mapping.outputs[0])
+            
+        if e_self_illumination.value > 0:
+            node_self_illumination = self._add_group_node(tree, nodes, f"self_illumination - {utils.game_str(e_self_illumination.name)}", Vector((final_node.location.x + 300, final_node.location.y - 200)))
+            node_illum_add = nodes.new(type='ShaderNodeAddShader')
+            node_illum_add.location.x = node_self_illumination.location.x + 300
+            node_illum_add.location.y = final_node.location.y
+            tree.links.new(input=node_illum_add.inputs[0], output=final_node.outputs[0])
+            tree.links.new(input=node_illum_add.inputs[1], output=node_self_illumination.outputs[0])
+            final_node = node_illum_add
+            
+        if e_blend_mode in {BlendMode.ADDITIVE, BlendMode.ALPHA_BLEND}:
+            blender_material.surface_render_method = 'BLENDED'
+            node_blend_mode = self._add_group_node(tree, nodes, f"blend_mode - {utils.game_str(e_blend_mode.name)}", Vector((final_node.location.x + 300, final_node.location.y)))
+            tree.links.new(input=node_blend_mode.inputs[0], output=final_node.outputs[0])
+            final_node = node_blend_mode
+            if e_blend_mode == BlendMode.ALPHA_BLEND:
+                if e_alpha_blend_source.value > 0:
+                    node_alpha_blend_source = self._add_group_node(tree, nodes, f"alpha_blend_source - {utils.game_str(e_alpha_blend_source.name)}", Vector((node_blend_mode.location.x - 300, node_blend_mode.location.y - 300)))
+                    tree.links.new(input=node_blend_mode.inputs[1], output=node_alpha_blend_source.outputs[0])
+                    if has_bump:
+                        tree.links.new(input=node_alpha_blend_source.inputs["Normal"], output=node_bump_mapping.outputs[0])
+                else:
+                    tree.links.new(input=node_blend_mode.inputs[1], output=node_albedo.outputs[1])
+            
+        if e_alpha_test.value > 0:
+            node_alpha_test = self._add_group_node(tree, nodes, f"alpha_test {utils.game_str(e_alpha_test.name)}", Vector((final_node.location.x + 300, final_node.location.y)))
+            tree.links.new(input=node_alpha_test.inputs[0], output=final_node.outputs[0])
+            final_node = node_alpha_test
+            
+        # Make the Output
+        node_output = nodes.new(type='ShaderNodeOutputMaterial')
+        node_output.location.x = final_node.location.x + 300
+        node_output.location.y = final_node.location.y
+        
+        # Link to output
+        tree.links.new(input=node_output.inputs[0], output=final_node.outputs[0])
 
     def group_set_color(self, tree: bpy.types.NodeTree, node: bpy.types.Node, parameter_name: str):
         element = self._Element_from_field_value(self.block_parameters, 'parameter name', parameter_name)
@@ -732,6 +995,55 @@ class ShaderTag(Tag):
 
     def group_set_flag(self, tree: bpy.types.NodeTree, node: bpy.types.Node, parameter_name: str):
         pass
+    
+    def populate_chiefster_node(self, tree: bpy.types.NodeTree, node: bpy.types.Node):
+        last_parameter_name = None
+        last_input_node = None
+        location = Vector((node.location.x - 300, node.location.y + 300))
+        for input in node.inputs:
+            parameter_name = input.name.lower() if "." not in input.name else input.name.partition(".")[0].lower()
+            if "gamma curve" in parameter_name:
+                input.default_value = 1
+                last_parameter_name = None
+                continue
+            input: bpy.types.NodeGroupInput
+            if parameter_name == last_parameter_name and last_input_node is not None:
+                # plug in alpha
+                alpha_input = node.inputs.get(f"{parameter_name}.a")
+                if alpha_input is None:
+                    alpha_input = node.inputs[f"{parameter_name}.a/specular_mask.a"]
+                tree.links.new(input=alpha_input, output=last_input_node.outputs[1])
+            else:
+                parameter_type = self._parameter_type_from_name(parameter_name)
+                default_bitmap = None
+                if parameter_type == ParameterType.NONE:
+                    default_bitmap = default_parameter_bitmaps.get(parameter_name)
+                    if default_bitmap is None:
+                        last_parameter_name = None
+                        continue
+                    
+                match parameter_type:
+                    case ParameterType.COLOR | ParameterType.ARGB_COLOR:
+                        self.group_set_color(tree, node, parameter_name)
+                    case ParameterType.REAL | ParameterType.INT | ParameterType.BOOL:
+                        self.group_set_value(tree, node, parameter_name)
+                    case _:
+                        if ".rgb" in input.name:
+                            location, last_input_node = self.group_set_image(tree, node, parameter_name, location, ChannelType.RGB, return_image_node=True, default_bitmap=default_bitmap)
+                        elif ".a" in input.name:
+                            location, last_input_node = self.group_set_image(tree, node, parameter_name, location, ChannelType.ALPHA, return_image_node=True, default_bitmap=default_bitmap)
+                        else:
+                            location, last_input_node = self.group_set_image(tree, node, parameter_name, location, ChannelType.DEFAULT, return_image_node=True, default_bitmap=default_bitmap)
+                        
+                last_parameter_name = parameter_name
+                
+    def _parameter_type_from_name(self, name: str):
+        for element in self.block_parameters.Elements:
+            if element.Fields[0].GetStringData() == name:
+                return ParameterType(element.Fields[1].Value)
+                
+        return ParameterType.NONE
+                
 
 class BSDFParameter:
     """Representation of a Halo Shader parameter element in Blender node form"""
@@ -831,7 +1143,10 @@ class BSDFParameter:
                 pass
         
 class ParameterType(Enum):
-    IMAGE = 0
+    NONE = -1
+    BITMAP = 0
     COLOR = 1
-    VALUE = 2
-    FLAG = 3
+    REAL = 2
+    INT = 3
+    BOOL = 4
+    ARGB_COLOR = 5

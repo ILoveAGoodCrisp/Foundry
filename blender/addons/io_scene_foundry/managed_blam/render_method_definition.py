@@ -22,3 +22,14 @@ class RenderMethodDefinitionTag(Tag):
             categories[e.Fields[0].Value] = options_dict
             
         return categories
+    
+    def get_default_bitmaps(self):
+        defaults = {}
+        for element in self.block_categories.Elements:
+            for sub_element in element.Fields[1].Elements:
+                option_path = sub_element.Fields[1].Path
+                if option_path is not None:
+                    with RenderMethodOptionTag(path=option_path) as render_method_option:
+                        defaults.update(render_method_option.read_default_bitmaps())
+                        
+        return defaults

@@ -301,6 +301,7 @@ class NWO_Import(bpy.types.Operator):
         self.nothing_imported = False
         self.user_cancelled = False
         utils.set_object_mode(context)
+        change_colors = [tuple((1, 1, 1)), tuple((1, 1, 1)), tuple((1, 1, 1)), tuple((1, 1, 1))]
         with utils.ExportManager():
             os.system("cls")
             if context.scene.nwo_export.show_output:
@@ -393,7 +394,7 @@ class NWO_Import(bpy.types.Operator):
                     importer.tag_animation = False
                     importer.tag_variant = self.tag_variant.lower()
                     object_files = importer.sorted_filepaths["object"]
-                    imported_object_objects = importer.import_object(object_files)
+                    imported_object_objects, change_colors = importer.import_object(object_files)
                     if needs_scaling:
                         utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_object_objects, actions=[])
                         
@@ -519,11 +520,11 @@ class NWO_Import(bpy.types.Operator):
                         print('Building Blender materials from material tags')
                     else:
                         print('Building Blender materials from shader tags')
-                    with utils.MutePrints():
-                        for mat in new_materials:
-                            shader_path = mat.nwo.shader_path
-                            if shader_path:
-                                tag_to_nodes(corinth, mat, shader_path)
+                    # with utils.MutePrints():
+                    for mat in new_materials:
+                        shader_path = mat.nwo.shader_path
+                        if shader_path:
+                            tag_to_nodes(corinth, mat, shader_path, change_colors)
                         
                 if 'bitmap' in importer.extensions:
                     bitmap_files = importer.sorted_filepaths["bitmap"]
@@ -1053,6 +1054,7 @@ class NWOImporter:
             with utils.TagImportMover(self.project.tags_directory, file) as mover:
                 with ObjectTag(path=mover.tag_path, raise_on_error=False) as scenery:
                     model_path = scenery.get_model_tag_path_full()
+                    change_colors = scenery.get_change_colors()
                     with utils.TagImportMover(self.project.tags_directory, model_path) as model_mover:
                         with ModelTag(path=model_mover.tag_path, raise_on_error=False) as model:
                             if not model.valid: continue
@@ -1082,7 +1084,7 @@ class NWOImporter:
                                         if temp_variant == self.tag_variant:
                                             ob.nwo.cinematic_variant = temp_variant
                                         
-        return imported_objects
+        return imported_objects, change_colors
             
     def import_render_model(self, file, model_collection, existing_armature, allowed_region_permutations, skip_print=False):
         if not skip_print:

@@ -11,6 +11,8 @@ class ObjectTag(Tag):
         else:
             object_struct = first_struct.Elements[0].Fields[0]
         self.reference_model = self.tag.SelectField(f"{object_struct.FieldPath}/Reference:model")
+        self.default_variant = self.tag.SelectField(f"{object_struct.FieldPath}/StringId:default model variant")
+        self.block_change_colors = self.tag.SelectField(f"{object_struct.FieldPath}/Block:change colors")
             
     def get_model_tag_path(self):
         model_path = self.reference_model.Path
@@ -30,3 +32,18 @@ class ObjectTag(Tag):
         self.reference_model.Path = self._TagPath_from_string(new_path)
         self.tag_has_changes = True
         
+    def get_change_colors(self, variant="") -> list:
+        change_colors = [tuple((1, 1, 1)), tuple((1, 1, 1)), tuple((1, 1, 1)), tuple((1, 1, 1))]
+        if not variant:
+            variant = self.default_variant.GetStringData()
+        if not variant:
+            return change_colors
+        
+        for element in self.block_change_colors.Elements:
+            perms = element.Fields[0]
+            for sub_element in perms.Elements:
+                 if sub_element.Fields[3].GetStringData() == variant:
+                     change_colors[element.ElementIndex] = sub_element.Fields[2].Data
+                     break
+                 
+        return change_colors

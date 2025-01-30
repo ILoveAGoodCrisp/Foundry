@@ -90,7 +90,7 @@ class ShaderTerrainTag(ShaderTag):
             self.group_set_value(tree, node_group, "albedo_specular_tint_blend_m_0")
         if e_material_1 in {TerrainMaterial.DIFFUSE_ONLY, TerrainMaterial.DIFFUSE_PLUS_SPECULAR}:
             location = Vector((node_group.location.x - 300, node_group.location.y - 300))
-            node_group.inputs["enable material_1"].default_value = True
+            node_group.inputs["Enable material_1"].default_value = True
             location = self.group_set_image(tree, node_group, "base_map_m_1", location, channel_type=ChannelType.RGB_ALPHA)
             location = self.group_set_image(tree, node_group, "detail_map_m_1", location, channel_type=ChannelType.RGB_ALPHA)
             # location = self.group_set_image(tree, node_group, "detail_map2_m_1", location, has_alpha_input=True)
@@ -107,7 +107,7 @@ class ShaderTerrainTag(ShaderTag):
             self.group_set_value(tree, node_group, "albedo_specular_tint_blend_m_1")
         if e_material_2 in {TerrainMaterial.DIFFUSE_ONLY, TerrainMaterial.DIFFUSE_PLUS_SPECULAR}:
             location = Vector((node_group.location.x - 300, node_group.location.y - 600))
-            node_group.inputs["enable material_2"].default_value = True
+            node_group.inputs["Enable material_2"].default_value = True
             location = self.group_set_image(tree, node_group, "base_map_m_2", location, channel_type=ChannelType.RGB_ALPHA)
             location = self.group_set_image(tree, node_group, "detail_map_m_2", location, channel_type=ChannelType.RGB_ALPHA)
             # location = self.group_set_image(tree, node_group, "detail_map2_m_2", location, has_alpha_input=True)
@@ -124,7 +124,7 @@ class ShaderTerrainTag(ShaderTag):
             self.group_set_value(tree, node_group, "albedo_specular_tint_blend_m_2")
         if e_material_3 in {TerrainMaterial.DIFFUSE_ONLY, TerrainMaterial.DIFFUSE_PLUS_SPECULAR}:
             location = Vector((node_group.location.x - 300, node_group.location.y - 900))
-            node_group.inputs["enable material_3"].default_value = True
+            node_group.inputs["Enable material_3"].default_value = True
             location = self.group_set_image(tree, node_group, "base_map_m_3", location, channel_type=ChannelType.RGB_ALPHA)
             location = self.group_set_image(tree, node_group, "detail_map_m_3", location, channel_type=ChannelType.RGB_ALPHA)
             # location = self.group_set_image(tree, node_group, "detail_map2_m_3", location, has_alpha_input=True)

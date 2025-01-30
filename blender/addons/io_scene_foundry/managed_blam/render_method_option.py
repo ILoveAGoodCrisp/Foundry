@@ -13,3 +13,7 @@ class RenderMethodOptionTag(Tag):
         for e in self.block_parameters.Elements:
             parameters[e.SelectField('parameter name').GetStringData()] = [e.SelectField('parameter ui override name').GetStringData(), e.SelectField('parameter type').Value]
         return parameters
+    
+    def read_default_bitmaps(self) -> dict:
+        """Returns a dict of parameter names and their default bitmaps"""
+        return {element.Fields[0].GetStringData(): element.Fields[4].Path for element in self.block_parameters.Elements}
