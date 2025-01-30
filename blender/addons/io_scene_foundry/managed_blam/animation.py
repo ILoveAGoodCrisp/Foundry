@@ -307,10 +307,10 @@ class AnimationTag(Tag):
                 
                 self.tag_has_changes = True
                 
-    def to_blender(self, render_model: str, armature):
+    def to_blender(self, render_model: str, armature, filter: str):
         # Prepare exporter
         print()
-        print(self.resource_info())
+        # print(self.resource_info())
         actions = []
         bone_base_matrices = {}
         for bone in armature.pose.bones:
@@ -322,7 +322,6 @@ class AnimationTag(Tag):
             return print("No animations found in graph")
         
         animation_nodes = None
-        
         with RenderModelTag(path=render_model) as model:
             exporter = self._AnimationExporter()
             # exporter.LoadTags(self.tag_path, model.tag_path)
@@ -342,7 +341,9 @@ class AnimationTag(Tag):
                 armature.animation_data_create()
             
             for element in self.block_animations.Elements:
-                name = element.SelectField("name").Data
+                name = element.SelectField("name").GetStringData()
+                if filter not in name:
+                    continue
                 index = element.ElementIndex
                 shared_data = element.SelectField("Block:shared animation data")
                 anim_type = shared_data.Elements[0].SelectField("animation type").Value

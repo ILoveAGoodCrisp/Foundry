@@ -233,7 +233,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             elif nwo.asset_type == 'camera_track_set':
                 box = self.box.box()
                 col = box.column()
-                col.operator('nwo.import', text="Import Camera Track", icon='IMPORT').scope = 'camera_track'
+                col.operator('nwo.foundry_import', text="Import Camera Track", icon='IMPORT').scope = 'camera_track'
                 col.prop(nwo, 'camera_track_camera', text="Camera")
                 
             elif nwo.asset_type == 'particle_model':
@@ -3125,12 +3125,12 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         row = box.row()
         col = row.column()
         if self.context.scene.nwo.asset_type == 'cinematic':
-            col.operator('nwo.import', text="Import Cinematic Objects", icon='IMPORT').scope = 'object'
-            col.operator('nwo.import', text="Import Cinematic Scenarios", icon='IMPORT').scope = 'scenario'
+            col.operator('nwo.foundry_import', text="Import Cinematic Objects", icon='IMPORT').scope = 'object'
+            col.operator('nwo.foundry_import', text="Import Cinematic Scenarios", icon='IMPORT').scope = 'scenario'
         else:
             amf_installed = utils.amf_addon_installed()
             toolset_installed = utils.blender_toolset_installed()
-            col.operator('nwo.import', text="Import Models & Animations", icon='IMPORT').scope = 'amf,jma,jms,model,render_model,scenario,scenario_structure_bsp,particle_model,animation'
+            col.operator('nwo.foundry_import', text="Import Models & Animations", icon='IMPORT').scope = 'amf,jma,jms,model,render_model,scenario,scenario_structure_bsp,particle_model,animation'
             if not toolset_installed:
                 col.label(text="Halo Blender Toolset required for import of JMS/JMA/ASS files")
                 col.operator("nwo.open_url", text="Download", icon="BLENDER").url = BLENDER_TOOLSET
@@ -3138,7 +3138,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 col.label(text="AMF Importer required to import amf files")
                 col.operator("nwo.open_url", text="Download", icon_value=get_icon_id("amf")).url = AMF_ADDON
                 
-            col.operator('nwo.import', text="Import Bitmaps", icon='IMAGE_DATA').scope = 'bitmap'
+            col.operator('nwo.foundry_import', text="Import Bitmaps", icon='IMAGE_DATA').scope = 'bitmap'
             col.operator('nwo.rename_import', text="Import Animation Renames & Copies", icon_value=get_icon_id("animation_rename"))
             col.operator("nwo.convert_scene", text="Convert Scene", icon='RIGHTARROW')
         

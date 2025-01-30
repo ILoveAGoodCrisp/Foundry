@@ -844,8 +844,8 @@ class ShaderTag(Tag):
                         if glancing_color.ColorMode == 1:
                             glancing_color = glancing_color.ToRgb()
                             
-                        node_material_model.inputs["glancing_specular_color"].default_value = glancing_color.Red, glancing_color.Green, glancing_color.Blue, 1
-                        node_material_model.inputs["normal_specular_color"].default_value = normal_color.Red, normal_color.Green, normal_color.Blue, 1
+                        node_material_model.inputs["normal_specular_color"].default_value = glancing_color.Red, glancing_color.Green, glancing_color.Blue, 1
+                        node_material_model.inputs["glancing_specular_color"].default_value = normal_color.Red, normal_color.Green, normal_color.Blue, 1
                         break
                     break
 

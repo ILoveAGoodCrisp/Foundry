@@ -44,6 +44,8 @@ legacy_animation_formats = '.jmm', '.jma', '.jmt', '.jmz', '.jmv', '.jmw', '.jmo
 legacy_poop_prefixes = '%', '+', '-', '?', '!', '>', '*', '&', '^', '<', '|',
 legacy_frame_prefixes = "frame_", "frame ", "bip_", "bip ", "b_", "b "
 
+global variant_items
+
 ### Steps for adding a new file type ###
 ########################################
 # 1. Add the name of the file extension to formats
@@ -168,7 +170,7 @@ class NWO_OT_ConvertScene(bpy.types.Operator):
 
 class NWO_Import(bpy.types.Operator):
     bl_label = "Foundry Import"
-    bl_idname = "nwo.import"
+    bl_idname = "nwo.foundry_import"
     bl_description = "Imports a variety of filetypes and sets them up for Foundry. Currently supports: AMF, JMA, JMS, ASS, bitmap tags, camera_track tags, model tags (collision & skeleton only)"
     
     @classmethod
@@ -284,9 +286,20 @@ class NWO_Import(bpy.types.Operator):
         name="Zone Set",
         description="Optional field to declare a zone set to import. This will limit the scope of imported BSPs to those within the zone set. If this field is left blank, all BSPs will be imported"
     )
+    tag_bsp_render_only: bpy.props.StringProperty(
+        name="Render Geometry Only",
+        description="Skips importing bsp data like collision and portals. Use this if you aren't importing the BSP back into the game"
+    )
+    
+    tag_animation_filter: bpy.props.StringProperty(
+        name="Animation Filter",
+        description="Filter for the animations to import. Animations that don't contain the specified strings (space or colon delimited) will be skipped"
+    )
     
     def execute(self, context):
         filepaths = [self.directory + f.name for f in self.files]
+        if self.filepath and self.filepath not in filepaths:
+            filepaths.append(self.filepath)
         corinth = utils.is_corinth(context)
         scale_factor = 0.03048 if context.scene.nwo.scale == 'blender' else 1
         to_x_rot = utils.rotation_diff_from_forward(context.scene.nwo.forward_direction, 'x')
@@ -447,7 +460,7 @@ class NWO_Import(bpy.types.Operator):
                             imported_animations = []
                             for file in animation_files:
                                 print(f'Importing Animation Graph Tag: {Path(file).with_suffix("").name} ')
-                                imported_animations.extend(importer.import_animation_graph(file, existing_armature, full_render_path))
+                                imported_animations.extend(importer.import_animation_graph(file, existing_armature, full_render_path, self.tag_animation_filter))
                                 
                             if needs_scaling:
                                 utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=[existing_armature], actions=imported_animations)
@@ -1121,11 +1134,12 @@ class NWOImporter:
             
         return physics_model_objects
     
-    def import_animation_graph(self, file, armature, render):
+    def import_animation_graph(self, file, armature, render, filter: str):
         actions = []
+        filter = filter.replace(" ", ":")
         with utils.TagImportMover(self.project.tags_directory, file) as mover:
             with AnimationTag(path=mover.tag_path) as graph:
-                actions = graph.to_blender(render, armature)
+                actions = graph.to_blender(render, armature, filter)
             
         return actions
     
@@ -2320,10 +2334,181 @@ class NWOImporter:
                         animation.animation_type = 'replacement'
                         animation.animation_space = 'local'
                         
+class NWO_OT_ImportFromDrop(bpy.types.Operator):
+    bl_idname = "nwo.import_from_drop"
+    bl_label = "Foundry Importer"
+    bl_description = "Imports from drag n drop"
+    bl_options = {"UNDO"}
+    
+    filepath: bpy.props.StringProperty(subtype='FILE_PATH', options={'SKIP_SAVE'})
+    # filename: bpy.props.StringProperty(options={'SKIP_SAVE'})
+    # filter_glob: bpy.props.StringProperty(
+    #     default=".jms;.amf;.ass;.bitmap;.model;.render_model;.scenario;.scenario_structure_bsp;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track;.particle_model;.scenery;.biped;.model_animation_graph",
+    #     options={"HIDDEN"},
+    # )
+    
+    find_shader_paths: bpy.props.BoolProperty(
+        name="Find Shader Paths",
+        description="Searches the tags folder after import and tries to find shader/material tags which match the name of importer materials",
+        default=True,
+    )
+    build_blender_materials: bpy.props.BoolProperty(
+        name="Generate Materials",
+        description="Builds Blender material nodes for materials based off their shader/material tags (if found)",
+        default=True,
+    )
+    
+    legacy_fix_rotations: bpy.props.BoolProperty(
+        name="Fix Rotations",
+        description="Rotates imported bones by 90 degrees on the Z Axis",
+    )
+    
+    import_images_to_blender: bpy.props.BoolProperty(
+        name="Import to Blend",
+        description="Imports images into the blender after extracting bitmaps from the game",
+        default=True,
+    )
+    images_fake_user: bpy.props.BoolProperty(
+        name="Set Fake User",
+        description="Sets the fake user property on imported images",
+        default=True,
+    )
+    extracted_bitmap_format: bpy.props.EnumProperty(
+        name="Image Format",
+        description="Sets format to save the extracted bitmap as",
+        items=[
+            ("tiff", "TIFF", ""),
+            ("png", "PNG", ""),
+            ("jped", "JPEG", ""),
+            ("bmp", "BMP", ""),
+        ]
+    )
+    
+    camera_track_animation_scale: bpy.props.FloatProperty(
+        name='Animation Scale',
+        default=1,
+        min=1,
+    )
+    
+    reuse_armature: bpy.props.BoolProperty(
+        name="Reuse Scene Armature",
+        description="Will reuse the main blend scene armature for this model instead of importing a new one",
+        default=False,
+    )
+    tag_render: bpy.props.BoolProperty(
+        name="Import Render Geometry",
+        default=True,
+    )
+    tag_markers: bpy.props.BoolProperty(
+        name="Import Markers",
+        default=True,
+    )
+    tag_collision: bpy.props.BoolProperty(
+        name="Import Collision",
+        default=True,
+    )
+    tag_physics: bpy.props.BoolProperty(
+        name="Import Physics",
+        default=True,
+    )
+    tag_animation: bpy.props.BoolProperty(
+        name="Import Animations (WIP)",
+        description="Animation importer is a work in progress. Only base animations with no movement are fully supported",
+        default=False,
+    )
+    
+    def items_tag_variant(self, context):
+        if context.scene.nwo.asset_type == "cinematic":
+            items = []
+        else:
+            items = [("all_variants", "All Variants", "Includes the full model geometry")]
+        for var in variant_items:
+            items.append((var, var, ""))
+            
+        return items
+        
+    
+    tag_variant: bpy.props.EnumProperty(
+        name="Variant",
+        description="Model variants to import. ",
+        items=items_tag_variant,
+    )
+    
+    tag_zone_set: bpy.props.StringProperty(
+        name="Zone Set",
+        description="Optional field to declare a zone set to import. This will limit the scope of imported BSPs to those within the zone set. If this field is left blank, all BSPs will be imported"
+    )
+    tag_bsp_render_only: bpy.props.StringProperty(
+        name="Render Geometry Only",
+        description="Skips importing bsp data like collision and portals. Use this if you aren't importing the BSP back into the game"
+    )
+    
+    tag_animation_filter: bpy.props.StringProperty(
+        name="Animation Filter",
+        description="Filter for the animations to import. Animation names that do not contain the specified string will be skipped"
+    )
+    
+    def execute(self, context):
+        bpy.ops.nwo.foundry_import(**self.as_keywords())
+        return {'FINISHED'}
+    
+    def invoke(self, context, event):
+        self.has_variants = False
+        self.import_type = Path(self.filepath).suffix[1:]
+        if self.import_type in {"camera_track", "jms", "model", "render_model", "scenario", "scenario_structure_bsp", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx", "scenery", "biped", "model_animation_graph"}:
+            if self.import_type in {"model", "render_model", "scenery", "biped"}:
+                global variant_items
+                with ObjectTag(path=self.filepath) as object_tag:
+                    variant_items = object_tag.get_variants()
+                    if variant_items:
+                        self.has_variants = True
+            return context.window_manager.invoke_props_dialog(self)
+        else:
+            return self.execute(context)
+    
+    def draw(self, context):
+        layout = self.layout
+        layout.use_property_split = True
+        match self.import_type:
+            case "model":
+                if self.has_variants:
+                    layout.prop(self, "tag_variant")
+                layout.prop(self, "reuse_armature")
+                layout.prop(self, "tag_render")
+                layout.prop(self, "tag_markers")
+                layout.prop(self, "tag_collision")
+                layout.prop(self, "tag_physics")
+                layout.prop(self, "tag_animation")
+                layout.prop(self, "tag_animation_filter")
+                layout.prop(self, "find_shader_paths")
+                layout.prop(self, "build_blender_materials")
+            case "render_model" | "scenery" | "biped":
+                if self.has_variants:
+                    layout.prop(self, "tag_variant")
+                layout.prop(self, "tag_markers")
+                layout.prop(self, "find_shader_paths")
+                layout.prop(self, "build_blender_materials")
+            case "scenario":
+                layout.prop(self, "tag_zone_set")
+                layout.prop(self, "tag_bsp_render_only")
+                layout.prop(self, "find_shader_paths")
+                layout.prop(self, "build_blender_materials")
+            case "scenario_structure_bsp":
+                layout.prop(self, "tag_bsp_render_only")
+                layout.prop(self, "find_shader_paths")
+                layout.prop(self, "build_blender_materials")
+            case "model_animation_graph":
+                layout.prop(self, "tag_animation_filter")
+            case "camera_track":
+                layout.prop(self, "camera_track_animation_scale")
+            case "jms" | "jmm" | "jma" | "jmt" | "jmz" | "jmv" | "jmw" | "jmo" | "jmr" | "jmrx":
+                layout.prop(self, "legacy_fix_rotations")
+            
+
 class NWO_FH_Import(bpy.types.FileHandler):
     bl_idname = "NWO_FH_Import"
     bl_label = "File handler Foundry Importer"
-    bl_import_operator = "nwo.import"
+    bl_import_operator = "nwo.import_from_drop"
     bl_file_extensions = ".jms;.amf;.ass;.bitmap;.model;.render_model;.scenario;.scenario_structure_bsp;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track;.particle_model;.scenery;.biped;.model_animation_graph"
 
     @classmethod

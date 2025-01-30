@@ -1369,4 +1369,4 @@ def foundry_toolbar(layout, context):
         sub_foundry.prop(nwo, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
         
 def menu_func_import(self, context):
-    self.layout.operator("nwo.import", text="Halo Foundry Import")
+    self.layout.operator("nwo.foundry_import", text="Halo Foundry Import")

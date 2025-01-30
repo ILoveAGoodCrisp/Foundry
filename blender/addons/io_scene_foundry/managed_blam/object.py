@@ -1,6 +1,9 @@
 
 
-from ..managed_blam import Tag
+from pathlib import Path
+
+from .model import ModelTag
+from . import Tag
 
 class ObjectTag(Tag):
     """For ManagedBlam task that cover all tags that are classed as objects"""
@@ -49,3 +52,10 @@ class ObjectTag(Tag):
                      break
                  
         return change_colors
+    
+    def get_variants(self) -> list[str]:
+        model_path = self.get_model_tag_path_full()
+        if not Path(model_path).exists():
+            return []
+        with ModelTag(path=model_path) as model:
+            return model.get_model_variants()
