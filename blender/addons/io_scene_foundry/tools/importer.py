@@ -301,7 +301,7 @@ class NWO_Import(bpy.types.Operator):
         self.nothing_imported = False
         self.user_cancelled = False
         utils.set_object_mode(context)
-        change_colors = [tuple((1, 1, 1)), tuple((1, 1, 1)), tuple((1, 1, 1)), tuple((1, 1, 1))]
+        change_colors = None
         with utils.ExportManager():
             os.system("cls")
             if context.scene.nwo_export.show_output:

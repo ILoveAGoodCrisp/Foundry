@@ -893,10 +893,10 @@ class ShaderTag(Tag):
         
         node_albedo = self._add_group_node(tree, nodes, f"albedo - {utils.game_str(e_albedo.name)}", Vector((node_material_model.location.x - 300, node_material_model.location.y + 500)))
         
-        if node_albedo in {Albedo.FOUR_CHANGE_COLOR, Albedo.FOUR_CHANGE_COLOR_APPLYING_TO_SPECULAR, Albedo.TWO_CHANGE_COLOR}:
+        if e_albedo in {Albedo.FOUR_CHANGE_COLOR, Albedo.FOUR_CHANGE_COLOR_APPLYING_TO_SPECULAR, Albedo.TWO_CHANGE_COLOR} and change_colors:
             node_albedo.inputs["Primary Color"].default_value = change_colors[0]
             node_albedo.inputs["Secondary Color"].default_value = change_colors[1]
-            if node_albedo != Albedo.TWO_CHANGE_COLOR:
+            if e_albedo != Albedo.TWO_CHANGE_COLOR:
                 node_albedo.inputs["Tertiary Color"].default_value = change_colors[2]
                 node_albedo.inputs["Quaternary Color"].default_value = change_colors[3]
         
