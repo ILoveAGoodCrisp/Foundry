@@ -859,7 +859,7 @@ class ShaderTag(Tag):
         node_material_model.location = location
         return node_material_model
     
-    def _to_nodes_group(self, blender_material: bpy.types.Material, change_colors: list):
+    def _to_nodes_group(self, blender_material: bpy.types.Material, change_colors: list = None):
         
         # Get options
         e_albedo = Albedo(self._option_value_from_index(0))

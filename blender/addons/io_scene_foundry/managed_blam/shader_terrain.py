@@ -38,7 +38,7 @@ class ShaderTerrainTag(ShaderTag):
     tag_ext = 'shader_terrain'
     group_supported = True
     
-    def _to_nodes_group(self, blender_material: bpy.types.Material):
+    def _to_nodes_group(self, blender_material: bpy.types.Material, change_colors: list = None):
         # Get options
         e_blending = TerrainBlending(self._option_value_from_index(0))
         e_environment_mapping = TerrainEnvironmentMapping(self._option_value_from_index(1))
@@ -56,9 +56,6 @@ class ShaderTerrainTag(ShaderTag):
         
         node_group = self._add_group_node(tree, nodes, "Master Terrain Material", Vector((0, 0)))
         final_node = node_group
-        
-        node_group = nodes.new(type="ShaderNodeGroup")
-        node_group.node_tree = utils.add_node_from_resources("reach_nodes", "Master Terrain Material")
         
         if e_material_0 in {TerrainMaterial.DIFFUSE_ONLY, TerrainMaterial.DIFFUSE_PLUS_SPECULAR}:
             node_group.inputs["enable material_0"].default_value = True
