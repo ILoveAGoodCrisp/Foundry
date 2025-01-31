@@ -112,7 +112,7 @@ class ModelTag(Tag):
             info_field.Path = info_tag_path
             self.tag_has_changes = True
             
-    def get_variant_regions_and_permutations(self, variant: str, for_cinematic: bool):
+    def get_variant_regions_and_permutations(self, variant: str, state: int):
         region_permutations = set()
         if not variant:
             return region_permutations
@@ -156,8 +156,6 @@ class ModelTag(Tag):
                 if region == "default":
                     region = default_region
                 variant_regions.add(region)
-                if for_cinematic and region == "decals":
-                    continue
                 for pelement in relement.SelectField("permutations").Elements:
                     permutation = pelement.Fields[0].GetStringData()
                     if not permutation:
@@ -167,14 +165,16 @@ class ModelTag(Tag):
                         
                     region_permutations.add(tuple((region, permutation)))
                     
-                    if for_cinematic:
+                    if state == 0:
                         continue
 
                     for selement in pelement.SelectField("states").Elements:
-                        state = selement.Fields[0].GetStringData()
-                        if state == "default":
-                            state = region_default_perms.get(region, "default")
-                        region_permutations.add(tuple((region, state)))
+                        state_enum = selement.SelectField("ShortEnum:state").Value
+                        if state == -1 or state == state_enum:
+                            state = selement.Fields[0].GetStringData()
+                            if state == "default":
+                                state = region_default_perms.get(region, "default")
+                            region_permutations.add(tuple((region, state)))
                         
             for reg in all_regions:
                 if reg not in variant_regions:

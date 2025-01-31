@@ -209,3 +209,11 @@ class ScenarioTag(Tag):
             self.tag.SelectField("Block:cutscene flags").CopyEntireTagBlock()
             resource.tag.SelectField("Block:flags").PasteReplaceEntireBlock()
             resource.tag_has_changes = True
+            
+    def get_zone_sets_dict(self) -> dict[str, list[str]]:
+        """Returns a dict with the key as the zoneset name and values as a str of the bsps"""
+        zs_dict = {}
+        for element in self.block_zone_sets.Elements:
+            zs_dict[element.Fields[0].GetStringData()] = [item.FlagName for item in element.SelectField("BlockFlags:bsp zone flags").Items if item.IsSet]
+            
+        return zs_dict

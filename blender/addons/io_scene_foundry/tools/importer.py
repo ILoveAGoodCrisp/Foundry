@@ -71,6 +71,14 @@ cinematic_tag_types = (
 
 tag_files_cache = set()
 
+state_items = [
+    ("all_states", "All Damage States", "Includes all damage stages"),
+    ("default", "Default", "State before any damage has been taken"),
+    ("minor", "Minor", "Minor Damage"),
+    ("medium", "Medium", "Medium Damage"),
+    ("major", "Major", "Major Damage"),
+]
+
 class XREF:
     def __init__(self, object_name: str, xref_path: str, xref_name: str):
         self.preferred_type = ".crate"
@@ -282,11 +290,18 @@ class NWO_Import(bpy.types.Operator):
         description="Optional field to declare a variant to import. If this field is left blank, all variants will be imported (except if this is for a cinematic, in which case the first variant will be used)"
     )
     
+    tag_state: bpy.props.EnumProperty(
+        name="Model State",
+        description="The damage state to import. Only valid when a variant is set",
+        items=state_items,
+    )
+    
     tag_zone_set: bpy.props.StringProperty(
         name="Zone Set",
         description="Optional field to declare a zone set to import. This will limit the scope of imported BSPs to those within the zone set. If this field is left blank, all BSPs will be imported"
     )
-    tag_bsp_render_only: bpy.props.StringProperty(
+    
+    tag_bsp_render_only: bpy.props.BoolProperty(
         name="Render Geometry Only",
         description="Skips importing bsp data like collision and portals. Use this if you aren't importing the BSP back into the game"
     )
@@ -386,6 +401,7 @@ class NWO_Import(bpy.types.Operator):
                     importer.tag_physics = self.tag_physics
                     importer.tag_animation = self.tag_animation
                     importer.tag_variant = self.tag_variant
+                    importer.tag_state = self.tag_state
                     model_files = importer.sorted_filepaths["model"]
                     existing_armature = None
                     if self.reuse_armature:
@@ -406,6 +422,7 @@ class NWO_Import(bpy.types.Operator):
                     importer.tag_physics = self.tag_physics
                     importer.tag_animation = False
                     importer.tag_variant = self.tag_variant.lower()
+                    importer.tag_state = self.tag_state
                     object_files = importer.sorted_filepaths["object"]
                     imported_object_objects, change_colors = importer.import_object(object_files)
                     if needs_scaling:
@@ -467,6 +484,7 @@ class NWO_Import(bpy.types.Operator):
                     
                 if 'scenario' in importer.extensions:
                     importer.tag_zone_set = self.tag_zone_set
+                    importer.tag_bsp_render_only = self.tag_bsp_render_only
                     scenario_files = importer.sorted_filepaths["scenario"]
                     imported_scenario_objects = importer.import_scenarios(scenario_files)
                     if needs_scaling:
@@ -482,6 +500,7 @@ class NWO_Import(bpy.types.Operator):
                         self.link_anchor(context, imported_scenario_objects)
                     
                 elif 'scenario_structure_bsp' in importer.extensions:
+                    importer.tag_bsp_render_only = self.tag_bsp_render_only
                     bsp_files = importer.sorted_filepaths["scenario_structure_bsp"]
                     imported_bsp_objects = []
                     for bsp in bsp_files:
@@ -658,7 +677,7 @@ class NWO_Import(bpy.types.Operator):
             if self.find_shader_paths:
                 box.prop(self, 'build_blender_materials', text=f"Blender Materials from {tag_type.capitalize()} Tags")
                 
-        if not self.scope or ('model' in self.scope):
+        if not self.scope or ('model' in self.scope) or ('object' in self.scope):
             box = layout.box()
             box.label(text='Model Tag Settings')
             box.prop(self, 'reuse_armature')
@@ -668,16 +687,13 @@ class NWO_Import(bpy.types.Operator):
             box.prop(self, 'tag_physics')
             box.prop(self, 'tag_animation')
             box.prop(self, 'tag_variant')
+            box.prop(self, 'tag_state')
             
-        if self.scope and 'object' in self.scope:
-            box = layout.box()
-            box.label(text='Object Tag Settings')
-            box.prop(self, 'tag_variant')
-            
-        if not self.scope or ('scenario' in self.scope):
+        if not self.scope or ('scenario' in self.scope) or ('scenario_structure_bsp' in self.scope):
             box = layout.box()
             box.label(text='Scenario Tag Settings')
             box.prop(self, 'tag_zone_set')
+            box.prop(self, 'tag_bsp_render_only')
         
         if not self.scope or ('jma' in self.scope or 'jms' in self.scope):
             box = layout.box()
@@ -921,7 +937,9 @@ class NWOImporter:
         self.tag_animation = False
         self.to_cursor_objects = set()
         self.tag_variant = ""
+        self.tag_state = -1
         self.tag_zone_set = ""
+        self.tag_bsp_render_only = False
         if filepaths:
             self.sorted_filepaths = self.group_filetypes(scope)
         else:
@@ -1041,7 +1059,7 @@ class NWOImporter:
                         
                     render, collision, animation, physics = model.get_model_paths(optional_tag_root=source_tag_root)
                     
-                    allowed_region_permutations = model.get_variant_regions_and_permutations(self.tag_variant, False)
+                    allowed_region_permutations = model.get_variant_regions_and_permutations(self.tag_variant, self.tag_state)
                     model_collection = bpy.data.collections.new(model.tag_path.ShortName)
                     self.context.scene.collection.children.link(model_collection)
                     if render:
@@ -1059,9 +1077,6 @@ class NWOImporter:
     
     def import_object(self, paths):
         imported_objects = []
-        for_cinematic = self.context.scene.nwo.asset_type == "cinematic"
-        if for_cinematic:
-            self.tag_markers = False
         for file in paths:
             print(f'Importing Object Tag: {Path(file).name} ')
             with utils.TagImportMover(self.project.tags_directory, file) as mover:
@@ -1080,11 +1095,11 @@ class NWOImporter:
                             
                             temp_variant = self.tag_variant
                             
-                            if for_cinematic and not self.tag_variant:
+                            if self.tag_variant:
                                 if model.block_variants.Elements.Count:
                                     temp_variant = model.block_variants.Elements[0].Fields[0].GetStringData()
                             
-                            allowed_region_permutations = model.get_variant_regions_and_permutations(temp_variant, for_cinematic)
+                            allowed_region_permutations = model.get_variant_regions_and_permutations(temp_variant, self.tag_state)
                             model_collection = bpy.data.collections.new(model.tag_path.ShortName)
                             self.context.scene.collection.children.link(model_collection)
                             if render:
@@ -1184,7 +1199,7 @@ class NWOImporter:
             scenario_collection.children.link(collection)
         with utils.TagImportMover(self.project.tags_directory, file) as mover:
             with ScenarioStructureBspTag(path=mover.tag_path) as bsp:
-                bsp_objects = bsp.to_blend_objects(collection, scenario_collection is not None, self.context.scene.nwo.asset_type == "cinematic")
+                bsp_objects = bsp.to_blend_objects(collection, scenario_collection is not None, self.tag_bsp_render_only)
                 seams = bsp.get_seams(bsp_name, seams)
         
         bsp_name = utils.add_region(bsp_name)
@@ -2434,13 +2449,23 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         items=items_tag_variant,
     )
     
-    tag_zone_set: bpy.props.StringProperty(
+    def items_tag_zone_set(self, context):
+        items = [("all_zone_sets", "All Zone Sets", "All scenario bsps will be imported")]
+        for zs, bsps in zone_set_items.items():
+            bsps_str = "\n".join(bsps)
+            items.append((zs, zs, f"Includes BSPs:\n{bsps_str}"))
+            
+        return items
+    
+    tag_zone_set: bpy.props.EnumProperty(
         name="Zone Set",
-        description="Optional field to declare a zone set to import. This will limit the scope of imported BSPs to those within the zone set. If this field is left blank, all BSPs will be imported"
+        description="Limits the bsps to import to those present in the specified zoneset",
+        items=items_tag_zone_set,
     )
-    tag_bsp_render_only: bpy.props.StringProperty(
+    
+    tag_bsp_render_only: bpy.props.BoolProperty(
         name="Render Geometry Only",
-        description="Skips importing bsp data like collision and portals. Use this if you aren't importing the BSP back into the game"
+        description="Skips importing bsp data like collision and portals. Use this if you aren't importing the BSP back into the game",
     )
     
     tag_animation_filter: bpy.props.StringProperty(
@@ -2448,17 +2473,39 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         description="Filter for the animations to import. Animation names that do not contain the specified string will be skipped"
     )
     
+    tag_state: bpy.props.EnumProperty(
+        name="Model State",
+        description="The damage state to import. Only valid when a variant is set",
+        items=state_items,
+    )
+    
     def execute(self, context):
         if self.tag_variant == "all_variants":
             self.tag_variant = ""
+        if self.tag_zone_set == "all_zone_sets":
+            self.tag_zone_set = ""
         bpy.ops.nwo.foundry_import(**self.as_keywords())
         return {'FINISHED'}
     
     def invoke(self, context, event):
         self.has_variants = False
+        self.has_zone_sets = False
         self.import_type = Path(self.filepath).suffix[1:]
+        if context.scene.nwo.asset_type == "cinematic":
+            self.tag_bsp_render_only = True
+            self.tag_collision = False
+            self.tag_physics = False
+            self.tag_animation = False
+            self.tag_state = "default"
+            
         if self.import_type in {"camera_track", "jms", "model", "render_model", "scenario", "scenario_structure_bsp", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx", "scenery", "biped", "model_animation_graph"}:
-            if self.import_type in {"model", "render_model", "scenery", "biped"}:
+            if self.import_type == "scenario":
+                global zone_set_items
+                with ScenarioTag(path=self.filepath) as scenario:
+                    zone_set_items = scenario.get_zone_sets_dict()
+                    if zone_set_items:
+                        self.has_zone_sets = True
+            elif self.import_type in {"model", "render_model", "scenery", "biped"}:
                 global variant_items
                 with ObjectTag(path=self.filepath) as object_tag:
                     variant_items = object_tag.get_variants()
@@ -2473,9 +2520,11 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         layout.use_property_split = True
         layout.label(text=f"Importing: {Path(self.filepath).name}")
         match self.import_type:
-            case "model":
+            case "model" | "scenery" | "biped":
                 if self.has_variants:
                     layout.prop(self, "tag_variant")
+                    if self.tag_variant != "all_variants":
+                        layout.prop(self, "tag_state")
                 layout.prop(self, "reuse_armature")
                 layout.prop(self, "tag_render")
                 layout.prop(self, "tag_markers")
@@ -2485,7 +2534,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 layout.prop(self, "tag_animation_filter")
                 layout.prop(self, "find_shader_paths")
                 layout.prop(self, "build_blender_materials")
-            case "render_model" | "scenery" | "biped":
+            case "render_model":
                 if self.has_variants:
                     layout.prop(self, "tag_variant")
                 layout.prop(self, "tag_markers")
