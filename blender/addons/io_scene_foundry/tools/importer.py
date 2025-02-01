@@ -356,7 +356,6 @@ class NWO_Import(bpy.types.Operator):
                     
                     if to_x_rot:
                         utils.transform_scene(context, 1, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_amf_objects, actions=[])
-                        
                 if self.legacy_okay and any([ext in ('jms', 'jma') for ext in importer.extensions]):
                     toolset_addon_enabled = addon_utils.check('io_scene_halo')[0]
                     if not toolset_addon_enabled:
@@ -2479,6 +2478,9 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         items=state_items,
     )
     
+    amf_okay : bpy.props.BoolProperty(options={"HIDDEN", "SKIP_SAVE"})
+    legacy_okay : bpy.props.BoolProperty(options={"HIDDEN", "SKIP_SAVE"})
+    
     def execute(self, context):
         if self.tag_variant == "all_variants":
             self.tag_variant = ""
@@ -2497,6 +2499,19 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
             self.tag_physics = False
             self.tag_animation = False
             self.tag_state = "default"
+            
+        if self.import_type == "amf":
+            if utils.amf_addon_installed():
+                self.amf_okay = True
+            else:
+                 self.report({'WARNING'}, "AMF Toolset not installed, cannot import AMF")
+                 return {'CANCELLED'}
+        elif self.import_type in {"jms", "ass", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx"}:
+            if utils.blender_toolset_installed():
+                self.legacy_okay = True
+            else:
+                self.report({'WARNING'}, "Blender Toolset not installed, cannot import JMS/ASS/JMA")
+                return {'CANCELLED'}
             
         if self.import_type in {"camera_track", "jms", "model", "render_model", "scenario", "scenario_structure_bsp", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx", "scenery", "biped", "model_animation_graph"}:
             if self.import_type == "scenario":
@@ -2687,7 +2702,7 @@ class NWO_OT_ImportShader(bpy.types.Operator):
         return self.execute(context)
     
 class NWO_FH_ImportShaderAsMaterial(bpy.types.FileHandler):
-    bl_idname = "NWO_FH_ImportBitmapAsNode"
+    bl_idname = "NWO_FH_ImportShaderAsMaterial"
     bl_label = "File handler Foundry Bitmap Importer"
     bl_import_operator = "nwo.import_shader"
     bl_file_extensions = ".shader;.shader_cortana;.shader_custom;.shader_decal;.shader_foliage;.shader_fur;.shader_fur_stencil;.shader_glass;.shader_halogram;.shader_mux;.shader_mux_material;.shader_screen;.shader_skin;.shader_terrain;.shader_water;.material"

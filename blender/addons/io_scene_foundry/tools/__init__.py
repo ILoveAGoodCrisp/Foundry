@@ -65,7 +65,7 @@ from .halo_join import NWO_JoinHalo
 #######################################
 # PROPERTIES MANAGER TOOL
 
-classeshalo = (
+classes = (
     NWO_HaloLauncherPropertiesGroup,
     NWO_RegionAdd,
     NWO_FaceRegionAdd,
@@ -195,8 +195,8 @@ classeshalo = (
 )
 
 def register():
-    for clshalo in classeshalo:
-        bpy.utils.register_class(clshalo)
+    for cls in classes:
+        bpy.utils.register_class(cls)
         
     bpy.types.Scene.nwo_shader_build = bpy.props.PointerProperty(
         type=NWO_ShaderPropertiesGroup,
@@ -213,5 +213,5 @@ def register():
 def unregister():
     del bpy.types.Scene.nwo_halo_launcher
     del bpy.types.Scene.nwo_shader_build
-    for clshalo in classeshalo:
-        bpy.utils.unregister_class(clshalo)
+    for cls in classes:
+        bpy.utils.unregister_class(cls)
