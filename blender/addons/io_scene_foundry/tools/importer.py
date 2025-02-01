@@ -363,20 +363,23 @@ class NWO_Import(bpy.types.Operator):
                     jms_files = importer.sorted_filepaths["jms"]
                     jma_files = importer.sorted_filepaths["jma"]
                     
+                    arm = None
+                    
                     scene_nwo = context.scene.nwo
                     if scene_nwo.main_armature:
                         arm = scene_nwo.main_armature
                     else:
                         arm = utils.get_rig(context)
-                        if not arm:
+                        if not arm and jma_files:
                             arm_data = bpy.data.armatures.new('Armature')
                             arm = bpy.data.objects.new('Armature', arm_data)
                             context.scene.collection.objects.link(arm)
-                        
-                    arm.hide_set(False)
-                    arm.hide_select = False
-                    utils.set_active_object(arm)
                     
+                    if arm is not None:
+                        arm.hide_set(False)
+                        arm.hide_select = False
+                        utils.set_active_object(arm)
+                        
                     # Transform Scene so it's ready for JMA/JMS files
                     if needs_scaling:
                         utils.transform_scene(context, (1 / scale_factor), to_x_rot, context.scene.nwo.forward_direction, 'x')
