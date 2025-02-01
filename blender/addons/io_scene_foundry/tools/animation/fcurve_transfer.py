@@ -1,7 +1,315 @@
 
 
+import math
 import bpy
+from mathutils import Euler, Matrix, Quaternion
 from ... import utils
+
+list_source_bones = []
+list_root_bones = []
+
+class NWO_OT_MovementDataToPedestal(bpy.types.Operator):
+    bl_idname = "nwo.movement_data_transfer"
+    bl_label = "Movement Data Transfer"
+    bl_description = "Transfers the movement data of the source bone to the given root bone for the current or all animations. The type of movement transfered depends on the animation movement type"
+    bl_options = {"UNDO", "REGISTER"}
+    
+    @classmethod
+    def poll(cls, context):
+        return context.scene.nwo.animations
+    
+    def items_list_source_bones(self, context):
+        return list_source_bones
+    
+    def items_list_root_bones(self, context):
+        return list_root_bones
+    
+    source_bone: bpy.props.EnumProperty(
+        name="Source Bone",
+        description="The source bone that holds the movement to transfer. In the case of a legacy halo character animation this is usually the pelvis",
+        items=items_list_source_bones,
+    )
+    
+    root_bone: bpy.props.EnumProperty(
+        name="Root Bone",
+        description="The root bone that movement data should be transferred to. This will be the pedestal bone",
+        items=items_list_root_bones,
+    )
+    
+    all_animations: bpy.props.BoolProperty(
+        name="All Animations",
+        description="This operator will run on all animations instead of the currently active one"
+    )
+    
+    def find_armature_ob(self, context):
+        if getattr(self, "ob", None) is None:
+            ob = None
+            if context.object and context.object.type == "ARMATURE":
+                ob = context.object
+            else:
+                ob = utils.get_rig(context)
+                
+            if ob is None:
+                self.report({'WARNING'}, "No armature in scene")
+                return {'CANCELLED'}
+            
+            
+            global list_root_bones
+            list_root_bones = []
+            for bone in ob.pose.bones:
+                if not bone.parent:
+                    list_root_bones.append((bone.name, bone.name, ""))
+                    
+            global list_source_bones
+            list_source_bones = []
+            for bone in ob.pose.bones:
+                if bone.parent:
+                    list_source_bones.append((bone.name, bone.name, ""))
+                    
+            self.ob = ob
+    
+    def invoke(self, context, event):
+        self.find_armature_ob(context)
+        return context.window_manager.invoke_props_dialog(self)
+    
+    def draw(self, context):
+        layout = self.layout
+        layout.use_property_split = True
+        layout.prop(self, "source_bone")
+        layout.prop(self, "root_bone")
+        layout.prop(self, "all_animations")
+    
+    def execute(self, context):
+        if not context.scene.nwo.animations:
+            self.report({'WARNING'}, "No animations in scene")
+            return {'CANCELLED'}
+        
+        if not self.all_animations and context.scene.nwo.active_animation_index == -1:
+            self.report({'WARNING'}, "No active animation")
+            return {'CANCELLED'}
+        
+        self.find_armature_ob(context)
+        
+        current_frame = context.scene.frame_current
+        current_animation_index = context.scene.nwo.active_animation_index
+        current_animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
+        current_pose = self.ob.data.pose_position
+        
+        if not self.all_animations and (current_animation.animation_type != "base" or current_animation.animation_movement_data == "none"):
+            self.report({'WARNING'}, "Active animation has no movement data")
+            return {'CANCELLED'}
+        
+        
+        self.ob.data.pose_position = 'REST'
+        context.view_layer.update()
+        source_rest_matrix = self.ob.pose.bones[self.source_bone].matrix
+        root_rest_matrix = self.ob.pose.bones[self.root_bone].matrix
+        self.ob.data.pose_position = 'POSE'
+        context.view_layer.update()
+        
+        if self.all_animations:
+            for idx, animation in enumerate(context.scene.nwo.animations):
+                if animation.animation_type == "base" and animation.animation_movement_data != "none":
+                    transfer_movement(context, animation, idx, self.ob, self.source_bone, self.root_bone, source_rest_matrix, root_rest_matrix)
+        else:
+            transfer_movement(context, current_animation, current_animation_index, self.ob, self.source_bone, self.root_bone, source_rest_matrix, root_rest_matrix)
+            
+        
+        self.ob.data.pose_position = current_pose
+        context.scene.nwo.active_animation_index = current_animation_index
+        context.scene.frame_set(current_frame)
+        
+        return {'FINISHED'}
+            
+def transfer_movement(context: bpy.types.Context, animation, animation_index: int, ob: bpy.types.Object, source_bone_name: str, root_bone_name: str, source_rest_matrix: Matrix, root_rest_matrix: Matrix):
+    context.scene.nwo.active_animation_index = animation_index
+    scene = context.scene
+    movement = animation.animation_movement_data
+    horizontal = "xy" in movement
+    vertical = "z" in movement
+    yaw = "yaw" in movement
+    full = movement == "full"
+    
+    root_bone = ob.pose.bones[root_bone_name]
+    root_bone: bpy.types.PoseBone
+    source_bone = ob.pose.bones[source_bone_name]
+    source_bone: bpy.types.PoseBone
+    
+    # Neutralise source movement and save offets
+    source_rest_loc = source_rest_matrix.to_translation()
+    source_rest_rot = source_rest_matrix.to_euler('XYZ')
+    scene.frame_set(animation.frame_start)
+    offsets = []
+    rot_negative = False
+    for i in range(animation.frame_start, animation.frame_end + 1):
+        scene.frame_set(i)
+        frame_offsets = [0, 0, 0, 0, 0, 0] # LOC XYZ, ROT XYZ
+        loc, rot, sca = source_bone.matrix.decompose()
+        rot = rot.to_euler('XYZ')
+        if horizontal or vertical or full:
+            x_offset = source_rest_loc.x - loc.x
+            y_offset = source_rest_loc.y - loc.y
+            frame_offsets[0] = x_offset
+            frame_offsets[1] = y_offset
+            if vertical or full:
+                z_offset = source_rest_loc.z - loc.z
+                frame_offsets[2] = z_offset
+                
+            loc.x += x_offset
+            loc.y += y_offset
+            if vertical or full:
+                loc.z += z_offset
+                
+        if yaw or full:
+            if full:
+                x_rot_offset = source_rest_rot.x - rot.x
+                y_rot_offset = source_rest_rot.y - rot.y
+                frame_offsets[3] = x_rot_offset
+                frame_offsets[4] = y_rot_offset
+                
+            z_rot_offset = source_rest_rot.z - rot.z
+            if scene.frame_current == animation.frame_start:
+                rot_negative = z_rot_offset < 0
+            elif rot_negative and z_rot_offset > 0:
+                z_rot_offset += math.radians(180)
+                
+            frame_offsets[5] = z_rot_offset
+            
+            
+            if full:
+                rot.x += x_rot_offset
+                rot.y += y_rot_offset
+            rot.z += z_rot_offset
+            
+        if abs(frame_offsets[5]) > 180:
+            frame_offsets[5] = -((360 - abs(frame_offsets[5])) * (1 if frame_offsets[5] > 0 else -1))
+
+        offsets.append(frame_offsets)
+
+        source_bone.matrix = Matrix.LocRotScale(loc, rot, sca)
+        
+        if horizontal or vertical or full:
+            source_bone.keyframe_insert(data_path='location', frame=scene.frame_current)
+        if yaw or full:
+            source_bone.keyframe_insert(data_path='rotation_quaternion', frame=scene.frame_current)
+    
+    # Apply offsets to root
+    for idx, i in enumerate(range(animation.frame_start, animation.frame_end + 1)):
+        scene.frame_set(i)
+        frame_offsets = offsets[idx]
+        loc, rot, sca = root_bone.matrix.decompose()
+        rot = rot.to_euler('XYZ')
+        if idx == 0:
+            if horizontal or vertical or full:
+                loc.x -= frame_offsets[0]
+                loc.y -= frame_offsets[1]
+                if vertical or full:
+                    loc.z -= frame_offsets[2]
+                    
+            if yaw or full:
+                if full:
+                    rot.x -= frame_offsets[3]
+                    rot.y -= frame_offsets[4]
+                rot.z -= frame_offsets[5]
+        else:
+            if horizontal or vertical or full:
+                loc.x -= (frame_offsets[0] - offsets[idx - 1][0])
+                loc.y -= (frame_offsets[1] - offsets[idx - 1][1])
+                if vertical or full:
+                    loc.z -= (frame_offsets[2] - offsets[idx - 1][2])
+                    
+            if yaw or full:
+                if full:
+                    rot.x -= (frame_offsets[3] - offsets[idx - 1][3])
+                    rot.y -= (frame_offsets[4] - offsets[idx - 1][4])
+                rot.z -= (frame_offsets[5] - offsets[idx - 1][5])
+        
+        root_bone.matrix = Matrix.LocRotScale(loc, rot, sca)
+        if horizontal or vertical or full:
+            root_bone.keyframe_insert(data_path='location', frame=scene.frame_current)
+        if yaw or full:
+            root_bone.keyframe_insert(data_path='rotation_quaternion', frame=scene.frame_current)
+
+        
+    
+    # Step 1: Add pedestal movement via constraints
+    # scene.frame_set(animation.frame_start)
+    # using_copy_loc = False
+    # using_copy_rot = False
+    # if horizontal or vertical or full:
+    #     con_copy_loc = root_bone.constraints.new(type="COPY_LOCATION")
+    #     con_copy_loc.target = ob
+    #     con_copy_loc.subtarget = source_bone_name
+    #     if horizontal and not vertical and not full:
+    #         con_copy_loc.use_z = False
+            
+    #     con_copy_loc.target_space = 'LOCAL_OWNER_ORIENT'
+    #     con_copy_loc.owner_space = 'LOCAL'
+            
+    #     using_copy_loc = True
+            
+    # if yaw or full:
+    #     con_copy_rot = root_bone.constraints.new(type="COPY_ROTATION")
+    #     con_copy_rot.target = ob
+    #     con_copy_rot.subtarget = source_bone_name
+        
+    #     con_copy_rot.use_z = True
+    #     con_copy_rot.use_y = True
+    #     con_copy_rot.use_x = True
+            
+    #     con_copy_rot.target_space = 'LOCAL_OWNER_ORIENT'
+    #     con_copy_rot.owner_space = 'LOCAL'
+        
+    #     using_copy_rot = True
+        
+    # # Step 2: Bake pedestal movement
+    # while scene.frame_current < animation.frame_end:
+    #     scene.frame_set(scene.frame_current + 1)
+    #     if using_copy_loc:
+    #         root_bone.keyframe_insert(data_path='location', frame=scene.frame_current, options={'INSERTKEY_VISUAL'})
+    #     if using_copy_rot:
+    #         root_bone.keyframe_insert(data_path='rotation_quaternion', frame=scene.frame_current, options={'INSERTKEY_VISUAL'})
+        
+    # scene.frame_set(animation.frame_start)
+    # if using_copy_loc:
+    #     root_bone.constraints.remove(con_copy_loc)
+    # if using_copy_rot:
+    #     root_bone.constraints.remove(con_copy_rot)
+    
+    # # Step 3: Fix source movement via contraints
+    
+    # con_child_of = source_bone.constraints.new(type='CHILD_OF')
+    # con_child_of.target = ob
+    # con_child_of.subtarget = root_bone_name
+    
+    # # if using_copy_loc:
+    # #     con_limit_loc = source_bone.constraints.new(type="LIMIT_LOCATION")
+    # #     if horizontal or full:
+    # #         con_limit_loc.use_min_x = True
+    # #         con_limit_loc.use_min_y = True
+    # #         con_limit_loc.use_max_x = True
+    # #         con_limit_loc.use_max_y = True
+    # #     if vertical or full:
+    # #         con_limit_loc.use_min_z = True
+    # #         con_limit_loc.use_max_z = True
+
+    # # Step 4: Bake new source movement
+    # while scene.frame_current < animation.frame_end:
+    #     scene.frame_set(scene.frame_current + 1)
+    #     parent_matrix = root_bone.matrix.copy()
+    #     source_bone.matrix = parent_matrix.inverted() @ source_bone.matrix
+    #     if using_copy_loc:
+    #         source_bone.keyframe_insert(data_path='location', frame=scene.frame_current, options={'INSERTKEY_VISUAL'})
+    #     if using_copy_rot:
+    #         source_bone.keyframe_insert(data_path='rotation_quaternion', frame=scene.frame_current, options={'INSERTKEY_VISUAL'})
+            
+            
+    # scene.frame_set(animation.frame_start)
+    # source_bone.constraints.remove(con_child_of)
+    # if using_copy_loc:
+    #     source_bone.constraints.remove(con_limit_loc)
+            
+            
     
 class FCurveTransfer:
     source_fcurve: bpy.types.FCurve
@@ -10,7 +318,6 @@ class FCurveTransfer:
     def __init__(self, action: bpy.types.Action, source_bone: str, target_bone: str, source_channel: str, target_channel: str) -> None:
         source_channel_array_index, source_channel_name = source_channel.split(':')
         target_channel_array_index, target_channel_name = target_channel.split(':')
-        print(source_channel_array_index, target_channel_array_index)
         self.action = action
         self.source_bone = source_bone
         self.target_bone = target_bone
@@ -36,7 +343,6 @@ class FCurveTransfer:
         
         if not self.target_fcurve:
             self.target_fcurve = self.action.fcurves.new(data_path=f'pose.bones["{self.target_bone}"].{self.target_channel}', index=self.target_channel_index)
-            print(self.target_fcurve.array_index)
             
     def transfer_data(self):
         source_coordinates = []

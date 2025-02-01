@@ -1200,6 +1200,8 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
                     else:
                         if track.object.animation_data:
                             track.object.animation_data.action = track.action
+                        if track.object.data.animation_data:
+                            track.object.data.animation_data.action = track.action
 
             if utils.get_prefs().sync_timeline_range:
                 bpy.ops.nwo.set_timeline()

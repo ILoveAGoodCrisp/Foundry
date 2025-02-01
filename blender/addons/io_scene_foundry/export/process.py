@@ -1516,6 +1516,8 @@ class ExportScene:
                                 else:
                                     if track.object.animation_data:
                                         track.object.animation_data.action = track.action
+                                    if track.object.data.animation_data:
+                                        track.object.data.animation_data.action = track.action
                                 
                         controls = self.create_event_objects(animation)
                         self.virtual_scene.add_animation(animation, controls=controls, shape_key_objects=shape_key_objects)

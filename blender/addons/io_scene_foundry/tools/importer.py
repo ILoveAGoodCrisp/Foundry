@@ -483,6 +483,9 @@ class NWO_Import(bpy.types.Operator):
                                 
                             if needs_scaling:
                                 utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=[existing_armature], actions=imported_animations)
+                                
+                            if self.context.scene.nwo.asset_type in {'model', 'animation'}:
+                                self.context.scene.nwo.active_animation_index = len(self.context.scene.nwo.animations) - 1
                     
                 if 'scenario' in importer.extensions:
                     importer.tag_zone_set = self.tag_zone_set
@@ -2293,6 +2296,9 @@ class NWOImporter:
                     self.import_legacy_animation(path, legacy_fix_rotations, arm)
             finally:
                 utils.unmute_armature_mods(muted_armature_deforms)
+                
+            if self.context.scene.nwo.asset_type in {'model', 'animation'}:
+                self.context.scene.nwo.active_animation_index = len(self.context.scene.nwo.animations) - 1
             
             return self.actions
             
@@ -2495,7 +2501,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     def invoke(self, context, event):
         self.has_variants = False
         self.has_zone_sets = False
-        self.import_type = Path(self.filepath).suffix[1:]
+        self.import_type = Path(self.filepath).suffix[1:].lower()
         if context.scene.nwo.asset_type == "cinematic":
             self.tag_bsp_render_only = True
             self.tag_collision = False

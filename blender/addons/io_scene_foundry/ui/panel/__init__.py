@@ -3147,7 +3147,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         col = row.column()
         nwo = self.scene.nwo
         col.use_property_split = True
-        col.operator("nwo.fcurve_transfer", icon='GRAPH')
+        col.operator("nwo.movement_data_transfer", icon='GRAPH')
         col.operator('nwo.validate_rig', text='Validate Rig', icon='ARMATURE_DATA')
         if nwo.multiple_root_bones:
             col.label(text='Multiple Root Bones', icon='ERROR')
