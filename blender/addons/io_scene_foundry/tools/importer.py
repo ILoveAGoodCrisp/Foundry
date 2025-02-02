@@ -218,11 +218,6 @@ class NWO_Import(bpy.types.Operator):
         default=True,
     )
     
-    legacy_fix_rotations: bpy.props.BoolProperty(
-        name="Fix Rotations",
-        description="Rotates imported bones by 90 degrees on the Z Axis",
-    )
-    
     import_images_to_blender: bpy.props.BoolProperty(
         name="Import to Blend",
         description="Imports images into the blender after extracting bitmaps from the game",
@@ -311,6 +306,16 @@ class NWO_Import(bpy.types.Operator):
         description="Filter for the animations to import. Animations that don't contain the specified strings (space or colon delimited) will be skipped"
     )
     
+    legacy_type: bpy.props.EnumProperty(
+        name="JMS/ASS Type",
+        description="Whether the importer should try to import a JMS/ASS file as a model, or bsp. Auto will determine this based on current asset type and contents of the JMS/ASS file",
+        items=[
+            ("auto", "Automatic", ""),
+            ("model", "Model", ""),
+            ("bsp", "BSP", ""),
+        ]
+    )
+    
     def execute(self, context):
         filepaths = [self.directory + f.name for f in self.files]
         if self.filepath and self.filepath not in filepaths:
@@ -384,8 +389,8 @@ class NWO_Import(bpy.types.Operator):
                     if needs_scaling:
                         utils.transform_scene(context, (1 / scale_factor), to_x_rot, context.scene.nwo.forward_direction, 'x')
          
-                    imported_jms_objects = importer.import_jms_files(jms_files, self.legacy_fix_rotations)
-                    imported_jma_animations = importer.import_jma_files(jma_files, self.legacy_fix_rotations, arm)
+                    imported_jms_objects = importer.import_jms_files(jms_files, self.legacy_type)
+                    imported_jma_animations = importer.import_jma_files(jma_files, arm)
                     if imported_jma_animations:
                         imported_actions.extend(imported_jma_animations)
                     if imported_jms_objects:
@@ -703,7 +708,7 @@ class NWO_Import(bpy.types.Operator):
         if not self.scope or ('jma' in self.scope or 'jms' in self.scope):
             box = layout.box()
             box.label(text="JMA/JMS/ASS Settings")
-            box.prop(self, 'legacy_fix_rotations', text='Fix Rotations')
+            box.prop(self, "legacy_type")
         
         if not self.scope or ('bitmap' in self.scope):
             box = layout.box()
@@ -1422,7 +1427,7 @@ class NWOImporter:
 # JMS/ASS importer
 ######################################################################
 
-    def import_jms_files(self, jms_files, legacy_fix_rotations):
+    def import_jms_files(self, jms_files, legacy_type):
         """Imports all JMS/ASS files supplied"""
         if not jms_files:
             return []
@@ -1430,11 +1435,11 @@ class NWOImporter:
         self.jms_mesh_objects = []
         self.jms_other_objects = []
         for path in jms_files:
-            self.import_jms_file(path,legacy_fix_rotations)
+            self.import_jms_file(path, legacy_type)
             
         return self.jms_marker_objects + self.jms_mesh_objects + self.jms_other_objects
     
-    def import_jms_file(self, path, legacy_fix_rotations):
+    def import_jms_file(self, path, legacy_type):
         # get all objects that exist prior to import
         pre_import_objects = bpy.data.objects[:]
         path = Path(path)
@@ -1443,7 +1448,7 @@ class NWOImporter:
         print(f"Importing {ext}: {file_name}")
         with utils.MutePrints():
             if ext == 'JMS':
-                bpy.ops.import_scene.jms(files=[{'name': path.name}], directory=str(path.parent), fix_rotations=legacy_fix_rotations, reuse_armature=True, empty_markers=True)
+                bpy.ops.import_scene.jms(files=[{'name': path.name}], directory=str(path.parent), reuse_armature=True, empty_markers=True)
             else:
                 bpy.ops.import_scene.ass(filepath=str(path))
                 
@@ -1452,7 +1457,16 @@ class NWOImporter:
             new_objects.append(self.arm)
         self.jms_file_marker_objects = []
         self.jms_file_mesh_objects = []
-        self.process_jms_objects(new_objects, file_name, utils.nwo_asset_type() not in ("scenario", "prefab") and bool([ob for ob in new_objects if ob.type == 'ARMATURE']))
+        
+        match legacy_type:
+            case "auto":
+                is_model =  utils.nwo_asset_type() not in ("scenario", "prefab") and bool([ob for ob in new_objects if ob.type == 'ARMATURE'])
+            case "model":
+                is_model = True
+            case "bsp":
+                is_model = False
+        
+        self.process_jms_objects(new_objects, file_name, is_model)
         
         self.jms_marker_objects.extend(self.jms_file_marker_objects)
         self.jms_mesh_objects.extend(self.jms_file_mesh_objects)
@@ -2279,7 +2293,7 @@ class NWOImporter:
 
 # Legacy Animation importer
 ######################################################################
-    def import_jma_files(self, jma_files, legacy_fix_rotations, arm):
+    def import_jma_files(self, jma_files, arm):
         """Imports all legacy animation files supplied"""
         if not jma_files:
             return []
@@ -2293,7 +2307,7 @@ class NWOImporter:
             )
             try:
                 for path in jma_files:
-                    self.import_legacy_animation(path, legacy_fix_rotations, arm)
+                    self.import_legacy_animation(path, arm)
             finally:
                 utils.unmute_armature_mods(muted_armature_deforms)
                 
@@ -2303,14 +2317,14 @@ class NWOImporter:
             return self.actions
             
         
-    def import_legacy_animation(self, path, legacy_fix_rotations, arm):
+    def import_legacy_animation(self, path, arm):
         path = Path(path)
         existing_animations = bpy.data.actions[:]
         extension = path.suffix.strip('.')
         anim_name = path.with_suffix("").name
         print(f"--- {anim_name}")
         with utils.MutePrints():
-            bpy.ops.import_scene.jma(filepath=str(path), fix_rotations=legacy_fix_rotations)
+            bpy.ops.import_scene.jma(filepath=str(path))
         if bpy.data.actions:
             new_actions = [a for a in bpy.data.actions if a not in existing_animations]
             if not new_actions:
@@ -2379,11 +2393,6 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         name="Generate Materials",
         description="Builds Blender material nodes for materials based off their shader/material tags (if found)",
         default=True,
-    )
-    
-    legacy_fix_rotations: bpy.props.BoolProperty(
-        name="Fix Rotations",
-        description="Rotates imported bones by 90 degrees on the Z Axis",
     )
     
     import_images_to_blender: bpy.props.BoolProperty(
@@ -2487,6 +2496,16 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         items=state_items,
     )
     
+    legacy_type: bpy.props.EnumProperty(
+        name="JMS/ASS Type",
+        description="Whether the importer should try to import a JMS/ASS file as a model, or bsp. Auto will determine this based on current asset type and contents of the JMS/ASS file",
+        items=[
+            ("auto", "Automatic", ""),
+            ("model", "Model", ""),
+            ("bsp", "BSP", ""),
+        ]
+    )
+    
     amf_okay : bpy.props.BoolProperty(options={"HIDDEN", "SKIP_SAVE"})
     legacy_okay : bpy.props.BoolProperty(options={"HIDDEN", "SKIP_SAVE"})
     
@@ -2522,7 +2541,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 self.report({'WARNING'}, "Blender Toolset not installed, cannot import JMS/ASS/JMA")
                 return {'CANCELLED'}
             
-        if self.import_type in {"camera_track", "jms", "model", "render_model", "scenario", "scenario_structure_bsp", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx", "scenery", "biped", "model_animation_graph"}:
+        if self.import_type in {"camera_track", "jms", "ass", "model", "render_model", "scenario", "scenario_structure_bsp", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx", "scenery", "biped", "model_animation_graph"}:
             if self.import_type == "scenario":
                 global zone_set_items
                 with ScenarioTag(path=self.filepath) as scenario:
@@ -2577,8 +2596,8 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 layout.prop(self, "tag_animation_filter")
             case "camera_track":
                 layout.prop(self, "camera_track_animation_scale")
-            case "jms" | "jmm" | "jma" | "jmt" | "jmz" | "jmv" | "jmw" | "jmo" | "jmr" | "jmrx":
-                layout.prop(self, "legacy_fix_rotations")
+            case "ass" | "jms" | "jmm" | "jma" | "jmt" | "jmz" | "jmv" | "jmw" | "jmo" | "jmr" | "jmrx":
+                layout.prop(self, "legacy_type")
             
 
 class NWO_FH_Import(bpy.types.FileHandler):
