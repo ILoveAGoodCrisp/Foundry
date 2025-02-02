@@ -164,7 +164,6 @@ class ModelTag(Tag):
                         permutation = region_default_perms.get(region, "default")
                         
                     region_permutations.add(tuple((region, permutation)))
-                    
                     if state == 0:
                         continue
 

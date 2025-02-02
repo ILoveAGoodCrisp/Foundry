@@ -45,11 +45,12 @@ class ObjectTag(Tag):
         for element in self.block_change_colors.Elements:
             perms = element.Fields[0]
             for sub_element in perms.Elements:
-                 if sub_element.Fields[3].GetStringData() == variant:
-                     color = [n ** 2.2 for n in sub_element.Fields[2].Data]
-                     color.append(1.0) # Alpha
-                     change_colors[element.ElementIndex] = color
-                     break
+                text = sub_element.Fields[3].GetStringData()
+                if text == variant or (variant == "default" and not text):
+                    color = [n for n in sub_element.Fields[2].Data]
+                    color.append(1.0) # Alpha
+                    change_colors[element.ElementIndex] = color
+                    break
                  
         return change_colors
     

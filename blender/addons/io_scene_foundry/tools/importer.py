@@ -1,5 +1,6 @@
 
 
+from enum import Enum
 from math import radians
 import os
 from pathlib import Path
@@ -70,6 +71,13 @@ cinematic_tag_types = (
 )
 
 tag_files_cache = set()
+
+class State(Enum):
+    all_states = -1
+    default = 0
+    minor = 1
+    medium = 2
+    major = 3
 
 state_items = [
     ("all_states", "All Damage States", "Includes all damage stages"),
@@ -335,6 +343,10 @@ class NWO_Import(bpy.types.Operator):
         self.user_cancelled = False
         utils.set_object_mode(context)
         change_colors = None
+        if self.tag_variant == "all_variants":
+            self.tag_variant = ""
+        if self.tag_zone_set == "all_zone_sets":
+            self.tag_zone_set = ""
         with utils.ExportManager():
             os.system("cls")
             if context.scene.nwo_export.show_output:
@@ -408,7 +420,7 @@ class NWO_Import(bpy.types.Operator):
                     importer.tag_physics = self.tag_physics
                     importer.tag_animation = self.tag_animation
                     importer.tag_variant = self.tag_variant
-                    importer.tag_state = self.tag_state
+                    importer.tag_state = State[self.tag_state].value
                     model_files = importer.sorted_filepaths["model"]
                     existing_armature = None
                     if self.reuse_armature:
@@ -429,7 +441,8 @@ class NWO_Import(bpy.types.Operator):
                     importer.tag_physics = self.tag_physics
                     importer.tag_animation = False
                     importer.tag_variant = self.tag_variant.lower()
-                    importer.tag_state = self.tag_state
+                    importer.tag_state = State[self.tag_state].value
+                    self.tag_state
                     object_files = importer.sorted_filepaths["object"]
                     imported_object_objects, change_colors = importer.import_object(object_files)
                     if needs_scaling:
@@ -1105,7 +1118,7 @@ class NWOImporter:
                             
                             temp_variant = self.tag_variant
                             
-                            if self.tag_variant:
+                            if not temp_variant and self.context.scene.nwo.asset_type == 'cinematic':
                                 if model.block_variants.Elements.Count:
                                     temp_variant = model.block_variants.Elements[0].Fields[0].GetStringData()
                             
@@ -2510,10 +2523,6 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     legacy_okay : bpy.props.BoolProperty(options={"HIDDEN", "SKIP_SAVE"})
     
     def execute(self, context):
-        if self.tag_variant == "all_variants":
-            self.tag_variant = ""
-        if self.tag_zone_set == "all_zone_sets":
-            self.tag_zone_set = ""
         bpy.ops.nwo.foundry_import(**self.as_keywords())
         return {'FINISHED'}
     
@@ -2574,7 +2583,8 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 layout.prop(self, "tag_collision")
                 layout.prop(self, "tag_physics")
                 layout.prop(self, "tag_animation")
-                layout.prop(self, "tag_animation_filter")
+                if self.tag_animation:
+                    layout.prop(self, "tag_animation_filter")
                 layout.prop(self, "find_shader_paths")
                 layout.prop(self, "build_blender_materials")
             case "render_model":

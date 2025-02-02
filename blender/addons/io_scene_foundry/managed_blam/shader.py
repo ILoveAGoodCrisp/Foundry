@@ -832,7 +832,7 @@ class ShaderTag(Tag):
         self.populate_chiefster_node(tree, node)
         return node
     
-    def _add_group_material_model(self, tree: bpy.types.NodeTree, nodes: bpy.types.Nodes, name: str, location: Vector, supports_glancing_spec: bool) -> bpy.types.Node:
+    def _add_group_material_model(self, tree: bpy.types.NodeTree, nodes: bpy.types.Nodes, name: str, location: Vector, supports_glancing_spec: bool, uses_spec_exponent_min_max: bool) -> bpy.types.Node:
         node_material_model = nodes.new(type="ShaderNodeGroup")
         node_material_model.node_tree = utils.add_node_from_resources("reach_nodes", f"material_model - {name}")
             
@@ -851,8 +851,12 @@ class ShaderTag(Tag):
                         if glancing_color.ColorMode == 1:
                             glancing_color = glancing_color.ToRgb()
                             
-                        node_material_model.inputs["normal_specular_color"].default_value = glancing_color.Red, glancing_color.Green, glancing_color.Blue, 1
-                        node_material_model.inputs["glancing_specular_color"].default_value = normal_color.Red, normal_color.Green, normal_color.Blue, 1
+                        node_material_model.inputs["glancing_specular_color"].default_value = glancing_color.Red, glancing_color.Green, glancing_color.Blue, 1
+                        node_material_model.inputs["normal_specular_color"].default_value = normal_color.Red, normal_color.Green, normal_color.Blue, 1
+                        node_material_model.inputs["specular_color_exponent"].default_value = value.GetExponent(0)
+                        if uses_spec_exponent_min_max:
+                            node_material_model.inputs["specular_color_exponent_min"].default_value = value.GetAmplitudeMin(0)
+                            node_material_model.inputs["specular_color_exponent_max"].default_value = value.GetAmplitudeMax(0)
                         break
                     break
 
@@ -898,7 +902,7 @@ class ShaderTag(Tag):
         
         has_bump = e_bump_mapping.value > 0
         
-        node_material_model = self._add_group_material_model(tree, nodes, utils.game_str(e_material_model.name), Vector((0, 0)), e_material_model.value > 0)
+        node_material_model = self._add_group_material_model(tree, nodes, utils.game_str(e_material_model.name), Vector((0, 0)), e_material_model.value > 0, e_material_model == MaterialModel.COOK_TORRANCE)
         final_node = node_material_model
         
         node_albedo = self._add_group_node(tree, nodes, f"albedo - {utils.game_str(e_albedo.name)}", Vector((node_material_model.location.x - 300, node_material_model.location.y + 500)))

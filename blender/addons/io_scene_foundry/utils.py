@@ -4207,15 +4207,18 @@ def get_ultimate_asset_path(full=False) -> Path:
         return Path(path)
 
 def ray_cast_mouse(context, coords_2d):
-    scene = context.scene
-    region = context.region
-    rv3d = context.region_data
-    viewlayer = context.view_layer.depsgraph
-    view_vector = view3d_utils.region_2d_to_vector_3d(region, rv3d, coords_2d)
-    ray_origin = view3d_utils.region_2d_to_origin_3d(region, rv3d, coords_2d)
+    try:
+        scene = context.scene
+        region = context.region
+        rv3d = context.region_data
+        viewlayer = context.view_layer.depsgraph
+        view_vector = view3d_utils.region_2d_to_vector_3d(region, rv3d, coords_2d)
+        ray_origin = view3d_utils.region_2d_to_origin_3d(region, rv3d, coords_2d)
 
-    hit, location, normal, index, object, matrix = scene.ray_cast(viewlayer, ray_origin, view_vector)
-    return hit, location, normal, index, object, matrix
+        hit, location, normal, index, object, matrix = scene.ray_cast(viewlayer, ray_origin, view_vector)
+        return hit, location, normal, index, object, matrix
+    except:
+        return False, None, None, None, None, None
 
 def game_str(text: str) -> str:
     '''Converts a string to lower, removes leading & trailing spaces & underscores, and replaces remaining spaces with underscores'''
