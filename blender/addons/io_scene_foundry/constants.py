@@ -19,7 +19,7 @@ CG_PROP_PREFIX = "bungie_"
 
 IDENTITY_MATRIX = Matrix.Identity(4)
 
-OBJECT_TAG_EXTS = {'.biped', '.crate', '.creature', '.device_control', '.device_dispenser', '.effect_scenery', '.equipment', '.giant', '.device_machine', '.projectile', '.scenery', '.spawner', '.sound_scenery', '.device_terminal', '.vehicle', '.weapon', 'effect_scenery'}
+OBJECT_TAG_EXTS = {'.biped', '.crate', '.creature', '.device_control', '.device_dispenser', '.effect_scenery', '.equipment', '.giant', '.device_machine', '.projectile', '.scenery', '.spawner', '.sound_scenery', '.device_terminal', '.vehicle', '.weapon'}
 
 # IDENTITY_MATRIX = Matrix(((1.0, 2.384185791015625e-07, 0.0, 0.0),
 #         (-2.384185791015625e-05, 1.0, 0.0, 0.0),

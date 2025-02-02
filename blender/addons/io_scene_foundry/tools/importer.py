@@ -13,20 +13,12 @@ import addon_utils
 from mathutils import Color
 
 from ..managed_blam.object import ObjectTag
-
 from ..managed_blam.particle_model import ParticleModelTag
-
-from ..managed_blam.structure_seams import StructureSeamsTag
-
 from ..managed_blam.scenario_structure_bsp import ScenarioStructureBspTag
-
 from ..managed_blam.scenario import ScenarioTag
-
 from ..managed_blam.animation import AnimationTag
-
 from ..managed_blam.render_model import RenderModelTag
 from ..managed_blam.physics_model import PhysicsTag
-
 from ..managed_blam.model import ModelTag
 from ..tools.mesh_to_marker import convert_to_marker
 from ..managed_blam.bitmap import BitmapTag
@@ -68,6 +60,25 @@ xref_tag_types = (
 cinematic_tag_types = (
     ".scenery",
     ".biped"
+)
+
+object_tag_types = (
+    ".biped",
+    ".crate",
+    ".creature",
+    ".device_control",
+    ".device_dispenser",
+    ".effect_scenery",
+    ".equipment",
+    ".giant",
+    ".device_machine",
+    ".projectile",
+    ".scenery",
+    ".spawner",
+    "sound_scenery",
+    "device_terminal",
+    "vehicle",
+    "weapon",
 )
 
 tag_files_cache = set()
@@ -668,7 +679,10 @@ class NWO_Import(bpy.types.Operator):
             if (not self.scope or 'particle_model' in self.scope):
                 self.filter_glob += '*.particle_model;'
             if (not self.scope or 'object' in self.scope):
-                self.filter_glob += '*.scenery;*.biped;'
+                if context.scene.nwo.asset_type == "cinematic":
+                    self.filter_glob += '*.scenery;*.biped;'
+                else:
+                    self.filter_glob += '*.biped;*.crate;*.creature;*.d*_control;*.d*_dispenser;*.e*_scenery;*.equipment;*.giant;*.d*_machine;*.projectile;*.scenery;*.spawner;*.sound_scenery;*.d*_terminal;*.vehicle;*.weapon;'
             if (not self.scope or 'animation' in self.scope):
                 self.filter_glob += '*.mod*_*_graph;'
                 
@@ -963,6 +977,7 @@ class NWOImporter:
         self.tag_state = -1
         self.tag_zone_set = ""
         self.tag_bsp_render_only = False
+        self.for_cinematic = context.scene.nwo.asset_type == "cinematic"
         if filepaths:
             self.sorted_filepaths = self.group_filetypes(scope)
         else:
@@ -1012,7 +1027,10 @@ class NWOImporter:
             elif 'particle_model' in valid_exts and path.lower().endswith('.particle_model'):
                 self.extensions.add('particle_model')
                 filetype_dict["particle_model"].append(path)
-            elif 'object' in valid_exts and path.lower().endswith(cinematic_tag_types):
+            elif 'object' in valid_exts and self.for_cinematic and path.lower().endswith(cinematic_tag_types):
+                self.extensions.add('object')
+                filetype_dict["object"].append(path)
+            elif 'object' in valid_exts and not self.for_cinematic and path.lower().endswith(object_tag_types):
                 self.extensions.add('object')
                 filetype_dict["object"].append(path)
             elif 'animation' in valid_exts and path.lower().endswith(".model_animation_graph"):
@@ -2550,19 +2568,23 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 self.report({'WARNING'}, "Blender Toolset not installed, cannot import JMS/ASS/JMA")
                 return {'CANCELLED'}
             
-        if self.import_type in {"camera_track", "jms", "ass", "model", "render_model", "scenario", "scenario_structure_bsp", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx", "scenery", "biped", "model_animation_graph"}:
+        if self.import_type in {"camera_track", "jms", "ass", "model", "render_model", "scenario", "scenario_structure_bsp", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx", "model_animation_graph", "biped", "crate", "creature", "device_control", "device_dispenser", "effect_scenery", "equipment", "giant", "device_machine", "projectile", "scenery", "spawner", "sound_scenery", "device_terminal", "vehicle", "weapon"}:
             if self.import_type == "scenario":
                 global zone_set_items
                 with ScenarioTag(path=self.filepath) as scenario:
                     zone_set_items = scenario.get_zone_sets_dict()
                     if zone_set_items:
                         self.has_zone_sets = True
-            elif self.import_type in {"model", "render_model", "scenery", "biped"}:
+            elif self.import_type in {"model", "biped", "crate", "creature", "device_control", "device_dispenser", "effect_scenery", "equipment", "giant", "device_machine", "projectile", "scenery", "spawner", "sound_scenery", "device_terminal", "vehicle", "weapon"}:
                 global variant_items
-                with ObjectTag(path=self.filepath) as object_tag:
-                    variant_items = object_tag.get_variants()
-                    if variant_items:
-                        self.has_variants = True
+                if self.import_type == "model":
+                    with ModelTag(path=self.filepath) as model:
+                        variant_items = model.get_model_variants()
+                else:
+                    with ObjectTag(path=self.filepath) as object_tag:
+                        variant_items = object_tag.get_variants()
+                if variant_items:
+                    self.has_variants = True
             return context.window_manager.invoke_props_dialog(self)
         else:
             return self.execute(context)
@@ -2572,7 +2594,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         layout.use_property_split = True
         layout.label(text=f"Importing: {Path(self.filepath).name}")
         match self.import_type:
-            case "model" | "scenery" | "biped":
+            case "model" | "biped" | "crate" | "creature" | "device_control" | "device_dispenser" | "effect_scenery" | "equipment" | "giant" | "device_machine" | "projectile" | "scenery" | "spawner" | "sound_scenery" | "device_terminal" | "vehicle" | "weapon":
                 if self.has_variants:
                     layout.prop(self, "tag_variant")
                     if self.tag_variant != "all_variants":
@@ -2614,7 +2636,7 @@ class NWO_FH_Import(bpy.types.FileHandler):
     bl_idname = "NWO_FH_Import"
     bl_label = "File handler Foundry Importer"
     bl_import_operator = "nwo.import_from_drop"
-    bl_file_extensions = ".jms;.amf;.ass;.bitmap;.model;.render_model;.scenario;.scenario_structure_bsp;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track;.particle_model;.scenery;.biped;.model_animation_graph"
+    bl_file_extensions = ".jms;.amf;.ass;.bitmap;.model;.render_model;.scenario;.scenario_structure_bsp;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track;.particle_model;.biped;.crate;.creature;.device_control;.device_dispenser;.effect_scenery;.equipment;.giant;.device_machine;.projectile;.scenery;.spawner;.sound_scenery;.device_terminal;.vehicle;.weapon;.model_animation_graph"
 
     @classmethod
     def poll_drop(cls, context):
