@@ -4,6 +4,16 @@ import bpy
 from math import radians
 from mathutils import Matrix
 
+class PoseOverlayAutomater:
+    def __init__(self, pitch, yaw, control):
+        self.pitch = pitch
+        self.yaw = yaw
+        self.control = control
+    
+    def build(self, right_yaw_per_frame=radians(90), left_yaw_per_frame=radians(90), right_frame_count=1, left_frame_count=1, down_pitch_per_frame=radians(45), up_pitch_per_frame=radians(45), down_pitch_frame_count=2, up_pitch_frame_count=2):
+        pass
+        
+
 class NWO_AddAimAnimation(bpy.types.Operator):
     bl_idname = 'nwo.add_aim_animation'
     bl_label = 'Aim Animation'
@@ -352,3 +362,9 @@ class NWO_AddAimAnimation(bpy.types.Operator):
             layout.prop(self, 'max_yaw', text='Max Yaw Angle')
         if self.aim_animation in ('aiming', 'pitch_and_turn', 'aiming_360'):
             layout.prop(self, 'max_pitch', text='Max Pitch Angle')
+            
+class NWO_OT_AddAimAnimationBatch(NWO_AddAimAnimation):
+    bl_idname = 'nwo.add_aim_animation_batch'
+    bl_label = 'Batch Add Aim Animations'
+    bl_description = 'Animates the aim bones (or aim control if it exists) based on the chosen option for all pose overlay animations'
+    bl_options = {'REGISTER', 'UNDO'}

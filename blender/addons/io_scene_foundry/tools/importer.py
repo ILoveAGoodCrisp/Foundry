@@ -301,6 +301,7 @@ class NWO_Import(bpy.types.Operator):
     
     tag_variant: bpy.props.StringProperty(
         name="Variant",
+        options={'SKIP_SAVE'},
         description="Optional field to declare a variant to import. If this field is left blank, all variants will be imported (except if this is for a cinematic, in which case the first variant will be used)"
     )
     
@@ -312,6 +313,7 @@ class NWO_Import(bpy.types.Operator):
     
     tag_zone_set: bpy.props.StringProperty(
         name="Zone Set",
+        options={'SKIP_SAVE'},
         description="Optional field to declare a zone set to import. This will limit the scope of imported BSPs to those within the zone set. If this field is left blank, all BSPs will be imported"
     )
     
@@ -2504,7 +2506,8 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     
     tag_variant: bpy.props.EnumProperty(
         name="Variant",
-        description="Model variants to import. ",
+        options={'SKIP_SAVE'},
+        description="Model variant to import, or all",
         items=items_tag_variant,
     )
     
@@ -2518,6 +2521,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     
     tag_zone_set: bpy.props.EnumProperty(
         name="Zone Set",
+        options={'SKIP_SAVE'},
         description="Limits the bsps to import to those present in the specified zoneset",
         items=items_tag_zone_set,
     )

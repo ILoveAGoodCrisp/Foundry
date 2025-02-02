@@ -36,6 +36,7 @@ class ObjectTag(Tag):
         self.tag_has_changes = True
         
     def get_change_colors(self, variant="") -> list:
+        print("CC VARIANT: ", variant)
         change_colors = [tuple((1, 1, 1, 1)), tuple((1, 1, 1, 1)), tuple((1, 1, 1, 1)), tuple((1, 1, 1, 1))]
         if not variant:
             variant = self.default_variant.GetStringData()
