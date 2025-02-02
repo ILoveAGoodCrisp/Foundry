@@ -732,9 +732,9 @@ class NWO_Import(bpy.types.Operator):
             box.prop(self, 'tag_zone_set')
             box.prop(self, 'tag_bsp_render_only')
         
-        if not self.scope or ('jma' in self.scope or 'jms' in self.scope):
+        if not self.scope or 'jms' in self.scope:
             box = layout.box()
-            box.label(text="JMA/JMS/ASS Settings")
+            box.label(text="JMS/ASS Settings")
             box.prop(self, "legacy_type")
         
         if not self.scope or ('bitmap' in self.scope):
@@ -1526,60 +1526,61 @@ class NWOImporter:
             new_coll.nwo.region = possible_bsp
         
         print("Setting object properties")
-        if is_model:
-            objects_with_halo_regions = [ob for ob in objects if ob.region_list]
-            for ob in objects_with_halo_regions:
-                prefix = ob.name[0] if ob.name[0] in ('$', '@', '%', '~') else ''
-                if prefix: continue
-                if len(ob.region_list) == 1:
-                    parts = ob.region_list[0].name.split(' ')
-                    if len(parts) == 1:
-                        region = parts[0]
-                        ob.name = f'{region}'
-                    elif len(parts) == 2:
-                        perm = parts[0]
-                        region = parts[1]
-                        ob.name = f'{region}:{perm}'
-                    elif len(parts) > 2:
-                        perm = parts[-2]
-                        region = parts[-1]
-                        ob.name = f'{region}:{perm}'
-                else:
-                    bm = bmesh.new()
-                    bm.from_mesh(ob.data)
-                    utils.save_loop_normals(bm, ob.data)
-                    for idx, perm_region in enumerate(ob.region_list):
-                        bm_tmp = bm.copy()
-                        parts = perm_region.name.split(' ')
-                        if len(parts) == 1:
-                            region = parts[0]
-                            new_name = f'{prefix}{region}'
-                        elif len(parts) == 2:
-                            perm = parts[0]
-                            region = parts[1]
-                            new_name = f'{prefix}{region}:{perm}'
-                        elif len(parts) > 2:
-                            perm = parts[-2]
-                            region = parts[-1]
-                            new_name = f'{prefix}{region}:{perm}'
+        # if is_model: NOTE No longer splitting meshes as the Toolset imports JMS models split now
+        #     objects_with_halo_regions = [ob for ob in objects if ob.region_list]
+        #     for ob in objects_with_halo_regions:
+        #         ob.nwo.
+        #         prefix = ob.name[0] if ob.name[0] in ('$', '@', '%', '~') else ''
+        #         if prefix: continue
+        #         if len(ob.region_list) == 1:
+        #             parts = ob.region_list[0].name.split(' ')
+        #             if len(parts) == 1:
+        #                 region = parts[0]
+        #                 ob.name = f'{region}'
+        #             elif len(parts) == 2:
+        #                 perm = parts[0]
+        #                 region = parts[1]
+        #                 ob.name = f'{region}:{perm}'
+        #             elif len(parts) > 2:
+        #                 perm = parts[-2]
+        #                 region = parts[-1]
+        #                 ob.name = f'{region}:{perm}'
+        #         else:
+        #             bm = bmesh.new()
+        #             bm.from_mesh(ob.data)
+        #             utils.save_loop_normals(bm, ob.data)
+        #             for idx, perm_region in enumerate(ob.region_list):
+        #                 bm_tmp = bm.copy()
+        #                 parts = perm_region.name.split(' ')
+        #                 if len(parts) == 1:
+        #                     region = parts[0]
+        #                     new_name = f'{prefix}{region}'
+        #                 elif len(parts) == 2:
+        #                     perm = parts[0]
+        #                     region = parts[1]
+        #                     new_name = f'{prefix}{region}:{perm}'
+        #                 elif len(parts) > 2:
+        #                     perm = parts[-2]
+        #                     region = parts[-1]
+        #                     new_name = f'{prefix}{region}:{perm}'
 
-                        new_ob = ob.copy()
-                        new_ob.name = new_name
-                        new_ob.data = ob.data.copy()
-                        if self.existing_scene:
-                            for coll in ob.users_collection: coll.objects.link(new_ob)
-                        region_layer = bm_tmp.faces.layers.int.get("Region Assignment")
-                        bmesh.ops.delete(bm_tmp, geom=[f for f in bm_tmp.faces if f[region_layer] != idx + 1], context='FACES')
-                        bm_tmp.to_mesh(new_ob.data)
-                        bm_tmp.free()
-                        utils.apply_loop_normals(new_ob.data)
-                        utils.loop_normal_magic(new_ob.data)
-                        utils.clean_materials(new_ob)
-                        objects.append(new_ob)
+        #                 new_ob = ob.copy()
+        #                 new_ob.name = new_name
+        #                 new_ob.data = ob.data.copy()
+        #                 if self.existing_scene:
+        #                     for coll in ob.users_collection: coll.objects.link(new_ob)
+        #                 region_layer = bm_tmp.faces.layers.int.get("Region Assignment")
+        #                 bmesh.ops.delete(bm_tmp, geom=[f for f in bm_tmp.faces if f[region_layer] != idx + 1], context='FACES')
+        #                 bm_tmp.to_mesh(new_ob.data)
+        #                 bm_tmp.free()
+        #                 utils.apply_loop_normals(new_ob.data)
+        #                 utils.loop_normal_magic(new_ob.data)
+        #                 utils.clean_materials(new_ob)
+        #                 objects.append(new_ob)
 
-                    bm.free()
-                    objects.remove(ob)
-                    bpy.data.objects.remove(ob)
+        #             bm.free()
+        #             objects.remove(ob)
+        #             bpy.data.objects.remove(ob)
         
         self.processed_meshes = []
         if file_name:
@@ -1829,12 +1830,22 @@ class NWOImporter:
                     apply_props_material(ob, material)
                 
             if is_model:
-                if ':' not in ob.name:
-                    self.set_region(ob, utils.dot_partition(ob.name).strip('@$~%'))
-                else:
-                    region, permutation = utils.dot_partition(ob.name).strip('@$~%').split(':')
-                    self.set_region(ob, region)
-                    self.set_permutation(ob, permutation)
+                # NOTE Getting region perm directly from toolset props now
+                # if ':' not in ob.name:
+                #     self.set_region(ob, utils.dot_partition(ob.name).strip('@$~%'))
+                # else:
+                #     region, permutation = utils.dot_partition(ob.name).strip('@$~%').split(':')
+                #     self.set_region(ob, region)
+                #     self.set_permutation(ob, permutation)
+                
+                if ob.region_list:
+                    reg_perm = ob.region_list[0].name
+                    parts = reg_perm.split()
+                    if len(parts) == 1:
+                        self.set_region(ob, parts[0])
+                    elif len(parts) >= 2:
+                        self.set_region(ob, parts[-1])
+                        self.set_permutation(ob, parts[-2])
                     
             if ob.nwo.mesh_type == '_connected_geometry_mesh_type_structure':
                 ob.nwo.proxy_instance = True
@@ -2568,7 +2579,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 self.report({'WARNING'}, "Blender Toolset not installed, cannot import JMS/ASS/JMA")
                 return {'CANCELLED'}
             
-        if self.import_type in {"camera_track", "jms", "ass", "model", "render_model", "scenario", "scenario_structure_bsp", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx", "model_animation_graph", "biped", "crate", "creature", "device_control", "device_dispenser", "effect_scenery", "equipment", "giant", "device_machine", "projectile", "scenery", "spawner", "sound_scenery", "device_terminal", "vehicle", "weapon"}:
+        if self.import_type in {"camera_track", "jms", "ass", "model", "render_model", "scenario", "scenario_structure_bsp", "model_animation_graph", "biped", "crate", "creature", "device_control", "device_dispenser", "effect_scenery", "equipment", "giant", "device_machine", "projectile", "scenery", "spawner", "sound_scenery", "device_terminal", "vehicle", "weapon"}:
             if self.import_type == "scenario":
                 global zone_set_items
                 with ScenarioTag(path=self.filepath) as scenario:
@@ -2628,7 +2639,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 layout.prop(self, "tag_animation_filter")
             case "camera_track":
                 layout.prop(self, "camera_track_animation_scale")
-            case "ass" | "jms" | "jmm" | "jma" | "jmt" | "jmz" | "jmv" | "jmw" | "jmo" | "jmr" | "jmrx":
+            case "ass" | "jms":
                 layout.prop(self, "legacy_type")
             
 
