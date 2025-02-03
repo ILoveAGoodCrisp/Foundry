@@ -12,13 +12,115 @@ from .. import utils
 
 from .shader import BSDFParameter, ChannelType, ShaderTag
 
+class Albedo(Enum):
+    DIFFUSE_ONLY = 0
+    PALETTIZED = 1
+    PALETTIZED_PLUS_ALPHA = 2
+    DIFFUSE_PLUS_ALPHA = 3
+    EMBLEM_CHANGE_COLOR = 4
+    CHANGE_COLOR = 5
+    DIFFUSE_PLUS_ALPHA_MASK = 6
+    PALETTIZED_PLUS_ALPHA_MASK = 7
+    VECTOR_ALPHA = 8
+    VECTOR_ALPHA_DROP_SHADOW = 9
+    PATCHY_EMBLEM = 10
+    
+class BlendMode(Enum):
+    OPAQUE = 0
+    ADDITIVE = 1
+    MULTIPLY = 2
+    ALPHA_BLEND = 3
+    DOUDBLE_MULTIPLY = 4
+    MAXIMUM = 5
+    MULTIPLY_ADD = 6
+    ADD_SRC_TIMES_DSTALPHA = 7
+    ADD_SRC_TIMES_SRCALPHA = 8
+    INV_ALPHA_BLEND = 9
+    PRE_MULTIPLIED_ALPHA = 10
+    
+class RenderPass(Enum):
+    PRE_LIGHTING = 0
+    POST_LIGHTING = 1
+    
+class Specular(Enum):
+    LEAVE = 0
+    MODULATE = 1
+    
+class BumpMapping(Enum):
+    LEAVE = 0
+    STANDARD = 1
+    STANDARD_MASK = 2
+    
 
 class ShaderDecalTag(ShaderTag):
     tag_ext = 'shader_decal'
-    group_supported = False
+    group_supported = True
     
     default_parameter_bitmaps = None
     shader_parameters = None
+    
+    def _to_nodes_group(self, blender_material: bpy.types.Material):
+        # Get options
+        e_albedo = Albedo(self._option_value_from_index(0))
+        e_blend_mode = BlendMode(self._option_value_from_index(1))
+        e_render_pass = RenderPass(self._option_value_from_index(2))
+        e_specular = Specular(self._option_value_from_index(3))
+        e_bump_mapping = BumpMapping(self._option_value_from_index(4))
+        # e_tinting = Tinting(self._option_value_from_index(5))
+        # e_parallax = Parallax(self._option_value_from_index(6))
+        # e_interier = Interier(self._option_value_from_index(7))
+        
+        blender_material.use_nodes = True
+        tree = blender_material.node_tree
+        nodes = tree.nodes
+        # Clear it out
+        nodes.clear()
+        
+        has_bump = e_bump_mapping.value > 0
+        
+        node_albedo = self._add_group_node(tree, nodes, f"shader_decal albedo - {utils.game_str(e_albedo.name)}", Vector((0, 0)))
+        final_node = node_albedo
+        
+        if e_albedo == Albedo.CHANGE_COLOR:
+            node_cc_primary = nodes.new(type="ShaderNodeAttribute")
+            node_cc_primary.attribute_name = "nwo.cc_primary"
+            node_cc_primary.attribute_type = 'OBJECT'
+            node_cc_primary.location.x = node_albedo.location.x - 300
+            node_cc_primary.location.y = node_albedo.location.y + 200
+            tree.links.new(input=node_albedo.inputs["Primary Color"], output=node_cc_primary.outputs[0])
+            node_cc_secondary = nodes.new(type="ShaderNodeAttribute")
+            node_cc_secondary.attribute_name = "nwo.cc_secondary"
+            node_cc_secondary.attribute_type = 'OBJECT'
+            node_cc_secondary.location.x = node_albedo.location.x - 300
+            node_cc_secondary.location.y = node_albedo.location.y
+            tree.links.new(input=node_albedo.inputs["Secondary Color"], output=node_cc_secondary.outputs[0])
+            node_cc_tertiary = nodes.new(type="ShaderNodeAttribute")
+            node_cc_tertiary.attribute_name = "nwo.cc_tertiary"
+            node_cc_tertiary.attribute_type = 'OBJECT'
+            node_cc_tertiary.location.x = node_albedo.location.x - 300
+            node_cc_tertiary.location.y = node_albedo.location.y - 200
+            tree.links.new(input=node_albedo.inputs["Tertiary Color"], output=node_cc_tertiary.outputs[0])
+            
+        if has_bump:
+            node_bump_mapping = self._add_group_node(tree, nodes, f"bump_mapping - {utils.game_str(e_bump_mapping.name)}", Vector((node_albedo.location.x, node_albedo.location.y - 500)))
+            tree.links.new(input=node_albedo.inputs["Normal"], output=node_bump_mapping.outputs[0])
+            
+            
+        if e_blend_mode != BlendMode.OPAQUE:
+            blender_material.surface_render_method = 'BLENDED'
+            node_blend_mode = self._add_group_node(tree, nodes, f"blend_mode - {utils.game_str(e_blend_mode.name)}", Vector((final_node.location.x + 300, final_node.location.y)))
+            tree.links.new(input=node_blend_mode.inputs[0], output=final_node.outputs[0])
+            final_node = node_blend_mode
+            if len(node_albedo.outputs) > 1:
+                tree.links.new(input=node_blend_mode.inputs[1], output=node_albedo.outputs[1])
+                
+        # Make the Output
+        node_output = nodes.new(type='ShaderNodeOutputMaterial')
+        node_output.location.x = final_node.location.x + 300
+        node_output.location.y = final_node.location.y
+        
+        # Link to output
+        tree.links.new(input=node_output.inputs[0], output=final_node.outputs[0])
 
     def _to_nodes_bsdf(self, blender_material: bpy.types.Material):
         blender_material.use_nodes = True
