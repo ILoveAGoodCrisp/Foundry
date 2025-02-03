@@ -996,7 +996,7 @@ class ShaderTag(Tag):
             
         if e_alpha_test.value > 0:
             node_alpha_test = self._add_group_node(tree, nodes, f"alpha_test - {utils.game_str(e_alpha_test.name)}", Vector((final_node.location.x + 300, final_node.location.y)))
-            tree.links.new(input=node_alpha_test.inputs[0], output=final_node.outputs[0])
+            tree.links.new(input=node_alpha_test.inputs[1], output=final_node.outputs[0])
             final_node = node_alpha_test
             
         # Make the Output
