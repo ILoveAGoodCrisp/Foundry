@@ -23,7 +23,7 @@ class NWO_MaterialPropertiesGroup(PropertyGroup):
         options=set(),
     )
     
-    prev_shader_path: StringProperty()
+    prev_shader_path: StringProperty(options={'HIDDEN'})
 
     def recursive_image_search_object(self, tree_owner, object):
         nodes = tree_owner.node_tree.nodes

@@ -355,7 +355,6 @@ class NWO_Import(bpy.types.Operator):
         self.nothing_imported = False
         self.user_cancelled = False
         utils.set_object_mode(context)
-        change_colors = None
         if self.tag_variant == "all_variants":
             self.tag_variant = ""
         if self.tag_zone_set == "all_zone_sets":
@@ -455,9 +454,8 @@ class NWO_Import(bpy.types.Operator):
                     importer.tag_animation = False
                     importer.tag_variant = self.tag_variant.lower()
                     importer.tag_state = State[self.tag_state].value
-                    self.tag_state
                     object_files = importer.sorted_filepaths["object"]
-                    imported_object_objects, change_colors = importer.import_object(object_files)
+                    imported_object_objects = importer.import_object(object_files)
                     if needs_scaling:
                         utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_object_objects, actions=[])
                         
@@ -515,7 +513,7 @@ class NWO_Import(bpy.types.Operator):
                             if needs_scaling:
                                 utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=[existing_armature], actions=imported_animations)
                                 
-                            if self.context.scene.nwo.asset_type in {'model', 'animation'}:
+                            if context.scene.nwo.asset_type in {'model', 'animation'}:
                                 self.context.scene.nwo.active_animation_index = len(self.context.scene.nwo.animations) - 1
                     
                 if 'scenario' in importer.extensions:
@@ -592,7 +590,7 @@ class NWO_Import(bpy.types.Operator):
                     for mat in new_materials:
                         shader_path = mat.nwo.shader_path
                         if shader_path:
-                            tag_to_nodes(corinth, mat, shader_path, change_colors)
+                            tag_to_nodes(corinth, mat, shader_path)
                         
                 if 'bitmap' in importer.extensions:
                     bitmap_files = importer.sorted_filepaths["bitmap"]
@@ -1147,6 +1145,12 @@ class NWOImporter:
                             self.context.scene.collection.children.link(model_collection)
                             if render:
                                 render_objects, armature = self.import_render_model(render, model_collection, None, allowed_region_permutations)
+                                for ob in render_objects:
+                                    ob.nwo.cc_primary = change_colors[0]
+                                    ob.nwo.cc_secondary = change_colors[1]
+                                    ob.nwo.cc_tertiary = change_colors[2]
+                                    ob.nwo.cc_quaternary = change_colors[3]
+                                    
                                 imported_objects.extend(render_objects)
                                 for ob in render_objects:
                                     if ob.type == 'ARMATURE':
@@ -1155,7 +1159,7 @@ class NWOImporter:
                                         if temp_variant == self.tag_variant:
                                             ob.nwo.cinematic_variant = temp_variant
                                         
-        return imported_objects, change_colors
+        return imported_objects
             
     def import_render_model(self, file, model_collection, existing_armature, allowed_region_permutations, skip_print=False):
         if not skip_print:

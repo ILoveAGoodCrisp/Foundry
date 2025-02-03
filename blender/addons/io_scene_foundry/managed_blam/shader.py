@@ -18,6 +18,7 @@ from ..managed_blam.render_method_definition import RenderMethodDefinitionTag
 global_render_method_definition = None
 last_group_node = None
 default_parameter_bitmaps = None
+shader_parameters = None
 
 class ChannelType(Enum):
     DEFAULT = 0
@@ -142,15 +143,16 @@ class ShaderTag(Tag):
         self.reference = self.render_method.SelectField('reference')
         self.definition = self.render_method.SelectField('definition')
                 
-    def _get_default_bitmaps(self):
+    def _get_info(self):
         global default_parameter_bitmaps
+        global shader_parameters
         if default_parameter_bitmaps is None:
             def_path = self.definition.Path
             if def_path is None:
                 default_parameter_bitmaps = {}
                 return
             with RenderMethodDefinitionTag(path=def_path) as render_method_definition:
-                default_parameter_bitmaps = render_method_definition.get_default_bitmaps()
+                default_parameter_bitmaps, shader_parameters = render_method_definition.get_defaults()
     
     def write_tag(self, blender_material, linked_to_blender, material_shader=''):
         self.blender_material = blender_material
@@ -448,11 +450,11 @@ class ShaderTag(Tag):
             
             
     # READING
-    def to_nodes(self, blender_material, change_colors=None):
+    def to_nodes(self, blender_material):
         shader_path: str = blender_material.nwo.shader_path
-        self._get_default_bitmaps()
+        self._get_info()
         if self.group_supported:
-            self._to_nodes_group(blender_material, change_colors)
+            self._to_nodes_group(blender_material)
         else:
             self._to_nodes_bsdf(blender_material)
             
@@ -467,7 +469,6 @@ class ShaderTag(Tag):
             return option_enum
         
     def _mapping_from_parameter_name(self, name, mapping={}):
-        the_one = name == "bump_detail_map" and self.tag_path.RelativePathWithExtension == r"objects\characters\spartans\shaders\spartan_rubber_suit.shader"
         if type(name) == str:
             element = self._Element_from_field_value(self.block_parameters, 'parameter name', name)
         else:
@@ -502,8 +503,9 @@ class ShaderTag(Tag):
                 with ShaderTag(path=self.reference.Path) as shader:
                     shader._mapping_from_parameter_name(name, mapping)
         
-    def _image_from_parameter_name(self, name, blue_channel_fix=False, default_bitmap=None):
+    def _image_from_parameter_name(self, name, blue_channel_fix=False):
         """Saves an image (or gets the already existing one) from a shader parameter element"""
+        bitmap_path = None
         if type(name) == str:
             element = self._Element_from_field_value(self.block_parameters, 'parameter name', name)
         else:
@@ -515,9 +517,12 @@ class ShaderTag(Tag):
                 with ShaderTag(path=self.reference.Path) as shader:
                     return shader._image_from_parameter_name(name)
             else:
-                return
-            
-        bitmap_path = element.SelectField('bitmap').Path
+                bitmap_path = default_parameter_bitmaps.get(name)
+                if bitmap_path is None:
+                    return
+        
+        if bitmap_path is None:
+            bitmap_path = element.SelectField('bitmap').Path
 
         if bitmap_path is None:
             if not self.corinth and self.reference.Path:
@@ -525,8 +530,7 @@ class ShaderTag(Tag):
                     result = shader._image_from_parameter_name(name)
                     if result is not None:
                         return result
-            bitmap_path = default_bitmap
-            if bitmap_path is None:
+            else:
                 bitmap_path = default_parameter_bitmaps.get(name)
                 if bitmap_path is None:
                     return
@@ -577,7 +581,6 @@ class ShaderTag(Tag):
             return NormalType.OPENGL
     
     def _color_from_parameter_name(self, name):
-        color = [1, 1, 1, 1]
         if type(name) == str:
             element = self._Element_from_field_value(self.block_parameters, 'parameter name', name)
         else:
@@ -590,20 +593,21 @@ class ShaderTag(Tag):
                     return shader._color_from_parameter_name(name)
             else:
                 return
-            
-        block_animated_parameters = element.SelectField(self.function_parameters)
-        color_element = self._Element_from_field_value(block_animated_parameters, 'type', 1)
-        if color_element:
-            game_color = color_element.SelectField(self.animated_function).Value.GetColor(0)
-            if game_color.ColorMode == 1: # Is HSV
-                game_color = game_color.ToRgb()
-                
-            color = [game_color.Red, game_color.Green, game_color.Blue, game_color.Alpha]
-        
-        return color
+        else:
+            block_animated_parameters = element.SelectField(self.function_parameters)
+            color_element = self._Element_from_field_value(block_animated_parameters, 'type', 1)
+            if color_element:
+                game_color = color_element.SelectField(self.animated_function).Value.GetColor(0)
+                if game_color.ColorMode == 1: # Is HSV
+                    game_color = game_color.ToRgb()
+                    
+                return [game_color.Red, game_color.Green, game_color.Blue, game_color.Alpha]
+            else:
+                if not self.corinth and self.reference.Path:
+                    with ShaderTag(path=self.reference.Path) as shader:
+                        return shader._color_from_parameter_name(name)
     
     def _value_from_parameter_name(self, name):
-        value = 0
         if type(name) == str:
             element = self._Element_from_field_value(self.block_parameters, 'parameter name', name)
         else:
@@ -616,17 +620,15 @@ class ShaderTag(Tag):
                     return shader._value_from_parameter_name(name)
             else:
                 return
-            
-        block_animated_parameters = element.SelectField(self.function_parameters)
-        color_element = self._Element_from_field_value(block_animated_parameters, 'type', 1)
-        if color_element:
-            game_color = color_element.SelectField(self.animated_function).Value.GetColor(0)
-            if game_color.ColorMode == 1: # Is HSV
-                game_color = game_color.ToRgb()
-                
-            color = [game_color.Red, game_color.Green, game_color.Blue, game_color.Alpha]
-        
-        return value
+        else:
+            block_animated_parameters = element.SelectField(self.function_parameters)
+            value_element = self._Element_from_field_value(block_animated_parameters, 'type', 0)
+            if value_element:
+                return value_element.SelectField(self.animated_function).Value.ClampRangeMin
+            else:
+                if not self.corinth and self.reference.Path:
+                    with ShaderTag(path=self.reference.Path) as shader:
+                        return shader._value_from_parameter_name(name)
     
     def _set_alpha(self, alpha_type, blender_material):
         if alpha_type == 'blend':
@@ -746,8 +748,8 @@ class ShaderTag(Tag):
             with BitmapTag(path=bitmap_path) as bitmap:
                 return bitmap.get_granny_data(fill_alpha, calc_blue)
             
-    def group_set_image(self, tree: bpy.types.NodeTree, node: bpy.types.Node, parameter_name: str, vector: Vector, channel_type=ChannelType.DEFAULT, normal_type: NormalType = None, return_image_node=False, default_bitmap=None):
-        data = self._image_from_parameter_name(parameter_name, normal_type is not None, default_bitmap=default_bitmap)
+    def group_set_image(self, tree: bpy.types.NodeTree, node: bpy.types.Node, parameter_name: str, vector: Vector, channel_type=ChannelType.DEFAULT, normal_type: NormalType = None, return_image_node=False):
+        data = self._image_from_parameter_name(parameter_name, normal_type is not None)
         
         if data is None:
             if return_image_node:
@@ -875,7 +877,7 @@ class ShaderTag(Tag):
         node_material_model.location = location
         return node_material_model
     
-    def _to_nodes_group(self, blender_material: bpy.types.Material, change_colors: list = None):
+    def _to_nodes_group(self, blender_material: bpy.types.Material):
         
         # Get options
         e_albedo = Albedo(self._option_value_from_index(0))
@@ -919,12 +921,32 @@ class ShaderTag(Tag):
         
         node_albedo = self._add_group_node(tree, nodes, f"albedo - {utils.game_str(e_albedo.name)}", Vector((node_material_model.location.x - 300, node_material_model.location.y + 500)))
         
-        if e_albedo in {Albedo.FOUR_CHANGE_COLOR, Albedo.FOUR_CHANGE_COLOR_APPLYING_TO_SPECULAR, Albedo.TWO_CHANGE_COLOR} and change_colors:
-            node_albedo.inputs["Primary Color"].default_value = change_colors[0]
-            node_albedo.inputs["Secondary Color"].default_value = change_colors[1]
+        if e_albedo in {Albedo.FOUR_CHANGE_COLOR, Albedo.FOUR_CHANGE_COLOR_APPLYING_TO_SPECULAR, Albedo.TWO_CHANGE_COLOR}:
+            node_cc_primary = nodes.new(type="ShaderNodeAttribute")
+            node_cc_primary.attribute_name = "nwo.cc_primary"
+            node_cc_primary.attribute_type = 'OBJECT'
+            node_cc_primary.location.x = node_albedo.location.x - 300
+            node_cc_primary.location.y = node_albedo.location.y + 200
+            tree.links.new(input=node_albedo.inputs["Primary Color"], output=node_cc_primary.outputs[0])
+            node_cc_secondary = nodes.new(type="ShaderNodeAttribute")
+            node_cc_secondary.attribute_name = "nwo.cc_secondary"
+            node_cc_secondary.attribute_type = 'OBJECT'
+            node_cc_secondary.location.x = node_albedo.location.x - 300
+            node_cc_secondary.location.y = node_albedo.location.y
+            tree.links.new(input=node_albedo.inputs["Secondary Color"], output=node_cc_secondary.outputs[0])
             if e_albedo != Albedo.TWO_CHANGE_COLOR:
-                node_albedo.inputs["Tertiary Color"].default_value = change_colors[2]
-                node_albedo.inputs["Quaternary Color"].default_value = change_colors[3]
+                node_cc_tertiary = nodes.new(type="ShaderNodeAttribute")
+                node_cc_tertiary.attribute_name = "nwo.cc_tertiary"
+                node_cc_tertiary.attribute_type = 'OBJECT'
+                node_cc_tertiary.location.x = node_albedo.location.x - 300
+                node_cc_tertiary.location.y = node_albedo.location.y - 200
+                tree.links.new(input=node_albedo.inputs["Tertiary Color"], output=node_cc_tertiary.outputs[0])
+                node_cc_quaternary = nodes.new(type="ShaderNodeAttribute")
+                node_cc_quaternary.attribute_name = "nwo.cc_quaternary"
+                node_cc_quaternary.attribute_type = 'OBJECT'
+                node_cc_quaternary.location.x = node_albedo.location.x - 300
+                node_cc_quaternary.location.y = node_albedo.location.y - 400
+                tree.links.new(input=node_albedo.inputs["Quaternary Color"], output=node_cc_quaternary.outputs[0])
         
         tree.links.new(input=node_material_model.inputs[0], output=node_albedo.outputs[0])
         if e_material_model.value > 0: # Diffuse only does not have alpha input
@@ -986,37 +1008,13 @@ class ShaderTag(Tag):
         tree.links.new(input=node_output.inputs[0], output=final_node.outputs[0])
 
     def group_set_color(self, tree: bpy.types.NodeTree, node: bpy.types.Node, parameter_name: str):
-        element = self._Element_from_field_value(self.block_parameters, 'parameter name', parameter_name)
-        if element is None:
-            if not self.corinth and self.reference.Path:
-                with ShaderTag(path=self.reference.Path) as shader:
-                    return shader.group_set_color(parameter_name)
-            else:
-                return
-            
-        block_animated_parameters = element.SelectField(self.function_parameters)
-        color_element = self._Element_from_field_value(block_animated_parameters, 'type', 1)
-        if color_element:
-            game_color = color_element.SelectField(self.animated_function).Value.GetColor(0)
-            if game_color.ColorMode == 1: # Is HSV
-                game_color = game_color.ToRgb()
-                
-            color = [game_color.Red, game_color.Green, game_color.Blue, game_color.Alpha]
+        color = self._color_from_parameter_name(parameter_name)
+        if color is not None:
             node.inputs[parameter_name].default_value = color
 
     def group_set_value(self, tree: bpy.types.NodeTree, node: bpy.types.Node, parameter_name: str):
-        element = self._Element_from_field_value(self.block_parameters, 'parameter name', parameter_name)
-        if element is None:
-            if not self.corinth and self.reference.Path:
-                with ShaderTag(path=self.reference.Path) as shader:
-                    return shader.group_set_value(parameter_name)
-            else:
-                return
-            
-        block_animated_parameters = element.SelectField(self.function_parameters)
-        value_element = self._Element_from_field_value(block_animated_parameters, 'type', 0)
-        if value_element:
-            value = value_element.SelectField(self.animated_function).Value.ClampRangeMin
+        value = self._value_from_parameter_name(parameter_name)
+        if value is not None:
             node.inputs[parameter_name].default_value = value
 
     def group_set_flag(self, tree: bpy.types.NodeTree, node: bpy.types.Node, parameter_name: str):
@@ -1041,12 +1039,7 @@ class ShaderTag(Tag):
                 tree.links.new(input=alpha_input, output=last_input_node.outputs[1])
             else:
                 parameter_type = self._parameter_type_from_name(parameter_name)
-                default_bitmap = None
-                if parameter_type == ParameterType.NONE:
-                    default_bitmap = default_parameter_bitmaps.get(parameter_name)
-                    if default_bitmap is None:
-                        last_parameter_name = None
-                        continue
+                parameter_type = ParameterType(shader_parameters.get(parameter_name, -1))
                     
                 match parameter_type:
                     case ParameterType.COLOR | ParameterType.ARGB_COLOR:
@@ -1055,11 +1048,11 @@ class ShaderTag(Tag):
                         self.group_set_value(tree, node, parameter_name)
                     case _:
                         if ".rgb" in input.name:
-                            location, last_input_node = self.group_set_image(tree, node, parameter_name, location, ChannelType.RGB, return_image_node=True, default_bitmap=default_bitmap)
+                            location, last_input_node = self.group_set_image(tree, node, parameter_name, location, ChannelType.RGB, return_image_node=True)
                         elif ".a" in input.name:
-                            location, last_input_node = self.group_set_image(tree, node, parameter_name, location, ChannelType.ALPHA, return_image_node=True, default_bitmap=default_bitmap)
+                            location, last_input_node = self.group_set_image(tree, node, parameter_name, location, ChannelType.ALPHA, return_image_node=True)
                         else:
-                            location, last_input_node = self.group_set_image(tree, node, parameter_name, location, ChannelType.DEFAULT, return_image_node=True, default_bitmap=default_bitmap)
+                            location, last_input_node = self.group_set_image(tree, node, parameter_name, location, ChannelType.DEFAULT, return_image_node=True)
                         
                 last_parameter_name = parameter_name
                 

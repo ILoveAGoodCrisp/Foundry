@@ -35,7 +35,7 @@ class NWO_ShaderToNodes(bpy.types.Operator):
         tag_to_nodes(utils.is_corinth(context), mat, shader_path)
         return {"FINISHED"}
 
-def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str, change_colors=None):
+def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str):
     """Turns a shader/material tag into blender material nodes"""
     if corinth:
         with MaterialTag(path=tag_path) as material:
@@ -45,10 +45,10 @@ def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str, change_c
         match shader_type:
             case 'shader':
                 with ShaderTag(path=tag_path) as shader:
-                    shader.to_nodes(mat, change_colors)
+                    shader.to_nodes(mat)
             case 'shader_decal':
                 with ShaderDecalTag(path=tag_path) as shader:
-                    shader.to_nodes(mat, change_colors)
+                    shader.to_nodes(mat)
             case 'shader_terrain':
                 with ShaderTerrainTag(path=tag_path) as shader:
-                    shader.to_nodes(mat, change_colors)
+                    shader.to_nodes(mat)

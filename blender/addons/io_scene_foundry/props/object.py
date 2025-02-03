@@ -609,6 +609,47 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         min=0.0,
         max=1.0,
     )
+    
+    cc_primary: bpy.props.FloatVectorProperty(
+        name="Change Color Primary",
+        options=set(),
+        description="",
+        size=4,
+        default=(1, 1, 1, 1.0),
+        subtype="COLOR",
+        min=0.0,
+        max=1.0,
+    )
+    cc_secondary: bpy.props.FloatVectorProperty(
+        name="Change Color Secondary",
+        options=set(),
+        description="",
+        size=4,
+        default=(1, 1, 1, 1.0),
+        subtype="COLOR",
+        min=0.0,
+        max=1.0,
+    )
+    cc_tertiary: bpy.props.FloatVectorProperty(
+        name="Change Color Tertiary",
+        options=set(),
+        description="",
+        size=4,
+        default=(1, 1, 1, 1.0),
+        subtype="COLOR",
+        min=0.0,
+        max=1.0,
+    )
+    cc_quaternary: bpy.props.FloatVectorProperty(
+        name="Change Color Quaternary",
+        options=set(),
+        description="",
+        size=4,
+        default=(1, 1, 1, 1.0),
+        subtype="COLOR",
+        min=0.0,
+        max=1.0,
+    )
 
     def fog_clean_tag_path(self, context):
         self["fog_appearance_tag"] = utils.clean_tag_path(
