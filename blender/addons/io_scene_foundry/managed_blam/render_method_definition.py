@@ -33,5 +33,5 @@ class RenderMethodDefinitionTag(Tag):
                     with RenderMethodOptionTag(path=option_path) as render_method_option:
                         defaults.update(render_method_option.read_default_bitmaps())
                         parameter_types.update(render_method_option.read_parameter_types())
-                        
+
         return defaults, parameter_types

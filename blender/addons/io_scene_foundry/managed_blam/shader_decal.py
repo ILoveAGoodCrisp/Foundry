@@ -16,6 +16,9 @@ from .shader import BSDFParameter, ChannelType, ShaderTag
 class ShaderDecalTag(ShaderTag):
     tag_ext = 'shader_decal'
     group_supported = False
+    
+    default_parameter_bitmaps = None
+    shader_parameters = None
 
     def _to_nodes_bsdf(self, blender_material: bpy.types.Material):
         blender_material.use_nodes = True
