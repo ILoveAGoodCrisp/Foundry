@@ -514,7 +514,7 @@ class NWO_Import(bpy.types.Operator):
                                 utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=[existing_armature], actions=imported_animations)
                                 
                             if context.scene.nwo.asset_type in {'model', 'animation'}:
-                                self.context.scene.nwo.active_animation_index = len(context.scene.nwo.animations) - 1
+                                context.scene.nwo.active_animation_index = len(context.scene.nwo.animations) - 1
                     
                 if 'scenario' in importer.extensions:
                     importer.tag_zone_set = self.tag_zone_set
