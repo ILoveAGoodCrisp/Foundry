@@ -1984,6 +1984,16 @@ def get_rig(context=None, return_mutliple=False) -> bpy.types.Object | None | li
         scene_nwo.main_armature = rigs[0]
         return rigs[0]
     
+def get_rig_priortize_active(context=None):
+    if context is None:
+        context = bpy.context
+        
+    if context.object and context.object.type == "ARMATURE":
+        return context.object
+    else:
+        return get_rig(context)
+
+    
 def find_file_in_directory(root_dir, filename) -> str:
     """Finds the first file in the current and sub-directories matching the given filename. If none found, returns an empty string"""
     for root, _, files in os.walk(root_dir):

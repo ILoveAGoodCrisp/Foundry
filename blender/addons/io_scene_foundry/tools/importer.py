@@ -287,11 +287,11 @@ class NWO_Import(bpy.types.Operator):
     )
     tag_collision: bpy.props.BoolProperty(
         name="Import Collision",
-        default=True,
+        default=False,
     )
     tag_physics: bpy.props.BoolProperty(
         name="Import Physics",
-        default=True,
+        default=False,
     )
     tag_animation: bpy.props.BoolProperty(
         name="Import Animations (WIP)",
@@ -370,7 +370,7 @@ class NWO_Import(bpy.types.Operator):
                 scope_list = []
                 if self.scope:
                     scope_list = self.scope.split(',')
-                importer = NWOImporter(context, self.report, filepaths, scope_list)
+                importer = NWOImporter(context, self.report, filepaths, scope_list, tag_animation_filter=self.tag_animation_filter)
                 if 'amf' in importer.extensions and self.amf_okay:
                     amf_module_name = utils.amf_addon_installed()
                     amf_addon_enabled = addon_utils.check(amf_module_name)[0]
@@ -398,7 +398,7 @@ class NWO_Import(bpy.types.Operator):
                     if scene_nwo.main_armature:
                         arm = scene_nwo.main_armature
                     else:
-                        arm = utils.get_rig(context)
+                        arm = utils.get_rig_priortize_active(context)
                         if not arm and jma_files:
                             arm_data = bpy.data.armatures.new('Armature')
                             arm = bpy.data.objects.new('Armature', arm_data)
@@ -431,12 +431,12 @@ class NWO_Import(bpy.types.Operator):
                     importer.tag_collision = self.tag_collision
                     importer.tag_physics = self.tag_physics
                     importer.tag_animation = self.tag_animation
-                    importer.tag_variant = self.tag_variant
+                    importer.tag_variant = self.tag_variant.lower()
                     importer.tag_state = State[self.tag_state].value
                     model_files = importer.sorted_filepaths["model"]
                     existing_armature = None
                     if self.reuse_armature:
-                        existing_armature = utils.get_rig(context)
+                        existing_armature = utils.get_rig_priortize_active(context)
                         if needs_scaling:
                             utils.transform_scene(context, (1 / scale_factor), to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[existing_armature], actions=[])
                             
@@ -451,13 +451,16 @@ class NWO_Import(bpy.types.Operator):
                     importer.tag_markers = self.tag_markers
                     importer.tag_collision = self.tag_collision
                     importer.tag_physics = self.tag_physics
-                    importer.tag_animation = False
+                    importer.tag_animation = self.tag_animation
                     importer.tag_variant = self.tag_variant.lower()
                     importer.tag_state = State[self.tag_state].value
                     object_files = importer.sorted_filepaths["object"]
-                    imported_object_objects = importer.import_object(object_files)
+                    existing_armature = None
+                    if self.reuse_armature:
+                        existing_armature = utils.get_rig_priortize_active(context)
+                    imported_object_objects, imported_animations = importer.import_object(object_files, existing_armature)
                     if needs_scaling:
-                        utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_object_objects, actions=[])
+                        utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_object_objects, actions=imported_animations)
                         
                     imported_objects.extend(imported_object_objects)
                     
@@ -467,7 +470,7 @@ class NWO_Import(bpy.types.Operator):
                     render_model_files = importer.sorted_filepaths["render_model"]
                     existing_armature = None
                     if self.reuse_armature:
-                        existing_armature = utils.get_rig(context)
+                        existing_armature = utils.get_rig_priortize_active(context)
                         if needs_scaling:
                             utils.transform_scene(context, (1 / scale_factor), to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[existing_armature], actions=[])
                     
@@ -487,7 +490,7 @@ class NWO_Import(bpy.types.Operator):
                     if context.object and context.object.type == 'ARMATURE':
                         existing_armature = context.object
                     else:
-                        existing_armature = utils.get_rig(context)
+                        existing_armature = utils.get_rig_priortize_active(context)
                     if existing_armature is None:
                         utils.print_warning("No armature found, cannot import animations. Ensure you have the appropriate armature for this animation graph import and selected")
                     else:
@@ -508,7 +511,7 @@ class NWO_Import(bpy.types.Operator):
                             imported_animations = []
                             for file in animation_files:
                                 print(f'Importing Animation Graph Tag: {Path(file).with_suffix("").name} ')
-                                imported_animations.extend(importer.import_animation_graph(file, existing_armature, full_render_path, self.tag_animation_filter))
+                                imported_animations.extend(importer.import_animation_graph(file, existing_armature, full_render_path))
                                 
                             if needs_scaling:
                                 utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=[existing_armature], actions=imported_animations)
@@ -954,7 +957,7 @@ class JMSMaterialSlot:
 
 
 class NWOImporter:
-    def __init__(self, context, report, filepaths, scope, existing_scene=False):
+    def __init__(self, context, report, filepaths, scope, existing_scene=False, tag_animation_filter=""):
         self.filepaths = filepaths
         self.context = context
         self.report = report
@@ -966,7 +969,7 @@ class NWOImporter:
         self.prefix_setting = utils.get_prefs().apply_prefix
         self.corinth = utils.is_corinth(context)
         self.project = utils.get_project(context.scene.nwo.scene_project)
-        self.arm = utils.get_rig(context)
+        self.arm = utils.get_rig_priortize_active(context)
         self.tag_render = False
         self.tag_markers = False
         self.tag_collision = False
@@ -977,6 +980,7 @@ class NWOImporter:
         self.tag_state = -1
         self.tag_zone_set = ""
         self.tag_bsp_render_only = False
+        self.tag_animation_filter = tag_animation_filter
         self.for_cinematic = context.scene.nwo.asset_type == "cinematic"
         if filepaths:
             self.sorted_filepaths = self.group_filetypes(scope)
@@ -1116,8 +1120,9 @@ class NWOImporter:
         
         return imported_objects, imported_animations
     
-    def import_object(self, paths):
+    def import_object(self, paths, existing_armature):
         imported_objects = []
+        imported_animations = []
         for file in paths:
             print(f'Importing Object Tag: {Path(file).name} ')
             with utils.TagImportMover(self.project.tags_directory, file) as mover:
@@ -1144,7 +1149,7 @@ class NWOImporter:
                             model_collection = bpy.data.collections.new(model.tag_path.ShortName)
                             self.context.scene.collection.children.link(model_collection)
                             if render:
-                                render_objects, armature = self.import_render_model(render, model_collection, None, allowed_region_permutations)
+                                render_objects, armature = self.import_render_model(render, model_collection, existing_armature, allowed_region_permutations)
                                 for ob in render_objects:
                                     ob.nwo.cc_primary = change_colors[0]
                                     ob.nwo.cc_secondary = change_colors[1]
@@ -1158,8 +1163,16 @@ class NWOImporter:
                                         ob.nwo.cinematic_object = scenery.tag_path.RelativePathWithExtension
                                         if temp_variant == self.tag_variant:
                                             ob.nwo.cinematic_variant = temp_variant
+                                            
+                            if collision and self.tag_collision:
+                                imported_objects.extend(self.import_collision_model(collision, armature, model_collection, allowed_region_permutations))
+                            if physics and self.tag_physics:
+                                imported_objects.extend(self.import_physics_model(physics, armature, model_collection, allowed_region_permutations))
+                            if animation and self.tag_animation:
+                                print("Importing Animations")
+                                imported_animations.extend(self.import_animation_graph(animation, armature, render))
                                         
-        return imported_objects
+        return imported_objects, imported_animations
             
     def import_render_model(self, file, model_collection, existing_armature, allowed_region_permutations, skip_print=False):
         if not skip_print:
@@ -1196,9 +1209,9 @@ class NWOImporter:
             
         return physics_model_objects
     
-    def import_animation_graph(self, file, armature, render, filter: str):
+    def import_animation_graph(self, file, armature, render):
         actions = []
-        filter = filter.replace(" ", ":")
+        filter = self.tag_animation_filter.replace(" ", ":")
         with utils.TagImportMover(self.project.tags_directory, file) as mover:
             with AnimationTag(path=mover.tag_path) as graph:
                 actions = graph.to_blender(render, armature, filter)
@@ -2485,11 +2498,11 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     )
     tag_collision: bpy.props.BoolProperty(
         name="Import Collision",
-        default=True,
+        default=False,
     )
     tag_physics: bpy.props.BoolProperty(
         name="Import Physics",
-        default=True,
+        default=False,
     )
     tag_animation: bpy.props.BoolProperty(
         name="Import Animations (WIP)",
@@ -2571,7 +2584,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
             self.tag_bsp_render_only = True
             self.tag_collision = False
             self.tag_physics = False
-            self.tag_animation = False
+            # self.tag_animation = False
             self.tag_state = "default"
             
         if self.import_type == "amf":
