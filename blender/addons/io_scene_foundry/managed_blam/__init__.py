@@ -1,11 +1,13 @@
 from pathlib import Path
 from ..managed_blam.Tags import *
 from ..utils import (
+    any_partition,
     disable_prints,
     dot_partition,
     enable_prints,
     get_asset_path,
     get_data_path,
+    get_prefs,
     get_tags_path,
     linear_to_srgb,
     is_corinth,
@@ -47,7 +49,7 @@ class Tag():
         if hide_prints:
             disable_prints()
         if not mb_active:
-            mb_init()
+            mb_init(path)
             
         # Asset Info
         self.context = bpy.context
@@ -340,10 +342,22 @@ class Tag():
     
     def _GameColor_from_ARGB(self, a, r, g, b):
         return Halo.Game.GameColor.FromArgb(a, linear_to_srgb(r), linear_to_srgb(g), linear_to_srgb(b))
+    
+def switch_project_from_filepath(context, path: Path):
+    root = any_partition(str(path), "\\tags\\").lower()
+    for project in get_prefs().projects:
+        if root == project.project_path.lower():
+            context.scene.nwo.scene_project = project.project_name
+            print(f"Project was changed to {project.project_name} in order to import file: {path}")
+            break
 
-
-def mb_init():
+def mb_init(tag_path=None):
     context = bpy.context
+    # Switch the project if necessary & possible
+    if tag_path:
+        tag_path = Path(tag_path)
+        if tag_path.is_absolute() and tag_path.exists():
+            switch_project_from_filepath(context, tag_path)
     # append the blender python module path to the sys PATH
     packages_path = Path(sys.exec_prefix, "lib", "site-packages")
     sys.path.append(str(packages_path))
