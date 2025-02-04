@@ -134,9 +134,8 @@ class ShaderTag(Tag):
     
     group_supported = True
     
-    default_parameter_bitmaps = None
+    default_parameters = None
     shader_parameters = None
-    
     
     def _read_fields(self):
         self.render_method = self.tag.SelectField("Struct:render_method").Elements[0]
@@ -147,14 +146,14 @@ class ShaderTag(Tag):
     
     @classmethod
     def _get_info(cls, definition_path: TagPath):
-        if cls.default_parameter_bitmaps is None or cls.shader_parameters is None:
+        if cls.default_parameters is None or cls.shader_parameters is None:
             def_path = definition_path
             if def_path is None:
-                cls.default_parameter_bitmaps = {}
+                cls.default_parameters = {}
                 cls.shader_parameters = {}
                 return
             with RenderMethodDefinitionTag(path=def_path) as render_method_definition:
-                cls.default_parameter_bitmaps, cls.shader_parameters = render_method_definition.get_defaults()
+                cls.default_parameters, cls.shader_parameters = render_method_definition.get_defaults()
     
     def write_tag(self, blender_material, linked_to_blender, material_shader=''):
         self.blender_material = blender_material
@@ -453,7 +452,7 @@ class ShaderTag(Tag):
             
     # READING
     def to_nodes(self, blender_material):
-        self._get_info(self.definition.Path)
+        self._get_info(self.reference_material_shader.Path if self.corinth else self.definition.Path)
         if self.group_supported:
             self._to_nodes_group(blender_material)
         else:
@@ -504,7 +503,7 @@ class ShaderTag(Tag):
                 with ShaderTag(path=self.reference.Path) as shader:
                     shader._mapping_from_parameter_name(name, mapping)
         
-    def _image_from_parameter_name(self, name, blue_channel_fix=False):
+    def _image_from_parameter_name(self, name, return_none_if_default=False):
         """Saves an image (or gets the already existing one) from a shader parameter element"""
         bitmap_path = None
         if type(name) == str:
@@ -518,7 +517,9 @@ class ShaderTag(Tag):
                 with ShaderTag(path=self.reference.Path) as shader:
                     return shader._image_from_parameter_name(name)
             else:
-                bitmap_path = self.default_parameter_bitmaps.get(name)
+                if return_none_if_default:
+                    return
+                bitmap_path = self.default_parameters.get(name)
                 if bitmap_path is None:
                     return
         
@@ -532,8 +533,8 @@ class ShaderTag(Tag):
                     if result is not None:
                         return result
                     
-            bitmap_path = self.default_parameter_bitmaps.get(name)
-                
+            if not return_none_if_default:
+                bitmap_path = self.default_parameters.get(name)
                 
         if bitmap_path is None:
             return
@@ -595,7 +596,7 @@ class ShaderTag(Tag):
                 with ShaderTag(path=self.reference.Path) as shader:
                     return shader._color_from_parameter_name(name)
             else:
-                return
+                return self.default_parameters.get(name)
         else:
             block_animated_parameters = element.SelectField(self.function_parameters)
             color_element = self._Element_from_field_value(block_animated_parameters, 'type', 1)
@@ -609,6 +610,8 @@ class ShaderTag(Tag):
                 if not self.corinth and self.reference.Path:
                     with ShaderTag(path=self.reference.Path) as shader:
                         return shader._color_from_parameter_name(name)
+                else:
+                    return self.default_parameters.get(name)
     
     def _value_from_parameter_name(self, name):
         if type(name) == str:
@@ -622,7 +625,7 @@ class ShaderTag(Tag):
                 with ShaderTag(path=self.reference.Path) as shader:
                     return shader._value_from_parameter_name(name)
             else:
-                return
+                return self.default_parameters.get(name)
         else:
             block_animated_parameters = element.SelectField(self.function_parameters)
             value_element = self._Element_from_field_value(block_animated_parameters, 'type', 0)
@@ -632,6 +635,8 @@ class ShaderTag(Tag):
                 if not self.corinth and self.reference.Path:
                     with ShaderTag(path=self.reference.Path) as shader:
                         return shader._value_from_parameter_name(name)
+                else:
+                     self.default_parameters.get(name)
     
     def _set_alpha(self, alpha_type, blender_material):
         if alpha_type == 'blend':
@@ -1094,8 +1099,7 @@ class BSDFParameter:
         
     
     def build(self, vector=Vector((0, 0))):
-        if not (self.data or self.default_value):
-            # print("No data and no default value")
+        if not (self.data or self.default_value) or self.data == self.default_value:
             return
         
         output_index = 0
@@ -1142,7 +1146,6 @@ class BSDFParameter:
                 self.tree.links.new(input=self.main_node.inputs['Emission Color'], output=data_node.outputs[1])
             if self.diffalpha:
                 self.tree.links.new(input=self.main_node.inputs['Alpha'], output=data_node.outputs[1])
-            
             
         if self.mapping:
             mapping_node = self.tree.nodes.new('ShaderNodeGroup')

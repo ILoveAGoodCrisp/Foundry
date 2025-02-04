@@ -31,7 +31,7 @@ class RenderMethodDefinitionTag(Tag):
                 option_path = sub_element.Fields[1].Path
                 if option_path is not None:
                     with RenderMethodOptionTag(path=option_path) as render_method_option:
-                        defaults.update(render_method_option.read_default_bitmaps())
+                        defaults.update(render_method_option.read_defaults())
                         parameter_types.update(render_method_option.read_parameter_types())
 
         return defaults, parameter_types

@@ -4,6 +4,8 @@ import os
 from pathlib import Path
 from mathutils import Vector
 
+from .Tags import TagPath
+
 from .bitmap import BitmapTag
 from .material_shader import MaterialShaderTag
 from .shader import BSDFParameter, ShaderTag
@@ -11,11 +13,6 @@ from .. import utils
 import bpy
 
 from ..constants import MATERIAL_SHADERS_DIR
-
-
-global_material_shader = None
-last_group_node = None
-material_shader_path = ""
 
 class MaterialTag(ShaderTag):
     tag_ext = 'material'
@@ -28,22 +25,24 @@ class MaterialTag(ShaderTag):
     color_parameter_type = 'color'
     group_supported = False
     
+    default_parameters = None
+    shader_parameters = None
+    
     def _read_fields(self):
         self.block_parameters = self.tag.SelectField("Block:material parameters")
         self.reference_material_shader = self.tag.SelectField("Reference:material shader")
         self.alpha_blend_mode = self.tag.SelectField('CharEnum:alpha blend mode')
-        
-    def _get_info(self):
-        global global_material_shader
-        global last_group_node
-        global material_shader_path
-        if not global_material_shader or last_group_node != self.group_node or material_shader_path == "":
-            group_node_name = utils.dot_partition(self.group_node.node_tree.name.lower().replace(' ', '_'))
-            material_shader_path = self._material_shader_path_from_group_node(group_node_name)
-            assert material_shader_path, f"Group node in use for material but no corresponding material shader found. Expected material shader named {group_node_name} in {MATERIAL_SHADERS_DIR} (or sub-folders)"
-            last_group_node = self.group_node
-            with MaterialShaderTag(path=material_shader_path) as material_shader:
-                global_material_shader = material_shader.read_parameters()
+    
+    @classmethod
+    def _get_info(cls, material_shader_path: TagPath):
+        with MaterialShaderTag(path=material_shader_path) as material_shader:
+            cls.default_parameters, cls.shader_parameters = material_shader.get_defaults()
+        # if not cls.global_material_shader or cls.last_group_node != cls.group_node or path == "":
+            # group_node_name = utils.dot_partition(cls.group_node.node_tree.name.lower().replace(' ', '_'))
+            # path = cls._material_shader_path_from_group_node(group_node_name)
+            # assert path, f"Group node in use for material but no corresponding material shader found. Expected material shader named {group_node_name} in {MATERIAL_SHADERS_DIR} (or sub-folders)"
+            # with MaterialShaderTag(path=path) as material_shader:
+            #     cls.material_shader_data[material_shader.tag_path.RelativePath] = material_shader.read_parameters()
 
     def _material_shader_path_from_group_node(self, group_node_name):
         filename = group_node_name + '.material_shader'
@@ -54,7 +53,7 @@ class MaterialTag(ShaderTag):
         inputs = self.group_node.inputs
         cull_chars = " _-()'\""
         for i in inputs:
-            for parameter_name, value in global_material_shader.items():
+            for parameter_name, value in self.global_material_shader.items():
                 d_name, param_type = value
                 parameter_name_culled = utils.remove_chars(parameter_name.lower(), cull_chars)
                 display_name = utils.remove_chars(d_name.lower(), cull_chars)
@@ -69,8 +68,9 @@ class MaterialTag(ShaderTag):
             if element:
                 mapping = self._setup_function_parameters(source, element, param_type)
                 self._finalize_material_parameters(mapping, element)
-            
-        self.reference_material_shader.Path = self._TagPath_from_string(material_shader_path)
+        
+        group_node_name = utils.dot_partition(self.group_node.node_tree.name.lower().replace(' ', '_'))
+        self.reference_material_shader.Path = self._TagPath_from_string(self._material_shader_path_from_group_node(group_node_name))
                 
     def _from_nodes_bsdf(self, map: dict):
         # Set up shader parameters
@@ -266,12 +266,9 @@ class MaterialTag(ShaderTag):
             tree.links.new(input=separate_node.inputs[0], output=control_map_node.outputs[0])
         
         if has_color_map or has_albedo_tint:
-            if 'constant' in material_shader_name and has_albedo_tint:
-                diffuse = BSDFParameter(tree, bsdf, bsdf.inputs[0], 'ShaderNodeRGB', data=self._color_from_parameter_name('albedo_tint'))
-            else:
-                diffuse = BSDFParameter(tree, bsdf, bsdf.inputs[0], 'ShaderNodeTexImage', data=self._image_from_parameter_name('color_map'), mapping=self._mapping_from_parameter_name('color_map'), diffalpha=bool(alpha_type))
-                if not diffuse.data:
-                    diffuse = BSDFParameter(tree, bsdf, bsdf.inputs[0], 'ShaderNodeRGB', data=self._color_from_parameter_name('albedo_tint'))
+            diffuse = BSDFParameter(tree, bsdf, bsdf.inputs[0], 'ShaderNodeTexImage', data=self._image_from_parameter_name('color_map', True), mapping=self._mapping_from_parameter_name('color_map'), diffalpha=bool(alpha_type))
+            if not diffuse.data:
+                diffuse = BSDFParameter(tree, bsdf, bsdf.inputs[0], 'ShaderNodeRGB', data=self._color_from_parameter_name('albedo_tint', True))
                 
         if diffuse and not diffuse.data:
             diffuse = None
@@ -289,7 +286,7 @@ class MaterialTag(ShaderTag):
         elif diffuse and 'diffspec' in material_shader_name and type(diffuse.data) == bpy.types.Image:
             diffuse.special_type = 'diffspec'
         elif has_specular_map:
-            specular = BSDFParameter(tree, bsdf, bsdf.inputs['Specular IOR Level'], 'ShaderNodeTexImage', data=self._image_from_parameter_name('specular_map'), mapping=self._mapping_from_parameter_name('specular_map'))
+            specular = BSDFParameter(tree, bsdf, bsdf.inputs['Specular IOR Level'], 'ShaderNodeTexImage', data=self._image_from_parameter_name('specular_map', True), mapping=self._mapping_from_parameter_name('specular_map'))
             if specular.data:
                 specular.data.colorspace_settings.name = 'Non-Color'
             else:
@@ -302,7 +299,7 @@ class MaterialTag(ShaderTag):
         elif diffuse and 'selfillum' in material_shader_name and type(diffuse.data) == bpy.types.Image:
             diffuse.diffillum = True
         elif has_self_illum_map:
-            self_illum = BSDFParameter(tree, bsdf, bsdf.inputs['Emission Color'], 'ShaderNodeTexImage', data=self._image_from_parameter_name('selfillum_map'), mapping=self._mapping_from_parameter_name('selfillum_map'))
+            self_illum = BSDFParameter(tree, bsdf, bsdf.inputs['Emission Color'], 'ShaderNodeTexImage', data=self._image_from_parameter_name('selfillum_map', True), mapping=self._mapping_from_parameter_name('selfillum_map'))
         else:
             self_illum = None
                 
@@ -316,7 +313,7 @@ class MaterialTag(ShaderTag):
                 
         if alpha_type:
             if has_alpha_map:
-                alpha = BSDFParameter(tree, bsdf, bsdf.inputs['Alpha'], 'ShaderNodeTexImage', data=self._image_from_parameter_name('alpha_mask_map'), mapping=self._mapping_from_parameter_name('alpha_mask_map'))
+                alpha = BSDFParameter(tree, bsdf, bsdf.inputs['Alpha'], 'ShaderNodeTexImage', data=self._image_from_parameter_name('alpha_mask_map', True), mapping=self._mapping_from_parameter_name('alpha_mask_map'))
             else:
                 if diffuse and diffuse.data:
                     diffuse.diffalpha = True
