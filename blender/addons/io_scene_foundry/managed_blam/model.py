@@ -2,9 +2,18 @@
 
 from pathlib import Path
 
+from .Tags import TagFieldBlockElement, TagPath
+
 from .render_model import RenderModelTag
 
 from ..managed_blam import Tag
+
+class ChildObject:
+    def __init__(self, element: TagFieldBlockElement):
+        self.parent_marker: str = element.Fields[0].GetStringData()
+        self.child_marker: str = element.Fields[1].GetStringData()
+        self.child_variant_name: str = element.Fields[2].GetStringData()
+        self.child_object: TagPath | None = element.Fields[3].Path
 
 class ModelTag(Tag):
     tag_ext = 'model'
@@ -111,6 +120,20 @@ class ModelTag(Tag):
         if info_field.Path != info_tag_path:
             info_field.Path = info_tag_path
             self.tag_has_changes = True
+            
+    def get_variant_children(self, variant: str) -> list[ChildObject]:
+        objects = []
+        if not variant:
+            return objects
+        
+        for element in self.block_variants.Elements:
+            if element.Fields[0].GetStringData() != variant:
+                continue
+            block_objects = element.SelectField("Block:objects")
+            for sub_element in block_objects.Elements:
+                objects.append(ChildObject(sub_element))
+                
+        return objects
             
     def get_variant_regions_and_permutations(self, variant: str, state: int):
         region_permutations = set()

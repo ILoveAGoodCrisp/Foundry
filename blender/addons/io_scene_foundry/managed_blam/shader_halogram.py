@@ -74,7 +74,6 @@ class ShaderHalogramTag(ShaderTag):
         nodes.clear()
         
         node_albedo = self._add_group_node(tree, nodes, f"albedo - {utils.game_str(e_albedo.name)}", Vector((0, 0)))
-        final_albedo_node = node_albedo
         final_node = node_albedo
         
         if e_albedo in {Albedo.FOUR_CHANGE_COLOR, Albedo.TWO_CHANGE_COLOR}:
@@ -107,26 +106,22 @@ class ShaderHalogramTag(ShaderTag):
         
         if e_self_illumination.value > 0:
             node_self_illumination = self._add_group_node(tree, nodes, f"self_illumination - {utils.game_str(e_self_illumination.name)}", Vector((final_node.location.x + 300, final_node.location.y - 200)))
-            final_illum_node = node_self_illumination
-            
+            final_node = node_self_illumination
+            node_illum_add = nodes.new(type='ShaderNodeAddShader')
+            tree.links.new(input=node_illum_add.inputs[0], output=node_albedo.outputs[0])
+            tree.links.new(input=node_illum_add.inputs[1], output=node_self_illumination.outputs[0])
             uses_overlay = e_overlay.value > 0
             uses_edge_fade = e_edge_fade.value > 0
             
             if uses_overlay:
                 node_overlay = self._add_group_node(tree, nodes, f"shader_halogram overlay - {utils.game_str(e_overlay.name)}", Vector((final_node.location.x + 300, final_node.location.y - 200)))
-                tree.links.new(input=node_overlay.inputs[0], output=node_albedo.outputs[0])
-                final_albedo_node = node_overlay
+                tree.links.new(input=node_overlay.inputs[0], output=node_illum_add.outputs[0])
+                final_node = node_overlay
                 
             if uses_edge_fade:
                 node_edge_fade = self._add_group_node(tree, nodes, f"shader_halogram edge_fade - {utils.game_str(e_edge_fade.name)}", Vector((final_node.location.x + 300, final_node.location.y - 200)))
-                tree.links.new(input=node_edge_fade.inputs[0], output=node_self_illumination.outputs[0])
-                final_illum_node = node_edge_fade
-                
-            node_overlay_add = nodes.new(type='ShaderNodeAddShader')
-            tree.links.new(input=node_overlay_add.inputs[0], output=final_albedo_node.outputs[0])
-            tree.links.new(input=node_overlay_add.inputs[1], output=final_illum_node.outputs[0])
-            final_node = node_overlay_add
-            
+                tree.links.new(input=node_edge_fade.inputs[0], output=final_node.outputs[0])
+                final_node = node_edge_fade
             
         if e_blend_mode != BlendMode.OPAQUE:
             blender_material.surface_render_method = 'BLENDED'

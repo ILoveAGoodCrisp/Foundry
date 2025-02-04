@@ -19,7 +19,7 @@ from ..managed_blam.scenario import ScenarioTag
 from ..managed_blam.animation import AnimationTag
 from ..managed_blam.render_model import RenderModelTag
 from ..managed_blam.physics_model import PhysicsTag
-from ..managed_blam.model import ModelTag
+from ..managed_blam.model import ChildObject, ModelTag
 from ..tools.mesh_to_marker import convert_to_marker
 from ..managed_blam.bitmap import BitmapTag
 from ..managed_blam.camera_track import CameraTrackTag
@@ -305,6 +305,8 @@ class NWO_Import(bpy.types.Operator):
         description="Optional field to declare a variant to import. If this field is left blank, all variants will be imported (except if this is for a cinematic, in which case the first variant will be used)"
     )
     
+    import_variant_children: bpy.props.BoolProperty()
+    
     tag_state: bpy.props.EnumProperty(
         name="Model State",
         description="The damage state to import. Only valid when a variant is set",
@@ -370,7 +372,7 @@ class NWO_Import(bpy.types.Operator):
                 scope_list = []
                 if self.scope:
                     scope_list = self.scope.split(',')
-                importer = NWOImporter(context, self.report, filepaths, scope_list, tag_animation_filter=self.tag_animation_filter)
+                importer = NWOImporter(context, self.report, filepaths, scope_list)
                 if 'amf' in importer.extensions and self.amf_okay:
                     amf_module_name = utils.amf_addon_installed()
                     amf_addon_enabled = addon_utils.check(amf_module_name)[0]
@@ -433,6 +435,7 @@ class NWO_Import(bpy.types.Operator):
                     importer.tag_animation = self.tag_animation
                     importer.tag_variant = self.tag_variant.lower()
                     importer.tag_state = State[self.tag_state].value
+                    importer.tag_animation_filter = self.tag_animation_filter
                     model_files = importer.sorted_filepaths["model"]
                     existing_armature = None
                     if self.reuse_armature:
@@ -454,6 +457,7 @@ class NWO_Import(bpy.types.Operator):
                     importer.tag_animation = self.tag_animation
                     importer.tag_variant = self.tag_variant.lower()
                     importer.tag_state = State[self.tag_state].value
+                    importer.tag_animation_filter = self.tag_animation_filter
                     object_files = importer.sorted_filepaths["object"]
                     existing_armature = None
                     if self.reuse_armature:
@@ -957,7 +961,7 @@ class JMSMaterialSlot:
 
 
 class NWOImporter:
-    def __init__(self, context, report, filepaths, scope, existing_scene=False, tag_animation_filter=""):
+    def __init__(self, context, report, filepaths, scope, existing_scene=False):
         self.filepaths = filepaths
         self.context = context
         self.report = report
@@ -980,7 +984,8 @@ class NWOImporter:
         self.tag_state = -1
         self.tag_zone_set = ""
         self.tag_bsp_render_only = False
-        self.tag_animation_filter = tag_animation_filter
+        self.tag_animation_filter = ""
+        self.import_variant_children = False
         self.for_cinematic = context.scene.nwo.asset_type == "cinematic"
         if filepaths:
             self.sorted_filepaths = self.group_filetypes(scope)
@@ -1171,8 +1176,14 @@ class NWOImporter:
                             if animation and self.tag_animation:
                                 print("Importing Animations")
                                 imported_animations.extend(self.import_animation_graph(animation, armature, render))
+                                
+                            if self.import_variant_children:
+                                child_objects = model.get_variant_children(temp_variant)
                                         
         return imported_objects, imported_animations
+    
+    def import_child_object(self, child_object: ChildObject):
+        pass
             
     def import_render_model(self, file, model_collection, existing_armature, allowed_region_permutations, skip_print=False):
         if not skip_print:
