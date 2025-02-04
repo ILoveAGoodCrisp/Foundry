@@ -268,7 +268,7 @@ class MaterialTag(ShaderTag):
         if has_color_map or has_albedo_tint:
             diffuse = BSDFParameter(tree, bsdf, bsdf.inputs[0], 'ShaderNodeTexImage', data=self._image_from_parameter_name('color_map', True), mapping=self._mapping_from_parameter_name('color_map'), diffalpha=bool(alpha_type))
             if not diffuse.data:
-                diffuse = BSDFParameter(tree, bsdf, bsdf.inputs[0], 'ShaderNodeRGB', data=self._color_from_parameter_name('albedo_tint', True))
+                diffuse = BSDFParameter(tree, bsdf, bsdf.inputs[0], 'ShaderNodeRGB', data=self._color_from_parameter_name('albedo_tint'))
                 
         if diffuse and not diffuse.data:
             diffuse = None
