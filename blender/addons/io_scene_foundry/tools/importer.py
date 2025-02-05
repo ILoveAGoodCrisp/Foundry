@@ -28,7 +28,7 @@ from ..tools.clear_duplicate_materials import clear_duplicate_materials
 from ..tools.property_apply import apply_props_material
 from ..tools.shader_finder import find_shaders
 from ..tools.shader_reader import tag_to_nodes
-from ..constants import VALID_MESHES
+from ..constants import VALID_MESHES, game_functions
 from .. import utils
 
 pose_hints = 'aim', 'look', 'acc', 'steer', 'pain'
@@ -82,6 +82,11 @@ object_tag_types = (
 )
 
 tag_files_cache = set()
+
+def add_function(name: str, ob: bpy.types.Object):
+    function = game_functions.get(name)
+    if function is not None:
+        function.setup(ob)
 
 class State(Enum):
     all_states = -1
@@ -490,6 +495,7 @@ class NWO_Import(bpy.types.Operator):
                     imported_objects.extend(imported_render_objects)
                     
                 elif 'animation' in importer.extensions:
+                    context.scene.render.fps = 30
                     animation_files = importer.sorted_filepaths['animation']
                     if context.object and context.object.type == 'ARMATURE':
                         existing_armature = context.object
@@ -589,15 +595,27 @@ class NWO_Import(bpy.types.Operator):
                         find_shaders(new_materials)
                             
                 if self.build_blender_materials:
+                    mat_function_map = {}
                     if utils.is_corinth(context):
                         print('Building Blender materials from material tags')
                     else:
                         print('Building Blender materials from shader tags')
                     # with utils.MutePrints():
                     for mat in new_materials:
+                        if not mat.users:
+                            bpy.data.materials.remove(mat)
+                            continue
                         shader_path = mat.nwo.shader_path
                         if shader_path:
-                            tag_to_nodes(corinth, mat, shader_path)
+                            mat_function_map[mat] = tag_to_nodes(corinth, mat, shader_path)
+                            
+                    for ob in imported_objects:
+                        for slot in ob.material_slots:
+                            if slot.material:
+                                functions = mat_function_map.get(slot.material)
+                                if functions is not None:
+                                    for func in functions:
+                                        add_function(func, ob)
                         
                 if 'bitmap' in importer.extensions:
                     bitmap_files = importer.sorted_filepaths["bitmap"]
@@ -1155,12 +1173,6 @@ class NWOImporter:
                             self.context.scene.collection.children.link(model_collection)
                             if render:
                                 render_objects, armature = self.import_render_model(render, model_collection, existing_armature, allowed_region_permutations)
-                                for ob in render_objects:
-                                    ob.nwo.cc_primary = change_colors[0]
-                                    ob.nwo.cc_secondary = change_colors[1]
-                                    ob.nwo.cc_tertiary = change_colors[2]
-                                    ob.nwo.cc_quaternary = change_colors[3]
-                                    
                                 imported_objects.extend(render_objects)
                                 for ob in render_objects:
                                     if ob.type == 'ARMATURE':
@@ -1168,6 +1180,11 @@ class NWOImporter:
                                         ob.nwo.cinematic_object = scenery.tag_path.RelativePathWithExtension
                                         if temp_variant == self.tag_variant:
                                             ob.nwo.cinematic_variant = temp_variant
+                                    
+                                    ob["change_color_primary"] = change_colors[0]
+                                    ob["change_color_secondary"] = change_colors[1]
+                                    ob["change_color_tertiary"] = change_colors[2]
+                                    ob["change_color_quaternary"] = change_colors[3]
                                             
                             if collision and self.tag_collision:
                                 imported_objects.extend(self.import_collision_model(collision, armature, model_collection, allowed_region_permutations))

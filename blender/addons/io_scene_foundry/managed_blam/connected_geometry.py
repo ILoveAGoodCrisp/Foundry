@@ -450,6 +450,10 @@ class Permutation:
         for i in range(31):
             if flags_3.TestBit(str(i)):
                 self.instance_indices.append(i + 64)
+        flags_4 = element.SelectField("instance mask 96-127")
+        for i in range(31):
+            if flags_4.TestBit(str(i)):
+                self.instance_indices.append(i + 96)
     
 class Region:
     index: int

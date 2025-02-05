@@ -2,6 +2,7 @@
 # Mesh types which support render properties
 from dataclasses import dataclass
 from enum import Enum, auto
+import random
 
 from mathutils import Matrix
 
@@ -198,3 +199,33 @@ WU_SCALAR = 0.328084
 class GameVersion(Enum):
     REACH = 0
     CORINTH = 1
+    
+class GameFunctionType(Enum):
+    OBJECT = 0
+    WORLD = 1
+    CONSTANT = 2
+    
+class GameFunction:
+    def __init__(self, name: str, default_value: float, function_type: GameFunctionType):
+        self.name = name
+        self.default_value = default_value
+        self.function_type = function_type
+        
+    def setup(self, ob=None):
+        return
+        match self.function_type:
+            case GameFunctionType.OBJECT:
+                ob[self.name] = self.default_value
+    
+    
+# GAME FUNCTION DEFAULTS
+functions_list = [
+    # OBJECT
+    GameFunction("change_color_primary", tuple((1, 1, 1, 1)), GameFunctionType.OBJECT),
+    GameFunction("change_color_secondary", tuple((1, 1, 1, 1)), GameFunctionType.OBJECT),
+    GameFunction("change_color_tertiary", tuple((1, 1, 1, 1)), GameFunctionType.OBJECT),
+    GameFunction("change_color_quaternary", tuple((1, 1, 1, 1)), GameFunctionType.OBJECT),
+    GameFunction("zero", 0, GameFunctionType.CONSTANT),
+]
+
+game_functions = {func.name: func for func in functions_list}

@@ -150,7 +150,6 @@ class RenderModelTag(Tag):
         mesh_node_map = self.tag.SelectField("Struct:render geometry[0]/Block:per mesh node map")
         
         valid_instance_indexes = set() if allowed_region_permutations else None
-        
         for region in self.regions:
             for permutation in region.permutations:
                 if allowed_region_permutations:

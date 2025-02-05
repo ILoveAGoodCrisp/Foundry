@@ -78,44 +78,49 @@ class ShaderHalogramTag(ShaderTag):
         
         if e_albedo in {Albedo.FOUR_CHANGE_COLOR, Albedo.TWO_CHANGE_COLOR}:
             node_cc_primary = nodes.new(type="ShaderNodeAttribute")
-            node_cc_primary.attribute_name = "nwo.cc_primary"
-            node_cc_primary.attribute_type = 'OBJECT'
+            node_cc_primary.attribute_name = "change_color_primary"
+            node_cc_primary.attribute_type = 'INSTANCER'
             node_cc_primary.location.x = node_albedo.location.x - 300
             node_cc_primary.location.y = node_albedo.location.y + 200
             tree.links.new(input=node_albedo.inputs["Primary Color"], output=node_cc_primary.outputs[0])
+            self.game_functions.add("change_color_primary")
             node_cc_secondary = nodes.new(type="ShaderNodeAttribute")
-            node_cc_secondary.attribute_name = "nwo.cc_secondary"
-            node_cc_secondary.attribute_type = 'OBJECT'
+            node_cc_secondary.attribute_name = "change_color_secondary"
+            node_cc_secondary.attribute_type = 'INSTANCER'
             node_cc_secondary.location.x = node_albedo.location.x - 300
             node_cc_secondary.location.y = node_albedo.location.y
             tree.links.new(input=node_albedo.inputs["Secondary Color"], output=node_cc_secondary.outputs[0])
+            self.game_functions.add("change_color_secondary")
             if e_albedo != Albedo.TWO_CHANGE_COLOR:
                 node_cc_tertiary = nodes.new(type="ShaderNodeAttribute")
-                node_cc_tertiary.attribute_name = "nwo.cc_tertiary"
-                node_cc_tertiary.attribute_type = 'OBJECT'
+                node_cc_tertiary.attribute_name = "change_color_tertiary"
+                node_cc_tertiary.attribute_type = 'INSTANCER'
                 node_cc_tertiary.location.x = node_albedo.location.x - 300
                 node_cc_tertiary.location.y = node_albedo.location.y - 200
                 tree.links.new(input=node_albedo.inputs["Tertiary Color"], output=node_cc_tertiary.outputs[0])
+                self.game_functions.add("change_color_tertiary")
                 node_cc_quaternary = nodes.new(type="ShaderNodeAttribute")
-                node_cc_quaternary.attribute_name = "nwo.cc_quaternary"
-                node_cc_quaternary.attribute_type = 'OBJECT'
+                node_cc_quaternary.attribute_name = "change_color_quaternary"
+                node_cc_quaternary.attribute_type = 'INSTANCER'
                 node_cc_quaternary.location.x = node_albedo.location.x - 300
                 node_cc_quaternary.location.y = node_albedo.location.y - 400
                 tree.links.new(input=node_albedo.inputs["Quaternary Color"], output=node_cc_quaternary.outputs[0])
+                self.game_functions.add("change_color_quaternary")
         
         
         if e_self_illumination.value > 0:
             node_self_illumination = self._add_group_node(tree, nodes, f"self_illumination - {utils.game_str(e_self_illumination.name)}", Vector((final_node.location.x + 300, final_node.location.y - 200)))
             final_node = node_self_illumination
-            node_illum_add = nodes.new(type='ShaderNodeAddShader')
-            tree.links.new(input=node_illum_add.inputs[0], output=node_albedo.outputs[0])
-            tree.links.new(input=node_illum_add.inputs[1], output=node_self_illumination.outputs[0])
+            node_albedo_illum_add = nodes.new(type='ShaderNodeMix')
+            node_albedo_illum_add.data_type = 'RGBA'
+            tree.links.new(input=node_albedo_illum_add.inputs[6], output=node_albedo.outputs[0])
+            tree.links.new(input=node_albedo_illum_add.inputs[7], output=node_self_illumination.outputs[0])
             uses_overlay = e_overlay.value > 0
             uses_edge_fade = e_edge_fade.value > 0
             
             if uses_overlay:
                 node_overlay = self._add_group_node(tree, nodes, f"shader_halogram overlay - {utils.game_str(e_overlay.name)}", Vector((final_node.location.x + 300, final_node.location.y - 200)))
-                tree.links.new(input=node_overlay.inputs[0], output=node_illum_add.outputs[0])
+                tree.links.new(input=node_overlay.inputs[0], output=node_albedo_illum_add.outputs[2])
                 final_node = node_overlay
                 
             if uses_edge_fade:
@@ -126,6 +131,7 @@ class ShaderHalogramTag(ShaderTag):
         if e_blend_mode != BlendMode.OPAQUE:
             blender_material.surface_render_method = 'BLENDED'
             node_blend_mode = self._add_group_node(tree, nodes, f"blend_mode - {utils.game_str(e_blend_mode.name)}", Vector((final_node.location.x + 300, final_node.location.y)))
+            node_blend_mode.inputs["material is two-sided"].default_value = True
             tree.links.new(input=node_blend_mode.inputs[0], output=final_node.outputs[0])
             final_node = node_blend_mode
             if e_blend_mode == BlendMode.ALPHA_BLEND:

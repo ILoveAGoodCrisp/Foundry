@@ -70,6 +70,10 @@ class ShaderDecalTag(ShaderTag):
         # e_parallax = Parallax(self._option_value_from_index(6))
         # e_interier = Interier(self._option_value_from_index(7))
         
+        if e_albedo in {Albedo.EMBLEM_CHANGE_COLOR, Albedo.DIFFUSE_PLUS_ALPHA_MASK, Albedo.VECTOR_ALPHA, Albedo.VECTOR_ALPHA_DROP_SHADOW, Albedo.PATCHY_EMBLEM}:
+            utils.print_warning(f"Albedo not supported: {e_albedo.name}. Using {Albedo.DIFFUSE_ONLY.name}")
+            e_albedo = Albedo.DIFFUSE_ONLY
+        
         blender_material.use_nodes = True
         tree = blender_material.node_tree
         nodes = tree.nodes

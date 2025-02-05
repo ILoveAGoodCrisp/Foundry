@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+from .. import utils
+
 from .model import ModelTag
 from . import Tag
 

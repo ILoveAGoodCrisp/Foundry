@@ -6,7 +6,7 @@ from mathutils import Vector
 
 from ..constants import NormalType
 from ..managed_blam import Tag
-from ..managed_blam.Tags import TagPath, TagsNameSpace
+from ..managed_blam.Tags import TagFieldBlockElement, TagPath, TagsNameSpace
 import os
 from ..managed_blam.bitmap import BitmapTag
 from ..tools.export_bitmaps import export_bitmap
@@ -119,6 +119,141 @@ class AlphaBlendSource(Enum):
     FROM_OPACITY_MAP_ALPHA = 2
     FROM_OPACITY_MAP_RGB = 3
     FROM_OPACITY_MAP_ALPHA_AND_ALBEDO_ALPHA = 4
+    
+class FunctionEditorColorGraphType(Enum):
+    Scalar = 0
+    OneColor = 1
+    TwoColor = 2
+    ThreeColor = 3
+    FourColor = 4
+    
+class FunctionEditorMasterType(Enum):
+    Basic = 0
+    Curve = 1
+    Periodic = 2
+    Exponent = 3
+    Transition = 4
+    
+class FunctionEdiotSegmentCornerType(Enum):
+    NotApplicable = 0
+    Corner = 1
+    Smooth = 2
+    
+class FunctionEditorSegmentType(Enum):
+    Linear = 0
+    Spline = 1
+    Spline2 = 2
+    
+class FunctionEditorPeriodicType(Enum):
+    One = 0
+    Zero = 1
+    Cosine = 2
+    CosineVariable = 3
+    DiagonalWave = 4
+    DiagonalWaveVariable = 5
+    Slide = 6
+    SlideVariable = 7
+    Noise = 8
+    Jitter = 9
+    Wander = 10
+    Spark = 11
+    
+class FunctionEditorTransitionType(Enum):
+    Linear = 0
+    Early = 1
+    VeryEarly = 2
+    Late = 3
+    VeryLate = 4
+    Cosine = 5
+    One = 6
+    Zero = 7
+    
+class AnimatedParameterType(Enum):
+    VALUE = 0
+    COLOR = 1
+    SCALE_UNIFORM = 2
+    SCALE_X = 3
+    SCALE_Y = 4
+    TRANSLATION_X = 5
+    TRANSLATION_Y = 6
+    FRAME_INDEX = 7
+    ALPHA = 8
+    
+class AnimatedParameter:
+    def __init__(self):
+        self.time_period = 0.0
+        self.input = ""
+        self.range = ""
+        self.is_ranged = False
+        self.master_type = FunctionEditorMasterType.Basic
+        self.color_type = FunctionEditorColorGraphType.Scalar
+        self.color_count = 1
+        self.input_periodic_function = FunctionEditorPeriodicType.One
+        self.range_period_function = FunctionEditorPeriodicType.One
+        self.input_transition_function_ = FunctionEditorTransitionType.Linear
+        self.range_transition_function = FunctionEditorTransitionType.Linear
+        self.input_frequency = 0
+        self.range_frequency = 0
+        self.input_phase = 0
+        self.range_phase = 0
+        self.input_exponent = 5
+        self.range_exponent = 5
+        self.input_min = 0
+        self.input_max = 1
+        self.range_min = 0
+        self.range_max = 1
+        self.colors = [tuple((1, 1, 1)), tuple((1, 1, 1)), tuple((1, 1, 1)), tuple((1, 1, 1))]
+    
+    def from_element(self, element: TagFieldBlockElement, animated_name: str):
+        self.time_period = element.SelectField("time period").Data
+        self.input = element.SelectField("input name").GetStringData()
+        self.range = element.SelectField("range name").GetStringData()
+        editor = element.SelectField(animated_name).Value
+        self.is_ranged = editor.IsRanged
+        self.master_type = FunctionEditorMasterType(editor.MasterType.value__)
+        self.color_type = FunctionEditorColorGraphType(editor.ColorGraphType.value__)
+        self.color_count = editor.ColorCount
+        match self.master_type:
+            case FunctionEditorMasterType.Periodic:
+                self.input_frequency = editor.GetFrequency(0)
+                self.input_phase = editor.GetPhase(0)
+                self.input_min = editor.GetAmplitudeMin(0)
+                self.input_max = editor.GetAmplitudeMin(0)
+                if self.is_ranged:
+                    self.range_frequency = editor.GetFrequency(1)
+                    self.range_phase = editor.GetPhase(1)
+                    self.range_min = editor.GetAmplitudeMin(1)
+                    self.range_max = editor.GetAmplitudeMin(1)
+            case FunctionEditorMasterType.Exponent:
+                self.input_exponent = editor.GetExponent(0)
+                self.input_min = editor.GetAmplitudeMin(0)
+                self.input_max = editor.GetAmplitudeMin(0)
+                if self.is_ranged:
+                    self.range_exponent = editor.GetExponent(1)
+                    self.range_min = editor.GetAmplitudeMin(1)
+                    self.range_max = editor.GetAmplitudeMin(1)
+            case FunctionEditorMasterType.Transition:
+                self.input_min = editor.GetAmplitudeMin(0)
+                self.input_max = editor.GetAmplitudeMin(0)
+                if self.is_ranged:
+                    self.range_min = editor.GetAmplitudeMin(1)
+                    self.range_max = editor.GetAmplitudeMin(1)
+                    
+        for i in range(self.color_count):
+            game_color = editor.GetColor()
+            if game_color.ColorMode == 1:
+                game_color = game_color.ToRgb()
+            
+            self.colors[i] = game_color.Red, game_color.Green, game_color.Blue
+            
+    
+    def to_element(self, element: TagFieldBlockElement):
+        element.SelectField("time period").Data = self.time_period
+        editor = element.SelectField(self.animated_function).Value
+        editor.BeginUpdate()
+        # Do stuff
+        editor.EndUpdate()
+        
 
 class ShaderTag(Tag):
     tag_ext = 'shader'
@@ -452,6 +587,7 @@ class ShaderTag(Tag):
             
     # READING
     def to_nodes(self, blender_material):
+        self.game_functions = set()
         self._get_info(self.reference_material_shader.Path if self.corinth else self.definition.Path)
         if self.group_supported:
             self._to_nodes_group(blender_material)
@@ -485,19 +621,10 @@ class ShaderTag(Tag):
         else:
             block_animated_parameters = element.SelectField(self.function_parameters)
             for e in block_animated_parameters.Elements:
-                f_type = e.Fields[0].Value
-                value = e.SelectField(self.animated_function).Value
-                match f_type:
-                    case 2:
-                        mapping['scale_uni'] = value.ClampRangeMin
-                    case 3:
-                        mapping['scale_x'] = value.ClampRangeMin
-                    case 4:
-                        mapping['scale_y'] = value.ClampRangeMin
-                    case 5:
-                        mapping['offset_x'] = value.ClampRangeMin
-                    case 6:
-                        mapping['offset_y'] = value.ClampRangeMin
+                ap_type = AnimatedParameterType(e.Fields[0].Value)
+                ap = AnimatedParameter()
+                ap.from_element(e, self.animated_function)
+                mapping[ap_type] = ap
                     
             if not self.corinth and self.reference.Path:
                 with ShaderTag(path=self.reference.Path) as shader:
@@ -546,6 +673,7 @@ class ShaderTag(Tag):
         alt_system_tiff_path = system_tiff_path.with_suffix(".tif")
         with BitmapTag(path=bitmap_path) as bitmap:
             is_non_color = bitmap.is_linear()
+            for_normal = bitmap.used_as_normal_map()
             # print(f"Writing Tiff from {bitmap.tag_path.RelativePathWithExtension}")
             # image_path = bitmap.save_to_tiff(bitmap.used_as_normal_map())
             if system_tiff_path.exists():
@@ -556,7 +684,7 @@ class ShaderTag(Tag):
                 image_path = bitmap.save_to_tiff(bitmap.used_as_normal_map())
 
             image = bpy.data.images.load(filepath=image_path, check_existing=True)
-            if is_non_color:
+            if for_normal:
                 image.colorspace_settings.name = 'Non-Color'
             else:
                 image.alpha_mode = 'CHANNEL_PACKED'
@@ -816,15 +944,15 @@ class ShaderTag(Tag):
             mapping_node.node_tree = utils.add_node_from_resources("shared_nodes", 'Texture Tiling')
             mapping_node.location.x = data_node.location.x - 300
             mapping_node.location.y = data_node.location.y
-            scale_uni = mapping.get('scale_uni')
+            scale_uni = mapping.get(AnimatedParameterType.SCALE_UNIFORM)
             if scale_uni is not None:
-                mapping_node.inputs[0].default_value = scale_uni
-            scale_x = mapping.get('scale_x')
+                self._set_input_from_animated_parameter(tree, mapping_node.inputs[2], scale_uni)
+            scale_x = mapping.get(AnimatedParameterType.SCALE_X)
             if scale_x is not None:
-                mapping_node.inputs[1].default_value = scale_x
-            scale_y = mapping.get('scale_y')
+                self._set_input_from_animated_parameter(tree, mapping_node.inputs[3], scale_x)
+            scale_y = mapping.get(AnimatedParameterType.SCALE_Y)
             if scale_y is not None:
-                mapping_node.inputs[2].default_value = scale_y
+                self._set_input_from_animated_parameter(tree, mapping_node.inputs[4], scale_y)
                 
             tree.links.new(input=data_node.inputs[0], output=mapping_node.outputs[0])
                     
@@ -834,6 +962,19 @@ class ShaderTag(Tag):
         if return_image_node:
             return vector, data_node
         return vector
+    
+    def _set_input_from_animated_parameter(self, tree: bpy.types.NodeTree, input, ap: AnimatedParameter):
+        match ap.master_type:
+            case FunctionEditorMasterType.Basic:
+                if ap.color_type != FunctionEditorColorGraphType.Scalar:
+                    input.default_value = ap.colors[0]
+                else:
+                    input.default_value = ap.input_min
+            case FunctionEditorMasterType.Curve:
+                # I'm scared
+                pass
+            case FunctionEditorMasterType.Periodic:
+                pass
     
     def _add_group_node(self, tree: bpy.types.NodeTree, nodes: bpy.types.Nodes, name: str, location: Vector) -> bpy.types.Node:
         node = nodes.new(type='ShaderNodeGroup')
@@ -886,7 +1027,6 @@ class ShaderTag(Tag):
         return node_material_model
     
     def _to_nodes_group(self, blender_material: bpy.types.Material):
-        
         # Get options
         e_albedo = Albedo(self._option_value_from_index(0))
         e_bump_mapping = BumpMapping(self._option_value_from_index(1))
@@ -923,38 +1063,47 @@ class ShaderTag(Tag):
         nodes.clear()
         
         has_bump = e_bump_mapping.value > 0
-        
-        node_material_model = self._add_group_material_model(tree, nodes, utils.game_str(e_material_model.name), Vector((0, 0)), e_material_model.value > 0, e_material_model == MaterialModel.COOK_TORRANCE)
+        mm_supports_glancing_spec = e_material_model.value > 0
+        node_material_model = self._add_group_material_model(tree, nodes, utils.game_str(e_material_model.name), Vector((0, 0)), mm_supports_glancing_spec, e_material_model == MaterialModel.COOK_TORRANCE)
         final_node = node_material_model
         
         node_albedo = self._add_group_node(tree, nodes, f"albedo - {utils.game_str(e_albedo.name)}", Vector((node_material_model.location.x - 300, node_material_model.location.y + 500)))
         
+        if e_albedo == Albedo.FOUR_CHANGE_COLOR_APPLYING_TO_SPECULAR and mm_supports_glancing_spec:
+            tree.links.new(input=node_material_model.inputs["glancing_specular_color"], output=node_albedo.outputs["glancing_specular_color"])
+            tree.links.new(input=node_material_model.inputs["normal_specular_color"], output=node_albedo.outputs["normal_specular_color"])
+        
         if e_albedo in {Albedo.FOUR_CHANGE_COLOR, Albedo.FOUR_CHANGE_COLOR_APPLYING_TO_SPECULAR, Albedo.TWO_CHANGE_COLOR}:
             node_cc_primary = nodes.new(type="ShaderNodeAttribute")
-            node_cc_primary.attribute_name = "nwo.cc_primary"
-            node_cc_primary.attribute_type = 'OBJECT'
+            node_cc_primary.attribute_name = "change_color_primary"
+            node_cc_primary.attribute_type = 'INSTANCER'
             node_cc_primary.location.x = node_albedo.location.x - 300
             node_cc_primary.location.y = node_albedo.location.y + 200
             tree.links.new(input=node_albedo.inputs["Primary Color"], output=node_cc_primary.outputs[0])
+            self.game_functions.add("change_color_primary")
             node_cc_secondary = nodes.new(type="ShaderNodeAttribute")
-            node_cc_secondary.attribute_name = "nwo.cc_secondary"
-            node_cc_secondary.attribute_type = 'OBJECT'
+            node_cc_secondary.attribute_name = "change_color_secondary"
+            node_cc_secondary.attribute_type = 'INSTANCER'
             node_cc_secondary.location.x = node_albedo.location.x - 300
             node_cc_secondary.location.y = node_albedo.location.y
             tree.links.new(input=node_albedo.inputs["Secondary Color"], output=node_cc_secondary.outputs[0])
+            self.game_functions.add("change_color_secondary")
+
             if e_albedo != Albedo.TWO_CHANGE_COLOR:
                 node_cc_tertiary = nodes.new(type="ShaderNodeAttribute")
-                node_cc_tertiary.attribute_name = "nwo.cc_tertiary"
-                node_cc_tertiary.attribute_type = 'OBJECT'
+                node_cc_tertiary.attribute_name = "change_color_tertiary"
+                node_cc_tertiary.attribute_type = 'INSTANCER'
                 node_cc_tertiary.location.x = node_albedo.location.x - 300
                 node_cc_tertiary.location.y = node_albedo.location.y - 200
                 tree.links.new(input=node_albedo.inputs["Tertiary Color"], output=node_cc_tertiary.outputs[0])
+                self.game_functions.add("change_color_tertiary")
                 node_cc_quaternary = nodes.new(type="ShaderNodeAttribute")
-                node_cc_quaternary.attribute_name = "nwo.cc_quaternary"
-                node_cc_quaternary.attribute_type = 'OBJECT'
+                node_cc_quaternary.attribute_name = "change_color_quaternary"
+                node_cc_quaternary.attribute_type = 'INSTANCER'
                 node_cc_quaternary.location.x = node_albedo.location.x - 300
                 node_cc_quaternary.location.y = node_albedo.location.y - 400
                 tree.links.new(input=node_albedo.inputs["Quaternary Color"], output=node_cc_quaternary.outputs[0])
+                self.game_functions.add("change_color_quaternary")
         
         tree.links.new(input=node_material_model.inputs[0], output=node_albedo.outputs[0])
         if e_material_model.value > 0: # Diffuse only does not have alpha input
@@ -991,6 +1140,7 @@ class ShaderTag(Tag):
         if e_blend_mode in {BlendMode.ADDITIVE, BlendMode.ALPHA_BLEND}:
             blender_material.surface_render_method = 'BLENDED'
             node_blend_mode = self._add_group_node(tree, nodes, f"blend_mode - {utils.game_str(e_blend_mode.name)}", Vector((final_node.location.x + 300, final_node.location.y)))
+            node_blend_mode.inputs["material is two-sided"].default_value = True
             tree.links.new(input=node_blend_mode.inputs[0], output=final_node.outputs[0])
             final_node = node_blend_mode
             if e_blend_mode == BlendMode.ALPHA_BLEND:
@@ -1036,6 +1186,10 @@ class ShaderTag(Tag):
             parameter_name = input.name.lower() if "." not in input.name else input.name.partition(".")[0].lower()
             if "gamma curve" in parameter_name:
                 input.default_value = 1
+                # if last_input_node.image.colorspace_settings.name == 'Non-Color':
+                #     input.default_value = 1
+                # else:
+                #     input.default_value = 1.95
                 last_parameter_name = None
                 continue
             input: bpy.types.NodeGroupInput

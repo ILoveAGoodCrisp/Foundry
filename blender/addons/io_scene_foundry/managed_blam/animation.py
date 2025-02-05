@@ -348,9 +348,9 @@ class AnimationTag(Tag):
                 shared_data = element.SelectField("Block:shared animation data")
                 anim_type = shared_data.Elements[0].SelectField("animation type").Value
                 overlay = anim_type == 2
-                # if overlay and shared_data.Elements[0].SelectField("Block:object-space parent nodes").Elements.Count > 0:
-                #     print(f"Skipping {name}, pose overlay animations not supported")
-                #     continue
+                if overlay and shared_data.Elements[0].SelectField("Block:object-space parent nodes").Elements.Count > 0:
+                    print(f"Skipping {name}, pose overlay animations not supported")
+                    continue
                 frame_count = exporter.GetAnimationFrameCount(index)
                 new_name = name.replace(":", " ")
                 action = bpy.data.actions.new(new_name)
@@ -386,10 +386,12 @@ class AnimationTag(Tag):
                 track = animation.action_tracks.add()
                 track.object = armature
                 track.action = action
+                # for node in animation_nodes:
+                #     print(node.Name)
                 for frame in range(frame_count):
                     # result = exporter.GetRenderModelBasePose(animation_nodes, nodes_count)
                     result = exporter.GetAnimationFrame(index, frame, animation_nodes, nodes_count)
-                    self._apply_frames(animation_nodes, armature, frame, action, overlay, bone_base_matrices)
+                    self._apply_frames(animation_nodes, armature, frame + 1, action, overlay, bone_base_matrices)
                 
                 actions.append(action)
                 
@@ -399,12 +401,23 @@ class AnimationTag(Tag):
         return actions
 
     def _apply_frames(self, animation_nodes, armature, frame, action: bpy.types.Action, overlay: bool, bone_base_matrices: dict):
+        # for node in animation_nodes:
+        #     bone = armature.pose.bones.get(node.Name)
+        #     if bone is None:
+        #         continue
+        #     base_translation, base_rotation, base_scale = base_matrix.decompose()
+        #     if node.Translation.X == base_translation.x and node.Translation.Y == base_translation.y and node.Translation.Z == base_translation.z:
+        #         nodes_bones[bone] = node
         nodes_bones = {bone: node for bone in armature.pose.bones for node in animation_nodes if bone.name == node.Name}
         bone_matrices = {}
+        # print()
+        # print(action.name.upper())
         for idx, (bone, node) in enumerate(nodes_bones.items()):
             # default_rotation = utils.ijkw_to_wxyz(self.block_additional_node_dat.Elements[idx].SelectField("default rotation").Data)
             # default_translation = Vector([n for n in self.block_additional_node_dat.Elements[idx].SelectField("default translation").Data])
             # default_scale = self.block_additional_node_dat.Elements[idx].SelectField("default scale").Data
+            # print("TRANSLATION", node.Name, node.Translation.X, node.Translation.Y, node.Translation.Z)
+            # print("ROTATION", node.Rotation)
             translation = Vector((node.Translation.X, node.Translation.Y, node.Translation.Z)) * 100
             rotation = Quaternion((node.Rotation.W, node.Rotation.V.X, node.Rotation.V.Y, node.Rotation.V.Z))
             scale = node.Scale
@@ -412,19 +425,27 @@ class AnimationTag(Tag):
             # default_matrix = Matrix.LocRotScale(default_translation, default_rotation, Vector.Fill(3, default_scale))
             base_matrix = bone_base_matrices[bone]
             base_matrix: Matrix
-            base_translation = base_matrix.translation
-            base_rotation = base_matrix.to_quaternion()
+            overlay_keyed = False
+            base_translation, base_rotation, base_scale = base_matrix.decompose()
             if translation.magnitude < tolerance:
                 translation = base_translation
+            else:
+                overlay_keyed = True
             if rotation.magnitude < tolerance:
                 rotation = base_rotation
-                # if rotation.magnitude > tolerance:
-                #     rotation = base_rotation @ rotation
-                # else:
-                #     rotation = base_rotation
+            else:
+                overlay_keyed = True
             bone: bpy.types.PoseBone
            # print(node.Name, bone.name, armature.animation_data.action.name, frame, translation, rotation)
-            bone_matrices[bone] = Matrix.LocRotScale(translation, rotation, Vector.Fill(3, scale))
+            if overlay:
+                if overlay_keyed:
+                    matrix = Matrix.LocRotScale(translation + base_translation, base_rotation.rotate(rotation), Vector.Fill(3, scale))
+                    # print(bone.name, node.Name, matrix.to_translation(), matrix.to_euler())
+                else:
+                    matrix = base_matrix
+            else:
+                matrix = Matrix.LocRotScale(translation, rotation, Vector.Fill(3, scale))
+            bone_matrices[bone] = matrix
             
         bone_dict = {}
         list_node_bones = list(nodes_bones.keys())
