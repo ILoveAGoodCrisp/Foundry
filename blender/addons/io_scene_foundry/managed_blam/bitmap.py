@@ -227,8 +227,8 @@ class BitmapTag(Tag):
         if self.block_bitmaps.Elements.Count <= 0:
             return
         gamma = self.get_gamma_value()
-        if not blue_channel_fix and gamma == 1.95: # xRGB
-            self.block_bitmaps.Elements[0].SelectField("CharEnum:curve").Value = 5
+        # if not blue_channel_fix and gamma == 1.95: #dxt5
+        #     self.block_bitmaps.Elements[0].SelectField("CharEnum:curve").Value = 5
         clr.AddReference('System.Drawing')
         from System import Array, Byte # type: ignore
         from System.Runtime.InteropServices import Marshal # type: ignore
@@ -290,6 +290,9 @@ class BitmapTag(Tag):
     
     def used_as_normal_map(self):
         return self.longenum_usage.Value in {2, 3, 18, 19, 20, 21, 36, 38}
+    
+    def uses_srgb(self):
+        return self.longenum_usage.Value in {0, 5, 7}
     
     def get_gamma_name(self) -> str:
         bm = self.block_bitmaps.Elements[0]

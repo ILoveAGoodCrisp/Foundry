@@ -59,6 +59,8 @@ class ShaderHalogramTag(ShaderTag):
     tag_ext = 'shader_halogram'
     group_supported = True
     
+    category_parameters = None
+    
     def _to_nodes_group(self, blender_material: bpy.types.Material):
         # Get options
         e_albedo = Albedo(self._option_value_from_index(0))
@@ -66,6 +68,14 @@ class ShaderHalogramTag(ShaderTag):
         e_blend_mode = BlendMode(self._option_value_from_index(2))
         e_overlay = Overlay(self._option_value_from_index(5))
         e_edge_fade = EdgeFade(self._option_value_from_index(6))
+        
+        self.shader_parameters = {}
+        self.shader_parameters.update(self.category_parameters["albedo"][utils.game_str(e_albedo.name)])
+        self.shader_parameters.update(self.category_parameters["self_illumination"][utils.game_str(e_self_illumination.name)])
+        self.shader_parameters.update(self.category_parameters["blend_mode"][utils.game_str(e_blend_mode.name)])
+        self.shader_parameters.update(self.category_parameters["overlay"][utils.game_str(e_overlay.name)])
+        self.shader_parameters.update(self.category_parameters["edge_fade"][utils.game_str(e_edge_fade.name)])
+        self.true_parameters = {option.ui_name: option for option in self.shader_parameters.values()}
         
         blender_material.use_nodes = True
         tree = blender_material.node_tree

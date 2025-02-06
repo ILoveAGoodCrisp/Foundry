@@ -4,6 +4,8 @@ from enum import Enum
 from pathlib import Path
 from mathutils import Vector
 
+from .render_method_option import OptionParameter
+
 from ..constants import NormalType
 from ..managed_blam import Tag
 from ..managed_blam.Tags import TagFieldBlockElement, TagPath, TagsNameSpace
@@ -179,6 +181,13 @@ class AnimatedParameterType(Enum):
     FRAME_INDEX = 7
     ALPHA = 8
     
+class TilingNodeInputs(Enum):
+    TRANSLATION_X = 0
+    TRANSLATION_Y = 1
+    SCALE_UNIFORM = 2
+    SCALE_X = 3
+    SCALE_Y = 4
+    
 class AnimatedParameter:
     def __init__(self):
         self.time_period = 0.0
@@ -186,6 +195,7 @@ class AnimatedParameter:
         self.range = ""
         self.is_ranged = False
         self.master_type = FunctionEditorMasterType.Basic
+        self.is_color = False
         self.color_type = FunctionEditorColorGraphType.Scalar
         self.color_count = 1
         self.input_periodic_function = FunctionEditorPeriodicType.One
@@ -202,6 +212,8 @@ class AnimatedParameter:
         self.input_max = 1
         self.range_min = 0
         self.range_max = 1
+        self.clamp_min = 0
+        self.clamp_max = 1
         self.colors = [tuple((1, 1, 1)), tuple((1, 1, 1)), tuple((1, 1, 1)), tuple((1, 1, 1))]
     
     def from_element(self, element: TagFieldBlockElement, animated_name: str):
@@ -212,6 +224,7 @@ class AnimatedParameter:
         self.is_ranged = editor.IsRanged
         self.master_type = FunctionEditorMasterType(editor.MasterType.value__)
         self.color_type = FunctionEditorColorGraphType(editor.ColorGraphType.value__)
+        self.is_color = self.color_type != FunctionEditorColorGraphType.Scalar
         self.color_count = editor.ColorCount
         match self.master_type:
             case FunctionEditorMasterType.Periodic:
@@ -238,13 +251,17 @@ class AnimatedParameter:
                 if self.is_ranged:
                     self.range_min = editor.GetAmplitudeMin(1)
                     self.range_max = editor.GetAmplitudeMin(1)
-                    
-        for i in range(self.color_count):
-            game_color = editor.GetColor()
-            if game_color.ColorMode == 1:
-                game_color = game_color.ToRgb()
-            
-            self.colors[i] = game_color.Red, game_color.Green, game_color.Blue
+        
+        if self.is_color:
+            for i in range(self.color_count):
+                game_color = editor.GetColor(i)
+                if game_color.ColorMode == 1:
+                    game_color = game_color.ToRgb()
+                
+                self.colors[i] = game_color.Red, game_color.Green, game_color.Blue, game_color.Alpha
+        else:
+            self.clamp_min = editor.ClampRangeMin
+            self.clamp_max = editor.ClampRangeMax
             
     
     def to_element(self, element: TagFieldBlockElement):
@@ -269,8 +286,7 @@ class ShaderTag(Tag):
     
     group_supported = True
     
-    default_parameters = None
-    shader_parameters = None
+    category_parameters = None
     
     def _read_fields(self):
         self.render_method = self.tag.SelectField("Struct:render_method").Elements[0]
@@ -281,14 +297,13 @@ class ShaderTag(Tag):
     
     @classmethod
     def _get_info(cls, definition_path: TagPath):
-        if cls.default_parameters is None or cls.shader_parameters is None:
+        if cls.category_parameters is None:
             def_path = definition_path
             if def_path is None:
-                cls.default_parameters = {}
-                cls.shader_parameters = {}
+                cls.category_parameters = {}
                 return
             with RenderMethodDefinitionTag(path=def_path) as render_method_definition:
-                cls.default_parameters, cls.shader_parameters = render_method_definition.get_defaults()
+                cls.category_parameters = render_method_definition.get_defaults()
     
     def write_tag(self, blender_material, linked_to_blender, material_shader=''):
         self.blender_material = blender_material
@@ -630,25 +645,25 @@ class ShaderTag(Tag):
                 with ShaderTag(path=self.reference.Path) as shader:
                     shader._mapping_from_parameter_name(name, mapping)
         
-    def _image_from_parameter_name(self, name, return_none_if_default=False):
+    def _image_from_parameter(self, parameter: OptionParameter, return_none_if_default=False):
         """Saves an image (or gets the already existing one) from a shader parameter element"""
+        element = None
         bitmap_path = None
-        if type(name) == str:
-            element = self._Element_from_field_value(self.block_parameters, 'parameter name', name)
+        for element in self.block_parameters.Elements:
+            if element.Fields[0].GetStringData() == parameter.name:
+                break
         else:
-            for n in name:
-                element = self._Element_from_field_value(self.block_parameters, 'parameter name', n)
-                if element: break
-        if element is None:
             if not self.corinth and self.reference.Path:
                 with ShaderTag(path=self.reference.Path) as shader:
-                    return shader._image_from_parameter_name(name)
+                    return shader._image_from_parameter(parameter)
             else:
                 if return_none_if_default:
-                    return
-                bitmap_path = self.default_parameters.get(name)
-                if bitmap_path is None:
-                    return
+                    return None
+                else:
+                    bitmap_path = parameter.default_bitmap
+                    element = None
+                    if bitmap_path is None:
+                        return None
         
         if bitmap_path is None:
             bitmap_path = element.SelectField('bitmap').Path
@@ -656,18 +671,19 @@ class ShaderTag(Tag):
         if bitmap_path is None:
             if not self.corinth and self.reference.Path:
                 with ShaderTag(path=self.reference.Path) as shader:
-                    result = shader._image_from_parameter_name(name)
+                    result = shader._image_from_parameter(parameter)
                     if result is not None:
                         return result
                     
             if not return_none_if_default:
-                bitmap_path = self.default_parameters.get(name)
+                bitmap_path = parameter.default_bitmap
+                element = None
                 
         if bitmap_path is None:
-            return
+            return None
         
         if not os.path.exists(bitmap_path.Filename):
-            return
+            return None
         
         system_tiff_path = Path(self.data_dir, bitmap_path.RelativePath).with_suffix('.tiff')
         alt_system_tiff_path = system_tiff_path.with_suffix(".tif")
@@ -684,10 +700,10 @@ class ShaderTag(Tag):
                 image_path = bitmap.save_to_tiff(bitmap.used_as_normal_map())
 
             image = bpy.data.images.load(filepath=image_path, check_existing=True)
-            if for_normal:
-                image.colorspace_settings.name = 'Non-Color'
-            else:
+            if bitmap.uses_srgb():
                 image.alpha_mode = 'CHANNEL_PACKED'
+            else:
+                image.colorspace_settings.name = 'Non-Color'
                 
             return image
     
@@ -711,60 +727,30 @@ class ShaderTag(Tag):
                 return bitmap.normal_type()
         else:
             return NormalType.OPENGL
-    
-    def _color_from_parameter_name(self, name):
-        if type(name) == str:
-            element = self._Element_from_field_value(self.block_parameters, 'parameter name', name)
+                
+    def _value_from_parameter(self, parameter: OptionParameter, value_type: AnimatedParameterType):
+        for element in self.block_parameters.Elements:
+            if element.Fields[0].GetStringData() == parameter.name:
+                break
         else:
-            for n in name:
-                 element = self._Element_from_field_value(self.block_parameters, 'parameter name', n)
-                 if element: break
-        if element is None:
             if not self.corinth and self.reference.Path:
                 with ShaderTag(path=self.reference.Path) as shader:
-                    return shader._color_from_parameter_name(name)
+                    return shader._value_from_parameter(parameter, value_type)
             else:
-                return self.default_parameters.get(name)
+                return parameter.default
+            
+        for element in element.SelectField(self.function_parameters).Elements:
+            if element.Fields[0].Value != value_type.value:
+                continue
+            ap = AnimatedParameter()
+            ap.from_element(element, self.animated_function)
+            return ap
+
+        if not self.corinth and self.reference.Path:
+            with ShaderTag(path=self.reference.Path) as shader:
+                return shader._value_from_parameter(parameter, value_type)
         else:
-            block_animated_parameters = element.SelectField(self.function_parameters)
-            color_element = self._Element_from_field_value(block_animated_parameters, 'type', 1)
-            if color_element:
-                game_color = color_element.SelectField(self.animated_function).Value.GetColor(0)
-                if game_color.ColorMode == 1: # Is HSV
-                    game_color = game_color.ToRgb()
-                    
-                return [game_color.Red, game_color.Green, game_color.Blue, game_color.Alpha]
-            else:
-                if not self.corinth and self.reference.Path:
-                    with ShaderTag(path=self.reference.Path) as shader:
-                        return shader._color_from_parameter_name(name)
-                else:
-                    return self.default_parameters.get(name)
-    
-    def _value_from_parameter_name(self, name):
-        if type(name) == str:
-            element = self._Element_from_field_value(self.block_parameters, 'parameter name', name)
-        else:
-            for n in name:
-                 element = self._Element_from_field_value(self.block_parameters, 'parameter name', n)
-                 if element: break
-        if element is None:
-            if not self.corinth and self.reference.Path:
-                with ShaderTag(path=self.reference.Path) as shader:
-                    return shader._value_from_parameter_name(name)
-            else:
-                return self.default_parameters.get(name)
-        else:
-            block_animated_parameters = element.SelectField(self.function_parameters)
-            value_element = self._Element_from_field_value(block_animated_parameters, 'type', 0)
-            if value_element:
-                return value_element.SelectField(self.animated_function).Value.ClampRangeMin
-            else:
-                if not self.corinth and self.reference.Path:
-                    with ShaderTag(path=self.reference.Path) as shader:
-                        return shader._value_from_parameter_name(name)
-                else:
-                     self.default_parameters.get(name)
+            return parameter.default
     
     def _set_alpha(self, alpha_type, blender_material):
         if alpha_type == 'blend':
@@ -884,84 +870,67 @@ class ShaderTag(Tag):
             with BitmapTag(path=bitmap_path) as bitmap:
                 return bitmap.get_granny_data(fill_alpha, calc_blue)
             
-    def group_set_image(self, tree: bpy.types.NodeTree, node: bpy.types.Node, parameter_name: str, vector: Vector, channel_type=ChannelType.DEFAULT, normal_type: NormalType = None, return_image_node=False):
-        data = self._image_from_parameter_name(parameter_name, normal_type is not None)
+    def _tiling_from_animated_parameters(self, tree: bpy.types.NodeTree, parameter: OptionParameter):
+        animated_parameters = {}
+
+        if not self.corinth and self.reference.Path:
+            with ShaderTag(path=self.reference.Path) as shader:
+                shader._recursive_tiling_parameters_get(parameter, animated_parameters)
+                
+        for element in self.block_parameters.Elements:
+            if element.Fields[0].GetStringData() == parameter.name:
+                for element in element.SelectField(self.function_parameters).Elements:
+                    value_type = AnimatedParameterType(element.Fields[0].Value)
+                    if value_type in {AnimatedParameterType.SCALE_UNIFORM, AnimatedParameterType.SCALE_X, AnimatedParameterType.SCALE_Y, AnimatedParameterType.TRANSLATION_X, AnimatedParameterType.TRANSLATION_Y}:
+                        ap = AnimatedParameter()
+                        ap.from_element(element, self.animated_function)
+                        animated_parameters[value_type] = ap
         
+        if animated_parameters:
+            tiling_node = tree.nodes.new('ShaderNodeGroup')
+            tiling_node.node_tree = utils.add_node_from_resources("shared_nodes", 'Texture Tiling')
+            for value_type, ap in animated_parameters.items():
+                self._setup_input_with_function(tiling_node.inputs[TilingNodeInputs[value_type.name].value], ap)
+            return tiling_node
+    
+    def _recursive_tiling_parameters_get(self, parameter: OptionParameter, animated_parameters: dict):
+        for element in self.block_parameters.Elements:
+            if element.Fields[0].GetStringData() == parameter.name:
+                for element in element.SelectField(self.function_parameters).Elements:
+                    value_type = AnimatedParameterType(element.Fields[0].Value)
+                    if value_type in {AnimatedParameterType.SCALE_UNIFORM, AnimatedParameterType.SCALE_X, AnimatedParameterType.SCALE_Y, AnimatedParameterType.TRANSLATION_X, AnimatedParameterType.TRANSLATION_Y}:
+                        ap = AnimatedParameter()
+                        ap.from_element(element, self.animated_function)
+                        animated_parameters[value_type] = ap
+                    
+        if not self.corinth and self.reference.Path:
+            with ShaderTag(path=self.reference.Path) as shader:
+                shader._recursive_tiling_parameters_get(parameter)
+            
+    def group_set_image(self, tree: bpy.types.NodeTree, node: bpy.types.Node, parameter: OptionParameter, channel_type=ChannelType.DEFAULT):
+        data = self._image_from_parameter(parameter)
         if data is None:
-            if return_image_node:
-                return vector, None
-            return vector
-        
-        mapping = {}
-        self._mapping_from_parameter_name(parameter_name, mapping)
+            return None, 1.0
         
         data_node = tree.nodes.new("ShaderNodeTexImage")
-        data_node.location = vector
         data_node.image = data
         
-        if normal_type is not None:
-            normal_map_node = tree.nodes.new('ShaderNodeNormalMap')
-            normal_map_node.location = vector
-            tree.links.new(input=node.inputs[0], output=normal_map_node.outputs[0])
-            if normal_type == NormalType.OPENGL:
-                data_node.location.x = normal_map_node.location.x - 300
-                data_node.location.y = normal_map_node.location.y
-                tree.links.new(input=normal_map_node.inputs[1], output=data_node.outputs[0])
-            else:
-                combine_rgb = tree.nodes.new('ShaderNodeCombineColor')
-                combine_rgb.location.x = normal_map_node.location.x - 200
-                combine_rgb.location.y = normal_map_node.location.y
-                tree.links.new(input=normal_map_node.inputs[1], output=combine_rgb.outputs[0])
-                invert_color = tree.nodes.new('ShaderNodeInvert')
-                invert_color.location.x = combine_rgb.location.x - 200
-                invert_color.location.y = combine_rgb.location.y + 80
-                tree.links.new(input=combine_rgb.inputs[1], output=invert_color.outputs[0])
-                separate_rgb = tree.nodes.new('ShaderNodeSeparateColor')
-                separate_rgb.location.x = invert_color.location.x - 200
-                separate_rgb.location.y = combine_rgb.location.y
-                tree.links.new(input=combine_rgb.inputs[0], output=separate_rgb.outputs[0])
-                tree.links.new(input=invert_color.inputs[1], output=separate_rgb.outputs[1])
-                tree.links.new(input=combine_rgb.inputs[2], output=separate_rgb.outputs[2])
-                
-                tree.links.new(input=separate_rgb.inputs[0], output=data_node.outputs[0])
-                data_node.location.x = separate_rgb.location.x - 300
-                data_node.location.y = separate_rgb.location.y
-                
-        else:
-            match channel_type:
-                case ChannelType.DEFAULT:
-                    tree.links.new(input=node.inputs[parameter_name], output=data_node.outputs[0])
-                case ChannelType.RGB:
-                    tree.links.new(input=node.inputs[f"{parameter_name}.rgb"], output=data_node.outputs[0])
-                case ChannelType.ALPHA:
-                    tree.links.new(input=node.inputs[f"{parameter_name}.a"], output=data_node.outputs[1])
-                case ChannelType.RGB_ALPHA:
-                    tree.links.new(input=node.inputs[f"{parameter_name}.rgb"], output=data_node.outputs[0])
-                    tree.links.new(input=node.inputs[f"{parameter_name}.a"], output=data_node.outputs[1])
+        match channel_type:
+            case ChannelType.DEFAULT:
+                tree.links.new(input=node.inputs[parameter.ui_name], output=data_node.outputs[0])
+            case ChannelType.RGB:
+                tree.links.new(input=node.inputs[f"{parameter.ui_name}.rgb"], output=data_node.outputs[0])
+            case ChannelType.ALPHA:
+                tree.links.new(input=node.inputs[f"{parameter.ui_name}.a"], output=data_node.outputs[1])
+            case ChannelType.RGB_ALPHA:
+                tree.links.new(input=node.inputs[f"{parameter.ui_name}.rgb"], output=data_node.outputs[0])
+                tree.links.new(input=node.inputs[f"{parameter.ui_name}.a"], output=data_node.outputs[1])
         
-        if mapping:
-            mapping_node = tree.nodes.new('ShaderNodeGroup')
-            mapping_node.node_tree = utils.add_node_from_resources("shared_nodes", 'Texture Tiling')
-            mapping_node.location.x = data_node.location.x - 300
-            mapping_node.location.y = data_node.location.y
-            scale_uni = mapping.get(AnimatedParameterType.SCALE_UNIFORM)
-            if scale_uni is not None:
-                self._set_input_from_animated_parameter(tree, mapping_node.inputs[2], scale_uni)
-            scale_x = mapping.get(AnimatedParameterType.SCALE_X)
-            if scale_x is not None:
-                self._set_input_from_animated_parameter(tree, mapping_node.inputs[3], scale_x)
-            scale_y = mapping.get(AnimatedParameterType.SCALE_Y)
-            if scale_y is not None:
-                self._set_input_from_animated_parameter(tree, mapping_node.inputs[4], scale_y)
-                
-            tree.links.new(input=data_node.inputs[0], output=mapping_node.outputs[0])
-                    
-            
-        vector = Vector((vector.x, vector.y - 300))
+        tiling_node = self._tiling_from_animated_parameters(tree, parameter)
+        if tiling_node is not None:
+            tree.links.new(input=data_node.inputs[0], output=tiling_node.outputs[0])
         
-        if return_image_node:
-            return vector, data_node
-        return vector
+        return data_node
     
     def _set_input_from_animated_parameter(self, tree: bpy.types.NodeTree, input, ap: AnimatedParameter):
         match ap.master_type:
@@ -976,7 +945,7 @@ class ShaderTag(Tag):
             case FunctionEditorMasterType.Periodic:
                 pass
     
-    def _add_group_node(self, tree: bpy.types.NodeTree, nodes: bpy.types.Nodes, name: str, location: Vector) -> bpy.types.Node:
+    def _add_group_node(self, tree: bpy.types.NodeTree, nodes: bpy.types.Nodes, name: str, location=Vector((0, 0))) -> bpy.types.Node:
         node = nodes.new(type='ShaderNodeGroup')
         node.node_tree = utils.add_node_from_resources("reach_nodes", name)
         node.location = location
@@ -1055,19 +1024,51 @@ class ShaderTag(Tag):
                 e_material_model = MaterialModel.COOK_TORRANCE
                 
             utils.print_warning(f"Unsupported material model : {old_model}. Using {e_material_model.name} instead")
+            
+        if e_bump_mapping.value > 4:
+            old_bump = e_bump_mapping.name
+            e_bump_mapping = BumpMapping.STANDARD
+            utils.print_warning(f"Unsupported bump mapping : {old_bump}. Using {e_bump_mapping.name} instead")
+            
+        if e_material_model.value > 2:
+            old_model = e_material_model.name
+            if e_material_model == MaterialModel.FOLIAGE:
+                e_material_model = MaterialModel.DIFFUSE_ONLY
+            else:
+                e_material_model = MaterialModel.COOK_TORRANCE
+                
+            utils.print_warning(f"Unsupported material model : {old_model}. Using {e_material_model.name} instead")
         
+        self.shader_parameters = {}
+        self.shader_parameters.update(self.category_parameters["albedo"][utils.game_str(e_albedo.name)])
+        self.shader_parameters.update(self.category_parameters["bump_mapping"][utils.game_str(e_bump_mapping.name)])
+        self.shader_parameters.update(self.category_parameters["alpha_test"][utils.game_str(e_alpha_test.name)])
+        # self.shader_parameters.update(self.category_parameters[utils.game_str(e_specular_mask.name)])
+        self.shader_parameters.update(self.category_parameters["material_model"][utils.game_str(e_material_model.name)])
+        self.shader_parameters.update(self.category_parameters["environment_mapping"][utils.game_str(e_environment_mapping.name)])
+        self.shader_parameters.update(self.category_parameters["self_illumination"][utils.game_str(e_self_illumination.name)])
+        self.shader_parameters.update(self.category_parameters["blend_mode"][utils.game_str(e_blend_mode.name)])
+        # self.shader_parameters.update(self.category_parameters[utils.game_str(e_parallax.name)])
+        # self.shader_parameters.update(self.category_parameters[utils.game_str(e_misc.name)])
+        # self.shader_parameters.update(self.category_parameters[utils.game_str(e_wetness.name)])
+        self.shader_parameters.update(self.category_parameters["alpha_blend_source"][utils.game_str(e_alpha_blend_source.name)])
+        self.true_parameters = {option.ui_name: option for option in self.shader_parameters.values()}
+
         blender_material.use_nodes = True
         tree = blender_material.node_tree
         nodes = tree.nodes
         # Clear it out
         nodes.clear()
         
-        has_bump = e_bump_mapping.value > 0
-        mm_supports_glancing_spec = e_material_model.value > 0
-        node_material_model = self._add_group_material_model(tree, nodes, utils.game_str(e_material_model.name), Vector((0, 0)), mm_supports_glancing_spec, e_material_model == MaterialModel.COOK_TORRANCE)
-        final_node = node_material_model
+        node_albedo = self._add_group_node(tree, nodes, f"albedo - {utils.game_str(e_albedo.name)}")
+        final_node = node_albedo
         
-        node_albedo = self._add_group_node(tree, nodes, f"albedo - {utils.game_str(e_albedo.name)}", Vector((node_material_model.location.x - 300, node_material_model.location.y + 500)))
+        has_bump = e_bump_mapping.value > 0
+        mm_supports_glancing_spec = False
+        if e_material_model != MaterialModel.NONE:
+            mm_supports_glancing_spec = e_material_model.value > 0
+            node_material_model = self._add_group_material_model(tree, nodes, utils.game_str(e_material_model.name), Vector((0, 0)), mm_supports_glancing_spec, e_material_model == MaterialModel.COOK_TORRANCE)
+            final_node = node_material_model
         
         if e_albedo == Albedo.FOUR_CHANGE_COLOR_APPLYING_TO_SPECULAR and mm_supports_glancing_spec:
             tree.links.new(input=node_material_model.inputs["glancing_specular_color"], output=node_albedo.outputs["glancing_specular_color"])
@@ -1164,27 +1165,81 @@ class ShaderTag(Tag):
         
         # Link to output
         tree.links.new(input=node_output.inputs[0], output=final_node.outputs[0])
-
-    def group_set_color(self, tree: bpy.types.NodeTree, node: bpy.types.Node, parameter_name: str):
-        color = self._color_from_parameter_name(parameter_name)
-        if color is not None:
-            node.inputs[parameter_name].default_value = color
-
-    def group_set_value(self, tree: bpy.types.NodeTree, node: bpy.types.Node, parameter_name: str):
-        value = self._value_from_parameter_name(parameter_name)
-        if value is not None:
-            node.inputs[parameter_name].default_value = value
-
-    def group_set_flag(self, tree: bpy.types.NodeTree, node: bpy.types.Node, parameter_name: str):
-        pass
+        
+    def _setup_input_with_function(self, end_input, data: float | tuple | AnimatedParameter, for_alpha=False):
+        tree: bpy.types.NodeTree = end_input.id_data
+        if not isinstance(data, AnimatedParameter):
+            if type(data) == tuple:
+                if for_alpha:
+                    end_input.default_value = data[1]
+                else:
+                    end_input.default_value = data[0]
+            else:
+                end_input.default_value = data
+            return
+        
+        if FunctionEditorMasterType.Basic and not data.is_ranged:
+            if data.color_type != FunctionEditorColorGraphType.Scalar:
+                end_input.default_value = data.colors[0]
+            else:
+                end_input.default_value = data.clamp_min
+            return
+        
+        function_node = tree.nodes.new('ShaderNodeGroup')
+        first_node = function_node
+        
+        match data.color_type:
+            case FunctionEditorColorGraphType.Scalar:
+                function_node.node_tree = utils.add_node_from_resources("reach_nodes", "Function - 2-float")
+                function_node.inputs[1].default_value = data.clamp_min
+                function_node.inputs[2].default_value = data.clamp_max
+            case FunctionEditorColorGraphType.TwoColor:
+                function_node.node_tree = utils.add_node_from_resources("reach_nodes", "Function - 2-color")
+                function_node.inputs[1].default_value = data.colors[0]
+                function_node.inputs[2].default_value = data.colors[1]
+            case FunctionEditorColorGraphType.ThreeColor:
+                function_node.node_tree = utils.add_node_from_resources("reach_nodes", "Function - 3-color")
+                function_node.inputs[1].default_value = data.colors[0]
+                function_node.inputs[2].default_value = data.colors[1]
+                function_node.inputs[3].default_value = data.colors[2]
+            case FunctionEditorColorGraphType.FourColor:
+                function_node.node_tree = utils.add_node_from_resources("reach_nodes", "Function - 4-color")
+                function_node.inputs[1].default_value = data.colors[0]
+                function_node.inputs[2].default_value = data.colors[1]
+                function_node.inputs[3].default_value = data.colors[2]
+                function_node.inputs[4].default_value = data.colors[3]
+                
+        if data.master_type != FunctionEditorMasterType.Basic:
+            function_node.inputs["Max"].default_value = data.input_max
+            function_node.inputs["Min"].default_value = data.input_min
+        
+        match data.master_type:
+            case FunctionEditorMasterType.Curve:
+                pass
+            case FunctionEditorMasterType.Periodic:
+                pass
+            case FunctionEditorMasterType.Exponent:
+                math_node = tree.nodes.new('ShaderNodeMath')
+                math_node.operation = 'EXPONENT'
+                math_node.inputs[0].default_value = data.input_exponent
+                tree.links.new(input=function_node.inputs[0], output=math_node.outputs[0])
+                first_node = math_node
+                
+        if data.input:
+            attribute_node = tree.nodes.new('ShaderNodeAttribute')
+            attribute_node.attribute_type = 'INSTANCER'
+            attribute_node.attribute_name = data.input
+            tree.links.new(input=first_node.inputs[0], output=attribute_node.outputs[2])
+            
+        tree.links.new(input=end_input, output=function_node.outputs[0])
+        
     
     def populate_chiefster_node(self, tree: bpy.types.NodeTree, node: bpy.types.Node):
         last_parameter_name = None
         last_input_node = None
-        location = Vector((node.location.x - 300, node.location.y + 300))
         for input in node.inputs:
-            parameter_name = input.name.lower() if "." not in input.name else input.name.partition(".")[0].lower()
-            if "gamma curve" in parameter_name:
+            parameter_name_ui = input.name.lower() if "." not in input.name else input.name.partition(".")[0].lower()
+            if "gamma curve" in parameter_name_ui:
                 input.default_value = 1
                 # if last_input_node.image.colorspace_settings.name == 'Non-Color':
                 #     input.default_value = 1
@@ -1193,30 +1248,35 @@ class ShaderTag(Tag):
                 last_parameter_name = None
                 continue
             input: bpy.types.NodeGroupInput
-            if parameter_name == last_parameter_name and last_input_node is not None:
+            if parameter_name_ui == last_parameter_name and last_input_node is not None:
                 # plug in alpha
-                alpha_input = node.inputs.get(f"{parameter_name}.a")
+                alpha_input = node.inputs.get(f"{parameter_name_ui}.a")
                 if alpha_input is None:
-                    alpha_input = node.inputs[f"{parameter_name}.a/specular_mask.a"]
+                    alpha_input = node.inputs[f"{parameter_name_ui}.a/specular_mask.a"]
                 tree.links.new(input=alpha_input, output=last_input_node.outputs[1])
+            elif parameter_name_ui == f"{last_parameter_name}_alpha":
+                self._setup_input_with_function(input, self._value_from_parameter(self.true_parameters.get(last_parameter_name), AnimatedParameterType.ALPHA), True)
             else:
-                parameter_type = self._parameter_type_from_name(parameter_name)
-                parameter_type = ParameterType(self.shader_parameters.get(parameter_name, -1))
-                    
+                # parameter_type = self._parameter_type_from_name(parameter_name)
+                parameter = self.true_parameters.get(parameter_name_ui)
+                if parameter is None:
+                    last_parameter_name = None
+                    continue
+                parameter_type = ParameterType(parameter.type)
                 match parameter_type:
                     case ParameterType.COLOR | ParameterType.ARGB_COLOR:
-                        self.group_set_color(tree, node, parameter_name)
+                        self._setup_input_with_function(input, self._value_from_parameter(parameter, AnimatedParameterType.COLOR))
                     case ParameterType.REAL | ParameterType.INT | ParameterType.BOOL:
-                        self.group_set_value(tree, node, parameter_name)
+                        self._setup_input_with_function(input, self._value_from_parameter(parameter, AnimatedParameterType.VALUE))
                     case _:
                         if ".rgb" in input.name:
-                            location, last_input_node = self.group_set_image(tree, node, parameter_name, location, ChannelType.RGB, return_image_node=True)
+                            last_input_node = self.group_set_image(tree, node, parameter, ChannelType.RGB)
                         elif ".a" in input.name:
-                            location, last_input_node = self.group_set_image(tree, node, parameter_name, location, ChannelType.ALPHA, return_image_node=True)
+                            last_input_node = self.group_set_image(tree, node, parameter, ChannelType.ALPHA)
                         else:
-                            location, last_input_node = self.group_set_image(tree, node, parameter_name, location, ChannelType.DEFAULT, return_image_node=True)
+                            last_input_node = self.group_set_image(tree, node, parameter, ChannelType.DEFAULT)
                         
-                last_parameter_name = parameter_name
+                last_parameter_name = parameter_name_ui
                 
     def _parameter_type_from_name(self, name: str):
         for element in self.block_parameters.Elements:

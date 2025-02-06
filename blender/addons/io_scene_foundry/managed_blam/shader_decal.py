@@ -57,14 +57,14 @@ class ShaderDecalTag(ShaderTag):
     group_supported = True
     
     default_parameter_bitmaps = None
-    shader_parameters = None
+    category_parameters = None
     
     def _to_nodes_group(self, blender_material: bpy.types.Material):
         # Get options
         e_albedo = Albedo(self._option_value_from_index(0))
         e_blend_mode = BlendMode(self._option_value_from_index(1))
-        e_render_pass = RenderPass(self._option_value_from_index(2))
-        e_specular = Specular(self._option_value_from_index(3))
+        # e_render_pass = RenderPass(self._option_value_from_index(2))
+        # e_specular = Specular(self._option_value_from_index(3))
         e_bump_mapping = BumpMapping(self._option_value_from_index(4))
         # e_tinting = Tinting(self._option_value_from_index(5))
         # e_parallax = Parallax(self._option_value_from_index(6))
@@ -73,6 +73,12 @@ class ShaderDecalTag(ShaderTag):
         if e_albedo in {Albedo.EMBLEM_CHANGE_COLOR, Albedo.DIFFUSE_PLUS_ALPHA_MASK, Albedo.VECTOR_ALPHA, Albedo.VECTOR_ALPHA_DROP_SHADOW, Albedo.PATCHY_EMBLEM}:
             utils.print_warning(f"Albedo not supported: {e_albedo.name}. Using {Albedo.DIFFUSE_ONLY.name}")
             e_albedo = Albedo.DIFFUSE_ONLY
+            
+        self.shader_parameters = {}
+        self.shader_parameters.update(self.category_parameters["albedo"][utils.game_str(e_albedo.name)])
+        self.shader_parameters.update(self.category_parameters["blend_mode"][utils.game_str(e_blend_mode.name)])
+        self.shader_parameters.update(self.category_parameters["bump_mapping"][utils.game_str(e_bump_mapping.name)])
+        self.true_parameters = {option.ui_name: option for option in self.shader_parameters.values()}
         
         blender_material.use_nodes = True
         tree = blender_material.node_tree
