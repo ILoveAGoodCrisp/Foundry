@@ -179,24 +179,29 @@ class ModelTag(Tag):
                 if region == "default":
                     region = default_region
                 variant_regions.add(region)
-                for pelement in relement.SelectField("permutations").Elements:
-                    permutation = pelement.Fields[0].GetStringData()
-                    if not permutation:
-                        continue
-                    elif permutation == "default":
-                        permutation = region_default_perms.get(region, "default")
-                        
+                permutation_elements = relement.SelectField("permutations").Elements
+                if permutation_elements.Count == 0:
+                    permutation = region_default_perms.get(region, "default")
                     region_permutations.add(tuple((region, permutation)))
-                    if state == 0:
-                        continue
+                else:
+                    for pelement in permutation_elements:
+                        permutation = pelement.Fields[0].GetStringData()
+                        if not permutation:
+                            continue
+                        elif permutation == "default":
+                            permutation = region_default_perms.get(region, "default")
+                            
+                        region_permutations.add(tuple((region, permutation)))
+                        if state == 0:
+                            continue
 
-                    for selement in pelement.SelectField("states").Elements:
-                        state_enum = selement.SelectField("ShortEnum:state").Value
-                        if state == -1 or state == state_enum:
-                            state = selement.Fields[0].GetStringData()
-                            if state == "default":
-                                state = region_default_perms.get(region, "default")
-                            region_permutations.add(tuple((region, state)))
+                        for selement in pelement.SelectField("states").Elements:
+                            state_enum = selement.SelectField("ShortEnum:state").Value
+                            if state == -1 or state == state_enum:
+                                state = selement.Fields[0].GetStringData()
+                                if state == "default":
+                                    state = region_default_perms.get(region, "default")
+                                region_permutations.add(tuple((region, state)))
                         
             for reg in all_regions:
                 if reg not in variant_regions:
