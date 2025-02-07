@@ -649,6 +649,7 @@ class ShaderTag(Tag):
         """Saves an image (or gets the already existing one) from a shader parameter element"""
         element = None
         bitmap_path = None
+        wrap_mode = 'REPEAT'
         for element in self.block_parameters.Elements:
             if element.Fields[0].GetStringData() == parameter.name:
                 break
@@ -658,12 +659,12 @@ class ShaderTag(Tag):
                     return shader._image_from_parameter(parameter)
             else:
                 if return_none_if_default:
-                    return None
+                    return None, wrap_mode
                 else:
                     bitmap_path = parameter.default_bitmap
                     element = None
                     if bitmap_path is None:
-                        return None
+                        return None, wrap_mode
         
         if bitmap_path is None:
             bitmap_path = element.SelectField('bitmap').Path
@@ -672,18 +673,25 @@ class ShaderTag(Tag):
             if not self.corinth and self.reference.Path:
                 with ShaderTag(path=self.reference.Path) as shader:
                     result = shader._image_from_parameter(parameter)
-                    if result is not None:
+                    if result[0] is not None:
                         return result
                     
             if not return_none_if_default:
                 bitmap_path = parameter.default_bitmap
                 element = None
+        elif element is not None:
+            match element.SelectField("bitmap address mode").Data:
+                case 1 | 3: # clamp | black border
+                    wrap_mode = 'CLIP'
+                case 2 | 4 | 5: # Mirror
+                    wrap_mode = 'MIRROR'
+                    
                 
         if bitmap_path is None:
-            return None
+            return None, wrap_mode
         
         if not os.path.exists(bitmap_path.Filename):
-            return None
+            return None, wrap_mode
         
         system_tiff_path = Path(self.data_dir, bitmap_path.RelativePath).with_suffix('.tiff')
         alt_system_tiff_path = system_tiff_path.with_suffix(".tif")
@@ -705,7 +713,7 @@ class ShaderTag(Tag):
             else:
                 image.colorspace_settings.name = 'Non-Color'
                 
-            return image
+            return image, wrap_mode
     
     def _normal_type_from_parameter_name(self, name):
         if not self.corinth:
@@ -884,6 +892,8 @@ class ShaderTag(Tag):
                     if value_type in {AnimatedParameterType.SCALE_UNIFORM, AnimatedParameterType.SCALE_X, AnimatedParameterType.SCALE_Y, AnimatedParameterType.TRANSLATION_X, AnimatedParameterType.TRANSLATION_Y}:
                         ap = AnimatedParameter()
                         ap.from_element(element, self.animated_function)
+                        # if value_type == AnimatedParameterType.TRANSLATION_Y and ap.clamp_min != 0:
+                        #     ap.clamp_min = -3.669 * ap.clamp_min -33.125
                         animated_parameters[value_type] = ap
         
         if animated_parameters:
@@ -908,12 +918,13 @@ class ShaderTag(Tag):
                 shader._recursive_tiling_parameters_get(parameter)
             
     def group_set_image(self, tree: bpy.types.NodeTree, node: bpy.types.Node, parameter: OptionParameter, channel_type=ChannelType.DEFAULT):
-        data = self._image_from_parameter(parameter)
+        data, wrap_mode = self._image_from_parameter(parameter)
         if data is None:
-            return None, 1.0
+            return None
         
         data_node = tree.nodes.new("ShaderNodeTexImage")
         data_node.image = data
+        data_node.extension = wrap_mode
         
         match channel_type:
             case ChannelType.DEFAULT:

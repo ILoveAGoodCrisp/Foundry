@@ -38,7 +38,7 @@ class ObjectTag(Tag):
         self.tag_has_changes = True
         
     def get_change_colors(self, variant="") -> list:
-        change_colors = [tuple((1, 1, 1, 1)), tuple((1, 1, 1, 1)), tuple((1, 1, 1, 1)), tuple((1, 1, 1, 1))]
+        change_colors = [tuple((1.0, 1.0, 1.0, 1.0)), tuple((1.0, 1.0, 1.0, 1.0)), tuple((1.0, 1.0, 1.0, 1.0)), tuple((1.0, 1.0, 1.0, 1.0))]
         if not variant:
             variant = self.default_variant.GetStringData()
         if not variant:
@@ -49,7 +49,7 @@ class ObjectTag(Tag):
             for sub_element in perms.Elements:
                 text = sub_element.Fields[3].GetStringData()
                 if text == variant or (variant == "default" and not text):
-                    color = [n for n in sub_element.Fields[2].Data]
+                    color = [float(n) for n in sub_element.Fields[2].Data]
                     color.append(1.0) # Alpha
                     change_colors[element.ElementIndex] = color
                     break

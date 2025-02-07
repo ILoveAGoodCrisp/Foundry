@@ -1185,7 +1185,11 @@ class NWOImporter:
                                     ob["change_color_secondary"] = change_colors[1]
                                     ob["change_color_tertiary"] = change_colors[2]
                                     ob["change_color_quaternary"] = change_colors[3]
-                                            
+                                    ob.id_properties_ui("change_color_primary").update(subtype="COLOR")
+                                    ob.id_properties_ui("change_color_secondary").update(subtype="COLOR")
+                                    ob.id_properties_ui("change_color_tertiary").update(subtype="COLOR")
+                                    ob.id_properties_ui("change_color_quaternary").update(subtype="COLOR")
+                                                                                
                             if collision and self.tag_collision:
                                 imported_objects.extend(self.import_collision_model(collision, armature, model_collection, allowed_region_permutations))
                             if physics and self.tag_physics:

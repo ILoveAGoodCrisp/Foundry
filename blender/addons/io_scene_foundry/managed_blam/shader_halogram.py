@@ -65,6 +65,8 @@ class ShaderHalogramTag(ShaderTag):
         # Get options
         e_albedo = Albedo(self._option_value_from_index(0))
         e_self_illumination = SelfIllumination(self._option_value_from_index(1))
+        if e_self_illumination == SelfIllumination.SCOPE_BLUR:
+            e_self_illumination = SelfIllumination.SIMPLE
         e_blend_mode = BlendMode(self._option_value_from_index(2))
         e_overlay = Overlay(self._option_value_from_index(5))
         e_edge_fade = EdgeFade(self._option_value_from_index(6))
