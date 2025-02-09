@@ -2,6 +2,7 @@ from pathlib import Path
 import bpy
 
 from ..managed_blam.shader_halogram import ShaderHalogramTag
+from ..managed_blam.shader_foliage import ShaderFoliageTag
 from ..managed_blam.shader_terrain import ShaderTerrainTag
 from ..managed_blam.material import MaterialTag
 from ..managed_blam.shader import ShaderTag
@@ -36,7 +37,7 @@ class NWO_ShaderToNodes(bpy.types.Operator):
         tag_to_nodes(utils.is_corinth(context), mat, shader_path)
         return {"FINISHED"}
 
-def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str):
+def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str, always_extract_bitmaps=False) -> set:
     """Turns a shader/material tag into blender material nodes"""
     print(f"--- Building material nodes for: {mat.name}")
     shader = None
@@ -48,16 +49,29 @@ def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str):
         match shader_type:
             case 'shader':
                 with ShaderTag(path=tag_path) as shader:
+                    shader.always_extract_bitmaps = always_extract_bitmaps
                     shader.to_nodes(mat)
             case 'shader_decal':
                 with ShaderDecalTag(path=tag_path) as shader:
+                    shader.always_extract_bitmaps = always_extract_bitmaps
                     shader.to_nodes(mat)
             case 'shader_terrain':
                 with ShaderTerrainTag(path=tag_path) as shader:
+                    shader.always_extract_bitmaps = always_extract_bitmaps
                     shader.to_nodes(mat)
             case 'shader_halogram':
                 with ShaderHalogramTag(path=tag_path) as shader:
+                    shader.always_extract_bitmaps = always_extract_bitmaps
                     shader.to_nodes(mat)
+            case 'shader_foliage':
+                with ShaderFoliageTag(path=tag_path) as shader:
+                    shader.always_extract_bitmaps = always_extract_bitmaps
+                    shader.to_nodes(mat)
+            case 'shader_custom':
+                pass
+                # with ShaderCustomTag(path=tag_path) as shader:
+                #     shader.always_extract_bitmaps = always_extract_bitmaps
+                #     shader.to_nodes(mat)
     
     if shader is None:
         return set()

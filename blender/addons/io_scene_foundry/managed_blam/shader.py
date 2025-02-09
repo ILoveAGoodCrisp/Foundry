@@ -281,12 +281,10 @@ class ShaderTag(Tag):
     function_parameters = 'animated parameters'
     animated_function = 'animation function'
     color_parameter_type = 'argb color'
-    
     self_illum_map_names = 'meter_map', 'self_illum_map'
-    
     group_supported = True
-    
     category_parameters = None
+    always_extract_bitmaps = False
     
     def _read_fields(self):
         self.render_method = self.tag.SelectField("Struct:render_method").Elements[0]
@@ -702,19 +700,21 @@ class ShaderTag(Tag):
             is_non_color = bitmap.is_linear()
             for_normal = bitmap.used_as_normal_map()
             # print(f"Writing Tiff from {bitmap.tag_path.RelativePathWithExtension}")
-            # image_path, array_length = bitmap.save_to_tiff(bitmap.used_as_normal_map())
-            if system_tiff_path.exists():
-                image_path = str(system_tiff_path)
-            elif system_tiff_path_array.exists():
-                image_path = str(system_tiff_path_array)
-                array_length = 10
-            elif alt_system_tiff_path.exists():
-                image_path = str(alt_system_tiff_path)
-            elif alt_system_tiff_path_array.exists():
-                image_path = str(alt_system_tiff_path_array)
-                array_length = 10
-            else:
+            if self.always_extract_bitmaps:
                 image_path, array_length = bitmap.save_to_tiff(bitmap.used_as_normal_map())
+            else:
+                if system_tiff_path.exists():
+                    image_path = str(system_tiff_path)
+                elif system_tiff_path_array.exists():
+                    image_path = str(system_tiff_path_array)
+                    array_length = 10
+                elif alt_system_tiff_path.exists():
+                    image_path = str(alt_system_tiff_path)
+                elif alt_system_tiff_path_array.exists():
+                    image_path = str(alt_system_tiff_path_array)
+                    array_length = 10
+                else:
+                    image_path, array_length = bitmap.save_to_tiff(bitmap.used_as_normal_map())
             # Not checking for existing has the effect of a duplicate image being added. We want this for sequences so their frames can be offset seperately per image node
             image = bpy.data.images.load(filepath=image_path, check_existing=array_length == 0)
             if array_length:
@@ -1185,6 +1185,7 @@ class ShaderTag(Tag):
             
         if e_alpha_test.value > 0:
             node_alpha_test = self._add_group_node(tree, nodes, f"alpha_test - {utils.game_str(e_alpha_test.name)}", Vector((final_node.location.x + 300, final_node.location.y)))
+            node_alpha_test.inputs["two-sided material"].default_value = True
             tree.links.new(input=node_alpha_test.inputs[1], output=final_node.outputs[0])
             final_node = node_alpha_test
             

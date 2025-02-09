@@ -231,11 +231,11 @@ class NWO_Import(bpy.types.Operator):
         options={"HIDDEN", "SKIP_SAVE"},
     )
     
-    find_shader_paths: bpy.props.BoolProperty(
-        name="Find Shader Paths",
-        description="Searches the tags folder after import and tries to find shader/material tags which match the name of importer materials",
-        default=True,
-    )
+    # find_shader_paths: bpy.props.BoolProperty(
+    #     name="Find Shader Paths",
+    #     description="Searches the tags folder after import and tries to find shader/material tags which match the name of importer materials",
+    #     default=True,
+    # )
     build_blender_materials: bpy.props.BoolProperty(
         name="Generate Materials",
         description="Builds Blender material nodes for materials based off their shader/material tags (if found)",
@@ -342,6 +342,12 @@ class NWO_Import(bpy.types.Operator):
             ("model", "Model", ""),
             ("bsp", "BSP", ""),
         ]
+    )
+    
+    always_extract_bitmaps: bpy.props.BoolProperty(
+        name="Always Extract Bitmaps",
+        description="By default existing tiff files will be used for shaders. Checking this option means the bitmaps will always be re-extracted regardless if they exist or not",
+        options=set(),
     )
     
     def execute(self, context):
@@ -585,7 +591,7 @@ class NWO_Import(bpy.types.Operator):
                             missing_some_shader_paths = True
                             break
                 
-                if self.find_shader_paths and missing_some_shader_paths:
+                if missing_some_shader_paths:
                     if utils.is_corinth(context):
                         print('Updating material tag paths for imported objects')
                     else:
@@ -607,7 +613,7 @@ class NWO_Import(bpy.types.Operator):
                             continue
                         shader_path = mat.nwo.shader_path
                         if shader_path:
-                            mat_function_map[mat] = tag_to_nodes(corinth, mat, shader_path)
+                            mat_function_map[mat] = tag_to_nodes(corinth, mat, shader_path, self.always_extract_bitmaps)
                             
                     for ob in imported_objects:
                         for slot in ob.material_slots:
@@ -735,9 +741,9 @@ class NWO_Import(bpy.types.Operator):
             box = layout.box()
             box.label(text="Model Settings")
             tag_type = 'material' if utils.is_corinth(context) else 'shader'
-            box.prop(self, 'find_shader_paths', text=f"Find {tag_type.capitalize()} Tag Paths")
-            if self.find_shader_paths:
-                box.prop(self, 'build_blender_materials', text=f"Blender Materials from {tag_type.capitalize()} Tags")
+            # box.prop(self, 'find_shader_paths', text=f"Find {tag_type.capitalize()} Tag Paths")
+            box.prop(self, 'build_blender_materials', text=f"Blender Materials from {tag_type.capitalize()} Tags")
+            box.prop(self, 'always_extract_bitmaps')
                 
         if not self.scope or ('model' in self.scope) or ('object' in self.scope):
             box = layout.box()
@@ -2477,11 +2483,11 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     #     options={"HIDDEN"},
     # )
     
-    find_shader_paths: bpy.props.BoolProperty(
-        name="Find Shader Paths",
-        description="Searches the tags folder after import and tries to find shader/material tags which match the name of importer materials",
-        default=True,
-    )
+    # find_shader_paths: bpy.props.BoolProperty(
+    #     name="Find Shader Paths",
+    #     description="Searches the tags folder after import and tries to find shader/material tags which match the name of importer materials",
+    #     default=True,
+    # )
     build_blender_materials: bpy.props.BoolProperty(
         name="Generate Materials",
         description="Builds Blender material nodes for materials based off their shader/material tags (if found)",
@@ -2601,6 +2607,12 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         ]
     )
     
+    always_extract_bitmaps: bpy.props.BoolProperty(
+        name="Always Extract Bitmaps",
+        description="By default existing tiff files will be used for shaders. Checking this option means the bitmaps will always be re-extracted regardless if they exist or not",
+        options=set(),
+    )
+    
     amf_okay : bpy.props.BoolProperty(options={"HIDDEN", "SKIP_SAVE"})
     legacy_okay : bpy.props.BoolProperty(options={"HIDDEN", "SKIP_SAVE"})
     
@@ -2671,22 +2683,21 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 layout.prop(self, "tag_animation")
                 if self.tag_animation:
                     layout.prop(self, "tag_animation_filter")
-                layout.prop(self, "find_shader_paths")
                 layout.prop(self, "build_blender_materials")
+                layout.prop(self, "always_extract_bitmaps")
             case "render_model":
                 if self.has_variants:
                     layout.prop(self, "tag_variant")
                 layout.prop(self, "tag_markers")
-                layout.prop(self, "find_shader_paths")
                 layout.prop(self, "build_blender_materials")
+                layout.prop(self, "always_extract_bitmaps")
             case "scenario":
                 layout.prop(self, "tag_zone_set")
                 layout.prop(self, "tag_bsp_render_only")
-                layout.prop(self, "find_shader_paths")
                 layout.prop(self, "build_blender_materials")
+                layout.prop(self, "always_extract_bitmaps")
             case "scenario_structure_bsp":
                 layout.prop(self, "tag_bsp_render_only")
-                layout.prop(self, "find_shader_paths")
                 layout.prop(self, "build_blender_materials")
             case "model_animation_graph":
                 layout.prop(self, "tag_animation_filter")
