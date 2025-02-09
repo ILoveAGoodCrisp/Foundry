@@ -1283,7 +1283,7 @@ class NWOImporter:
                         # Where there is a child marker, the child armature should be given the transforms of the child marker
                         # However, we must also unwind the transformation we did to make the marker relative to a bone head instead of tail
                         marker_ob = marker_children[0]
-                        armature.matrix_basis = marker_ob.matrix_world
+                        armature.matrix_world = marker_ob.matrix_world
                         
                     marker_parents = []
                     

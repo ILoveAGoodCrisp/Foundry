@@ -2374,9 +2374,12 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
         frames = [ob for ob in bpy.data.objects if is_frame(ob)]
         bone_children = []
                 
-        if parented_armatures:
-            with context.temp_override(object=parented_armatures[0], selected_editable_objects=parented_armatures):
-                bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
+        # if parented_armatures:
+        #     for ob in parented_armatures:
+        #         ob.parent = None
+        #         ob.matrix_world = Matrix.Identity(4)
+            # with context.temp_override(object=parented_armatures[0], selected_editable_objects=parented_armatures):
+            #     bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
                 
         for ob in objects:
             old_scale = ob.scale.copy()
@@ -2578,7 +2581,10 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                     edit_bone.use_connect = False
                     
                 for edit_bone in edit_bones:
-                    edit_bone.transform(transform_matrix)
+                    if arm in parented_armatures:
+                        edit_bone.transform(scale_matrix)
+                    else:
+                        edit_bone.transform(transform_matrix)
                     edit_bone_children = [child.ob for child in bone_children if child.parent == arm and child.parent_bone == edit_bone.name]
                     for ob in edit_bone_children:
                         correction_matrix = pivot_matrix @ ob.matrix_basis.copy()
@@ -2647,14 +2653,12 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                     for coll in original_collections:
                         coll.objects.link(arm)
         
-        if armature_parents:
-            for item in armature_parents:
-                arm_ob = item.ob
-                old_matrix = arm_ob.matrix_world.copy()
-                arm_ob.parent = item.parent
-                arm_ob.parent_type = item.parent_type
-                arm_ob.parent_bone = item.parent_bone
-                arm_ob.matrix_world = old_matrix
+        # if armature_parents:
+        #     for item in armature_parents:
+        #         arm_ob = item.ob
+        #         arm_ob.parent = item.parent
+        #         arm_ob.parent_type = item.parent_type
+        #         arm_ob.parent_bone = item.parent_bone
         
         for action in actions:
             fc_quaternions: list[bpy.types.FCurve] = []
