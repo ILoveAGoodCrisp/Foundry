@@ -483,7 +483,7 @@ class NWO_Import(bpy.types.Operator):
                         existing_armature = utils.get_rig_priortize_active(context)
                     imported_object_objects, imported_animations = importer.import_object(object_files, existing_armature)
                     if needs_scaling:
-                        utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_object_objects, actions=imported_animations)
+                        utils.transform_scene(context, scale_factor, from_x_rot, 'x', 'x', objects=imported_object_objects, actions=imported_animations)
                         
                     imported_objects.extend(imported_object_objects)
                     
@@ -1223,6 +1223,7 @@ class NWOImporter:
                                             continue
                                         print(f"--- {child.child_object.ShortNameWithExtension}")
                                         imported_objects.extend(self.import_child_object(child, armature, {ob: ob.nwo.marker_model_group for ob in render_objects if ob.type == 'EMPTY'}))
+                                    self.context.view_layer.update()
                                         
         return imported_objects, imported_animations
     
@@ -1297,8 +1298,6 @@ class NWOImporter:
                     else:
                         armature.parent = parent_armature
                     
-                    
-
         return imported_objects
             
     def import_render_model(self, file, model_collection, existing_armature, allowed_region_permutations, skip_print=False):

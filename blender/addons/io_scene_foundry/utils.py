@@ -2363,7 +2363,6 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
 
         armatures = [ob for ob in objects if ob.type == 'ARMATURE']
         parented_armatures = [ob for ob in armatures if ob.parent]
-        armature_parents = [ArmatureWithParent(ob, ob.parent, ob.parent_type, ob.parent_bone) for ob in parented_armatures]
         scene_coll = context.scene.collection.objects
         axis_z = Vector((0, 0, 1))
         pivot = Vector((0.0, 0.0, 0.0))
@@ -2373,13 +2372,6 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
         transform_matrix = rotation_matrix @ scale_matrix
         frames = [ob for ob in bpy.data.objects if is_frame(ob)]
         bone_children = []
-                
-        # if parented_armatures:
-        #     for ob in parented_armatures:
-        #         ob.parent = None
-        #         ob.matrix_world = Matrix.Identity(4)
-            # with context.temp_override(object=parented_armatures[0], selected_editable_objects=parented_armatures):
-            #     bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
                 
         for ob in objects:
             old_scale = ob.scale.copy()
@@ -2549,6 +2541,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
         
         arm_datas = set()
         for arm in armatures:
+            print(arm)
             if arm.library or arm.data.library:
                 print_warning(f'Cannot scale {arm.name}')
                 continue
@@ -2652,13 +2645,6 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                 if original_collections:
                     for coll in original_collections:
                         coll.objects.link(arm)
-        
-        # if armature_parents:
-        #     for item in armature_parents:
-        #         arm_ob = item.ob
-        #         arm_ob.parent = item.parent
-        #         arm_ob.parent_type = item.parent_type
-        #         arm_ob.parent_bone = item.parent_bone
         
         for action in actions:
             fc_quaternions: list[bpy.types.FCurve] = []
