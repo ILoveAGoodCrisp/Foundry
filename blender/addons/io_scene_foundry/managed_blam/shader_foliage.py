@@ -63,7 +63,7 @@ class ShaderFoliageTag(ShaderTag):
             node_alpha_test = self._add_group_node(tree, nodes, f"alpha_test - simple")
             node_alpha_test.inputs["two-sided material"].default_value = True
             if e_alpha_test == AlphaTest.FROM_ALBEDO_ALPHA:
-                tree.links.new(input=node_albedo.inputs[1], output=node_alpha_test.outputs[0])
+                tree.links.new(input=node_alpha_test.inputs[0], output=node_albedo.outputs[1])
                 
             tree.links.new(input=node_alpha_test.inputs[1], output=final_node.outputs[0])
             final_node = node_alpha_test

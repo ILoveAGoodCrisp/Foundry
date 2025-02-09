@@ -720,10 +720,12 @@ class ShaderTag(Tag):
             if array_length:
                 image.source = 'SEQUENCE'
 
-            if bitmap.uses_srgb():
-                image.alpha_mode = 'CHANNEL_PACKED'
-            else:
-                image.colorspace_settings.name = 'Non-Color'
+            image.colorspace_settings.name = 'Non-Color'
+            image.alpha_mode = 'CHANNEL_PACKED'
+            # if bitmap.uses_srgb():
+            #     image.alpha_mode = 'CHANNEL_PACKED'
+            # else:
+            #     image.colorspace_settings.name = 'Non-Color'
                 
             image.nwo.last_wrap_mode = wrap_mode
             image.nwo.array_length = array_length
@@ -1043,16 +1045,9 @@ class ShaderTag(Tag):
         e_wetness = Wetness(self._option_value_from_index(10))
         e_alpha_blend_source = AlphaBlendSource(self._option_value_from_index(11))
         
-        if e_material_model == MaterialModel.NONE:
-            e_material_model = MaterialModel.DIFFUSE_ONLY
-        
-        if e_material_model.value > 2:
+        if e_material_model.value > 4:
             old_model = e_material_model.name
-            if e_material_model == MaterialModel.FOLIAGE:
-                e_material_model = MaterialModel.DIFFUSE_ONLY
-            else:
-                e_material_model = MaterialModel.COOK_TORRANCE
-                
+            e_material_model = MaterialModel.COOK_TORRANCE
             utils.print_warning(f"Unsupported material model : {old_model}. Using {e_material_model.name} instead")
             
         if e_bump_mapping.value > 4:
@@ -1093,7 +1088,7 @@ class ShaderTag(Tag):
         node_albedo = self._add_group_node(tree, nodes, f"albedo - {utils.game_str(e_albedo.name)}")
         final_node = node_albedo
         
-        has_bump = e_bump_mapping.value > 0
+        has_bump = e_bump_mapping.value > 0 and e_material_model != MaterialModel.NONE
         mm_supports_glancing_spec = False
         if e_material_model != MaterialModel.NONE:
             mm_supports_glancing_spec = e_material_model.value > 0
@@ -1271,7 +1266,10 @@ class ShaderTag(Tag):
         for input in node.inputs:
             parameter_name_ui = input.name.lower() if "." not in input.name else input.name.partition(".")[0].lower()
             if "gamma curve" in parameter_name_ui:
-                input.default_value = 1
+                if "base_map" in parameter_name_ui:
+                    input.default_value = 2.2
+                else:
+                    input.default_value = 1
                 # if last_input_node.image.colorspace_settings.name == 'Non-Color':
                 #     input.default_value = 1
                 # else:

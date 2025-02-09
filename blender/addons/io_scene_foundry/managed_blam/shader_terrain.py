@@ -28,6 +28,11 @@ class TerrainMaterial(Enum):
     DIFFUSE_PLUS_SPECULAR = 1
     OFF = 2
     
+class TerrainMaterial3(Enum):
+    OFF = 0
+    DIFFUSE_ONLY = 1
+    DIFFUSE_PLUS_SPECULAR = 2
+    
 class TerrainWetness(Enum):
     DEFAULT = 0
     PROOF = 1
@@ -48,7 +53,7 @@ class ShaderTerrainTag(ShaderTag):
         e_material_0 = TerrainMaterial(self._option_value_from_index(2))
         e_material_1 = TerrainMaterial(self._option_value_from_index(3))
         e_material_2 = TerrainMaterial(self._option_value_from_index(4))
-        e_material_3 = TerrainMaterial(self._option_value_from_index(5))
+        e_material_3 = TerrainMaterial3(self._option_value_from_index(5))
         e_wetness = TerrainMaterial(self._option_value_from_index(6))
         
         self.shader_parameters = {}
@@ -57,7 +62,7 @@ class ShaderTerrainTag(ShaderTag):
         self.shader_parameters.update(self.category_parameters["material_0"][utils.game_str(e_material_0.name)])
         self.shader_parameters.update(self.category_parameters["material_1"][utils.game_str(e_material_1.name)])
         self.shader_parameters.update(self.category_parameters["material_2"][utils.game_str(e_material_2.name)])
-        if e_material_3 == TerrainMaterial.OFF:
+        if e_material_3 == TerrainMaterial3.OFF:
             self.shader_parameters.update(self.category_parameters["material_3"]["off"])
         else:
             self.shader_parameters.update(self.category_parameters["material_3"][f"{utils.game_str(e_material_3.name)}_(four_material_shaders_disable_detail_bump)"])
@@ -72,13 +77,13 @@ class ShaderTerrainTag(ShaderTag):
         node_group = self._add_group_node(tree, nodes, "Master Terrain Material", Vector((0, 0)))
         final_node = node_group
         
-        if e_material_0 in {TerrainMaterial.DIFFUSE_ONLY, TerrainMaterial.DIFFUSE_PLUS_SPECULAR}:
+        if e_material_0 != TerrainMaterial.OFF:
             node_group.inputs["Enable material_0"].default_value = True
-        if e_material_1 in {TerrainMaterial.DIFFUSE_ONLY, TerrainMaterial.DIFFUSE_PLUS_SPECULAR}:
+        if e_material_1 != TerrainMaterial.OFF:
             node_group.inputs["Enable material_1"].default_value = True
-        if e_material_2 in {TerrainMaterial.DIFFUSE_ONLY, TerrainMaterial.DIFFUSE_PLUS_SPECULAR}:
+        if e_material_2 != TerrainMaterial.OFF:
             node_group.inputs["Enable material_2"].default_value = True
-        if e_material_3 in {TerrainMaterial.DIFFUSE_ONLY, TerrainMaterial.DIFFUSE_PLUS_SPECULAR}:
+        if e_material_3 != TerrainMaterial3.OFF:
             node_group.inputs["Enable material_3"].default_value = True
             
         if e_environment_mapping.value > 0:
