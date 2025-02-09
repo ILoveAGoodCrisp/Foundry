@@ -1,6 +1,7 @@
 from pathlib import Path
 import bpy
 
+from ..managed_blam.shader_custom import ShaderCustomTag
 from ..managed_blam.shader_halogram import ShaderHalogramTag
 from ..managed_blam.shader_foliage import ShaderFoliageTag
 from ..managed_blam.shader_terrain import ShaderTerrainTag
@@ -68,10 +69,9 @@ def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str, always_e
                     shader.always_extract_bitmaps = always_extract_bitmaps
                     shader.to_nodes(mat)
             case 'shader_custom':
-                pass
-                # with ShaderCustomTag(path=tag_path) as shader:
-                #     shader.always_extract_bitmaps = always_extract_bitmaps
-                #     shader.to_nodes(mat)
+                with ShaderCustomTag(path=tag_path) as shader:
+                    shader.always_extract_bitmaps = always_extract_bitmaps
+                    shader.to_nodes(mat)
     
     if shader is None:
         return set()

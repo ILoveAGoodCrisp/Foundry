@@ -88,7 +88,7 @@ class ShaderDecalTag(ShaderTag):
         
         has_bump = e_bump_mapping.value > 0
         
-        node_albedo = self._add_group_node(tree, nodes, f"shader_decal albedo - {utils.game_str(e_albedo.name)}", Vector((0, 0)))
+        node_albedo = self._add_group_node(tree, nodes, f"shader_decal albedo - {utils.game_str(e_albedo.name)}")
         final_node = node_albedo
         
         if e_albedo == Albedo.CHANGE_COLOR:
@@ -112,13 +112,13 @@ class ShaderDecalTag(ShaderTag):
             tree.links.new(input=node_albedo.inputs["Tertiary Color"], output=node_cc_tertiary.outputs[0])
             
         if has_bump:
-            node_bump_mapping = self._add_group_node(tree, nodes, f"bump_mapping - {utils.game_str(e_bump_mapping.name)}", Vector((node_albedo.location.x, node_albedo.location.y - 500)))
+            node_bump_mapping = self._add_group_node(tree, nodes, f"bump_mapping - {utils.game_str(e_bump_mapping.name)}")
             tree.links.new(input=node_albedo.inputs["Normal"], output=node_bump_mapping.outputs[0])
             
             
         if e_blend_mode != BlendMode.OPAQUE:
             blender_material.surface_render_method = 'BLENDED'
-            node_blend_mode = self._add_group_node(tree, nodes, f"blend_mode - {utils.game_str(e_blend_mode.name)}", Vector((final_node.location.x + 300, final_node.location.y)))
+            node_blend_mode = self._add_group_node(tree, nodes, f"blend_mode - {utils.game_str(e_blend_mode.name)}")
             tree.links.new(input=node_blend_mode.inputs[0], output=final_node.outputs[0])
             final_node = node_blend_mode
             if len(node_albedo.outputs) > 1:

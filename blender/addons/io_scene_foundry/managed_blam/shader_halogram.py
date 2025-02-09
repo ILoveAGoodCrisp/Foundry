@@ -85,7 +85,7 @@ class ShaderHalogramTag(ShaderTag):
         # Clear it out
         nodes.clear()
         
-        node_albedo = self._add_group_node(tree, nodes, f"albedo - {utils.game_str(e_albedo.name)}", Vector((0, 0)))
+        node_albedo = self._add_group_node(tree, nodes, f"albedo - {utils.game_str(e_albedo.name)}")
         final_node = node_albedo
         
         if e_albedo in {Albedo.FOUR_CHANGE_COLOR, Albedo.TWO_CHANGE_COLOR}:
@@ -121,7 +121,7 @@ class ShaderHalogramTag(ShaderTag):
         
         
         if e_self_illumination.value > 0:
-            node_self_illumination = self._add_group_node(tree, nodes, f"self_illumination - {utils.game_str(e_self_illumination.name)}", Vector((final_node.location.x + 300, final_node.location.y - 200)))
+            node_self_illumination = self._add_group_node(tree, nodes, f"self_illumination - {utils.game_str(e_self_illumination.name)}")
             final_node = node_self_illumination
             node_albedo_illum_add = nodes.new(type='ShaderNodeMix')
             node_albedo_illum_add.data_type = 'RGBA'
@@ -131,18 +131,18 @@ class ShaderHalogramTag(ShaderTag):
             uses_edge_fade = e_edge_fade.value > 0
             
             if uses_overlay:
-                node_overlay = self._add_group_node(tree, nodes, f"shader_halogram overlay - {utils.game_str(e_overlay.name)}", Vector((final_node.location.x + 300, final_node.location.y - 200)))
+                node_overlay = self._add_group_node(tree, nodes, f"shader_halogram overlay - {utils.game_str(e_overlay.name)}")
                 tree.links.new(input=node_overlay.inputs[0], output=node_albedo_illum_add.outputs[2])
                 final_node = node_overlay
                 
             if uses_edge_fade:
-                node_edge_fade = self._add_group_node(tree, nodes, f"shader_halogram edge_fade - {utils.game_str(e_edge_fade.name)}", Vector((final_node.location.x + 300, final_node.location.y - 200)))
+                node_edge_fade = self._add_group_node(tree, nodes, f"shader_halogram edge_fade - {utils.game_str(e_edge_fade.name)}")
                 tree.links.new(input=node_edge_fade.inputs[0], output=final_node.outputs[0])
                 final_node = node_edge_fade
             
         if e_blend_mode != BlendMode.OPAQUE:
             blender_material.surface_render_method = 'BLENDED'
-            node_blend_mode = self._add_group_node(tree, nodes, f"blend_mode - {utils.game_str(e_blend_mode.name)}", Vector((final_node.location.x + 300, final_node.location.y)))
+            node_blend_mode = self._add_group_node(tree, nodes, f"blend_mode - {utils.game_str(e_blend_mode.name)}")
             node_blend_mode.inputs["material is two-sided"].default_value = True
             tree.links.new(input=node_blend_mode.inputs[0], output=final_node.outputs[0])
             final_node = node_blend_mode

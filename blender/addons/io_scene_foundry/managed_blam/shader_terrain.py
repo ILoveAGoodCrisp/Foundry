@@ -74,7 +74,7 @@ class ShaderTerrainTag(ShaderTag):
         # Clear it out
         nodes.clear()
         
-        node_group = self._add_group_node(tree, nodes, "Master Terrain Material", Vector((0, 0)))
+        node_group = self._add_group_node(tree, nodes, "Master Terrain Material")
         final_node = node_group
         
         if e_material_0 != TerrainMaterial.OFF:
@@ -87,7 +87,7 @@ class ShaderTerrainTag(ShaderTag):
             node_group.inputs["Enable material_3"].default_value = True
             
         if e_environment_mapping.value > 0:
-            node_environment_mapping = self._add_group_node(tree, nodes, f"environment_mapping - {utils.game_str(e_environment_mapping.name)}", Vector((node_group.location.x + 600, node_group.location.y - 200)))
+            node_environment_mapping = self._add_group_node(tree, nodes, f"environment_mapping - {utils.game_str(e_environment_mapping.name)}")
             tree.links.new(input=node_environment_mapping.inputs[0], output=node_group.outputs[1])
             if e_environment_mapping == TerrainEnvironmentMapping.DYNAMIC:
                 tree.links.new(input=node_environment_mapping.inputs[1], output=node_group.outputs[2])
