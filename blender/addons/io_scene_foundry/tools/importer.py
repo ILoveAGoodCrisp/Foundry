@@ -1272,6 +1272,19 @@ class NWOImporter:
                     if physics and self.tag_physics:
                         imported_objects.extend(self.import_physics_model(physics, armature, model_collection, allowed_region_permutations))
                         
+                    marker_children = []
+                        
+                    if child_object.child_marker:
+                        for marker_ob, group_name in {ob: ob.nwo.marker_model_group for ob in render_objects if ob.type == 'EMPTY'}.items():
+                            if group_name == child_object.child_marker:
+                                marker_children.append(marker_ob)
+                                
+                    if marker_children:
+                        # Where there is a child marker, the child armature should be given the transforms of the child marker
+                        # However, we must also unwind the transformation we did to make the marker relative to a bone head instead of tail
+                        marker_ob = marker_children[0]
+                        armature.matrix_basis = marker_ob.matrix_world
+                        
                     marker_parents = []
                     
                     if child_object.parent_marker:
@@ -1284,15 +1297,7 @@ class NWOImporter:
                     else:
                         armature.parent = parent_armature
                     
-                    marker_children = []
-                        
-                    if child_object.child_marker:
-                        for marker_ob, group_name in {ob: ob.nwo.marker_model_group for ob in render_objects if ob.type == 'EMPTY'}.items():
-                            if group_name == child_object.child_marker:
-                                marker_children.append(marker_ob)
-                                
-                    if marker_children:
-                        armature.matrix_local = armature.matrix_local @ marker_children[0].matrix_local
+                    
 
         return imported_objects
             
