@@ -691,10 +691,12 @@ class ShaderTag(Tag):
         if not os.path.exists(bitmap_path.Filename):
             return None
         
-        system_tiff_path = Path(self.data_dir, bitmap_path.RelativePath).with_suffix('.tiff')
+        rel_path = f"{bitmap_path.RelativePath}_equirectangular" if "cubemap" in bitmap_path.ShortName else bitmap_path.RelativePath
+        
+        system_tiff_path = Path(self.data_dir, rel_path).with_suffix('.tiff')
         alt_system_tiff_path = system_tiff_path.with_suffix(".tif")
-        system_tiff_path_array = Path(self.data_dir, f"{bitmap_path.RelativePath}_00000").with_suffix('.tiff')
-        alt_system_tiff_path_array = Path(self.data_dir, f"{bitmap_path.RelativePath}_00000").with_suffix('.tff')
+        system_tiff_path_array = Path(self.data_dir, f"{rel_path}_00000").with_suffix('.tiff')
+        alt_system_tiff_path_array = Path(self.data_dir, f"{rel_path}_00000").with_suffix('.tff')
         array_length = 0
         with BitmapTag(path=bitmap_path) as bitmap:
             is_non_color = bitmap.is_linear()
@@ -1083,7 +1085,8 @@ class ShaderTag(Tag):
         node_albedo = self._add_group_node(tree, nodes, f"albedo - {utils.game_str(e_albedo.name)}")
         final_node = node_albedo
         
-        has_bump = e_bump_mapping.value > 0 and e_material_model != MaterialModel.NONE
+        no_material_model = e_material_model == MaterialModel.NONE
+        has_bump = e_bump_mapping.value > 0 and not no_material_model
         mm_supports_glancing_spec = False
         material_model_has_alpha_input = False
         if e_material_model != MaterialModel.NONE:
@@ -1128,21 +1131,22 @@ class ShaderTag(Tag):
                 tree.links.new(input=node_albedo.inputs["Quaternary Color"], output=node_cc_quaternary.outputs[0])
                 self.game_functions.add("change_color_quaternary")
         
-        tree.links.new(input=node_material_model.inputs[0], output=node_albedo.outputs[0])
-        if material_model_has_alpha_input: # Diffuse only does not have alpha input
-            match e_specular_mask:
-                case SpecularMask.SPECULAR_MASK_FROM_DIFFUSE:
-                    tree.links.new(input=node_material_model.inputs[1], output=node_albedo.outputs[1])
-                case SpecularMask.SPECULAR_MASK_FROM_TEXTURE | SpecularMask.SPECULAR_MASK_MULT_DIFFUSE:
-                    spec_param = self.true_parameters.get("specular_mask_texture")
-                    if spec_param is not None:
-                        self.group_set_image(tree, node_material_model, spec_param, ChannelType.ALPHA, specified_input=1)
+        if not no_material_model:
+            tree.links.new(input=node_material_model.inputs[0], output=node_albedo.outputs[0])
+            if material_model_has_alpha_input: # Diffuse only does not have alpha input
+                match e_specular_mask:
+                    case SpecularMask.SPECULAR_MASK_FROM_DIFFUSE:
+                        tree.links.new(input=node_material_model.inputs[1], output=node_albedo.outputs[1])
+                    case SpecularMask.SPECULAR_MASK_FROM_TEXTURE | SpecularMask.SPECULAR_MASK_MULT_DIFFUSE:
+                        spec_param = self.true_parameters.get("specular_mask_texture")
+                        if spec_param is not None:
+                            self.group_set_image(tree, node_material_model, spec_param, ChannelType.ALPHA, specified_input=1)
         
         if has_bump:
             node_bump_mapping = self._add_group_node(tree, nodes, f"bump_mapping - {utils.game_str(e_bump_mapping.name)}")
             tree.links.new(input=node_material_model.inputs["Normal"], output=node_bump_mapping.outputs[0])
             
-        if e_environment_mapping.value > 0:
+        if e_environment_mapping.value > 0 and not no_material_model:
             node_environment_mapping = self._add_group_node(tree, nodes, f"environment_mapping - {utils.game_str(e_environment_mapping.name)}")
             tree.links.new(input=node_environment_mapping.inputs[0], output=node_material_model.outputs[1])
             if e_environment_mapping == EnvironmentMapping.DYNAMIC:

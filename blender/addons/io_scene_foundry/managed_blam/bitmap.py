@@ -2,6 +2,7 @@
 
 from ctypes import c_void_p
 from math import sqrt
+import math
 import os
 import clr
 from pathlib import Path
@@ -16,7 +17,7 @@ from .. import utils
 clr.AddReference('System.Drawing')
 from System import Array, Byte # type: ignore
 from System.Runtime.InteropServices import Marshal # type: ignore
-from System.Drawing import Rectangle # type: ignore
+from System.Drawing import Rectangle, Bitmap # type: ignore
 from System.Drawing.Imaging import ImageLockMode, ImageFormat, PixelFormat # type: ignore
 
 class BitmapTag(Tag):
@@ -227,6 +228,53 @@ class BitmapTag(Tag):
             
         return bgra_array
     
+    def _convert_cubemap(self, bitmap, suffix):
+        height = bitmap.Height
+        width = bitmap.Width
+        face_size = width // 4  # Each face is 1/4 of the total width
+        faces = {
+            "right": bitmap.Clone(Rectangle(2 * face_size, face_size, face_size, face_size), bitmap.PixelFormat),  # +X
+            "left": bitmap.Clone(Rectangle(0 * face_size, face_size, face_size, face_size), bitmap.PixelFormat),  # -X
+            "top": bitmap.Clone(Rectangle(face_size, 0, face_size, face_size), bitmap.PixelFormat),  # +Y
+            "bottom": bitmap.Clone(Rectangle(face_size, 2 * face_size, face_size, face_size), bitmap.PixelFormat),  # -Y
+            "front": bitmap.Clone(Rectangle(face_size, face_size, face_size, face_size), bitmap.PixelFormat),  # +Z
+            "back": bitmap.Clone(Rectangle(3 * face_size, face_size, face_size, face_size), bitmap.PixelFormat)  # -Z
+        }
+
+        def cubemap_to_equirectangular(x, y):
+            u = (x / float(width)) * 2 - 1
+            v = (y / float(height)) * 2 - 1
+
+            lon = u * math.pi
+            lat = v * (math.pi / 2)
+
+            X = math.cos(lat) * math.cos(lon)
+            Y = math.sin(lat)
+            Z = math.cos(lat) * math.sin(lon)
+
+            absX, absY, absZ = abs(X), abs(Y), abs(Z)
+
+            if absX >= absY and absX >= absZ:
+                face = "right" if X > 0 else "left"
+                u, v = (Z / absX + 1) / 2, (Y / absX + 1) / 2
+            elif absY >= absX and absY >= absZ:
+                face = "top" if Y > 0 else "bottom"
+                u, v = (X / absY + 1) / 2, (Z / absY + 1) / 2
+            else:
+                face = "front" if Z > 0 else "back"
+                u, v = (X / absZ + 1) / 2, (Y / absZ + 1) / 2
+
+            return face, u, v
+        
+        for y in range(height):
+            for x in range(width):
+                face, u, v = cubemap_to_equirectangular(x, y)
+                pixel_x = int(u * (faces[face].Width - 1))
+                pixel_y = int(v * (faces[face].Height - 1))
+                bitmap.SetPixel(x, y, faces[face].GetPixel(pixel_x, pixel_y))
+                
+        return str(Path(self.data_dir, f"{self.tag_path.RelativePath}{suffix}_equirectangular").with_suffix('.tiff'))
+    
     def _save_single(self, blue_channel_fix: bool, format: str, frame_index: int, suffix: str):
         game_bitmap = self._GameBitmap(frame_index=frame_index)
         bitmap = game_bitmap.GetBitmap()
@@ -251,11 +299,24 @@ class BitmapTag(Tag):
 
             Marshal.Copy(rgbValues, 0, bitmap_data.Scan0, total_bytes)
             bitmap.UnlockBits(bitmap_data)
-                    
-        tiff_path = str(Path(self.data_dir, f"{self.tag.Path.RelativePath}{suffix}").with_suffix('.tiff'))
+        
+        tiff_path = str(Path(self.data_dir, f"{self.tag_path.RelativePath}{suffix}").with_suffix('.tiff'))
         tiff_dir = os.path.dirname(tiff_path)
         if not os.path.exists(tiff_dir):
             os.makedirs(tiff_dir, exist_ok=True)
+        if "cubemap" in self.tag_path.ShortName:
+            # save the original cubemap
+            match format:
+                case 'bmp':
+                    bitmap.Save(tiff_path, ImageFormat.Bmp)
+                case 'png':
+                    bitmap.Save(tiff_path, ImageFormat.Png)
+                case 'jpeg':
+                    bitmap.Save(tiff_path, ImageFormat.Jpeg)
+                case 'tiff':
+                    bitmap.Save(tiff_path, ImageFormat.Tiff)
+            tiff_path = self._convert_cubemap(bitmap, suffix)
+
         match format:
             case 'bmp':
                 bitmap.Save(tiff_path, ImageFormat.Bmp)
@@ -268,7 +329,6 @@ class BitmapTag(Tag):
                 
         bitmap.Dispose()
         return tiff_path
-        
         
     def save_to_tiff(self, blue_channel_fix=False, format='tiff') -> list[str]:
         tiff_paths = []
