@@ -301,6 +301,7 @@ class NWO_Import(bpy.types.Operator):
     tag_animation: bpy.props.BoolProperty(
         name="Import Animations (WIP)",
         description="Animation importer is a work in progress. Only base animations with no movement are fully supported",
+        options={'SKIP_SAVE'},
         default=False,
     )
     
@@ -310,7 +311,11 @@ class NWO_Import(bpy.types.Operator):
         description="Optional field to declare a variant to import. If this field is left blank, all variants will be imported (except if this is for a cinematic, in which case the first variant will be used)"
     )
     
-    import_variant_children: bpy.props.BoolProperty()
+    import_variant_children: bpy.props.BoolProperty(
+        name="Import Variant Child Objects",
+        description="Imports the child objects associated with this model variant",
+        options={'SKIP_SAVE'},
+    )
     
     tag_state: bpy.props.EnumProperty(
         name="Model State",
@@ -331,6 +336,7 @@ class NWO_Import(bpy.types.Operator):
     
     tag_animation_filter: bpy.props.StringProperty(
         name="Animation Filter",
+        options={'SKIP_SAVE'},
         description="Filter for the animations to import. Animations that don't contain the specified strings (space or colon delimited) will be skipped"
     )
     
@@ -447,6 +453,7 @@ class NWO_Import(bpy.types.Operator):
                     importer.tag_variant = self.tag_variant.lower()
                     importer.tag_state = State[self.tag_state].value
                     importer.tag_animation_filter = self.tag_animation_filter
+                    importer.import_variant_children = self.import_variant_children
                     model_files = importer.sorted_filepaths["model"]
                     existing_armature = None
                     if self.reuse_armature:
@@ -469,6 +476,7 @@ class NWO_Import(bpy.types.Operator):
                     importer.tag_variant = self.tag_variant.lower()
                     importer.tag_state = State[self.tag_state].value
                     importer.tag_animation_filter = self.tag_animation_filter
+                    importer.import_variant_children = self.import_variant_children
                     object_files = importer.sorted_filepaths["object"]
                     existing_armature = None
                     if self.reuse_armature:
@@ -756,6 +764,8 @@ class NWO_Import(bpy.types.Operator):
             box.prop(self, 'tag_animation')
             box.prop(self, 'tag_variant')
             box.prop(self, 'tag_state')
+            if self.tag_variant and self.tag_markers:
+                box.prop(self, "import_variant_children")
             
         if not self.scope or ('scenario' in self.scope) or ('scenario_structure_bsp' in self.scope):
             box = layout.box()
@@ -1204,13 +1214,87 @@ class NWOImporter:
                                 print("Importing Animations")
                                 imported_animations.extend(self.import_animation_graph(animation, armature, render))
                                 
-                            if self.import_variant_children:
+                            if self.import_variant_children and temp_variant:
                                 child_objects = model.get_variant_children(temp_variant)
+                                if child_objects:
+                                    print("Import Child Objects")
+                                    for child in model.get_variant_children(temp_variant):
+                                        if child.child_object is None:
+                                            continue
+                                        print(f"--- {child.child_object.ShortNameWithExtension}")
+                                        imported_objects.extend(self.import_child_object(child, armature, {ob: ob.nwo.marker_model_group for ob in render_objects if ob.type == 'EMPTY'}))
                                         
         return imported_objects, imported_animations
     
-    def import_child_object(self, child_object: ChildObject):
-        pass
+    def import_child_object(self, child_object: ChildObject, parent_armature: bpy.types.Object, markers: dict[bpy.types.Object: str]):
+        imported_objects = []
+        if child_object.child_object is None:
+            return
+        with ObjectTag(path=child_object.child_object, raise_on_error=False) as scenery:
+            model_path = scenery.get_model_tag_path_full()
+            change_colors = scenery.get_change_colors(self.tag_variant)
+            default_variant = scenery.default_variant.GetStringData()
+            with ModelTag(path=model_path, raise_on_error=False) as model:
+                if not model.valid: return
+                    
+                render, collision, animation, physics = model.get_model_paths()
+                temp_variant = child_object.child_variant_name
+
+                if not temp_variant:
+                    if default_variant:
+                        temp_variant = default_variant
+                    elif model.block_variants.Elements.Count:
+                        temp_variant = model.block_variants.Elements[0].Fields[0].GetStringData()
+                
+                allowed_region_permutations = model.get_variant_regions_and_permutations(temp_variant, self.tag_state)
+                model_collection = bpy.data.collections.new(model.tag_path.ShortName)
+                self.context.scene.collection.children.link(model_collection)
+                if render:
+                    render_objects, armature = self.import_render_model(render, model_collection, None, allowed_region_permutations)
+                    imported_objects.extend(render_objects)
+                    for ob in render_objects:
+                        if ob.type == 'ARMATURE':
+                            ob.nwo.cinematic_object = scenery.tag_path.RelativePathWithExtension
+                            if temp_variant == self.tag_variant:
+                                ob.nwo.cinematic_variant = temp_variant
+                        
+                        ob["change_color_primary"] = change_colors[0]
+                        ob["change_color_secondary"] = change_colors[1]
+                        ob["change_color_tertiary"] = change_colors[2]
+                        ob["change_color_quaternary"] = change_colors[3]
+                        ob.id_properties_ui("change_color_primary").update(subtype="COLOR")
+                        ob.id_properties_ui("change_color_secondary").update(subtype="COLOR")
+                        ob.id_properties_ui("change_color_tertiary").update(subtype="COLOR")
+                        ob.id_properties_ui("change_color_quaternary").update(subtype="COLOR")
+                                                                    
+                    if collision and self.tag_collision:
+                        imported_objects.extend(self.import_collision_model(collision, armature, model_collection, allowed_region_permutations))
+                    if physics and self.tag_physics:
+                        imported_objects.extend(self.import_physics_model(physics, armature, model_collection, allowed_region_permutations))
+                        
+                    marker_parents = []
+                    
+                    if child_object.parent_marker:
+                        for marker_ob, group_name in markers.items():
+                            if group_name == child_object.parent_marker:
+                                marker_parents.append(marker_ob)
+                    
+                    if marker_parents:
+                        armature.parent = marker_parents[0]
+                    else:
+                        armature.parent = parent_armature
+                    
+                    marker_children = []
+                        
+                    if child_object.child_marker:
+                        for marker_ob, group_name in {ob: ob.nwo.marker_model_group for ob in render_objects if ob.type == 'EMPTY'}.items():
+                            if group_name == child_object.child_marker:
+                                marker_children.append(marker_ob)
+                                
+                    if marker_children:
+                        armature.matrix_local = armature.matrix_local @ marker_children[0].matrix_local
+
+        return imported_objects
             
     def import_render_model(self, file, model_collection, existing_armature, allowed_region_permutations, skip_print=False):
         if not skip_print:
@@ -2613,6 +2697,13 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         options=set(),
     )
     
+    import_variant_children: bpy.props.BoolProperty(
+        name="Import Child Objects",
+        description="Imports the child objects associated with this model variant",
+        default=True,
+        options={'SKIP_SAVE'},
+    )
+    
     amf_okay : bpy.props.BoolProperty(options={"HIDDEN", "SKIP_SAVE"})
     legacy_okay : bpy.props.BoolProperty(options={"HIDDEN", "SKIP_SAVE"})
     
@@ -2675,6 +2766,8 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                     layout.prop(self, "tag_variant")
                     if self.tag_variant != "all_variants":
                         layout.prop(self, "tag_state")
+                        if self.tag_markers:
+                            layout.prop(self, "import_variant_children")
                 layout.prop(self, "reuse_armature")
                 layout.prop(self, "tag_render")
                 layout.prop(self, "tag_markers")

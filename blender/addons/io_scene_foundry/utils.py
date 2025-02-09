@@ -1990,6 +1990,8 @@ def get_rig_priortize_active(context=None):
         
     if context.object and context.object.type == "ARMATURE":
         return context.object
+    elif context.object and context.object.parent and context.object.parent.type == "ARMATURE":
+        return context.object.parent
     else:
         return get_rig(context)
 

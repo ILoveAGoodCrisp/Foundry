@@ -10,10 +10,10 @@ from ..managed_blam import Tag
 
 class ChildObject:
     def __init__(self, element: TagFieldBlockElement):
-        self.parent_marker: str = element.Fields[0].GetStringData()
-        self.child_marker: str = element.Fields[1].GetStringData()
-        self.child_variant_name: str = element.Fields[2].GetStringData()
-        self.child_object: TagPath | None = element.Fields[3].Path
+        self.parent_marker: str = element.SelectField("parent marker").GetStringData()
+        self.child_marker: str = element.SelectField("child marker").GetStringData()
+        self.child_variant_name: str = element.SelectField("child variant name").GetStringData()
+        self.child_object: TagPath | None = element.SelectField("child object").Path
 
 class ModelTag(Tag):
     tag_ext = 'model'
