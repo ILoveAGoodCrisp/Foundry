@@ -659,12 +659,12 @@ class ShaderTag(Tag):
                     return shader._image_from_parameter(parameter)
             else:
                 if return_none_if_default:
-                    return None, wrap_mode
+                    return
                 else:
                     bitmap_path = parameter.default_bitmap
                     element = None
                     if bitmap_path is None:
-                        return None, wrap_mode
+                        return
         
         if bitmap_path is None:
             bitmap_path = element.SelectField('bitmap').Path
@@ -673,7 +673,7 @@ class ShaderTag(Tag):
             if not self.corinth and self.reference.Path:
                 with ShaderTag(path=self.reference.Path) as shader:
                     result = shader._image_from_parameter(parameter)
-                    if result[0] is not None:
+                    if result is not None:
                         return result
                     
             if not return_none_if_default:
@@ -688,32 +688,47 @@ class ShaderTag(Tag):
                     
                 
         if bitmap_path is None:
-            return None, wrap_mode
+            return None
         
         if not os.path.exists(bitmap_path.Filename):
-            return None, wrap_mode
+            return None
         
         system_tiff_path = Path(self.data_dir, bitmap_path.RelativePath).with_suffix('.tiff')
         alt_system_tiff_path = system_tiff_path.with_suffix(".tif")
+        system_tiff_path_array = Path(self.data_dir, f"{bitmap_path.RelativePath}_00000").with_suffix('.tiff')
+        alt_system_tiff_path_array = Path(self.data_dir, f"{bitmap_path.RelativePath}_00000").with_suffix('.tff')
+        array_length = 0
         with BitmapTag(path=bitmap_path) as bitmap:
             is_non_color = bitmap.is_linear()
             for_normal = bitmap.used_as_normal_map()
             # print(f"Writing Tiff from {bitmap.tag_path.RelativePathWithExtension}")
-            # image_path = bitmap.save_to_tiff(bitmap.used_as_normal_map())
+            # image_path, array_length = bitmap.save_to_tiff(bitmap.used_as_normal_map())
             if system_tiff_path.exists():
                 image_path = str(system_tiff_path)
+            elif system_tiff_path_array.exists():
+                image_path = str(system_tiff_path_array)
+                array_length = 10
             elif alt_system_tiff_path.exists():
                 image_path = str(alt_system_tiff_path)
+            elif alt_system_tiff_path_array.exists():
+                image_path = str(alt_system_tiff_path_array)
+                array_length = 10
             else:
-                image_path = bitmap.save_to_tiff(bitmap.used_as_normal_map())
+                image_path, array_length = bitmap.save_to_tiff(bitmap.used_as_normal_map())
+            # Not checking for existing has the effect of a duplicate image being added. We want this for sequences so their frames can be offset seperately per image node
+            image = bpy.data.images.load(filepath=image_path, check_existing=array_length == 0)
+            if array_length:
+                image.source = 'SEQUENCE'
 
-            image = bpy.data.images.load(filepath=image_path, check_existing=True)
             if bitmap.uses_srgb():
                 image.alpha_mode = 'CHANNEL_PACKED'
             else:
                 image.colorspace_settings.name = 'Non-Color'
                 
-            return image, wrap_mode
+            image.nwo.last_wrap_mode = wrap_mode
+            image.nwo.array_length = array_length
+                
+            return image
     
     def _normal_type_from_parameter_name(self, name):
         if not self.corinth:
@@ -918,13 +933,17 @@ class ShaderTag(Tag):
                 shader._recursive_tiling_parameters_get(parameter)
             
     def group_set_image(self, tree: bpy.types.NodeTree, node: bpy.types.Node, parameter: OptionParameter, channel_type=ChannelType.DEFAULT):
-        data, wrap_mode = self._image_from_parameter(parameter)
+        data = self._image_from_parameter(parameter)
         if data is None:
             return None
         
         data_node = tree.nodes.new("ShaderNodeTexImage")
         data_node.image = data
-        data_node.extension = wrap_mode
+        data_node.extension = data.nwo.last_wrap_mode
+        
+        if data.nwo.array_length:
+            # data_node.image_user.use_auto_refresh = True
+            data_node.image_user.frame_duration = data.nwo.array_length
         
         match channel_type:
             case ChannelType.DEFAULT:

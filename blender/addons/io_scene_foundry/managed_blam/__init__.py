@@ -286,9 +286,9 @@ class Tag():
         """Returns a new GameBitmapChannel instance"""
         return Tags.GameBitmapChannel(index)
     
-    def _GameBitmap(self) -> GameBitmap:
+    def _GameBitmap(self, sequence_index=0, frame_index=0) -> GameBitmap:
         """Returns a new GameBitmap instance"""
-        return Tags.GameBitmap(self.tag, 0, 0)
+        return Tags.GameBitmap(self.tag, sequence_index, frame_index)
     
     def _FunctionEditorColorGraphType(self, type) -> FunctionEditorColorGraphType:
         """Returns a new FunctionEditorColorGraphType instance"""

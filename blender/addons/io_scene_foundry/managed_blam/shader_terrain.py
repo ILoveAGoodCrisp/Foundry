@@ -38,7 +38,10 @@ class ShaderTerrainTag(ShaderTag):
     tag_ext = 'shader_terrain'
     group_supported = True
     
-    def _to_nodes_group(self, blender_material: bpy.types.Material, change_colors: list = None):
+    default_parameter_bitmaps = None
+    category_parameters = None
+    
+    def _to_nodes_group(self, blender_material: bpy.types.Material):
         # Get options
         e_blending = TerrainBlending(self._option_value_from_index(0))
         e_environment_mapping = TerrainEnvironmentMapping(self._option_value_from_index(1))
@@ -47,6 +50,18 @@ class ShaderTerrainTag(ShaderTag):
         e_material_2 = TerrainMaterial(self._option_value_from_index(4))
         e_material_3 = TerrainMaterial(self._option_value_from_index(5))
         e_wetness = TerrainMaterial(self._option_value_from_index(6))
+        
+        self.shader_parameters = {}
+        self.shader_parameters.update(self.category_parameters["blending"][utils.game_str(e_blending.name)])
+        self.shader_parameters.update(self.category_parameters["environment_map"][utils.game_str(e_environment_mapping.name)])
+        self.shader_parameters.update(self.category_parameters["material_0"][utils.game_str(e_material_0.name)])
+        self.shader_parameters.update(self.category_parameters["material_1"][utils.game_str(e_material_1.name)])
+        self.shader_parameters.update(self.category_parameters["material_2"][utils.game_str(e_material_2.name)])
+        if e_material_3 == TerrainMaterial.OFF:
+            self.shader_parameters.update(self.category_parameters["material_3"]["off"])
+        else:
+            self.shader_parameters.update(self.category_parameters["material_3"][f"{utils.game_str(e_material_3.name)}_(four_material_shaders_disable_detail_bump)"])
+        self.true_parameters = {option.ui_name: option for option in self.shader_parameters.values()}
         
         blender_material.use_nodes = True
         tree = blender_material.node_tree
@@ -58,7 +73,7 @@ class ShaderTerrainTag(ShaderTag):
         final_node = node_group
         
         if e_material_0 in {TerrainMaterial.DIFFUSE_ONLY, TerrainMaterial.DIFFUSE_PLUS_SPECULAR}:
-            node_group.inputs["enable material_0"].default_value = True
+            node_group.inputs["Enable material_0"].default_value = True
         if e_material_1 in {TerrainMaterial.DIFFUSE_ONLY, TerrainMaterial.DIFFUSE_PLUS_SPECULAR}:
             node_group.inputs["Enable material_1"].default_value = True
         if e_material_2 in {TerrainMaterial.DIFFUSE_ONLY, TerrainMaterial.DIFFUSE_PLUS_SPECULAR}:

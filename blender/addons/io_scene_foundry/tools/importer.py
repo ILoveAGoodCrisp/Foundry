@@ -1330,7 +1330,7 @@ class NWOImporter:
                 with BitmapTag(path=mover.tag_path) as bitmap:
                     if not bitmap.has_bitmap_data(): continue
                     is_non_color = bitmap.is_linear()
-                    image_path = bitmap.save_to_tiff(blue_channel_fix=bitmap.used_as_normal_map(), format=image_format)
+                    image_path, array = bitmap.save_to_tiff(blue_channel_fix=bitmap.used_as_normal_map(), format=image_format)
                     if image_path:
                         # print(f"--- Extracted {os.path.basename(fp)} to {relative_path(image_path)}")
                         extracted_bitmaps[image_path] = is_non_color

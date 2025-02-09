@@ -13,6 +13,12 @@ from ..managed_blam import Tag
 from ..utils import print_warning
 from .. import utils
 
+clr.AddReference('System.Drawing')
+from System import Array, Byte # type: ignore
+from System.Runtime.InteropServices import Marshal # type: ignore
+from System.Drawing import Rectangle # type: ignore
+from System.Drawing.Imaging import ImageLockMode, ImageFormat, PixelFormat # type: ignore
+
 class BitmapTag(Tag):
     tag_ext = 'bitmap'
     
@@ -220,21 +226,9 @@ class BitmapTag(Tag):
             bgra_array[i + 2] = int(blue * 255)
             
         return bgra_array
-        
-        
-    def save_to_tiff(self, blue_channel_fix=False, format='tiff'):
-        # try:
-        if self.block_bitmaps.Elements.Count <= 0:
-            return
-        gamma = self.get_gamma_value()
-        # if not blue_channel_fix and gamma == 1.95: #dxt5
-        #     self.block_bitmaps.Elements[0].SelectField("CharEnum:curve").Value = 5
-        clr.AddReference('System.Drawing')
-        from System import Array, Byte # type: ignore
-        from System.Runtime.InteropServices import Marshal # type: ignore
-        from System.Drawing import Rectangle # type: ignore
-        from System.Drawing.Imaging import ImageLockMode, ImageFormat, PixelFormat # type: ignore
-        game_bitmap = self._GameBitmap()
+    
+    def _save_single(self, blue_channel_fix: bool, format: str, frame_index: int, suffix: str):
+        game_bitmap = self._GameBitmap(frame_index=frame_index)
         bitmap = game_bitmap.GetBitmap()
         game_bitmap.Dispose()
         
@@ -258,7 +252,7 @@ class BitmapTag(Tag):
             Marshal.Copy(rgbValues, 0, bitmap_data.Scan0, total_bytes)
             bitmap.UnlockBits(bitmap_data)
                     
-        tiff_path = str(Path(self.data_dir, self.tag.Path.RelativePath).with_suffix('.tiff'))
+        tiff_path = str(Path(self.data_dir, f"{self.tag.Path.RelativePath}{suffix}").with_suffix('.tiff'))
         tiff_dir = os.path.dirname(tiff_path)
         if not os.path.exists(tiff_dir):
             os.makedirs(tiff_dir, exist_ok=True)
@@ -273,10 +267,29 @@ class BitmapTag(Tag):
                 bitmap.Save(tiff_path, ImageFormat.Tiff)
                 
         bitmap.Dispose()
-        # except:
-        #     print_warning(f"Failed to Extract Bitmap from {self.tag_path.RelativePathWithExtension}")
-        #     return
         return tiff_path
+        
+        
+    def save_to_tiff(self, blue_channel_fix=False, format='tiff') -> list[str]:
+        tiff_paths = []
+        if self.block_bitmaps.Elements.Count <= 0:
+            return
+        gamma = self.get_gamma_value()
+        # if not blue_channel_fix and gamma == 1.95: #dxt5
+        #     self.block_bitmaps.Elements[0].SelectField("CharEnum:curve").Value = 5
+        array_length = 0
+        bitmap_elements = self.block_bitmaps.Elements
+        if bitmap_elements.Count > 1:
+            array_length = bitmap_elements.Count
+            for element in bitmap_elements:
+                temp_path = self._save_single(blue_channel_fix, format, element.ElementIndex, f"_{element.ElementIndex + 1:05}")
+                if element.ElementIndex == 0:
+                    tiff_path = temp_path
+                
+        else:
+            tiff_path = self._save_single(blue_channel_fix, format, 0, "")
+            
+        return tiff_path, array_length
     
     def normal_type(self):
         return NormalType.OPENGL if self.longenum_usage.Value == 36 else NormalType.DIRECTX

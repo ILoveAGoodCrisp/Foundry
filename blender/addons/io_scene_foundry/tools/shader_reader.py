@@ -39,9 +39,10 @@ class NWO_ShaderToNodes(bpy.types.Operator):
 def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str):
     """Turns a shader/material tag into blender material nodes"""
     print(f"--- Building material nodes for: {mat.name}")
+    shader = None
     if corinth:
-        with MaterialTag(path=tag_path) as material:
-            material.to_nodes(mat)
+        with MaterialTag(path=tag_path) as shader:
+            shader.to_nodes(mat)
     else:
         shader_type = Path(tag_path).suffix[1:]
         match shader_type:
@@ -57,5 +58,8 @@ def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str):
             case 'shader_halogram':
                 with ShaderHalogramTag(path=tag_path) as shader:
                     shader.to_nodes(mat)
-                    
-    return shader.game_functions
+    
+    if shader is None:
+        return set()
+    else:
+        return shader.game_functions

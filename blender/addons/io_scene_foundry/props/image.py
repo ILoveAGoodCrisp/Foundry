@@ -86,3 +86,6 @@ class NWO_ImagePropertiesGroup(bpy.types.PropertyGroup):
 
     filepath : bpy.props.StringProperty()
     source_name : bpy.props.StringProperty()
+    
+    last_wrap_mode: bpy.props.StringProperty(options={'HIDDEN'})
+    array_length: bpy.props.IntProperty(options={'HIDDEN'})

@@ -2,10 +2,32 @@
 
 from pathlib import Path
 
+from .Tags import TagFieldBlockElement
+
 from .. import utils
+import bpy
 
 from .model import ModelTag
 from . import Tag
+
+class Function:
+    def __init__(self):
+        self.import_name = ""
+        self.export_name = ""
+        self.turn_off_with = ""
+        self.ranged_interpolation_name = ""
+        self.min_value = 0
+        self.invert = False
+        self.mapping_does_not_controls_active = False
+        self.always_active = False
+        self.always_exports_value = False
+        self.turn_off_with_uses_magnitude = False
+        self.scale_by = ""
+        
+    def from_element(self, element: TagFieldBlockElement):
+        self.import_name = element.SelectField("import name").GetStringData()
+        self.export_name = element.SelectField("export name").GetStringData()
+        self.turn_off_with = element.SelectField("turn off with").GetStringData()
 
 class ObjectTag(Tag):
     """For ManagedBlam task that cover all tags that are classed as objects"""
@@ -18,6 +40,7 @@ class ObjectTag(Tag):
         self.reference_model = self.tag.SelectField(f"{object_struct.FieldPath}/Reference:model")
         self.default_variant = self.tag.SelectField(f"{object_struct.FieldPath}/StringId:default model variant")
         self.block_change_colors = self.tag.SelectField(f"{object_struct.FieldPath}/Block:change colors")
+        self.block_functions = self.tag.SelectField(f"{object_struct.FieldPath}/Block:functions")
             
     def get_model_tag_path(self):
         model_path = self.reference_model.Path
@@ -62,3 +85,13 @@ class ObjectTag(Tag):
             return []
         with ModelTag(path=model_path) as model:
             return model.get_model_variants()
+        
+    def functions_from_tag(self) -> list[str, float]:
+        for element in self.block_functions.Elements:
+            export_name = element.SelectField("export name").GetStringData()
+            if not export_name.strip():
+                continue
+            node_group_name = f"{self.tag_path.ShortName} {export_name}"
+            group = bpy.data.node_groups.get(node_group_name)
+            if group is None:
+                group = bpy.data.node_groups.new(node_group_name)
