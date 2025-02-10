@@ -263,31 +263,6 @@ class RenderModelTag(Tag):
         marker_size_factor = max(self.bounds.x1 - self.bounds.x0, self.bounds.y1 - self.bounds.y0, self.bounds.z1 - self.bounds.z0) * 0.025
         for element in self.block_marker_groups.Elements:
             marker_group = MarkerGroup(element, self.nodes, self.regions)
-            markers = marker_group.to_blender(self.armature, markers_collection, marker_size_factor)
-            if allowed_region_permutations:
-                for ob in markers:
-                    if not ob.nwo.marker_uses_regions:
-                        objects.append(ob)
-                    else:
-                        if ob.nwo.marker_permutation_type == "include":
-                            for perm in ob.nwo.marker_permutations:
-                                region_perm = tuple((ob.nwo.region_name, perm.name))
-                                if region_perm in allowed_region_permutations:
-                                    objects.append(ob)
-                                    break
-                                else:
-                                    bpy.data.objects.remove(ob)
-                        else: # exclude
-                            for perm in ob.nwo.marker_permutations:
-                                region_perm = tuple((ob.nwo.region_name, perm.name))
-                                if region_perm in allowed_region_permutations:
-                                    bpy.data.objects.remove(ob)
-                                    break
-                            else:
-                                objects.append(ob)
-                                        
-                        
-            else:
-                objects.extend(markers)
+            objects.extend(marker_group.to_blender(self.armature, markers_collection, marker_size_factor, allowed_region_permutations))
             
         return objects

@@ -1908,6 +1908,10 @@ class Marker:
         self.rotation = utils.ijkw_to_wxyz([n for n in element.SelectField("rotation").Data])
         self.scale = element.SelectField("scale").Data
         self.direction = ([n for n in element.SelectField("direction").Data])
+        
+        self.uses_regions = False
+        self.permutation_type = "exclude"
+        self.permutations = []
     
 class MarkerGroup:
     name: str
@@ -1933,7 +1937,7 @@ class MarkerGroup:
         for e in element.SelectField("markers").Elements:
             self.markers.append(Marker(e, nodes, regions))
             
-    def to_blender(self, armature: bpy.types.Object, collection: bpy.types.Collection, size_factor: float):
+    def to_blender(self, armature: bpy.types.Object, collection: bpy.types.Collection, size_factor: float, allowed_region_permutations: set):
         # Find duplicate markers
         objects = []
         skip_markers = []
@@ -1949,6 +1953,44 @@ class MarkerGroup:
         
         for marker in remaining_markers:
             # print(f"--- {self.name}")
+            if marker.region:
+                # Check if there is a marker for every permutation
+                if marker.linked_to and len(marker.linked_to) + 1 != len(marker.region.permutations):
+                    # If not pick if this is include or exclude type depending on whichever means less permutation entries need to be added
+                    # If a tie prefer exclude
+                    include_permutations = [marker.permutation.name]
+                    include_permutations.extend([m.permutation.name for m in marker.linked_to if m.permutation]) 
+                    exclude_permutations = [p.name for p in marker.region.permutations if p.name not in include_permutations]
+                    if len(include_permutations) < len(exclude_permutations):
+                        marker.permutation_type = "include"
+                        marker.permutations = include_permutations
+                    else:
+                        marker.permutations = exclude_permutations
+                elif not marker.linked_to:
+                    marker.permutation_type = "include"
+                    marker.permutations = [marker.permutation.name]
+                else:
+                    marker.permutations = [marker.permutation.name]
+                    
+            if allowed_region_permutations:
+                skip = False
+                if marker.permutation_type == "include":
+                    for perm in marker.permutations:
+                        region_perm = tuple((marker.region.name, perm))
+                        if region_perm in allowed_region_permutations:
+                            break
+                    else:
+                        skip = True
+                else: # exclude
+                    for perm in marker.permutations:
+                        region_perm = tuple((marker.region.name, perm))
+                        if region_perm in allowed_region_permutations:
+                            skip = True
+                            break
+            
+                if skip:
+                    continue
+            
             ob = bpy.data.objects.new(name=self.name, object_data=None)
             collection.objects.link(ob)
             ob.parent = armature
@@ -1959,26 +2001,13 @@ class MarkerGroup:
 
             nwo = ob.nwo
             nwo.marker_type = self.type.name
-            if marker.region:
-                nwo.marker_uses_regions = True
-                utils.set_region(ob, marker.region.name)
-                # Check if there is a marker for every permutation
-                if marker.linked_to and len(marker.linked_to) + 1 != len(marker.region.permutations):
-                    # If not pick if this is include or exclude type depending on whichever means less permutation entries need to be added
-                    # If a tie prefer exclude
-                    include_permutations = [marker.permutation.name]
-                    include_permutations.extend([m.permutation.name for m in marker.linked_to if m.permutation]) 
-                    exclude_permutations = [p.name for p in marker.region.permutations if p.name not in include_permutations]
-                    if len(include_permutations) < len(exclude_permutations):
-                        nwo.marker_permutation_type = "include"
-                        utils.set_marker_permutations(ob, include_permutations)
-                    else:
-                        utils.set_marker_permutations(ob, exclude_permutations)
-                elif not marker.linked_to:
-                    nwo.marker_permutation_type = "include"
-                    utils.set_marker_permutations(ob, [marker.permutation.name])
-                    
             
+            nwo.marker_uses_regions = marker.uses_regions
+            if marker.uses_regions:
+                utils.set_region(ob, marker.region.name)
+                nwo.marker_permutation_type = marker.permutation_type
+                utils.set_marker_permutations(ob, marker.permutations)
+
             ob.empty_display_type = "ARROWS"
             ob.empty_display_size *= size_factor
             
