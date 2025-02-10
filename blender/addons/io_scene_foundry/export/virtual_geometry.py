@@ -1506,7 +1506,7 @@ class VirtualSkeleton:
                 self.bones.append(b)
                 
     def append_animation_control(self, ob: bpy.types.Object, node: VirtualNode, scene: 'VirtualScene', parent_index=1):
-        b = VirtualBone(ob)
+        b = VirtualBone(ob, node.name)
         b.parent_index = parent_index
         b.node = node
         b.matrix_world = b.node.matrix_world
