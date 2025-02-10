@@ -2541,7 +2541,6 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
         
         arm_datas = set()
         for arm in armatures:
-            print(arm)
             if arm.library or arm.data.library:
                 print_warning(f'Cannot scale {arm.name}')
                 continue

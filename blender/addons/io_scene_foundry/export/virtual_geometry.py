@@ -289,12 +289,11 @@ class VirtualAnimation:
                 if bone.is_object:
                     matrix = scene.rotation_matrix @ bone.pbone.matrix_world
                 elif bone.parent:
-                    # matrix_world = scene.rotation_matrix @ scale_matrix @ bone.pbone.matrix
-                    matrix_world = scene.rotation_matrix @ (bone.parent_matrix_rest_inverted @ bone.ob.matrix_world) @ bone.pbone.matrix
+                    matrix_world = scene.rotation_matrix @ bone.ob.matrix_world @ bone.pbone.matrix
                     bone_inverse_matrices[bone.pbone] = matrix_world.inverted()
                     matrix = bone_inverse_matrices[bone.parent] @ matrix_world
                 else:
-                    matrix = scene.rotation_matrix @ (bone.parent_matrix_rest_inverted @ bone.ob.matrix_world) @ bone.pbone.matrix
+                    matrix = scene.rotation_matrix @ bone.ob.matrix_world @ bone.pbone.matrix
                     bone_inverse_matrices[bone.pbone] = matrix.inverted()
 
                 loc, rot, sca = matrix.decompose()
@@ -1098,7 +1097,7 @@ class VirtualNode:
     def _setup(self, id: bpy.types.Object | bpy.types.PoseBone, scene: 'VirtualScene', fp_defaults: dict, proxies: list, template_node: 'VirtualNode', bones: list[str], parent_matrix: Matrix):
         if isinstance(id, bpy.types.Object):
             if template_node is None:
-                if id.type == 'ARMATURE' and not id.parent:
+                if id.type == 'ARMATURE':# and not id.parent:
                     self.matrix_world = IDENTITY_MATRIX
                     self.matrix_local = IDENTITY_MATRIX
                 else:
