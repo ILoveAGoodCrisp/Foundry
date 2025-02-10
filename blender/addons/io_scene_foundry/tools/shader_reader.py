@@ -32,9 +32,6 @@ class NWO_ShaderToNodes(bpy.types.Operator):
         if not full_path.exists():
             self.report({'WARNING'}, "Tag not found")
             return {"CANCELLED"}
-        if not shader_path.endswith(('.shader', '.material')):
-            self.report({'WARNING'}, f'Tag Type [{utils.dot_partition(shader_path, True)}] is not supported')
-            return {"CANCELLED"}
         tag_to_nodes(utils.is_corinth(context), mat, shader_path)
         return {"FINISHED"}
 
