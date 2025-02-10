@@ -2722,7 +2722,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     )
                     shader_path = mat.nwo.shader_path
                     full_path = Path(utils.get_tags_path(), shader_path)
-                    if full_path.exists() and shader_path.endswith(('.shader', '.material')):
+                    if full_path.exists():
                         col.operator('nwo.shader_to_nodes', text=f"Convert {txt} to Blender Material", icon='NODE_MATERIAL').mat_name = mat.name
                     col.separator()
                     col.label(text=f'{txt} Export Tools')

@@ -300,44 +300,48 @@ class BitmapTag(Tag):
             Marshal.Copy(rgbValues, 0, bitmap_data.Scan0, total_bytes)
             bitmap.UnlockBits(bitmap_data)
         
-        tiff_path = str(Path(self.data_dir, f"{self.tag_path.RelativePath}{suffix}").with_suffix('.tiff'))
-        tiff_dir = os.path.dirname(tiff_path)
+        tiff_path = str(Path(self.data_dir, self.tag_path.RelativePath).with_suffix('.tiff'))
+        if suffix: # we're dealing with a plate
+            save_path = str(Path(self.data_dir, self.tag_path.RelativePath, f"{self.tag_path.ShortName}{suffix}").with_suffix('.tiff'))
+        else:
+            save_path = tiff_path
+            
+        tiff_dir = os.path.dirname(save_path)
+        
         if not os.path.exists(tiff_dir):
             os.makedirs(tiff_dir, exist_ok=True)
         if "cubemap" in self.tag_path.ShortName:
             # save the original cubemap
             match format:
                 case 'bmp':
-                    bitmap.Save(tiff_path, ImageFormat.Bmp)
+                    bitmap.Save(save_path, ImageFormat.Bmp)
                 case 'png':
-                    bitmap.Save(tiff_path, ImageFormat.Png)
+                    bitmap.Save(save_path, ImageFormat.Png)
                 case 'jpeg':
-                    bitmap.Save(tiff_path, ImageFormat.Jpeg)
+                    bitmap.Save(save_path, ImageFormat.Jpeg)
                 case 'tiff':
-                    bitmap.Save(tiff_path, ImageFormat.Tiff)
+                    bitmap.Save(save_path, ImageFormat.Tiff)
             tiff_path = self._convert_cubemap(bitmap, suffix)
 
         match format:
             case 'bmp':
-                bitmap.Save(tiff_path, ImageFormat.Bmp)
+                bitmap.Save(save_path, ImageFormat.Bmp)
             case 'png':
-                bitmap.Save(tiff_path, ImageFormat.Png)
+                bitmap.Save(save_path, ImageFormat.Png)
             case 'jpeg':
-                bitmap.Save(tiff_path, ImageFormat.Jpeg)
+                bitmap.Save(save_path, ImageFormat.Jpeg)
             case 'tiff':
-                bitmap.Save(tiff_path, ImageFormat.Tiff)
+                bitmap.Save(save_path, ImageFormat.Tiff)
                 
         bitmap.Dispose()
         return tiff_path
         
     def save_to_tiff(self, blue_channel_fix=False, format='tiff') -> list[str]:
-        tiff_paths = []
         if self.block_bitmaps.Elements.Count <= 0:
             return
         gamma = self.get_gamma_value()
         # if not blue_channel_fix and gamma == 1.95: #dxt5
         #     self.block_bitmaps.Elements[0].SelectField("CharEnum:curve").Value = 5
-        array_length = 0
         bitmap_elements = self.block_bitmaps.Elements
         if bitmap_elements.Count > 1:
             array_length = bitmap_elements.Count
@@ -345,11 +349,16 @@ class BitmapTag(Tag):
                 temp_path = self._save_single(blue_channel_fix, format, element.ElementIndex, f"_{element.ElementIndex + 1:05}")
                 if element.ElementIndex == 0:
                     tiff_path = temp_path
-                
+            
+            full_tiff_path = Path(tiff_path)
+            utils.run_tool(["plate", str(full_tiff_path.with_suffix(""))], null_output=True)
+            tif_path = full_tiff_path.with_suffix(".tif")
+            if tif_path.exists():
+                return str(tif_path) 
         else:
             tiff_path = self._save_single(blue_channel_fix, format, 0, "")
             
-        return tiff_path, array_length
+        return tiff_path
     
     def normal_type(self):
         return NormalType.OPENGL if self.longenum_usage.Value == 36 else NormalType.DIRECTX

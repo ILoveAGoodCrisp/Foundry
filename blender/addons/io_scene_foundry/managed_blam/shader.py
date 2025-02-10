@@ -695,32 +695,21 @@ class ShaderTag(Tag):
         
         system_tiff_path = Path(self.data_dir, rel_path).with_suffix('.tiff')
         alt_system_tiff_path = system_tiff_path.with_suffix(".tif")
-        system_tiff_path_array = Path(self.data_dir, f"{rel_path}_00000").with_suffix('.tiff')
-        alt_system_tiff_path_array = Path(self.data_dir, f"{rel_path}_00000").with_suffix('.tff')
-        array_length = 0
         with BitmapTag(path=bitmap_path) as bitmap:
             is_non_color = bitmap.is_linear()
             for_normal = bitmap.used_as_normal_map()
             # print(f"Writing Tiff from {bitmap.tag_path.RelativePathWithExtension}")
             if self.always_extract_bitmaps:
-                image_path, array_length = bitmap.save_to_tiff(bitmap.used_as_normal_map())
+                image_path = bitmap.save_to_tiff(bitmap.used_as_normal_map())
             else:
                 if system_tiff_path.exists():
                     image_path = str(system_tiff_path)
-                elif system_tiff_path_array.exists():
-                    image_path = str(system_tiff_path_array)
-                    array_length = 10
                 elif alt_system_tiff_path.exists():
                     image_path = str(alt_system_tiff_path)
-                elif alt_system_tiff_path_array.exists():
-                    image_path = str(alt_system_tiff_path_array)
-                    array_length = 10
                 else:
-                    image_path, array_length = bitmap.save_to_tiff(bitmap.used_as_normal_map())
-            # Not checking for existing has the effect of a duplicate image being added. We want this for sequences so their frames can be offset seperately per image node
-            image = bpy.data.images.load(filepath=image_path, check_existing=array_length == 0)
-            if array_length:
-                image.source = 'SEQUENCE'
+                    image_path = bitmap.save_to_tiff(bitmap.used_as_normal_map())
+
+            image = bpy.data.images.load(filepath=image_path, check_existing=True)
 
             image.colorspace_settings.name = 'Non-Color'
             image.alpha_mode = 'CHANNEL_PACKED'
@@ -729,10 +718,7 @@ class ShaderTag(Tag):
             # else:
             #     image.colorspace_settings.name = 'Non-Color'
                 
-            image.nwo.last_wrap_mode = wrap_mode
-            image.nwo.array_length = array_length
-                
-            return image
+            return image, wrap_mode
     
     def _normal_type_from_parameter_name(self, name):
         if not self.corinth:
@@ -937,17 +923,18 @@ class ShaderTag(Tag):
                 shader._recursive_tiling_parameters_get(parameter)
             
     def group_set_image(self, tree: bpy.types.NodeTree, node: bpy.types.Node, parameter: OptionParameter, channel_type=ChannelType.DEFAULT, specified_input=None):
-        data = self._image_from_parameter(parameter)
+        result = self._image_from_parameter(parameter)
+        if result is None:
+            return
+        
+        data, wrap_mode = result
+        
         if data is None:
-            return None
+            return
         
         data_node = tree.nodes.new("ShaderNodeTexImage")
         data_node.image = data
-        data_node.extension = data.nwo.last_wrap_mode
-        
-        if data.nwo.array_length:
-            # data_node.image_user.use_auto_refresh = True
-            data_node.image_user.frame_duration = data.nwo.array_length
+        data_node.extension = wrap_mode
         
         if specified_input is None:
             match channel_type:
