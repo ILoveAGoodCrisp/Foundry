@@ -801,7 +801,8 @@ class ExportScene:
             
         if mesh_type == '_connected_geometry_mesh_type_structure':
             mesh_type = '_connected_geometry_mesh_type_default'
-        
+            
+        print(mesh_type)
         props["bungie_mesh_type"] = MeshType[mesh_type[30:]].value
         
         fp_defaults, tmp_mesh_props = self.processed_meshes.get(ob.data, (None, None))
@@ -1400,7 +1401,7 @@ class ExportScene:
             utils.update_job_count(process, "", num_no_parents, num_no_parents)
 
         if self.asset_type == AssetType.SCENARIO:
-            self.virtual_scene.add_automatic_structure(self.default_permutation, 1 if self.scene_settings.scale == 'blender' else 1 / 0.03048)
+            self.virtual_scene.add_automatic_structure(self.default_region, self.default_permutation, 1 if self.scene_settings.scale == 'blender' else 1 / 0.03048)
             
     def sample_shots(self):
         process = "--- Sampling Cinematic Shots"

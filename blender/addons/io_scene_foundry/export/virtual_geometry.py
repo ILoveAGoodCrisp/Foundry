@@ -44,7 +44,7 @@ DESIGN_MESH_TYPES = {
     MeshType.boundary_surface.value,
     MeshType.water_physics_volume.value,
     MeshType.poop_rain_blocker.value,
-    MeshType.poop_verticle_rain_sheet.value
+    MeshType.poop_vertical_rain_sheet.value
 }
 
 FACE_PROP_TYPES = {
@@ -1712,7 +1712,7 @@ class VirtualScene:
                 node.mesh and 
                 node.props.get("bungie_mesh_type") == "_connected_geometry_mesh_type_poop")
         
-    def add_automatic_structure(self, default_permutation, scalar):
+    def add_automatic_structure(self, default_region, default_permutation, scalar):
         def wrap_bounding_box(nodes, padding):
             min_x, min_y, min_z, max_x, max_y, max_z = (i * scalar for i in (-10, -10, 0, 10, 10, 30))
             for node in nodes:
@@ -1776,7 +1776,7 @@ class VirtualScene:
             return structure_ob, props
         
         if not self.structure:
-            self.structure.add(self.regions[0])
+            self.structure.add(default_region)
 
         if self.structure == self.bsps_with_structure:
             return

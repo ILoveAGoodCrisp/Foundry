@@ -48,7 +48,7 @@ class MeshType(BungieEnum):
     poop_physics = 6
     poop_marker = 7
     poop_rain_blocker = 8
-    poop_verticle_rain_sheet = 9
+    poop_vertical_rain_sheet = 9
     decorator = 10
     object_instance = 11
     physics = 12
