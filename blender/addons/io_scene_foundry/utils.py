@@ -1,4 +1,4 @@
-from collections import Counter
+from collections import Counter, defaultdict
 import ctypes
 from enum import Enum, auto
 import itertools
@@ -2347,11 +2347,10 @@ def parentage_depth(ob: bpy.types.Object) -> int:
         
     return depth
 
-
-
 class TransformObject:
     def __init__(self, ob: bpy.types.Object, matrix: Matrix = None, scale: float = None, marker_z_matrix: Matrix = None):
         self.ob = ob
+        self.original_matrix = self.ob.matrix_world.copy()
         self.marker_z_matrix = marker_z_matrix
         if matrix is None:
             self.matrix = ob.matrix_world.copy()
@@ -2395,13 +2394,13 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
         transform_matrix = rotation_matrix @ scale_matrix
         transform_objects = []
         marker_z = Matrix.Rotation(-rotation, 4, 'Z')
+        child_of_constraints = []
                 
         for ob in objects:
             match ob.type:
                 case 'ARMATURE':
                     armatures.append(ob)
                     transform_objects.append(TransformObject(ob, scale=scale_factor)) # scale loc but otherwise retain matrix
-                    continue
                 case 'LATTICE' | 'LIGHT':
                     transform_objects.append(TransformObject(ob, transform_matrix)) # update loc, rot, sca
                 case 'EMPTY':
@@ -2486,11 +2485,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                             if rotation:
                                 con.forward_axis = rotate_follow_path_axis(con.forward_axis, old_forward, new_forward)
                         case 'CHILD_OF':
-                            con.inverse_matrix = con.inverse_matrix @ rotation_matrix.inverted()
-                            if scale_factor != 1:
-                                con_loc, con_rot, con_sca = con.inverse_matrix.decompose()
-                                con_loc *= scale_factor
-                                con.inverse_matrix = Matrix.LocRotScale(con_loc, con_rot, con_sca)
+                            child_of_constraints.append(con)
         
         transform_objects.sort(key=lambda t_o: parentage_depth(t_o.ob))
         
@@ -2610,11 +2605,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                             if rotation:
                                 con.forward_axis = rotate_follow_path_axis(con.forward_axis, old_forward, new_forward)
                         case 'CHILD_OF':
-                            con.inverse_matrix = con.inverse_matrix @ rotation_matrix.inverted()
-                            if scale_factor != 1:
-                                con_loc, con_rot, con_sca = con.inverse_matrix.decompose()
-                                con_loc *= scale_factor
-                                con.inverse_matrix = Matrix.LocRotScale(con_loc, con_rot, con_sca)
+                            child_of_constraints.append(con)
 
             if uses_pose_mirror:
                 arm.pose.use_mirror_x = True
@@ -2701,6 +2692,9 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                 
         for transform_ob in transform_objects:
             transform_ob.apply()
+            
+        for con in child_of_constraints:
+            con.set_inverse_pending = True
             
         if apply_rotation:
             with context.temp_override(selected_editable_objects=objects, object=objects[0]):

@@ -28,7 +28,7 @@ from ..tools.clear_duplicate_materials import clear_duplicate_materials
 from ..tools.property_apply import apply_props_material
 from ..tools.shader_finder import find_shaders
 from ..tools.shader_reader import tag_to_nodes
-from ..constants import VALID_MESHES, game_functions
+from ..constants import IDENTITY_MATRIX, VALID_MESHES, game_functions
 from .. import utils
 
 pose_hints = 'aim', 'look', 'acc', 'steer', 'pain'
@@ -1293,10 +1293,16 @@ class NWOImporter:
                             if group_name == child_object.parent_marker:
                                 marker_parents.append(marker_ob)
                     
+                    con = armature.constraints.new('CHILD_OF')
+                    con.set_inverse_pending = False
                     if marker_parents:
-                        armature.parent = marker_parents[0]
+                        con.target = marker_parents[0]
                     else:
-                        armature.parent = parent_armature
+                        con.target = parent_armature
+                        
+                    # con.inverse_matrix = IDENTITY_MATRIX
+                        
+                    
                     
         return imported_objects
             
