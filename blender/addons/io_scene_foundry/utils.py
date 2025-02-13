@@ -2350,8 +2350,9 @@ def parentage_depth(ob: bpy.types.Object) -> int:
 
 
 class TransformObject:
-    def __init__(self, ob: bpy.types.Object, matrix: Matrix = None, scale: float = None):
+    def __init__(self, ob: bpy.types.Object, matrix: Matrix = None, scale: float = None, marker_z_matrix: Matrix = None):
         self.ob = ob
+        self.marker_z_matrix = marker_z_matrix
         if matrix is None:
             self.matrix = ob.matrix_world.copy()
         else:
@@ -2361,6 +2362,8 @@ class TransformObject:
         
     def apply(self):
         self.ob.matrix_world = self.matrix
+        if self.marker_z_matrix is not None:
+            self.ob.matrix_basis = self.ob.matrix_basis @ self.marker_z_matrix
 
 def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forward, new_forward, keep_marker_axis=None, objects=None, actions=None, apply_rotation=False, exclude_scale_models=False, skip_data=False):
     """Transform blender objects by the given scale factor and rotation. Optionally this can be scoped to a set of objects and animations rather than all"""
@@ -2391,6 +2394,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
         scale_matrix = Matrix.Scale(scale_factor, 4)
         transform_matrix = rotation_matrix @ scale_matrix
         transform_objects = []
+        marker_z = Matrix.Rotation(-rotation, 4, 'Z')
                 
         for ob in objects:
             match ob.type:
@@ -2400,9 +2404,13 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                     continue
                 case 'LATTICE' | 'LIGHT':
                     transform_objects.append(TransformObject(ob, transform_matrix)) # update loc, rot, sca
+                case 'EMPTY':
+                    ob.empty_display_size *= scale_factor
+                    if keep_marker_axis and not is_frame(ob):
+                        transform_objects.append(TransformObject(ob, rotation_matrix, scale_factor, marker_z_matrix=marker_z))
+                    else:
+                        transform_objects.append(TransformObject(ob, rotation_matrix, scale_factor))
                 case _:
-                    if ob.type == 'EMPTY':
-                        ob.empty_display_size *= scale_factor
                     transform_objects.append(TransformObject(ob, rotation_matrix, scale_factor)) # update and scale loc, update rot
 
             if not skip_data:
