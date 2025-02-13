@@ -301,20 +301,21 @@ class ScenarioStructureBspTag(Tag):
             
         return objects
     
-    def get_seams(self, name, existing_seams: list[BSPSeam]=[]):
-        seams = []
-        for element in self.tag.SelectField("Block:seam identifiers").Elements:
-            if existing_seams:
-                existing_seams[element.ElementIndex].update(element, name)
-            else:
-                seam = BSPSeam(element)
-                seam.update(element, name)
-                seams.append(seam)
+    # def get_seams(self, name, existing_seams: list[BSPSeam]=[]):
+    #     seams = []
+    #     print(self.tag_path.RelativePathWithExtension, self.tag.SelectField("Block:seam identifiers").Elements.Count, )
+    #     for element in self.tag.SelectField("Block:seam identifiers").Elements:
+    #         if existing_seams:
+    #             existing_seams[element.ElementIndex].update(element, name)
+    #         else:
+    #             seam = BSPSeam(element)
+    #             seam.update(element, name)
+    #             seams.append(seam)
                 
-        if existing_seams:
-            return existing_seams
+    #     if existing_seams:
+    #         return existing_seams
 
-        return seams
+    #     return seams
     
 def are_faces_overlapping(face1, face2):
     # Check if faces are coplanar (i.e., their normals are parallel)

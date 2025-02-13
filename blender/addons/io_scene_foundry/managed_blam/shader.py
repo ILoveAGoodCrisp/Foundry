@@ -920,7 +920,7 @@ class ShaderTag(Tag):
                     
         if not self.corinth and self.reference.Path:
             with ShaderTag(path=self.reference.Path) as shader:
-                shader._recursive_tiling_parameters_get(parameter)
+                shader._recursive_tiling_parameters_get(parameter, animated_parameters)
             
     def group_set_image(self, tree: bpy.types.NodeTree, node: bpy.types.Node, parameter: OptionParameter, channel_type=ChannelType.DEFAULT, specified_input=None):
         result = self._image_from_parameter(parameter)

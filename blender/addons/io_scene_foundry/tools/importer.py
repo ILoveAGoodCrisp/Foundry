@@ -1354,8 +1354,6 @@ class NWOImporter:
         imported_objects = []
         for file in paths:
             print(f'Importing Scenario Tag: {Path(file).with_suffix("").name} ')
-            seams_tag = None
-            seams = []
             structure_collision = []
             with utils.TagImportMover(self.project.tags_directory, file) as mover:
                 with ScenarioTag(path=mover.tag_path, raise_on_error=False) as scenario:
@@ -1365,11 +1363,11 @@ class NWOImporter:
                     scenario_collection = bpy.data.collections.new(scenario_name)
                     self.context.scene.collection.children.link(scenario_collection)
                     for bsp in bsps:
-                        bsp_objects, seams, collision = self.import_bsp(bsp, scenario_collection, seams)
+                        bsp_objects, collision = self.import_bsp(bsp, scenario_collection)
                         imported_objects.extend(bsp_objects)
                     
-                    if seams:
-                        seams_tag = scenario.get_seams_path()
+                    # if seams:
+                    #     seams_tag = scenario.get_seams_path()
                         
             # if seams_tag is not None:
             #     seams_collection = bpy.data.collections.new(f"seams_{scenario_name}")
@@ -1380,7 +1378,7 @@ class NWOImporter:
         
         return imported_objects
     
-    def import_bsp(self, file, scenario_collection=None, seams=[]):
+    def import_bsp(self, file, scenario_collection=None):
         bsp_name = Path(file).with_suffix("").name
         print(f"Importing BSP {bsp_name}")
         bsp_objects = []
@@ -1392,14 +1390,14 @@ class NWOImporter:
         with utils.TagImportMover(self.project.tags_directory, file) as mover:
             with ScenarioStructureBspTag(path=mover.tag_path) as bsp:
                 bsp_objects = bsp.to_blend_objects(collection, scenario_collection is not None, self.tag_bsp_render_only)
-                seams = bsp.get_seams(bsp_name, seams)
+                # seams = bsp.get_seams(bsp_name, seams)
         
         bsp_name = utils.add_region(bsp_name)
         collection.name = "bsp::" + bsp_name
         collection.nwo.type = "region"
         collection.nwo.region = bsp_name
         
-        return bsp_objects, seams, bsp.structure_collision
+        return bsp_objects, bsp.structure_collision
     
     def import_particle_model(self, file):
         filename = Path(file).with_suffix("").name
