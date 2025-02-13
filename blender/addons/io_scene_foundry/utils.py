@@ -47,6 +47,7 @@ object_exts = '.crate', '.scenery', '.effect_scenery', '.device_control', '.devi
 legacy_lightmap_prefixes = 'lm:', 'lp:', 'hl:', 'ds:', 'ds:', 'pf:', 'lt:', 'to:', 'at:', 'ro:'
 
 module = None
+zero_vector = Vector.Fill(3, 0)
 
 ###########
 ##GLOBALS##
@@ -2337,6 +2338,29 @@ def ypr_from_flu(forward, left, up):
     
     return yaw_deg, pitch_deg, roll_deg
 
+def parentage_depth(ob: bpy.types.Object) -> int:
+    '''Returns the depth of an object in a parentage chain. If the object has no parent, returns 0'''
+    depth = 0
+    while ob.parent is not None:
+        depth += 1
+        ob = ob.parent
+        
+    return depth
+
+
+
+class TransformObject:
+    def __init__(self, ob: bpy.types.Object, matrix: Matrix = None, scale: float = None):
+        self.ob = ob
+        if matrix is None:
+            self.matrix = ob.matrix_world.copy()
+        else:
+            self.matrix = matrix @ ob.matrix_world
+        if scale is not None:
+            self.matrix.translation = zero_vector.lerp(self.matrix.translation, scale)
+        
+    def apply(self):
+        self.ob.matrix_world = self.matrix
 
 def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forward, new_forward, keep_marker_axis=None, objects=None, actions=None, apply_rotation=False, exclude_scale_models=False, skip_data=False):
     """Transform blender objects by the given scale factor and rotation. Optionally this can be scoped to a set of objects and animations rather than all"""
@@ -2361,63 +2385,26 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
         if keep_marker_axis is None:
             keep_marker_axis = context.scene.nwo.maintain_marker_axis
 
-        armatures = [ob for ob in objects if ob.type == 'ARMATURE']
-        parented_armatures = [ob for ob in armatures if ob.parent]
+        armatures = []
         scene_coll = context.scene.collection.objects
-        axis_z = Vector((0, 0, 1))
-        pivot = Vector((0.0, 0.0, 0.0))
-        rotation_matrix = Matrix.Rotation(rotation, 4, axis_z)
-        pivot_matrix = (Matrix.Translation(pivot) @ rotation_matrix @ Matrix.Translation(-pivot))
+        rotation_matrix = Matrix.Rotation(rotation, 4, Vector((0, 0, 1)))
         scale_matrix = Matrix.Scale(scale_factor, 4)
         transform_matrix = rotation_matrix @ scale_matrix
-        frames = [ob for ob in bpy.data.objects if is_frame(ob)]
-        bone_children = []
+        transform_objects = []
                 
         for ob in objects:
-            old_scale = ob.scale.copy()
-            # no_data_transform = ob.type in ('EMPTY', 'CAMERA', 'LIGHT', 'LIGHT_PROBE', 'SPEAKER')
-            bone_parented = False
-            if ob.parent and ob.parent.type == 'ARMATURE' and ob.parent_type == 'BONE' and ob.parent_bone:
-                par_bone = ob.parent.data.bones.get(ob.parent_bone)
-                if par_bone and not par_bone.use_relative_parent:
-                    bone_parented = True
-                
-            object_parented = (ob.parent and ob.parent.type != 'ARMATURE' and ob.parent_type == 'OBJECT')
-            loc, rot, sca = ob.matrix_basis.decompose()
-            if ob.rotation_mode == 'QUATERNION':
-                rot = ob.rotation_quaternion
-            else:
-                rot = ob.rotation_euler
-                
-            loc *= scale_factor
-                
-            if rotation and not bone_parented:
-                loc = pivot_matrix @ loc
-            
-            is_a_frame = ob in frames
-            
-            if not (ob.type == 'ARMATURE' or bone_parented):
-                rot.rotate(rotation_matrix)
-            elif bone_parented and ob.matrix_parent_inverse != Matrix.Identity(4):
-                bone_children.append(BoneChild(ob, ob.parent, ob.parent_bone))
-                
-            if ob.type == 'EMPTY':
-                ob.empty_display_size *= scale_factor
-                
-            ob.matrix_basis = Matrix.LocRotScale(loc, rot, sca)
-            if object_parented:
-                local_loc, local_rot, local_sca = ob.matrix_local.decompose()
-                local_loc *= scale_factor
-                ob.matrix_local = Matrix.LocRotScale(local_loc, local_rot, local_sca)
-            
-            if keep_marker_axis and not is_a_frame and is_marker(ob):
-                ob.rotation_euler.rotate_axis('Z', -rotation)
-            
-            if ob.type == 'LATTICE' or ob.type == 'LIGHT':
-                ob.scale *= scale_factor
-            else:
-                ob.scale = old_scale
-                
+            match ob.type:
+                case 'ARMATURE':
+                    armatures.append(ob)
+                    transform_objects.append(TransformObject(ob, scale=scale_factor)) # scale loc but otherwise retain matrix
+                    continue
+                case 'LATTICE' | 'LIGHT':
+                    transform_objects.append(TransformObject(ob, transform_matrix)) # update loc, rot, sca
+                case _:
+                    if ob.type == 'EMPTY':
+                        ob.empty_display_size *= scale_factor
+                    transform_objects.append(TransformObject(ob, rotation_matrix, scale_factor)) # update and scale loc, update rot
+
             if not skip_data:
                 for mod in ob.modifiers:
                     match mod.type:
@@ -2497,6 +2484,8 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                                 con_loc *= scale_factor
                                 con.inverse_matrix = Matrix.LocRotScale(con_loc, con_rot, con_sca)
         
+        transform_objects.sort(key=lambda t_o: parentage_depth(t_o.ob))
+        
         if not skip_data:
             for curve in curves:
                 if hasattr(curve, 'size'):
@@ -2573,15 +2562,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                     edit_bone.use_connect = False
                     
                 for edit_bone in edit_bones:
-                    if arm in parented_armatures:
-                        edit_bone.transform(scale_matrix)
-                    else:
-                        edit_bone.transform(transform_matrix)
-                    edit_bone_children = [child.ob for child in bone_children if child.parent == arm and child.parent_bone == edit_bone.name]
-                    for ob in edit_bone_children:
-                        correction_matrix = pivot_matrix @ ob.matrix_basis.copy()
-                        ob.matrix_parent_inverse.identity()
-                        ob.matrix_local = (arm.matrix_world @ Matrix.Translation(edit_bone.tail - edit_bone.head) @ edit_bone.matrix).inverted() @ correction_matrix
+                    edit_bone.transform(transform_matrix)
                     
                 for edit_bone in connected_bones:
                     edit_bone.use_connect = True
@@ -2681,7 +2662,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                     for kfpx, kfpy, kfpz in zip(keyframes_x[i], keyframes_y[i], keyframes_z[i]):
                         v = Vector((kfpx.co[1], kfpy.co[1], kfpz.co[1]))
                         mat = Matrix.Translation(v)
-                        loc = pivot_matrix @ mat
+                        loc = rotation_matrix @ mat
                         vloc = loc.to_translation()
                         kfpx.co_ui[1], kfpy.co_ui[1], kfpz.co_ui[1] = vloc[0], vloc[1], vloc[2]
                 
@@ -2710,9 +2691,12 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
             for fc in action.fcurves:
                 fc.keyframe_points.handles_recalc()
                 
-            if apply_rotation:
-                with context.temp_override(selected_editable_objects=objects, object=objects[0]):
-                    bpy.ops.object.transform_apply(location=False, rotation=True, scale=False, isolate_users=True)
+        for transform_ob in transform_objects:
+            transform_ob.apply()
+            
+        if apply_rotation:
+            with context.temp_override(selected_editable_objects=objects, object=objects[0]):
+                bpy.ops.object.transform_apply(location=False, rotation=True, scale=False, isolate_users=True)
             
 def get_area_info(context):
     area = [

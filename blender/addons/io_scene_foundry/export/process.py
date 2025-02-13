@@ -801,8 +801,7 @@ class ExportScene:
             
         if mesh_type == '_connected_geometry_mesh_type_structure':
             mesh_type = '_connected_geometry_mesh_type_default'
-            
-        print(mesh_type)
+
         props["bungie_mesh_type"] = MeshType[mesh_type[30:]].value
         
         fp_defaults, tmp_mesh_props = self.processed_meshes.get(ob.data, (None, None))

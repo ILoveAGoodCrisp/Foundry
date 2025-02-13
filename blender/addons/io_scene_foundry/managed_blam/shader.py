@@ -1150,6 +1150,8 @@ class ShaderTag(Tag):
             
         if e_self_illumination.value > 0:
             node_self_illumination = self._add_group_node(tree, nodes, f"self_illumination - {utils.game_str(e_self_illumination.name)}")
+            if e_self_illumination == SelfIllumination.FROM_DIFFUSE:
+                tree.links.new(input=node_self_illumination.inputs[0], output=node_albedo.outputs[0])
             node_illum_add = nodes.new(type='ShaderNodeAddShader')
             node_illum_add.location.x = node_self_illumination.location.x + 300
             node_illum_add.location.y = final_node.location.y

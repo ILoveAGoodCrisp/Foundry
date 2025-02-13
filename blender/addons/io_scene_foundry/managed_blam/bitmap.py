@@ -228,52 +228,79 @@ class BitmapTag(Tag):
             
         return bgra_array
     
-    def _convert_cubemap(self, bitmap, suffix):
-        height = bitmap.Height
-        width = bitmap.Width
-        face_size = width // 4  # Each face is 1/4 of the total width
+        # faces = {
+        #     "back": bitmap.Clone(Rectangle(f * 3, f, f, f), bitmap.PixelFormat), # CUBEMAP: 0,1 HALO: 3,1
+        #     "left": bitmap.Clone(Rectangle(0, f, f, f), bitmap.PixelFormat), # CUBEMAP: 1,1 HALO: 0,1
+        #     "front": bitmap.Clone(Rectangle(f, f, f, f), bitmap.PixelFormat), # CUBEMAP: 2,1 HALO: 1,1
+        #     "right": bitmap.Clone(Rectangle(2 * f, f, f, f), bitmap.PixelFormat), # CUBEMAP: 3,1 HALO: 2,1
+        #     "bottom": bitmap.Clone(Rectangle(0, 2 * f, f, f), bitmap.PixelFormat), # CUBEMAP: 1,2 HALO: 0, 2
+        #     "top": bitmap.Clone(Rectangle(0, 0, f, f), bitmap.PixelFormat), # CUBEMAP: 1,0 HALO: 0,0
+        # }
+
+
+    def extract_faces(self, cubemap, face_size):
         faces = {
-            "right": bitmap.Clone(Rectangle(2 * face_size, face_size, face_size, face_size), bitmap.PixelFormat),  # +X
-            "left": bitmap.Clone(Rectangle(0 * face_size, face_size, face_size, face_size), bitmap.PixelFormat),  # -X
-            "top": bitmap.Clone(Rectangle(face_size, 0, face_size, face_size), bitmap.PixelFormat),  # +Y
-            "bottom": bitmap.Clone(Rectangle(face_size, 2 * face_size, face_size, face_size), bitmap.PixelFormat),  # -Y
-            "front": bitmap.Clone(Rectangle(face_size, face_size, face_size, face_size), bitmap.PixelFormat),  # +Z
-            "back": bitmap.Clone(Rectangle(3 * face_size, face_size, face_size, face_size), bitmap.PixelFormat)  # -Z
+            "+Y": cubemap.Clone(Rectangle(0, 0, face_size, face_size), cubemap.PixelFormat),
+            "-Y": cubemap.Clone(Rectangle(0, 2 * face_size, face_size, face_size), cubemap.PixelFormat),
+            "+Z": cubemap.Clone(Rectangle(0, face_size, face_size, face_size), cubemap.PixelFormat),
+            "-Z": cubemap.Clone(Rectangle(2 * face_size, face_size, face_size, face_size), cubemap.PixelFormat),
+            "+X": cubemap.Clone(Rectangle(face_size, face_size, face_size, face_size), cubemap.PixelFormat),
+            "-X": cubemap.Clone(Rectangle(3 * face_size, face_size, face_size, face_size), cubemap.PixelFormat)
         }
+        return faces
 
-        def cubemap_to_equirectangular(x, y):
-            u = (x / float(width)) * 2 - 1
-            v = (y / float(height)) * 2 - 1
+    def sample_cubemap(self, faces, theta, phi, face_size):
+        x = math.cos(phi) * math.cos(theta)
+        y = math.sin(phi)
+        z = math.cos(phi) * math.sin(theta)
 
-            lon = u * math.pi
-            lat = v * (math.pi / 2)
+        abs_x, abs_y, abs_z = abs(x), abs(y), abs(z)
 
-            X = math.cos(lat) * math.cos(lon)
-            Y = math.sin(lat)
-            Z = math.cos(lat) * math.sin(lon)
+        if abs_y >= abs_x and abs_y >= abs_z:
+            face = "+Y" if y > 0 else "-Y"
+            u = (x / abs_y + 1) / 2
+            v = (z / abs_y + 1) / 2
+        elif abs_x >= abs_y and abs_x >= abs_z:
+            face = "+X" if x > 0 else "-X"
+            u = (-z / abs_x + 1) / 2
+            v = (-y / abs_x + 1) / 2
+        else:
+            face = "+Z" if z > 0 else "-Z"
+            u = (x / abs_z + 1) / 2
+            v = (-y / abs_z + 1) / 2
 
-            absX, absY, absZ = abs(X), abs(Y), abs(Z)
+        u = max(0, min(int(u * (face_size - 1)), face_size - 1))
+        v = max(0, min(int(v * (face_size - 1)), face_size - 1))
 
-            if absX >= absY and absX >= absZ:
-                face = "right" if X > 0 else "left"
-                u, v = (Z / absX + 1) / 2, (Y / absX + 1) / 2
-            elif absY >= absX and absY >= absZ:
-                face = "top" if Y > 0 else "bottom"
-                u, v = (X / absY + 1) / 2, (Z / absY + 1) / 2
-            else:
-                face = "front" if Z > 0 else "back"
-                u, v = (X / absZ + 1) / 2, (Y / absZ + 1) / 2
+        return faces[face].GetPixel(u, v)
 
-            return face, u, v
+    def cubemap_to_equirectangular(self, bitmap):
+        """ Converts a left-shifted cross cubemap (wrapping -X) to an equirectangular projection """
+        width = bitmap.Width
+        height = bitmap.Height
+        face_size = height // 3
+        faces = self.extract_faces(bitmap, face_size)
         
-        for y in range(height):
-            for x in range(width):
-                face, u, v = cubemap_to_equirectangular(x, y)
-                pixel_x = int(u * (faces[face].Width - 1))
-                pixel_y = int(v * (faces[face].Height - 1))
-                bitmap.SetPixel(x, y, faces[face].GetPixel(pixel_x, pixel_y))
+        # Define output image size (2:1 aspect ratio)
+        equirect_width = face_size * 8
+        equirect_height = equirect_width // 2
+
+        # Create new equirectangular image
+        equirect = Bitmap(equirect_width, equirect_height)
+        
+        for y in range(equirect_height):
+            phi = ((equirect_height - 1 - y) / equirect_height - 0.5) * math.pi  # Flip Y
+
+            for x in range(equirect_width):
+                theta = (x / equirect_width) * 2 * math.pi - math.pi  # -π to π
+                color = self.sample_cubemap(faces, theta, phi, face_size)
+                equirect.SetPixel(x, y, color)
                 
-        return str(Path(self.data_dir, f"{self.tag_path.RelativePath}{suffix}_equirectangular").with_suffix('.tiff'))
+        return equirect
+    
+    def _convert_cubemap(self, bitmap, suffix):
+        equirect = self.cubemap_to_equirectangular(bitmap)
+        return equirect, str(Path(self.data_dir, f"{self.tag_path.RelativePath}{suffix}_equirectangular").with_suffix('.tiff'))
     
     def _save_single(self, blue_channel_fix: bool, format: str, frame_index: int, suffix: str):
         game_bitmap = self._GameBitmap(frame_index=frame_index)
@@ -310,7 +337,7 @@ class BitmapTag(Tag):
         
         if not os.path.exists(tiff_dir):
             os.makedirs(tiff_dir, exist_ok=True)
-        if "cubemap" in self.tag_path.ShortName:
+        if self.is_cubemap:
             # save the original cubemap
             match format:
                 case 'bmp':
@@ -321,7 +348,8 @@ class BitmapTag(Tag):
                     bitmap.Save(save_path, ImageFormat.Jpeg)
                 case 'tiff':
                     bitmap.Save(save_path, ImageFormat.Tiff)
-            tiff_path = self._convert_cubemap(bitmap, suffix)
+            bitmap, tiff_path = self._convert_cubemap(bitmap, suffix)
+            save_path = tiff_path
 
         match format:
             case 'bmp':
@@ -337,11 +365,12 @@ class BitmapTag(Tag):
         return tiff_path
         
     def save_to_tiff(self, blue_channel_fix=False, format='tiff') -> list[str]:
+        self.is_cubemap = "cubemap" in self.tag_path.ShortName or "cube_map" in self.tag_path.ShortName
         if self.block_bitmaps.Elements.Count <= 0:
             return
         gamma = self.get_gamma_value()
-        # if not blue_channel_fix and gamma == 1.95: #dxt5
-        #     self.block_bitmaps.Elements[0].SelectField("CharEnum:curve").Value = 5
+        if not blue_channel_fix and gamma == 1.95: #dxt5
+            self.block_bitmaps.Elements[0].SelectField("CharEnum:curve").Value = 5
         bitmap_elements = self.block_bitmaps.Elements
         if bitmap_elements.Count > 1:
             array_length = bitmap_elements.Count
@@ -350,11 +379,13 @@ class BitmapTag(Tag):
                 if element.ElementIndex == 0:
                     tiff_path = temp_path
             
-            full_tiff_path = Path(tiff_path)
-            utils.run_tool(["plate", str(full_tiff_path.with_suffix(""))], null_output=True)
-            tif_path = full_tiff_path.with_suffix(".tif")
-            if tif_path.exists():
-                return str(tif_path) 
+            
+            if not self.is_cubemap:
+                full_tiff_path = Path(tiff_path)
+                utils.run_tool(["plate", str(full_tiff_path.with_suffix(""))], null_output=True)
+                tif_path = full_tiff_path.with_suffix(".tif")
+                if tif_path.exists():
+                    return str(tif_path) 
         else:
             tiff_path = self._save_single(blue_channel_fix, format, 0, "")
             

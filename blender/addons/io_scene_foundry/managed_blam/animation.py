@@ -408,7 +408,7 @@ class AnimationTag(Tag):
         #     base_translation, base_rotation, base_scale = base_matrix.decompose()
         #     if node.Translation.X == base_translation.x and node.Translation.Y == base_translation.y and node.Translation.Z == base_translation.z:
         #         nodes_bones[bone] = node
-        nodes_bones = {bone: node for bone in armature.pose.bones for node in animation_nodes if bone.name == node.Name}
+        nodes_bones = {bone: node for bone in armature.pose.bones for node in animation_nodes if utils.remove_node_prefix(bone.name) == utils.remove_node_prefix(node.Name)}
         bone_matrices = {}
         # print()
         # print(action.name.upper())
