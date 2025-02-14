@@ -607,7 +607,7 @@ class ExportScene:
         self.virtual_scene.selected_cinematic_objects_only = self.export_settings.selected_cinematic_objects_only
         self.virtual_scene.selected_actors = self.selected_actors
         self.virtual_scene.cinematic_scope = self.export_settings.cinematic_scope
-        # self.context.view_layer.update()
+        self.context.view_layer.update()
 
     def _get_object_type(self, ob) -> ObjectType:
         if ob.type in VALID_MESHES:

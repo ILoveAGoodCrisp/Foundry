@@ -1436,11 +1436,8 @@ class VirtualSkeleton:
                 
                 b.to_granny_data(scene)
                 self.bones.append(b)
-                self.animated_bones.append(AnimatedBone(fb.ob, fb.bone, is_aim_bone=fb.name in aim_bone_names, parent_override=fb.parent.bone if fb.parent else None))
-                # if is_main_armature:
-                #     scene.animated_bones.append(AnimatedBone(fb.ob, fb.bone, is_aim_bone=fb.name in aim_bone_names, parent_override=fb.parent.bone if fb.parent else None))
-                # elif scene.is_cinematic:
-                #     self.animated_bones.append(AnimatedBone(fb.ob, fb.bone, is_aim_bone=fb.name in aim_bone_names, parent_override=fb.parent.bone if fb.parent else None))
+                if is_main_armature or scene.is_cinematic:
+                    scene.animated_bones.append(AnimatedBone(fb.ob, fb.bone, is_aim_bone=fb.name in aim_bone_names, parent_override=fb.parent.bone if fb.parent else None))
                 
             child_index = 0
             for child in scene.get_immediate_children(ob):
