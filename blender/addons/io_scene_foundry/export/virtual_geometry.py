@@ -1097,7 +1097,7 @@ class VirtualNode:
     def _setup(self, id: bpy.types.Object | bpy.types.PoseBone, scene: 'VirtualScene', fp_defaults: dict, proxies: list, template_node: 'VirtualNode', bones: list[str], parent_matrix: Matrix):
         if isinstance(id, bpy.types.Object):
             if template_node is None:
-                if id.type == 'ARMATURE':# and not id.parent:
+                if id.type == 'ARMATURE' and not id.parent:
                     self.matrix_world = IDENTITY_MATRIX
                     self.matrix_local = IDENTITY_MATRIX
                 else:
@@ -1289,12 +1289,16 @@ class AnimatedBone:
                 self.parent = parent_override
 
 class FakeBone:
-    def __init__(self, ob: bpy.types.Object, bone: bpy.types.PoseBone, parent: 'FakeBone' = None, special_bone_names=[]):
+    def __init__(self, ob: bpy.types.Object, bone: bpy.types.PoseBone, parent: 'FakeBone' = None, special_bone_names=[], parent_ob: bpy.types.Object = None):
         self.name = bone.name
         self.ob = ob
         self.parent = parent
         self.bone = bone
         self.export = ob.data.bones[bone.name].use_deform or self.name in special_bone_names
+        if parent_ob is None:
+            self.matrix = bone.matrix
+        else:
+            self.matrix = ob.matrix_world @ bone.matrix
         
 def sort_bones_by_hierachy(fake_bones: list[FakeBone]):
     bone_dict = {}
@@ -1358,12 +1362,12 @@ class VirtualSkeleton:
 
             start_bones_dict = {}
             
-            def create_fake_bone(arm, pb, parent_fb=None) -> FakeBone:
+            def create_fake_bone(arm, pb, parent_fb=None, parent_arm=None) -> FakeBone:
                 if parent_fb is None:
                     parent = pb.parent
                     if parent:
                         parent_fb = start_bones_dict.get(parent)
-                fb = FakeBone(arm, pb, parent_fb, special_bone_names)
+                fb = FakeBone(arm, pb, parent_fb, special_bone_names, parent_arm)
                 start_bones_dict[pb] = fb
                 if fb.export and parent_fb is not None and not parent_fb.export: # Ensure parents of deform bones are themselves deform
                     scene.warnings.append(f"Bone {parent_fb.name} is marked non-deform but has deforming children. Including {parent_fb.name} in export")
@@ -1380,7 +1384,7 @@ class VirtualSkeleton:
                 if fb.name in support_armature_bone_parent_names:
                     for child in scene.support_armatures:
                         for pbone_s in child.pose.bones:
-                            cfb = create_fake_bone(child, pbone_s, fb if pbone_s.parent is None else None)
+                            cfb = create_fake_bone(child, pbone_s, fb if pbone_s.parent is None else None, main_arm)
                             fb_names.append(cfb.name)
                             fbs.append(cfb)
                             
@@ -1404,7 +1408,7 @@ class VirtualSkeleton:
             for idx, fb in enumerate(valid_bones):
                 b = VirtualBone(fb.bone, fb.name)
                 frame_ids_index = None
-                if scene.asset_type == AssetType.CINEMATIC:
+                if scene.is_cinematic:
                     actor = scene.actors.get(ob)
                     if actor is not None and actor.node_order is not None:
                         frame_ids_index = actor.node_order.get(b.name)
@@ -1416,7 +1420,7 @@ class VirtualSkeleton:
                 if fb.parent:
                     # Add one to this since the root is the armature
                     b.parent_index = dict_bones[fb.parent.name] + 1
-                    b.matrix_world = scene.rotation_matrix @ fb.bone.matrix
+                    b.matrix_world = scene.rotation_matrix @ fb.matrix
                     bone_inverse_matrices[fb.bone] = b.matrix_world.inverted()
                     b.matrix_local = bone_inverse_matrices[fb.parent.bone] @ b.matrix_world
                 else:
@@ -1425,17 +1429,18 @@ class VirtualSkeleton:
                     root_bone_found = True
                     root_bone = fb.bone
                     b.parent_index = 0
-                    b.matrix_world = scene.rotation_matrix @ fb.bone.matrix
+                    b.matrix_world = scene.rotation_matrix @ fb.matrix
                     b.matrix_local = b.matrix_world
                     bone_inverse_matrices[fb.bone] = b.matrix_world.inverted()
                     scene.root_bone = root_bone
                 
                 b.to_granny_data(scene)
                 self.bones.append(b)
-                if is_main_armature:
-                    scene.animated_bones.append(AnimatedBone(fb.ob, fb.bone, is_aim_bone=fb.name in aim_bone_names, parent_override=fb.parent.bone if fb.parent else None))
-                elif scene.is_cinematic:
-                    self.animated_bones.append(AnimatedBone(fb.ob, fb.bone, is_aim_bone=fb.name in aim_bone_names, parent_override=fb.parent.bone if fb.parent else None))
+                self.animated_bones.append(AnimatedBone(fb.ob, fb.bone, is_aim_bone=fb.name in aim_bone_names, parent_override=fb.parent.bone if fb.parent else None))
+                # if is_main_armature:
+                #     scene.animated_bones.append(AnimatedBone(fb.ob, fb.bone, is_aim_bone=fb.name in aim_bone_names, parent_override=fb.parent.bone if fb.parent else None))
+                # elif scene.is_cinematic:
+                #     self.animated_bones.append(AnimatedBone(fb.ob, fb.bone, is_aim_bone=fb.name in aim_bone_names, parent_override=fb.parent.bone if fb.parent else None))
                 
             child_index = 0
             for child in scene.get_immediate_children(ob):

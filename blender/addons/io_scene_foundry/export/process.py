@@ -333,7 +333,6 @@ class ExportScene:
                     
         if self.main_armature:
             self.support_armatures = [ob for ob in self.main_armature.children if ob.type == 'ARMATURE' and not ob.nwo.ignore_for_export]
-            # self.support_armatures = {self.context.scene.nwo.support_armature_a, self.context.scene.nwo.support_armature_b, self.context.scene.nwo.support_armature_c}
             
         self.depsgraph = self.context.evaluated_depsgraph_get()
         
@@ -432,14 +431,9 @@ class ExportScene:
             if ob is not None:
                 support_armatures.add(ob)
         
-        armature = None
-        if self.asset_type in {AssetType.MODEL, AssetType.ANIMATION}:
-            armature = utils.get_rig(self.context)
-        
         for ob in bpy.data.objects:
             if ob.parent:
                 self.objects_with_children.add(ob.parent)
-        
         with utils.Spinner():
             utils.update_job_count(process, "", 0, num_export_objects)
             for idx, ob in enumerate(self.export_objects):
@@ -565,11 +559,11 @@ class ExportScene:
                             copy_only = True
                     
                     self.ob_halo_data[copy_ob] = [copy_props, copy_region, permutation, fp_defaults, proxies]
-                    if not is_armature and (has_parent or (armature and not is_armature)) and copy_props["bungie_mesh_type"] != MeshType.poop.value:
+                    if not is_armature and (has_parent or (self.main_armature and not is_armature)) and copy_props["bungie_mesh_type"] != MeshType.poop.value:
                         if parent in support_armatures:
                             object_parent_dict[copy_ob] = self.main_armature
                         elif not has_parent:
-                            object_parent_dict[copy_ob] = armature
+                            object_parent_dict[copy_ob] = self.main_armature
                         else:
                             object_parent_dict[copy_ob] = parent
                     else:
@@ -577,11 +571,11 @@ class ExportScene:
                 
                 if not copy_only:
                     # Write object as if it has no parent if it is a poop. This solves an issue where instancing fails in Reach
-                    if not is_armature and (has_parent or (armature and not is_armature)) and mesh_type != MeshType.poop.value:
+                    if not is_armature and (has_parent or (self.main_armature and not is_armature)) and mesh_type != MeshType.poop.value:
                         if parent in support_armatures:
                             object_parent_dict[ob] = self.main_armature
                         elif not has_parent:
-                            object_parent_dict[ob] = armature
+                            object_parent_dict[ob] = self.main_armature
                         else:
                             object_parent_dict[ob] = parent
                     else:
@@ -613,7 +607,7 @@ class ExportScene:
         self.virtual_scene.selected_cinematic_objects_only = self.export_settings.selected_cinematic_objects_only
         self.virtual_scene.selected_actors = self.selected_actors
         self.virtual_scene.cinematic_scope = self.export_settings.cinematic_scope
-        self.context.view_layer.update()
+        # self.context.view_layer.update()
 
     def _get_object_type(self, ob) -> ObjectType:
         if ob.type in VALID_MESHES:
@@ -1391,7 +1385,7 @@ class ExportScene:
                     props = self.ob_halo_data[ob][0]
                     self.ob_halo_data[ob][0] = self._setup_skylights(props)
                     break
-            
+        
         with utils.Spinner():
             utils.update_job_count(process, "", 0, num_no_parents)
             for idx, ob in enumerate(self.no_parent_objects):
