@@ -198,10 +198,10 @@ class ModelTag(Tag):
                         for selement in pelement.SelectField("states").Elements:
                             state_enum = selement.SelectField("ShortEnum:state").Value
                             if state == -1 or state == state_enum:
-                                state = selement.Fields[0].GetStringData()
-                                if state == "default":
-                                    state = region_default_perms.get(region, "default")
-                                region_permutations.add(tuple((region, state)))
+                                state_name = selement.Fields[0].GetStringData()
+                                if state_name == "default":
+                                    state_name = region_default_perms.get(region, "default")
+                                region_permutations.add(tuple((region, state_name)))
                         
             for reg in all_regions:
                 if reg not in variant_regions:

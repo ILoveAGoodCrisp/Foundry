@@ -21,7 +21,7 @@ from ..managed_blam.render_model import RenderModelTag
 from ..managed_blam.physics_model import PhysicsTag
 from ..managed_blam.model import ChildObject, ModelTag
 from ..tools.mesh_to_marker import convert_to_marker
-from ..managed_blam.bitmap import BitmapTag
+from ..managed_blam.bitmap import BitmapTag, clear_path_cache
 from ..managed_blam.camera_track import CameraTrackTag
 from ..managed_blam.collision_model import CollisionTag
 from ..tools.clear_duplicate_materials import clear_duplicate_materials
@@ -94,6 +94,7 @@ class State(Enum):
     minor = 1
     medium = 2
     major = 3
+    destroyed = 4
 
 state_items = [
     ("all_states", "All Damage States", "Includes all damage stages"),
@@ -101,6 +102,7 @@ state_items = [
     ("minor", "Minor", "Minor Damage"),
     ("medium", "Medium", "Medium Damage"),
     ("major", "Major", "Major Damage"),
+    ("destroyed", "Destroyed", "Object's destroyed state"),
 ]
 
 class XREF:
@@ -378,6 +380,10 @@ class NWO_Import(bpy.types.Operator):
             self.tag_variant = ""
         if self.tag_zone_set == "all_zone_sets":
             self.tag_zone_set = ""
+            
+        if self.always_extract_bitmaps:
+            clear_path_cache()
+            
         with utils.ExportManager():
             os.system("cls")
             if context.scene.nwo_export.show_output:
@@ -2839,6 +2845,7 @@ class NWO_OT_ImportBitmap(bpy.types.Operator):
         if Path(self.filepath).suffix != '.bitmap':
             return {'CANCELLED'}
         
+        clear_path_cache()
         importer = NWOImporter(context, self.report, [self.filepath], ['bitmap'])
         extracted_bitmaps = importer.extract_bitmaps([self.filepath], 'tiff')
         images = importer.load_bitmaps(extracted_bitmaps, False)

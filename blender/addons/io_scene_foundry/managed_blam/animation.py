@@ -410,19 +410,27 @@ class AnimationTag(Tag):
             base_matrix = bone_base_matrices[bone]
             base_matrix: Matrix
             overlay_keyed = False
+            translation_keyed = False
+            rotation_keyed = False
             base_translation, base_rotation, base_scale = base_matrix.decompose()
             if translation.magnitude < tolerance:
                 translation = base_translation
             else:
                 overlay_keyed = True
+                translation_keyed = True
             if rotation.magnitude < tolerance:
+                print(rotation)
                 rotation = base_rotation
             else:
                 overlay_keyed = True
-            bone: bpy.types.PoseBone
+                rotation_keyed = True
+                print(rotation)
+
             if overlay:
                 if overlay_keyed:
-                    matrix = Matrix.LocRotScale(translation + base_translation, base_rotation.rotate(rotation), Vector.Fill(3, scale))
+                    overlay_translation = (translation + base_translation) if translation_keyed else base_translation
+                    overlay_rotation = base_rotation.rotate(rotation) if rotation_keyed else base_rotation
+                    matrix = Matrix.LocRotScale(overlay_translation, overlay_rotation, Vector.Fill(3, scale))
                 else:
                     matrix = base_matrix
             else:

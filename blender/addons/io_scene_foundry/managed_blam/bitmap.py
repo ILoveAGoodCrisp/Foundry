@@ -20,6 +20,12 @@ from System.Runtime.InteropServices import Marshal # type: ignore
 from System.Drawing import Rectangle, Bitmap # type: ignore
 from System.Drawing.Imaging import ImageLockMode, ImageFormat, PixelFormat # type: ignore
 
+path_cache = set()
+
+def clear_path_cache():
+    global path_cache
+    path_cache.clear()
+
 class BitmapTag(Tag):
     tag_ext = 'bitmap'
     
@@ -307,7 +313,10 @@ class BitmapTag(Tag):
         bitmap = game_bitmap.GetBitmap()
         game_bitmap.Dispose()
         
+        print(self.tag_path.ShortName, self.longenum_usage.Value, blue_channel_fix)
+        
         if bitmap.PixelFormat == PixelFormat.Format32bppArgb and blue_channel_fix:
+            print(self.tag_path.ShortName)
             bitmap_data = bitmap.LockBits(Rectangle(0, 0, bitmap.Width, bitmap.Height), ImageLockMode.ReadWrite, bitmap.PixelFormat)
             total_bytes = abs(bitmap_data.Stride) * bitmap_data.Height
             rgbValues = Array.CreateInstance(Byte, total_bytes)
@@ -365,6 +374,14 @@ class BitmapTag(Tag):
         return tiff_path
         
     def save_to_tiff(self, blue_channel_fix=False, format='tiff') -> list[str]:
+        global path_cache
+        expected_tiff_path = Path(self.data_dir, self.tag_path.RelativePath).with_suffix('.tiff')
+        expected_tif_path = expected_tiff_path.with_suffix('.tif')
+        if expected_tiff_path in path_cache and expected_tiff_path.exists():
+            return expected_tiff_path
+        elif expected_tif_path in path_cache and expected_tif_path.exists():
+            return expected_tif_path
+        
         self.is_cubemap = "cubemap" in self.tag_path.ShortName or "cube_map" in self.tag_path.ShortName
         if self.block_bitmaps.Elements.Count <= 0:
             return
@@ -388,7 +405,9 @@ class BitmapTag(Tag):
                     return str(tif_path) 
         else:
             tiff_path = self._save_single(blue_channel_fix, format, 0, "")
-            
+        
+        
+        path_cache.add(tiff_path)
         return tiff_path
     
     def normal_type(self):

@@ -700,14 +700,14 @@ class ShaderTag(Tag):
             for_normal = bitmap.used_as_normal_map()
             # print(f"Writing Tiff from {bitmap.tag_path.RelativePathWithExtension}")
             if self.always_extract_bitmaps:
-                image_path = bitmap.save_to_tiff(bitmap.used_as_normal_map())
+                image_path = bitmap.save_to_tiff(for_normal)
             else:
                 if system_tiff_path.exists():
                     image_path = str(system_tiff_path)
                 elif alt_system_tiff_path.exists():
                     image_path = str(alt_system_tiff_path)
                 else:
-                    image_path = bitmap.save_to_tiff(bitmap.used_as_normal_map())
+                    image_path = bitmap.save_to_tiff(for_normal)
 
             image = bpy.data.images.load(filepath=image_path, check_existing=True)
 
