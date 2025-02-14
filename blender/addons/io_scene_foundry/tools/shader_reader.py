@@ -47,28 +47,22 @@ def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str, always_e
         match shader_type:
             case 'shader':
                 with ShaderTag(path=tag_path) as shader:
-                    shader.always_extract_bitmaps = always_extract_bitmaps
-                    shader.to_nodes(mat)
+                    shader.to_nodes(mat, always_extract_bitmaps)
             case 'shader_decal':
                 with ShaderDecalTag(path=tag_path) as shader:
-                    shader.always_extract_bitmaps = always_extract_bitmaps
-                    shader.to_nodes(mat)
+                    shader.to_nodes(mat, always_extract_bitmaps)
             case 'shader_terrain':
                 with ShaderTerrainTag(path=tag_path) as shader:
-                    shader.always_extract_bitmaps = always_extract_bitmaps
-                    shader.to_nodes(mat)
+                    shader.to_nodes(mat, always_extract_bitmaps)
             case 'shader_halogram':
                 with ShaderHalogramTag(path=tag_path) as shader:
-                    shader.always_extract_bitmaps = always_extract_bitmaps
-                    shader.to_nodes(mat)
+                    shader.to_nodes(mat, always_extract_bitmaps)
             case 'shader_foliage':
                 with ShaderFoliageTag(path=tag_path) as shader:
-                    shader.always_extract_bitmaps = always_extract_bitmaps
-                    shader.to_nodes(mat)
+                    shader.to_nodes(mat, always_extract_bitmaps)
             case 'shader_custom':
                 with ShaderCustomTag(path=tag_path) as shader:
-                    shader.always_extract_bitmaps = always_extract_bitmaps
-                    shader.to_nodes(mat)
+                    shader.to_nodes(mat, always_extract_bitmaps)
     
     if shader is None:
         return set()

@@ -43,6 +43,7 @@ class Tag():
         self.tag_must_exist = tag_must_exist
         self.valid = False
         self.tag = None
+        self.always_extract_bitmaps = False # for shaders
         if self.needs_explicit_path and not path:
             raise ValueError("Class needs explicit path declared but none given")
         self.hide_prints = hide_prints

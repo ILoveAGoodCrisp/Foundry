@@ -11,7 +11,6 @@ from mathutils import Vector
 
 from ..constants import NormalType
 from ..managed_blam import Tag
-from ..utils import print_warning
 from .. import utils
 
 clr.AddReference('System.Drawing')
@@ -313,10 +312,7 @@ class BitmapTag(Tag):
         bitmap = game_bitmap.GetBitmap()
         game_bitmap.Dispose()
         
-        print(self.tag_path.ShortName, self.longenum_usage.Value, blue_channel_fix)
-        
         if bitmap.PixelFormat == PixelFormat.Format32bppArgb and blue_channel_fix:
-            print(self.tag_path.ShortName)
             bitmap_data = bitmap.LockBits(Rectangle(0, 0, bitmap.Width, bitmap.Height), ImageLockMode.ReadWrite, bitmap.PixelFormat)
             total_bytes = abs(bitmap_data.Stride) * bitmap_data.Height
             rgbValues = Array.CreateInstance(Byte, total_bytes)

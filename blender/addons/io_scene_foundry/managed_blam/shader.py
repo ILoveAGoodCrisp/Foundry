@@ -284,7 +284,6 @@ class ShaderTag(Tag):
     self_illum_map_names = 'meter_map', 'self_illum_map'
     group_supported = True
     category_parameters = None
-    always_extract_bitmaps = False
     
     def _read_fields(self):
         self.render_method = self.tag.SelectField("Struct:render_method").Elements[0]
@@ -599,8 +598,9 @@ class ShaderTag(Tag):
             
             
     # READING
-    def to_nodes(self, blender_material):
+    def to_nodes(self, blender_material, always_extract_bitmaps=False):
         self.game_functions = set()
+        self.always_extract_bitmaps = always_extract_bitmaps
         self._get_info(self.reference_material_shader.Path if self.corinth else self.definition.Path)
         if self.group_supported:
             self._to_nodes_group(blender_material)
@@ -654,6 +654,7 @@ class ShaderTag(Tag):
         else:
             if not self.corinth and self.reference.Path:
                 with ShaderTag(path=self.reference.Path) as shader:
+                    shader.always_extract_bitmaps = self.always_extract_bitmaps
                     return shader._image_from_parameter(parameter)
             else:
                 if return_none_if_default:
@@ -670,6 +671,7 @@ class ShaderTag(Tag):
         if bitmap_path is None:
             if not self.corinth and self.reference.Path:
                 with ShaderTag(path=self.reference.Path) as shader:
+                    shader.always_extract_bitmaps = self.always_extract_bitmaps
                     result = shader._image_from_parameter(parameter)
                     if result is not None:
                         return result
@@ -686,19 +688,18 @@ class ShaderTag(Tag):
                     
                 
         if bitmap_path is None:
-            return None
+            return
         
         if not os.path.exists(bitmap_path.Filename):
-            return None
+            return
         
         rel_path = f"{bitmap_path.RelativePath}_equirectangular" if "cubemap" in bitmap_path.ShortName else bitmap_path.RelativePath
         
         system_tiff_path = Path(self.data_dir, rel_path).with_suffix('.tiff')
         alt_system_tiff_path = system_tiff_path.with_suffix(".tif")
         with BitmapTag(path=bitmap_path) as bitmap:
-            is_non_color = bitmap.is_linear()
+            # is_non_color = bitmap.is_linear()
             for_normal = bitmap.used_as_normal_map()
-            # print(f"Writing Tiff from {bitmap.tag_path.RelativePathWithExtension}")
             if self.always_extract_bitmaps:
                 image_path = bitmap.save_to_tiff(for_normal)
             else:
@@ -708,7 +709,7 @@ class ShaderTag(Tag):
                     image_path = str(alt_system_tiff_path)
                 else:
                     image_path = bitmap.save_to_tiff(for_normal)
-
+                    
             image = bpy.data.images.load(filepath=image_path, check_existing=True)
 
             image.colorspace_settings.name = 'Non-Color'
