@@ -419,12 +419,10 @@ class AnimationTag(Tag):
                 overlay_keyed = True
                 translation_keyed = True
             if rotation.magnitude < tolerance:
-                print(rotation)
                 rotation = base_rotation
             else:
                 overlay_keyed = True
                 rotation_keyed = True
-                print(rotation)
 
             if overlay:
                 if overlay_keyed:
