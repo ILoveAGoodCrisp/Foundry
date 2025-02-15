@@ -1539,22 +1539,27 @@ class ExportScene:
                         shape_key_objects = []
                         for track in animation.action_tracks:
                             if track.object and track.action:
+                                slot_id = ""
                                 if utils.has_anim_slots() and track.action.slots:
                                     if track.action.slots.active:
-                                        track.object.animation_data.last_slot_identifier = track.action.slots.active.identifier
+                                        slot_id = track.action.slots.active.identifier
                                     else:
-                                        track.object.animation_data.last_slot_identifier = track.action.slots[0].identifier
-                                        
-                                if track.action.slots and not track.action.slots.active:
-                                    track.action.slots.active = track.action.slots[0]
+                                        slot_id = track.action.slots[0].identifier
+
                                 if track.is_shape_key_action:
                                     if track.object.type == 'MESH' and track.object.data.shape_keys and track.object.data.shape_keys.animation_data:
+                                        if utils.has_anim_slots():
+                                            track.object.data.shape_keys.animation_data.last_slot_identifier = slot_id
                                         track.object.data.shape_keys.animation_data.action = track.action
                                         shape_key_objects.append(track.object)
                                 else:
                                     if track.object.animation_data:
+                                        if utils.has_anim_slots():
+                                            track.object.animation_data.last_slot_identifier = slot_id
                                         track.object.animation_data.action = track.action
                                     if track.object.data.animation_data:
+                                        if utils.has_anim_slots():
+                                            track.object.data.animation_data.last_slot_identifier = slot_id
                                         track.object.data.animation_data.action = track.action
                                         
                                         
@@ -1567,6 +1572,7 @@ class ExportScene:
                         self.virtual_scene.add_animation(animation, sample=False)
                         
                     self.exported_animations.append(animation)
+                    utils.clear_animation(animation)
         finally:
             if armature_mods is not None:
                 utils.unmute_armature_mods(armature_mods)

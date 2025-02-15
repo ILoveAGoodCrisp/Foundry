@@ -247,7 +247,7 @@ class VirtualAnimation:
         self.movement = animation.animation_movement_data
         self.space = animation.animation_space
         self.overlay = animation.animation_type == 'overlay'
-        self.pose_overlay = False # NOTE Now calculating this rather than this being user defined # animation.animation_is_pose and animation.animation_type == 'overlay'
+        self.pose_overlay = False # Now calculating this rather than this being user defined
         
         self.morph_target_data = []
         self.is_pca = False

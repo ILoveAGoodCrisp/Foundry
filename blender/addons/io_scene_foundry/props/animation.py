@@ -529,10 +529,10 @@ class NWO_ActionPropertiesGroup(bpy.types.PropertyGroup):
         ]
     )
 
-    animation_is_pose: bpy.props.BoolProperty(
-        name='Pose Overlay',
-        description='Tells the exporter to compute aim node directions for this overlay. These allow animations to be affected by the aiming direction of the animated object. You must set the pedestal, pitch, and yaw usages in the Foundry armature properties to use this correctly\nExamples: aim_still_up, acc_up_down, vehicle steering'
-    )
+    # animation_is_pose: bpy.props.BoolProperty(
+    #     name='Pose Overlay',
+    #     description='Tells the exporter to compute aim node directions for this overlay. These allow animations to be affected by the aiming direction of the animated object. You must set the pedestal, pitch, and yaw usages in the Foundry armature properties to use this correctly\nExamples: aim_still_up, acc_up_down, vehicle steering'
+    # )
 
     animation_events: bpy.props.CollectionProperty(
         type=NWO_Animation_ListItems,

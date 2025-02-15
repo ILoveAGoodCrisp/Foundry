@@ -312,10 +312,10 @@ class NWO_OT_NewAnimation(bpy.types.Operator):
         ]
     )
 
-    animation_is_pose: bpy.props.BoolProperty(
-        name='Pose Overlay',
-        description='Tells the exporter to compute aim node directions for this overlay. These allow animations to be affected by the aiming direction of the animated object. You must set the pedestal, pitch, and yaw usages in the Foundry armature properties to use this correctly\nExamples: aim_still_up, acc_up_down, vehicle steering'
-    )
+    # animation_is_pose: bpy.props.BoolProperty(
+    #     name='Pose Overlay',
+    #     description='Tells the exporter to compute aim node directions for this overlay. These allow animations to be affected by the aiming direction of the animated object. You must set the pedestal, pitch, and yaw usages in the Foundry armature properties to use this correctly\nExamples: aim_still_up, acc_up_down, vehicle steering'
+    # )
 
     state_type: bpy.props.EnumProperty(
         name="State Type",
@@ -474,7 +474,7 @@ class NWO_OT_NewAnimation(bpy.types.Operator):
         animation.frame_end = self.frame_end
         animation.animation_type = self.animation_type
         animation.animation_movement_data = self.animation_movement_data
-        animation.animation_is_pose = self.animation_is_pose
+        # animation.animation_is_pose = self.animation_is_pose
         animation.animation_space = self.animation_space
 
         # record the inputs from this operator
@@ -519,8 +519,8 @@ class NWO_OT_NewAnimation(bpy.types.Operator):
             row.use_property_split = True
             if self.animation_type == 'base':
                 row.prop(self, 'animation_movement_data')
-            elif self.animation_type == 'overlay':
-                row.prop(self, 'animation_is_pose')
+            # elif self.animation_type == 'overlay':
+            #     row.prop(self, 'animation_is_pose')
             elif self.animation_type == 'replacement':
                 row.prop(self, 'animation_space', expand=True)
         self.draw_name(layout)
@@ -931,8 +931,8 @@ class NWO_UL_AnimationList(bpy.types.UIList):
         anim_type_display = item.animation_type
         if anim_type_display == 'base' and item.animation_movement_data != 'none':
             anim_type_display += f'[{item.animation_movement_data}]'
-        elif anim_type_display == 'overlay' and item.animation_is_pose:
-            anim_type_display += '[pose]'
+        # elif anim_type_display == 'overlay' and item.animation_is_pose:
+        #     anim_type_display += '[pose]'
         elif anim_type_display == 'replacement':
             anim_type_display += f'[{item.animation_space}]'
         row.label(text=anim_type_display)

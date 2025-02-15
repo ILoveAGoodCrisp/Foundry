@@ -2559,9 +2559,9 @@ class NWOImporter:
                         animation.animation_type = 'world'
                     case 'jmo':
                         animation.animation_type = 'overlay'
-                        animation.animation_is_pose = any(hint in anim_name.lower() for hint in pose_hints)
-                        if animation.animation_is_pose:
-                            pass
+                        # animation.animation_is_pose = any(hint in anim_name.lower() for hint in pose_hints)
+                        # if animation.animation_is_pose:
+                        #     pass
                     case 'jmr':
                         animation.animation_type = 'replacement'
                     case 'jmrx':

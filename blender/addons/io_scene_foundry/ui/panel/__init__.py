@@ -2912,6 +2912,9 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         row.prop(animation, "frame_start", text='Start Frame', icon='KEYFRAME_HLT')
         row.prop(animation, "frame_end", text='End Frame', icon='KEYFRAME_HLT')
         col.separator()
+        if animation.animation_type == 'overlay':
+            col.operator('nwo.add_aim_animation', text='Generate Poses', icon='ANIM')
+            col.separator()
         row = col.row()
         row.use_property_split = True
         row.prop(animation, "animation_type")
@@ -2919,29 +2922,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             row = col.row()
             row.use_property_split = True
             if animation.animation_type == 'base':
-                row.prop(animation, 'animation_movement_data')
-            elif animation.animation_type == 'overlay':
-                row.prop(animation, 'animation_is_pose')
-                if animation.animation_is_pose:
-                    no_aim_pitch = not scene_nwo.node_usage_pose_blend_pitch
-                    no_aim_yaw = not scene_nwo.node_usage_pose_blend_yaw
-                    no_pedestal = not scene_nwo.node_usage_pedestal
-                    if no_aim_pitch or no_aim_yaw or no_pedestal:
-                        col.label(text='Pose Overlay needs Node Usages defined for:', icon='ERROR')
-                        missing = []
-                        if no_pedestal:
-                            missing.append('Pedestal')
-                        if no_aim_pitch:
-                            missing.append('Pose Blend Pitch')
-                        if no_aim_yaw:
-                            missing.append('Pose Blend Yaw')
-                        
-                        col.label(text=', '.join(missing))
-                        col.operator('nwo.add_pose_bones', text='Setup Rig for Pose Overlays', icon='SHADERFX')
-                        col.separator()
-                    else:
-                        col.operator('nwo.add_aim_animation', text='Add/Change Aim Bones Animation', icon='ANIM')
-                            
+                row.prop(animation, 'animation_movement_data')     
             elif animation.animation_type == 'replacement':
                 row.prop(animation, 'animation_space', expand=True)
             col.separator()
@@ -3159,9 +3140,9 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         if nwo.invalid_root_bone:
             col.label(text='Root Bone has non-standard transforms', icon='QUESTION')
             col.operator('nwo.fix_root_bone', text='Fix Root Bone', icon='SHADERFX')
-        if nwo.needs_pose_bones:
-            col.label(text='Rig not setup for pose overlay animations', icon='ERROR')
-            col.operator('nwo.add_pose_bones', text='Fix for Pose Overlays', icon='SHADERFX')
+        # if nwo.needs_pose_bones:
+        #     col.label(text='Rig not setup for pose overlay animations', icon='ERROR')
+        #     col.operator('nwo.add_pose_bones', text='Fix for Pose Overlays', icon='SHADERFX')
         if nwo.pose_bones_bad_transforms:
             col.label(text='Pose bones have bad transforms', icon='ERROR')
             col.operator('nwo.fix_pose_bones', text='Fix Pose Bones', icon='SHADERFX')

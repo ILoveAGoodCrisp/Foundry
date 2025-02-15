@@ -69,16 +69,16 @@ class NWO_ValidateRig(bpy.types.Operator):
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         return validated
     
-    def needs_pose_bones(self, scene_nwo):
-        usage_set =  scene_nwo.node_usage_pedestal and scene_nwo.node_usage_pose_blend_pitch and scene_nwo.node_usage_pose_blend_yaw
-        if usage_set:
-            return False
-        for action in bpy.data.actions:
-            if action.frame_range:
-                if action.nwo.animation_type == 'overlay' and action.nwo.animation_is_pose:
-                    return True
+    # def needs_pose_bones(self, scene_nwo):
+    #     usage_set =  scene_nwo.node_usage_pedestal and scene_nwo.node_usage_pose_blend_pitch and scene_nwo.node_usage_pose_blend_yaw
+    #     if usage_set:
+    #         return False
+    #     for action in bpy.data.actions:
+    #         if action.frame_range:
+    #             if action.nwo.animation_type == 'overlay' and action.nwo.animation_is_pose:
+    #                 return True
                 
-        return False
+    #     return False
     
     def armature_transforms_valid(self, rig):
         return rig.matrix_world == Matrix.Identity(4)
@@ -193,7 +193,7 @@ class NWO_ValidateRig(bpy.types.Operator):
 
         scene_nwo.multiple_root_bones = False
         scene_nwo.invalid_root_bone = False
-        scene_nwo.needs_pose_bones = False
+        # scene_nwo.needs_pose_bones = False
         scene_nwo.armature_bad_transforms = False
         scene_nwo.armature_has_parent = False
         scene_nwo.too_many_bones = False
@@ -207,7 +207,7 @@ class NWO_ValidateRig(bpy.types.Operator):
                 self.report({'INFO'}, "No Armature in scene. Armature only required if you want this model to animate")
                 scene_nwo.multiple_root_bones = False
                 scene_nwo.invalid_root_bone = False
-                scene_nwo.needs_pose_bones = False
+                # scene_nwo.needs_pose_bones = False
                 scene_nwo.armature_bad_transforms = False
                 scene_nwo.armature_has_parent = False
                 scene_nwo.too_many_bones = False
@@ -255,11 +255,11 @@ class NWO_ValidateRig(bpy.types.Operator):
             self.report({'WARNING'}, f'Root bone [{root_bone_name}] has non-standard transforms. This may cause issues at export')
             scene_nwo.invalid_root_bone = True
             
-        if self.needs_pose_bones(scene_nwo):
-            scene_nwo.needs_pose_bones = True
-            self.report({'WARNING'}, 'Found pose overlay animations, but this rig has no aim bones')
-        else:
-            scene_nwo.needs_pose_bones = False
+        # if self.needs_pose_bones(scene_nwo):
+        #     scene_nwo.needs_pose_bones = True
+        #     self.report({'WARNING'}, 'Found pose overlay animations, but this rig has no aim bones')
+        # else:
+        #     scene_nwo.needs_pose_bones = False
             
         if scene_nwo.node_usage_pedestal and scene_nwo.node_usage_pose_blend_pitch and scene_nwo.node_usage_pose_blend_yaw:
             if self.validate_pose_bones_transforms(scene_nwo):
@@ -282,7 +282,7 @@ class NWO_ValidateRig(bpy.types.Operator):
             
         if not (scene_nwo.multiple_root_bones or
                 scene_nwo.invalid_root_bone or
-                scene_nwo.needs_pose_bones or
+                # scene_nwo.needs_pose_bones or
                 scene_nwo.armature_bad_transforms or
                 scene_nwo.armature_has_parent or
                 scene_nwo.too_many_bones or
@@ -446,7 +446,7 @@ class NWO_AddPoseBones(bpy.types.Operator):
         rig.build_bones(pedestal=scene_nwo.node_usage_pedestal if scene_nwo.node_usage_pedestal else None, pitch=scene_nwo.node_usage_pose_blend_pitch if scene_nwo.node_usage_pose_blend_pitch else None, yaw=scene_nwo.node_usage_pose_blend_yaw if scene_nwo.node_usage_pose_blend_yaw else None)
         if self.add_control_bone:
             rig.build_and_apply_control_shapes(pitch=scene_nwo.node_usage_pose_blend_pitch, yaw=scene_nwo.node_usage_pose_blend_yaw, aim_control_only=True)
-        context.scene.nwo.needs_pose_bones = False
+        # context.scene.nwo.needs_pose_bones = False
         return {'FINISHED'}
     
     def invoke(self, context, event):
