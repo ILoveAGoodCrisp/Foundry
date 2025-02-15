@@ -347,9 +347,13 @@ class AnimationTag(Tag):
                 index = element.ElementIndex
                 shared_data = element.SelectField("Block:shared animation data")
                 anim_type = shared_data.Elements[0].SelectField("animation type").Value
+                frame_info = shared_data.Elements[0].SelectField("frame info type").Value
                 overlay = anim_type == 2
-                if overlay and shared_data.Elements[0].SelectField("Block:object-space parent nodes").Elements.Count > 0:
-                    print(f"Skipping {name}, pose overlay animations not supported")
+                if overlay:
+                    utils.print_warning(f"{name} is an overlay, rotations will not be imported")
+                    continue
+                elif anim_type == 1 and frame_info > 0: # base and has movement
+                    utils.print_warning(f"{name} has movement data that won't be imported")
                     continue
                 frame_count = exporter.GetAnimationFrameCount(index)
                 new_name = name.replace(":", " ")
@@ -389,7 +393,7 @@ class AnimationTag(Tag):
                 # for node in animation_nodes:
                 #     print(node.Name)
                 for frame in range(frame_count):
-                    # result = exporter.GetRenderModelBasePose(animation_nodes, nodes_count)
+                    #if exporter.GetRenderModelBasePose(animation_nodes, nodes_count):
                     if exporter.GetAnimationFrame(index, frame, animation_nodes, nodes_count):
                         self._apply_frames(animation_nodes, armature, frame + 1, action, overlay, bone_base_matrices)
                 
@@ -457,7 +461,7 @@ class AnimationTag(Tag):
             bone.keyframe_insert(data_path='rotation_quaternion', frame=frame)
             bone.keyframe_insert(data_path='scale', frame=frame)
             
-    def get_play_text(self, animation, loop: bool, game_object: str = "(player_get 0)") -> str:
+    def get_play_text(self, animation, loop: bool, unit: bool, game_object: str = "(player_get 0)") -> str:
         hs_func = "custom_animation_loop" if loop else "custom_animation"
         return f"{hs_func} {game_object} {self.tag_path.RelativePath} {animation.name.replace(' ', ':')} FALSE"
     

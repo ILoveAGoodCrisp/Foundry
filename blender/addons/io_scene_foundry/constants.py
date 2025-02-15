@@ -1,8 +1,6 @@
 # MESH TYPE GROUPS
 # Mesh types which support render properties
-from dataclasses import dataclass
 from enum import Enum, auto
-import random
 
 from mathutils import Matrix
 

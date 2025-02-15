@@ -1503,19 +1503,33 @@ class ExportScene:
                         shape_key_objects = []
                         for track in animation.action_tracks:
                             if track.object and track.action:
+                                slot_id = ""
+                                if utils.has_anim_slots() and track.action.slots:
+                                    if track.action.slots.active:
+                                        slot_id = track.action.slots.active.identifier
+                                    else:
+                                        slot_id = track.action.slots[0].identifier
+
                                 if track.is_shape_key_action:
                                     if track.object.type == 'MESH' and track.object.data.shape_keys and track.object.data.shape_keys.animation_data:
+                                        if utils.has_anim_slots():
+                                            track.object.data.shape_keys.animation_data.last_slot_identifier = slot_id
                                         track.object.data.shape_keys.animation_data.action = track.action
                                         shape_key_objects.append(track.object)
                                 else:
                                     if track.object.animation_data:
+                                        if utils.has_anim_slots():
+                                            track.object.animation_data.last_slot_identifier = slot_id
                                         track.object.animation_data.action = track.action
                                     if track.object.data.animation_data:
+                                        if utils.has_anim_slots():
+                                            track.object.data.animation_data.last_slot_identifier = slot_id
                                         track.object.data.animation_data.action = track.action
                                 
                         controls = self.create_event_objects(animation)
                         self.virtual_scene.add_animation(animation, controls=controls, shape_key_objects=shape_key_objects)
                         self.exported_animations.append(animation)
+                        utils.clear_animation(animation)
                         utils.update_job_count(process, "", idx, num_animations)
                     utils.update_job_count(process, "", num_animations, num_animations)
             else:
@@ -1525,6 +1539,14 @@ class ExportScene:
                         shape_key_objects = []
                         for track in animation.action_tracks:
                             if track.object and track.action:
+                                if utils.has_anim_slots() and track.action.slots:
+                                    if track.action.slots.active:
+                                        track.object.animation_data.last_slot_identifier = track.action.slots.active.identifier
+                                    else:
+                                        track.object.animation_data.last_slot_identifier = track.action.slots[0].identifier
+                                        
+                                if track.action.slots and not track.action.slots.active:
+                                    track.action.slots.active = track.action.slots[0]
                                 if track.is_shape_key_action:
                                     if track.object.type == 'MESH' and track.object.data.shape_keys and track.object.data.shape_keys.animation_data:
                                         track.object.data.shape_keys.animation_data.action = track.action
@@ -1532,6 +1554,9 @@ class ExportScene:
                                 else:
                                     if track.object.animation_data:
                                         track.object.animation_data.action = track.action
+                                    if track.object.data.animation_data:
+                                        track.object.data.animation_data.action = track.action
+                                        
                                         
                         print("--- Sampling Active Animation ", end="")
                         with utils.Spinner():
@@ -1720,7 +1745,7 @@ class ExportScene:
                 utils.print_warning(warning)
                 
         if self.virtual_scene.warnings:
-            print("\n--- Geometry Errors")
+            print("\n--- Animation & Geometry Errors")
             for warning in self.virtual_scene.warnings:
                 utils.print_warning(warning)     
     

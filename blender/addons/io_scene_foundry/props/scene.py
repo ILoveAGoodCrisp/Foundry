@@ -1194,6 +1194,12 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
                     
             for track in animation.action_tracks:
                 if track.object and track.action:
+                    if utils.has_anim_slots() and track.action.slots:
+                        if track.action.slots.active:
+                            track.object.animation_data.last_slot_identifier = track.action.slots.active.identifier
+                        else:
+                            track.object.animation_data.last_slot_identifier = track.action.slots[0].identifier
+                        
                     if track.is_shape_key_action:
                         if track.object.type == 'MESH' and track.object.data.shape_keys and track.object.data.shape_keys.animation_data:
                             track.object.data.shape_keys.animation_data.action = track.action

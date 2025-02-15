@@ -4210,3 +4210,6 @@ def ray_cast_mouse(context, coords_2d):
 def game_str(text: str) -> str:
     '''Converts a string to lower, removes leading & trailing spaces & underscores, and replaces remaining spaces with underscores'''
     return text.strip(" _").lower().replace(" ", "_")
+
+def has_anim_slots() -> bool:
+    return bpy.data.version >= (4, 4, 0)

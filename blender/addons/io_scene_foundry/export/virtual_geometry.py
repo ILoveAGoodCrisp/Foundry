@@ -246,7 +246,8 @@ class VirtualAnimation:
         self.animation_type = animation.animation_type
         self.movement = animation.animation_movement_data
         self.space = animation.animation_space
-        self.pose_overlay = animation.animation_is_pose and animation.animation_type == 'overlay'
+        self.overlay = animation.animation_type == 'overlay'
+        self.pose_overlay = False # NOTE Now calculating this rather than this being user defined # animation.animation_is_pose and animation.animation_type == 'overlay'
         
         self.morph_target_data = []
         self.is_pca = False
@@ -270,6 +271,8 @@ class VirtualAnimation:
         orientations = defaultdict(list)
         scales = defaultdict(list)
         tracks = []
+        failed_pose_overlay = False
+        pose_overlay_frame_data = defaultdict(list)
         # scale_matrix = Matrix.Diagonal(scene.armature_matrix.to_scale()).to_4x4()
         morph_target_datas = defaultdict(list)
         shape_key_data = {}
@@ -282,6 +285,7 @@ class VirtualAnimation:
         if shape_key_data:
             self.is_pca = True
         
+        first_frame = True
         for frame in range(self.frame_range[0], self.frame_range[1] + 1):
             scene.context.scene.frame_set(frame)
             bone_inverse_matrices = {}
@@ -292,6 +296,18 @@ class VirtualAnimation:
                     matrix_world = scene.rotation_matrix @ bone.ob.matrix_world @ bone.pbone.matrix
                     bone_inverse_matrices[bone.pbone] = matrix_world.inverted()
                     matrix = bone_inverse_matrices[bone.parent] @ matrix_world
+                    if self.overlay and bone.is_aim_bone:
+                        if self.name == "vehicle acceleration":
+                            print(bone.name, frame, bone.pbone.matrix.to_euler('XYZ'))
+                        aim_euler = tuple(bone.pbone.matrix.to_euler('XYZ'))
+                        if first_frame:
+                            pedestal_euler = tuple(bone.parent.matrix.to_euler('XYZ'))
+                            if aim_euler != pedestal_euler:
+                                scene.warnings.append(f"Animation {self.name} is a overlay but on the first frame the aim bone {bone.name} has a different rotation to the root bone {bone.parent.name}. If this is intended to be a pose overlay, it will fail\n{bone.parent.name} rotation: {pedestal_euler}\n{bone.pbone.name} rotation: {aim_euler}")
+                                failed_pose_overlay = True
+                        else:
+                            pose_overlay_frame_data[bone.name].append(aim_euler)        
+                        
                 else:
                     matrix = scene.rotation_matrix @ bone.ob.matrix_world @ bone.pbone.matrix
                     bone_inverse_matrices[bone.pbone] = matrix.inverted()
@@ -308,6 +324,27 @@ class VirtualAnimation:
             if shape_key_data:
                 for ob, node in shape_key_data.items():
                     morph_target_datas[node].append(VirtualMorphTargetData(ob, scene, node))
+            
+            first_frame = False
+            
+        if self.overlay and pose_overlay_frame_data and not failed_pose_overlay:
+            frame_data = zip(*pose_overlay_frame_data.values())
+            data_map = defaultdict(list)
+            for idx, data in enumerate(frame_data):
+                data_map[data].append(idx)
+            
+            duplicate_data = {key: indexes for key, indexes in data_map.items() if len(indexes) > 1}
+            
+            if len(duplicate_data) != len(data_map):
+                # This must be a pose overlay if aim bones don't have same rotation on every frame
+                # Even if duplicate frame data is found, keep this as pose overlay so the user is also warned of the issue by Tool
+                self.pose_overlay = True
+                if duplicate_data:
+                    scene.warnings.append(f"Pose overlay animation [{self.name}] has duplicate frames and may fail pose computation. Details below:")
+                    for rotation, indexes in duplicate_data.items():
+                        frames = [self.anim.frame_start + i + 1 for i in indexes]
+                        rotation_with_names = {tuple(pose_overlay_frame_data)[idx]: tuple(degrees(r) for r in rot) for (idx, rot) in enumerate(rotation)}
+                        scene.warnings.append(f"--- XYZ rotation {rotation_with_names} occurs at frames {frames}")
 
         for bone in bones:
             tracks.append((c_float * (self.frame_count * 3))(*positions[bone]))
