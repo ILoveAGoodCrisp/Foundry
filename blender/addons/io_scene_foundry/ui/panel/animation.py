@@ -912,30 +912,30 @@ class NWO_UL_AnimationList(bpy.types.UIList):
     # Called for each drawn item.
     def draw_item(self, context, layout: bpy.types.UILayout, data, item, icon, active_data, active_propname, index, flt_flag):
         layout.prop(item, "name", text="", emboss=False, icon='ANIM')
-        row = layout.row()
-        row.alignment = 'RIGHT'
-        row.label(text=str((item.frame_end + 1) - item.frame_start), icon='KEYFRAME_HLT')
-        num_action_tracks = len([track for track in item.action_tracks if not track.is_shape_key_action])
-        num_shape_key_tracks = len(item.action_tracks) - num_action_tracks
-        row.label(text=str(num_action_tracks), icon='ACTION')
-        if num_shape_key_tracks:
-            row.label(text=str(num_shape_key_tracks), icon='SHAPEKEY_DATA')
-        if item.animation_renames:
-            row.label(text=str(len(item.animation_renames)), icon_value=get_icon_id("animation_rename"))
-        else:
-            row.label(text=' ', icon='BLANK1')
-        if item.animation_events:
-            row.label(text=str(len(item.animation_events)), icon_value=get_icon_id("animation_event"))
-        else:
-            row.label(text=' ', icon='BLANK1')
-        anim_type_display = item.animation_type
+        # layout.label(text=str((item.frame_end + 1) - item.frame_start), icon='KEYFRAME_HLT')
+        # num_action_tracks = len([track for track in item.action_tracks if not track.is_shape_key_action])
+        # num_shape_key_tracks = len(item.action_tracks) - num_action_tracks
+        # layout.label(text=str(num_action_tracks), icon='ACTION')
+        # if num_shape_key_tracks:
+        #     layout.label(text=str(num_shape_key_tracks), icon='SHAPEKEY_DATA')
+        # if item.animation_renames:
+        #     layout.label(text=str(len(item.animation_renames)), icon_value=get_icon_id("animation_rename"))
+        # else:
+        #     layout.label(text=' ', icon='BLANK1')
+        # if item.animation_events:
+        #     layout.label(text=str(len(item.animation_events)), icon_value=get_icon_id("animation_event"))
+        # else:
+        #     layout.label(text=' ', icon='BLANK1')
+        anim_type_display = f"[{(item.frame_end + 1) - item.frame_start}] {item.animation_type}"
         if anim_type_display == 'base' and item.animation_movement_data != 'none':
             anim_type_display += f'[{item.animation_movement_data}]'
-        # elif anim_type_display == 'overlay' and item.animation_is_pose:
-        #     anim_type_display += '[pose]'
         elif anim_type_display == 'replacement':
             anim_type_display += f'[{item.animation_space}]'
-        row.label(text=anim_type_display)
+            
+        col = layout.column()
+        col.alignment = 'RIGHT'
+        col.label(text=anim_type_display)
+
         layout.prop(item, 'export_this', text="", icon='CHECKBOX_HLT' if item.export_this else 'CHECKBOX_DEHLT', emboss=False)
     
 class NWO_OT_AnimationEventSetFrame(bpy.types.Operator):
