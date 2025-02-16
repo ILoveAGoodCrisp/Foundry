@@ -247,6 +247,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 row.prop(nwo, 'cinematic_scenario', icon_value=get_icon_id("scenario"))
                 row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "cinematic_scenario"
                 row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'cinematic_scenario'
+                if nwo.cinematic_scenario.strip() and Path(utils.get_tags_path(), utils.relative_path(nwo.cinematic_scenario)).exists():
+                    row.operator("nwo.open_foundation_tag", text="", icon_value=get_icon_id("foundation")).tag_path = nwo.cinematic_scenario
                 scenario_path = Path(utils.get_tags_path(), utils.relative_path(nwo.cinematic_scenario))
                 scenario_exists = scenario_path.exists() and scenario_path.is_absolute() and scenario_path.is_file()
                 if scenario_exists:
@@ -526,11 +528,15 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 self.draw_expandable_box(col.box(), nwo, 'equipment')
         
     def draw_output_tag(self, box: bpy.types.UILayout, nwo, tag_type: str):
+        template_name = f"template_{tag_type}"
         row = box.row(align=True)
-        row.prop(nwo, f'template_{tag_type}', icon_value=get_icon_id(tag_type), text="Template")
-        row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = f"template_{tag_type}"
-        row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = f'template_{tag_type}'
-        if utils.valid_nwo_asset(self.context) and getattr(nwo, f'template_{tag_type}'):
+        row.prop(nwo, template_name, icon_value=get_icon_id(tag_type), text="Template")
+        row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = template_name
+        row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = template_name
+        attr = getattr(nwo, template_name)
+        if attr.strip() and Path(utils.get_tags_path(), utils.relative_path(attr)).exists():
+            row.operator("nwo.open_foundation_tag", text="", icon_value=get_icon_id("foundation")).tag_path = attr
+        if utils.valid_nwo_asset(self.context) and getattr(nwo, template_name):
             box.operator('nwo.load_template', icon='DUPLICATE').tag_type = tag_type
         tag_path = utils.get_asset_tag(tag_type)
         if tag_path:
@@ -583,6 +589,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         row.prop(nwo, 'template_model', icon_value=get_icon_id("model"), text="Template")
         row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_model"
         row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_model'
+        if nwo.template_model.strip() and Path(utils.get_tags_path(), utils.relative_path(nwo.template_model)).exists():
+            row.operator("nwo.open_foundation_tag", text="", icon_value=get_icon_id("foundation")).tag_path = nwo.template_model
         if utils.valid_nwo_asset(self.context) and getattr(nwo, 'template_model'):
             box.operator('nwo.load_template', icon='DUPLICATE').tag_type = 'model'
         tag_path = utils.get_asset_tag(".model")
@@ -600,6 +608,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         row.prop(nwo, "template_render_model", text="Template", icon_value=get_icon_id("tags"))
         row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_render_model"
         row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_render_model'
+        if nwo.template_render_model.strip() and Path(utils.get_tags_path(), utils.relative_path(nwo.template_render_model)).exists():
+            row.operator("nwo.open_foundation_tag", text="", icon_value=get_icon_id("foundation")).tag_path = nwo.template_render_model
         tag_path = utils.get_asset_render_model()
         if tag_path:
             col.separator()
@@ -611,6 +621,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         row.prop(nwo, "template_collision_model", text="Template", icon_value=get_icon_id("tags"))
         row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_collision_model"
         row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_collision_model'
+        if nwo.template_collision_model.strip() and Path(utils.get_tags_path(), utils.relative_path(nwo.template_collision_model)).exists():
+            row.operator("nwo.open_foundation_tag", text="", icon_value=get_icon_id("foundation")).tag_path = nwo.template_collision_model
         tag_path = utils.get_asset_collision_model()
         if tag_path:
             col.separator()
@@ -622,12 +634,16 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         row.prop(nwo, "template_model_animation_graph", text="Template", icon_value=get_icon_id("tags"))
         row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_model_animation_graph"
         row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_model_animation_graph'
+        if nwo.template_model_animation_graph.strip() and Path(utils.get_tags_path(), utils.relative_path(nwo.template_model_animation_graph)).exists():
+            row.operator("nwo.open_foundation_tag", text="", icon_value=get_icon_id("foundation")).tag_path = nwo.template_model_animation_graph
         col.separator()
         row = col.row(align=True)
         row.use_property_split = True
         row.prop(nwo, "parent_animation_graph", text="Parent Animation Graph")
         row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "parent_animation_graph"
         row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'parent_animation_graph'
+        if nwo.parent_animation_graph.strip() and Path(utils.get_tags_path(), utils.relative_path(nwo.parent_animation_graph)).exists():
+            row.operator("nwo.open_foundation_tag", text="", icon_value=get_icon_id("foundation")).tag_path = nwo.parent_animation_graph
         row = col.row()
         row.use_property_split = True
         row.prop(nwo, "default_animation_compression", text="Default Animation Compression")
@@ -650,6 +666,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         row.prop(nwo, "template_physics_model", text="Template", icon_value=get_icon_id("tags"))
         row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_physics_model"
         row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_physics_model'
+        if nwo.template_physics_model.strip() and Path(utils.get_tags_path(), utils.relative_path(nwo.template_physics_model)).exists():
+            row.operator("nwo.open_foundation_tag", text="", icon_value=get_icon_id("foundation")).tag_path = nwo.template_physics_model
         tag_path = utils.get_asset_physics_model()
         if tag_path:
             col.separator()
@@ -1230,6 +1248,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 row.prop(nwo, "cinematic_object", icon_value=get_icon_id("tags"), text="Tag")
                 row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "cinematic_object"
                 row.operator("nwo.tag_explore", text="", icon='FILE_FOLDER').prop = 'cinematic_object'
+                if nwo.cinematic_object.strip() and Path(utils.get_tags_path(), utils.relative_path(nwo.cinematic_object)).exists():
+                    row.operator("nwo.open_foundation_tag", text="", icon_value=get_icon_id("foundation")).tag_path = nwo.cinematic_object
                 if nwo.cinematic_object:
                     box = box.box()
                     box.label(text="Shots Active")
@@ -1428,14 +1448,20 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 row.prop(nwo, "light_tag_override", text="Light Tag Override", icon_value=get_icon_id("tags"))
                 row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "light_tag_override"
                 row.operator("nwo.tag_explore", text="", icon='FILE_FOLDER').prop = 'light_tag_override'
+                if nwo.light_tag_override.strip() and Path(utils.get_tags_path(), utils.relative_path(nwo.light_tag_override)).exists():
+                    row.operator("nwo.open_foundation_tag", text="", icon_value=get_icon_id("foundation")).tag_path = nwo.light_tag_override
                 row = col.row()
                 row.prop(nwo, "light_shader_reference", text="Shader Tag Reference", icon_value=get_icon_id("tags"))
                 row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "light_shader_reference"
                 row.operator("nwo.tag_explore", text="", icon='FILE_FOLDER').prop = 'light_shader_reference'
+                if nwo.light_shader_reference.strip() and Path(utils.get_tags_path(), utils.relative_path(nwo.light_shader_reference)).exists():
+                    row.operator("nwo.open_foundation_tag", text="", icon_value=get_icon_id("foundation")).tag_path = nwo.light_shader_reference
                 row = col.row()
                 row.prop(nwo, "light_gel_reference", text="Gel Tag Reference", icon_value=get_icon_id("tags"))
                 row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "light_gel_reference"
                 row.operator("nwo.tag_explore", text="", icon='FILE_FOLDER').prop = 'light_gel_reference'
+                if nwo.light_gel_reference.strip() and Path(utils.get_tags_path(), utils.relative_path(nwo.light_gel_reference)).exists():
+                    row.operator("nwo.open_foundation_tag", text="", icon_value=get_icon_id("foundation")).tag_path = nwo.light_gel_reference
                 row = col.row()
                 row.prop(
                     nwo,
@@ -1445,6 +1471,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 )
                 row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "light_lens_flare_reference"
                 row.operator("nwo.tag_explore", text="", icon='FILE_FOLDER').prop = 'light_lens_flare_reference'
+                if nwo.light_lens_flare_reference.strip() and Path(utils.get_tags_path(), utils.relative_path(nwo.light_lens_flare_reference)).exists():
+                    row.operator("nwo.open_foundation_tag", text="", icon_value=get_icon_id("foundation")).tag_path = nwo.light_lens_flare_reference
 
                 # col.separator() # commenting out light clipping for now.
 
@@ -1564,6 +1592,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 )
                 row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "fog_appearance_tag"
                 row.operator("nwo.tag_explore", icon="FILE_FOLDER", text="").prop = 'fog_appearance_tag'
+                if nwo.fog_appearance_tag.strip() and Path(utils.get_tags_path(), utils.relative_path(nwo.fog_appearance_tag)).exists():
+                    row.operator("nwo.open_foundation_tag", text="", icon_value=get_icon_id("foundation")).tag_path = nwo.fog_appearance_tag
                 col.prop(
                     nwo,
                     "fog_volume_depth",
@@ -1793,6 +1823,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 )
                 row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "marker_game_instance_tag_name"
                 row.operator("nwo.tag_explore", icon="FILE_FOLDER", text="").prop = 'marker_game_instance_tag_name'
+                if nwo.marker_game_instance_tag_name.strip() and Path(utils.get_tags_path(), utils.relative_path(nwo.marker_game_instance_tag_name)).exists():
+                    row.operator("nwo.open_foundation_tag", text="", icon_value=get_icon_id("foundation")).tag_path = nwo.marker_game_instance_tag_name
                 tag_name = Path(nwo.marker_game_instance_tag_name).suffix.lower()
                 if tag_name == ".decorator_set":
                     col.prop(
@@ -1977,6 +2009,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 row.prop(nwo, "marker_looping_effect", icon_value=get_icon_id('tags'))
                 row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "marker_looping_effect"
                 row.operator("nwo.tag_explore", icon="FILE_FOLDER", text="").prop = 'marker_looping_effect'
+                if nwo.marker_looping_effect.strip() and Path(utils.get_tags_path(), utils.relative_path(nwo.marker_looping_effect)).exists():
+                    row.operator("nwo.open_foundation_tag", text="", icon_value=get_icon_id("foundation")).tag_path = nwo.marker_looping_effect
 
             elif (
                 nwo.marker_type == "_connected_geometry_marker_type_lightCone" and h4
@@ -1985,6 +2019,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 row.prop(nwo, "marker_light_cone_tag", text='Cone Tag Path', icon_value=get_icon_id('tags'))
                 row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "marker_light_cone_tag"
                 row.operator("nwo.tag_explore", icon="FILE_FOLDER", text="").prop = 'marker_light_cone_tag'
+                if nwo.marker_light_cone_tag.strip() and Path(utils.get_tags_path(), utils.relative_path(nwo.marker_light_cone_tag)).exists():
+                    row.operator("nwo.open_foundation_tag", text="", icon_value=get_icon_id("foundation")).tag_path = nwo.marker_light_cone_tag
                 col.prop(nwo, "marker_light_cone_color", text='Color')
                 # col.prop(nwo, "marker_light_cone_alpha", text='Alpha')
                 col.prop(nwo, "marker_light_cone_intensity", text='Intensity')
@@ -1994,6 +2030,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 row.prop(nwo, "marker_light_cone_curve", text='Curve Tag Path', icon_value=get_icon_id('tags'))
                 row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "marker_light_cone_curve"
                 row.operator("nwo.tag_explore", icon="FILE_FOLDER", text="").prop = 'marker_light_cone_curve'
+                if nwo.marker_light_cone_curve.strip() and Path(utils.get_tags_path(), utils.relative_path(nwo.marker_light_cone_curve)).exists():
+                    row.operator("nwo.open_foundation_tag", text="", icon_value=get_icon_id("foundation")).tag_path = nwo.marker_light_cone_curve
                 
         elif utils.is_frame(ob) and utils.poll_ui(
             ("model", "scenario", "sky", "animation", "prefab")):
