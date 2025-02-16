@@ -193,7 +193,6 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         else:
             row.scale_y = 1.5
             row.operator("nwo.new_asset", text="New Asset", icon_value=get_icon_id("halo_asset"))
-            return
         
         col.prop(nwo, "is_child_asset", text="Child Asset" if self.asset_type != "cinematic" else "Cinematic Scene Only")
         

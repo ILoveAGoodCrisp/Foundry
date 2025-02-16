@@ -79,6 +79,18 @@ def blend_screens_from_tag(filepath: str) -> dict[str: BlendScreen]:
             
     return data
 
+preset_steering_transforms = [
+    (),
+]
+
+preset_aim_transforms = [
+    (),
+    (),
+    (),
+    (),
+    (),
+]
+
 class PoseBuilder:
     def __init__(self, pedestal: bpy.types.PoseBone, pitch: bpy.types.PoseBone, yaw: bpy.types.PoseBone, control: bpy.types.PoseBone | None=None):
         self.pedestal = pedestal
@@ -86,9 +98,8 @@ class PoseBuilder:
         self.yaw = yaw
         self.control = control
         self.uses_control = control is not None
-    
-    def build_from_blend_screen(self, scene: bpy.types.Scene, frame_start: int,  action: bpy.types.Action, blend_screen: BlendScreen) -> int:
-        """Keyframes a pose overlay based on the input blend screen. Returns the last frame keyframed"""
+        
+    def _pre_build(self, scene: bpy.types.Scene, frame_start: int,  action: bpy.types.Action):
         # Clear any existing keyframe data on aim bones
         fcurves = action.fcurves
         if self.uses_control:
@@ -115,19 +126,31 @@ class PoseBuilder:
             self.yaw.keyframe_insert(data_path='rotation_quaternion', frame=scene.frame_current)
             self.pitch.keyframe_insert(data_path='rotation_quaternion', frame=scene.frame_current)
             
+    def _build_poses(self, scene: bpy.types.Scene, frame_start: int, transforms: list):
         # Loop through transforms and apply them
         if self.uses_control:
-            for idx, (yaw, pitch) in enumerate(blend_screen.transforms):
+            for idx, (yaw, pitch) in enumerate(transforms):
                 scene.frame_set(frame_start + idx + 1)
                 self.control.matrix_basis = self.pedestal.matrix_basis @ yaw @ pitch
                 self.control.keyframe_insert(data_path='rotation_quaternion', frame=scene.frame_current)
         else:
-            for idx, (yaw, pitch) in enumerate(blend_screen.transforms):
+            for idx, (yaw, pitch) in enumerate(transforms):
                 scene.frame_set(frame_start + idx + 1)
-                self.yaw.matrix = yaw @ self.pedestal.matrix
-                self.pitch.matrix = pitch @ self.pedestal.matrix
+                self.yaw.matrix = self.pedestal.matrix @ yaw
+                self.pitch.matrix = self.pedestal.matrix @ pitch
                 self.yaw.keyframe_insert(data_path='rotation_quaternion', frame=scene.frame_current)
                 self.pitch.keyframe_insert(data_path='rotation_quaternion', frame=scene.frame_current)
+        
+    def build_from_preset(self, scene: bpy.types.Scene, frame_start: int,  action: bpy.types.Action, preset: str) -> int:
+        """Keyframes a pose overlay based on the input preset. Returns the last frame keyframed"""
+        self._pre_build(scene, frame_start, action)
+        self._build_poses(scene, frame_start, preset_transforms[preset])
+
+    
+    def build_from_blend_screen(self, scene: bpy.types.Scene, frame_start: int,  action: bpy.types.Action, blend_screen: BlendScreen) -> int:
+        """Keyframes a pose overlay based on the input blend screen. Returns the last frame keyframed"""
+        self._pre_build(scene, frame_start, action)
+        self._build_poses(scene, frame_start, blend_screen.transforms)
                 
         return scene.frame_current
     

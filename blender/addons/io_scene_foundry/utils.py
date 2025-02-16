@@ -2384,9 +2384,6 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
         if actions is None:
             actions = bpy.data.actions
             
-        print("ACTIONS\n", actions)
-        print("OBJECTS\n", objects)
-            
         if keep_marker_axis is None:
             keep_marker_axis = context.scene.nwo.maintain_marker_axis
 
