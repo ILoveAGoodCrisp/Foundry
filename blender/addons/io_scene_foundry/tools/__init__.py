@@ -24,7 +24,7 @@ from .scenario.zone_sets import NWO_OT_RemoveExistingZoneSets, NWO_OT_ZoneSetAdd
 from .tag_templates import NWO_OT_LoadTemplate
 from .cubemap import NWO_OT_Cubemap
 from .scale_models import NWO_OT_AddScaleModel
-from .animation.automate_pose_overlay import NWO_AddAimAnimation
+from .animation.automate_pose_overlay import NWO_OT_GeneratePoses
 from .rigging.convert_to_halo_rig import NWO_OT_ConvertToHaloRig
 from .rigging.create_rig import NWO_OT_AddRig, NWO_OT_SelectArmature
 from .rigging.validation import NWO_AddPoseBones, NWO_FixArmatureTransforms, NWO_FixPoseBones, NWO_FixRootBone, NWO_ValidateRig
@@ -126,7 +126,7 @@ classes = (
     NWO_FixRootBone,
     NWO_FixPoseBones,
     NWO_FixArmatureTransforms,
-    NWO_AddAimAnimation,
+    NWO_OT_GeneratePoses,
     NWO_MeshToMarker,
     NWO_StompMaterials,
     NWO_Import,

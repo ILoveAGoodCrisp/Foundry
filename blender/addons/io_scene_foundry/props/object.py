@@ -1118,7 +1118,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         old_region_names = [r.old for r in regions]
         if name not in region_names and name not in old_region_names:
             name = scene_nwo.regions_table[0].name
-        self['region_name'] = name
+        # self['region_name'] = name
         return name
 
     def set_region_name(self, value):
@@ -1153,7 +1153,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         old_permutation_names = [p.old for p in permutations]
         if name not in permutation_names and name not in old_permutation_names:
             name = scene_nwo.permutations_table[0].name
-        self['permutation_name'] = name
+        # self['permutation_name'] = name
         return name
 
     def set_permutation_name(self, value):

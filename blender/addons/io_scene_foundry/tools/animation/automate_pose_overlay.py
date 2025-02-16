@@ -1,18 +1,351 @@
 
 
 import bpy
-from math import radians
+from math import degrees, radians
 from mathutils import Matrix
 
-class PoseOverlayAutomater:
-    def __init__(self, pitch, yaw, control):
+from ... import utils
+from ...managed_blam.animation import AnimationTag
+
+class BlendScreen:
+    def __init__(self):
+        self.label = ""
+        self.right_yaw_per_frame = 90.0
+        self.left_yaw_per_frame = 90.0
+        self.right_frame_count = 1
+        self.left_frame_count = 1
+        self.down_pitch_per_frame = 90.0
+        self.up_pitch_per_frame = 90.0
+        self.down_pitch_frame_count = 1
+        self.up_pitch_frame_count = 1
+        
+        self.transforms = []
+        
+    def from_element(self, element):
+        self.label = element.Fields[0].GetStringData()
+        self.right_yaw_per_frame = element.Fields[1].Data
+        self.left_yaw_per_frame = element.Fields[2].Data
+        self.right_frame_count = element.Fields[3].Data
+        self.left_frame_count = element.Fields[4].Data
+        self.down_pitch_per_frame = element.Fields[5].Data
+        self.up_pitch_per_frame = element.Fields[6].Data
+        self.down_pitch_frame_count = element.Fields[7].Data
+        self.up_pitch_frame_count = element.Fields[8].Data
+        
+    def compute_transforms(self):
+        """Computes the transform a blend screen expects"""
+        self.transforms.clear()
+        yaw_transforms = []
+        # Right
+        for i in reversed(range(self.right_frame_count + 1)):
+            yaw_transforms.append(self.right_yaw_per_frame * -i)
+            
+        # Left
+        for i in range(1, self.left_frame_count + 1):
+            yaw_transforms.append(self.left_yaw_per_frame * i)
+        
+        pitch_transforms = []
+        # Down
+        for i in reversed(range(self.down_pitch_frame_count + 1)):
+            pitch_transforms.append(self.down_pitch_per_frame * i)
+            
+        # Up
+        for i in range(1, self.up_pitch_frame_count + 1):
+            pitch_transforms.append(self.up_pitch_per_frame * -i)
+            
+        for p in pitch_transforms:
+            for y in yaw_transforms:
+                yaw_matrix = Matrix.Rotation(radians(y), 4, 'Z')
+                pitch_matrix = Matrix.Rotation(radians(p), 4, 'Y')
+                self.transforms.append((tuple((yaw_matrix, pitch_matrix))))
+        
+        
+def blend_screens_from_tag(filepath: str) -> dict[str: BlendScreen]:
+    """Returns a dict of keys= animation name value=blend screen"""
+    data = {}
+    blend_screens = []
+    with AnimationTag(path=filepath) as animation:
+        for element in animation.tag.SelectField("Struct:definitions[0]/Block:blend screens").Elements:
+            bscreen = BlendScreen()
+            bscreen.from_element(element)
+            bscreen.compute_transforms()
+            blend_screens.append(bscreen)
+            
+        for element in animation.block_animations.Elements:
+            index = element.SelectField("blend screen").Value
+            if index == -1:
+                continue
+            data[element.Fields[0].GetStringData()] = blend_screens[index]
+            
+    return data
+
+class PoseBuilder:
+    def __init__(self, pedestal: bpy.types.PoseBone, pitch: bpy.types.PoseBone, yaw: bpy.types.PoseBone, control: bpy.types.PoseBone | None=None):
+        self.pedestal = pedestal
         self.pitch = pitch
         self.yaw = yaw
         self.control = control
+        self.uses_control = control is not None
     
-    def build(self, right_yaw_per_frame=radians(90), left_yaw_per_frame=radians(90), right_frame_count=1, left_frame_count=1, down_pitch_per_frame=radians(45), up_pitch_per_frame=radians(45), down_pitch_frame_count=2, up_pitch_frame_count=2):
-        pass
+    def build_from_blend_screen(self, scene: bpy.types.Scene, frame_start: int,  action: bpy.types.Action, blend_screen: BlendScreen) -> int:
+        """Keyframes a pose overlay based on the input blend screen. Returns the last frame keyframed"""
+        # Clear any existing keyframe data on aim bones
+        fcurves = action.fcurves
+        if self.uses_control:
+            for fc in fcurves:
+                if fc.data_path.startswith(f'pose.bones["{self.pitch.name}"].') or fc.data_path.startswith(f'pose.bones["{self.yaw.name}"].') or fc.data_path.startswith(f'pose.bones["{self.control.name}"].'):
+                    fcurves.remove(fc)
+        else:
+            for fc in fcurves:
+                if fc.data_path.startswith(f'pose.bones["{self.pitch.name}"].') or fc.data_path.startswith(f'pose.bones["{self.yaw.name}"].'):
+                    fcurves.remove(fc)
+                    
+        # Set the current frame to the first frame of animation and ensure transform matches pedestal
+        scene.frame_set(frame_start)
+        if self.uses_control:
+            self.control.matrix_basis = self.pedestal.matrix_basis
+        else:
+            self.yaw.matrix_basis = self.pedestal.matrix_basis
+            self.pitch.matrix_basis = self.pedestal.matrix_basis
+            
+        # Keyframe this as the base pose
+        if self.uses_control:
+            self.control.keyframe_insert(data_path='rotation_quaternion', frame=scene.frame_current)
+        else:
+            self.yaw.keyframe_insert(data_path='rotation_quaternion', frame=scene.frame_current)
+            self.pitch.keyframe_insert(data_path='rotation_quaternion', frame=scene.frame_current)
+            
+        # Loop through transforms and apply them
+        if self.uses_control:
+            for idx, (yaw, pitch) in enumerate(blend_screen.transforms):
+                scene.frame_set(frame_start + idx + 1)
+                self.control.matrix_basis = self.pedestal.matrix_basis @ yaw @ pitch
+                self.control.keyframe_insert(data_path='rotation_quaternion', frame=scene.frame_current)
+        else:
+            for idx, (yaw, pitch) in enumerate(blend_screen.transforms):
+                scene.frame_set(frame_start + idx + 1)
+                self.yaw.matrix = yaw @ self.pedestal.matrix
+                self.pitch.matrix = pitch @ self.pedestal.matrix
+                self.yaw.keyframe_insert(data_path='rotation_quaternion', frame=scene.frame_current)
+                self.pitch.keyframe_insert(data_path='rotation_quaternion', frame=scene.frame_current)
+                
+        return scene.frame_current
+    
+class NWO_OT_GeneratePoses(bpy.types.Operator):
+    bl_idname = 'nwo.generate_poses'
+    bl_label = 'Generate Poses'
+    bl_description = 'Animates the aim bones (or aim control if it exists) based on the chosen option'
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    pose_type: bpy.props.EnumProperty(
+        name="Type",
+        description="Type of poses to generate",
+        items=[
+            ("legacy", "Legacy Blend Screen", "Computes poses from the data used by legacy blend screens"),
+            ("aim", "Aim", "Computes poses typically used for aiming animations like aim_still_up"),
+            ("acc", "Acceleration", "Computes poses typically used acceraltion animations like vehicle:acceleration"),
+        ]
+    )
+    
+    right_yaw_per_frame: bpy.props.FloatProperty(
+        name="Right Yaw Per Frame",
+        subtype='ANGLE',
+        unit='ROTATION',
+        default=radians(90),
+        min=0,
+        max=radians(360),
+    )
+    
+    left_yaw_per_frame: bpy.props.FloatProperty(
+        name="Left Yaw Per Frame",
+        subtype='ANGLE',
+        unit='ROTATION',
+        default=radians(90),
+        min=0,
+        max=radians(360),
+    )
+    
+    down_pitch_per_frame: bpy.props.FloatProperty(
+        name="Down Pitch Per Frame",
+        subtype='ANGLE',
+        unit='ROTATION',
+        default=radians(90),
+        min=0,
+        max=radians(360),
+    )
+    
+    up_pitch_per_frame: bpy.props.FloatProperty(
+        name="Up Pitch Per Frame",
+        subtype='ANGLE',
+        unit='ROTATION',
+        default=radians(90),
+        min=0,
+        max=radians(360),
+    )
+    
+    right_frame_count: bpy.props.IntProperty(
+        name="Right Frame Count",
+        min=0,
+        max=4,
+        default=1,
+    )
+    
+    left_frame_count: bpy.props.IntProperty(
+        name="Left Frame Count",
+        min=0,
+        max=4,
+        default=1,
+    )
+    
+    down_pitch_frame_count: bpy.props.IntProperty(
+        name="Down Frame Count",
+        min=0,
+        max=4,
+        default=1,
+    )
+    
+    up_pitch_frame_count: bpy.props.IntProperty(
+        name="Up Frame Count",
+        min=0,
+        max=4,
+        default=1,
+    )
+    
+    max_yaw: bpy.props.FloatProperty(
+        name='Max Yaw',
+        subtype='ANGLE',
+        unit='ROTATION',
+        default=radians(45),
+        min=0,
+        max=radians(90),
+    )
+    
+    max_pitch: bpy.props.FloatProperty(
+        name='Max Pitch',
+        subtype='ANGLE',
+        unit='ROTATION',
+        default=radians(45),
+        min=0,
+        max=radians(90),
+    )
+    
+    def execute(self, context):
+        scene = context.scene
+        nwo = scene.nwo
+        armature = utils.get_rig_prioritize_active()
+        if not armature:
+            self.report({'WARNING'}, "No armature in scene")
+            return ['CANCELLED']
         
+        if not nwo.animations:
+            self.report({'WARNING'}, "Scene has no animations. Ensure at least one exists in the Foundry animation panel")
+            
+        if nwo.active_animation_index == -1:
+            self.report({'WARNING'}, "No active animation. Ensure desired animation is selected in the Foundry animation panel")
+
+        animation = nwo.animations[nwo.active_animation_index]
+        if not armature.animation_data:
+            armature.animation_data_create()
+        
+        all_bone_names = {b.name for b in armature.pose.bones}
+        
+        pedestal_name = nwo.node_usage_pedestal
+        if not pedestal_name:
+            for name in all_bone_names:
+                if utils.remove_node_prefix(name).lower() == "pedestal":
+                    pedestal_name = name
+                    nwo.node_usage_pedestal = name
+            
+        yaw_name = nwo.node_usage_pose_blend_yaw
+        if not yaw_name:
+            for name in all_bone_names:
+                if utils.remove_node_prefix(name).lower() == "aim_yaw":
+                    yaw_name = name
+                    nwo.node_usage_pose_blend_yaw = name
+        
+        
+        pitch_name = nwo.node_usage_pose_blend_pitch
+        if not pitch_name:
+            for name in all_bone_names:
+                if utils.remove_node_prefix(name).lower() == "aim_pitch":
+                    pitch_name = name
+                    nwo.node_usage_pose_blend_pitch = name
+                    
+        aim_name = nwo.control_aim
+        aim = None
+        
+        pedestal = armature.pose.bones.get(yaw_name)
+        if pedestal is None:
+            self.report({'WARNING'}, f"Pedestal bone {pedestal_name} does not exist in {armature.name}")
+        yaw = armature.pose.bones.get(yaw_name)
+        if yaw is None:
+            self.report({'WARNING'}, f"Pitch bone {pitch_name} does not exist in {armature.name}")
+        pitch = armature.pose.bones.get(pitch_name)
+        if pitch is None:
+            self.report({'WARNING'}, f"Pitch bone {pitch_name} does not exist in {armature.name}")
+        if aim_name:
+            aim = armature.pose.bones.get(aim_name)
+            if aim is None:
+                self.report({'WARNING'}, f"Aim bone {aim_name} does not exist in {armature.name}")
+                
+        if not aim and (not yaw and not pitch):
+            self.report({'WARNING'}, f"Armature {armature.name} does not have aim bones. Cannot build poses")
+            return {'CANCELLED'}
+        
+        current_frame = scene.frame_current
+        
+        use_blend_screen_info = self.pose_type == 'legacy'
+        if use_blend_screen_info:
+            blend_screen = BlendScreen()
+            blend_screen.right_yaw_per_frame = degrees(self.right_yaw_per_frame)
+            blend_screen.left_yaw_per_frame = degrees(self.left_yaw_per_frame)
+            blend_screen.right_frame_count = self.right_frame_count
+            blend_screen.left_frame_count = self.left_frame_count
+            blend_screen.down_pitch_per_frame = degrees(self.down_pitch_per_frame)
+            blend_screen.up_pitch_per_frame = degrees(self.up_pitch_per_frame)
+            blend_screen.down_pitch_frame_count = self.down_pitch_frame_count
+            blend_screen.up_pitch_frame_count = self.up_pitch_frame_count
+            blend_screen.compute_transforms()
+        
+        builder = PoseBuilder(pedestal, pitch, yaw, aim)
+        with utils.ArmatureDeformMute():
+            for track in animation.action_tracks:
+                if track.object == armature and track.action:
+                    if use_blend_screen_info:
+                        animation.frame_end = builder.build_from_blend_screen(scene, animation.frame_start, track.action, blend_screen)
+                    else:
+                        pass
+                    break
+            
+        scene.frame_current = current_frame
+        
+        return {'FINISHED'}
+    
+    def invoke(self, context: bpy.types.Context, _):
+        return context.window_manager.invoke_props_dialog(self, width=330)
+    
+    def draw(self, context):
+        layout = self.layout
+        layout.use_property_split = True
+        layout.prop(self, "pose_type")
+        layout.separator()
+        match self.pose_type:
+            case 'legacy':
+                layout.prop(self, "right_yaw_per_frame")
+                layout.prop(self, "left_yaw_per_frame")
+                layout.prop(self, "right_frame_count")
+                layout.prop(self, "left_frame_count")
+                layout.separator()
+                layout.prop(self, "down_pitch_per_frame")
+                layout.prop(self, "up_pitch_per_frame")
+                layout.prop(self, "down_pitch_frame_count")
+                layout.prop(self, "up_pitch_frame_count")
+            case 'aim':
+                layout.prop(self, "max_yaw")
+                layout.prop(self, "max_pitch")
+            case 'acc':
+                layout.prop(self, "max_pitch")
+            
 
 class NWO_AddAimAnimation(bpy.types.Operator):
     bl_idname = 'nwo.add_aim_animation'

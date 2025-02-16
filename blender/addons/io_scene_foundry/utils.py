@@ -1985,7 +1985,7 @@ def get_rig(context=None, return_mutliple=False) -> bpy.types.Object | None | li
         scene_nwo.main_armature = rigs[0]
         return rigs[0]
     
-def get_rig_priortize_active(context=None):
+def get_rig_prioritize_active(context=None):
     if context is None:
         context = bpy.context
         
@@ -2384,10 +2384,13 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
         if actions is None:
             actions = bpy.data.actions
             
+        print("ACTIONS\n", actions)
+        print("OBJECTS\n", objects)
+            
         if keep_marker_axis is None:
             keep_marker_axis = context.scene.nwo.maintain_marker_axis
 
-        armatures = []
+        armatures = {}
         scene_coll = context.scene.collection.objects
         rotation_matrix = Matrix.Rotation(rotation, 4, Vector((0, 0, 1)))
         scale_matrix = Matrix.Scale(scale_factor, 4)
@@ -2395,11 +2398,15 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
         transform_objects = []
         marker_z = Matrix.Rotation(-rotation, 4, 'Z')
         child_of_constraints = []
-                
+        
+        armatures = {ob: ob.data.pose_position for ob in objects if ob.type == 'ARMATURE'}
+        for ob in armatures.keys():
+            ob.data.pose_position = 'REST'
+        context.view_layer.update()
+        
         for ob in objects:
             match ob.type:
                 case 'ARMATURE':
-                    armatures.append(ob)
                     transform_objects.append(TransformObject(ob, scale=scale_factor)) # scale loc but otherwise retain matrix
                 case 'LATTICE' | 'LIGHT':
                     transform_objects.append(TransformObject(ob, transform_matrix)) # update loc, rot, sca
@@ -2532,7 +2539,8 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                 light.nwo.light_fade_end_distance *= scale_factor
         
         arm_datas = set()
-        for arm in armatures:
+        
+        for arm in armatures.keys():
             if arm.library or arm.data.library:
                 print_warning(f'Cannot scale {arm.name}')
                 continue
@@ -2624,7 +2632,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                 if original_collections:
                     for coll in original_collections:
                         coll.objects.link(arm)
-        
+
         for action in actions:
             fc_quaternions: list[bpy.types.FCurve] = []
             fc_locations: list[bpy.types.FCurve] = []
@@ -2699,6 +2707,9 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
         if apply_rotation:
             with context.temp_override(selected_editable_objects=objects, object=objects[0]):
                 bpy.ops.object.transform_apply(location=False, rotation=True, scale=False, isolate_users=True)
+                
+        for arm, pose_pos in armatures.items():
+            arm.data.pose_position = pose_pos
             
 def get_area_info(context):
     area = [
@@ -2773,6 +2784,21 @@ def mute_armature_mods():
 def unmute_armature_mods(muted_arms):
     for mod in muted_arms:
         mod.use_vertex_groups = True
+        
+class ArmatureDeformMute:
+    def __init__(self):
+        self.muted_armature_mods = []
+    
+    def __enter__(self):
+        for ob in bpy.data.objects:
+            for mod in ob.modifiers:
+                if mod.type == 'ARMATURE' and mod.use_vertex_groups:
+                    self.muted_armature_mods.append(mod)
+                    mod.use_vertex_groups = False
+        
+    def __exit__(self, exc_type, exc_value, traceback):
+        for mod in self.muted_armature_mods:
+            mod.use_vertex_groups = True
     
 def rig_root_deform_bone(rig: bpy.types.Object, return_name=False) -> None | bpy.types.Bone| str| list:
     """Returns the root deform bone of this rig. If multiple bones are found, returns none"""

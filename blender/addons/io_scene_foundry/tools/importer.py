@@ -322,6 +322,7 @@ class NWO_Import(bpy.types.Operator):
     tag_state: bpy.props.EnumProperty(
         name="Model State",
         description="The damage state to import. Only valid when a variant is set",
+        default=1,
         items=state_items,
     )
     
@@ -423,7 +424,7 @@ class NWO_Import(bpy.types.Operator):
                     if scene_nwo.main_armature:
                         arm = scene_nwo.main_armature
                     else:
-                        arm = utils.get_rig_priortize_active(context)
+                        arm = utils.get_rig_prioritize_active(context)
                         if not arm and jma_files:
                             arm_data = bpy.data.armatures.new('Armature')
                             arm = bpy.data.objects.new('Armature', arm_data)
@@ -436,7 +437,7 @@ class NWO_Import(bpy.types.Operator):
                         
                     # Transform Scene so it's ready for JMA/JMS files
                     if needs_scaling:
-                        utils.transform_scene(context, (1 / scale_factor), to_x_rot, context.scene.nwo.forward_direction, 'x')
+                        utils.transform_scene(context, (1 / scale_factor), to_x_rot, context.scene.nwo.forward_direction, 'x', actions=[])
          
                     imported_jms_objects = importer.import_jms_files(jms_files, self.legacy_type)
                     imported_jma_animations = importer.import_jma_files(jma_files, arm)
@@ -448,7 +449,7 @@ class NWO_Import(bpy.types.Operator):
                         addon_utils.disable('io_scene_halo')
 
                     if needs_scaling:
-                        utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction)
+                        utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, actions=imported_jma_animations)
                         
                 if 'model' in importer.extensions:
                     importer.tag_render = self.tag_render
@@ -463,7 +464,7 @@ class NWO_Import(bpy.types.Operator):
                     model_files = importer.sorted_filepaths["model"]
                     existing_armature = None
                     if self.reuse_armature:
-                        existing_armature = utils.get_rig_priortize_active(context)
+                        existing_armature = utils.get_rig_prioritize_active(context)
                         if needs_scaling:
                             utils.transform_scene(context, (1 / scale_factor), to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[existing_armature], actions=[])
                             
@@ -486,10 +487,13 @@ class NWO_Import(bpy.types.Operator):
                     object_files = importer.sorted_filepaths["object"]
                     existing_armature = None
                     if self.reuse_armature:
-                        existing_armature = utils.get_rig_priortize_active(context)
+                        existing_armature = utils.get_rig_prioritize_active(context)
+                        if needs_scaling:
+                            utils.transform_scene(context, (1 / scale_factor), to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[existing_armature], actions=[])
+                            
                     imported_object_objects, imported_animations = importer.import_object(object_files, existing_armature)
                     if needs_scaling:
-                        utils.transform_scene(context, scale_factor, from_x_rot, 'x', 'x', objects=imported_object_objects, actions=imported_animations)
+                        utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_object_objects, actions=imported_animations)
                         
                     imported_objects.extend(imported_object_objects)
                     
@@ -499,7 +503,7 @@ class NWO_Import(bpy.types.Operator):
                     render_model_files = importer.sorted_filepaths["render_model"]
                     existing_armature = None
                     if self.reuse_armature:
-                        existing_armature = utils.get_rig_priortize_active(context)
+                        existing_armature = utils.get_rig_prioritize_active(context)
                         if needs_scaling:
                             utils.transform_scene(context, (1 / scale_factor), to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[existing_armature], actions=[])
                     
@@ -520,7 +524,7 @@ class NWO_Import(bpy.types.Operator):
                     if context.object and context.object.type == 'ARMATURE':
                         existing_armature = context.object
                     else:
-                        existing_armature = utils.get_rig_priortize_active(context)
+                        existing_armature = utils.get_rig_prioritize_active(context)
                     if existing_armature is None:
                         utils.print_warning("No armature found, cannot import animations. Ensure you have the appropriate armature for this animation graph import and selected")
                     else:
@@ -1013,7 +1017,7 @@ class NWOImporter:
         self.prefix_setting = utils.get_prefs().apply_prefix
         self.corinth = utils.is_corinth(context)
         self.project = utils.get_project(context.scene.nwo.scene_project)
-        self.arm = utils.get_rig_priortize_active(context)
+        self.arm = utils.get_rig_prioritize_active(context)
         self.tag_render = False
         self.tag_markers = False
         self.tag_collision = False
@@ -2692,6 +2696,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     tag_state: bpy.props.EnumProperty(
         name="Model State",
         description="The damage state to import. Only valid when a variant is set",
+        default=1,
         items=state_items,
     )
     

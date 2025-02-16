@@ -37,7 +37,10 @@ class NWO_OT_DeleteAnimation(bpy.types.Operator):
             utils.clear_animation(animation)
             name = animation.name
             context.scene.nwo.animations.remove(current_animation_index)
-            context.scene.nwo.active_animation_index -= 1
+            new_index = context.scene.nwo.active_animation_index - 1
+            if new_index < 0:
+                new_index = 0
+            context.scene.nwo.active_animation_index = new_index
             self.report({"INFO"}, f"Deleted animation: {name}")
         
         return {"FINISHED"}

@@ -2951,7 +2951,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         row.prop(animation, "frame_end", text='End Frame', icon='KEYFRAME_HLT')
         col.separator()
         if animation.animation_type == 'overlay':
-            col.operator('nwo.add_aim_animation', text='Generate Poses', icon='ANIM')
+            col.operator('nwo.generate_poses', text='Generate Poses', icon='ANIM')
             col.separator()
         row = col.row()
         row.use_property_split = True
