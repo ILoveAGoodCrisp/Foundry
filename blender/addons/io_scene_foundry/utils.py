@@ -2389,6 +2389,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
 
         armatures = {}
         scene_coll = context.scene.collection.objects
+        rotation_euler = Euler((0, 0, rotation))
         rotation_matrix = Matrix.Rotation(rotation, 4, Vector((0, 0, 1)))
         scale_matrix = Matrix.Scale(scale_factor, 4)
         transform_matrix = rotation_matrix @ scale_matrix
@@ -2569,8 +2570,13 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                 for edit_bone in connected_bones:
                     edit_bone.use_connect = False
                     
+                arm_inverted = scale_matrix @ arm.matrix_world.inverted()
+                    
                 for edit_bone in edit_bones:
-                    edit_bone.transform(transform_matrix)
+                    world_matrix = arm.matrix_world @ edit_bone.matrix
+                    transformed_matrix = rotation_matrix @ world_matrix
+                    edit_bone.matrix = arm_inverted @ transformed_matrix
+                    # edit_bone.transform(transform_matrix)
                     
                 for edit_bone in connected_bones:
                     edit_bone.use_connect = True
@@ -2585,8 +2591,6 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                 arm.pose.use_mirror_x = False
             
             for pose_bone in arm.pose.bones:
-                # pose_bone: bpy.types.PoseBone
-                pose_bone.matrix_basis = Matrix()
                 pose_bone.custom_shape_translation *= scale_factor
                 if pose_bone.use_custom_shape_bone_size:
                     pose_bone.custom_shape_scale_xyz *= (1 / scale_factor)
