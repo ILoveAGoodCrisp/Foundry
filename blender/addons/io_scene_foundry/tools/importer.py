@@ -437,7 +437,8 @@ class NWO_Import(bpy.types.Operator):
                         
                     # Transform Scene so it's ready for JMA/JMS files
                     if needs_scaling:
-                        utils.transform_scene(context, (1 / scale_factor), to_x_rot, context.scene.nwo.forward_direction, 'x', actions=[])
+                        if arm is not None:
+                            utils.transform_scene(context, (1 / scale_factor), to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[arm], actions=[])
          
                     imported_jms_objects = importer.import_jms_files(jms_files, self.legacy_type)
                     imported_jma_animations = importer.import_jma_files(jma_files, arm)
@@ -449,7 +450,7 @@ class NWO_Import(bpy.types.Operator):
                         addon_utils.disable('io_scene_halo')
 
                     if needs_scaling:
-                        utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, actions=imported_jma_animations)
+                        utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=[arm] + imported_jms_objects, actions=imported_jma_animations)
                         
                 if 'model' in importer.extensions:
                     importer.tag_render = self.tag_render

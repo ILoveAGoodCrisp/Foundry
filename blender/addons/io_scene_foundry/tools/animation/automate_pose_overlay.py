@@ -80,16 +80,162 @@ def blend_screens_from_tag(filepath: str) -> dict[str: BlendScreen]:
     return data
 
 preset_steering_transforms = [
-    (),
+    (Matrix.Rotation(radians(45), 4, 'Z'), Matrix.Rotation(0, 4, 'Y')),
+    (Matrix.Rotation(0, 4, 'Z'), Matrix.Rotation(0, 4, 'Y')),
+    (Matrix.Rotation(radians(-45), 4, 'Z'), Matrix.Rotation(0, 4, 'Y')),
+]
+
+preset_look_transforms = [
+    (Matrix.Rotation(radians(-90), 4, 'Z'), Matrix.Rotation(radians(22.6), 4, 'Y')),
+    (Matrix.Rotation(radians(-60), 4, 'Z'), Matrix.Rotation(radians(22.6), 4, 'Y')),
+    (Matrix.Rotation(radians(-30), 4, 'Z'), Matrix.Rotation(radians(22.6), 4, 'Y')),
+    (Matrix.Rotation(0, 4, 'Z'), Matrix.Rotation(radians(22.6), 4, 'Y')),
+    (Matrix.Rotation(radians(30), 4, 'Z'), Matrix.Rotation(radians(22.6), 4, 'Y')),
+    (Matrix.Rotation(radians(60), 4, 'Z'), Matrix.Rotation(radians(22.6), 4, 'Y')),
+    (Matrix.Rotation(radians(90), 4, 'Z'), Matrix.Rotation(radians(22.6), 4, 'Y')),
+    
+    (Matrix.Rotation(radians(-90), 4, 'Z'), Matrix.Rotation(radians(0.4), 4, 'Y')),
+    (Matrix.Rotation(radians(-60), 4, 'Z'), Matrix.Rotation(radians(0.4), 4, 'Y')),
+    (Matrix.Rotation(radians(-30), 4, 'Z'), Matrix.Rotation(radians(0.4), 4, 'Y')),
+    (Matrix.Rotation(0, 4, 'Z'), Matrix.Rotation(radians(0.4), 4, 'Y')),
+    (Matrix.Rotation(radians(30), 4, 'Z'), Matrix.Rotation(radians(0.4), 4, 'Y')),
+    (Matrix.Rotation(radians(60), 4, 'Z'), Matrix.Rotation(radians(0.4), 4, 'Y')),
+    (Matrix.Rotation(radians(90), 4, 'Z'), Matrix.Rotation(radians(0.4), 4, 'Y')),
+    
+    (Matrix.Rotation(radians(90), 4, 'Z'), Matrix.Rotation(radians(-21.6), 4, 'Y')),
+    (Matrix.Rotation(radians(60), 4, 'Z'), Matrix.Rotation(radians(-21.6), 4, 'Y')),
+    (Matrix.Rotation(radians(30), 4, 'Z'), Matrix.Rotation(radians(-21.6), 4, 'Y')),
+    (Matrix.Rotation(0, 4, 'Z'), Matrix.Rotation(radians(-21.6), 4, 'Y')),
+    (Matrix.Rotation(radians(-30), 4, 'Z'), Matrix.Rotation(radians(-21.6), 4, 'Y')),
+    (Matrix.Rotation(radians(-60), 4, 'Z'), Matrix.Rotation(radians(-21.6), 4, 'Y')),
+    (Matrix.Rotation(radians(-90), 4, 'Z'), Matrix.Rotation(radians(-21.6), 4, 'Y')),
+    
+    (Matrix.Rotation(radians(-90), 4, 'Z'), Matrix.Rotation(radians(-37), 4, 'Y')),
+    (Matrix.Rotation(radians(-60), 4, 'Z'), Matrix.Rotation(radians(-37), 4, 'Y')),
+    (Matrix.Rotation(radians(-30), 4, 'Z'), Matrix.Rotation(radians(-37), 4, 'Y')),
+    (Matrix.Rotation(0, 4, 'Z'), Matrix.Rotation(radians(-37), 4, 'Y')),
+    (Matrix.Rotation(radians(30), 4, 'Z'), Matrix.Rotation(radians(-37), 4, 'Y')),
+    (Matrix.Rotation(radians(60), 4, 'Z'), Matrix.Rotation(radians(-37), 4, 'Y')),
+    (Matrix.Rotation(radians(90), 4, 'Z'), Matrix.Rotation(radians(-37), 4, 'Y')),
 ]
 
 preset_aim_transforms = [
-    (),
-    (),
-    (),
-    (),
-    (),
+    (Matrix.Rotation(0, 4, 'Z'), Matrix.Rotation(radians(-90), 4, 'Y')),
+    (Matrix.Rotation(0, 4, 'Z'), Matrix.Rotation(radians(-45), 4, 'Y')),
+    (Matrix.Rotation(0, 4, 'Z'), Matrix.Rotation(0, 4, 'Y')),
+    (Matrix.Rotation(0, 4, 'Z'), Matrix.Rotation(radians(45), 4, 'Y')),
+    (Matrix.Rotation(0, 4, 'Z'), Matrix.Rotation(radians(90), 4, 'Y')),
+    
+    (Matrix.Rotation(radians(-55), 4, 'Z'), Matrix.Rotation(radians(-90), 4, 'Y')),
+    (Matrix.Rotation(radians(-55), 4, 'Z'), Matrix.Rotation(radians(-45), 4, 'Y')),
+    (Matrix.Rotation(radians(-55), 4, 'Z'), Matrix.Rotation(0, 4, 'Y')),
+    (Matrix.Rotation(radians(-55), 4, 'Z'), Matrix.Rotation(radians(45), 4, 'Y')),
+    (Matrix.Rotation(radians(-55), 4, 'Z'), Matrix.Rotation(radians(90), 4, 'Y')),
+    
+    (Matrix.Rotation(radians(73.5), 4, 'Z'), Matrix.Rotation(radians(-90), 4, 'Y')),
+    (Matrix.Rotation(radians(73.5), 4, 'Z'), Matrix.Rotation(radians(-45), 4, 'Y')),
+    (Matrix.Rotation(radians(73.5), 4, 'Z'), Matrix.Rotation(0, 4, 'Y')),
+    (Matrix.Rotation(radians(73.5), 4, 'Z'), Matrix.Rotation(radians(45), 4, 'Y')),
+    (Matrix.Rotation(radians(73.5), 4, 'Z'), Matrix.Rotation(radians(90), 4, 'Y')),
 ]
+
+preset_aim_turn_left_transforms = [
+    (Matrix.Rotation(radians(-73.5), 4, 'Z'), Matrix.Rotation(radians(-90), 4, 'Y')),
+    (Matrix.Rotation(radians(-73.5), 4, 'Z'), Matrix.Rotation(radians(-45), 4, 'Y')),
+    (Matrix.Rotation(radians(-73.5), 4, 'Z'), Matrix.Rotation(0, 4, 'Y')),
+    (Matrix.Rotation(radians(-73.5), 4, 'Z'), Matrix.Rotation(radians(45), 4, 'Y')),
+    (Matrix.Rotation(radians(-73.5), 4, 'Z'), Matrix.Rotation(radians(90), 4, 'Y')),
+    
+    (Matrix.Rotation(0, 4, 'Z'), Matrix.Rotation(radians(-90), 4, 'Y')),
+    (Matrix.Rotation(0, 4, 'Z'), Matrix.Rotation(radians(-45), 4, 'Y')),
+    (Matrix.Rotation(0, 4, 'Z'), Matrix.Rotation(0, 4, 'Y')),
+    (Matrix.Rotation(0, 4, 'Z'), Matrix.Rotation(radians(45), 4, 'Y')),
+    (Matrix.Rotation(0, 4, 'Z'), Matrix.Rotation(radians(90), 4, 'Y')),
+    
+    (Matrix.Rotation(radians(15.5), 4, 'Z'), Matrix.Rotation(radians(-90), 4, 'Y')),
+    (Matrix.Rotation(radians(15.5), 4, 'Z'), Matrix.Rotation(radians(-45), 4, 'Y')),
+    (Matrix.Rotation(radians(15.5), 4, 'Z'), Matrix.Rotation(0, 4, 'Y')),
+    (Matrix.Rotation(radians(15.5), 4, 'Z'), Matrix.Rotation(radians(45), 4, 'Y')),
+    (Matrix.Rotation(radians(15.5), 4, 'Z'), Matrix.Rotation(radians(90), 4, 'Y')),
+    
+    (Matrix.Rotation(radians(75.5), 4, 'Z'), Matrix.Rotation(radians(-90), 4, 'Y')),
+    (Matrix.Rotation(radians(75.5), 4, 'Z'), Matrix.Rotation(radians(-45), 4, 'Y')),
+    (Matrix.Rotation(radians(75.5), 4, 'Z'), Matrix.Rotation(0, 4, 'Y')),
+    (Matrix.Rotation(radians(75.5), 4, 'Z'), Matrix.Rotation(radians(45), 4, 'Y')),
+    (Matrix.Rotation(radians(75.5), 4, 'Z'), Matrix.Rotation(radians(90), 4, 'Y')),
+    
+    (Matrix.Rotation(radians(-141), 4, 'Z'), Matrix.Rotation(radians(-90), 4, 'Y')),
+    (Matrix.Rotation(radians(-141), 4, 'Z'), Matrix.Rotation(radians(-45), 4, 'Y')),
+    (Matrix.Rotation(radians(-141), 4, 'Z'), Matrix.Rotation(0, 4, 'Y')),
+    (Matrix.Rotation(radians(-141), 4, 'Z'), Matrix.Rotation(radians(45), 4, 'Y')),
+    (Matrix.Rotation(radians(-141), 4, 'Z'), Matrix.Rotation(radians(90), 4, 'Y')),
+]
+
+preset_aim_turn_right_transforms = [
+    (Matrix.Rotation(radians(55), 4, 'Z'), Matrix.Rotation(radians(-90), 4, 'Y')),
+    (Matrix.Rotation(radians(55), 4, 'Z'), Matrix.Rotation(radians(-45), 4, 'Y')),
+    (Matrix.Rotation(radians(55), 4, 'Z'), Matrix.Rotation(0, 4, 'Y')),
+    (Matrix.Rotation(radians(55), 4, 'Z'), Matrix.Rotation(radians(45), 4, 'Y')),
+    (Matrix.Rotation(radians(55), 4, 'Z'), Matrix.Rotation(radians(90), 4, 'Y')),
+    
+    (Matrix.Rotation(0, 4, 'Z'), Matrix.Rotation(radians(-90), 4, 'Y')),
+    (Matrix.Rotation(0, 4, 'Z'), Matrix.Rotation(radians(-45), 4, 'Y')),
+    (Matrix.Rotation(0, 4, 'Z'), Matrix.Rotation(0, 4, 'Y')),
+    (Matrix.Rotation(0, 4, 'Z'), Matrix.Rotation(radians(45), 4, 'Y')),
+    (Matrix.Rotation(0, 4, 'Z'), Matrix.Rotation(radians(90), 4, 'Y')),
+    
+    (Matrix.Rotation(radians(-34), 4, 'Z'), Matrix.Rotation(radians(-90), 4, 'Y')),
+    (Matrix.Rotation(radians(-34), 4, 'Z'), Matrix.Rotation(radians(-45), 4, 'Y')),
+    (Matrix.Rotation(radians(-34), 4, 'Z'), Matrix.Rotation(0, 4, 'Y')),
+    (Matrix.Rotation(radians(-34), 4, 'Z'), Matrix.Rotation(radians(45), 4, 'Y')),
+    (Matrix.Rotation(radians(-34), 4, 'Z'), Matrix.Rotation(radians(90), 4, 'Y')),
+    
+    (Matrix.Rotation(radians(-97.3), 4, 'Z'), Matrix.Rotation(radians(-90), 4, 'Y')),
+    (Matrix.Rotation(radians(-97.3), 4, 'Z'), Matrix.Rotation(radians(-45), 4, 'Y')),
+    (Matrix.Rotation(radians(-97.3), 4, 'Z'), Matrix.Rotation(0, 4, 'Y')),
+    (Matrix.Rotation(radians(-97.3), 4, 'Z'), Matrix.Rotation(radians(45), 4, 'Y')),
+    (Matrix.Rotation(radians(-97.3), 4, 'Z'), Matrix.Rotation(radians(90), 4, 'Y')),
+    
+    (Matrix.Rotation(radians(125), 4, 'Z'), Matrix.Rotation(radians(-90), 4, 'Y')),
+    (Matrix.Rotation(radians(125), 4, 'Z'), Matrix.Rotation(radians(-45), 4, 'Y')),
+    (Matrix.Rotation(radians(125), 4, 'Z'), Matrix.Rotation(0, 4, 'Y')),
+    (Matrix.Rotation(radians(125), 4, 'Z'), Matrix.Rotation(radians(45), 4, 'Y')),
+    (Matrix.Rotation(radians(125), 4, 'Z'), Matrix.Rotation(radians(90), 4, 'Y')),
+]
+
+preset_biped_acc_transforms = [
+    (Matrix.Rotation(0, 4, 'Z'), Matrix.Rotation(radians(90), 4, 'Y')),
+    (Matrix.Rotation(0, 4, 'Z'), Matrix.Rotation(radians(-90), 4, 'Y')),
+    
+    (Matrix.Rotation(radians(-90), 4, 'Z'), Matrix.Rotation(0, 4, 'Y')),
+    (Matrix.Rotation(radians(90), 4, 'Z'), Matrix.Rotation(0, 4, 'Y')),
+    
+    (Matrix.Rotation(radians(180), 4, 'Z'), Matrix.Rotation(0, 4, 'Y')),
+    (Matrix.Rotation(radians(-1), 4, 'Z'), Matrix.Rotation(0, 4, 'Y')),
+]
+
+preset_vehicle_acc_transforms = [
+    (Matrix.Rotation(radians(45), 4, 'Z'), Matrix.Rotation(0, 4, 'Y')),
+    (Matrix.Rotation(radians(90), 4, 'Z'), Matrix.Rotation(0, 4, 'Y')),
+    (Matrix.Rotation(radians(135), 4, 'Z'), Matrix.Rotation(0, 4, 'Y')),
+    (Matrix.Rotation(radians(180), 4, 'Z'), Matrix.Rotation(0, 4, 'Y')),
+    (Matrix.Rotation(radians(225), 4, 'Z'), Matrix.Rotation(0, 4, 'Y')),
+    (Matrix.Rotation(radians(270), 4, 'Z'), Matrix.Rotation(0, 4, 'Y')),
+    (Matrix.Rotation(radians(315), 4, 'Z'), Matrix.Rotation(0, 4, 'Y')),
+    (Matrix.Rotation(radians(360), 4, 'Z'), Matrix.Rotation(0, 4, 'Y')),
+    (Matrix.Rotation(radians(360), 4, 'Z'), Matrix.Rotation(radians(90), 4, 'Y')),
+    (Matrix.Rotation(radians(360), 4, 'Z'), Matrix.Rotation(radians(-90), 4, 'Y')),
+]
+
+preset_transforms = {
+    "look": preset_look_transforms,
+    "aim": preset_aim_transforms,
+    "aim_turn_left": preset_aim_turn_left_transforms,
+    "aim_turn_right": preset_aim_turn_right_transforms,
+    "biped_acc": preset_biped_acc_transforms,
+    "steering": preset_steering_transforms,
+    "vehicle_acc": preset_vehicle_acc_transforms,
+}
 
 class PoseBuilder:
     def __init__(self, pedestal: bpy.types.PoseBone, pitch: bpy.types.PoseBone, yaw: bpy.types.PoseBone, control: bpy.types.PoseBone | None=None):
@@ -145,13 +291,13 @@ class PoseBuilder:
         """Keyframes a pose overlay based on the input preset. Returns the last frame keyframed"""
         self._pre_build(scene, frame_start, action)
         self._build_poses(scene, frame_start, preset_transforms[preset])
+        return scene.frame_current
 
     
     def build_from_blend_screen(self, scene: bpy.types.Scene, frame_start: int,  action: bpy.types.Action, blend_screen: BlendScreen) -> int:
         """Keyframes a pose overlay based on the input blend screen. Returns the last frame keyframed"""
         self._pre_build(scene, frame_start, action)
         self._build_poses(scene, frame_start, blend_screen.transforms)
-                
         return scene.frame_current
     
 class NWO_OT_GeneratePoses(bpy.types.Operator):
@@ -165,8 +311,10 @@ class NWO_OT_GeneratePoses(bpy.types.Operator):
         description="Type of poses to generate",
         items=[
             ("legacy", "Legacy Blend Screen", "Computes poses from the data used by legacy blend screens"),
-            ("aim", "Aim", "Computes poses typically used for aiming animations like aim_still_up"),
-            ("acc", "Acceleration", "Computes poses typically used acceraltion animations like vehicle:acceleration"),
+            ("steering", "Steering", "Computes poses typically used for steering animations like vehicle:steering"),
+            ("steering", "Steering", "Computes poses typically used for steering animations like any:look"),
+            ("aim", "Aim", "Computes poses typically used for aiming animations like combat:aim_still_up. Assumes character is right handed as allows for greater turning to the right"),
+            ("acc", "Acceleration", "Computes poses typically used accereltion animations like vehicle:acceleration"),
         ]
     )
     
@@ -232,24 +380,6 @@ class NWO_OT_GeneratePoses(bpy.types.Operator):
         min=0,
         max=4,
         default=1,
-    )
-    
-    max_yaw: bpy.props.FloatProperty(
-        name='Max Yaw',
-        subtype='ANGLE',
-        unit='ROTATION',
-        default=radians(45),
-        min=0,
-        max=radians(90),
-    )
-    
-    max_pitch: bpy.props.FloatProperty(
-        name='Max Pitch',
-        subtype='ANGLE',
-        unit='ROTATION',
-        default=radians(45),
-        min=0,
-        max=radians(90),
     )
     
     def execute(self, context):
@@ -337,7 +467,7 @@ class NWO_OT_GeneratePoses(bpy.types.Operator):
                     if use_blend_screen_info:
                         animation.frame_end = builder.build_from_blend_screen(scene, animation.frame_start, track.action, blend_screen)
                     else:
-                        pass
+                        animation.frame_end = builder.build_from_preset(scene, animation.frame_start, track.action, self.pose_type)
                     break
             
         scene.frame_current = current_frame

@@ -1188,7 +1188,10 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         if self.active_animation_index > -1:
             animation = self.animations[self.active_animation_index]
             if self.previous_active_animation_index > -1:
-                previous_animation = self.animations[self.previous_active_animation_index]
+                if len(self.animations) <= self.previous_active_animation_index:
+                    previous_animation = self.animations[self.previous_active_animation_index - 1]
+                else:
+                    previous_animation = self.animations[self.previous_active_animation_index]
                 if previous_animation:
                     utils.clear_animation(previous_animation)
                     
