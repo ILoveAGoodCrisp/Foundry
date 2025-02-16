@@ -3,12 +3,12 @@
 from pathlib import Path
 import bpy
 import os
-from ..utils import get_project_path, get_tags_path, is_corinth, os_sep_partition
+from ..utils import get_project_path, get_tags_path, is_corinth, os_sep_partition, redraw_area
 
 global_items = {}
 scene_props = ('template_render_model', 'template_collision_model', 'template_physics_model', 'template_model_animation_graph', 'parent_animation_graph', 'render_model_path', 
                'template_model', 'template_biped', 'template_crate', 'template_creature', 'template_device_control', 'template_device_dispenser', 'template_device_machine',
-               'template_device_terminal', 'template_effect_scenery', 'template_equipment', 'template_giant', 'template_scenery', 'template_vehicle', 'template_weapon', 'cinematic_scenario')
+               'template_device_terminal', 'template_effect_scenery', 'template_equipment', 'template_giant', 'template_scenery', 'template_vehicle', 'template_weapon', 'cinematic_scenario', 'animation_cmd_path')
 
 class NWO_GetTagsList(bpy.types.Operator):
     bl_label = ""
@@ -28,7 +28,15 @@ class NWO_GetTagsList(bpy.types.Operator):
         ext_list = extensions_from_type(self.list_type)
         tags = walk_tags_dir(tags_dir, ext_list)
         for t in tags:
-            global_items[self.list_type].append((t, Path(t).name, ""))
+            if type(self.list_type) == str:
+                display = f"{Path(Path(t).parent.name, Path(t).with_suffix('').name)}"
+            else:
+                display = str(Path(t).name)
+                
+            if len(display) > 35:
+                global_items[self.list_type].append((t, f"...{display[-35:]}", ""))
+            else:
+                global_items[self.list_type].append((t, display, ""))
 
         return global_items[self.list_type]
 
@@ -50,6 +58,7 @@ class NWO_GetTagsList(bpy.types.Operator):
         else:
             nwo = context.object.nwo
         setattr(nwo, self.list_type, self.tag_list)
+        redraw_area(context, 'VIEW_3D')
         return {'FINISHED'}
     
     def invoke(self, context, event):
@@ -132,6 +141,8 @@ def extensions_from_type(list_type):
                         ".device_dispenser", ".biped", ".creature", ".giant", ".vehicle", ".weapon", ".equipment")
         case 'cinematic_scenario':
             return (".scenario")
+        case 'animation_cmd_path':
+            return (".model_animation_graph")
         
 def walk_tags_dir(tags_dir, ext_list):
     tags_set = set()
@@ -233,36 +244,38 @@ def get_glob_from_prop(prop):
         case 'shader_path':
             return "*.material;*.shade*"
         case 'template_model':
-            return ("*.model")
+            return "*.model"
         case 'template_biped':
-            return ("*.biped")
+            return "*.biped"
         case 'template_crate':
-            return ('*.crate')
+            return '*.crate'
         case 'template_creature':
-            return ('*.creature')
+            return '*.creature'
         case 'template_device_control':
-            return ('*.device_con*')
+            return '*.device_con*'
         case 'template_device_dispenser':
-            return ('*.device_d*')
+            return '*.device_d*'
         case 'template_device_machine':
-            return ('*.device_ma*')
+            return '*.device_ma*'
         case 'template_device_terminal':
-            return ('*.device_te*')
+            return '*.device_te*'
         case 'template_effect_scenery':
-            return ('*.effect_sc*')
+            return '*.effect_sc*'
         case 'template_equipment':
-            return ('*.equipment')
+            return '*.equipment'
         case 'template_giant':
-            return ('*.giant')
+            return '*.giant'
         case 'template_scenery':
-            return ('*.scenery')
+            return '*.scenery'
         case 'template_vehicle':
-            return ('*.vehicle')
+            return '*.vehicle'
         case 'template_weapon':
-            return ('*.weapon')
+            return '*.weapon'
         case 'cinematic_object':
             return "*.biped;*.crate;*.creature;*.device_*;*.effect_sc*;*.equipment;*.giant;*.scenery;*.vehicle;*.weapon"
         case 'cinematic_scenario':
-            return ('*.scenario')
+            return '*.scenario'
+        case 'animation_cmd_path':
+            return "*.model_*_graph"
         case _:
             return "*"

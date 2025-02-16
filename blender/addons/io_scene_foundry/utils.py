@@ -4213,3 +4213,15 @@ def game_str(text: str) -> str:
 
 def has_anim_slots() -> bool:
     return bpy.data.version >= (4, 4, 0)
+
+def copy_to_clipboard(text):
+    bpy.context.window_manager.clipboard = text
+    
+def get_from_clipboard() -> str:
+    return bpy.context.window_manager.clipboard
+
+def redraw_area(context, area_type):
+    for area in context.screen.areas:
+        if area.type == area_type:
+            for region in area.regions:
+                region.tag_redraw()

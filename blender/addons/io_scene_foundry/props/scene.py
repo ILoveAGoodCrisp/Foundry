@@ -1721,6 +1721,8 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     importer_expanded: bpy.props.BoolProperty(default=True, options=set())
     camera_sync_expanded: bpy.props.BoolProperty(default=True, options=set())
     rig_tools_expanded: bpy.props.BoolProperty(default=True, options=set())
+    animation_tools_expanded: bpy.props.BoolProperty(default=True, options=set())
+    game_animation_copy_settings_expanded: bpy.props.BoolProperty(default=True, options=set())
     bsp_tools_expanded: bpy.props.BoolProperty(default=True, options=set())
     scenario_tools_expanded: bpy.props.BoolProperty(default=True, options=set())
     cache_tools_expanded: bpy.props.BoolProperty(default=True, options=set())
@@ -2221,4 +2223,40 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     particle_uses_custom_points: bpy.props.BoolProperty(
         name="Has Custom Emitter Shape",
         description="Generates a particle_emitter_custom_points tag for this particle model. This can be referenced in an effect tag as a custom emitter shape",
+    )
+    
+    # Animation command stuff
+    
+    animation_cmd_object_type: bpy.props.EnumProperty(
+        name="Object Type",
+        options=set(),
+        items=[
+            ('player', "Player", ""),
+            ('unit', "Unit", ""),
+            ('scenery', "Scenery", ""),
+        ]
+    )
+    
+    animation_cmd_loop: bpy.props.BoolProperty(
+        name="Loop Animation",
+        options=set(),
+    )
+    
+    def animation_cmd_path_clean_tag_path(self, context):
+        self["animation_cmd_path"] = utils.clean_tag_path(self["animation_cmd_path"], "model_animation_graph").strip('"')
+    
+    animation_cmd_path: bpy.props.StringProperty(
+        name="Animation Graph Path",
+        description="Path to the animation graph to get animations from. If left empty, defaults to the expected animation graph from this asset",
+        update=animation_cmd_path_clean_tag_path,
+        options=set(),
+    )
+    
+    animation_cmd_name: bpy.props.StringProperty(
+        name="Animation Name",
+    )
+    
+    animation_cmd_expression: bpy.props.StringProperty(
+        name="Object Expression",
+        description="A halo script expression which evaluates to the object you wish to animate. This might be the object name directly in the scenario or something like (player_get 2)",
     )

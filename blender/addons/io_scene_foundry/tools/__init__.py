@@ -2,6 +2,8 @@
 
 import bpy
 
+
+
 from .refresh_cinematic_controls import NWO_OT_RefreshCinematicControls
 
 from .cache_builder import NWO_OT_CacheBuild, NWO_OT_LaunchMCC, NWO_OT_OpenModFolder
@@ -13,9 +15,10 @@ from .prefab_exporter import NWO_OT_ExportPrefabs
 from .light_exporter import NWO_OT_ExportLights
 from .asset_creator import NWO_OT_NewAsset, NWO_OT_NewChildAsset
 from .animation.rename_importer import NWO_OT_RenameImporter
-from .animation.fcurve_transfer import NWO_OT_FcurveTransfer, NWO_OT_MovementDataToPedestal
+from .animation.fcurve_transfer import NWO_OT_MovementDataToPedestal
 from .animation.composites import NWO_OT_AnimationBlendAxisAdd, NWO_OT_AnimationBlendAxisMove, NWO_OT_AnimationBlendAxisRemove, NWO_OT_AnimationCompositeAdd, NWO_OT_AnimationCompositeMove, NWO_OT_AnimationCompositeRemove, NWO_OT_AnimationDeadZoneAdd, NWO_OT_AnimationDeadZoneMove, NWO_OT_AnimationDeadZoneRemove, NWO_OT_AnimationLeafAdd, NWO_OT_AnimationLeafMove, NWO_OT_AnimationLeafRemove, NWO_OT_AnimationPhaseSetAdd, NWO_OT_AnimationPhaseSetMove, NWO_OT_AnimationPhaseSetRemove, NWO_UL_AnimationBlendAxis, NWO_UL_AnimationComposites, NWO_UL_AnimationDeadZone, NWO_UL_AnimationLeaf, NWO_UL_AnimationPhaseSet
 from .animation.copy import NWO_OT_AnimationCopyAdd, NWO_OT_AnimationCopyMove, NWO_OT_AnimationCopyRemove, NWO_UL_AnimationCopies
+from .animation.play_game_animation import NWO_OT_AnimationNameSearch, NWO_OT_PlayGameAnimation
 from .scenario.lightmap import NWO_OT_Lightmap
 from .scenario.zone_sets import NWO_OT_RemoveExistingZoneSets, NWO_OT_ZoneSetAdd, NWO_OT_ZoneSetMove, NWO_OT_ZoneSetRemove, NWO_UL_ZoneSets
 from .tag_templates import NWO_OT_LoadTemplate
@@ -193,6 +196,8 @@ classes = (
     NWO_OT_NewChildAsset,
     NWO_OT_ImportShader,
     NWO_FH_ImportShaderAsMaterial,
+    NWO_OT_AnimationNameSearch,
+    NWO_OT_PlayGameAnimation,
 )
 
 def register():

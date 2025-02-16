@@ -3072,6 +3072,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         self.draw_expandable_box(self.box.box(), nwo, "asset_shaders", f"Asset {shader_type}s")
         self.draw_expandable_box(self.box.box(), nwo, "importer")
         self.draw_expandable_box(self.box.box(), nwo, "camera_sync")
+        self.draw_expandable_box(self.box.box(), nwo, "animation_tools")
         if utils.poll_ui(('model', 'animation', 'sky', 'resource')):
             self.draw_expandable_box(self.box.box(), nwo, "rig_tools")
         self.draw_expandable_box(self.box.box(), nwo, "scenario_tools", "Scenario Tools")
@@ -3126,9 +3127,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
     def draw_rig_tools(self, box, nwo):
         row = box.row()
         col = row.column()
-        nwo = self.scene.nwo
         col.use_property_split = True
-        col.operator("nwo.movement_data_transfer", icon='GRAPH')
         col.operator('nwo.validate_rig', text='Validate Rig', icon='ARMATURE_DATA')
         if nwo.multiple_root_bones:
             col.label(text='Multiple Root Bones', icon='ERROR')
@@ -3151,6 +3150,37 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         if nwo.bone_names_too_long:
             col.label(text='Rig has bone names that exceed 31 characters', icon='ERROR')
             
+    def draw_animation_tools(self, box, nwo):
+        row = box.row()
+        col = row.column()
+        col.use_property_split = True
+        col.operator("nwo.movement_data_transfer", icon='GRAPH')
+        self.draw_expandable_box(box.box(), nwo, "game_animation_copy_settings")
+        
+    def draw_game_animation_copy_settings(self, box, nwo):
+        row = box.row()
+        col = row.column()
+        col.use_property_split = True
+        col.prop(nwo, "animation_cmd_object_type")
+        if nwo.animation_cmd_object_type != "player":
+            col.prop(nwo, "animation_cmd_expression")
+        col.prop(nwo, "animation_cmd_loop")
+        
+        row = col.row(align=True)
+        row.use_property_split = True
+        row.prop(nwo, "animation_cmd_path", icon_value=get_icon_id("tags"))
+        row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "animation_cmd_path"
+        row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'animation_cmd_path'
+        if nwo.animation_cmd_path.strip() and Path(utils.get_tags_path(), utils.relative_path(nwo.animation_cmd_path)).exists():
+            row.operator("nwo.open_foundation_tag", text="", icon_value=get_icon_id("foundation")).tag_path = nwo.animation_cmd_path
+            row = col.row(align=True)
+            row.use_property_split = True
+            row.prop(nwo, "animation_cmd_name")
+            row.operator("nwo.animation_name_search", text="", icon="VIEWZOOM")
+        else:
+            col.prop(nwo, "animation_cmd_name")
+        
+        col.operator("nwo.play_game_animation", icon='COPYDOWN')
 
     def draw_asset_shaders(self, box, nwo):
         h4 = self.h4

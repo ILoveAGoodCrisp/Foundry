@@ -148,7 +148,7 @@ class NWO_OT_ApplyTypeMesh(bpy.types.Operator):
                 utils.nwo_enum(
                     "water_surface",
                     "Water Surface",
-                    "Plane which can cut through geometry to define a water surface, optionally with water physics if the depth is greater than 0. If not material is set on this mesh, it will not render. Additionally the shader/material tag used must explictly support water surfaces. Water physics allows material effects to play when projectiles strike this mesh. Underwater fog atmosphere will be used when the player is inside the volume (this appears broken in H4)",
+                    "Render only plane which can cut through geometry to define a water surface, optionally with water physics if the depth is greater than 0. If no material is set on this mesh, it will not render. Additionally the shader/material tag used must explictly support water surfaces. Water physics allows material effects to play when projectiles strike this mesh. Underwater fog atmosphere will be used when the player is inside the volume (this appears broken in H4)",
                     "water",
                     index,
                 )

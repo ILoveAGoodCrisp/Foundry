@@ -26,6 +26,10 @@ class AnimationTag(Tag):
         self.block_blend_screens = self.tag.SelectField('Struct:definitions[0]/Block:NEW blend screens')
         self.block_additional_node_dat = self.tag.SelectField("Block:additional node data")
         
+    def get_animation_names(self) -> list[str]:
+        """Returns a list of all animation names"""
+        return [element.Fields[0].GetStringData() for element in self.block_animations.Elements]
+        
     def _initialize_tag(self):
         self.tag.SelectField('Struct:definitions[0]/ShortInteger:animation codec pack').SetStringData('6')
         
