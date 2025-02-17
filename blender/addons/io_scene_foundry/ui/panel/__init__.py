@@ -3072,6 +3072,14 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                         row.operator("nwo.animation_event_set_frame", text="", icon="KEYFRAME_HLT").prop_to_set = "frame_range"
                         col.prop(item, "wrinkle_map_face_region")
                         col.prop(item, "wrinkle_map_effect")
+                    elif (
+                        item.event_type
+                        == "_connected_geometry_animation_event_type_import"
+                    ):
+                        row = col.row(align=True)
+                        row.prop(item, "import_frame", text="Frame")
+                        row.operator("nwo.animation_event_set_frame", text="", icon="KEYFRAME_HLT").prop_to_set = "import_frame"
+                        col.prop(item, "import_name")
                     elif item.event_type.startswith('_connected_geometry_animation_event_type_ik'):
                         valid_ik_chains = [chain for chain in scene_nwo.ik_chains if chain.start_node and chain.effector_node]
                         if not valid_ik_chains:

@@ -1046,6 +1046,7 @@ class NWO_OT_List_Add_Animation_Event(bpy.types.Operator):
         event = animation.animation_events.add()
         animation.active_animation_event_index = len(animation.animation_events) - 1
         event.frame_frame = context.scene.frame_current
+        event.import_frame = context.scene.frame_current
         event.event_id = random.randint(0, 2147483647)
         event.name = f"event_{len(animation.animation_events)}"
 

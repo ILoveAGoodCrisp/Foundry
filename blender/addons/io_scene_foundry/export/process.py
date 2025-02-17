@@ -1598,10 +1598,11 @@ class ExportScene:
             
             match event_type:
                 case '_connected_geometry_animation_event_type_frame':
-                    props["bungie_animation_event_frame_frame"] = event.frame_frame
+                    frame = event.frame_frame - animation.frame_start + 1
+                    props["bungie_animation_event_frame_frame"] = frame
                     props["bungie_animation_event_frame_name"] = event.frame_name
-                    if event.multi_frame == "range" and event.frame_range > event.frame_frame:
-                        for i in range(event.frame_range - event.frame_frame):
+                    if event.multi_frame == "range" and event.frame_range > frame:
+                        for i in range(event.frame_range - frame):
                             copy_ob = ob.copy()
                             copy_props = props.copy()
                             copy_id = abs(event.event_id) + i
@@ -1613,6 +1614,10 @@ class ExportScene:
                 case '_connected_geometry_animation_event_type_wrinkle_map':
                     props["bungie_animation_event_wrinkle_map_face_region"] = event.wrinkle_map_face_region
                     props["bungie_animation_event_wrinkle_map_effect"] = event.wrinkle_map_effect
+                    
+                case '_connected_geometry_animation_event_type_import':
+                    props["bungie_animation_event_import_name"] = event.import_name
+                    props["bungie_animation_event_import_frame"] = event.import_frame - animation.frame_start + 1
                     
                 case '_connected_geometry_animation_event_type_ik_active' | '_connected_geometry_animation_event_type_ik_passive':
                     if not event.ik_target_marker:

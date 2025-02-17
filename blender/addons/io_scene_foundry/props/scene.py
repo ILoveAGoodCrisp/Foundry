@@ -174,9 +174,9 @@ class NWO_Animation_ListItems(bpy.types.PropertyGroup):
         options=set(),
         items=[
             ("_connected_geometry_animation_event_type_frame", "Frame", ""),
-            # NOTE temp commenting these out until I can figure out how to implement them correctly
+            # NOTE temp commenting this out until I can figure out how to implement it correctly
             # ("_connected_geometry_animation_event_type_object_function", "Object Function", ""),
-            # ("_connected_geometry_animation_event_type_import", "Import", ""),
+            ("_connected_geometry_animation_event_type_import", "Pose Overlay Wrap", ""),
             ("_connected_geometry_animation_event_type_wrinkle_map", "Wrinkle Map", ""),
             ("_connected_geometry_animation_event_type_ik_active", "IK Active", ""),
             ("_connected_geometry_animation_event_type_ik_passive", "IK Passive", ""),
@@ -471,15 +471,20 @@ class NWO_Animation_ListItems(bpy.types.PropertyGroup):
     )
 
     import_frame: bpy.props.IntProperty(
-        name="Import Frame",
-        default=0,
+        name="Wrap Frame",
+        default=1,
         options=set(),
+        description="Frame that a wrapped event occurs on",
     )
 
-    import_name: bpy.props.StringProperty(
-        name="Import Name",
-        default="",
+    import_name: bpy.props.EnumProperty(
+        name="Wrap Type",
         options=set(),
+        description="Tells the game that the specified pose frame should be from a left/right irrespective of the yaw angle",
+        items=[
+            ("Wrapped Left", "Wrapped Left", "Tells the game that this pose frame is for a left turn irrespective of yaw angle"),
+            ("Wrapped Right", "Wrapped Right", "Tells the game that this pose frame is for a right turn irrespective of yaw angle"),
+        ]
     )
 
     # TODO
@@ -1188,9 +1193,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         if self.active_animation_index > -1:
             animation = self.animations[self.active_animation_index]
             if self.previous_active_animation_index > -1:
-                if len(self.animations) <= self.previous_active_animation_index:
-                    previous_animation = self.animations[self.previous_active_animation_index - 1]
-                else:
+                if len(self.animations) > self.previous_active_animation_index:
                     previous_animation = self.animations[self.previous_active_animation_index]
                 if previous_animation:
                     utils.clear_animation(previous_animation)
