@@ -33,7 +33,7 @@ from .build_sidecar import Sidecar, get_cinematic_scenes
 from .export_info import BoundarySurfaceType, ExportInfo, FaceDrawDistance, FaceMode, FaceSides, FaceType, LightmapType, MeshObbVolumeType, PoopInstanceImposterPolicy, PoopLighting, PoopInstancePathfindingPolicy, MeshTessellationDensity, MeshType, ObjectType
 from ..props.mesh import NWO_MeshPropertiesGroup
 from ..props.object import NWO_ObjectPropertiesGroup
-from .virtual_geometry import AnimatedBone, VirtualAnimation, VirtualNode, VirtualScene
+from .virtual_geometry import AnimatedBone, VectorEvent, VirtualAnimation, VirtualNode, VirtualScene
 from ..granny import Granny
 from .. import utils
 from ..constants import VALID_MESHES, VALID_OBJECTS, WU_SCALAR
@@ -345,7 +345,7 @@ class ExportScene:
         else:    
             self.export_objects = [ob for ob in self.context.view_layer.objects if ob.nwo.export_this and ob.type in VALID_OBJECTS and ob not in self.support_armatures and ob not in self.skip_obs]
         
-        self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir, self.granny, self.export_settings, self.context.scene.render.fps / self.context.scene.render.fps_base, self.scene_settings.default_animation_compression, utils.blender_halo_rotation_diff(self.forward), self.scene_settings.maintain_marker_axis, self.granny_textures, utils.get_project(self.context.scene.nwo.scene_project), self.to_halo_scale, self.unit_factor, self.atten_scalar, self.context)
+        self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir, self.granny, self.export_settings, self.context.scene.render.fps_base / self.context.scene.render.fps, self.scene_settings.default_animation_compression, utils.blender_halo_rotation_diff(self.forward), self.scene_settings.maintain_marker_axis, self.granny_textures, utils.get_project(self.context.scene.nwo.scene_project), self.to_halo_scale, self.unit_factor, self.atten_scalar, self.context)
         
     def create_instance_proxies(self, ob: bpy.types.Object, ob_halo_data: dict, region: str, permutation: str):
         self.processed_poop_meshes.add(ob.data)
@@ -1526,8 +1526,8 @@ class ExportScene:
                                             track.object.data.animation_data.last_slot_identifier = slot_id
                                         track.object.data.animation_data.action = track.action
                                 
-                        controls = self.create_event_objects(animation)
-                        self.virtual_scene.add_animation(animation, controls=controls, shape_key_objects=shape_key_objects)
+                        controls, vector_events = self.create_event_objects(animation)
+                        self.virtual_scene.add_animation(animation, controls=controls, shape_key_objects=shape_key_objects, vector_events=vector_events)
                         self.exported_animations.append(animation)
                         utils.clear_animation(animation)
                         utils.update_job_count(process, "", idx, num_animations)
@@ -1565,8 +1565,8 @@ class ExportScene:
                                         
                         print("--- Sampling Active Animation ", end="")
                         with utils.Spinner():
-                            controls = self.create_event_objects(animation)
-                            self.virtual_scene.add_animation(animation, controls=controls, shape_key_objects=shape_key_objects)
+                            controls, vector_events = self.create_event_objects(animation)
+                            self.virtual_scene.add_animation(animation, controls=controls, shape_key_objects=shape_key_objects, vector_events=vector_events)
                         print(" ", end="")
                     else:
                         self.virtual_scene.add_animation(animation, sample=False)
@@ -1580,6 +1580,7 @@ class ExportScene:
     def create_event_objects(self, animation):
         name = animation.name
         event_ob_props = {}
+        vector_events = []
         for event in animation.animation_events:
             event: NWO_Animation_ListItems
             props = {}
@@ -1613,11 +1614,17 @@ class ExportScene:
                             
                 case '_connected_geometry_animation_event_type_wrinkle_map':
                     props["bungie_animation_event_wrinkle_map_face_region"] = event.wrinkle_map_face_region
-                    props["bungie_animation_event_wrinkle_map_effect"] = event.wrinkle_map_effect
+                    props["bungie_animation_event_wrinkle_map_effect"] = event.event_value
+                    vector_events.append(VectorEvent(ob.name, event, "bungie_animation_event_wrinkle_map_effect"))
+                    
+                case '_connected_geometry_animation_event_type_object_function':
+                    props["bungie_animation_event_object_function_name"] = event.object_function_name
+                    props["bungie_animation_event_object_function_effect"] = event.event_value
+                    vector_events.append(VectorEvent(ob.name, event, "bungie_animation_event_object_function_effect"))
                     
                 case '_connected_geometry_animation_event_type_import':
                     props["bungie_animation_event_import_name"] = event.import_name
-                    props["bungie_animation_event_import_frame"] = event.import_frame - animation.frame_start + 1
+                    props["bungie_animation_event_import_frame"] = event.frame_frame - animation.frame_start + 1
                     
                 case '_connected_geometry_animation_event_type_ik_active' | '_connected_geometry_animation_event_type_ik_passive':
                     if not event.ik_target_marker:
@@ -1679,6 +1686,7 @@ class ExportScene:
                         constraint = effector.constraints.new('COPY_TRANSFORMS')
                         constraint.target = self.virtual_scene.skeleton_object
                         constraint.subtarget = chain.effector_node
+                        vector_events.append(VectorEvent(effector.name, event, "bungie_animation_control_ik_effect"))
                         # constraint.target_space = 'LOCAL'
                         # constraint.owner_space = 'LOCAL'
                         pole_target = None
@@ -1702,7 +1710,7 @@ class ExportScene:
                     effector_props["bungie_animation_control_id"] = effector_id
                     effector_props["bungie_animation_control_type"] = '_connected_geometry_animation_control_type_ik_effector'
                     effector_props["bungie_animation_control_ik_chain"] = event.ik_chain
-                    effector_props["bungie_animation_control_ik_effect"] = event.ik_influence
+                    effector_props["bungie_animation_control_ik_effect"] = event.event_value
                     # effector.parent_type = proxy_target.parent_type
                     # effector.parent_bone = proxy_target.parent_bone
                     # effector.matrix_local = proxy_target.matrix_local
@@ -1740,7 +1748,7 @@ class ExportScene:
             else:
                 self.virtual_scene.add_model_for_animation(ob, props, animation_owner=name)
                 
-        return controls
+        return controls, vector_events
                     
             
     def report_warnings(self):
@@ -1893,13 +1901,14 @@ class ExportScene:
             self.granny.write_vertex_data()
             self.granny.write_meshes(animation)
             
-        self.granny.write_skeletons(export_info=self.export_info)
-        self.granny.write_models()
-        
         if animation_export:
-            self.granny.write_track_groups(animation.granny_track_group)
+            self.granny.write_skeletons(export_info=self.export_info, vector_tracks=self.virtual_scene.vector_tracks)
+            self.granny.write_track_groups(animation.granny_track_group, animation.granny_event_track_groups)
             self.granny.write_animations(animation.granny_animation)
-            
+        else:
+            self.granny.write_skeletons(export_info=self.export_info)
+        
+        self.granny.write_models()
         self.granny.transform()
         self.granny.save()
         

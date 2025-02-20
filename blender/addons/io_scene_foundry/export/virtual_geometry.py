@@ -18,7 +18,7 @@ from ..managed_blam.material import MaterialTag
 from ..managed_blam.shader import ShaderTag
 from ..managed_blam.shader_decal import ShaderDecalTag
 
-from ..granny.formats import GrannyAnimation, GrannyBone, GrannyDataTypeDefinition, GrannyMaterial, GrannyMaterialMap, GrannyMemberType, GrannyMorphTarget, GrannyTrackGroup, GrannyTransform, GrannyTransformTrack, GrannyTriAnnotationSet, GrannyTriMaterialGroup, GrannyTriTopology, GrannyVertexData
+from ..granny.formats import GrannyAnimation, GrannyBone, GrannyDataTypeDefinition, GrannyMaterial, GrannyMaterialMap, GrannyMemberType, GrannyMorphTarget, GrannyTrackGroup, GrannyTransform, GrannyTransformTrack, GrannyTriAnnotationSet, GrannyTriMaterialGroup, GrannyTriTopology, GrannyVectorTrack, GrannyVertexData
 from ..granny import Granny
 
 from .export_info import ExportInfo, FaceDrawDistance, FaceMode, FaceSides, FaceType, LightmapType, MeshType, ObjectType
@@ -233,9 +233,28 @@ class VirtualShot:
                 animation_name = f"{shot_actor.name}_{self.index + 1}"
                 animation = VirtualShotAnimation(animation_name, None, None, self.index, False)
                 self.actor_animation[shot_actor] = animation
+                
+vector_event_types = {
+    '_connected_geometry_animation_event_type_ik_active',
+    '_connected_geometry_animation_event_type_ik_passive',
+    '_connected_geometry_animation_event_type_wrinkle_map',
+    '_connected_geometry_animation_event_type_object_function'
+}
+
+class VectorEvent:
+    def __init__(self, name: str, event, effect_name: str):
+        self.name = name
+        self.event = event
+        self.effect_name = effect_name
+        self.effect_data: list[float] = []
+        
+class VectorTrack:
+    def __init__(self, granny_vector_track, bone_name: c_char_p):
+        self.granny_vector_track = granny_vector_track
+        self.bone_name = bone_name
             
 class VirtualAnimation:
-    def __init__(self, animation, scene: 'VirtualScene', sample: bool, animation_controls=[], shape_key_objects=[]):
+    def __init__(self, animation, scene: 'VirtualScene', sample: bool, animation_controls=[], shape_key_objects=[], vector_events=[]):
         self.name = animation.name
         self.anim = animation
         if scene.default_animation_compression != "Automatic" and animation.compression == "Default":
@@ -256,6 +275,7 @@ class VirtualAnimation:
         self.frame_range: tuple[int, int] = (animation.frame_start, animation.frame_end)
         self.granny_animation = None
         self.granny_track_group = None
+        self.granny_event_track_groups = []
         
         self.granny_morph_targets_counts = {}
         self.granny_morph_targets = {}
@@ -263,10 +283,31 @@ class VirtualAnimation:
         self.nodes = []
 
         if sample:
-            self.create_track_group(scene.animated_bones + animation_controls, scene, shape_key_objects)
+            self.create_track_group(scene.animated_bones + animation_controls, scene, shape_key_objects, vector_events)
             self.to_granny_animation(scene)
+            
+    def create_vector_track_groups(self, scene: 'VirtualScene', vector_events: list[VectorEvent]):
+        # Vector events
+        for event in vector_events:
+            granny_vector_track = GrannyVectorTrack()
+            granny_vector_track.name = event.effect_name.encode()
+            granny_vector_track.track_key = 0
+            granny_vector_track.dimension = 1
+            builder = scene.granny.begin_curve(scene.granny.keyframe_type, 0, 1, len(event.effect_data))
+            scene.granny.push_control_array(builder, (c_float * len(event.effect_data))(*event.effect_data))
+            vector_curve = scene.granny.end_curve(builder)
+            granny_vector_track.value_curve = vector_curve.contents
+            del vector_curve
+            
+            granny_track_group = GrannyTrackGroup()
+            granny_track_group.name = event.name.encode()
+            granny_track_group.vector_track_count = 1
+            granny_track_group.vector_tracks = pointer(granny_vector_track)
+            granny_track_group.flags = 2
+            self.granny_event_track_groups.append(pointer(granny_track_group))
+            scene.vector_tracks.append(VectorTrack(granny_vector_track, event.name.encode()))
         
-    def create_track_group(self, bones: list['AnimatedBone'], scene: 'VirtualScene', shape_key_objects):
+    def create_track_group(self, bones: list['AnimatedBone'], scene: 'VirtualScene', shape_key_objects, vector_events: list[VectorEvent]):
         positions = defaultdict(list)
         orientations = defaultdict(list)
         scales = defaultdict(list)
@@ -320,12 +361,18 @@ class VirtualAnimation:
                 positions[bone].extend(position)
                 orientations[bone].extend(orientation)
                 scales[bone].extend(scale_shear)
+                
+            # TODO Get vector track info for wrinkle_maps, IK events, and object_functions
+            for event in vector_events:
+                event.effect_data.append(event.event.event_value)
             
             if shape_key_data:
                 for ob, node in shape_key_data.items():
                     morph_target_datas[node].append(VirtualMorphTargetData(ob, scene, node))
             
             first_frame = False
+            
+        self.create_vector_track_groups(scene, vector_events)
             
         if self.overlay and pose_overlay_frame_data and not failed_pose_overlay:
             frame_data = zip(*pose_overlay_frame_data.values())
@@ -440,11 +487,12 @@ class VirtualAnimation:
         frame_total = self.frame_count - 1
         granny_animation = GrannyAnimation()
         granny_animation.name = self.name.encode()
-        granny_animation.duration = scene.time_step * frame_total
+        granny_animation.duration = scene.time_step * (frame_total + 1)
         granny_animation.time_step = scene.time_step
         granny_animation.oversampling = 1
-        granny_animation.track_group_count = 1
-        granny_animation.track_groups = pointer(self.granny_track_group)
+        all_track_groups = [self.granny_track_group] + self.granny_event_track_groups
+        granny_animation.track_group_count = len(all_track_groups)
+        granny_animation.track_groups = (POINTER(GrannyTrackGroup) * len(all_track_groups))(*all_track_groups)
         
         self.granny_animation = pointer(granny_animation)
 
@@ -1581,7 +1629,7 @@ class VirtualModel:
             self.matrix: Matrix = ob.matrix_world.copy()
             
 class VirtualScene:
-    def __init__(self, asset_type: AssetType, depsgraph: bpy.types.Depsgraph, corinth: bool, tags_dir: Path, granny: Granny, export_settings, fps: float, animation_compression: str, rotation: float, maintain_marker_axis: bool, granny_textures: bool, project, light_scale: float, unit_factor: float, atten_scalar: int, context: bpy.types.Context):
+    def __init__(self, asset_type: AssetType, depsgraph: bpy.types.Depsgraph, corinth: bool, tags_dir: Path, granny: Granny, export_settings, time_step: float, animation_compression: str, rotation: float, maintain_marker_axis: bool, granny_textures: bool, project, light_scale: float, unit_factor: float, atten_scalar: int, context: bpy.types.Context):
         self.nodes: dict[VirtualNode] = {}
         self.meshes: dict[VirtualMesh] = {}
         self.meshes_linked: dict[VirtualMesh] = {}
@@ -1603,7 +1651,7 @@ class VirtualScene:
         self.skeleton_node: VirtualNode = None
         self.skeleton_model: VirtualModel = None
         self.skeleton_object: bpy.types.Object
-        self.time_step = 1.0010000467300415 / 30
+        self.time_step = time_step
         self.corinth = corinth
         self.export_info: ExportInfo = None
         self.valid_bones = []
@@ -1652,6 +1700,8 @@ class VirtualScene:
         self.selected_actors = set()
         self.selected_cinematic_objects_only = False
         self.cinematic_scope = 'BOTH'
+        
+        self.vector_tracks = []
         
         spath = "shaders\invalid"
         stype = "material" if corinth else "shader"
@@ -1716,8 +1766,8 @@ class VirtualScene:
             self.models[ob] = model
             return model.node
             
-    def add_animation(self, anim, sample=True, controls=[], shape_key_objects=[]):
-        animation = VirtualAnimation(anim, self, sample, controls, shape_key_objects)
+    def add_animation(self, anim, sample=True, controls=[], shape_key_objects=[], vector_events=[]):
+        animation = VirtualAnimation(anim, self, sample, controls, shape_key_objects, vector_events)
         self.animations.append(animation)
         return animation.name
     

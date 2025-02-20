@@ -174,8 +174,7 @@ class NWO_Animation_ListItems(bpy.types.PropertyGroup):
         options=set(),
         items=[
             ("_connected_geometry_animation_event_type_frame", "Frame", ""),
-            # NOTE temp commenting this out until I can figure out how to implement it correctly
-            # ("_connected_geometry_animation_event_type_object_function", "Object Function", ""),
+            ("_connected_geometry_animation_event_type_object_function", "Object Function", ""),
             ("_connected_geometry_animation_event_type_import", "Pose Overlay Wrap", ""),
             ("_connected_geometry_animation_event_type_wrinkle_map", "Wrinkle Map", ""),
             ("_connected_geometry_animation_event_type_ik_active", "IK Active", ""),
@@ -278,23 +277,23 @@ class NWO_Animation_ListItems(bpy.types.PropertyGroup):
         ]
     )
 
-    wrinkle_map_effect: bpy.props.FloatProperty(
-        name="Wrinkle Map Effect",
-        default=1,
-        options=set(),
-    )
+    # wrinkle_map_effect: bpy.props.FloatProperty(
+    #     name="Wrinkle Map Effect",
+    #     default=1,
+    #     options=set(),
+    # )
 
-    footstep_type: bpy.props.StringProperty(
-        name="Footstep Type",
-        default="",
-        options=set(),
-    )
+    # footstep_type: bpy.props.StringProperty(
+    #     name="Footstep Type",
+    #     default="",
+    #     options=set(),
+    # )
 
-    footstep_effect: bpy.props.IntProperty(
-        name="Footstep Effect",
-        default=0,
-        options=set(),
-    )
+    # footstep_effect: bpy.props.IntProperty(
+    #     name="Footstep Effect",
+    #     default=0,
+    #     options=set(),
+    # )
     
     def ik_chain_items(self, context):
         items = []
@@ -311,17 +310,17 @@ class NWO_Animation_ListItems(bpy.types.PropertyGroup):
         items=ik_chain_items,
     )
 
-    ik_active_tag: bpy.props.StringProperty(
-        name="IK Active Tag",
-        default="",
-        options=set(),
-    )
+    # ik_active_tag: bpy.props.StringProperty(
+    #     name="IK Active Tag",
+    #     default="",
+    #     options=set(),
+    # )
 
-    ik_target_tag: bpy.props.StringProperty(
-        name="IK Target Tag",
-        default="",
-        options=set(),
-    )
+    # ik_target_tag: bpy.props.StringProperty(
+    #     name="IK Target Tag",
+    #     default="",
+    #     options=set(),
+    # )
     
     def poll_ik_target_marker(self, object):
         return utils.is_marker(object) and object.nwo.marker_type == '_connected_geometry_marker_type_model'
@@ -352,32 +351,32 @@ class NWO_Animation_ListItems(bpy.types.PropertyGroup):
         ]
     )
     
-    ik_influence: bpy.props.FloatProperty(
-        name="Influence",
-        options=set(),
-        default=1,
-        min=0,
-        max=1,
-        subtype='FACTOR',
-    )
+    # ik_influence: bpy.props.FloatProperty(
+    #     name="Influence",
+    #     options=set(),
+    #     default=1,
+    #     min=0,
+    #     max=1,
+    #     subtype='FACTOR',
+    # )
 
-    ik_proxy_target_id: bpy.props.IntProperty(
-        name="IK Proxy Target ID",
-        default=0,
-        options={'HIDDEN'},
-    )
+    # ik_proxy_target_id: bpy.props.IntProperty(
+    #     name="IK Proxy Target ID",
+    #     default=0,
+    #     options={'HIDDEN'},
+    # )
 
-    ik_pole_vector_id: bpy.props.IntProperty(
-        name="IK Pole Vector ID",
-        default=0,
-        options={'HIDDEN'},
-    )
+    # ik_pole_vector_id: bpy.props.IntProperty(
+    #     name="IK Pole Vector ID",
+    #     default=0,
+    #     options={'HIDDEN'},
+    # )
 
-    ik_effector_id: bpy.props.IntProperty(
-        name="IK Effector ID",
-        default=0,
-        options={'HIDDEN'},
-    )
+    # ik_effector_id: bpy.props.IntProperty(
+    #     name="IK Effector ID",
+    #     default=0,
+    #     options={'HIDDEN'},
+    # )
     
     ik_pole_vector: bpy.props.PointerProperty(
         name="Pole Target",
@@ -386,44 +385,46 @@ class NWO_Animation_ListItems(bpy.types.PropertyGroup):
         options=set(),
     )
 
-    cinematic_effect_tag: bpy.props.StringProperty(
-        name="Cinematic Effect Tag",
-        default="",
-        options=set(),
-    )
+    # cinematic_effect_tag: bpy.props.StringProperty(
+    #     name="Cinematic Effect Tag",
+    #     default="",
+    #     options=set(),
+    # )
 
-    cinematic_effect_effect: bpy.props.IntProperty(
-        name="Cinematic Effect",
-        default=0,
-        options=set(),
-    )
+    # cinematic_effect_effect: bpy.props.IntProperty(
+    #     name="Cinematic Effect",
+    #     default=0,
+    #     options=set(),
+    # )
 
-    cinematic_effect_marker: bpy.props.StringProperty(
-        name="Cinematic Effect Marker",
-        default="",
-        options=set(),
-    )
+    # cinematic_effect_marker: bpy.props.StringProperty(
+    #     name="Cinematic Effect Marker",
+    #     default="",
+    #     options=set(),
+    # )
 
     object_function_name: bpy.props.EnumProperty(
-        name="Object Function Name",
+        name="Object Function",
         options=set(),
         items=[
-            ('animation_object_function_a', 'A', ''),
-            ('animation_object_function_b', 'B', ''),
-            ('animation_object_function_c', 'C', ''),
-            ('animation_object_function_d', 'D', ''),
+            ('animation_event_function_a', 'animation_event_function_a', ''),
+            ('animation_event_function_b', 'animation_event_function_b', ''),
+            ('animation_event_function_c', 'animation_event_function_c', ''),
+            ('animation_event_function_d', 'animation_event_function_d', ''),
         ]
     )
 
-    object_function_effect: bpy.props.FloatProperty(
-        name="Object Function Effect",
-        default=1,
-        options=set(),
+    event_value: bpy.props.FloatProperty(
+        name="Value",
+        default=0,
+        soft_min=0,
+        soft_max=1,
+        subtype='FACTOR'
     )
 
     frame_frame: bpy.props.IntProperty(
         name="Event Frame",
-        description="The timeline frame this event should occur on",
+        description="The frame this event should occur on",
         default=0,
         options=set(),
         update=update_frame_range,
@@ -464,18 +465,18 @@ class NWO_Animation_ListItems(bpy.types.PropertyGroup):
         ],
     )
 
-    frame_trigger: bpy.props.BoolProperty(
-        name="Frame Trigger",
-        default=False,
-        options=set(),
-    )
+    # frame_trigger: bpy.props.BoolProperty(
+    #     name="Frame Trigger",
+    #     default=False,
+    #     options=set(),
+    # )
 
-    import_frame: bpy.props.IntProperty(
-        name="Wrap Frame",
-        default=1,
-        options=set(),
-        description="Frame that a wrapped event occurs on",
-    )
+    # import_frame: bpy.props.IntProperty(
+    #     name="Wrap Frame",
+    #     default=1,
+    #     options=set(),
+    #     description="Frame that a wrapped event occurs on",
+    # )
 
     import_name: bpy.props.EnumProperty(
         name="Wrap Type",
@@ -487,14 +488,11 @@ class NWO_Animation_ListItems(bpy.types.PropertyGroup):
         ]
     )
 
-    # TODO
-    # IMPORT NAMES: "Wrapped Left", "Wrapped Right"
-
-    text: bpy.props.StringProperty(
-        name="Text",
-        default="",
-        options=set(),
-    )
+    # text: bpy.props.StringProperty(
+    #     name="Text",
+    #     default="",
+    #     options=set(),
+    # )
 
 class NWO_ActionGroup(bpy.types.PropertyGroup):
     object: bpy.props.PointerProperty(type=bpy.types.Object)

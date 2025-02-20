@@ -291,7 +291,7 @@ class PoseBuilder:
     def _add_wrap_event(self, frame: int, animation, wrap_type: str):
         event = animation.animation_events.add()
         event.event_type = '_connected_geometry_animation_event_type_import'
-        event.import_frame = frame
+        event.frame_frame = frame
         event.import_name = wrap_type
         event.name = f"{wrap_type} [{frame}]"
             

@@ -227,9 +227,10 @@ class Granny:
         self.file_info.art_tool_info.contents.back_vector = halo_back_vector
         self.file_info.art_tool_info.contents.units_per_meter = halo_units_per_meter
         
-    def write_track_groups(self, export_track_group):
-        self.file_info.track_group_count = 1
-        self.file_info.track_groups = pointer(export_track_group)
+    def write_track_groups(self, export_track_group, export_vector_track_groups):
+        all_track_groups = [export_track_group] + export_vector_track_groups
+        self.file_info.track_group_count = len(all_track_groups)
+        self.file_info.track_groups = (POINTER(GrannyTrackGroup) * len(all_track_groups))(*all_track_groups)
         
     def write_animations(self, export_animation):
         self.file_info.animation_count = 1
@@ -247,15 +248,26 @@ class Granny:
         self.file_info.texture_count = num_textures
         self.file_info.textures = textures
 
-    def write_skeletons(self, export_info=None):
+    def write_skeletons(self, export_info=None, vector_tracks=[]):
         num_skeletons = len(self.export_skeletons) + int(bool(export_info))
         skeletons = (POINTER(GrannySkeleton) * num_skeletons)()
 
         for i, export_skeleton in enumerate(self.export_skeletons):
             granny_skeleton = GrannySkeleton()
-            skeletons[i] = pointer(granny_skeleton)
-            export_skeleton.granny = skeletons[i]
+            ptr_skeleton = pointer(granny_skeleton)
+            skeletons[i] = ptr_skeleton
+            export_skeleton.granny = ptr_skeleton
             self._populate_skeleton(granny_skeleton, export_skeleton)
+            # handle vector tracks
+            keyed_vector_track_idexes = []
+            for idx, track in enumerate(vector_tracks):
+                bone_index = c_int32(0)
+                if self.find_bone_by_name(ptr_skeleton, track.bone_name, pointer(bone_index)):
+                    track.granny_vector_track.track_key = self.vector_track_key_for_bone(ptr_skeleton, bone_index, track.granny_vector_track.name)
+                    keyed_vector_track_idexes.append(idx)
+                    
+            for idx in reversed(keyed_vector_track_idexes):
+                vector_tracks.pop(idx)
 
         if export_info:
             granny_skeleton = GrannySkeleton()
@@ -624,6 +636,15 @@ class Granny:
         
     def new_string_table(self) -> POINTER(GrannyStringTable):
         return self.dll.GrannyNewStringTable()
+    
+    def push_vector_track_curve(self, builder: POINTER(GrannyTrackGroupBuilder), name: c_char_p, track_key: c_uint32, source_curve: POINTER(GrannyCurve2)):
+        self.dll.GrannyPushVectorTrackCurve(builder, name, track_key, source_curve)
+        
+    def vector_track_key_for_bone(self, skeleton: POINTER(GrannySkeleton), bone_index: c_int32, track_name: c_char_p) -> c_uint32:
+        return self.dll.GrannyVectorTrackKeyForBone(skeleton, bone_index, track_name)
+        
+    def find_bone_by_name(self, skeleton: POINTER(GrannySkeleton), bone_name: c_char_p, bone_index: POINTER(c_int32)) -> c_bool:
+        return self.dll.GrannyFindBoneByName(skeleton, bone_name, bone_index)
 
     def _define_granny_functions(self):
         # Get version
@@ -747,4 +768,12 @@ class Granny:
         self.dll.GrannyAddDynamicArrayMember.argtypes=[POINTER(GrannyVariantBuilder), c_char_p, c_int32, POINTER(GrannyDataTypeDefinition), c_void_p]
         # Create string table
         self.dll.GrannyNewStringTable.restype=POINTER(GrannyStringTable)
+        # Push vector curve
+        self.dll.GrannyPushVectorTrackCurve.argtypes=[POINTER(GrannyTrackGroupBuilder), c_char_p, c_uint32, POINTER(GrannyCurve2)]
+        # Get vector key from bone
+        self.dll.GrannyVectorTrackKeyForBone.argtypes=[POINTER(GrannySkeleton), c_int32, c_char_p]
+        self.dll.GrannyVectorTrackKeyForBone.restype=c_uint32
+        # find bone by name
+        self.dll.GrannyFindBoneByName.argtypes=[POINTER(GrannySkeleton), c_char_p, POINTER(c_int32)]
+        self.dll.GrannyFindBoneByName.restype=c_bool
         
