@@ -2,7 +2,7 @@
 
 from collections import defaultdict
 import csv
-from ctypes import Array, Structure, c_char_p, c_float, c_int, POINTER, c_ubyte, c_void_p, cast, create_string_buffer, memmove, pointer, sizeof
+from ctypes import Array, Structure, c_char_p, c_float, c_int, POINTER, c_int16, c_ubyte, c_void_p, cast, create_string_buffer, memmove, pointer, sizeof
 import logging
 from math import degrees
 from pathlib import Path
@@ -18,7 +18,7 @@ from ..managed_blam.material import MaterialTag
 from ..managed_blam.shader import ShaderTag
 from ..managed_blam.shader_decal import ShaderDecalTag
 
-from ..granny.formats import GrannyAnimation, GrannyBone, GrannyDataTypeDefinition, GrannyMaterial, GrannyMaterialMap, GrannyMemberType, GrannyMorphTarget, GrannyTrackGroup, GrannyTransform, GrannyTransformTrack, GrannyTriAnnotationSet, GrannyTriMaterialGroup, GrannyTriTopology, GrannyVectorTrack, GrannyVertexData
+from ..granny.formats import GrannyAnimation, GrannyBone, GrannyCurveDataDaKeyframes32f, GrannyDataTypeDefinition, GrannyMaterial, GrannyMaterialMap, GrannyMemberType, GrannyMorphTarget, GrannyTrackGroup, GrannyTransform, GrannyTransformTrack, GrannyTriAnnotationSet, GrannyTriMaterialGroup, GrannyTriTopology, GrannyVectorTrack, GrannyVertexData
 from ..granny import Granny
 
 from .export_info import ExportInfo, FaceDrawDistance, FaceMode, FaceSides, FaceType, LightmapType, MeshType, ObjectType
@@ -293,11 +293,19 @@ class VirtualAnimation:
             granny_vector_track.name = event.effect_name.encode()
             granny_vector_track.track_key = 0
             granny_vector_track.dimension = 1
-            builder = scene.granny.begin_curve(scene.granny.keyframe_type, 0, 1, len(event.effect_data))
-            scene.granny.push_control_array(builder, (c_float * len(event.effect_data))(*event.effect_data))
-            vector_curve = scene.granny.end_curve(builder)
-            granny_vector_track.value_curve = vector_curve.contents
-            del vector_curve
+            # builder = scene.granny.begin_curve(scene.granny.keyframe_type, 0, 1, len(event.effect_data))
+            # scene.granny.push_control_array(builder, (c_float * len(event.effect_data))(*event.effect_data))
+            # vector_curve = scene.granny.end_curve(builder)
+            # granny_vector_track.value_curve = vector_curve.contents
+            # del vector_curve
+            
+            # Creating the curve manually. granny.push_control_array seems to build a vector float array with the first two values corrupted
+            curve_data = GrannyCurveDataDaKeyframes32f()
+            curve_data.dimension = 1
+            curve_data.control_count = len(event.effect_data)
+            curve_data.controls = (c_float * len(event.effect_data))(*event.effect_data)
+            granny_vector_track.value_curve.curve_data.type = scene.granny.keyframe_type
+            granny_vector_track.value_curve.curve_data.object = cast(pointer(curve_data), c_void_p)
             
             granny_track_group = GrannyTrackGroup()
             granny_track_group.name = event.name.encode()

@@ -1,5 +1,5 @@
 """Contains Granny struct and data information."""
-from ctypes import CFUNCTYPE, c_byte, c_int, c_int32, c_longlong, c_ushort, c_void_p, c_bool, c_uint, c_char_p, c_float, c_ubyte, c_ulonglong, Structure, POINTER
+from ctypes import CFUNCTYPE, c_byte, c_int, c_int16, c_int32, c_longlong, c_uint32, c_uint8, c_ushort, c_void_p, c_bool, c_uint, c_char_p, c_float, c_ubyte, c_ulonglong, Structure, POINTER
 from enum import IntEnum
 
 # Define the types we need.
@@ -375,19 +375,19 @@ class GrannyCompressCurveParameters(Structure):
 class GrannyVectorTrack(Structure):
     _pack_ = 1
     _fields_ = [
-                ('name',c_char_p),
-                ('track_key',c_int),
-                ('dimension',c_int),
-                ('value_curve',GrannyCurve2)]  
+                ('name', c_char_p),
+                ('track_key', c_uint32),
+                ('dimension', c_int32),
+                ('value_curve', GrannyCurve2)]  
 
 class GrannyTransformTrack(Structure):
     _pack_ = 1
     _fields_ = [
                 ('name',c_char_p),
                 ('flags',c_int),
-                ('orientation_curve',GrannyCurve2),
-                ('position_curve',GrannyCurve2),
-                ('scale_shear_curve',GrannyCurve2)]  
+                ('orientation_curve', GrannyCurve2),
+                ('position_curve', GrannyCurve2),
+                ('scale_shear_curve', GrannyCurve2)]  
 
 class GrannyTextTrackEntry(Structure):
     _pack_ = 1
@@ -637,15 +637,15 @@ class GrannyFileDataTreeWriter(Structure):
 class GrannyCurveDataHeader(Structure):
     _pack_ = 1
     _fields_ = [
-        ('format', c_uint),
-        ('degree', c_uint)
+        ('format', c_uint8),
+        ('degree', c_uint8)
     ]
     
 class GrannyCurveDataDaKeyframes32f(Structure):
     _pack_ = 1
     _fields_ = [
         ('curve_data_header', GrannyCurveDataHeader),
-        ('dimension', c_int),
-        ('control_count', c_int),
+        ('dimension', c_int16),
+        ('control_count', c_int32),
         ('controls', POINTER(c_float)),
     ]
