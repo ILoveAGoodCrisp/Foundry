@@ -1,11 +1,15 @@
 
 
+import os
+from pathlib import Path
+import time
 import bpy
 from math import degrees, radians
 from mathutils import Matrix
 
 from ... import utils
 from ...managed_blam.animation import AnimationTag
+import xml.etree.cElementTree as ET
 
 class BlendScreen:
     def __init__(self):
@@ -20,6 +24,34 @@ class BlendScreen:
         self.up_pitch_frame_count = 1
         
         self.transforms = []
+        
+    def from_xml_element(self, element: ET.Element):
+        def solve_xml_value(field: ET.Element):
+            value = field.attrib.get("value")
+            if value is None:
+                value = field.text
+            return value
+        
+        for field in element.findall("field"):
+            match field.attrib["name"]:
+                case "label":
+                    self.label = solve_xml_value(field)
+                case "right yaw per frame":
+                    self.right_yaw_per_frame = float(solve_xml_value(field))
+                case "left yaw per frame":
+                    self.left_yaw_per_frame = float(solve_xml_value(field))
+                case "right frame count":
+                    self.right_frame_count = int(solve_xml_value(field))
+                case "left frame count":
+                    self.left_frame_count = int(solve_xml_value(field))
+                case "down pitch per frame":
+                    self.down_pitch_per_frame = float(solve_xml_value(field))
+                case "up pitch per frame":
+                    self.up_pitch_per_frame = float(solve_xml_value(field))
+                case "down pitch frame count":
+                    self.down_pitch_frame_count = int(solve_xml_value(field))
+                case "up pitch frame count":
+                    self.up_pitch_frame_count = int(solve_xml_value(field))
         
     def from_element(self, element):
         self.label = element.Fields[0].GetStringData()
@@ -380,6 +412,50 @@ class PoseBuilder:
                 
         for idx in reversed(to_remove_indexes):
             animation.events.remove(idx)
+            
+def pose_overlay_armature_validate(armature: bpy.types.Object, nwo, report):
+    if not armature.animation_data:
+        armature.animation_data_create()
+        
+    pedestal_name = nwo.node_usage_pedestal
+    if not pedestal_name:
+        p = utils.get_pose_bone(armature, "b_pedestal")
+        if p is not None:
+            pedestal_name = p.name
+            nwo.node_usage_pedestal = p.name
+        
+    yaw_name = nwo.node_usage_pose_blend_yaw
+    if not yaw_name:
+        y = utils.get_pose_bone(armature, "b_aim_yaw")
+        if y is not None:
+            yaw_name = y.name
+            nwo.node_usage_pose_blend_yaw = y.name
+
+    pitch_name = nwo.node_usage_pose_blend_pitch
+    if not pitch_name:
+        pi = utils.get_pose_bone(armature, "b_aim_pitch")
+        if pi is not None:
+            pitch_name = pi.name
+            nwo.node_usage_pose_blend_pitch = pi.name
+                
+    aim_name = nwo.control_aim
+    aim = None
+    
+    pedestal = armature.pose.bones.get(pedestal_name)
+    if pedestal is None:
+        report({'WARNING'}, f"Pedestal bone {pedestal_name} does not exist in {armature.name}")
+    yaw = armature.pose.bones.get(yaw_name)
+    if yaw is None:
+        report({'WARNING'}, f"Pitch bone {pitch_name} does not exist in {armature.name}")
+    pitch = armature.pose.bones.get(pitch_name)
+    if pitch is None:
+        report({'WARNING'}, f"Pitch bone {pitch_name} does not exist in {armature.name}")
+    if aim_name:
+        aim = armature.pose.bones.get(aim_name)
+        if aim is None:
+            report({'WARNING'}, f"Aim bone {aim_name} does not exist in {armature.name}")
+            
+    return pedestal, pitch, yaw, aim
     
 class NWO_OT_GeneratePoses(bpy.types.Operator):
     bl_idname = 'nwo.generate_poses'
@@ -510,49 +586,9 @@ class NWO_OT_GeneratePoses(bpy.types.Operator):
             self.report({'WARNING'}, "No active animation. Ensure desired animation is selected in the Foundry animation panel")
 
         animation = nwo.animations[nwo.active_animation_index]
-        if not armature.animation_data:
-            armature.animation_data_create()
         
-        # all_bone_names = {b.name for b in armature.pose.bones}
+        pedestal, pitch, yaw, aim = pose_overlay_armature_validate(armature, nwo, self.report)
         
-        pedestal_name = nwo.node_usage_pedestal
-        if not pedestal_name:
-            p = utils.get_pose_bone(armature, "b_pedestal")
-            if p is not None:
-                pedestal_name = p.name
-                nwo.node_usage_pedestal = p.name
-            
-        yaw_name = nwo.node_usage_pose_blend_yaw
-        if not yaw_name:
-            y = utils.get_pose_bone(armature, "b_aim_yaw")
-            if y is not None:
-                yaw_name = y.name
-                nwo.node_usage_pose_blend_yaw = y.name
-
-        pitch_name = nwo.node_usage_pose_blend_pitch
-        if not pitch_name:
-            pi = utils.get_pose_bone(armature, "b_aim_pitch")
-            if pi is not None:
-                pitch_name = pi.name
-                nwo.node_usage_pose_blend_pitch = pi.name
-                    
-        aim_name = nwo.control_aim
-        aim = None
-        
-        pedestal = armature.pose.bones.get(pedestal_name)
-        if pedestal is None:
-            self.report({'WARNING'}, f"Pedestal bone {pedestal_name} does not exist in {armature.name}")
-        yaw = armature.pose.bones.get(yaw_name)
-        if yaw is None:
-            self.report({'WARNING'}, f"Pitch bone {pitch_name} does not exist in {armature.name}")
-        pitch = armature.pose.bones.get(pitch_name)
-        if pitch is None:
-            self.report({'WARNING'}, f"Pitch bone {pitch_name} does not exist in {armature.name}")
-        if aim_name:
-            aim = armature.pose.bones.get(aim_name)
-            if aim is None:
-                self.report({'WARNING'}, f"Aim bone {aim_name} does not exist in {armature.name}")
-                
         if not aim and (not yaw and not pitch):
             self.report({'WARNING'}, f"Armature {armature.name} does not have aim bones. Cannot build poses")
             return {'CANCELLED'}
@@ -616,358 +652,162 @@ class NWO_OT_GeneratePoses(bpy.types.Operator):
                 
         if for_biped:
             layout.prop(self, "add_wrap_events")
+            
+def parse_xml_for_blend_screens(xml_path: Path) -> dict | None:
+    data = {}
+    blend_screens = []
+    # These exported XMLs can't be parsed by default because they contain data, so clear these out
+    xml_string = ""
+    with open(xml_path, "r", errors="replace") as f:
+        for line in f.readlines():
+            if "<" in line and not "<!" in line:
+                xml_string += line
+                
+    xml_string = xml_string.strip("\n")
+        
+    # try:
+    header = ET.fromstring(xml_string)
+    # Check if this is an H1 animation tag file
+    group = header.attrib.get("group")
+    if group is None:
+        return utils.print_warning("XML does not declare tag group")
+    if group == "model_animations": # H1
+        pass
+    else: # H2+
+        found_blend_screens = False
+        found_animations = False
+        for element in header.findall("block"):
+            block_name = element.attrib["name"]
+            if block_name == "blend screens":
+                for bs_element in element.findall("element"):
+                    blend_screen = BlendScreen()
+                    blend_screen.from_xml_element(bs_element)
+                    blend_screen.compute_transforms()
+                    blend_screens.append(blend_screen)
+                found_blend_screens = True
+            elif block_name == "animations":
+                if not found_blend_screens:
+                    return
+                for a_element in element.findall("element"):
+                    bs_index_element = a_element.find("block_index")
+                    if bs_index_element is None:
+                        for field in a_element.findall("field"):
+                            if field.attrib["name"] == "blend screen":
+                                bs_index = int(field.attrib["value"][1:])
+                                break
+                    else:
+                        bs_index = int(bs_index_element.attrib["index"])
 
-class NWO_AddAimAnimation(bpy.types.Operator):
-    bl_idname = 'nwo.add_aim_animation'
-    bl_label = 'Aim Animation'
-    bl_description = 'Animates the aim bones (or aim control if it exists) based on the chosen option'
+                    if bs_index == -1:
+                        continue
+                    
+                    anim_name_field = a_element.find("field")
+                    anim_name = anim_name_field.attrib.get("value")
+                    if anim_name is None:
+                        anim_name = anim_name_field.text
+                    
+                    data[anim_name] = blend_screens[bs_index]
+                found_animations = True
+                
+            if found_blend_screens and found_animations:
+                break
+
+    return data
+    
+def convert_legacy_pose_overlays(armature: bpy.types.Object, scene: bpy.types.Scene, builder: PoseBuilder, data: dict):
+    animations = {a.name.strip().replace(" ", ":").lower(): a for a in scene.nwo.animations}
+    animation_indexes = {a: idx for idx, a in enumerate(list(animations.values()))}
+    with utils.ArmatureDeformMute():
+        for animation_name, blend_screen in data.items():
+            animation = animations.get(animation_name)
+            if animation is None:
+                continue
+            print(f"--- Converting {animation_name}")
+            add_wrap_events = not ("vehicle" in animation_name or "pain" in animation_name)
+            scene.nwo.active_animation_index = animation_indexes[animation]
+            for track in animation.action_tracks:
+                if track.object == armature and track.action:
+                    animation.frame_end = builder.build_from_blend_screen(scene, animation, track.action, add_wrap_events, blend_screen)
+                    break
+            
+class NWO_OT_ConvertLegacyPoseOverlays(bpy.types.Operator):
+    bl_idname = 'nwo.convert_legacy_pose_overlays'
+    bl_label = 'Convert'
+    bl_description = 'Converts legacy pose overlay animations (those used in H1 - ODST) to the new format'
     bl_options = {'REGISTER', 'UNDO'}
     
-    @classmethod
-    def poll(cls, context):
-        scene_nwo = context.scene.nwo
-        arm = scene_nwo.main_armature
-        if not arm: return False
-        if not scene_nwo.animations: return False
-        return context.object and context.object == arm and scene_nwo.node_usage_pose_blend_yaw and scene_nwo.node_usage_pose_blend_pitch
-    
-    aim_animation: bpy.props.EnumProperty(
-        name='Animation',
-        items=[
-            ("steering", "Steering", "Uses the yaw bone only. Steers left and right\nFrames:\nrest\nleft\nmiddle\nright"),
-            ("aiming", "Aiming / Flight", "Animates the yaw and pitch bones from left to right\nFrames:\nrest\nleft up\nleft\left down\nmiddle up\nmiddle\nmiddle down\nright up\nright\nright down"),
-            ("pitch_and_turn", "Pitch & Turn", "Animates the yaw and pitch bones from left to right in line with 'pitch_and_turn' overlays in earlier Halo games\nFrames:\nrest\nright down\nmiddle down\nleft down\nright forward\nmiddle forward\nleft forward\nright up\nmiddle up\nleft up"),
-            ("aiming_360", "360 Aiming / Acceleration", "Aiming for a turret that can rotate 360 degrees. Uses the yaw bone initially, then the pitch (90 degrees down then up)\nFrames:\nrest\nyaw anti-clockwise 360 for 7 frames\nrest\npitch down\npitch up"),
-            ]
-        )
-    
-    max_yaw: bpy.props.FloatProperty(
-        name='Max Steering Yaw',
-        subtype='ANGLE',
-        default=radians(45),
-        min=radians(1),
-        max=radians(89.99),
+    filepath: bpy.props.StringProperty(
+        name='Filepath',
+        subtype='FILE_PATH',
+        options={"HIDDEN"},
     )
     
-    max_pitch: bpy.props.FloatProperty(
-        name='Max Steering Pitch',
-        subtype='ANGLE',
-        default=radians(45),
-        min=radians(1),
-        max=radians(89.99),
+    filter_glob: bpy.props.StringProperty(
+        default="*.m*_animation*",
+        options={"HIDDEN", "SKIP_SAVE"},
+        maxlen=1024,
     )
-    
-    def setup_steering(self, yaw, aim, start):
-        if aim is None:
-            yaw.matrix_basis = Matrix()
-            yaw.rotation_mode = 'XYZ'
-            yaw.keyframe_insert(data_path='rotation_euler', frame=start)
-            yaw.rotation_euler = [0, 0, self.max_yaw]
-            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 1)
-            yaw.rotation_euler = [0, 0, 0]
-            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 2)
-            yaw.rotation_euler = [0, 0, -self.max_yaw]
-            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 3)
-        else:
-            aim.matrix_basis = Matrix()
-            aim.rotation_mode = 'XYZ'
-            aim.keyframe_insert(data_path='rotation_euler', frame=start)
-            aim.rotation_euler = [0, 0, self.max_yaw]
-            aim.keyframe_insert(data_path='rotation_euler', frame=start + 1)
-            aim.rotation_euler = [0, 0, 0]
-            aim.keyframe_insert(data_path='rotation_euler', frame=start + 2)
-            aim.rotation_euler = [0, 0, -self.max_yaw]
-            aim.keyframe_insert(data_path='rotation_euler', frame=start + 3)
-            
-        return start + 3
-        
-    def setup_aiming(self, yaw, pitch, aim, start):
-        if aim is None:
-            yaw.matrix_basis = Matrix()
-            pitch.matrix_basis = Matrix()
-            yaw.rotation_mode = 'XYZ'
-            pitch.rotation_mode = 'XYZ'
-            yaw.keyframe_insert(data_path='rotation_euler', frame=start)
-            pitch.keyframe_insert(data_path='rotation_euler', frame=start)
-            yaw.rotation_euler = [0, 0, self.max_yaw]
-            pitch.rotation_euler = [0, -self.max_pitch, 0]
-            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 1)
-            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 1)
-            yaw.rotation_euler = [0, 0, self.max_yaw]
-            pitch.rotation_euler = [0, 0, 0]
-            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 2)
-            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 2)
-            yaw.rotation_euler = [0, 0, self.max_yaw]
-            pitch.rotation_euler = [0, self.max_pitch, 0]
-            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 3)
-            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 3)
-            yaw.rotation_euler = [0, 0, 0]
-            pitch.rotation_euler = [0, -self.max_pitch, 0]
-            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 4)
-            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 4)
-            yaw.rotation_euler = [0, 0, 0]
-            pitch.rotation_euler = [0, 0, 0]
-            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 5)
-            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 5)
-            yaw.rotation_euler = [0, 0, 0]
-            pitch.rotation_euler = [0, self.max_pitch, 0]
-            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 6)
-            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 6)
-            yaw.rotation_euler = [0, 0, -self.max_yaw]
-            pitch.rotation_euler = [0, -self.max_pitch, 0]
-            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 7)
-            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 7)
-            yaw.rotation_euler = [0, 0, -self.max_yaw]
-            pitch.rotation_euler = [0, 0, 0]
-            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 8)
-            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 8)
-            yaw.rotation_euler = [0, 0, -self.max_yaw]
-            pitch.rotation_euler = [0, self.max_pitch, 0]
-            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 9)
-            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 9)
-        else:
-            aim.matrix_basis = Matrix()
-            aim.rotation_mode = 'XYZ'
-            aim.keyframe_insert(data_path='rotation_euler', frame=start)
-            aim.rotation_euler = [0, -self.max_pitch, self.max_yaw]
-            aim.keyframe_insert(data_path='rotation_euler', frame=start + 1)
-            aim.rotation_euler = [0, 0, self.max_yaw]
-            aim.keyframe_insert(data_path='rotation_euler', frame=start + 2)
-            aim.rotation_euler = [0, self.max_pitch, self.max_yaw]
-            aim.keyframe_insert(data_path='rotation_euler', frame=start + 3)
-            aim.rotation_euler = [0, -self.max_pitch, 0]
-            aim.keyframe_insert(data_path='rotation_euler', frame=start + 4)
-            aim.rotation_euler = [0, 0, 0]
-            aim.keyframe_insert(data_path='rotation_euler', frame=start + 5)
-            aim.rotation_euler = [0, self.max_pitch, 0]
-            aim.keyframe_insert(data_path='rotation_euler', frame=start + 6)
-            aim.rotation_euler = [0, -self.max_pitch, -self.max_yaw]
-            aim.keyframe_insert(data_path='rotation_euler', frame=start + 7)
-            aim.rotation_euler = [0, 0, -self.max_yaw]
-            aim.keyframe_insert(data_path='rotation_euler', frame=start + 8)
-            aim.rotation_euler = [0, self.max_pitch, -self.max_yaw]
-            aim.keyframe_insert(data_path='rotation_euler', frame=start + 9)
-        return start + 9
-    
-    def setup_pitch_and_turn(self, yaw, pitch, aim, start):
-        if aim is None:
-            yaw.matrix_basis = Matrix()
-            pitch.matrix_basis = Matrix()
-            yaw.rotation_mode = 'XYZ'
-            pitch.rotation_mode = 'XYZ'
-            yaw.keyframe_insert(data_path='rotation_euler', frame=start)
-            pitch.keyframe_insert(data_path='rotation_euler', frame=start)
-            yaw.rotation_euler = [0, 0, -self.max_yaw]
-            pitch.rotation_euler = [0, self.max_pitch, 0]
-            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 1)
-            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 1)
-            yaw.rotation_euler = [0, 0, 0]
-            pitch.rotation_euler = [0, self.max_pitch, 0]
-            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 2)
-            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 2)
-            yaw.rotation_euler = [0, 0, self.max_yaw]
-            pitch.rotation_euler = [0, self.max_pitch, 0]
-            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 3)
-            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 3)
-            yaw.rotation_euler = [0, 0, -self.max_yaw]
-            pitch.rotation_euler = [0, 0, 0]
-            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 4)
-            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 4)
-            yaw.rotation_euler = [0, 0, 0]
-            pitch.rotation_euler = [0, 0, 0]
-            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 5)
-            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 5)
-            yaw.rotation_euler = [0, 0, self.max_yaw]
-            pitch.rotation_euler = [0, 0, 0]
-            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 6)
-            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 6)
-            yaw.rotation_euler = [0, 0, -self.max_yaw]
-            pitch.rotation_euler = [0, -self.max_pitch, 0]
-            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 7)
-            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 7)
-            yaw.rotation_euler = [0, 0, 0]
-            pitch.rotation_euler = [0, -self.max_pitch, 0]
-            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 8)
-            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 8)
-            yaw.rotation_euler = [0, 0, self.max_yaw]
-            pitch.rotation_euler = [0, -self.max_pitch, 0]
-            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 9)
-            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 9)
-        else:
-            aim.matrix_basis = Matrix()
-            aim.rotation_mode = 'XYZ'
-            aim.keyframe_insert(data_path='rotation_euler', frame=start)
-            aim.rotation_euler = [0, self.max_pitch, -self.max_yaw]
-            aim.keyframe_insert(data_path='rotation_euler', frame=start + 1)
-            aim.rotation_euler = [0, self.max_pitch, 0]
-            aim.keyframe_insert(data_path='rotation_euler', frame=start + 2)
-            aim.rotation_euler = [0, self.max_pitch, self.max_yaw]
-            aim.keyframe_insert(data_path='rotation_euler', frame=start + 3)
-            aim.rotation_euler = [0, 0, -self.max_yaw]
-            aim.keyframe_insert(data_path='rotation_euler', frame=start + 4)
-            aim.rotation_euler = [0, 0, 0]
-            aim.keyframe_insert(data_path='rotation_euler', frame=start + 5)
-            aim.rotation_euler = [0, 0, self.max_yaw]
-            aim.keyframe_insert(data_path='rotation_euler', frame=start + 6)
-            aim.rotation_euler = [0, -self.max_pitch, -self.max_yaw]
-            aim.keyframe_insert(data_path='rotation_euler', frame=start + 7)
-            aim.rotation_euler = [0, -self.max_pitch, 0]
-            aim.keyframe_insert(data_path='rotation_euler', frame=start + 8)
-            aim.rotation_euler = [0, -self.max_pitch, self.max_yaw]
-            aim.keyframe_insert(data_path='rotation_euler', frame=start + 9)
-            
-        return start + 9
-    
-    def setup_aiming_360(self, yaw, pitch, aim, start):
-        if aim is None:
-            yaw.matrix_basis = Matrix()
-            pitch.matrix_basis = Matrix()
-            yaw.rotation_mode = 'XYZ'
-            pitch.rotation_mode = 'XYZ'
-            yaw.keyframe_insert(data_path='rotation_euler', frame=start)
-            pitch.keyframe_insert(data_path='rotation_euler', frame=start)
-            yaw.rotation_euler = [0, 0, radians(45)]
-            pitch.rotation_euler = [0, 0, 0]
-            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 1)
-            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 1)
-            yaw.rotation_euler = [0, 0, radians(90)]
-            pitch.rotation_euler = [0, 0, 0]
-            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 2)
-            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 2)
-            yaw.rotation_euler = [0, 0, radians(135)]
-            pitch.rotation_euler = [0, 0, 0]
-            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 3)
-            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 3)
-            yaw.rotation_euler = [0, 0, radians(180)]
-            pitch.rotation_euler = [0, 0, 0]
-            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 4)
-            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 4)
-            yaw.rotation_euler = [0, 0, radians(225)]
-            pitch.rotation_euler = [0, 0, 0]
-            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 5)
-            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 5)
-            yaw.rotation_euler = [0, 0, radians(270)]
-            pitch.rotation_euler = [0, 0, 0]
-            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 6)
-            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 6)
-            yaw.rotation_euler = [0, 0, radians(315)]
-            pitch.rotation_euler = [0, 0, 0]
-            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 7)
-            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 7)
-            yaw.rotation_euler = [0, 0, radians(360)]
-            pitch.rotation_euler = [0, 0, 0]
-            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 8)
-            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 8)
-            yaw.rotation_euler = [0, 0, radians(360)]
-            pitch.rotation_euler = [0, self.max_pitch, 0]
-            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 9)
-            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 9)
-            yaw.rotation_euler = [0, 0, radians(360)]
-            pitch.rotation_euler = [0, -self.max_pitch, 0]
-            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 10)
-            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 10)
-        else:
-            aim.matrix_basis = Matrix()
-            aim.rotation_mode = 'XYZ'
-            aim.keyframe_insert(data_path='rotation_euler', frame=start)
-            aim.rotation_euler = [0, 0, radians(45)]
-            aim.keyframe_insert(data_path='rotation_euler', frame=start + 1)
-            aim.rotation_euler = [0, 0, radians(90)]
-            aim.keyframe_insert(data_path='rotation_euler', frame=start + 2)
-            aim.rotation_euler = [0, 0, radians(135)]
-            aim.keyframe_insert(data_path='rotation_euler', frame=start + 3)
-            aim.rotation_euler = [0, 0, radians(180)]
-            aim.keyframe_insert(data_path='rotation_euler', frame=start + 4)
-            aim.rotation_euler = [0, 0, radians(225)]
-            aim.keyframe_insert(data_path='rotation_euler', frame=start + 5)
-            aim.rotation_euler = [0, 0, radians(270)]
-            aim.keyframe_insert(data_path='rotation_euler', frame=start + 6)
-            aim.rotation_euler = [0, 0, radians(315)]
-            aim.keyframe_insert(data_path='rotation_euler', frame=start + 7)
-            aim.rotation_euler = [0, 0, radians(360)]
-            aim.keyframe_insert(data_path='rotation_euler', frame=start + 8)
-            aim.rotation_euler = [0, self.max_pitch, radians(360)]
-            aim.keyframe_insert(data_path='rotation_euler', frame=start + 9)
-            aim.rotation_euler = [0, -self.max_pitch, radians(360)]
-            aim.keyframe_insert(data_path='rotation_euler', frame=start + 10)
-            
-        return start + 10
     
     def execute(self, context):
-        scene_nwo = context.scene.nwo
-        arm = scene_nwo.main_armature
-        animation = scene_nwo.animations[scene_nwo.active_animation_index]
-        if not arm.animation_data:
-            arm.animation_data_create()
-        yaw_name = scene_nwo.node_usage_pose_blend_yaw
-        pitch_name = scene_nwo.node_usage_pose_blend_pitch
-        aim_name = scene_nwo.control_aim
-        yaw = arm.pose.bones.get(yaw_name)
-        if yaw is None:
-            scene_nwo.node_usage_pose_blend_yaw = ''
-            self.report({'WARNING'}, f"Pitch bone {pitch_name} does not exist in {arm.name}. Removed from Node Usages")
-            return {'CANCELLED'}
-        pitch = arm.pose.bones.get(pitch_name)
-        if pitch is None:
-            scene_nwo.node_usage_pose_blend_pitch = ''
-            self.report({'WARNING'}, f"Pitch bone {pitch_name} does not exist in {arm.name}. Removed from Node Usages")
-            return {'CANCELLED'}
-        if aim_name:
-            aim = arm.pose.bones.get(aim_name)
-            if aim is None:
-                scene_nwo.control_aim = ''
-                self.report({'WARNING'}, f"Aim bone {aim_name} does not exist in {arm.name}. Removed from Node Usages")
-                return {'CANCELLED'}
-        else:
-            aim = None
-        start = animation.frame_start
         scene = context.scene
-        current = int(scene.frame_current)
-        already_in_pose_mode = False
-        if context.mode == 'POSE':
-            already_in_pose_mode = True
-        else:
-            bpy.ops.object.posemode_toggle()
-            
-        scene.frame_current = start
-        action = arm.animation_data.action
-        fcurves_for_destruction = set()
-        for fc in action.fcurves:
-            if fc.data_path.startswith(f'pose.bones["{pitch_name}"].') or fc.data_path.startswith(f'pose.bones["{yaw_name}"].') or fc.data_path.startswith(f'pose.bones["{aim_name}"].'):
-                fcurves_for_destruction.add(fc)
-        [action.fcurves.remove(fc) for fc in fcurves_for_destruction]
+        nwo = scene.nwo
+        if not scene.nwo.animations:
+            self.report({'WARNING'}, "No animations in Scene")
+            return {'CANCELLED'}
         
-        if self.aim_animation == 'steering':
-            action.frame_end = self.setup_steering(yaw, aim, start)
-        elif self.aim_animation == 'aiming':
-            action.frame_end = self.setup_aiming(yaw, pitch, aim, start)
-        elif self.aim_animation == 'pitch_and_turn':
-            action.frame_end = self.setup_pitch_and_turn(yaw, pitch, aim, start)
-        elif self.aim_animation == 'aiming_360':
-            action.frame_end = self.setup_aiming_360(yaw, pitch, aim, start)
-        if not already_in_pose_mode:
-            bpy.ops.object.posemode_toggle()
+        armature = utils.get_rig_prioritize_active(context)
+        if armature is None:
+            self.report({'WARNING'}, "No Armature in Scene")
+            return {'CANCELLED'}
+        
+        pedestal, pitch, yaw, aim = pose_overlay_armature_validate(armature, nwo, self.report)
+        
+        if not aim and (not yaw and not pitch):
+            self.report({'WARNING'}, f"Armature {armature.name} does not have aim bones. Cannot build poses")
+            return {'CANCELLED'}
+        
+        os.system("cls")
+        start = time.perf_counter()
+        user_cancelled = False
+        if context.scene.nwo_export.show_output:
+            bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
+            context.scene.nwo_export.show_output = False
             
-        animation.frame_end = int(action.frame_end)
-            
-        scene.frame_current = current
+        export_title = f"►►► LEGACY POSE OVERLAY CONVERTER ◄◄◄\n"
+        print(export_title)
+        
+        print(f"--- Converting {self.filepath} to XML")
+        xml_path = utils.tag_to_xml(self.filepath)
+        if xml_path is None:
+            self.report({'WARNING'}, f"Failed to export {self.filepath} to xml")
+            return {'CANCELLED'}
+        
+        print(f"--- Reading blend screen data from {xml_path}")
+        
+        blend_screen_info = parse_xml_for_blend_screens(xml_path)
+        if not blend_screen_info:
+            self.report({'WARNING'}, f"{self.filepath} contains no blend sceen information")
+            return {'CANCELLED'}
+        
+        current_frame = scene.frame_current
+        current_animation_index = nwo.active_animation_index
+        convert_legacy_pose_overlays(armature, scene, PoseBuilder(pedestal, pitch, yaw, aim), blend_screen_info)
+        nwo.active_animation_index = current_animation_index
+        scene.frame_current = current_frame
+        
+        print("\n-----------------------------------------------------------------------")
+        print(f"Completed in {utils.human_time(time.perf_counter() - start, True)}")
+        print("-----------------------------------------------------------------------\n")
+
         return {'FINISHED'}
     
-    def invoke(self, context, event):
-        wm = context.window_manager
-        return wm.invoke_props_dialog(self)
+    def invoke(self, context, _):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
     
     def draw(self, context):
-        layout = self.layout
-        layout.use_property_split = True
-        layout.prop(self, 'aim_animation', text='Animation')
-        if self.aim_animation in ('steering', 'aiming', 'pitch_and_turn'):
-            layout.prop(self, 'max_yaw', text='Max Yaw Angle')
-        if self.aim_animation in ('aiming', 'pitch_and_turn', 'aiming_360'):
-            layout.prop(self, 'max_pitch', text='Max Pitch Angle')
-            
-class NWO_OT_AddAimAnimationBatch(NWO_AddAimAnimation):
-    bl_idname = 'nwo.add_aim_animation_batch'
-    bl_label = 'Batch Add Aim Animations'
-    bl_description = 'Animates the aim bones (or aim control if it exists) based on the chosen option for all pose overlay animations'
-    bl_options = {'REGISTER', 'UNDO'}
+        self.layout.label(text="Select the animation tag file")
+        self.layout.label(text="containing the blend screens")
+        self.layout.label(text="you wish to use for conversion")
+    
+    

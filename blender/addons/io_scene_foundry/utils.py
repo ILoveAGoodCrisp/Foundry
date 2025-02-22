@@ -4252,3 +4252,39 @@ def redraw_area(context, area_type):
         if area.type == area_type:
             for region in area.regions:
                 region.tag_redraw()
+                
+def tag_to_xml(filepath: Path | str) -> None | Path:
+    """Exports the given tag to an xml using the local Tool.exe. This will recursively search parent folders to find Tool. Returns the xml Path if successful"""
+    if not isinstance(filepath, Path):
+        filepath = Path(filepath)
+        
+    if not (filepath.exists() and filepath.is_absolute() and filepath.is_file()):
+        print_warning(f"{filepath} does not exist or is not absolute or is not a file")
+        return
+    
+    dir = filepath.parent
+    
+    while dir != dir.parent:
+        tool_path = Path(dir, "tool.exe")
+        if tool_path.exists():
+            break
+        dir = dir.parent
+    else:
+        print_warning(f"Failed to find Tool by searching backwards from {filepath}")
+        return
+    
+    # H3 needs the full path to the tag, CE and H2 need the relative path
+    if Path(dir, "bin", "ManagedBlam.dll").exists():
+        final_filepath = str(filepath)
+    else:
+        final_filepath = str(filepath.relative_to(dir))
+        
+    output_path = f"{filepath}.xml"
+    os.chdir(tool_path.parent)
+    command = f'tool export-tag-to-xml "{final_filepath}" "{output_path}"'
+    subprocess.run(command)
+    
+    path_xml = Path(output_path)
+    
+    if path_xml.exists():
+        return path_xml

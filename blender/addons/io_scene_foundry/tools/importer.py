@@ -198,7 +198,7 @@ class NWO_OT_ConvertScene(bpy.types.Operator):
             self.report({'WARNING'}, "Cancelled by user")
         else:
             print("\n-----------------------------------------------------------------------")
-            print(f"Completed in {utils.human_time(end - start, True)} seconds")
+            print(f"Completed in {utils.human_time(end - start, True)}")
             print("-----------------------------------------------------------------------\n")
         return {'FINISHED'}
 
@@ -224,13 +224,13 @@ class NWO_Import(bpy.types.Operator):
     directory: bpy.props.StringProperty(
         name='Directory',
         subtype='DIR_PATH',
-        options={"HIDDEN", "SKIP_SAVE"},
+        options={"HIDDEN"},
     )
     
     filepath: bpy.props.StringProperty(
         name='Filepath',
         subtype='FILE_PATH',
-        options={"HIDDEN", "SKIP_SAVE"},
+        options={"HIDDEN"},
     )
     
     # find_shader_paths: bpy.props.BoolProperty(
