@@ -111,9 +111,15 @@ class NWO_OT_PlayGameAnimation(bpy.types.Operator):
             asset_name = asset_path.name
             path = str(Path(asset_path, asset_name))
             
-        if not path.strip():
-            self.report({'WARNING'}, f"No graph path specified")
-            return {'CANCELLED'}
+        if not path.strip(". "):
+            # See if we can get the graph from the armature
+            ob = utils.get_rig_prioritize_active(context)
+            if ob is None or not ob.nwo.node_order_source:
+                self.report({'WARNING'}, f"No graph path specified")
+                return {'CANCELLED'}
+    
+            path = str(Path(utils.relative_path(ob.nwo.node_order_source)).with_suffix(".model_animation_graph"))
+
         
         full_path = Path(utils.get_tags_path(), path)
         if not (full_path.exists() and full_path.is_absolute()):
