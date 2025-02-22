@@ -243,6 +243,37 @@ preset_vehicle_acc_transforms = [
     (Matrix.Rotation(radians(360), 4, 'Z'), Matrix.Rotation(radians(-90), 4, 'Y'), ""),
 ]
 
+preset_pain_transforms = [
+    (Matrix.Rotation(radians(45), 4, 'Z'), Matrix.Rotation(0, 4, 'Y'), ""),
+    (Matrix.Rotation(radians(90), 4, 'Z'), Matrix.Rotation(0, 4, 'Y'), ""),
+    (Matrix.Rotation(radians(135), 4, 'Z'), Matrix.Rotation(0, 4, 'Y'), ""),
+    (Matrix.Rotation(radians(180), 4, 'Z'), Matrix.Rotation(0, 4, 'Y'), ""),
+    (Matrix.Rotation(radians(225), 4, 'Z'), Matrix.Rotation(0, 4, 'Y'), ""),
+    (Matrix.Rotation(radians(270), 4, 'Z'), Matrix.Rotation(0, 4, 'Y'), ""),
+    (Matrix.Rotation(radians(315), 4, 'Z'), Matrix.Rotation(0, 4, 'Y'), ""),
+    (Matrix.Rotation(radians(359), 4, 'Z'), Matrix.Rotation(0, 4, 'Y'), ""),
+    
+    (Matrix.Rotation(0, 4, 'Z'), Matrix.Rotation(radians(45), 4, 'Y'), ""),
+    (Matrix.Rotation(radians(45), 4, 'Z'), Matrix.Rotation(radians(45), 4, 'Y'), ""),
+    (Matrix.Rotation(radians(90), 4, 'Z'), Matrix.Rotation(radians(45), 4, 'Y'), ""),
+    (Matrix.Rotation(radians(135), 4, 'Z'), Matrix.Rotation(radians(45), 4, 'Y'), ""),
+    (Matrix.Rotation(radians(180), 4, 'Z'), Matrix.Rotation(radians(45), 4, 'Y'), ""),
+    (Matrix.Rotation(radians(225), 4, 'Z'), Matrix.Rotation(radians(45), 4, 'Y'), ""),
+    (Matrix.Rotation(radians(270), 4, 'Z'), Matrix.Rotation(radians(45), 4, 'Y'), ""),
+    (Matrix.Rotation(radians(315), 4, 'Z'), Matrix.Rotation(radians(45), 4, 'Y'), ""),
+    (Matrix.Rotation(radians(359), 4, 'Z'), Matrix.Rotation(radians(45), 4, 'Y'), ""),
+    
+    (Matrix.Rotation(0, 4, 'Z'), Matrix.Rotation(radians(-45), 4, 'Y'), ""),
+    (Matrix.Rotation(radians(45), 4, 'Z'), Matrix.Rotation(radians(-45), 4, 'Y'), ""),
+    (Matrix.Rotation(radians(90), 4, 'Z'), Matrix.Rotation(radians(-45), 4, 'Y'), ""),
+    (Matrix.Rotation(radians(135), 4, 'Z'), Matrix.Rotation(radians(-45), 4, 'Y'), ""),
+    (Matrix.Rotation(radians(180), 4, 'Z'), Matrix.Rotation(radians(-45), 4, 'Y'), ""),
+    (Matrix.Rotation(radians(225), 4, 'Z'), Matrix.Rotation(radians(-45), 4, 'Y'), ""),
+    (Matrix.Rotation(radians(270), 4, 'Z'), Matrix.Rotation(radians(-45), 4, 'Y'), ""),
+    (Matrix.Rotation(radians(315), 4, 'Z'), Matrix.Rotation(radians(-45), 4, 'Y'), ""),
+    (Matrix.Rotation(radians(359), 4, 'Z'), Matrix.Rotation(radians(-45), 4, 'Y'), ""),
+]
+
 preset_transforms = {
     "look": preset_look_transforms,
     "aim": preset_aim_transforms,
@@ -251,6 +282,7 @@ preset_transforms = {
     "biped_acc": preset_biped_acc_transforms,
     "steering": preset_steering_transforms,
     "vehicle_acc": preset_vehicle_acc_transforms,
+    "pain": preset_pain_transforms,
 }
 
 class PoseBuilder:
@@ -328,16 +360,14 @@ class PoseBuilder:
         
     def build_from_preset(self, scene: bpy.types.Scene, animation, action: bpy.types.Action, wrap_events: bool, preset: str) -> int:
         """Keyframes a pose overlay based on the input preset. Returns the last frame keyframed"""
-        if wrap_events:
-            self._clear_wrap_events(animation)
+        self._clear_wrap_events(animation)
         self._pre_build(scene, animation.frame_start, action)
         self._build_poses(scene, animation, wrap_events, preset_transforms[preset])
         return scene.frame_current
     
     def build_from_blend_screen(self, scene: bpy.types.Scene, animation, action: bpy.types.Action, wrap_events: bool, blend_screen: BlendScreen) -> int:
         """Keyframes a pose overlay based on the input blend screen. Returns the last frame keyframed"""
-        if wrap_events:
-            self._clear_wrap_events(animation)
+        self._clear_wrap_events(animation)
         self._pre_build(scene, animation.frame_start, action)
         self._build_poses(scene, animation, wrap_events, blend_screen.transforms)
         return scene.frame_current
@@ -354,7 +384,7 @@ class PoseBuilder:
 class NWO_OT_GeneratePoses(bpy.types.Operator):
     bl_idname = 'nwo.generate_poses'
     bl_label = 'Generate Poses'
-    bl_description = 'Animates the aim bones (or aim control if it exists) based on the chosen option'
+    bl_description = 'Animates the aim bones (or aim control if it exists) based on the chosen option. You should then animate your model as desired for each frame in the generated pose'
     bl_options = {'REGISTER', 'UNDO'}
     
     pose_type: bpy.props.EnumProperty(
@@ -374,6 +404,7 @@ class NWO_OT_GeneratePoses(bpy.types.Operator):
             ("aim_turn_right", "Aim Turn right", "Poses typically used for aiming animations during biped turning"),
             ("look", "Look", "Poses typically used for steering animations like any:look"),
             ("biped_acc", "Acceleration", "Poses for a biped being effected by vehicle acceleration"),
+            ('pain', "Pain", "Poses for a pain overlay, used to to determine reaction to damage dependent on direction")
         ]
     )
     
