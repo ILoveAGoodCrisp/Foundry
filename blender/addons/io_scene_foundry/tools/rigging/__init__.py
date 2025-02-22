@@ -27,9 +27,9 @@ class HaloRig:
         self.has_pose_bones = has_pose_bones
         self.set_scene_rig_props = set_scene_rig_props
     
-    def build_and_apply_control_shapes(self, pedestal=None, pitch=None, yaw=None, aim_control=None, wireframe=False, aim_control_only=False):
+    def build_and_apply_control_shapes(self, pedestal=None, pitch=None, yaw=None, aim_control=None, wireframe=False, aim_control_only=False, reverse_control=False):
         if not aim_control_only:
-            if pedestal is None:
+            if not pedestal:
                 pedestal: bpy.types.PoseBone = utils.get_pose_bone(self.rig_ob, pedestal_name)
             else:
                 pedestal = self.rig_ob.pose.bones.get(pedestal)
@@ -50,7 +50,7 @@ class HaloRig:
                     self.rig_data.bones[pedestal.name].show_wire = True
         
         if self.has_pose_bones:
-            if aim_control is None:
+            if not aim_control:
                 aim_control: bpy.types.PoseBone = utils.get_pose_bone(self.rig_ob, aim_control_name)
             if aim_control is not None:
                 shape_ob = bpy.data.objects.get(aim_shape_name)
@@ -66,63 +66,97 @@ class HaloRig:
                 aim_control.use_custom_shape_bone_size = False
                 if wireframe:
                     self.rig_data.bones[aim_control.name].show_wire = True
-                    
-                con = aim_control.constraints.new('LIMIT_SCALE')
-                con.use_min_x = True
-                con.use_min_y = True
-                con.use_min_z = True
-                con.use_max_x = True
-                con.use_max_y = True
-                con.use_max_z = True
-                con.min_x = 1
-                con.min_y = 1
-                con.min_z = 1
-                con.max_x = 1
-                con.max_y = 1
-                con.max_z = 1
-                con.use_transform_limit = True
-                con.owner_space = 'LOCAL'
                 
-                con = aim_control.constraints.new('LIMIT_LOCATION')
-                con.use_min_x = True
-                con.use_min_y = True
-                con.use_min_z = True
-                con.use_max_x = True
-                con.use_max_y = True
-                con.use_max_z = True
-                con.use_transform_limit = True
-                con.owner_space = 'LOCAL'
-                
-                if pitch is None:
+                if not pitch:
                     pitch: bpy.types.PoseBone = utils.get_pose_bone(self.rig_ob, aim_pitch_name)
                 else:
                     pitch = self.rig_ob.pose.bones.get(pitch)
-                con = pitch.constraints.new('COPY_ROTATION')
-                con.target = self.rig_ob
-                con.subtarget = aim_control.name
-                con.use_x = False
-                con.use_z = False
-                con.target_space = 'LOCAL_OWNER_ORIENT'
-                con.owner_space = 'LOCAL'
-                
-                if yaw is None:
+                    
+                if pitch is None:
+                    pitch: bpy.types.PoseBone = utils.get_pose_bone(self.rig_ob, aim_pitch_name)
+                    
+                if not yaw:
                     yaw: bpy.types.PoseBone = utils.get_pose_bone(self.rig_ob, aim_yaw_name)
                 else:
                     yaw = self.rig_ob.pose.bones.get(yaw)
-                con = yaw.constraints.new('COPY_ROTATION')
-                con.target = self.rig_ob
-                con.subtarget = aim_control.name
-                con.use_x = False
-                con.use_y = False
-                con.target_space = 'LOCAL_OWNER_ORIENT'
-                con.owner_space = 'LOCAL'
+                    
+                if yaw is None:
+                    yaw: bpy.types.PoseBone = utils.get_pose_bone(self.rig_ob, aim_yaw_name)
+                    
+                if not (pedestal or pitch or yaw or aim_control):
+                    return
+                
+                if reverse_control:
+                    con = aim_control.constraints.new('COPY_ROTATION')
+                    con.target = self.rig_ob
+                    con.subtarget = pitch.name
+                    con.use_x = False
+                    con.use_z = False
+                    con.target_space = 'LOCAL_OWNER_ORIENT'
+                    con.owner_space = 'LOCAL'
+                    
+                    con = aim_control.constraints.new('COPY_ROTATION')
+                    con.target = self.rig_ob
+                    con.subtarget = yaw.name
+                    con.use_x = False
+                    con.use_y = False
+                    con.target_space = 'LOCAL_OWNER_ORIENT'
+                    con.owner_space = 'LOCAL'
+                else:
+                    con = aim_control.constraints.new('LIMIT_SCALE')
+                    con.use_min_x = True
+                    con.use_min_y = True
+                    con.use_min_z = True
+                    con.use_max_x = True
+                    con.use_max_y = True
+                    con.use_max_z = True
+                    con.min_x = 1
+                    con.min_y = 1
+                    con.min_z = 1
+                    con.max_x = 1
+                    con.max_y = 1
+                    con.max_z = 1
+                    con.use_transform_limit = True
+                    con.owner_space = 'LOCAL'
+                    
+                    con = aim_control.constraints.new('LIMIT_LOCATION')
+                    con.use_min_x = True
+                    con.use_min_y = True
+                    con.use_min_z = True
+                    con.use_max_x = True
+                    con.use_max_y = True
+                    con.use_max_z = True
+                    con.use_transform_limit = True
+                    con.owner_space = 'LOCAL'
+                    
+                    con = pitch.constraints.new('COPY_ROTATION')
+                    con.target = self.rig_ob
+                    con.subtarget = aim_control.name
+                    con.use_x = False
+                    con.use_z = False
+                    con.target_space = 'LOCAL_OWNER_ORIENT'
+                    con.owner_space = 'LOCAL'
+                    
+
+                    con = yaw.constraints.new('COPY_ROTATION')
+                    con.target = self.rig_ob
+                    con.subtarget = aim_control.name
+                    con.use_x = False
+                    con.use_y = False
+                    con.target_space = 'LOCAL_OWNER_ORIENT'
+                    con.owner_space = 'LOCAL'
     
-    def build_bones(self, pedestal=None, pitch=None, yaw=None):
+    def build_bones(self, pedestal=None, pitch=None, yaw=None, set_control=True):
         bone_tail = globals()[f"bone_{self.forward.replace('-', '_negative')}"]
         bpy.ops.object.editmode_toggle()
         if pedestal is None:
-            pedestal = self.rig_data.edit_bones.new(pedestal_name)
-            pedestal.tail = bone_tail
+            for b in self.rig_data.edit_bones:
+                if utils.remove_node_prefix(b.name).lower() == pedestal_name:
+                    pedestal = b
+                    break
+            else:
+                pedestal = self.rig_data.edit_bones.new(pedestal_name)
+                pedestal.tail = bone_tail
         else:
             pedestal = self.rig_data.edit_bones.get(pedestal)
             
@@ -131,16 +165,26 @@ class HaloRig:
         
         if self.has_pose_bones:
             if pitch is None:
-                pitch = self.rig_data.edit_bones.new(aim_pitch_name)
-                pitch.parent = pedestal
-                pitch.tail = bone_tail
+                for b in self.rig_data.edit_bones:
+                    if utils.remove_node_prefix(b.name).lower() == aim_pitch_name:
+                        pitch = b
+                        break
+                else:
+                    pitch = self.rig_data.edit_bones.new(aim_pitch_name)
+                    pitch.parent = pedestal
+                    pitch.tail = bone_tail
             else:
                 pitch = self.rig_data.edit_bones.get(pitch)
             
             if yaw is None:
-                yaw = self.rig_data.edit_bones.new(aim_yaw_name)
-                yaw.parent = pedestal
-                yaw.tail = bone_tail
+                for b in self.rig_data.edit_bones:
+                    if utils.remove_node_prefix(b.name).lower() == aim_yaw_name:
+                        yaw = b
+                        break
+                else:
+                    yaw = self.rig_data.edit_bones.new(aim_yaw_name)
+                    yaw.parent = pedestal
+                    yaw.tail = bone_tail
             else:
                 yaw = self.rig_data.edit_bones.get(yaw)
                 
@@ -154,7 +198,7 @@ class HaloRig:
             aim_control.use_deform = False
             aim_control.parent = pedestal
             aim_control.tail = bone_tail
-            if self.set_scene_rig_props and not self.context.scene.nwo.control_aim:
+            if set_control and self.set_scene_rig_props and not self.context.scene.nwo.control_aim:
                 self.context.scene.nwo.control_aim = aim_control_name
 
         bpy.ops.object.editmode_toggle()

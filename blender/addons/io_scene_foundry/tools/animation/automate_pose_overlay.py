@@ -260,33 +260,43 @@ class PoseBuilder:
         self.yaw = yaw
         self.control = control
         self.uses_control = control is not None
+        self.uses_pitch = pitch is not None
+        self.uses_yaw = yaw is not None
         
     def _pre_build(self, scene: bpy.types.Scene, frame_start: int,  action: bpy.types.Action):
         # Clear any existing keyframe data on aim bones
         fcurves = action.fcurves
+        fc_bone_names = []
         if self.uses_control:
-            for fc in fcurves:
-                if fc.data_path.startswith(f'pose.bones["{self.pitch.name}"].') or fc.data_path.startswith(f'pose.bones["{self.yaw.name}"].') or fc.data_path.startswith(f'pose.bones["{self.control.name}"].'):
-                    fcurves.remove(fc)
-        else:
-            for fc in fcurves:
-                if fc.data_path.startswith(f'pose.bones["{self.pitch.name}"].') or fc.data_path.startswith(f'pose.bones["{self.yaw.name}"].'):
-                    fcurves.remove(fc)
+            fc_bone_names.append(f'pose.bones["{self.control.name}"].')
+        if self.uses_pitch:
+            fc_bone_names.append(f'pose.bones["{self.pitch.name}"].')
+        if self.uses_yaw:
+            fc_bone_names.append(f'pose.bones["{self.yaw.name}"].')
+            
+        fc_bone_names = tuple(fc_bone_names)
+
+        for fc in fcurves:
+            if fc.data_path.startswith(fc_bone_names):
+                fcurves.remove(fc)
                     
         # Set the current frame to the first frame of animation and ensure transform matches pedestal
         scene.frame_set(frame_start)
         if self.uses_control:
             self.control.matrix_basis = self.pedestal.matrix_basis
-        else:
-            self.yaw.matrix_basis = self.pedestal.matrix_basis
+        if self.uses_pitch:
             self.pitch.matrix_basis = self.pedestal.matrix_basis
+        if self.uses_yaw:
+            self.yaw.matrix_basis = self.pedestal.matrix_basis
             
         # Keyframe this as the base pose
         if self.uses_control:
             self.control.keyframe_insert(data_path='rotation_quaternion', frame=scene.frame_current)
         else:
-            self.yaw.keyframe_insert(data_path='rotation_quaternion', frame=scene.frame_current)
-            self.pitch.keyframe_insert(data_path='rotation_quaternion', frame=scene.frame_current)
+            if self.uses_pitch:
+                self.pitch.keyframe_insert(data_path='rotation_quaternion', frame=scene.frame_current)
+            if self.uses_yaw:
+                self.yaw.keyframe_insert(data_path='rotation_quaternion', frame=scene.frame_current)
             
     def _add_wrap_event(self, frame: int, animation, wrap_type: str):
         event = animation.animation_events.add()
@@ -307,10 +317,12 @@ class PoseBuilder:
         else:
             for idx, (yaw, pitch, wrap) in enumerate(transforms):
                 scene.frame_set(animation.frame_start + idx + 1)
-                self.yaw.matrix = self.pedestal.matrix @ yaw
-                self.pitch.matrix = self.pedestal.matrix @ pitch
-                self.yaw.keyframe_insert(data_path='rotation_quaternion', frame=scene.frame_current)
-                self.pitch.keyframe_insert(data_path='rotation_quaternion', frame=scene.frame_current)
+                if self.uses_yaw:
+                    self.yaw.matrix = self.pedestal.matrix @ yaw
+                    self.yaw.keyframe_insert(data_path='rotation_quaternion', frame=scene.frame_current)
+                if self.uses_pitch:
+                    self.pitch.matrix = self.pedestal.matrix @ pitch
+                    self.pitch.keyframe_insert(data_path='rotation_quaternion', frame=scene.frame_current)
                 if wrap_events and wrap:
                     self._add_wrap_event(scene.frame_current, animation, wrap)
         
@@ -357,16 +369,19 @@ class NWO_OT_GeneratePoses(bpy.types.Operator):
     biped_preset: bpy.props.EnumProperty(
         name="Preset",
         items=[
-            ("aim", "Aim", "Computes poses typically used for aiming animations like combat:aim_still_up. Assumes character is right handed as allows for greater turning to the right"),
-            ("look", "Look", "Computes poses typically used for steering animations like any:look"),
+            ("aim", "Aim", "Poses typically used for aiming animations like combat:aim_still_up. Assumes character is right handed as allows for greater turning to the right"),
+            ("aim_turn_left", "Aim Turn Left", "Poses typically used for aiming animations during biped turning"),
+            ("aim_turn_right", "Aim Turn right", "Poses typically used for aiming animations during biped turning"),
+            ("look", "Look", "Poses typically used for steering animations like any:look"),
+            ("biped_acc", "Acceleration", "Poses for a biped being effected by vehicle acceleration"),
         ]
     )
     
     vehicle_preset: bpy.props.EnumProperty(
         name="Preset",
         items=[
-            ("steering", "Steering", "Computes poses typically used for steering animations like vehicle:steering"),
-            ("acc", "Acceleration", "Computes poses typically used accereltion animations like vehicle:acceleration"),
+            ("steering", "Steering", "Poses typically used for steering animations like vehicle:steering"),
+            ("vehicle_acc", "Acceleration / 360 Aiming", "Poses typically used for acceleration animations like vehicle:acceleration and 360 turret aiming like vehicle:aiming"),
         ]
     )
     
@@ -467,34 +482,33 @@ class NWO_OT_GeneratePoses(bpy.types.Operator):
         if not armature.animation_data:
             armature.animation_data_create()
         
-        all_bone_names = {b.name for b in armature.pose.bones}
+        # all_bone_names = {b.name for b in armature.pose.bones}
         
         pedestal_name = nwo.node_usage_pedestal
         if not pedestal_name:
-            for name in all_bone_names:
-                if utils.remove_node_prefix(name).lower() == "pedestal":
-                    pedestal_name = name
-                    nwo.node_usage_pedestal = name
+            p = utils.get_pose_bone(armature, "b_pedestal")
+            if p is not None:
+                pedestal_name = p.name
+                nwo.node_usage_pedestal = p.name
             
         yaw_name = nwo.node_usage_pose_blend_yaw
         if not yaw_name:
-            for name in all_bone_names:
-                if utils.remove_node_prefix(name).lower() == "aim_yaw":
-                    yaw_name = name
-                    nwo.node_usage_pose_blend_yaw = name
-        
-        
+            y = utils.get_pose_bone(armature, "b_aim_yaw")
+            if y is not None:
+                yaw_name = y.name
+                nwo.node_usage_pose_blend_yaw = y.name
+
         pitch_name = nwo.node_usage_pose_blend_pitch
         if not pitch_name:
-            for name in all_bone_names:
-                if utils.remove_node_prefix(name).lower() == "aim_pitch":
-                    pitch_name = name
-                    nwo.node_usage_pose_blend_pitch = name
+            pi = utils.get_pose_bone(armature, "b_aim_pitch")
+            if pi is not None:
+                pitch_name = pi.name
+                nwo.node_usage_pose_blend_pitch = pi.name
                     
         aim_name = nwo.control_aim
         aim = None
         
-        pedestal = armature.pose.bones.get(yaw_name)
+        pedestal = armature.pose.bones.get(pedestal_name)
         if pedestal is None:
             self.report({'WARNING'}, f"Pedestal bone {pedestal_name} does not exist in {armature.name}")
         yaw = armature.pose.bones.get(yaw_name)
@@ -537,7 +551,9 @@ class NWO_OT_GeneratePoses(bpy.types.Operator):
                     else:
                         animation.frame_end = builder.build_from_preset(scene, animation, track.action, self.add_wrap_events and for_biped, self.biped_preset if for_biped else self.vehicle_preset)
                     break
-            
+
+        scene.frame_start = animation.frame_start
+        scene.frame_end = animation.frame_end
         scene.frame_current = current_frame
         
         return {'FINISHED'}

@@ -397,6 +397,48 @@ class NWO_FixArmatureTransforms(bpy.types.Operator):
         scene.nwo.armature_bad_transforms = False
         return {'FINISHED'}
     
+class NWO_OT_AddAimDisplay(bpy.types.Operator):
+    bl_idname = 'nwo.add_aim_display'
+    bl_label = 'Add Aim Display Bone'
+    bl_description = 'Adds an aim display bone to the selected armature'
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    def execute(self, context):
+        utils.set_object_mode(context)
+        scene_nwo = context.scene.nwo
+        tail_scale = 1 if scene_nwo.scale == 'blender' else (1 / 0.03048)
+        arm = utils.get_rig_prioritize_active(context)
+        if not arm:
+            self.report({'WARNING'}, 'No Armature Found')
+            return {'CANCELLED'}
+        bones = arm.data.bones
+        scene_nwo.main_armature = arm
+        for b in bones:
+            if b.use_deform and not b.parent:
+                scene_nwo.node_usage_pedestal = b.name
+                parent_bone = b
+                break
+        else:
+            self.report({'WARNING'}, 'Failed to assign pedestal node usage')
+            return {'FINISHED'}
+        
+        for b in bones:
+            if not scene_nwo.node_usage_pose_blend_pitch and b.use_deform and b.parent == parent_bone and 'pitch' in b.name:
+                scene_nwo.node_usage_pose_blend_pitch = b.name
+            elif not scene_nwo.node_usage_pose_blend_yaw and b.use_deform and b.parent == parent_bone and 'yaw' in b.name:
+                scene_nwo.node_usage_pose_blend_yaw = b.name
+                
+        rig = HaloRig(context, tail_scale, scene_nwo.forward_direction, False, True)
+        rig.rig_ob = arm
+        rig.rig_data = arm.data
+        context.view_layer.objects.active = arm
+        arm.select_set(True)
+        rig.has_pose_bones = True
+        rig.build_bones(pedestal=scene_nwo.node_usage_pedestal if scene_nwo.node_usage_pedestal else None, pitch=scene_nwo.node_usage_pose_blend_pitch if scene_nwo.node_usage_pose_blend_pitch else None, yaw=scene_nwo.node_usage_pose_blend_yaw if scene_nwo.node_usage_pose_blend_yaw else None, set_control=False)
+        rig.build_and_apply_control_shapes(pitch=scene_nwo.node_usage_pose_blend_pitch, yaw=scene_nwo.node_usage_pose_blend_yaw, aim_control_only=True, reverse_control=True)
+        # context.scene.nwo.needs_pose_bones = False
+        return {'FINISHED'}
+    
 class NWO_AddPoseBones(bpy.types.Operator):
     bl_idname = 'nwo.add_pose_bones'
     bl_label = 'Add Aim Bones'
@@ -416,15 +458,15 @@ class NWO_AddPoseBones(bpy.types.Operator):
         if self.armature:
             arm = bpy.data.objects.get(self.armature)
         else:
-            arm = utils.get_rig(context)
+            arm = utils.get_rig_prioritize_active(context)
         if not arm:
             self.report({'WARNING'}, 'No Armature Found')
             return {'CANCELLED'}
+        scene_nwo.main_armature = arm
         bones = arm.data.bones
         for b in bones:
             if b.use_deform and not b.parent:
-                if scene_nwo.main_armature == arm:
-                    scene_nwo.node_usage_pedestal = b.name
+                scene_nwo.node_usage_pedestal = b.name
                 parent_bone = b
                 break
         else:
@@ -432,9 +474,9 @@ class NWO_AddPoseBones(bpy.types.Operator):
             return {'FINISHED'}
         
         for b in bones:
-            if scene_nwo.main_armature == arm and not scene_nwo.node_usage_pose_blend_pitch and b.use_deform and b.parent == parent_bone and 'pitch' in b.name:
+            if not scene_nwo.node_usage_pose_blend_pitch and b.use_deform and b.parent == parent_bone and 'pitch' in b.name:
                 scene_nwo.node_usage_pose_blend_pitch = b.name
-            elif scene_nwo.main_armature == arm and not scene_nwo.node_usage_pose_blend_yaw and b.use_deform and b.parent == parent_bone and 'yaw' in b.name:
+            elif not scene_nwo.node_usage_pose_blend_yaw and b.use_deform and b.parent == parent_bone and 'yaw' in b.name:
                 scene_nwo.node_usage_pose_blend_yaw = b.name
                 
         rig = HaloRig(context, tail_scale, scene_nwo.forward_direction, False, True)

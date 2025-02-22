@@ -27,7 +27,7 @@ from .scale_models import NWO_OT_AddScaleModel
 from .animation.automate_pose_overlay import NWO_OT_GeneratePoses
 from .rigging.convert_to_halo_rig import NWO_OT_ConvertToHaloRig
 from .rigging.create_rig import NWO_OT_AddRig, NWO_OT_SelectArmature
-from .rigging.validation import NWO_AddPoseBones, NWO_FixArmatureTransforms, NWO_FixPoseBones, NWO_FixRootBone, NWO_ValidateRig
+from .rigging.validation import NWO_AddPoseBones, NWO_FixArmatureTransforms, NWO_FixPoseBones, NWO_FixRootBone, NWO_ValidateRig,NWO_OT_AddAimDisplay
 from .scene_scaler import NWO_ScaleScene
 from .append_foundry_materials import NWO_AppendFoundryMaterials
 from .auto_seam import NWO_AutoSeam
@@ -122,6 +122,7 @@ classes = (
     NWO_JoinHalo,
     NWO_FarmShaders,
     NWO_AddPoseBones,
+    NWO_OT_AddAimDisplay,
     NWO_ValidateRig,
     NWO_FixRootBone,
     NWO_FixPoseBones,
