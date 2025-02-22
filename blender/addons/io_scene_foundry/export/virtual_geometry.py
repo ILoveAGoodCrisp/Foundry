@@ -346,8 +346,6 @@ class VirtualAnimation:
                     bone_inverse_matrices[bone.pbone] = matrix_world.inverted()
                     matrix = bone_inverse_matrices[bone.parent] @ matrix_world
                     if self.overlay and bone.is_aim_bone:
-                        if self.name == "vehicle acceleration":
-                            print(bone.name, frame, bone.pbone.matrix.to_euler('XYZ'))
                         aim_euler = tuple(bone.pbone.matrix.to_euler('XYZ'))
                         if first_frame:
                             pedestal_euler = tuple(bone.parent.matrix.to_euler('XYZ'))
