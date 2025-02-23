@@ -374,7 +374,7 @@ class PoseBuilder:
         if self.uses_control:
             for idx, (yaw, pitch, wrap) in enumerate(transforms):
                 scene.frame_set(animation.frame_start + idx + 1)
-                self.control.matrix_basis = self.pedestal.matrix_basis @ yaw @ pitch
+                self.control.matrix_basis =  yaw @ pitch @ self.pedestal.matrix_basis
                 self.control.keyframe_insert(data_path='rotation_quaternion', frame=scene.frame_current)
                 if wrap_events and wrap:
                     self._add_wrap_event(scene.frame_current, animation, wrap)
@@ -743,7 +743,7 @@ class NWO_OT_ConvertLegacyPoseOverlays(bpy.types.Operator):
     )
     
     filter_glob: bpy.props.StringProperty(
-        default="*.m*_animation*",
+        default="*.m*_a_*graph;*.m*_animations",
         options={"HIDDEN", "SKIP_SAVE"},
         maxlen=1024,
     )

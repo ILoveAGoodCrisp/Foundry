@@ -4,11 +4,12 @@ from collections import defaultdict
 import csv
 from ctypes import Array, Structure, c_char_p, c_float, c_int, POINTER, c_int16, c_ubyte, c_void_p, cast, create_string_buffer, memmove, pointer, sizeof
 import logging
-from math import degrees
+from math import degrees, radians
+import math
 from pathlib import Path
 import bmesh
 import bpy
-from mathutils import Matrix, Vector
+from mathutils import Euler, Matrix, Vector
 import numpy as np
 
 from ..tools.light_exporter import calc_attenutation
@@ -342,24 +343,53 @@ class VirtualAnimation:
                 if bone.is_object:
                     matrix = scene.rotation_matrix @ bone.pbone.matrix_world
                 elif bone.parent:
-                    matrix_world = scene.rotation_matrix @ bone.ob.matrix_world @ bone.pbone.matrix
-                    bone_inverse_matrices[bone.pbone] = matrix_world.inverted()
-                    matrix = bone_inverse_matrices[bone.parent] @ matrix_world
                     if self.overlay and bone.is_aim_bone:
-                        aim_euler = tuple(bone.pbone.matrix.to_euler('XYZ'))
-                        if first_frame:
-                            pedestal_euler = tuple(bone.parent.matrix.to_euler('XYZ'))
-                            if aim_euler != pedestal_euler:
-                                scene.warnings.append(f"Animation {self.name} is a overlay but on the first frame the aim bone {bone.name} has a different rotation to the root bone {bone.parent.name}. If this is intended to be a pose overlay, it will fail\n{bone.parent.name} rotation: {pedestal_euler}\n{bone.pbone.name} rotation: {aim_euler}")
-                                failed_pose_overlay = True
+                        if scene.uses_control_aim:
+                            matrix_world = scene.rotation_matrix @ bone.ob.matrix_world @ scene.control_aim.matrix
                         else:
-                            pose_overlay_frame_data[bone.name].append(aim_euler)        
+                            aim_euler = tuple(bone.pbone.matrix.to_euler('XYZ'))
+                            matrix_world = scene.rotation_matrix @ bone.ob.matrix_world @ bone.pbone.matrix
+                    else:
+                        matrix_world = scene.rotation_matrix @ bone.ob.matrix_world @ bone.pbone.matrix
+                        
+                    bone_inverse_matrices[bone.pbone] = matrix_world.inverted()
+                    matrix = bone_inverse_matrices[bone.parent] @ matrix_world    
                         
                 else:
                     matrix = scene.rotation_matrix @ bone.ob.matrix_world @ bone.pbone.matrix
                     bone_inverse_matrices[bone.pbone] = matrix.inverted()
 
                 loc, rot, sca = matrix.decompose()
+                
+                if self.overlay and bone.is_aim_bone:
+                    euler = rot.to_euler('XYZ')             
+                    if first_frame:
+                        euler.x = 0
+                        euler.y = 0
+                        euler.z = 0
+                    else:
+                        # Clear rotation on wrong axis
+                        if "yaw" in bone.name:
+                            # Adjust for gimbal lock if needed
+                            if abs(math.cos(euler.y)) < 1e-6 and abs(math.cos(euler.z)) > 0.98:
+                                # print("GIMBAL LOCK: ", frame)
+                                euler.z = -euler.x
+
+                            euler.x = 0
+                            euler.y = 0
+                        else:
+                            euler.z = 0
+                            euler.x = 0
+                            # clamp the pitch
+                            euler = rot.to_euler('XYZ')
+                            if scene.corinth:
+                                euler.y = utils.clamp(euler.y, radians(-90), radians(90))
+                            else: # Reach pose overlays seem to fail when pitch is too close to 90. 88.8 appears to be about as close as we can get to 90 without error
+                                euler.y = utils.clamp(euler.y, radians(-88.8), radians(88.8))
+
+                        pose_overlay_frame_data[bone.name].append(tuple(euler))
+                        # print(bone.name, f"FRAME {frame}", [degrees(n) for n in euler])
+                    rot = euler.to_quaternion()
                 
                 position = (c_float * 3)(loc.x, loc.y, loc.z)
                 orientation = (c_float * 4)(rot.x, rot.y, rot.z, rot.w)
@@ -380,7 +410,7 @@ class VirtualAnimation:
             
         self.create_vector_track_groups(scene, vector_events)
             
-        if self.overlay and pose_overlay_frame_data and not failed_pose_overlay:
+        if self.overlay and pose_overlay_frame_data:
             frame_data = zip(*pose_overlay_frame_data.values())
             data_map = defaultdict(list)
             for idx, data in enumerate(frame_data):
@@ -1708,6 +1738,9 @@ class VirtualScene:
         self.cinematic_scope = 'BOTH'
         
         self.vector_tracks = []
+        
+        self.uses_control_aim = False
+        self.control_aim = None
         
         spath = "shaders\invalid"
         stype = "material" if corinth else "shader"

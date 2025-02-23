@@ -450,7 +450,10 @@ class NWO_Import(bpy.types.Operator):
                         addon_utils.disable('io_scene_halo')
 
                     if needs_scaling:
-                        utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=[arm] + imported_jms_objects, actions=imported_jma_animations)
+                        if arm is None:
+                            utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_jms_objects, actions=imported_jma_animations)
+                        else:
+                            utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=[arm] + imported_jms_objects, actions=imported_jma_animations)
                         
                 if 'model' in importer.extensions:
                     importer.tag_render = self.tag_render

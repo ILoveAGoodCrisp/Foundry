@@ -4288,3 +4288,9 @@ def tag_to_xml(filepath: Path | str) -> None | Path:
     
     if path_xml.exists():
         return path_xml
+    
+def within_tolerance(value_a: float, value_b: float, tolerance=0.1):
+    if value_a < value_b:
+        return value_a + tolerance > value_b
+    else:
+        return value_b + tolerance > value_a
