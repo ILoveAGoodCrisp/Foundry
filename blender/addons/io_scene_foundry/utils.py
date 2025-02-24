@@ -4273,11 +4273,11 @@ def tag_to_xml(filepath: Path | str) -> None | Path:
         print_warning(f"Failed to find Tool by searching backwards from {filepath}")
         return
     
-    # H3 needs the full path to the tag, CE and H2 need the relative path
-    if Path(dir, "bin", "ManagedBlam.dll").exists():
-        final_filepath = str(filepath)
-    else:
+    # H3/H2 needs the full path to the tag, CE needs the EK relative path
+    if Path(dir, "halo_tag_test.exe").exists():
         final_filepath = str(filepath.relative_to(dir))
+    else:
+        final_filepath = str(filepath)
         
     output_path = f"{filepath}.xml"
     os.chdir(tool_path.parent)

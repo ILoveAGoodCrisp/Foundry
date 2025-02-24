@@ -467,8 +467,8 @@ class NWO_OT_GeneratePoses(bpy.types.Operator):
         name="Type",
         description="Type of poses to generate",
         items=[
-            ("legacy", "Blend Screen", "Computes poses from the data used by legacy blend screens"),
             ("preset", "Preset", "Choose from a list of preset poses"),
+            ("legacy", "Blend Screen", "Computes poses from the data used by legacy blend screens"),
         ]
     )
     
@@ -660,10 +660,13 @@ def parse_xml_for_blend_screens(xml_path: Path) -> dict | None:
     xml_string = ""
     with open(xml_path, "r", errors="replace") as f:
         for line in f.readlines():
-            if "<" in line and not "<!" in line:
+            if "<" in line and not "<!" in line and not "]]>" in line:
                 xml_string += line
                 
     xml_string = xml_string.strip("\n")
+    
+    # with open(xml_path, "w") as f:
+    #     f.write(xml_string)
         
     # try:
     header = ET.fromstring(xml_string)
@@ -743,7 +746,7 @@ class NWO_OT_ConvertLegacyPoseOverlays(bpy.types.Operator):
     )
     
     filter_glob: bpy.props.StringProperty(
-        default="*.m*_a_*graph;*.m*_animations;*.xml",
+        default="*.m*_a*_*graph;*.m*_animations;*xml;",
         options={"HIDDEN", "SKIP_SAVE"},
         maxlen=1024,
     )

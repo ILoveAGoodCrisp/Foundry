@@ -1,6 +1,8 @@
 
 
 import math
+import os
+import time
 import bpy
 from mathutils import Euler, Matrix, Quaternion
 from ... import utils
@@ -107,17 +109,33 @@ class NWO_OT_MovementDataToPedestal(bpy.types.Operator):
         self.ob.data.pose_position = 'POSE'
         context.view_layer.update()
         
+        os.system("cls")
+        start = time.perf_counter()
+        if context.scene.nwo_export.show_output:
+            bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
+            context.scene.nwo_export.show_output = False
+            
+        export_title = f"►►► MOVEMENT DATA TRANSFER ◄◄◄\n"
+        print(export_title)
+        
         if self.all_animations:
+            print("Converting All Movement Animations")
             for idx, animation in enumerate(context.scene.nwo.animations):
                 if animation.animation_type == "base" and animation.animation_movement_data != "none":
+                    print(f"--- {animation.name}")
                     transfer_movement(context, animation, idx, self.ob, self.source_bone, self.root_bone, source_rest_matrix, root_rest_matrix)
         else:
+            print(f"Converting {current_animation.name}")
             transfer_movement(context, current_animation, current_animation_index, self.ob, self.source_bone, self.root_bone, source_rest_matrix, root_rest_matrix)
             
         
         self.ob.data.pose_position = current_pose
         context.scene.nwo.active_animation_index = current_animation_index
         context.scene.frame_set(current_frame)
+        
+        print("\n-----------------------------------------------------------------------")
+        print(f"Completed in {utils.human_time(time.perf_counter() - start, True)}")
+        print("-----------------------------------------------------------------------\n")
         
         return {'FINISHED'}
             
