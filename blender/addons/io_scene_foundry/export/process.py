@@ -1542,7 +1542,7 @@ class ExportScene:
                 active_only = self.export_settings.export_animations == 'ACTIVE'
                 for animation in valid_animations:
                     if active_only and animation == self.current_animation:
-                        self.active_animation = animation.name.strip().lower().replace(" ", ":")
+                        self.active_animation = animation.name.strip().lower()
                         shape_key_objects = []
                         for track in animation.action_tracks:
                             if track.object and track.action:

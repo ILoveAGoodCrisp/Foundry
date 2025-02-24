@@ -149,7 +149,8 @@ class SidecarImport:
             
         if self.asset_type == AssetType.ANIMATION:
             if self.corinth and self.export_settings.export_animations == 'ACTIVE':
-                flags.append(f"animation {self.active_animation}")
+                flags.append("animation")
+                flags.append(self.active_animation)
             else:
                 flags.append("animations")
         elif self.asset_type == AssetType.MODEL:
@@ -160,7 +161,8 @@ class SidecarImport:
             if self.export_settings.export_physics:
                 flags.append("physics")
             if self.corinth and self.export_settings.export_animations == 'ACTIVE':
-                flags.append(f'animation {self.active_animation}')
+                flags.append("animation")
+                flags.append(self.active_animation)
             elif self.export_settings.export_animations == 'ALL':
                 flags.append("animations")
 
