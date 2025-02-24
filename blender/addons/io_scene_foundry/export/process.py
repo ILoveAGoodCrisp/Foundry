@@ -608,11 +608,6 @@ class ExportScene:
         self.virtual_scene.selected_cinematic_objects_only = self.export_settings.selected_cinematic_objects_only
         self.virtual_scene.selected_actors = self.selected_actors
         self.virtual_scene.cinematic_scope = self.export_settings.cinematic_scope
-        if self.scene_settings.control_aim and self.main_armature:
-            pb = self.main_armature.pose.bones.get(self.scene_settings.control_aim)
-            if pb is not None:
-                self.virtual_scene.control_aim = pb
-                self.virtual_scene.uses_control_aim = True
         self.context.view_layer.update()
 
     def _get_object_type(self, ob) -> ObjectType:

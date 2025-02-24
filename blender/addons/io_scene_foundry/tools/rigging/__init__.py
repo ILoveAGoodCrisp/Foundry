@@ -159,7 +159,7 @@ class HaloRig:
                     con.owner_space = 'LOCAL'
                     
                     # constraint to handle gimbal lock scenario where X becomes our yaw
-                    con = yaw.constraints.new('TRANSFORMATION')
+                    con = yaw.constraints.new('TRANSFORM')
                     con.target = self.rig_ob
                     con.subtarget = aim_control.name
                     con.map_from = 'ROTATION'
@@ -167,8 +167,8 @@ class HaloRig:
                     con.from_max_x_rot = radians(90)
                     con.map_to = 'ROTATION'
                     con.map_to_z_from = 'X'
-                    con.to_min_x_rot = radians(-90)
-                    con.to_max_x_rot = radians(90)
+                    con.to_min_z_rot = radians(-90)
+                    con.to_max_z_rot = radians(90)
                     con.target_space = 'LOCAL_OWNER_ORIENT'
                     con.owner_space = 'LOCAL'
     
