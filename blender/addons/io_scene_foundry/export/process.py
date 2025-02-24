@@ -213,6 +213,7 @@ class ExportScene:
                 self.cinematic_scene = CinematicScene(self.asset_path_relative, f"{self.asset_name}_000", context.scene)
                 
         self.sidecar = Sidecar(sidecar_path_full, sidecar_path, asset_path, asset_name, self.asset_type, scene_settings, corinth, context, self.tags_dir, parent_sidecar)
+        self.active_animation = ""
         
     def _get_export_tag_types(self):
         tag_types = set()
@@ -1541,6 +1542,7 @@ class ExportScene:
                 active_only = self.export_settings.export_animations == 'ACTIVE'
                 for animation in valid_animations:
                     if active_only and animation == self.current_animation:
+                        self.active_animation = animation.name.strip().lower().replace(" ", ":")
                         shape_key_objects = []
                         for track in animation.action_tracks:
                             if track.object and track.action:
@@ -2087,9 +2089,9 @@ class ExportScene:
         else:
             structure = self.virtual_scene.structure
         if self.is_child_asset:
-            sidecar_importer = SidecarImport(self.parent_asset_path, self.parent_asset_name, self.asset_type, self.sidecar.parent_sidecar_relative, self.scene_settings, self.export_settings, self.selected_bsps, self.corinth, structure, self.tags_dir, self.selected_actors, self.cinematic_scene)
+            sidecar_importer = SidecarImport(self.parent_asset_path, self.parent_asset_name, self.asset_type, self.sidecar.parent_sidecar_relative, self.scene_settings, self.export_settings, self.selected_bsps, self.corinth, structure, self.tags_dir, self.selected_actors, self.cinematic_scene, self.active_animation)
         else:
-            sidecar_importer = SidecarImport(self.asset_path, self.asset_name, self.asset_type, self.sidecar_path, self.scene_settings, self.export_settings, self.selected_bsps, self.corinth, structure, self.tags_dir, self.selected_actors, self.cinematic_scene)
+            sidecar_importer = SidecarImport(self.asset_path, self.asset_name, self.asset_type, self.sidecar_path, self.scene_settings, self.export_settings, self.selected_bsps, self.corinth, structure, self.tags_dir, self.selected_actors, self.cinematic_scene, self.active_animation)
         if self.corinth and self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB}:
             sidecar_importer.save_lighting_infos()
         sidecar_importer.setup_templates()

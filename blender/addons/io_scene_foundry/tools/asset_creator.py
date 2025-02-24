@@ -302,7 +302,7 @@ class NWO_OT_NewAsset(bpy.types.Operator):
         name="Animation Type",
         items=[
             ("first_person", "First Person", ""),
-            ("standalone", "Standalone / Cinematic", ""),
+            ("standalone", "Standalone", ""),
         ]
     )
     

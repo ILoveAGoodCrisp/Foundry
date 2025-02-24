@@ -655,7 +655,6 @@ class NWO_OT_GeneratePoses(bpy.types.Operator):
             
 def parse_xml_for_blend_screens(xml_path: Path) -> dict | None:
     data = {}
-    blend_screens = []
     # These exported XMLs can't be parsed by default because they contain data, so clear these out
     xml_string = ""
     with open(xml_path, "r", errors="replace") as f:
@@ -675,8 +674,81 @@ def parse_xml_for_blend_screens(xml_path: Path) -> dict | None:
     if group is None:
         return utils.print_warning("XML does not declare tag group")
     if group == "model_animations": # H1
-        pass
+        units_block = None
+        vehicles_block = None
+        animations_block = None
+        animation_names = []
+        for element in header.findall("block"):
+            block_name = element.attrib["name"]
+            match block_name:
+                case 'UNITS':
+                    units_block = element
+                case 'VEHICLES':
+                    vehicles_block = element
+                case 'animations':
+                    animations_block = element
+                    
+        if animations_block is None or (units_block is None and vehicles_block is None):
+            return
+        
+        for element in animations_block.findall("element"):
+            name_field = element.find("field")
+            animation_names.append(name_field.text)
+                
+        if units_block is not None:
+            for bs_element in units_block.findall("element"):
+                blend_screen = BlendScreen()
+                blend_screen.from_xml_element(bs_element)
+                blend_screen.compute_transforms()
+                
+                for bs_block in bs_element.findall("block"):
+                    bs_block_name = bs_block.attrib["name"]
+                    if bs_block_name == "animations":
+                        for anim_element in bs_block.findall("element"):
+                            block_index_element = anim_element.find("block_index")
+                            anim_index = int(block_index_element.attrib["index"])
+                            if anim_index == -1:
+                                continue
+                            anim_name = animation_names[anim_index]
+                            data[anim_name.strip().replace(" ", ":").lower()] = blend_screen
+                    elif bs_block_name == "weapons":
+                        for as_element in bs_block.findall("element"):
+                            blend_screen = BlendScreen()
+                            blend_screen.from_xml_element(bs_element)
+                            blend_screen.compute_transforms()
+                            for as_block in as_element.findall("block"):
+                                as_block_name = as_block.attrib["name"]
+                                if as_block_name == "animations":
+                                    for anim_element in as_block.findall("element"):
+                                        block_index_element = anim_element.find("block_index")
+                                        anim_index = int(block_index_element.attrib["index"])
+                                        if anim_index == -1:
+                                            continue
+                                        anim_name = animation_names[anim_index]
+                                        data[anim_name.strip().replace(" ", ":").lower()] = blend_screen
+                                break
+                        break
+                                        
+        if vehicles_block is not None:
+            for bs_element in units_block.findall("element"):
+                blend_screen = BlendScreen()
+                blend_screen.from_xml_element(bs_element)
+                blend_screen.compute_transforms()
+                
+                for bs_block in bs_element.findall("block"):
+                    bs_block_name = bs_block.attrib["name"]
+                    if bs_block_name == "animations":
+                        for anim_element in bs_block.findall("element"):
+                            block_index_element = anim_element.find("block_index")
+                            anim_index = int(block_index_element.attrib["index"])
+                            if anim_index == -1:
+                                continue
+                            anim_name = animation_names[anim_index]
+                            data[anim_name.strip().replace(" ", ":").lower()] = blend_screen
+                        break
+                    
     else: # H2+
+        blend_screens = []
         found_blend_screens = False
         found_animations = False
         for element in header.findall("block"):

@@ -1410,7 +1410,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         options=set(),
         items=[
             ("first_person", "First Person", ""),
-            ("standalone", "Standalone / Cinematic", ""),
+            ("standalone", "Standalone", ""),
         ]
     )
 

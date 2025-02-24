@@ -27,7 +27,7 @@ default_templates = [
 ]
 
 class SidecarImport:
-    def __init__(self, asset_path: str, asset_name: str, asset_type: AssetType, sidecar_path: Path, scene_settings: NWO_ScenePropertiesGroup, export_settings: NWO_HaloExportPropertiesGroup, selected_bsps: list[str], corinth: bool, bsps: set, tags_dir, selected_actors: set, cinematic_scene):
+    def __init__(self, asset_path: str, asset_name: str, asset_type: AssetType, sidecar_path: Path, scene_settings: NWO_ScenePropertiesGroup, export_settings: NWO_HaloExportPropertiesGroup, selected_bsps: list[str], corinth: bool, bsps: set, tags_dir, selected_actors: set, cinematic_scene, active_animation: str):
         self.asset_path = asset_path
         self.relative_asset_path = utils.relative_path(asset_path)
         self.asset_name = asset_name
@@ -44,6 +44,7 @@ class SidecarImport:
         self.error = ""
         self.tags_dir = tags_dir
         self.cinematic_scene = cinematic_scene
+        self.active_animation = active_animation
     
     def setup_templates(self):
         templates = default_templates.copy()
@@ -145,6 +146,23 @@ class SidecarImport:
                 
         if self.cinematic_scene is not None:
             flags.append(self.cinematic_scene.name)
+            
+        if self.asset_type == AssetType.ANIMATION:
+            if self.corinth and self.export_settings.export_animations == 'ACTIVE':
+                flags.append(f"animation {self.active_animation}")
+            else:
+                flags.append("animations")
+        elif self.asset_type == AssetType.MODEL:
+            if self.export_settings.export_render or self.export_settings.export_markers or self.export_settings.export_skeleton:
+                flags.append("render")
+            if self.export_settings.export_collision:
+                flags.append("collision")
+            if self.export_settings.export_physics:
+                flags.append("physics")
+            if self.corinth and self.export_settings.export_animations == 'ACTIVE':
+                flags.append(f'animation {self.active_animation}')
+            elif self.export_settings.export_animations == 'ALL':
+                flags.append("animations")
 
         return flags
     
