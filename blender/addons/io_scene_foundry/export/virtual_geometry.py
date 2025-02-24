@@ -343,15 +343,10 @@ class VirtualAnimation:
                 if bone.is_object:
                     matrix = scene.rotation_matrix @ bone.pbone.matrix_world
                 elif bone.parent:
-                    if self.overlay and bone.is_aim_bone:
-                        if scene.uses_control_aim:
-                            matrix_world = scene.rotation_matrix @ bone.ob.matrix_world @ scene.control_aim.matrix
-                        else:
-                            aim_euler = tuple(bone.pbone.matrix.to_euler('XYZ'))
-                            matrix_world = scene.rotation_matrix @ bone.ob.matrix_world @ bone.pbone.matrix
+                    if self.overlay and bone.is_aim_bone and scene.uses_control_aim:
+                        matrix_world = scene.rotation_matrix @ bone.ob.matrix_world @ scene.control_aim.matrix
                     else:
                         matrix_world = scene.rotation_matrix @ bone.ob.matrix_world @ bone.pbone.matrix
-                        
                     bone_inverse_matrices[bone.pbone] = matrix_world.inverted()
                     matrix = bone_inverse_matrices[bone.parent] @ matrix_world    
                         
@@ -382,13 +377,15 @@ class VirtualAnimation:
                             euler.x = 0
                             # clamp the pitch
                             euler = rot.to_euler('XYZ')
-                            if scene.corinth:
-                                euler.y = utils.clamp(euler.y, radians(-90), radians(90))
-                            else: # Reach pose overlays seem to fail when pitch is too close to 90. 88.8 appears to be about as close as we can get to 90 without error
-                                euler.y = utils.clamp(euler.y, radians(-88.8), radians(88.8))
+                            euler.y = utils.clamp(euler.y, radians(-90), radians(90))
+                            # if scene.corinth:
+                            #     euler.y = utils.clamp(euler.y, radians(-90), radians(90))
+                            # else: # Reach pose overlays seem to fail when pitch is too close to 90. 88.8 appears to be about as close as we can get to 90 without error
+                            #     euler.y = utils.clamp(euler.y, radians(-88.8), radians(88.8))
 
-                        pose_overlay_frame_data[bone.name].append(tuple(euler))
-                        # print(bone.name, f"FRAME {frame}", [degrees(n) for n in euler])
+                    pose_overlay_frame_data[bone.name].append(tuple(euler))
+                    #     # print(bone.name, f"FRAME {frame}", [degrees(n) for n in euler])
+                    # print(bone.name, frame, [degrees(n) for n in euler])
                     rot = euler.to_quaternion()
                 
                 position = (c_float * 3)(loc.x, loc.y, loc.z)
@@ -523,7 +520,7 @@ class VirtualAnimation:
         frame_total = self.frame_count - 1
         granny_animation = GrannyAnimation()
         granny_animation.name = self.name.encode()
-        granny_animation.duration = scene.time_step * (frame_total + 1)
+        granny_animation.duration = scene.time_step * frame_total
         granny_animation.time_step = scene.time_step
         granny_animation.oversampling = 1
         all_track_groups = [self.granny_track_group] + self.granny_event_track_groups
@@ -1687,7 +1684,8 @@ class VirtualScene:
         self.skeleton_node: VirtualNode = None
         self.skeleton_model: VirtualModel = None
         self.skeleton_object: bpy.types.Object
-        self.time_step = time_step
+        # self.time_step = time_step
+        self.time_step = 1.0010000467300415 / 30
         self.corinth = corinth
         self.export_info: ExportInfo = None
         self.valid_bones = []

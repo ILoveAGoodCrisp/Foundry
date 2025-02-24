@@ -249,13 +249,20 @@ class Granny:
         self.file_info.textures = textures
 
     def write_skeletons(self, export_info=None, vector_tracks=[]):
-        num_skeletons = len(self.export_skeletons) + int(bool(export_info))
+        info_int = int(bool(export_info))
+        num_skeletons = len(self.export_skeletons) + info_int
         skeletons = (POINTER(GrannySkeleton) * num_skeletons)()
+        
+        if export_info:
+            granny_skeleton = GrannySkeleton()
+            skeletons[0] = pointer(granny_skeleton)
+            self.granny_export_info = skeletons[0]
+            self._populate_export_info_skeleton(granny_skeleton, export_info)
 
         for i, export_skeleton in enumerate(self.export_skeletons):
             granny_skeleton = GrannySkeleton()
             ptr_skeleton = pointer(granny_skeleton)
-            skeletons[i] = ptr_skeleton
+            skeletons[i + info_int] = ptr_skeleton
             export_skeleton.granny = ptr_skeleton
             self._populate_skeleton(granny_skeleton, export_skeleton)
             # handle vector tracks
@@ -268,12 +275,6 @@ class Granny:
                     
             for idx in reversed(keyed_vector_track_idexes):
                 vector_tracks.pop(idx)
-
-        if export_info:
-            granny_skeleton = GrannySkeleton()
-            skeletons[-1] = pointer(granny_skeleton)
-            self.granny_export_info = skeletons[-1]
-            self._populate_export_info_skeleton(granny_skeleton, export_info)
 
         self.file_info.skeleton_count = num_skeletons
         self.file_info.skeletons = skeletons

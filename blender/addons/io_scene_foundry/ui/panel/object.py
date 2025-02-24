@@ -409,7 +409,7 @@ class NWO_OT_FaceLayerAdd(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.object and context.object.type == "MESH" and context.mode == 'EDIT_MESH'
+        return context and context.object and context.object.type == "MESH" and context.mode == 'EDIT_MESH'
 
     new: bpy.props.BoolProperty(default=True)
 
