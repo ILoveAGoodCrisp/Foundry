@@ -743,7 +743,7 @@ class NWO_OT_ConvertLegacyPoseOverlays(bpy.types.Operator):
     )
     
     filter_glob: bpy.props.StringProperty(
-        default="*.m*_a_*graph;*.m*_animations",
+        default="*.m*_a_*graph;*.m*_animations;*.xml",
         options={"HIDDEN", "SKIP_SAVE"},
         maxlen=1024,
     )
@@ -776,11 +776,14 @@ class NWO_OT_ConvertLegacyPoseOverlays(bpy.types.Operator):
         export_title = f"►►► LEGACY POSE OVERLAY CONVERTER ◄◄◄\n"
         print(export_title)
         
-        print(f"--- Converting {self.filepath} to XML")
-        xml_path = utils.tag_to_xml(self.filepath)
-        if xml_path is None:
-            self.report({'WARNING'}, f"Failed to export {self.filepath} to xml")
-            return {'CANCELLED'}
+        if self.filepath.endswith(".xml"):
+            xml_path = Path(self.filepath)
+        else:
+            print(f"--- Converting {self.filepath} to XML")
+            xml_path = utils.tag_to_xml(self.filepath)
+            if xml_path is None:
+                self.report({'WARNING'}, f"Failed to export {self.filepath} to xml")
+                return {'CANCELLED'}
         
         print(f"--- Reading blend screen data from {xml_path}")
         
