@@ -617,31 +617,108 @@ class ShaderTag(Tag):
                 return 0
             return option_enum
         
-    def _mapping_from_parameter_name(self, name, mapping={}):
+    # def _mapping_from_parameter_name(self, name, mapping={}):
+    #     if type(name) == str:
+    #         element = self._Element_from_field_value(self.block_parameters, 'parameter name', name)
+    #     else:
+    #         for n in name:
+    #             element = self._Element_from_field_value(self.block_parameters, 'parameter name', n)
+    #             if element: break
+                
+    #     if element is None:
+    #         if not self.corinth and self.reference.Path:
+    #             with ShaderTag(path=self.reference.Path) as shader:
+    #                 shader._mapping_from_parameter_name(name, mapping)
+    #         else:
+    #             return
+    #     else:
+    #         block_animated_parameters = element.SelectField(self.function_parameters)
+    #         for e in block_animated_parameters.Elements:
+    #             ap_type = AnimatedParameterType(e.Fields[0].Value)
+    #             ap = AnimatedParameter()
+    #             ap.from_element(e, self.animated_function)
+    #             mapping[ap_type] = ap
+                    
+    #         if not self.corinth and self.reference.Path:
+    #             with ShaderTag(path=self.reference.Path) as shader:
+    #                 shader._mapping_from_parameter_name(name, mapping)
+                    
+    def _image_from_parameter_name(self, name, blue_channel_fix=False):
+        """Saves an image (or gets the already existing one) from a shader parameter element"""
         if type(name) == str:
             element = self._Element_from_field_value(self.block_parameters, 'parameter name', name)
         else:
             for n in name:
-                element = self._Element_from_field_value(self.block_parameters, 'parameter name', n)
-                if element: break
-                
+                 element = self._Element_from_field_value(self.block_parameters, 'parameter name', n)
+                 if element: break
         if element is None:
             if not self.corinth and self.reference.Path:
                 with ShaderTag(path=self.reference.Path) as shader:
-                    shader._mapping_from_parameter_name(name, mapping)
+                    return shader._image_from_parameter_name(name)
             else:
                 return
+        bitmap_path = element.SelectField('bitmap').Path
+        if not bitmap_path:
+            return
+        system_bitmap_path = str(Path(self.tags_dir, bitmap_path.RelativePathWithExtension))
+        image_path = ''
+        if not os.path.exists(system_bitmap_path):
+            return
+        system_tiff_path = Path(self.data_dir, bitmap_path.RelativePath).with_suffix('.tiff')
+        with BitmapTag(path=bitmap_path) as bitmap:
+            is_non_color = bitmap.is_linear()
+            if system_tiff_path.exists():
+                image_path = str(system_tiff_path)
+            else:
+                image_path = bitmap.save_to_tiff(blue_channel_fix)
+
+            image = bpy.data.images.load(filepath=image_path, check_existing=True)
+            if is_non_color:
+                image.colorspace_settings.name = 'Non-Color'
+            else:
+                image.alpha_mode = 'CHANNEL_PACKED'
+                
+            return image
+        
+    def _mapping_from_parameter_name(self, name):
+        if type(name) == str:
+            element = self._Element_from_field_value(self.block_parameters, 'parameter name', name)
         else:
-            block_animated_parameters = element.SelectField(self.function_parameters)
-            for e in block_animated_parameters.Elements:
-                ap_type = AnimatedParameterType(e.Fields[0].Value)
-                ap = AnimatedParameter()
-                ap.from_element(e, self.animated_function)
-                mapping[ap_type] = ap
-                    
+            for n in name:
+                 element = self._Element_from_field_value(self.block_parameters, 'parameter name', n)
+                 if element: break
+        if element is None:
             if not self.corinth and self.reference.Path:
                 with ShaderTag(path=self.reference.Path) as shader:
-                    shader._mapping_from_parameter_name(name, mapping)
+                    return shader._mapping_from_parameter_name(name)
+            else:
+                return
+        
+    def _color_from_parameter_name(self, name):
+        color = [1, 1, 1, 1]
+        if type(name) == str:
+            element = self._Element_from_field_value(self.block_parameters, 'parameter name', name)
+        else:
+            for n in name:
+                 element = self._Element_from_field_value(self.block_parameters, 'parameter name', n)
+                 if element: break
+        if element is None:
+            if not self.corinth and self.reference.Path:
+                with ShaderTag(path=self.reference.Path) as shader:
+                    return shader._color_from_parameter_name(name)
+            else:
+                return
+            
+        block_animated_parameters = element.SelectField(self.function_parameters)
+        color_element = self._Element_from_field_value(block_animated_parameters, 'type', 1)
+        if color_element:
+            game_color = color_element.SelectField(self.animated_function).Value.GetColor(0)
+            if game_color.ColorMode == 1: # Is HSV
+                game_color = game_color.ToRgb()
+                
+            color = [game_color.Red, game_color.Green, game_color.Blue, game_color.Alpha]
+        
+        return color
         
     def _image_from_parameter(self, parameter: OptionParameter, return_none_if_default=False):
         """Saves an image (or gets the already existing one) from a shader parameter element"""
