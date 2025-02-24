@@ -1684,8 +1684,8 @@ class VirtualScene:
         self.skeleton_node: VirtualNode = None
         self.skeleton_model: VirtualModel = None
         self.skeleton_object: bpy.types.Object
-        # self.time_step = time_step
-        self.time_step = 1.0010000467300415 / 30
+        self.time_step = time_step
+        # self.time_step = 1.0010000467300415 / 30
         self.corinth = corinth
         self.export_info: ExportInfo = None
         self.valid_bones = []

@@ -416,7 +416,7 @@ class NWO_Animation_ListItems(bpy.types.PropertyGroup):
 
     event_value: bpy.props.FloatProperty(
         name="Value",
-        default=0,
+        default=1,
         soft_min=0,
         soft_max=1,
         subtype='FACTOR'
