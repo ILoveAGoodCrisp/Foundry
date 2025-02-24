@@ -159,6 +159,8 @@ def transfer_movement(context: bpy.types.Context, animation, animation_index: in
     scene.frame_set(animation.frame_start)
     offsets = []
     rot_negative = False
+    previous_yaw = None
+    direction_found = False
     for i in range(animation.frame_start, animation.frame_end + 1):
         scene.frame_set(i)
         frame_offsets = [0, 0, 0, 0, 0, 0] # LOC XYZ, ROT XYZ
@@ -179,18 +181,29 @@ def transfer_movement(context: bpy.types.Context, animation, animation_index: in
                 loc.z += z_offset
                 
         if yaw or full:
+            z_rot = rot.z
             if full:
                 x_rot_offset = source_rest_rot.x - rot.x
                 y_rot_offset = source_rest_rot.y - rot.y
                 frame_offsets[3] = x_rot_offset
                 frame_offsets[4] = y_rot_offset
+            
+            if direction_found:
+                if rot_negative:
+                    while z_rot > previous_yaw:
+                        z_rot -= math.radians(180)
+                else:
+                    while z_rot < previous_yaw:
+                        z_rot += math.radians(180)
+            elif previous_yaw is not None:
+                if z_rot > previous_yaw:
+                    direction_found = True
+                elif z_rot < previous_yaw:
+                    direction_found = True
+                    rot_negative = True
                 
-            z_rot_offset = source_rest_rot.z - rot.z
-            if scene.frame_current == animation.frame_start:
-                rot_negative = z_rot_offset < 0
-            elif rot_negative and z_rot_offset > 0:
-                z_rot_offset += math.radians(180)
-                
+            z_rot_offset = source_rest_rot.z - z_rot
+            previous_yaw = z_rot
             frame_offsets[5] = z_rot_offset
             
             
