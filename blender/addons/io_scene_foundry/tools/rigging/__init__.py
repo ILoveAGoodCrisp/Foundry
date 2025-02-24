@@ -1,5 +1,6 @@
 
 
+from math import radians
 import bpy
 from mathutils import Vector
 
@@ -129,6 +130,17 @@ class HaloRig:
                     con.use_transform_limit = True
                     con.owner_space = 'LOCAL'
                     
+                    con = aim_control.constraints.new('LIMIT_ROTATION')
+                    con.use_limit_x = True
+                    con.min_x = 0
+                    con.max_x = 0
+                    con.use_limit_y = True
+                    con.min_y = radians(-90)
+                    con.max_y = radians(90)
+                    con.euler_order = 'YXZ'
+                    con.use_transform_limit = True
+                    con.owner_space = 'LOCAL'
+                    
                     con = pitch.constraints.new('COPY_ROTATION')
                     con.target = self.rig_ob
                     con.subtarget = aim_control.name
@@ -143,6 +155,20 @@ class HaloRig:
                     con.subtarget = aim_control.name
                     con.use_x = False
                     con.use_y = False
+                    con.target_space = 'LOCAL_OWNER_ORIENT'
+                    con.owner_space = 'LOCAL'
+                    
+                    # constraint to handle gimbal lock scenario where X becomes our yaw
+                    con = yaw.constraints.new('TRANSFORMATION')
+                    con.target = self.rig_ob
+                    con.subtarget = aim_control.name
+                    con.map_from = 'ROTATION'
+                    con.from_min_x_rot = radians(-90)
+                    con.from_max_x_rot = radians(90)
+                    con.map_to = 'ROTATION'
+                    con.map_to_z_from = 'X'
+                    con.to_min_x_rot = radians(-90)
+                    con.to_max_x_rot = radians(90)
                     con.target_space = 'LOCAL_OWNER_ORIENT'
                     con.owner_space = 'LOCAL'
     

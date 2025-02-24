@@ -343,10 +343,7 @@ class VirtualAnimation:
                 if bone.is_object:
                     matrix = scene.rotation_matrix @ bone.pbone.matrix_world
                 elif bone.parent:
-                    if self.overlay and bone.is_aim_bone and scene.uses_control_aim:
-                        matrix_world = scene.rotation_matrix @ bone.ob.matrix_world @ scene.control_aim.matrix
-                    else:
-                        matrix_world = scene.rotation_matrix @ bone.ob.matrix_world @ bone.pbone.matrix
+                    matrix_world = scene.rotation_matrix @ bone.ob.matrix_world @ bone.pbone.matrix
                     bone_inverse_matrices[bone.pbone] = matrix_world.inverted()
                     matrix = bone_inverse_matrices[bone.parent] @ matrix_world    
                         
@@ -356,37 +353,37 @@ class VirtualAnimation:
 
                 loc, rot, sca = matrix.decompose()
                 
-                if self.overlay and bone.is_aim_bone:
-                    euler = rot.to_euler('XYZ')             
-                    if first_frame:
-                        euler.x = 0
-                        euler.y = 0
-                        euler.z = 0
-                    else:
-                        # Clear rotation on wrong axis
-                        if "yaw" in bone.name:
-                            # Adjust for gimbal lock if needed
-                            if abs(math.cos(euler.y)) < 1e-6 and abs(math.cos(euler.z)) > 0.98:
-                                # print("GIMBAL LOCK: ", frame)
-                                euler.z = -euler.x
+                if self.overlay and bone.is_aim_bone and not first_frame:
+                    pose_overlay_frame_data[bone.name].append(tuple(rot.to_euler('XYZ')))
+                    # if first_frame:
+                    #     euler.x = 0
+                    #     euler.y = 0
+                    #     euler.z = 0
+                    # else:
+                    #     # Clear rotation on wrong axis
+                    #     if "yaw" in bone.name:
+                    #         # Adjust for gimbal lock if needed
+                    #         if abs(math.cos(euler.y)) < 1e-6 and abs(math.cos(euler.z)) > 0.98:
+                    #             # print("GIMBAL LOCK: ", frame)
+                    #             euler.z = -euler.x
 
-                            euler.x = 0
-                            euler.y = 0
-                        else:
-                            euler.z = 0
-                            euler.x = 0
-                            # clamp the pitch
-                            euler = rot.to_euler('XYZ')
-                            euler.y = utils.clamp(euler.y, radians(-90), radians(90))
-                            # if scene.corinth:
-                            #     euler.y = utils.clamp(euler.y, radians(-90), radians(90))
-                            # else: # Reach pose overlays seem to fail when pitch is too close to 90. 88.8 appears to be about as close as we can get to 90 without error
-                            #     euler.y = utils.clamp(euler.y, radians(-88.8), radians(88.8))
+                    #         euler.x = 0
+                    #         euler.y = 0
+                    #     else:
+                    #         euler.z = 0
+                    #         euler.x = 0
+                    #         # clamp the pitch
+                    #         # euler = rot.to_euler('XYZ')
+                    #         # euler.y = utils.clamp(euler.y, radians(-90), radians(90))
+                    #         # if scene.corinth:
+                    #         #     euler.y = utils.clamp(euler.y, radians(-90), radians(90))
+                    #         # else: # Reach pose overlays seem to fail when pitch is too close to 90. 88.8 appears to be about as close as we can get to 90 without error
+                    #         #     euler.y = utils.clamp(euler.y, radians(-88.8), radians(88.8))
 
-                    pose_overlay_frame_data[bone.name].append(tuple(euler))
-                    #     # print(bone.name, f"FRAME {frame}", [degrees(n) for n in euler])
-                    # print(bone.name, frame, [degrees(n) for n in euler])
-                    rot = euler.to_quaternion()
+                    #     pose_overlay_frame_data[bone.name].append(tuple(euler))
+                    # #     # print(bone.name, f"FRAME {frame}", [degrees(n) for n in euler])
+                    # # print(bone.name, frame, [degrees(n) for n in euler])
+                    # rot = euler.to_quaternion()
                 
                 position = (c_float * 3)(loc.x, loc.y, loc.z)
                 orientation = (c_float * 4)(rot.x, rot.y, rot.z, rot.w)
@@ -394,6 +391,7 @@ class VirtualAnimation:
                 positions[bone].extend(position)
                 orientations[bone].extend(orientation)
                 scales[bone].extend(scale_shear)
+                first_frame = False
                 
             # TODO Get vector track info for wrinkle_maps, IK events, and object_functions
             for event in vector_events:
