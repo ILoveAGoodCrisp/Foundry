@@ -109,7 +109,7 @@ class NWO_OT_PlayGameAnimation(bpy.types.Operator):
         if not nwo.animation_cmd_path and utils.valid_nwo_asset(context):
             asset_path = Path(utils.get_asset_path())
             asset_name = asset_path.name
-            path = str(Path(asset_path, asset_name))
+            path = str(Path(asset_path, f"{asset_name}.model_animation_graph"))
             
         if not path.strip(". "):
             # See if we can get the graph from the armature
