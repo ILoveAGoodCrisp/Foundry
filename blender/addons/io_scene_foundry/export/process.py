@@ -661,14 +661,35 @@ class ExportScene:
             if coll_permutation is not None:
                 tmp_permutation = coll_permutation
                 
-        if self.asset_type.supports_permutations:
-            if not instanced_object and (is_mesh or self.asset_type.supports_bsp or nwo.marker_uses_regions):
+        if instanced_object:
+            if nwo.marker_uses_regions:
+                if tmp_region in self.regions_set:
+                    region = tmp_region
+                else:
+                    self.warnings.append(f"Object [{ob.name}] has {self.reg_name} [{tmp_region}] which is not present in the {self.reg_name}s table. Setting {self.reg_name} to: {self.default_region}")
+                marker_perms = [item.name for item in nwo.marker_permutations]
+                if nwo.marker_permutation_type == 'include':
+                    if nwo.marker_permutations:
+                        needs_perm = True
+                        for perm in marker_perms:
+                            if perm not in self.permutations_set:
+                                self.warnings.append(f"Object [{ob.name}] has {self.perm_name} [{perm}] in its include list which is not present in the {self.perm_name}s table. Ignoring {self.perm_name}")
+                            elif needs_perm:
+                                needs_perm = False
+                                permutation = perm
+                else:
+                    for perm in self.permutations:
+                        if perm not in marker_perms:
+                            permutation = perm
+                            break
+        else:
+            if is_mesh or self.asset_type.supports_bsp:
                 if tmp_region in self.regions_set:
                     region = tmp_region
                 else:
                     self.warnings.append(f"Object [{ob.name}] has {self.reg_name} [{tmp_region}] which is not present in the {self.reg_name}s table. Setting {self.reg_name} to: {self.default_region}")
                     
-            if self.asset_type.supports_permutations and not instanced_object:
+            if self.asset_type.supports_permutations:
                 if tmp_permutation in self.permutations_set:
                     permutation = tmp_permutation
                 else:
