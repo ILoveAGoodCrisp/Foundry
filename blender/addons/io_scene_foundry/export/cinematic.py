@@ -504,8 +504,9 @@ class QUA:
             elements_zip = zip(block_shots.Elements, block_shots.Elements)
         
         for element, data_element in elements_zip:
-            block_dialogue = data_element.SelectField("dialogue")
-            block_dialogue.RemoveAllElements()
+            # TODO Uncomment this when dialogue system in place
+            # block_dialogue = data_element.SelectField("dialogue")
+            # block_dialogue.RemoveAllElements()
             
             block_effects = data_element.SelectField("effects")
             for sub_element in block_effects.Elements:
