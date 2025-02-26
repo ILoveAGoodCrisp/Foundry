@@ -348,9 +348,11 @@ def switch_project_from_filepath(context, path: Path):
     root = any_partition(str(path), "\\tags\\").lower()
     for project in get_prefs().projects:
         if root == project.project_path.lower():
+            if context.scene.nwo.scene_project == project.name:
+                return
             context.scene.nwo.scene_project = project.name
             print(f"Project was changed to {project.name} in order to read file: {path}")
-            break
+            return
 
 def mb_init(tag_path=None):
     context = bpy.context

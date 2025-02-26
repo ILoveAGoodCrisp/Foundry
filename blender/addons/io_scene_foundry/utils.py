@@ -4152,6 +4152,17 @@ def current_shot_index(context: bpy.types.Context):
     scene = context.scene
     markers = [m for m in scene.timeline_markers if m.camera is not None and m.frame > scene.frame_start and m.frame <= scene.frame_end]
     markers.sort(key=lambda m: m.frame)
+    # Remove markers that cover the same frame
+    to_remove_indexes = []
+    for idx, m in enumerate(markers):
+        if idx + 1 == len(markers): # last index
+            break
+        if m.frame == markers[idx + 1].frame:
+            to_remove_indexes.append(idx)
+            
+    for idx in reversed(to_remove_indexes):
+        markers.pop(idx)
+    
     frame_current = scene.frame_current
     if frame_current < all([m.frame for m in markers]):
         return 0
