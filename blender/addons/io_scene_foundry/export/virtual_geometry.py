@@ -68,6 +68,7 @@ class VirtualShotAnimation:
     def __init__(self, animation_name, granny_track_group, granny_animation, index: int, is_pca):
         self.name = animation_name
         self.granny_track_group = granny_track_group
+        self.granny_event_track_groups = None
         self.granny_animation = granny_animation
         self.is_pca = is_pca
         self.gr2_path = None
@@ -114,7 +115,7 @@ class VirtualShot:
                 # Camera Animation
                 self.frames.append(Frame(self.camera, scene.corinth))
                 # Bone Animation
-                for shot_actor in self.shot_actors: 
+                for shot_actor in self.shot_actors:
                     if not shot_actor.in_scope:
                         continue
                     bone_inverse_matrices = {}
@@ -128,7 +129,6 @@ class VirtualShot:
                             bone_inverse_matrices[bone.pbone] = matrix.inverted()
 
                         loc, rot, sca = matrix.decompose()
-                        
                         position = (c_float * 3)(loc.x, loc.y, loc.z)
                         orientation = (c_float * 4)(rot.x, rot.y, rot.z, rot.w)
                         scale_shear = (c_float * 9)(sca.x, 0.0, 0.0, 0.0, sca.y, 0.0, 0.0, 0.0, sca.z)
@@ -284,7 +284,7 @@ class VirtualAnimation:
         self.nodes = []
 
         if sample:
-            self.create_track_group(scene.animated_bones + animation_controls, scene, shape_key_objects, vector_events)
+            self.create_track_group(scene.skeleton_model.skeleton.animated_bones + animation_controls, scene, shape_key_objects, vector_events)
             self.to_granny_animation(scene)
             
     def create_vector_track_groups(self, scene: 'VirtualScene', vector_events: list[VectorEvent]):
@@ -1523,7 +1523,7 @@ class VirtualSkeleton:
                 b.to_granny_data(scene)
                 self.bones.append(b)
                 if is_main_armature or scene.is_cinematic:
-                    scene.animated_bones.append(AnimatedBone(fb.ob, fb.bone, is_aim_bone=fb.name in aim_bone_names, parent_override=fb.parent.bone if fb.parent else None))
+                    self.animated_bones.append(AnimatedBone(fb.ob, fb.bone, is_aim_bone=fb.name in aim_bone_names, parent_override=fb.parent.bone if fb.parent else None))
                 
             child_index = 0
             for child in scene.get_immediate_children(ob):
@@ -1662,7 +1662,6 @@ class VirtualScene:
         self.design = set()
         self.bsps_with_structure = set()
         self.warnings = []
-        self.animated_bones = []
         self.animations = []
         self.shots = []
         self.default_animation_compression = animation_compression
