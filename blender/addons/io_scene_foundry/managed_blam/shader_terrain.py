@@ -54,7 +54,7 @@ class ShaderTerrainTag(ShaderTag):
         e_material_1 = TerrainMaterial(self._option_value_from_index(3))
         e_material_2 = TerrainMaterial(self._option_value_from_index(4))
         e_material_3 = TerrainMaterial3(self._option_value_from_index(5))
-        e_wetness = TerrainMaterial(self._option_value_from_index(6))
+        # e_wetness = TerrainWetness(self._option_value_from_index(6))
         
         self.shader_parameters = {}
         self.shader_parameters.update(self.category_parameters["blending"][utils.game_str(e_blending.name)])
