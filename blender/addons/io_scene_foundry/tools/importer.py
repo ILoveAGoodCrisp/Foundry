@@ -783,9 +783,12 @@ class NWO_Import(bpy.types.Operator):
             
         if not self.scope or ('scenario' in self.scope) or ('scenario_structure_bsp' in self.scope):
             box = layout.box()
+            tag_type = 'material' if utils.is_corinth(context) else 'shader'
             box.label(text='Scenario Tag Settings')
             box.prop(self, 'tag_zone_set')
             box.prop(self, 'tag_bsp_render_only')
+            box.prop(self, 'build_blender_materials', text=f"Blender Materials from {tag_type.capitalize()} Tags")
+            box.prop(self, 'always_extract_bitmaps')
         
         if not self.scope or 'jms' in self.scope:
             box = layout.box()
