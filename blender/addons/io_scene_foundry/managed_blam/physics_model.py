@@ -1,9 +1,8 @@
 
 
 import bpy
-from mathutils import Euler, Matrix, Vector
 
-from .connected_geometry import Box, CollisionMaterial, Hinge, LimitedHinge, NodeEdge, Pill, Polyhedron, Ragdoll, RigidBody
+from .connected_geometry import CollisionMaterial, Hinge, LimitedHinge, Ragdoll, RigidBody
 from .. import utils
 from . import Tag
 

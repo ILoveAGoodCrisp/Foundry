@@ -24,10 +24,6 @@ from .. import utils
 from .Tags import TagFieldBlock, TagFieldBlockElement, TagPath
 
 class BSPSeam:
-    index: int
-    edge_indices: set[int]
-    origin = Vector
-    
     def __init__(self, element: TagFieldBlockElement):
         self.index = element.ElementIndex
         self.bsps = []
@@ -48,13 +44,6 @@ class PortalType(Enum):
     _connected_geometry_portal_type_two_way = 2
 
 class Portal:
-    index: int
-    vertices: list[Vector]
-    type: PortalType
-    ai_deafening: bool
-    blocks_sounds: bool
-    is_door: bool
-    
     def __init__(self, element: TagFieldBlockElement):
         self.index = element.ElementIndex
         self.type = PortalType._connected_geometry_portal_type_two_way
@@ -127,10 +116,6 @@ class StreamingPriority(Enum):
     _connected_geometry_poop_streamingpriority_highest = 2
     
 class Cluster:
-    index: int
-    mesh_index: int
-    mesh: 'Mesh'
-    
     def __init__(self, element: TagFieldBlockElement, mesh_block: TagFieldBlock, render_materials: list['Material']):
         self.index = element.ElementIndex
         self.mesh_index = element.SelectField("mesh index").Data
@@ -142,23 +127,6 @@ class Cluster:
             return result[0]
     
 class InstanceDefinition:
-    index: int
-    collision_info: 'InstanceCollision'
-    cookie_info: 'InstanceCollision'
-    # cookie_surfaces: list['CollisionSurface']
-    # cookie_edges: list['CollisionEdge']
-    # cookie_vertices: list['CollisionVertex']
-    polyhedra: list['Polyhedron']
-    four_vectors: list['PolyhedronFourVectors']
-    mesh_index: int
-    mesh: 'Mesh'
-    compression_index: int
-    compression: 'CompressionBounds'
-    blender_render: bpy.types.Object
-    blender_collision: bpy.types.Object
-    blender_cookie: bpy.types.Object
-    blender_physics: bpy.types.Object
-    
     def __init__(self, element: TagFieldBlockElement, mesh_block: TagFieldBlock, compression_bounds: list['CompressionBounds'], render_materials: list['Material'], collision_materials: list['BSPCollisionMaterial'], for_cinematic = False):
         self.index = element.ElementIndex
         self.mesh_index = element.SelectField("mesh index").Data
@@ -261,26 +229,6 @@ class InstanceDefinition:
             
     
 class Instance:
-    index: int
-    matrix: Matrix
-    not_in_lightprobes: bool
-    render_only: bool
-    not_block_aoe: bool
-    decal: bool
-    remove_from_shadow: bool
-    disallow_lighting_samples: bool
-    cinema_type: CinemaType
-    mesh_index: int
-    pathfinding: PathfindingPolicy
-    lightmapping: LightmappingPolicy
-    imposter: ImposterPolicy
-    streaming: StreamingPriority
-    lightmap_res: float
-    name: str
-    imposter_brightness: float
-    imposter_transition: float
-    definition: InstanceDefinition
-    
     def __init__(self, element: TagFieldBlockElement, definitions: list[InstanceDefinition]):
         self.index = element.ElementIndex
         self.mesh_index = element.SelectField("ShortInteger:mesh_index").Data
@@ -371,63 +319,40 @@ class Instance:
         return ob
         
 
-class BSPMarker:
-    index: int
-    type: BSPMarkerType
-    parameter: str
-    rotation: Quaternion
-    position: Vector
+# class BSPMarker:
+#     index: int
+#     type: BSPMarkerType
+#     parameter: str
+#     rotation: Quaternion
+#     position: Vector
 
-class EnvironmentObjectPalette:
-    definition: str
-    model: str
-    index: str
+# class EnvironmentObjectPalette:
+#     definition: str
+#     model: str
+#     index: str
     
-class EnvironmentObject:
-    index: int
-    palette_index: int
-    palette: EnvironmentObjectPalette
-    name: str
-    rotation: Quaternion
-    translation: Vector
-    scale: float
-    variant: str
+# class EnvironmentObject:
+#     index: int
+#     palette_index: int
+#     palette: EnvironmentObjectPalette
+#     name: str
+#     rotation: Quaternion
+#     translation: Vector
+#     scale: float
+#     variant: str
 
 class Face:
-    index: int
-    indices: list[int]
-    subpart: 'MeshPart'
-    
     def __init__(self,indices: list[int], subpart: 'MeshSubpart', index: int):
         self.indices = indices
         self.subpart = subpart
         self.index = index
 
 class Node:
-    index: int
-    name: str
-    translation: Vector
-    rotation: Quaternion
-    inverse_forward: Vector
-    inverse_left: Vector
-    inverse_up: Vector
-    inverse_position: Vector
-    inverse_scale: Vector
-    transform_matrix: Matrix
-    parent = ""
-    bone: bpy.types.EditBone
     def __init__(self, name):
         self.name = name
+        self.parent = None
 
-class Permutation:
-    region: 'Region'
-    index: int
-    name: str
-    mesh_index: int
-    mesh_count: int
-    instance_indices: list[int]
-    clone_name: str
-    
+class Permutation: 
     def __init__(self, element: TagFieldBlockElement, region: 'Region'):
         self.region = region
         self.index = element.ElementIndex
@@ -456,11 +381,6 @@ class Permutation:
                 self.instance_indices.append(i + 96)
     
 class Region:
-    index: int
-    name: str
-    permutations_block: TagFieldBlock
-    permutations: list[Permutation]
-    
     def __init__(self, element: TagFieldBlockElement):
         self.index = element.ElementIndex
         self.name = element.SelectField("name").GetStringData()
@@ -516,15 +436,6 @@ class ConstraintType(Enum):
     powered_chain = 6
     
 class Hinge:
-    index: int
-    name: str
-    node_a_index: int
-    node_b_index: int
-    bone_parent: str
-    bone_child: str
-    matrix_a: Matrix
-    matrix_b: Matrix
-    
     def __init__(self, element: TagFieldBlockElement, nodes: list[str]):
         self.constraint_body = element.SelectField("Struct:constraint bodies").Elements[0]
         self.index = element.ElementIndex
@@ -589,9 +500,6 @@ class Hinge:
     
     
 class LimitedHinge(Hinge):
-    limit_min_angle: float
-    limit_max_angle: float
-    
     def __init__(self, element: TagFieldBlockElement, nodes: list[str]):
         super().__init__(element, nodes)
         self.limit_min_angle = element.SelectField("limit min angle").Data
@@ -604,12 +512,6 @@ class LimitedHinge(Hinge):
         nwo.hinge_constraint_maximum = radians(self.limit_max_angle)
 
 class Ragdoll(Hinge):
-    min_twist: float
-    max_twist: float
-    cone: float
-    min_plane: float
-    max_plane: float
-    
     def __init__(self, element: TagFieldBlockElement, nodes: list[str]):
         super().__init__(element, nodes)
         self.min_twist = element.SelectField("min twist").Data
@@ -628,19 +530,8 @@ class Ragdoll(Hinge):
         nwo.twist_constraint_end = radians(self.max_twist)
             
 class Constraint:
-    type: ConstraintType
-    index: int
-    constaint_index: int
-    constraint_data: Hinge | LimitedHinge | Ragdoll
-    
     def to_object(self) -> bpy.types.Object:
         pass
-    
-class NodeEdge:
-    index: int
-    node_parent: str
-    node_child: str
-    constraints: Constraint
     
 class ShapeType(Enum):
     sphere = 0
@@ -661,10 +552,6 @@ class ShapeType(Enum):
     mopp = 15
     
 class Shape:
-    name: str
-    material_index: int
-    material: str
-    
     def __init__(self, element: TagFieldBlockElement, materials: list[str]):
         base = element.SelectField("Struct:base").Elements[0]
         self.name = base.SelectField("name").Data
@@ -672,10 +559,6 @@ class Shape:
         self.material = materials[self.material_index]
     
 class Sphere(Shape):
-    radius: float
-    translation: Vector
-    matrix: Matrix
-    
     def __init__(self, element: TagFieldBlockElement, materials):
         super().__init__(element, materials)
         self.radius = element.SelectField("Struct:translate shape[0]/Struct:convex[0]/Real:radius").Data * 100
@@ -693,14 +576,6 @@ class Sphere(Shape):
         self.ob.nwo.mesh_primitive_type = "_connected_geometry_primitive_type_sphere"
 
 class Pill(Shape):
-    radius: float
-    bottom: Vector
-    top: Vector
-    rotation: Quaternion
-    translation: Vector
-    height: float
-    matrix: Matrix
-    
     def __init__(self, element: TagFieldBlockElement, materials):
         super().__init__(element, materials)
         radius = element.SelectField("Struct:capsule shape[0]/Real:radius").Data
@@ -728,14 +603,6 @@ class Pill(Shape):
         self.ob.nwo.mesh_primitive_type = "_connected_geometry_primitive_type_pill"
 
 class Box(Shape):
-    translation: Vector
-    rotation: Vector
-    width: float
-    length: float
-    height: float
-    matrix: Matrix
-    ob: bpy.types.Object
-    
     def __init__(self, element: TagFieldBlockElement, materials, corinth: bool):
         super().__init__(element, materials)
         self.translation = Vector([n for n in element.SelectField("Struct:convex transform shape[0]/RealVector3d:translation").Data]) * 100
@@ -798,12 +665,6 @@ class PolyhedronFourVectors:
         return vectors
         
 class Polyhedron(Shape):
-    four_vectors: PolyhedronFourVectors
-    four_vectors_size: int
-    vertices: list[Vector]
-    offset: int
-    matrix: Matrix
-    
     def __init__(self, element: TagFieldBlockElement, materials, vectors_block: TagFieldBlockElement, four_vectors_map: list):
         super().__init__(element, materials)
         four_vectors_size = element.SelectField("four vectors size").Data
@@ -829,15 +690,6 @@ class Polyhedron(Shape):
         self.ob = bpy.data.objects.new(self.name, mesh)
     
 class RigidBody:
-    index: int
-    node_index: int
-    region: str
-    shape_type: ShapeType
-    shapes: list[Sphere | Pill | Box | Polyhedron]
-    four_vectors_offset: int
-    valid: bool
-    list_shapes_offset: int
-    
     def __init__(self, element: TagFieldBlockElement, region, permutation, materials, four_vectors_map, tag, list_shapes_offset, corinth: bool):
         self.valid = False
         self.list_shapes_offset = list_shapes_offset
@@ -919,24 +771,11 @@ class RigidBody:
         
             
 class CollisionMaterial:
-    index: int
-    name: str
-    region: str
-    permutation: str
-
     def __init__(self, element: TagFieldBlockElement):
         self.index = element.ElementIndex
         self.name = element.Fields[0].Data
 
 class BSPCollisionMaterial:
-    index: int
-    render_method: str
-    blender_material: bpy.types.Material
-    global_material: str
-    tag_shader: TagPath
-    name: str
-    is_seam: bool
-    
     def __init__(self, element: TagFieldBlockElement):
         self.index = element.ElementIndex
         self.render_method = ""
@@ -971,11 +810,6 @@ class BSPCollisionMaterial:
         self.is_seam = seam_flag.TestBit("is seam")
         
 class CollisionVertex:
-    index: int
-    element: TagFieldBlockElement
-    point: tuple[float]
-    first_edge: int
-    
     def __init__(self, element: TagFieldBlockElement):
         self.index = element.ElementIndex
         self.element = element
@@ -987,16 +821,6 @@ class CollisionVertex:
         return Vector(self.point) * 100
         
 class CollisionSurface:
-    element: TagFieldBlockElement
-    index: int
-    first_edge: int
-    material: CollisionMaterial
-    two_sided: bool
-    ladder: bool
-    breakable: bool
-    slip_surface: bool
-    negated: bool
-    
     def __init__(self, element: TagFieldBlockElement, materials: list[CollisionMaterial] | list[BSPCollisionMaterial]):
         self.index = element.ElementIndex
         self.first_edge = utils.unsigned_int16(element.SelectField("first edge").Data)
@@ -1015,15 +839,6 @@ class CollisionSurface:
         self.slip_surface = flags.TestBit("slip")
         
 class CollisionEdge:
-    element: TagFieldBlockElement
-    index: int
-    start_vertex: int
-    end_vertex: int
-    forward_edge: int
-    reverse_edge: int
-    left_surface: int
-    left_surface: int
-    
     def __init__(self, element: TagFieldBlockElement):
         self.element = element
         self.index = element.ElementIndex
@@ -1035,15 +850,6 @@ class CollisionEdge:
         self.right_surface = utils.unsigned_int16(element.SelectField("right surface").Data)
         
 class BSP:
-    name: str
-    index: int
-    node_index: int
-    bone: str
-    surfaces: list[CollisionSurface]
-    edges: list[CollisionEdge]
-    vertices: list[CollisionVertex]
-    uses_materials: bool
-    
     def __init__(self, element: TagFieldBlockElement, name, materials: list[CollisionMaterial]):
         self.name = name
         self.index = element.ElementIndex
@@ -1261,15 +1067,6 @@ class StructureCollision(BSP):
         self.uses_materials = True
     
 class PathfindingSphere:
-    bone: str
-    index: int
-    node_index: int
-    when_open: bool
-    vehicle: bool
-    sectors: bool
-    center: float
-    radius: float
-    
     def __init__(self, element: TagFieldBlockElement, nodes: list[str] = None):
         self.index = element.ElementIndex
         self.node_index = element.Fields[0].Value
@@ -1302,12 +1099,6 @@ class PathfindingSphere:
         
             
 class CompressionBounds:
-    co_matrix: Matrix
-    u0: float
-    v0: float
-    u1: float
-    v1: float
-    
     def __init__(self, element: TagFieldBlockElement):
         first = element.SelectField("position bounds 0").Data
         second = element.SelectField("position bounds 1").Data
@@ -1335,18 +1126,6 @@ class CompressionBounds:
         self.v1 = fourth[1]
 
 class Material:
-    index: int
-    name: str
-    new: bool
-    shader_path: str
-    emissive_index: int
-    lm_res: int
-    lm_transparency: list[float]
-    lm_translucency: list[float]
-    lm_both_sides: bool
-    breakable_surface_index: int
-    blender_material: bpy.types.Material
-    
     def __init__(self, element: TagFieldBlockElement):
         self.index = element.ElementIndex
         render_method_path = element.SelectField("render method").Path
@@ -1373,9 +1152,6 @@ class IndexLayoutType(Enum):
     RECT_LIST = 7
     
 class IndexBuffer:
-    index_buffer_type: IndexLayoutType
-    indices: list[int]
-
     def __init__(self, index_buffer_type: int, indices: list[int]):
         self.index_layout = IndexLayoutType(index_buffer_type)
         self.indices = indices
@@ -1416,8 +1192,8 @@ class IndexBuffer:
     def _unpack(self, indices) -> list[int]:
         indices = list(indices)
         for pos in range(len(indices) - 2):
-            # if indices[pos] == indices[pos+1] or indices[pos] == indices[pos+2] or indices[pos+1] == indices[pos+2]:
-            #     continue  # Skip degenerate triangles
+            if indices[pos] == indices[pos+1] or indices[pos] == indices[pos+2] or indices[pos+1] == indices[pos+2]:
+                continue  # Skip degenerate triangles
             if pos % 2 == 0:
                 yield indices[pos]
                 yield indices[pos+1]
@@ -1438,19 +1214,7 @@ class DrawDistance(Enum):
     _connected_geometry_face_draw_distance_detail_mid = 1
     _connected_geometry_face_draw_distance_detail_close = 2
 
-class MeshPart:
-    index: int
-    material_index: int
-    material: Material
-    transparent: bool
-    index_start: int
-    index_count: int
-    draw_distance: bool
-    tessellation: Tessellation
-    water_surface: bool
-    no_shadow: bool
-    lightmap_only: bool
-    
+class MeshPart:    
     def __init__(self, element: TagFieldBlockElement, materials: list[Material]):
         self.index = element.ElementIndex
         self.material_index = element.SelectField("render method index").Value
@@ -1481,12 +1245,6 @@ class MeshPart:
         self.material = next(m for m in materials if m.index == self.material_index)
             
 class MeshSubpart:
-    index: int
-    index_start: int
-    index_count: int
-    part_index: int
-    part: MeshPart
-    
     def __init__(self, element: TagFieldBlockElement, parts: list[MeshPart]):
         self.index = element.ElementIndex
         self.index_start = element.SelectField("index start").Data
@@ -1500,9 +1258,10 @@ class MeshSubpart:
 
         if blend_material.name not in mesh.materials:
             mesh.materials.append(blend_material)
+            
         blend_material_index = ob.material_slots.find(blend_material.name)
 
-        indices = {t.index for t in tris if t.subpart == self}
+        indices = {t.index for t in tris if t.subpart is self}
 
         for i in indices:
             mesh.polygons[i].material_index = blend_material_index
@@ -1562,27 +1321,6 @@ class MeshSubpart:
 
 class Mesh:
     '''All new Halo 3 render geometry definitions!'''
-    index: int
-    permutation: Permutation
-    parts: list[MeshPart]
-    subparts: list[MeshSubpart]
-    rigid_node_index: int
-    index_buffer_type: int
-    bounds: CompressionBounds
-    ob: bpy.types.Object
-    tris: Iterable[Face]
-    raw_positions: list
-    raw_texcoords : list
-    raw_normals: list
-    raw_node_indices: list
-    raw_node_weights: list
-    node_map: list[int]
-    face_transparent: bool
-    face_tesselation: bool
-    face_draw_distance: bool
-    valid: bool
-    
-    
     def __init__(self, element: TagFieldBlockElement, bounds: CompressionBounds = None, permutation=None, materials=[], block_node_map=None, does_not_need_parts=False):
         self.index = element.ElementIndex
         self.permutation = permutation
@@ -1825,18 +1563,6 @@ class Mesh:
 
         
 class InstancePlacement:
-    index: int
-    name: str
-    node_index: int
-    bone: str
-    scale: float
-    forward: Vector
-    left: Vector
-    up: Vector
-    position: Vector
-    matrix: Matrix
-    ob: bpy.types.Object
-    
     def __init__(self, element: TagFieldBlockElement, nodes: list[Node]):
         self.index = element.ElementIndex
         self.name = utils.any_partition(element.SelectField("name").GetStringData(), "__", False)
@@ -1879,16 +1605,6 @@ class MarkerType(Enum):
     _connected_geometry_marker_type_target = 6
 
 class Marker:
-    index: int
-    region: Region
-    permutation: Permutation
-    bone: str
-    translation: Vector
-    rotation: Quaternion
-    scale: float
-    direction: list[float, float, float]
-    linked_to: list['Marker']
-    
     def __init__(self, element: TagFieldBlockElement, nodes: list[Node], regions: list[Region]):
         self.region = ""
         self.permutation = ""
@@ -1920,11 +1636,6 @@ class Marker:
         self.permutations = []
     
 class MarkerGroup:
-    name: str
-    type: MarkerType
-    index: int
-    markers: list[Marker]
-    
     def __init__(self, element: TagFieldBlockElement, nodes: list[Node], regions: list[Region]):
         self.name = element.SelectField("name").GetStringData()
         self.index = element.ElementIndex
