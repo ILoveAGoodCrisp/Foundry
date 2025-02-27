@@ -453,6 +453,7 @@ class ExportScene:
                             self.cinematic_actors.append(Actor(ob, self.cinematic_scene.name, self.parent_asset_path_relative if self.is_child_asset else self.asset_path_relative, self.asset_name if self.is_child_asset else ""))
                         else:
                             self.warnings.append(warning)
+                            continue
                 if ob.type == 'LIGHT':
                     if ob.data.type == 'AREA':
                         ob = utils.area_light_to_emissive(ob)
