@@ -1279,9 +1279,9 @@ class ShaderTag(Tag):
             return
         
         if FunctionEditorMasterType.Basic and not data.is_ranged:
-            if data.color_type != FunctionEditorColorGraphType.Scalar:
+            if data.color_type != FunctionEditorColorGraphType.Scalar and end_input.type == 'RGBA':
                 end_input.default_value = data.colors[0]
-            else:
+            elif data.color_type == FunctionEditorColorGraphType.Scalar and end_input.type in {'VALUE', 'INT', 'BOOLEAN', 'ROTATION'}:
                 end_input.default_value = data.clamp_min
             return
         
