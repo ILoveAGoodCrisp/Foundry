@@ -241,7 +241,7 @@ class RenderModelTag(Tag):
                     
                     if ob.nwo.marker_uses_regions:
                         if len(i_permutations) != len(region.permutations):
-                            # If not pick if this is include or exclude type depending on whichever means less permutation entries need to be added
+                            # Pick if this is include or exclude type depending on whichever means less permutation entries need to be added
                             # If a tie prefer exclude
                             exclude_permutations = [p.name for p in region.permutations if p.name not in i_permutations]
                             if len(i_permutations) < len(exclude_permutations):

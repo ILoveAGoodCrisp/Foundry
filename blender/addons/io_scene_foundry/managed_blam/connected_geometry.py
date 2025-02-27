@@ -1388,7 +1388,7 @@ class IndexBuffer:
                 start = subpart.index_start
                 count = subpart.index_count
                 list_indices = list(self._get_indices(start, count))
-                indices = (list_indices[n:n+3] for n in range(0, len(list_indices), 3))
+                indices = [list_indices[n:n+3] for n in range(0, len(list_indices), 3) if len(list_indices[n:n+3]) == 3]
                 for i in indices:
                     faces.append(Face(indices=i, subpart=subpart, index=idx))
                     idx += 1
@@ -1396,13 +1396,13 @@ class IndexBuffer:
             start = 0
             count = len(self.indices)
             list_indices = list(self._get_indices(start, count))
-            indices = (list_indices[n:n+3] for n in range(0, len(list_indices), 3))
+            indices = [list_indices[n:n+3] for n in range(0, len(list_indices), 3) if len(list_indices[n:n+3]) == 3]
             for i in indices:
                 faces.append(Face(indices=i, subpart=None, index=idx))
                 idx += 1
                 
         return faces
-    
+
     def _get_indices(self, start: int, count: int):
         end = len(self.indices) if count < 0 else start + count
         subset = (self.indices[i] for i in range(start, end))
@@ -1411,21 +1411,21 @@ class IndexBuffer:
         elif self.index_layout == IndexLayoutType.TRIANGLE_STRIP:
             return self._unpack(subset)
         else:
-            raise (f"Unsupported Index Layout Type {self.index_layout}")
+            raise ValueError(f"Unsupported Index Layout Type {self.index_layout}")
 
-    def _unpack(self, indices: list[int]) -> list[int]:
-        i0, i1, i2 = 0, 0, 0
-        for pos, idx in enumerate(indices):
-            tri = []
-            i0, i1, i2 = i1, i2, idx
-            if pos < 2 or i0 == i1 or i0 == i2 or i1 == i2: continue
-            yield i0
+    def _unpack(self, indices) -> list[int]:
+        indices = list(indices)
+        for pos in range(len(indices) - 2):
+            # if indices[pos] == indices[pos+1] or indices[pos] == indices[pos+2] or indices[pos+1] == indices[pos+2]:
+            #     continue  # Skip degenerate triangles
             if pos % 2 == 0:
-                yield i1
-                yield i2
+                yield indices[pos]
+                yield indices[pos+1]
+                yield indices[pos+2]
             else:
-                yield i2
-                yield i1
+                yield indices[pos]
+                yield indices[pos+2]
+                yield indices[pos+1]
                 
 class Tessellation(Enum):
     _connected_geometry_mesh_tessellation_density_none = 0
@@ -1582,6 +1582,7 @@ class Mesh:
     face_draw_distance: bool
     valid: bool
     
+    
     def __init__(self, element: TagFieldBlockElement, bounds: CompressionBounds = None, permutation=None, materials=[], block_node_map=None, does_not_need_parts=False):
         self.index = element.ElementIndex
         self.permutation = permutation
@@ -1605,6 +1606,8 @@ class Mesh:
         self.face_draw_distance = len({p.draw_distance for p in self.parts}) > 1
         self.face_no_shadow = len({p.no_shadow for p in self.parts}) > 1
         self.face_lightmap_only = len({p.lightmap_only for p in self.parts}) > 1
+        
+        self.is_pca = element.SelectField("mesh flags").TestBit("mesh is PCA") if utils.is_corinth() else False
             
         self.raw_positions = []
         self.raw_texcoords = []
@@ -1778,6 +1781,9 @@ class Mesh:
 
         if not self.does_not_need_parts and mean(ob.dimensions.to_tuple()) < 20:
             mesh.nwo.precise_position = True
+            
+        if self.is_pca:
+            mesh.color_attributes.new("tension", 'FLOAT_COLOR', 'POINT')
 
         return ob
 
