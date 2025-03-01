@@ -735,87 +735,101 @@ class ExportScene:
         mesh = ob.data
         data_nwo: NWO_MeshPropertiesGroup = mesh.nwo
         copy = None
-        if supports_bsp:
-            # Foundry stores instances as the default mesh type, so switch them back to poops and structure to default
-            match mesh_type:
-                case '_connected_geometry_mesh_type_default':
-                    mesh_type = '_connected_geometry_mesh_type_poop'
-                case '_connected_geometry_mesh_type_structure':
-                    mesh_type = '_connected_geometry_mesh_type_default'
         
-        if mesh_type == "_connected_geometry_mesh_type_physics":
-            if nwo.mesh_primitive_type != '_connected_geometry_primitive_type_none':
-                copy = ObjectCopy.PHYSICS
-            elif self.corinth and nwo.mopp_physics:
-                props["bungie_mesh_primitive_type"] = "_connected_geometry_primitive_type_mopp"
-                props["bungie_havok_isshape"] = 1
-        elif mesh_type == '_connected_geometry_mesh_type_object_instance':
-            self._setup_instanced_object_props(nwo, props, region)
-        elif mesh_type == '_connected_geometry_mesh_type_poop':
-            self._setup_poop_props(ob, nwo, data_nwo, props, mesh_props)
-        elif mesh_type == '_connected_geometry_mesh_type_default' and self.corinth and self.asset_type == AssetType.SCENARIO:
-            props["bungie_face_type"] = FaceType.sky.value
-            if nwo.proxy_instance:
-                copy = ObjectCopy.INSTANCE
-        elif mesh_type == '_connected_geometry_mesh_type_seam':
-            props["bungie_mesh_seam_associated_bsp"] = region
-            if not nwo.seam_back_manual:
-                copy = ObjectCopy.SEAM
-        elif mesh_type == "_connected_geometry_mesh_type_portal":
-            props["bungie_mesh_portal_type"] = nwo.portal_type
-            if nwo.portal_ai_deafening:
-                props["bungie_mesh_portal_ai_deafening"] = 1
-            if nwo.portal_blocks_sounds:
-                props["bungie_mesh_portal_blocks_sound"] = 1
-            if nwo.portal_is_door:
-                props["bungie_mesh_portal_is_door"] = 1
-        elif mesh_type == "_connected_geometry_mesh_type_water_surface":
-            if nwo.water_volume_depth > 0:
-                if mesh.materials:
-                    copy = ObjectCopy.WATER_PHYSICS
-                else:
-                    mesh_type = '_connected_geometry_mesh_type_water_physics_volume'
-                    self._setup_water_physics_props(nwo, props)
+        match self.asset_type:
+            case AssetType.MODEL:
+                match mesh_type:
+                    case "_connected_geometry_mesh_type_physics":
+                        if nwo.mesh_primitive_type != '_connected_geometry_primitive_type_none':
+                            copy = ObjectCopy.PHYSICS
+                        elif self.corinth and nwo.mopp_physics:
+                            props["bungie_mesh_primitive_type"] = "_connected_geometry_primitive_type_mopp"
+                            props["bungie_havok_isshape"] = 1
+                    case '_connected_geometry_mesh_type_object_instance':
+                        self._setup_instanced_object_props(nwo, props, region)
                     
-        elif mesh_type in ("_connected_geometry_mesh_type_poop_vertical_rain_sheet", "_connected_geometry_mesh_type_poop_rain_blocker"):
-            mesh_props["bungie_face_mode"] = FaceMode.render_only.value
-            
-        elif mesh_type == "_connected_geometry_mesh_type_planar_fog_volume":
-            props["bungie_mesh_fog_appearance_tag"] = utils.relative_path(nwo.fog_appearance_tag)
-            props["bungie_mesh_fog_volume_depth"] = nwo.fog_volume_depth
-            
-        elif mesh_type == "_connected_geometry_mesh_type_boundary_surface":
-            match data_nwo.boundary_surface_type:
-                case 'SOFT_CEILING':
-                    props["bungie_mesh_boundary_surface_type"] = BoundarySurfaceType.soft_ceiling.value
-                case 'SOFT_KILL':
-                    props["bungie_mesh_boundary_surface_type"] = BoundarySurfaceType.soft_kill.value
-                case 'SLIP_SURFACE':
-                    props["bungie_mesh_boundary_surface_type"] = BoundarySurfaceType.slip_surface.value
-                case _:
-                    return
+            case AssetType.SCENARIO:
+                # Foundry stores instances as the default mesh type, so switch them back to poops and structure to default
+                match mesh_type:
+                    case '_connected_geometry_mesh_type_default':
+                        mesh_type = '_connected_geometry_mesh_type_poop'
+                    case '_connected_geometry_mesh_type_structure':
+                        mesh_type = '_connected_geometry_mesh_type_default'
+                        
+                match mesh_type:
+                    case '_connected_geometry_mesh_type_poop':
+                        self._setup_poop_props(ob, nwo, data_nwo, props, mesh_props)
+                    case '_connected_geometry_mesh_type_seam':
+                        props["bungie_mesh_seam_associated_bsp"] = region
+                        if not nwo.seam_back_manual:
+                            copy = ObjectCopy.SEAM
+                            
+                    case "_connected_geometry_mesh_type_portal":
+                        props["bungie_mesh_portal_type"] = nwo.portal_type
+                        if nwo.portal_ai_deafening:
+                            props["bungie_mesh_portal_ai_deafening"] = 1
+                        if nwo.portal_blocks_sounds:
+                            props["bungie_mesh_portal_blocks_sound"] = 1
+                        if nwo.portal_is_door:
+                            props["bungie_mesh_portal_is_door"] = 1
+                            
+                    case "_connected_geometry_mesh_type_water_surface":
+                        if nwo.water_volume_depth > 0:
+                            if mesh.materials:
+                                copy = ObjectCopy.WATER_PHYSICS
+                            else:
+                                mesh_type = '_connected_geometry_mesh_type_water_physics_volume'
+                                self._setup_water_physics_props(nwo, props)
+                                
+                    case "_connected_geometry_mesh_type_poop_vertical_rain_sheet" | "_connected_geometry_mesh_type_poop_rain_blocker":
+                        mesh_props["bungie_face_mode"] = FaceMode.render_only.value
+                        
+                    case "_connected_geometry_mesh_type_planar_fog_volume":
+                        props["bungie_mesh_fog_appearance_tag"] = utils.relative_path(nwo.fog_appearance_tag)
+                        props["bungie_mesh_fog_volume_depth"] = nwo.fog_volume_depth
+                        
+                    case "_connected_geometry_mesh_type_boundary_surface":
+                        match data_nwo.boundary_surface_type:
+                            case 'SOFT_CEILING':
+                                props["bungie_mesh_boundary_surface_type"] = BoundarySurfaceType.soft_ceiling.value
+                            case 'SOFT_KILL':
+                                props["bungie_mesh_boundary_surface_type"] = BoundarySurfaceType.soft_kill.value
+                            case 'SLIP_SURFACE':
+                                props["bungie_mesh_boundary_surface_type"] = BoundarySurfaceType.slip_surface.value
+                            case _:
+                                return
+                            
+                        props["bungie_mesh_boundary_surface_name"] = utils.dot_partition(ob.name)
+                        
+                    case "_connected_geometry_mesh_type_obb_volume":
+                        match data_nwo.obb_volume.type:
+                            case 'LIGHTMAP_EXCLUSION':
+                                props["bungie_mesh_obb_type"] = MeshObbVolumeType.lightmapexclusionvolume.value
+                            case 'STREAMING_VOLUME':
+                                props["bungie_mesh_obb_type"] = MeshObbVolumeType.streamingvolume.value
+                            case _:
+                                return
+                            
+                    case "_connected_geometry_mesh_type_default":
+                        if self.corinth:
+                            props["bungie_face_type"] = FaceType.sky.value
+                            if nwo.proxy_instance:
+                                copy = ObjectCopy.INSTANCE
+
+            case AssetType.DECORATOR_SET:
+                mesh_type = '_connected_geometry_mesh_type_decorator'
+                lod = decorator_int(ob)
+                self.sidecar.lods.add(lod)
+                props["bungie_mesh_decorator_lod"] = lod
+                    
+            case AssetType.PREFAB:
+                mesh_type = '_connected_geometry_mesh_type_poop'
+                self._setup_poop_props(ob, nwo, data_nwo, props)
                 
-            props["bungie_mesh_boundary_surface_name"] = utils.dot_partition(ob.name)
-            
-        elif mesh_type == "_connected_geometry_mesh_type_obb_volume":
-            match data_nwo.obb_volume.type:
-                case 'LIGHTMAP_EXCLUSION':
-                    props["bungie_mesh_obb_type"] = MeshObbVolumeType.lightmapexclusionvolume.value
-                case 'STREAMING_VOLUME':
-                    props["bungie_mesh_obb_type"] = MeshObbVolumeType.streamingvolume.value
-                case _:
-                    return
-        
-        elif self.asset_type == AssetType.PREFAB:
-            mesh_type = '_connected_geometry_mesh_type_poop'
-            self._setup_poop_props(ob, nwo, data_nwo, props)
-            
-        elif self.asset_type == AssetType.DECORATOR_SET:
-            mesh_type = '_connected_geometry_mesh_type_decorator'
-            lod = decorator_int(ob)
-            self.sidecar.lods.add(lod)
-            props["bungie_mesh_decorator_lod"] = lod
-            
+            case _:
+                mesh_type = '_connected_geometry_mesh_type_default'
+
+
         if mesh_type == '_connected_geometry_mesh_type_structure':
             mesh_type = '_connected_geometry_mesh_type_default'
 

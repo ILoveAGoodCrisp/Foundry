@@ -1284,7 +1284,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         data = ob.data
 
         halo_light = ob.type == 'LIGHT'
-        has_mesh_types = utils.is_mesh(ob) and utils.poll_ui(('model', 'scenario', 'prefab'))
+        has_mesh_types = utils.is_mesh(ob) and utils.poll_ui(('model', 'scenario'))
 
         if halo_light:
             row.prop(data, "type", expand=True)
