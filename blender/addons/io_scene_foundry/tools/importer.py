@@ -1272,6 +1272,7 @@ class NWOImporter:
                     imported_objects.extend(render_objects)
                     for ob in render_objects:
                         if ob.type == 'ARMATURE':
+                            ob.nwo.export_this = False
                             ob.nwo.cinematic_object = scenery.tag_path.RelativePathWithExtension
                             if temp_variant == self.tag_variant:
                                 ob.nwo.cinematic_variant = temp_variant
