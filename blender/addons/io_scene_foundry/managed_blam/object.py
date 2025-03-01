@@ -37,10 +37,12 @@ class ObjectTag(Tag):
             object_struct = first_struct
         else:
             object_struct = first_struct.Elements[0].Fields[0]
+        self.object_struct = object_struct
         self.reference_model = self.tag.SelectField(f"{object_struct.FieldPath}/Reference:model")
         self.default_variant = self.tag.SelectField(f"{object_struct.FieldPath}/StringId:default model variant")
         self.block_change_colors = self.tag.SelectField(f"{object_struct.FieldPath}/Block:change colors")
         self.block_functions = self.tag.SelectField(f"{object_struct.FieldPath}/Block:functions")
+        self.runtime_object_type = self.tag.SelectField(f"{object_struct.FieldPath}/ShortInteger:runtime object type")
             
     def get_model_tag_path(self):
         model_path = self.reference_model.Path

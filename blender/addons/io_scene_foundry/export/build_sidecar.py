@@ -822,7 +822,6 @@ class Sidecar:
         region = self.context.scene.nwo.regions_table[region_name]
         return 'true' if region.active else 'false'
     
-    
     def _write_cinematic_contents(self, metadata):
         contents = ET.SubElement(metadata, "Contents")
         content = ET.SubElement(contents, "Content", Name=self.cinematic_scene.name, Type="scene")

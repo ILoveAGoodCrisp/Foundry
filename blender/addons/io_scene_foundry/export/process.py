@@ -1451,7 +1451,7 @@ class ExportScene:
             if shot_count == MAXIMUM_CINEMATIC_SHOTS:
                 self.warnings.append(f"Maximum shot count of 64 exceeeded (You have {len(markers) + 1} shots). Shots have been limited")
             
-            # Set shot bit mask for actors
+            # Set shot bit mask for actors and validate
             for actor in self.cinematic_actors:
                 actor.set_shot_bit_mask(shot_count)
             

@@ -4145,7 +4145,7 @@ def actor_validation(ob) -> str | None:
     full_tag_path = Path(get_tags_path(), tag_path)
     if not full_tag_path.exists():
         return f"{ob.name}'s cinematic object does not exist: {full_tag_path}"
-    elif tag_path.suffix not in OBJECT_TAG_EXTS:
+    elif tag_path.suffix.lower() not in OBJECT_TAG_EXTS:
         return f"{ob.name}'s cinematic object does is not a valid object tag type. Must be one of: {OBJECT_TAG_EXTS}"
 
 def current_shot_index(context: bpy.types.Context):

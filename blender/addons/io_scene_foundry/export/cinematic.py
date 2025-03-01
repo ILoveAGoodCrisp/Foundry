@@ -1,6 +1,9 @@
 from pathlib import Path
 import bpy
 
+from ..managed_blam.object import ObjectTag
+from ..managed_blam.model import ModelTag
+from ..managed_blam.animation import AnimationTag
 from ..managed_blam.cinematic_scene import CinematicClip, CinematicCustomScript, CinematicDialogue, CinematicEffect, CinematicLighting, CinematicMusic, CinematicObjectFunction, CinematicScreenEffect, CinematicTextureMovie, CinematicUserInputConstraints
 
 from ..managed_blam.Tags import TagFieldBlock
@@ -116,7 +119,8 @@ class Actor:
         if "." in ob.name:
             ob.name = ob.name.replace(".", "_")
         self.name = ob.name
-        self.tag = ob.nwo.cinematic_object
+        self.tag = utils.relative_path(ob.nwo.cinematic_object)
+        self.weapon_tag = None
         self.graph = str(Path(asset_path, "objects", scene_name, f"{ob.name}.model_animation_graph"))
         if child_asset_name:
             self.sidecar = str(Path(asset_path, child_asset_name, "export", "models", self.name))
@@ -128,11 +132,61 @@ class Actor:
         self.shot_bit_mask = None
         self.node_order = None
         self.variant = ob.nwo.cinematic_variant
+        self.validation_complete = False
         
     def set_shot_bit_mask(self, shot_count: int):
         self.shots_active = [getattr(self.ob.nwo, f"shot_{i + 1}") for i in range(shot_count)]
         # self.shot_bit_mask = " ".join(str(int(self.shots_active)))
-
+        
+    def validate(self, bones) -> str | None:
+        """Ensures that the tag will function for the cinematic. Returns a string with the reason for validation for failure, else None"""
+        self.validation_complete = True
+        object_path = Path(utils.get_tags_path(), self.tag)
+        # Check that there is an animation graph
+        with ObjectTag(path=object_path) as obj:
+            model_tag_path = obj.reference_model.Path
+            model_path = obj.get_model_tag_path_full()
+            if model_path is None or not Path(model_path).exists():
+                return f"Actor {self.name} has no valid model"
+            with ModelTag(path=model_path) as model:
+                if model.reference_render_model.Path is None or not Path(model.reference_render_model.Path.Filename).exists():
+                    return f"Actor {self.name} has no valid render_model"
+                if model.reference_animation.Path is None or not Path(model.reference_animation.Path.Filename).exists():
+                    # No animation, so create on and add skeleton nodes so it is valid
+                    graph_path = object_path.with_suffix(".model_animation_graph")
+                    with AnimationTag(path=graph_path) as graph:
+                        if graph.block_skeleton_nodes.Elements.Count == 0:
+                            for bone in bones:
+                                graph.block_skeleton_nodes.AddElement().Fields[0].SetStringData(bone.name)
+                            graph.tag_has_changes = True
+                        
+                        model.reference_animation.Path = graph.tag_path
+                        model.tag_has_changes = True
+                            
+            tag_type = object_path.suffix.lower()
+            if tag_type in {'.scenery', '.biped'}:
+                return # tag type is already okay for cinematics
+            
+            if tag_type == '.weapon':
+                # Add weapon tag as an attachment for the object
+                # This lets users script a weapon to fire
+                self.weapon_tag = self.tag
+            
+            # Check if there is a scenery version of the actor tag
+            scenery_path = object_path.with_suffix(".scenery")
+            if scenery_path.exists():
+                self.tag = utils.relative_path(scenery_path)
+            else:
+                # No scenery? lets create it
+                with ObjectTag(path=scenery_path) as scenery:
+                    scenery.reference_model.Path = model_tag_path
+                    # Copy across important values
+                    obj.object_struct.CopyEntireTagBlock()
+                    scenery.object_struct.PasteReplaceEntireBlock()
+                    scenery.runtime_object_type.Data = 6
+                    scenery.tag_has_changes = True
+                    self.tag = scenery.tag_path.RelativePathWithExtension
+                            
 class ShotActor:
     def __init__(self, ob: bpy.types.Object, shot_index: int):
         self.ob = ob
@@ -651,6 +705,22 @@ class QUA:
                 element = block_objects.AddElement()
                 element.SelectField("name").SetStringData(actor.name)
                 element.SelectField("variant name").SetStringData(actor.variant)
+                if actor.weapon_tag is not None:
+                    block_attachments = element.SelectField("Block:attachments")
+                    for element in block_attachments.Elements:
+                        attachment_path = element.SelectField("Reference:attachment type").Path
+                        if attachment_path is None:
+                            continue
+                        elif attachment_path.Path.RelativePathWithExtension == actor.weapon_tag:
+                            break
+                    else:
+                        element = block_attachments.AddElement()
+                        element.SelectField("flags").SetBit("invisible", True)
+                        element.SelectField("object marker name").SetStringData("primary_trigger")
+                        element.SelectField("attachment object name").SetStringData(f"{actor.name}_weapon")
+                        element.SelectField("attachment marker name").SetStringData("primary_trigger")
+                        element.SelectField("attachment type").Path = tag._TagPath_from_string(actor.weapon_tag)
+                        
                 actor_elements[actor] = element
 
             if not self.corinth:  
