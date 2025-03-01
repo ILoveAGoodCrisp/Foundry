@@ -21,7 +21,7 @@ class CinematicScene:
         self.anchor_location = 0.0, 0.0, 0.0
         self.anchor_yaw_pitch = 0.0, 0.0, 0.0
         if self.anchor is not None:
-            anchor_matrix = utils.halo_transforms_matrix(self.anchor.matrix_world.inverted())
+            anchor_matrix = utils.halo_transforms_matrix(self.anchor.matrix_world.inverted_safe())
             self.anchor_location = anchor_matrix.translation.to_tuple()
             matrix_3x3 = anchor_matrix.normalized().to_3x3()
             forward = matrix_3x3.col[0]
@@ -182,7 +182,7 @@ class Frame:
             blur_amount = 0
             
         self.position = matrix.translation.to_tuple()
-        matrix_3x3 = matrix.to_3x3() @ camera_correction_matrix.inverted()
+        matrix_3x3 = matrix.to_3x3() @ camera_correction_matrix.inverted_safe()
         up = matrix_3x3.col[2]
         forward = matrix_3x3.col[0]
         self.up = up.normalized().to_tuple()

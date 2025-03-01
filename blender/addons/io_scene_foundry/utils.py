@@ -1726,7 +1726,7 @@ def set_origin_to_centre(ob):
 def set_origin_to_point(ob: bpy.types.Object, point: Vector):
     translation_matrix = Matrix.Translation(point - ob.location)
     ob.data.transform(translation_matrix)
-    ob.matrix_world = ob.matrix_world @ translation_matrix.inverted()
+    ob.matrix_world = ob.matrix_world @ translation_matrix.inverted_safe()
 
 def get_project(project_name):
     projects = get_prefs().projects
@@ -2570,7 +2570,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                 for edit_bone in connected_bones:
                     edit_bone.use_connect = False
                     
-                arm_inverted = scale_matrix @ arm.matrix_world.inverted()
+                arm_inverted = scale_matrix @ arm.matrix_world.inverted_safe()
                     
                 for edit_bone in edit_bones:
                     world_matrix = arm.matrix_world @ edit_bone.matrix
@@ -3651,7 +3651,7 @@ def remove_relative_parenting(armature):
     for ob in bpy.data.objects:
         if ob.parent == armature and ob.parent_type == 'BONE' and ob.parent_bone in relative_bone_names:
             bone = armature.data.bones[ob.parent_bone]
-            ob.matrix_parent_inverse = (armature.matrix_world @ Matrix.Translation(bone.tail_local - bone.head_local) @ bone.matrix_local).inverted()
+            ob.matrix_parent_inverse = (armature.matrix_world @ Matrix.Translation(bone.tail_local - bone.head_local) @ bone.matrix_local).inverted_safe()
 
     for b in relative_bones: b.use_relative_parent = False
     
@@ -4004,7 +4004,7 @@ def get_halo_props_for_granny(props) -> dict:
 def get_bone_matrix_local(bone: bpy.types.PoseBone) -> Matrix:
     if not bone.parent:
         return bone.matrix.copy()
-    return bone.parent.matrix.inverted() @ bone.matrix
+    return bone.parent.matrix.inverted_safe() @ bone.matrix
 
 def get_version() -> tuple[int, int, int]:
     return module.bl_info["version"]

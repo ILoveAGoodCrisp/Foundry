@@ -97,7 +97,7 @@ class Bone():
         position, orientation, scale_shear = granny_transform_parts(matrix_local)
         self.local_transform = GrannyTransform(flags=7, position=position, orientation=orientation, scale_shear=scale_shear)
         
-        inverted_matrix = matrix_world.inverted()
+        inverted_matrix = matrix_world.inverted_safe()
         # self.inverse_transform = (c_float * 4 * 4)(
         #     (inverted_matrix[0][0], inverted_matrix[0][1], inverted_matrix[0][2], inverted_matrix[0][3]),
         #     (inverted_matrix[1][0], inverted_matrix[1][1], inverted_matrix[1][2], inverted_matrix[1][3]),

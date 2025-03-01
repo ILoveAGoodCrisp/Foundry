@@ -120,7 +120,7 @@ class CameraTrackTag(Tag):
                 rotation = ob.rotation_quaternion
                 
             blender_orientation_matrix = rotation.to_matrix()
-            camera_matrix_fixed = blender_orientation_matrix @ camera_correction_matrix.inverted()
+            camera_matrix_fixed = blender_orientation_matrix @ camera_correction_matrix.inverted_safe()
             control_point.set_ijkw_from_rotation(camera_matrix_fixed.to_quaternion())
             
             control_points.append(control_point)

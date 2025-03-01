@@ -319,7 +319,7 @@ class AnimationTag(Tag):
         bone_base_matrices = {}
         for bone in armature.pose.bones:
             if bone.parent:
-                bone_base_matrices[bone] = bone.parent.matrix.inverted() @ bone.matrix
+                bone_base_matrices[bone] = bone.parent.matrix.inverted_safe() @ bone.matrix
             else:
                 bone_base_matrices[bone] = bone.matrix
         if self.block_animations.Elements.Count < 1: 

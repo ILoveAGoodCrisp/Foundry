@@ -328,7 +328,7 @@ def transfer_movement(context: bpy.types.Context, animation, animation_index: in
     # while scene.frame_current < animation.frame_end:
     #     scene.frame_set(scene.frame_current + 1)
     #     parent_matrix = root_bone.matrix.copy()
-    #     source_bone.matrix = parent_matrix.inverted() @ source_bone.matrix
+    #     source_bone.matrix = parent_matrix.inverted_safe() @ source_bone.matrix
     #     if using_copy_loc:
     #         source_bone.keyframe_insert(data_path='location', frame=scene.frame_current, options={'INSERTKEY_VISUAL'})
     #     if using_copy_rot:

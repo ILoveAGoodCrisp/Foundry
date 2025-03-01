@@ -251,7 +251,7 @@ class CacheBuilder:
                         loc, rot, sca = utils.halo_loc_rot_sca(blender_cameras[0].matrix_world)
                         print(f"--- Added multiplayer camera from blender camera: {blender_cameras[0].name}")
                     else:
-                        loc, rot, sca = utils.halo_loc_rot_sca(self.context.space_data.region_3d.view_matrix.inverted())
+                        loc, rot, sca = utils.halo_loc_rot_sca(self.context.space_data.region_3d.view_matrix.inverted_safe())
                         print(f"--- Added multiplayer camera from blender viewport")
                     element = scenery.AddElement()
                     element.Fields[1].Value = camera_palette_index

@@ -126,7 +126,7 @@ def sync_corinth_sapien(location, yaw, pitch, roll, in_camera, context):
 def sync_camera_to_game(context: bpy.types.Context):
     r3d = context.space_data.region_3d
     # matrix = utils.halo_transform_matrix(view_matrix)
-    matrix = utils.halo_transform_matrix(r3d.view_matrix.inverted())
+    matrix = utils.halo_transform_matrix(r3d.view_matrix.inverted_safe())
     location = [round(t, 3) for t in matrix.translation]
     yaw, pitch, roll = utils.quaternion_to_ypr(matrix.to_quaternion())
     in_camera = r3d.view_perspective == 'CAMERA' and context.scene.camera

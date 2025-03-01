@@ -122,11 +122,11 @@ class VirtualShot:
                     for bone in shot_actor.bones:
                         if bone.parent:
                             matrix_world = scene.rotation_matrix @ bone.ob.matrix_world @ bone.pbone.matrix
-                            bone_inverse_matrices[bone.pbone] = matrix_world.inverted()
+                            bone_inverse_matrices[bone.pbone] = matrix_world.inverted_safe()
                             matrix = bone_inverse_matrices[bone.parent] @ matrix_world
                         else:
                             matrix = scene.rotation_matrix @ bone.ob.matrix_world @ bone.pbone.matrix
-                            bone_inverse_matrices[bone.pbone] = matrix.inverted()
+                            bone_inverse_matrices[bone.pbone] = matrix.inverted_safe()
 
                         loc, rot, sca = matrix.decompose()
                         position = (c_float * 3)(loc.x, loc.y, loc.z)
@@ -344,12 +344,12 @@ class VirtualAnimation:
                     matrix = scene.rotation_matrix @ bone.pbone.matrix_world
                 elif bone.parent:
                     matrix_world = scene.rotation_matrix @ bone.ob.matrix_world @ bone.pbone.matrix
-                    bone_inverse_matrices[bone.pbone] = matrix_world.inverted()
+                    bone_inverse_matrices[bone.pbone] = matrix_world.inverted_safe()
                     matrix = bone_inverse_matrices[bone.parent] @ matrix_world    
                         
                 else:
                     matrix = scene.rotation_matrix @ bone.ob.matrix_world @ bone.pbone.matrix
-                    bone_inverse_matrices[bone.pbone] = matrix.inverted()
+                    bone_inverse_matrices[bone.pbone] = matrix.inverted_safe()
 
                 loc, rot, sca = matrix.decompose()
                 
@@ -1353,7 +1353,7 @@ class VirtualBone:
             scene.granny.create_extended_data(self.props, self.granny_bone)
         
     def _granny_world_transform(self):
-        inverse_matrix = self.matrix_world.inverted()
+        inverse_matrix = self.matrix_world.inverted_safe()
         inverse_transform = (c_float * 4 * 4)((tuple(inverse_matrix.col[0])), (tuple(inverse_matrix.col[1])), (tuple(inverse_matrix.col[2])), (tuple(inverse_matrix.col[3])))
         return inverse_transform
     
@@ -1361,7 +1361,7 @@ class AnimatedBone:
     def __init__(self, ob: bpy.types.Object, pbone, parent_override=None, is_aim_bone=False):
         self.name = pbone.name
         self.ob = ob
-        self.parent_matrix_rest_inverted = ob.matrix_world.inverted()
+        self.parent_matrix_rest_inverted = ob.matrix_world.inverted_safe()
         self.pbone: bpy.types.PoseBone = pbone
         self.parent = None
         self.is_object = False
@@ -1507,7 +1507,7 @@ class VirtualSkeleton:
                     # Add one to this since the root is the armature
                     b.parent_index = dict_bones[fb.parent.name] + 1
                     b.matrix_world = scene.rotation_matrix @ fb.matrix
-                    bone_inverse_matrices[fb.bone] = b.matrix_world.inverted()
+                    bone_inverse_matrices[fb.bone] = b.matrix_world.inverted_safe()
                     b.matrix_local = bone_inverse_matrices[fb.parent.bone] @ b.matrix_world
                 else:
                     if root_bone_found:
@@ -1517,7 +1517,7 @@ class VirtualSkeleton:
                     b.parent_index = 0
                     b.matrix_world = scene.rotation_matrix @ fb.matrix
                     b.matrix_local = b.matrix_world
-                    bone_inverse_matrices[fb.bone] = b.matrix_world.inverted()
+                    bone_inverse_matrices[fb.bone] = b.matrix_world.inverted_safe()
                     scene.root_bone = root_bone
                 
                 b.to_granny_data(scene)
@@ -1567,7 +1567,7 @@ class VirtualSkeleton:
             parent_node = scene.nodes.get(ob)
             if parent_node is None:
                 continue
-            node = scene.add(child, *scene.object_halo_data[child], parent_matrix=parent_node.matrix_world.inverted())
+            node = scene.add(child, *scene.object_halo_data[child], parent_matrix=parent_node.matrix_world.inverted_safe())
             if not node or node.invalid: continue
             child_index += 1
             b = VirtualBone(child, node.name)
@@ -1810,7 +1810,7 @@ class VirtualScene:
                 if node.id.type == 'MESH':
                     bbox = node.id.bound_box
                     for co in bbox:
-                        bounds = self.rotation_matrix.inverted() @ node.matrix_world @ Vector((co[0], co[1], co[2]))
+                        bounds = self.rotation_matrix.inverted_safe() @ node.matrix_world @ Vector((co[0], co[1], co[2]))
                         min_x = min(min_x, bounds.x - padding)
                         min_y = min(min_y, bounds.y - padding)
                         min_z = min(min_z, bounds.z - padding)
@@ -1818,7 +1818,7 @@ class VirtualScene:
                         max_y = max(max_y, bounds.y + padding)
                         max_z = max(max_z, bounds.z + padding)
                 else:
-                    bounds = self.rotation_matrix.inverted() @ node.matrix_world.to_translation()
+                    bounds = self.rotation_matrix.inverted_safe() @ node.matrix_world.to_translation()
                     min_x = min(min_x, bounds.x - padding)
                     min_y = min(min_y, bounds.y - padding)
                     min_z = min(min_z, bounds.z - padding)
