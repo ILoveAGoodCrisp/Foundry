@@ -2949,9 +2949,6 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         row.prop(animation, "frame_start", text='Start Frame', icon='KEYFRAME_HLT')
         row.prop(animation, "frame_end", text='End Frame', icon='KEYFRAME_HLT')
         col.separator()
-        if animation.animation_type == 'overlay':
-            col.operator('nwo.generate_poses', text='Generate Poses', icon='ANIM')
-            col.separator()
         row = col.row()
         row.use_property_split = True
         row.prop(animation, "animation_type")
@@ -2971,6 +2968,9 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             row.use_property_split = True
 
             col.separator()
+            if animation.animation_type == 'overlay':
+                col.operator('nwo.generate_poses', text='Generate Poses', icon='ANIM')
+                col.separator()
             
             row = col.row()
             # ANIMATION RENAMES

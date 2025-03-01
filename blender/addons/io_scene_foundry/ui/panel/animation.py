@@ -914,7 +914,20 @@ class NWO_UL_AnimationList(bpy.types.UIList):
 
     # Called for each drawn item.
     def draw_item(self, context, layout: bpy.types.UILayout, data, item, icon, active_data, active_propname, index, flt_flag):
-        layout.prop(item, "name", text="", emboss=False, icon='ANIM')
+        match item.animation_type:
+            case 'base':
+                if item.animation_movement_data == 'none':
+                    icon_str = "anim_base"
+                else:
+                    icon_str = f"anim_base_{item.animation_movement_data}"
+            case 'overlay':
+                icon_str = "anim_overlay"
+            case 'replacement':
+                icon_str = f'anim_replacement_{item.animation_space}'
+            case 'world':
+                icon_str = f'anim_world'
+            
+        layout.prop(item, "name", text="", emboss=False, icon_value=get_icon_id(icon_str))
         # layout.label(text=str((item.frame_end + 1) - item.frame_start), icon='KEYFRAME_HLT')
         # num_action_tracks = len([track for track in item.action_tracks if not track.is_shape_key_action])
         # num_shape_key_tracks = len(item.action_tracks) - num_action_tracks
@@ -929,15 +942,15 @@ class NWO_UL_AnimationList(bpy.types.UIList):
         #     layout.label(text=str(len(item.animation_events)), icon_value=get_icon_id("animation_event"))
         # else:
         #     layout.label(text=' ', icon='BLANK1')
-        anim_type_display = f"[{(item.frame_end + 1) - item.frame_start}] {item.animation_type}"
-        if anim_type_display == 'base' and item.animation_movement_data != 'none':
-            anim_type_display += f'[{item.animation_movement_data}]'
-        elif anim_type_display == 'replacement':
-            anim_type_display += f'[{item.animation_space}]'
+        # anim_type_display = f"[{(item.frame_end + 1) - item.frame_start}] {item.animation_type}"
+        # if anim_type_display == 'base' and item.animation_movement_data != 'none':
+        #     anim_type_display += f'[{item.animation_movement_data}]'
+        # elif anim_type_display == 'replacement':
+        #     anim_type_display += f'[{item.animation_space}]'
             
-        col = layout.column()
-        col.alignment = 'RIGHT'
-        col.label(text=anim_type_display)
+        # col = layout.column()
+        # col.alignment = 'RIGHT'
+        # col.label(text=anim_type_display)
 
         layout.prop(item, 'export_this', text="", icon='CHECKBOX_HLT' if item.export_this else 'CHECKBOX_DEHLT', emboss=False)
     
