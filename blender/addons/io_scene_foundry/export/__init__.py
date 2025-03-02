@@ -250,6 +250,7 @@ class NWO_ExportScene(Operator, ExportHelper):
             end = time.perf_counter()
 
             if self.failed:
+                print("FOUNDRY VERSION: ", utils.get_version_string())
                 print_warning(
                     "\ Export crashed and burned. Please let the developer know: https://github.com/ILoveAGoodCrisp/Foundry/issues\n"
                 )
