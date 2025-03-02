@@ -1075,10 +1075,6 @@ class VirtualMesh:
 
         result_data, new_indices, face_indices = np.unique(loop_data, axis=0, return_index=True, return_inverse=True)
         
-        num_unique = result_data.shape[0]
-        
-        self.normals = self.normals[:, :3]
-        
         if scene.corinth:
             # Extract the start index and number of loops for each face
             loop_starts = np.empty(num_polygons, dtype=np.int32)

@@ -747,19 +747,19 @@ class QUA:
                 element.SelectField("variant name").SetStringData(actor.variant)
                 if actor.weapon_tag is not None:
                     block_attachments = element.SelectField("Block:attachments")
-                    for element in block_attachments.Elements:
+                    for attachment_element in block_attachments.Elements:
                         attachment_path = element.SelectField("Reference:attachment type").Path
                         if attachment_path is None:
                             continue
                         elif attachment_path.Path.RelativePathWithExtension == actor.weapon_tag:
                             break
                     else:
-                        element = block_attachments.AddElement()
-                        element.SelectField("flags").SetBit("invisible", True)
-                        element.SelectField("object marker name").SetStringData("primary_trigger")
-                        element.SelectField("attachment object name").SetStringData(f"{actor.name}_weapon")
-                        element.SelectField("attachment marker name").SetStringData("primary_trigger")
-                        element.SelectField("attachment type").Path = tag._TagPath_from_string(actor.weapon_tag)
+                        attachment_element = block_attachments.AddElement()
+                        attachment_element.SelectField("flags").SetBit("invisible", True)
+                        attachment_element.SelectField("object marker name").SetStringData("primary_trigger")
+                        attachment_element.SelectField("attachment object name").SetStringData(f"{actor.name}_weapon")
+                        attachment_element.SelectField("attachment marker name").SetStringData("primary_trigger")
+                        attachment_element.SelectField("attachment type").Path = tag._TagPath_from_string(actor.weapon_tag)
                         
                 actor_elements[actor] = element
 
