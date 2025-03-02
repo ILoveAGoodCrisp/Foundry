@@ -7,6 +7,7 @@ import logging
 from math import degrees, radians
 import math
 from pathlib import Path
+import random
 import bmesh
 import bpy
 from mathutils import Euler, Matrix, Vector
@@ -1014,8 +1015,19 @@ class VirtualMesh:
         
         if render_mesh:
             # We only care about writing this data if the in game mesh will have a render definition
-            self.normals = np.empty((num_loops, 3), dtype=np.single)
-            mesh.corner_normals.foreach_get("vector", self.normals.ravel())
+            if mesh.has_custom_normals and ob.data.nwo.from_vert_normals: # Use game vert normals
+                normals = np.empty((num_loops, 3), dtype=np.single)
+                mesh.corner_normals.foreach_get("vector", normals.ravel())
+                vertex_normals = np.zeros((num_vertices, 3), dtype=np.single)
+                vertex_counts = np.zeros(num_vertices, dtype=np.int32)
+                np.add.at(vertex_normals, loop_vertex_indices, normals)
+                vertex_counts = np.bincount(loop_vertex_indices)
+                valid_mask = vertex_counts > 0
+                vertex_normals[valid_mask] /= vertex_counts[valid_mask, None]
+                self.normals = vertex_normals[loop_vertex_indices]
+            else:
+                self.normals = np.empty((num_loops, 3), dtype=np.single)
+                mesh.corner_normals.foreach_get("vector", self.normals.ravel())
             for idx, layer in enumerate(mesh.uv_layers):
                 if len(self.texcoords) >= 4:
                     break
@@ -1050,7 +1062,6 @@ class VirtualMesh:
                     
             if scene.corinth and self.tension is None and ob.data.shape_keys:
                 self.tension = np.zeros((num_loops, 3), dtype=np.single)
-                
 
         # Remove duplicate vertex data
         data = [self.positions]
@@ -1068,6 +1079,10 @@ class VirtualMesh:
         loop_data = np.hstack(data)
 
         result_data, new_indices, face_indices = np.unique(loop_data, axis=0, return_index=True, return_inverse=True)
+        
+        num_unique = result_data.shape[0]
+        
+        self.normals = self.normals[:, :3]
         
         if scene.corinth:
             # Extract the start index and number of loops for each face

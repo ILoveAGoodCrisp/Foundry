@@ -459,6 +459,11 @@ class NWO_MeshPropertiesGroup(bpy.types.PropertyGroup):
     proxy_physics8: bpy.props.PointerProperty(type=bpy.types.Object)
     proxy_physics9: bpy.props.PointerProperty(type=bpy.types.Object)
     
+    from_vert_normals: bpy.props.BoolProperty(
+        name="Uses Custom Vertex Normals",
+        description="True if this mesh uses vertex custom normals. This will only take effect if the mesh has custom normals. Only set this manually if you know what you are doing"
+    )
+    
     def update_obb_volume_type(self, context):
         if utils.get_prefs().apply_materials:
             _, material = utils.mesh_and_material(self.obb_volume_type.lower(), context)

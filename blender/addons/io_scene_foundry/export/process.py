@@ -2249,6 +2249,9 @@ class ExportScene:
                     self.print_post(f"--- {term} cinematic tag")
                     if self.scene_settings.cinematic_scenario.strip():
                         utils.print_warning(f"Cinematic Scenario does not exist: {self.scene_settings.cinematic_scenario}")
+                        
+            for actor in self.cinematic_actors:
+                actor.validate()
         
     def _setup_model_overrides(self):
         model_override = self.asset_type == AssetType.MODEL and any((

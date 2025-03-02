@@ -1344,8 +1344,12 @@ class Mesh:
         self.face_draw_distance = len({p.draw_distance for p in self.parts}) > 1
         self.face_no_shadow = len({p.no_shadow for p in self.parts}) > 1
         self.face_lightmap_only = len({p.lightmap_only for p in self.parts}) > 1
-        
-        self.is_pca = element.SelectField("mesh flags").TestBit("mesh is PCA") if utils.is_corinth() else False
+        self.is_pca = False
+        self.uncompressed = False
+        if utils.is_corinth():
+            mesh_flags = element.SelectField("mesh flags")
+            self.is_pca = mesh_flags.TestBit("mesh is PCA")
+            self.uncompressed = mesh_flags.TestBit("use uncompressed vertex format")
             
         self.raw_positions = []
         self.raw_texcoords = []
@@ -1441,6 +1445,8 @@ class Mesh:
         has_texcoords1 = bool(texcoords1) and any(any(v) for v in texcoords1)
 
         uvs = self._true_uvs(texcoords) if self.bounds else [Vector((u, 1-v)) for (u, v) in texcoords]
+        if has_texcoords1:
+            uvs1 = self._true_uvs(texcoords1) if self.bounds else [Vector((u, 1-v)) for (u, v) in texcoords1]
         uv_layer = mesh.uv_layers.new(name="UVMap0", do_init=False)
         lighting_uv_layer = mesh.uv_layers.new(name="lighting", do_init=False) if has_lighting_texcoords else None
         uvs1_layer = mesh.uv_layers.new(name="UVMap1", do_init=False) if has_texcoords1 else None
@@ -1449,13 +1455,14 @@ class Mesh:
             for face in mesh.polygons:
                 for vert_idx, loop_idx in zip(face.vertices, face.loop_indices):
                     uv_layer.data[loop_idx].uv = uvs[vert_idx]
-                    if uvs1_layer:
-                        uvs1_layer.data[loop_idx].uv = texcoords1[vert_idx]
+                    if has_texcoords1:
+                        uvs1_layer.data[loop_idx].uv = uvs1[vert_idx]
                     if lighting_uv_layer:
                         lighting_uv_layer.data[loop_idx].uv = lighting_texcoords[vert_idx]
 
-        normalised_normals = [Vector(n).normalized() for n in normals]
-        mesh.normals_split_custom_set_from_vertices(normalised_normals)
+        # normalised_normals = [Vector(n).normalized() for n in normals]
+        mesh.normals_split_custom_set_from_vertices(normals)
+        mesh.nwo.from_vert_normals = True
 
         if has_vertex_colors:
             bm = bmesh.new()
@@ -1522,6 +1529,9 @@ class Mesh:
             
         if self.is_pca:
             mesh.color_attributes.new("tension", 'FLOAT_COLOR', 'POINT')
+            
+        if self.uncompressed:
+            mesh.nwo.uncompressed = True
 
         return ob
 

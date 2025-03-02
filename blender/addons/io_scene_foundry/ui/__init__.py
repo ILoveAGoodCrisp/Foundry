@@ -1,5 +1,5 @@
 import bpy
-from . import bar, node_editor, outliner, viewport, panel, timeline
+from . import bar, node_editor, outliner, viewport, panel, timeline, properties
 from .panel import animation, asset, help, material, object, scene, sets, setting, tools
 
 classes = [
@@ -141,6 +141,7 @@ classes = [
     sets.NWO_PermutationsContextMenu,
     sets.NWO_UL_Regions,
     sets.NWO_UL_Permutations,
+    properties.MESH_PT_FoundryMeshData,
 ]
 
 def register():

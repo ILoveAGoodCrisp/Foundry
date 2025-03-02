@@ -31,7 +31,7 @@ class AnimationTag(Tag):
         return [element.Fields[0].GetStringData() for element in self.block_animations.Elements]
         
     def _initialize_tag(self):
-        self.tag.SelectField('Struct:definitions[0]/ShortInteger:animation codec pack').SetStringData('6')
+        self.tag.SelectField('Struct:definitions[0]/ShortInteger:animation codec pack').Data = 6
         
     def _node_index_list(self, bones):
         # Have to set up the skeleton nodes block. If we end up with any node usages that point to non-existant nodes, the importer will crash

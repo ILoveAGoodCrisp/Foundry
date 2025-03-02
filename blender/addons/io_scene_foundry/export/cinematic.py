@@ -119,8 +119,18 @@ class Actor:
         if "." in ob.name:
             ob.name = ob.name.replace(".", "_")
         self.name = ob.name
-        self.tag = utils.relative_path(ob.nwo.cinematic_object)
+        self.original_tag = utils.relative_path(ob.nwo.cinematic_object)
         self.weapon_tag = None
+        path_tag = Path(self.original_tag)
+        
+        tag_type = path_tag.suffix.lower()
+        if tag_type in {'.scenery', '.biped'}:
+            self.tag = self.original_tag
+        else:
+            self.tag = str(path_tag.with_suffix(".scenery"))
+            if tag_type == ".weapon":
+                self.weapon_tag = self.original_tag
+        
         self.graph = str(Path(asset_path, "objects", scene_name, f"{ob.name}.model_animation_graph"))
         if child_asset_name:
             self.sidecar = str(Path(asset_path, child_asset_name, "export", "models", self.name))
@@ -138,10 +148,11 @@ class Actor:
         self.shots_active = [getattr(self.ob.nwo, f"shot_{i + 1}") for i in range(shot_count)]
         # self.shot_bit_mask = " ".join(str(int(self.shots_active)))
         
-    def validate(self, bones) -> str | None:
+    def validate(self) -> str | None:
         """Ensures that the tag will function for the cinematic. Returns a string with the reason for validation for failure, else None"""
         self.validation_complete = True
-        object_path = Path(utils.get_tags_path(), self.tag)
+        tags_dir = utils.get_tags_path()
+        object_path = Path(tags_dir, self.original_tag)
         # Check that there is an animation graph
         with ObjectTag(path=object_path) as obj:
             model_tag_path = obj.reference_model.Path
@@ -155,9 +166,12 @@ class Actor:
                     # No animation, so create on and add skeleton nodes so it is valid
                     graph_path = object_path.with_suffix(".model_animation_graph")
                     with AnimationTag(path=graph_path) as graph:
-                        if graph.block_skeleton_nodes.Elements.Count == 0:
-                            for bone in bones:
-                                graph.block_skeleton_nodes.AddElement().Fields[0].SetStringData(bone.name)
+                        cinematic_graph = Path(tags_dir, self.graph)
+                        if not cinematic_graph.exists():
+                            return f"Actor {self.name} has no cinematic animation graph"
+                        with AnimationTag(path=cinematic_graph) as cin_graph:
+                            cin_graph.block_skeleton_nodes.CopyEntireTagBlock()
+                            graph.block_skeleton_nodes.PasteReplaceEntireBlock()
                             graph.tag_has_changes = True
                         
                         model.reference_animation.Path = graph.tag_path
@@ -167,25 +181,24 @@ class Actor:
             if tag_type in {'.scenery', '.biped'}:
                 return # tag type is already okay for cinematics
             
-            if tag_type == '.weapon':
-                # Add weapon tag as an attachment for the object
-                # This lets users script a weapon to fire
-                self.weapon_tag = self.tag
-            
             # Check if there is a scenery version of the actor tag
             scenery_path = object_path.with_suffix(".scenery")
             if scenery_path.exists():
-                self.tag = utils.relative_path(scenery_path)
-            else:
                 # No scenery? lets create it
                 with ObjectTag(path=scenery_path) as scenery:
                     scenery.reference_model.Path = model_tag_path
                     # Copy across important values
+                    scenery_object = scenery.object_struct.Elements[0]
+                    obj_object = obj.object_struct.Elements[0]
+                    scenery_flags = scenery_object.SelectField("Flags:flags")
+                    obj_flags = obj_object.SelectField("Flags:flags")
+                    scenery_flags.SetBit("does not cast shadow", obj_flags.TestBit("does not cast shadow"))
+                    scenery_flags.SetBit("search cardinal direction lightmaps on failure", obj_flags.TestBit("search cardinal direction lightmaps on failure"))
+                    scenery_flags.SetBit(obj_flags.TestBit("object scales attachments"))
                     obj.object_struct.CopyEntireTagBlock()
                     scenery.object_struct.PasteReplaceEntireBlock()
                     scenery.runtime_object_type.Data = 6
                     scenery.tag_has_changes = True
-                    self.tag = scenery.tag_path.RelativePathWithExtension
                             
 class ShotActor:
     def __init__(self, ob: bpy.types.Object, shot_index: int):
