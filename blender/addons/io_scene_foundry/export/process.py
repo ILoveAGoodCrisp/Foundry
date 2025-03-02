@@ -2043,6 +2043,7 @@ class ExportScene:
         # This is done to ensure the templating is not skipped
         self.defer_graph_process = not Path(self.asset_path, f"{self.asset_name}.model_animation_graph").exists() and self.scene_settings.template_model_animation_graph and Path(self.tags_dir, utils.relative_path(self.scene_settings.template_model_animation_graph)).exists()
         if not self.defer_graph_process and (self.node_usage_set or self.scene_settings.ik_chains or self.has_animations):
+            has_skeleton = self.virtual_scene.skeleton_model is not None and self.virtual_scene.skeleton_model.skeleton is not None
             with AnimationTag() as animation:
                 if self.scene_settings.parent_animation_graph:
                     self.print_pre("--- Setting parent animation graph")
@@ -2052,13 +2053,13 @@ class ExportScene:
                     self.print_pre(f"--- Validating animation compression for {len(self.exported_animations)} animations: Default Compression = {self.scene_settings.default_animation_compression}")
                     animation.validate_compression(self.exported_animations, self.scene_settings.default_animation_compression)
                     # print("--- Validated Animation Compression")
-                if self.node_usage_set:
+                if self.node_usage_set and has_skeleton:
                     self.print_pre("--- Setting node usages")
-                    animation.set_node_usages(self.virtual_scene.animated_bones, True)
+                    animation.set_node_usages(self.virtual_scene.skeleton_model.skeleton.animated_bones, True)
                     #print("--- Updated Animation Node Usages")
-                if self.scene_settings.ik_chains:
+                if self.scene_settings.ik_chains and has_skeleton:
                     self.print_pre("--- Writing IK chains")
-                    animation.write_ik_chains(self.scene_settings.ik_chains, self.virtual_scene.animated_bones, True)
+                    animation.write_ik_chains(self.scene_settings.ik_chains, self.virtual_scene.skeleton_model.skeleton.animated_bones, True)
                     # print("--- Updated Animation IK Chains")
                     
                 if animation.tag_has_changes and (self.node_usage_set or self.scene_settings.ik_chains):
@@ -2162,6 +2163,7 @@ class ExportScene:
                         animation.setup_blend_screens(self.sidecar.pose_overlays)
                         
                     if self.defer_graph_process and (self.node_usage_set or self.scene_settings.ik_chains or self.has_animations):
+                        has_skeleton = self.virtual_scene.skeleton_model is not None and self.virtual_scene.skeleton_model.skeleton is not None
                         with AnimationTag() as animation:
                             if self.scene_settings.parent_animation_graph:
                                 self.print_post("--- Setting parent animation graph")
@@ -2171,13 +2173,13 @@ class ExportScene:
                                 self.print_post(f"--- Validating animation compression for {len(self.exported_animations)} animations: Default Compression = {self.scene_settings.default_animation_compression}")
                                 animation.validate_compression(self.exported_animations, self.scene_settings.default_animation_compression)
                                 # print("--- Validated Animation Compression")
-                            if self.node_usage_set:
+                            if self.node_usage_set and has_skeleton:
                                 self.print_post("--- Setting node usages")
-                                animation.set_node_usages(self.virtual_scene.animated_bones, True)
+                                animation.set_node_usages(self.virtual_scene.skeleton_model.skeleton.animated_bones, True)
                                 #print("--- Updated Animation Node Usages")
-                            if self.scene_settings.ik_chains:
+                            if self.scene_settings.ik_chains and has_skeleton:
                                 self.print_post("--- Writing IK chains")
-                                animation.write_ik_chains(self.scene_settings.ik_chains, self.virtual_scene.animated_bones, True)
+                                animation.write_ik_chains(self.scene_settings.ik_chains, self.virtual_scene.skeleton_model.skeleton.animated_bones, True)
                                 # print("--- Updated Animation IK Chains")
                                 
                             if animation.tag_has_changes and (self.node_usage_set or self.scene_settings.ik_chains):
