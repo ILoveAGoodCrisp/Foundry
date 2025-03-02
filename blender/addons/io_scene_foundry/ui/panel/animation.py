@@ -96,15 +96,41 @@ class NWO_OT_DeleteAnimation(bpy.types.Operator):
     bl_description = "Deletes a Halo Animation from the blend file"
     bl_options = {'UNDO'}
     
+    delete_actions: bpy.props.BoolProperty(
+        name="Delete Actions",
+        description="Enable to delete actions used by this animation"
+    )
+    
     @classmethod
     def poll(cls, context):
         return context.scene.nwo.active_animation_index > -1
+    
+    def action_map(self, all_animations):    
+        self.action_animations = defaultdict(list)
+        for anim in all_animations:
+            for track in anim.action_tracks:
+                if track.action is not None:
+                    self.action_animations[track.action].append(anim)
+            
+    def clear_actions(self) -> bool:
+        for action, animations in self.action_animations.items():
+            if all(not a.name for a in animations):
+                bpy.data.actions.remove(action)
+                
+    def invoke(self, context, _):
+        return context.window_manager.invoke_props_dialog(self)
+    
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "delete_actions")
 
     def execute(self, context):
         context.scene.tool_settings.use_keyframe_insert_auto = False
         current_animation_index = context.scene.nwo.active_animation_index
         animation = context.scene.nwo.animations[current_animation_index]
         if animation:
+            if self.delete_actions:
+                self.action_map(context.scene.nwo.animations)
             utils.clear_animation(animation)
             name = animation.name
             context.scene.nwo.animations.remove(current_animation_index)
