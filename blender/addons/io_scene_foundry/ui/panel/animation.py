@@ -1,5 +1,6 @@
 """Animation sub-panel specific operators"""
 
+from collections import defaultdict
 import math
 import random
 from uuid import uuid4
@@ -18,6 +19,76 @@ class NWO_UL_AnimProps_Events(bpy.types.UIList):
             layout.prop(animation, "name", text="", emboss=False, icon_value=get_icon_id("animation_event"))
         else:
             layout.label(text="", translate=False, icon_value=icon)
+            
+class NWO_OT_ClearAnimations(bpy.types.Operator):
+    bl_label = "Clear Animations"
+    bl_idname = "nwo.clear_animations"
+    bl_description = "Clears animations, optionally only clearing those that include strings from the filter. "
+    bl_options = {'UNDO'}
+    
+    @classmethod
+    def poll(cls, context):
+        return context.scene.nwo.animations
+    
+    filter: bpy.props.StringProperty(
+        name="Filter",
+        description="Filter to test animations for before deleting them. Leave blank to clear all animations"
+    )
+    
+    delete_actions: bpy.props.BoolProperty(
+        name="Delete Actions",
+        description="Enable to delete actions used by animations"
+    )
+    
+    def invoke(self, context, _):
+        return context.window_manager.invoke_props_dialog(self)
+    
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "filter")
+        layout.prop(self, "delete_actions")
+        
+    def action_map(self, all_animations):    
+        self.action_animations = defaultdict(list)
+        for anim in all_animations:
+            for track in anim.action_tracks:
+                if track.action is not None:
+                    self.action_animations[track.action].append(anim)
+            
+    def clear_actions(self):
+        for action, animations in self.action_animations.items():
+            if all(not a.name for a in animations):
+                bpy.data.actions.remove(action)
+                
+    def execute(self, context):
+        animations = context.scene.nwo.animations
+        if self.delete_actions:
+            self.action_map(animations)
+            
+        if self.filter:
+            filtered_animations = [idx for idx, a in enumerate(animations) if self.filter.lower() in a.name.lower()]
+            total_animations = len(filtered_animations)
+            if total_animations == 0:
+                self.report({'WARNING'}, f"No animations found that match filter: {self.filter}")
+                return {'CANCELLED'}
+            
+            if total_animations == len(animations):
+                animations.clear()
+            else:
+                for idx in reversed(filtered_animations):
+                    animations.remove(idx)
+                
+        else:
+            total_animations = len(animations)
+            animations.clear()
+            
+        if self.delete_actions:
+            self.clear_actions()
+            
+        context.scene.nwo.active_animation_index = len(animations) - 1
+            
+        self.report({'INFO'}, f"Cleared {total_animations} animations")
+        return {"FINISHED"}
 
 class NWO_OT_DeleteAnimation(bpy.types.Operator):
     bl_label = "Delete Animation"
@@ -152,6 +223,7 @@ class NWO_MT_AnimationTools(bpy.types.Menu):
     def draw(self, context):
         layout = self.layout
         layout.operator("nwo.animations_from_actions", icon='UV_SYNC_SELECT')
+        layout.operator("nwo.clear_animations", icon='CANCEL')
     
 class NWO_OT_SetTimeline(bpy.types.Operator):
     bl_label = "Sync Timeline"

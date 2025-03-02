@@ -5,6 +5,23 @@ class NWO_UL_CameraActors(bpy.types.UIList):
     def draw_item(self, context, layout: bpy.types.UILayout, data, item, icon, active_data, active_propname, index):
         layout.label(text=item.actor.name if item.actor else "NONE", icon='OUTLINER_OB_ARMATURE')
         
+class NWO_OT_CameraActorsClear(bpy.types.Operator):
+    bl_idname = "nwo.camera_actor_clear"
+    bl_label = "Clear Camera Actors"
+    bl_description = "Removes all entries from the list"
+    bl_options = {"UNDO"}
+    
+    @classmethod
+    def poll(cls, context):
+        return context.object and context.object.type == 'CAMERA' and context.object.nwo.actors
+    
+    def execute(self, context):
+        nwo = context.object.nwo
+        nwo.active_actor_index = 0
+        nwo.actors.clear()
+        context.area.tag_redraw()
+        return {'FINISHED'}
+        
 class NWO_OT_CameraActorRemove(bpy.types.Operator):
     bl_idname = "nwo.camera_actor_remove"
     bl_label = "Remove Camera Actor"

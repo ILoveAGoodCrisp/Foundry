@@ -1221,14 +1221,11 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 nwo,
                 "active_actor_index",
             )
-            col = row.column()
+            col = row.column(align=True)
             col.operator("nwo.camera_actor_add", text="", icon='ADD')
             col.operator("nwo.camera_actor_remove", text="", icon='REMOVE')
-            # row = box.row(align=True)
-            # row.operator("nwo.camera_actors_add_from_selection")
-            # row.operator("nwo.camera_actors_remove_from_selection")
-            # row.operator("nwo.camera_actors_select", text="Select")
-            # row.operator("nwo.camera_actors_deselect", text="Deselect")
+            col.separator()
+            col.operator("nwo.camera_actor_clear", text="", icon='CANCEL')
             if nwo.actors and nwo.active_actor_index > -1:
                 row = box.row(align=True)
                 row.prop(nwo.actors[nwo.active_actor_index], "actor", icon='OUTLINER_OB_ARMATURE')

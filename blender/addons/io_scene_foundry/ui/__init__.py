@@ -57,6 +57,7 @@ classes = [
     animation.NWO_MT_AnimationTools,
     animation.NWO_OT_CopyEvents,
     animation.NWO_OT_PasteEvents,
+    animation.NWO_OT_ClearAnimations,
     asset.NWO_UL_ChildAsset,
     asset.NWO_OT_OpenChildAsset,
     asset.NWO_OT_AddChildAsset,
@@ -146,6 +147,7 @@ classes = [
     cinematic.NWO_OT_CameraActorAdd,
     cinematic.NWO_OT_CameraActorRemove,
     cinematic.NWO_OT_SelectCameraActors,
+    cinematic.NWO_OT_CameraActorsClear,
 ]
 
 def register():
