@@ -89,6 +89,7 @@ class ShaderTerrainTag(ShaderTag):
         if e_environment_mapping.value > 0:
             node_environment_mapping = self._add_group_node(tree, nodes, f"environment_mapping - {utils.game_str(e_environment_mapping.name)}")
             tree.links.new(input=node_environment_mapping.inputs[0], output=node_group.outputs[1])
+            tree.links.new(input=node_environment_mapping.inputs["Normal"], output=node_group.outputs["Normal"])
             if e_environment_mapping == TerrainEnvironmentMapping.DYNAMIC:
                 tree.links.new(input=node_environment_mapping.inputs[1], output=node_group.outputs[2])
                 

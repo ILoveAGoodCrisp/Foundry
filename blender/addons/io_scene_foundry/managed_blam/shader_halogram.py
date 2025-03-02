@@ -125,6 +125,11 @@ class ShaderHalogramTag(ShaderTag):
         
         if e_self_illumination.value > 0:
             node_self_illumination = self._add_group_node(tree, nodes, f"self_illumination - {utils.game_str(e_self_illumination.name)}")
+            if e_self_illumination == SelfIllumination.PALETTIZED_PLASMA:
+                node_self_illumination_vector = self._add_group_node(tree, nodes, f"self_illumination - palettized_plasma - Vector")
+                end_node = utils.get_end_node(node_self_illumination)
+                tree.links.new(input=end_node.inputs[0], output=node_self_illumination_vector.outputs[0])
+                
             final_node = node_self_illumination
             if illum_uses_diffuse:
                 tree.links.new(input=node_self_illumination.inputs[0], output=node_albedo.outputs[0])

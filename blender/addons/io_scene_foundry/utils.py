@@ -4305,3 +4305,13 @@ def within_tolerance(value_a: float, value_b: float, tolerance=0.1):
         return value_a + tolerance > value_b
     else:
         return value_b + tolerance > value_a
+    
+def get_end_node(start_node: bpy.types.Node) -> bpy.types.Node:
+    """Go back nodes until there are no more links"""
+    while start_node.inputs and start_node.inputs[0].is_linked and start_node.inputs[0].links:
+        next_node = start_node.inputs[0].links[0].from_node
+        if next_node is None:
+            return start_node
+        start_node = next_node
+        
+    return start_node

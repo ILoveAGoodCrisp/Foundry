@@ -601,11 +601,14 @@ class ShaderTag(Tag):
     def to_nodes(self, blender_material, always_extract_bitmaps=False):
         self.game_functions = set()
         self.always_extract_bitmaps = always_extract_bitmaps
+        self.vector_inputs = []
         self._get_info(self.reference_material_shader.Path if self.corinth else self.definition.Path)
         if self.group_supported:
             self._to_nodes_group(blender_material)
         else:
             self._to_nodes_bsdf(blender_material)
+            
+        self._set_tiling_vectors(blender_material)
             
     def _option_value_from_index(self, index):
         option_enum = self.block_options.Elements[index].Fields[0].Data
@@ -982,6 +985,7 @@ class ShaderTag(Tag):
         if animated_parameters:
             tiling_node = tree.nodes.new('ShaderNodeGroup')
             tiling_node.node_tree = utils.add_node_from_resources("shared_nodes", 'Texture Tiling')
+            self.vector_inputs.append(tiling_node.inputs["Vector"])
             for value_type, ap in animated_parameters.items():
                 self._setup_input_with_function(tiling_node.inputs[TilingNodeInputs[value_type.name].value], ap)
             return tiling_node
@@ -1097,6 +1101,18 @@ class ShaderTag(Tag):
             self.get_model_material_spec(node_material_model, uses_spec_exponent_min_max)
 
         return node_material_model
+    
+    def _set_tiling_vectors(self, blender_material):
+        inputs_in_need = [i for i in self.vector_inputs if not i.is_linked]
+        if not inputs_in_need:
+            return
+        
+        tree = blender_material.node_tree
+        nodes = tree.nodes
+        node = nodes.new(type="ShaderNodeTexCoord")
+
+        for input in inputs_in_need:
+            tree.links.new(input=input, output=node.outputs[2])
     
     def _to_nodes_group(self, blender_material: bpy.types.Material):
         # Get options
@@ -1228,7 +1244,12 @@ class ShaderTag(Tag):
             
         if e_self_illumination.value > 0:
             node_self_illumination = self._add_group_node(tree, nodes, f"self_illumination - {utils.game_str(e_self_illumination.name)}")
-            if e_self_illumination in {SelfIllumination.FROM_DIFFUSE, SelfIllumination.SELF_ILLUM_TIMES_DIFFUSE}:
+            if e_self_illumination == SelfIllumination.PALETTIZED_PLASMA:
+                node_self_illumination_vector = self._add_group_node(tree, nodes, f"self_illumination - palettized_plasma - Vector")
+                end_node = utils.get_end_node(node_self_illumination)
+                tree.links.new(input=end_node.inputs[0], output=node_self_illumination_vector.outputs[0])
+                    
+            elif e_self_illumination in {SelfIllumination.FROM_DIFFUSE, SelfIllumination.SELF_ILLUM_TIMES_DIFFUSE}:
                 tree.links.new(input=node_self_illumination.inputs[0], output=node_albedo.outputs[0])
             node_illum_add = nodes.new(type='ShaderNodeAddShader')
             node_illum_add.location.x = node_self_illumination.location.x + 300
