@@ -1123,9 +1123,6 @@ class ShaderTag(Tag):
         e_material_model = MaterialModel(self._option_value_from_index(4))
         e_environment_mapping = EnvironmentMapping(self._option_value_from_index(5))
         e_self_illumination = SelfIllumination(self._option_value_from_index(6))
-        # TEMP
-        if e_self_illumination == SelfIllumination.MULTILAYER_ADDITIVE:
-            e_self_illumination = SelfIllumination.SIMPLE
         e_blend_mode = BlendMode(self._option_value_from_index(7))
         e_parallax = Parallax(self._option_value_from_index(8))
         e_misc = Misc(self._option_value_from_index(9))
