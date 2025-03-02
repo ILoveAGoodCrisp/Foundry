@@ -1203,11 +1203,16 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         col1 = row.column()
         col1.template_ID(context.view_layer.objects, "active", filter="AVAILABLE")
         if ob.type == 'CAMERA' and self.asset_type == 'cinematic':
-            col = box.column()
-            row = col.row(heading='Camera Actors')
+            markers = utils.get_timeline_markers(self.scene)
+            camera_shots = [str(idx + 1) for idx, marker in enumerate(markers) if marker.camera == ob]
+            if len(camera_shots) == 1:
+                box.label(text=f"Camera Shot: {camera_shots[0]}")
+            elif camera_shots:
+                box.label(text=f"Camera Shots: {', '.join(camera_shots)}")
+            row = box.row(heading='Camera Actors')
             row.use_property_split = False
             row.prop(nwo, "actors_type", text=" ", expand=True)
-            row = col.row()
+            row = box.row(align=True)
             row.template_list(
                 "NWO_UL_CameraActors",
                 "",
@@ -1227,6 +1232,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             if nwo.actors and nwo.active_actor_index > -1:
                 row = box.row(align=True)
                 row.prop(nwo.actors[nwo.active_actor_index], "actor", icon='OUTLINER_OB_ARMATURE')
+            row = box.row(align=True)
+            row.operator("nwo.camera_actors_select", icon='RESTRICT_SELECT_OFF')
             return
             
         col2 = row.column()

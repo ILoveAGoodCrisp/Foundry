@@ -1123,13 +1123,21 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         
     def set_shot_frame(self, value):
         scene = self.id_data
+        markers = utils.get_timeline_markers(scene)
         marker_index = self.current_shot - 2
         if marker_index < 0:
-            scene.frame_current = scene.frame_start + value
-            return
-        markers = utils.get_timeline_markers(scene)
-        marker_frame = markers[marker_index].frame
-        scene.frame_current = marker_frame + value
+            frame = scene.frame_start + value
+        else:
+            frame = markers[marker_index].frame + value
+            
+        # check that frame is in current shot
+        if len(markers) > marker_index + 1:
+            next_marker_frame = markers[marker_index + 1].frame
+            if frame >= next_marker_frame:
+                scene.frame_current = next_marker_frame - 1
+                return
+            
+        scene.frame_current = min(frame, scene.frame_end)
     
     shot_frame: bpy.props.IntProperty(
         name="Shot Frame",

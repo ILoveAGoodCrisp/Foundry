@@ -70,3 +70,27 @@ class NWO_OT_CameraActorAdd(bpy.types.Operator):
         nwo.active_actor_index = len(table) - 1
         context.area.tag_redraw()
         return {'FINISHED'}
+    
+class NWO_OT_SelectCameraActors(bpy.types.Operator):
+    bl_idname = "nwo.camera_actors_select"
+    bl_label = "Select Camera Actor Objects"
+    bl_description = "Selects actors which are active for this shot"
+    bl_options = {"UNDO"}
+    
+    @classmethod
+    def poll(cls, context):
+        return context.object and context.object.type == 'CAMERA'
+    
+    def execute(self, context):
+        nwo = context.object.nwo
+        if nwo.actors_type == 'exclude':
+            excluded_objects = {item.actor for item in nwo.actors if item.actor is not None}
+            for ob in context.view_layer.objects:
+                if ob.type == 'ARMATURE' and ob not in excluded_objects:
+                    ob.select_set(True)
+        else:
+            for item in nwo.actors:
+                if item.actor is not None:
+                    item.actor.select_set(True)
+                    
+        return {'FINISHED'}

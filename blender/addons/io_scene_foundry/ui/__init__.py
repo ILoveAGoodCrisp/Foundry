@@ -145,6 +145,7 @@ classes = [
     cinematic.NWO_UL_CameraActors,
     cinematic.NWO_OT_CameraActorAdd,
     cinematic.NWO_OT_CameraActorRemove,
+    cinematic.NWO_OT_SelectCameraActors,
 ]
 
 def register():
