@@ -231,7 +231,7 @@ class Granny:
         if export_vector_track_groups is None:
             all_track_groups = [export_track_group]
         else:
-            [export_track_group] + export_vector_track_groups
+            all_track_groups = [export_track_group] + export_vector_track_groups
         self.file_info.track_group_count = len(all_track_groups)
         self.file_info.track_groups = (POINTER(GrannyTrackGroup) * len(all_track_groups))(*all_track_groups)
         
