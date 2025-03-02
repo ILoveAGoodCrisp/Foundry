@@ -183,7 +183,7 @@ class Actor:
             
             # Check if there is a scenery version of the actor tag
             scenery_path = object_path.with_suffix(".scenery")
-            if scenery_path.exists():
+            if not scenery_path.exists():
                 # No scenery? lets create it
                 with ObjectTag(path=scenery_path) as scenery:
                     scenery.reference_model.Path = model_tag_path
@@ -192,12 +192,39 @@ class Actor:
                     obj_object = obj.object_struct.Elements[0]
                     scenery_flags = scenery_object.SelectField("Flags:flags")
                     obj_flags = obj_object.SelectField("Flags:flags")
+                    # set some flags which might affect render
                     scenery_flags.SetBit("does not cast shadow", obj_flags.TestBit("does not cast shadow"))
                     scenery_flags.SetBit("search cardinal direction lightmaps on failure", obj_flags.TestBit("search cardinal direction lightmaps on failure"))
-                    scenery_flags.SetBit(obj_flags.TestBit("object scales attachments"))
-                    obj.object_struct.CopyEntireTagBlock()
-                    scenery.object_struct.PasteReplaceEntireBlock()
-                    scenery.runtime_object_type.Data = 6
+                    scenery_flags.SetBit("object scales attachments", obj_flags.TestBit("object scales attachments"))
+                    scenery_flags.SetBit("sample enviroment lighting only ignore object lighting", obj_flags.TestBit("sample enviroment lighting only ignore object lighting"))
+                    # More stuff
+                    scenery_object.SelectField("bounding radius").Data = obj_object.SelectField("bounding radius").Data
+                    scenery_object.SelectField("bounding offset").Data = obj_object.SelectField("bounding offset").Data
+                    scenery_object.SelectField("lightmap shadow mode").Value = obj_object.SelectField("lightmap shadow mode").Value
+                    scenery_object.SelectField("sweetener size").Value = obj_object.SelectField("sweetener size").Value
+                    scenery_object.SelectField("dynamic light sphere radius").Data = obj_object.SelectField("dynamic light sphere radius").Data
+                    scenery_object.SelectField("dynamic light sphere offset").Data = obj_object.SelectField("dynamic light sphere offset").Data
+                    scenery_object.SelectField("default model variant").Data = obj_object.SelectField("default model variant").Data
+                    scenery_object.SelectField("crate object").Path = obj_object.SelectField("crate object").Path
+                    scenery_object.SelectField("creation effect").Path = obj_object.SelectField("creation effect").Path
+                    scenery_object.SelectField("material effects").Path = obj_object.SelectField("material effects").Path
+                    scenery_object.SelectField("simulation_interpolation").Path = obj_object.SelectField("material effects").Path
+                    # Copy tag blocks
+                    obj_object.SelectField("functions").CopyEntireTagBlock()
+                    scenery_object.SelectField("functions").PasteReplaceEntireBlock()
+                    obj_object.SelectField("attachments").CopyEntireTagBlock()
+                    scenery_object.SelectField("attachments").PasteReplaceEntireBlock()
+                    obj_object.SelectField("hull surfaces").CopyEntireTagBlock()
+                    scenery_object.SelectField("hull surfaces").PasteReplaceEntireBlock()
+                    obj_object.SelectField("jetwash").CopyEntireTagBlock()
+                    scenery_object.SelectField("jetwash").PasteReplaceEntireBlock()
+                    obj_object.SelectField("widgets").CopyEntireTagBlock()
+                    scenery_object.SelectField("widgets").PasteReplaceEntireBlock()
+                    obj_object.SelectField("change colors").CopyEntireTagBlock()
+                    scenery_object.SelectField("change colors").PasteReplaceEntireBlock()
+                    obj_object.SelectField("spawn effects").CopyEntireTagBlock()
+                    scenery_object.SelectField("spawn effects").PasteReplaceEntireBlock()
+                    
                     scenery.tag_has_changes = True
                             
 class ShotActor:

@@ -1532,6 +1532,7 @@ class Mesh:
             
         if self.uncompressed:
             mesh.nwo.uncompressed = True
+            mesh.nwo.precise_position = True
 
         return ob
 

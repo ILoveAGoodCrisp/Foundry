@@ -1378,7 +1378,7 @@ class ExportScene:
             for actor in self.cinematic_actors:
                 if not actor.tag.strip():
                     continue
-                path = Path(self.tags_dir, utils.relative_path(actor.tag))
+                path = Path(self.tags_dir, utils.relative_path(actor.original_tag))
                 if path.exists() and path.is_file() and path.is_absolute():
                     with ObjectTag(path=path) as cinematic_object:
                         model_path = cinematic_object.get_model_tag_path()
@@ -2252,6 +2252,7 @@ class ExportScene:
                         
             for actor in self.cinematic_actors:
                 actor.validate()
+            self.print_post(f"--- Validated {len(self.cinematic_actors)} cinematic object tags")
         
     def _setup_model_overrides(self):
         model_override = self.asset_type == AssetType.MODEL and any((

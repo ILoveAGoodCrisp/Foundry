@@ -57,11 +57,6 @@ xref_tag_types = (
     ".device_machine"
 )
 
-cinematic_tag_types = (
-    ".scenery",
-    ".biped"
-)
-
 object_tag_types = (
     ".biped",
     ".crate",
@@ -1087,10 +1082,7 @@ class NWOImporter:
             elif 'particle_model' in valid_exts and path.lower().endswith('.particle_model'):
                 self.extensions.add('particle_model')
                 filetype_dict["particle_model"].append(path)
-            elif 'object' in valid_exts and self.for_cinematic and path.lower().endswith(cinematic_tag_types):
-                self.extensions.add('object')
-                filetype_dict["object"].append(path)
-            elif 'object' in valid_exts and not self.for_cinematic and path.lower().endswith(object_tag_types):
+            elif 'object' in valid_exts and path.lower().endswith(object_tag_types):
                 self.extensions.add('object')
                 filetype_dict["object"].append(path)
             elif 'animation' in valid_exts and path.lower().endswith(".model_animation_graph"):

@@ -92,11 +92,6 @@ class VirtualShotActor:
         self.positions = defaultdict(list)
         self.orientations = defaultdict(list)
         self.scales = defaultdict(list)
-        
-        if not actor.validation_complete:
-            warning = actor.validate(self.bones)
-            if warning is not None:
-                scene.warnings.append(warning)
 
 class VirtualShot:
     def __init__(self,  frame_start: int, frame_end: int, actors: list[Actor], camera: bpy.types.Object, index, scene: 'VirtualScene', shape_key_objects=[], in_scope=True):
