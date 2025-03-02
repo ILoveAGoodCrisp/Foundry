@@ -15,6 +15,7 @@ classes = [
     mesh.NWO_FaceProperties_ListItems,
     mesh.NWO_MeshPropertiesGroup,
     object.NWO_MarkerPermutationItems,
+    object.NWO_ActorItems,
     object.NWO_ObjectPropertiesGroup,
     scene.NWO_AnimationCopiesItems,
     scene.NWO_AnimationLeavesItems,

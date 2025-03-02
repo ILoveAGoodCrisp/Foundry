@@ -26,6 +26,22 @@ def recursive_parentage(ob):
 # ----------------------------------------------------------
 class NWO_MarkerPermutationItems(bpy.types.PropertyGroup):
     name: bpy.props.StringProperty(name="Permutation")
+    
+# CAMERA ACTOR PROPERTIES
+# ----------------------------------------------------------
+def poll_actor(self, object):
+    if object.type == 'ARMATURE' and object.nwo.cinematic_object:
+        for item in self.id_data.nwo.actors:
+            if item.actor is object:
+                return False
+        return True
+
+class NWO_ActorItems(bpy.types.PropertyGroup):
+    actor: bpy.props.PointerProperty(
+        name="Actor",
+        type=bpy.types.Object,
+        poll=poll_actor,
+    )
 
 # OBJECT PROPERTIES
 # ----------------------------------------------------------
@@ -151,6 +167,28 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         items=[
             ("exclude", "Exclude", ""),
             ("include", "Include", ""),
+        ],
+        options=set(),
+    )
+    
+    # ACTOR SHOTS
+    actors: bpy.props.CollectionProperty(
+        type=NWO_ActorItems,
+    )
+
+    active_actor_index: bpy.props.IntProperty(
+        name="Index for Actor",
+        default=0,
+        min=0,
+        options=set(),
+    )
+
+    actors_type: bpy.props.EnumProperty(
+        name="Include/Exclude",
+        description="Toggle whether actors should be included in, or excluded from the shots covered by this camera",
+        items=[
+            ("exclude", "Exclude", "Exclude the following actors from this camera's shots"),
+            ("include", "Include", "Include only the following actors in this camera's shots, exclude all others"),
         ],
         options=set(),
     )

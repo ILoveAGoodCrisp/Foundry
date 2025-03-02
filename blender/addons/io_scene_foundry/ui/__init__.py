@@ -1,6 +1,6 @@
 import bpy
 from . import bar, node_editor, outliner, viewport, panel, timeline, properties
-from .panel import animation, asset, help, material, object, scene, sets, setting, tools
+from .panel import animation, asset, help, material, object, scene, sets, setting, tools, cinematic
 
 classes = [
     bar.NWO_MT_ProjectChooserMenuDisallowNew,
@@ -142,6 +142,9 @@ classes = [
     sets.NWO_UL_Regions,
     sets.NWO_UL_Permutations,
     properties.MESH_PT_FoundryMeshData,
+    cinematic.NWO_UL_CameraActors,
+    cinematic.NWO_OT_CameraActorAdd,
+    cinematic.NWO_OT_CameraActorRemove,
 ]
 
 def register():

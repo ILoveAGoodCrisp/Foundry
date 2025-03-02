@@ -1188,8 +1188,6 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col.separator()
             col.operator("nwo.swap_material", icon='UV_SYNC_SELECT')
             
-            
-            
 
     def draw_object_properties(self):
         box = self.box
@@ -1204,6 +1202,33 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         nwo = ob.nwo
         col1 = row.column()
         col1.template_ID(context.view_layer.objects, "active", filter="AVAILABLE")
+        if ob.type == 'CAMERA' and self.asset_type == 'cinematic':
+            col = box.column()
+            row = col.row(heading='Camera Actors')
+            row.use_property_split = False
+            row.prop(nwo, "actors_type", text=" ", expand=True)
+            row = col.row()
+            row.template_list(
+                "NWO_UL_CameraActors",
+                "",
+                nwo,
+                "actors",
+                nwo,
+                "active_actor_index",
+            )
+            col = row.column()
+            col.operator("nwo.camera_actor_add", text="", icon='ADD')
+            col.operator("nwo.camera_actor_remove", text="", icon='REMOVE')
+            # row = box.row(align=True)
+            # row.operator("nwo.camera_actors_add_from_selection")
+            # row.operator("nwo.camera_actors_remove_from_selection")
+            # row.operator("nwo.camera_actors_select", text="Select")
+            # row.operator("nwo.camera_actors_deselect", text="Deselect")
+            if nwo.actors and nwo.active_actor_index > -1:
+                row = box.row(align=True)
+                row.prop(nwo.actors[nwo.active_actor_index], "actor", icon='OUTLINER_OB_ARMATURE')
+            return
+            
         col2 = row.column()
         col2.alignment = "RIGHT"
         col2.prop(nwo, "export_this", text="Export")

@@ -1374,9 +1374,8 @@ class ExportScene:
                     nodes = render_model.get_nodes()
                 
         elif self.asset_type == AssetType.CINEMATIC:
-            # every armature gets their own order
             for actor in self.cinematic_actors:
-                if not actor.tag.strip():
+                if not actor.original_tag.strip():
                     continue
                 path = Path(self.tags_dir, utils.relative_path(actor.original_tag))
                 if path.exists() and path.is_file() and path.is_absolute():
@@ -1451,10 +1450,6 @@ class ExportScene:
             if shot_count == MAXIMUM_CINEMATIC_SHOTS:
                 self.warnings.append(f"Maximum shot count of 64 exceeeded (You have {len(markers) + 1} shots). Shots have been limited")
             
-            # Set shot bit mask for actors and validate
-            for actor in self.cinematic_actors:
-                actor.set_shot_bit_mask(shot_count)
-            
             shot_frame_start = frame_start
             fallback_camera = None
             current_shot = utils.current_shot_index(self.context)
@@ -1473,8 +1468,6 @@ class ExportScene:
                         
                     scene.frame_set(shot_frame_end - 1)
                     
-                    shot_actors = [actor for actor in self.cinematic_actors if getattr(actor.ob.nwo, f"shot_{i + 1}", False)]
-                    
                     camera = scene.camera
                     
                     if camera is None or camera.type != 'CAMERA':
@@ -1488,6 +1481,22 @@ class ExportScene:
                             
                         camera = fallback_camera
                     fallback_camera = camera
+                    
+                    if camera.nwo.actors_type == 'exclude':
+                        if camera.nwo.actors:
+                            camera_actors = {item.actor for item in camera.nwo.actors if item.actor is not None}
+                            shot_actors = [a for a in self.cinematic_actors if a.ob not in camera_actors]
+                        else:
+                            shot_actors = self.cinematic_actors
+                    else:
+                        if camera.nwo.actors:
+                            camera_actors = {item.actor for item in camera.nwo.actors if item.actor is not None}
+                            shot_actors = [a for a in self.cinematic_actors if a.ob in camera_actors]
+                        else:
+                            shot_actors = []
+                            
+                    for act in shot_actors:
+                        act.shots_active.append(i)
                     
                     in_scope = not self.export_settings.current_shot_only or i == current_shot
 
@@ -2254,7 +2263,7 @@ class ExportScene:
                         
             for actor in self.cinematic_actors:
                 actor.validate()
-            self.print_post(f"--- Validated {len(self.cinematic_actors)} cinematic object tags")
+            self.print_post(f"--- Validated {len(self.cinematic_actors)} cinematic object tag{'s' if len(self.cinematic_actors) != 1 else ''}")
         
     def _setup_model_overrides(self):
         model_override = self.asset_type == AssetType.MODEL and any((

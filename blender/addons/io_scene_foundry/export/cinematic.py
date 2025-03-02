@@ -139,14 +139,9 @@ class Actor:
         self.render_model = None
         self.bones: list = []
         self.shots_active = []
-        self.shot_bit_mask = None
         self.node_order = None
         self.variant = ob.nwo.cinematic_variant
         self.validation_complete = False
-        
-    def set_shot_bit_mask(self, shot_count: int):
-        self.shots_active = [getattr(self.ob.nwo, f"shot_{i + 1}") for i in range(shot_count)]
-        # self.shot_bit_mask = " ".join(str(int(self.shots_active)))
         
     def validate(self) -> str | None:
         """Ensures that the tag will function for the cinematic. Returns a string with the reason for validation for failure, else None"""
@@ -769,8 +764,10 @@ class QUA:
                 element.SelectField("model animation graph").Path = tag._TagPath_from_string(actor.graph)
                 element.SelectField("object type").Path = tag._TagPath_from_string(actor.tag)
                 flag_items = element.SelectField("shots active flags").Items
-                for idx, active in enumerate(actor.shots_active):
-                    flag_items[idx].IsSet = active
+                for item in flag_items:
+                    item.IsSet = False
+                for idx in actor.shots_active:
+                    flag_items[idx].IsSet = True
                 
         # Clear the cinematic_scene_data objects if corinth, and write the object data
         if self.corinth:
@@ -785,8 +782,9 @@ class QUA:
                 element.SelectField("object type").Path = tag._TagPath_from_string(actor.tag)
                 flags = element.SelectField("shots active flags")
                 flags.RefreshShots() # shots won't register unless we call this
-                for idx, active in enumerate(actor.shots_active):
-                    flags.SetShotChecked(idx, active) # SetShotChecked is part of TagFieldCustomCinematicShotFlags, which is not used by Reach
+                flags.ClearShots()
+                for idx in actor.shots_active:
+                    flags.SetShotChecked(idx, True) # SetShotChecked is part of TagFieldCustomCinematicShotFlags, which is not used by Reach
                     
         # Add back data blocks
         # Dialogue comes from blender

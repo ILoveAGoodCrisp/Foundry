@@ -4172,32 +4172,10 @@ def current_shot_index(context: bpy.types.Context):
         
     return 0
 
-def get_cinematic_info(context):
-    """Returns a tuple of cinematic info: Current game frame, current shot index, current shot frame"""
-    scene = context.scene
-    markers = [m for m in scene.timeline_markers if m.camera is not None and m.frame > scene.frame_start and m.frame <= scene.frame_end]
-    markers.sort(key=lambda m: m.frame)
-    frame_current = scene.frame_current
-    frame_start = scene.frame_start
-    game_frame = frame_current - frame_start
-    shot_frame = game_frame
-    shot_index = 0
-    if not frame_current < all([m.frame for m in markers]):
-        for idx, marker in enumerate(markers):
-            if marker.frame <= frame_current and (len(markers) - 1 == idx or markers[idx + 1].frame > frame_current):
-                shot_index = idx + 1
-                shot_frame = frame_current - marker.frame
-                break
-            
-    return game_frame, shot_index, shot_frame
-
 def get_timeline_markers(scene: bpy.types.Scene) -> list[bpy.types.TimelineMarker]:
-    markers = [m for m in scene.timeline_markers if m.camera is not None and m.frame > scene.frame_start and m.frame <= scene.frame_end]
+    markers = [m for m in scene.timeline_markers if m.camera is not None and m.camera.type == 'CAMERA' and m.frame > scene.frame_start and m.frame <= scene.frame_end]
     markers.sort(key=lambda m: m.frame)
     return markers
-
-def get_cinematic_scene_name(context: bpy.types.Context):
-    pass
 
 def halo_scale(number: float) -> float:
     if bpy.context.scene.nwo.scale == 'max':
@@ -4315,3 +4293,13 @@ def get_end_node(start_node: bpy.types.Node) -> bpy.types.Node:
         start_node = next_node
         
     return start_node
+
+def ultimate_armature_parent(ob: bpy.types.Object):
+    """Traverses an objects parentage until it finds an armature, if no armature is found then returns None"""
+    while ob.type != 'ARMATURE':
+        parent = ob.parent
+        if parent is None:
+            return None
+        ob = parent
+        
+    return ob
