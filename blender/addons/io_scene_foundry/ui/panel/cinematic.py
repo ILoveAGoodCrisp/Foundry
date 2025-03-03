@@ -1,5 +1,35 @@
 import bpy
 from ... import utils
+
+# CINEMATIC EVENTS
+
+class NWO_UL_CinematicEvents(bpy.types.UIList):
+    def draw_item(self, context, layout: bpy.types.UILayout, data, item, icon, active_data, active_propname, index):
+        layout.prop(item, "name")
+        # ICONS
+        # Dialogue PLAY_SOUND
+        # Effect effect
+        # script TEXT
+
+class NWO_OT_CinematicEventAdd(bpy.types.Operator):
+    bl_idname = "nwo.cinematic_event_add"
+    bl_label = "Add Cinematic Event"
+    bl_description = "Adds a new cinematic event"
+    bl_options = {"UNDO"}
+    
+    def execute(self, context):
+        return {'FINISHED'}
+    
+class NWO_OT_CinematicEventRemove(bpy.types.Operator):
+    bl_idname = "nwo.cinematic_event_remove"
+    bl_label = "Remove Cinematic Event"
+    bl_description = "Removes the highlighted cinematic event"
+    bl_options = {"UNDO"}
+    
+    def execute(self, context):
+        return {'FINISHED'}
+
+# CAMERA STUFF
         
 class NWO_UL_CameraActors(bpy.types.UIList):
     def draw_item(self, context, layout: bpy.types.UILayout, data, item, icon, active_data, active_propname, index):

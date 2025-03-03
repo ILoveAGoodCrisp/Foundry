@@ -1061,8 +1061,143 @@ def prefab_warning(self, context):
 class NWO_ChildAsset(PropertyGroup):
     asset_path: bpy.props.StringProperty(options=set())
     enabled: bpy.props.BoolProperty(name="Enabled", default=True, options=set())
+    
+def poll_actor(self, object):
+    return object.type == 'ARMATURE' and object.nwo.cinematic_object
+    
+class NWO_CinematicEvent(PropertyGroup):
+    def cinematic_event_types(self, context):
+        return [
+            ("DIALOGUE", "Dialogue", ""),
+            ("EFFECT", "Effect", ""),
+            ("SCRIPT", "Script", "")
+        ]
+        
+    
+    type: bpy.props.EnumProperty(
+        name="Type",
+        description="Type of cinematic event",
+        items=cinematic_event_types,
+    )
+    
+    frame: bpy.props.IntProperty(
+        name="Frame",
+        description="Play on which this event plays",
+        default=1,
+    )
+    
+    # Dialogue
+    sound_tag: bpy.props.StringProperty(
+        name="Sound Tag",
+        description="Tag relative path to the sound tag to play"
+    )
+    female_sound_tag: bpy.props.StringProperty(
+        name="Female Sound Tag",
+        description="Tag relative path to the sound tag to play instead of the default if the actor making the sound is female (such as a female player). If this is not set, the default sound will always be used"
+    )
+    
+    sound_scale: bpy.props.FloatProperty(
+        name="Scale",
+        description="Scale to apply to the sound",
+        min=0,
+        max=1,
+        subtype='FACTOR',
+        options=set(),
+    )
+    
+    lipsync_actor: bpy.props.PointerProperty(
+        name="Lipsync Actor",
+        description="The actor who should lipsync to this sound",
+        type=bpy.types.Object,
+        poll=poll_actor,
+        options=set(),
+    )
+    
+    default_sound_effect: bpy.props.StringProperty(
+        name="Sound Effect",
+        description="The sound effect to play on top of the dialogue. Uses the sound effects defined in sound\global_fx.sound_effect_collection",
+        options=set(),
+    )
+    
+    subtitle: bpy.props.StringProperty(
+        name="Subtitle",
+        description="Name of the subtitle to show for this dialogue",
+        options=set(),
+    )
+    
+    female_subtitle: bpy.props.StringProperty(
+        name="Female Subtitle",
+        description="Name of the subtitle to show for this dialogue if the female sound tag is used",
+        options=set(),
+    )
+    
+    subtitle_character: bpy.props.StringProperty(
+        name="Subtitle Character",
+        description="Reference to character name in globals\globals.globals tag -> cinematic globals -> cinematic characters. Subtitles will use the color set here instead of the default",
+        options=set(),
+    )
+    
+    sound_strip: bpy.props.StringProperty(
+        name="Sound Strip",
+        description="Name of the sound strip to use for this dialogue. When this is set, the frame of this strip will be used instead of the frame declared above",
+        options=set(),
+    )
+    
+    # Effect
+    effect_tag: bpy.props.StringProperty(
+        name="Effect Tag",
+        description="Tag relative path to the effect tag this event uses",
+        options=set(),
+    )
+    
+    marker: bpy.props.PointerProperty(
+        name="Marker Object",
+        description="The object to play this effect on. Can be a marker directly or the cinematic actor",
+        type=bpy.types.Object,
+        options=set(),
+    )
+    
+    marker_name: bpy.props.StringProperty(
+        name="Marker Name",
+        description="Declare the marker name manually",
+        options=set(),
+    )
+    
+    function_a: bpy.props.StringProperty(
+        name="Function A",
+        options=set(),
+    )
+    
+    function_b: bpy.props.StringProperty(
+        name="Function B",
+        options=set(),
+    )
+    
+    looping: bpy.props.BoolProperty(
+        name="Looping",
+        options=set(),
+    )
+    
+    # script
+    
+    script: bpy.props.StringProperty(
+        name="Script",
+        description="The script that should be executed at the given frame. If this text matches the name of a text file in the Blender text editor, the contents of that file will be used. Otherwise, the text will be used directly"
+    )
+    
 
 class NWO_ScenePropertiesGroup(PropertyGroup):
+    # CINEMATIC EVENTS
+    cinematic_events: bpy.props.CollectionProperty(
+        name="Cinematic Events",
+        options=set(),
+        type=NWO_CinematicEvent,
+    )
+    
+    active_cinematic_event_index: bpy.props.IntProperty(
+        name="Active Cinematic Event Index",
+        options=set(),
+    )
     
     export_version: bpy.props.StringProperty(options={'HIDDEN'})
     

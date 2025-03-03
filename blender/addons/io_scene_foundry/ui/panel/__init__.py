@@ -96,10 +96,13 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             if p == "help":
                 box = col1.box()
             elif p == "animation_manager":
-                if not utils.poll_ui(('model', 'animation', 'camera_track_set')):
+                if not utils.poll_ui(('model', 'animation', 'camera_track_set', 'cinematic')):
                     continue
-            elif p in ("object_properties", "material_properties", 'sets_manager'):
-                if nwo.asset_type in ('camera_track_set', 'animation') or (p == "material_properties" and nwo.asset_type == "animation"):
+            elif p in ("material_properties", 'sets_manager'):
+                if nwo.asset_type in ('camera_track_set', 'animation', 'cinematic') or (p == "material_properties" and nwo.asset_type == "animation"):
+                    continue
+            elif p == "object_properties":
+                if nwo.asset_type in ('camera_track_set', 'animation'):
                     continue
             
             row_icon = box.row(align=True)
@@ -116,7 +119,10 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             ).panel_str = p
 
             if panel_active:
-                panel_display_name = f"{p.replace('_', ' ').title()}"
+                if p == 'animation_manager' and self.asset_type == 'cinematic':
+                    panel_display_name = "Cinematic Events"
+                else:
+                    panel_display_name = f"{p.replace('_', ' ').title()}"
                 panel_expanded = getattr(nwo, f"{p}_expanded")
                 self.box = col2.box()
                 row_header = self.box.row(align=True)
@@ -1199,10 +1205,11 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             row.label(text="No Active Object")
             return
 
+        is_cinematic = self.asset_type == 'cinematic'
         nwo = ob.nwo
         col1 = row.column()
         col1.template_ID(context.view_layer.objects, "active", filter="AVAILABLE")
-        if ob.type == 'CAMERA' and self.asset_type == 'cinematic':
+        if ob.type == 'CAMERA' and is_cinematic:
             markers = utils.get_timeline_markers(self.scene)
             camera_shots = [str(idx + 1) for idx, marker in enumerate(markers) if marker.camera == ob]
             if len(camera_shots) == 1:
@@ -1232,7 +1239,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             row = box.row(align=True)
             row.operator("nwo.camera_actors_select", icon='RESTRICT_SELECT_OFF')
             return
-            
+        
         col2 = row.column()
         col2.alignment = "RIGHT"
         col2.prop(nwo, "export_this", text="Export")
@@ -1268,7 +1275,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             box.label(text='Frame' if self.asset_type != 'cinematic' else "Cinematic Actor")
             col = box.column()
             col.operator("nwo.select_child_objects", icon='CON_CHILDOF')
-            if utils.poll_ui(("cinematic",)):
+            if is_cinematic:
                 col.separator()
                 box = col.box()
                 box.label(text="Cinematic Properties")
@@ -1278,33 +1285,15 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 row.operator("nwo.tag_explore", text="", icon='FILE_FOLDER').prop = 'cinematic_object'
                 if nwo.cinematic_object.strip() and Path(utils.get_tags_path(), utils.relative_path(nwo.cinematic_object)).exists():
                     row.operator("nwo.open_foundation_tag", text="", icon_value=get_icon_id("foundation")).tag_path = nwo.cinematic_object
-                if nwo.cinematic_object:
-                    box = box.box()
-                    box.label(text="Shots Active")
-                    row = box.grid_flow()
-                    timeline_markers = [m for m in self.scene.timeline_markers if m.camera is not None and m.frame > self.scene.frame_start and m.frame <= self.scene.frame_end]
-                    timeline_markers.sort(key=lambda m: m.frame)
-                    if timeline_markers:
-                        for i in range(0, min(len(timeline_markers) + 1, 64)):
-                            row.prop(nwo, f"shot_{i + 1}")
-                    else:
-                        row.prop(nwo, "shot_1")
+                    
             elif utils.poll_ui(("model", "sky", "animation")):
                 col.separator()
                 box = col.box()
                 box.prop(nwo, "node_order_source", icon_value=get_icon_id("tags"))
 
-            # box = box.box()
-            # box.use_property_split = True
-            # box.label(text="Bone Properties")
-            # col = box.column()
-            # bone = context.active_bone
-            # if bone:
-            #     col.prop(bone, "name", text="Active Bone", icon='BONE_DATA')
-            #     data_bone = ob.data.bones[bone.name]
-            #     col.prop(data_bone.nwo, "object_space_node")
-            #     col.prop(data_bone.nwo, "replacement_correction_node")
-            #     col.prop(data_bone.nwo, "fik_anchor_node")
+            return
+        
+        if is_cinematic:
             return
 
         row = box.row(align=True)
@@ -2893,16 +2882,20 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col_props.prop(bitmap, "bitmap_type", text="Type")
             col_props.prop(bitmap, "reexport_tiff", text="Always Export Image")
             
-    def draw_cinematic_shots(self):
+    def draw_cinematic_events(self):
         pass
 
     def draw_animation_manager(self):
         box = self.box.box()
-        row = box.row()
+        
         context = self.context
         ob = context.object
         scene_nwo = context.scene.nwo
-            
+        
+        if self.asset_type == 'cinematic':
+            return self.draw_cinematic_events(box)
+        
+        row = box.row()
         if not scene_nwo.animations:
             box.operator("nwo.new_animation", icon="ANIM", text="New Animation")
             box.operator("nwo.select_armature", text="Select Armature", icon='OUTLINER_OB_ARMATURE')

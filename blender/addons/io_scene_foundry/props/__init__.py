@@ -37,6 +37,7 @@ classes = [
     scene.NWO_IKChain,
     scene.NWO_ControlObjects,
     scene.NWO_ChildAsset,
+    scene.NWO_CinematicEvent,
     scene.NWO_ScenePropertiesGroup,
 ]
 
