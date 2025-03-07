@@ -2008,6 +2008,11 @@ class NWOImporter:
                     elif len(parts) >= 2:
                         self.set_region(ob, parts[-1])
                         self.set_permutation(ob, parts[-2])
+                        
+                    if mesh_type_legacy == 'io':
+                        ob.nwo.marker_uses_regions = True
+                        ob.nwo.marker_permutation_type = 'include'
+                        ob.nwo.marker_permutations.add().name = ob.nwo.permutation_name
                     
             if ob.nwo.mesh_type == '_connected_geometry_mesh_type_structure':
                 ob.nwo.proxy_instance = True

@@ -1524,15 +1524,13 @@ class Mesh:
                 face_layer.face_count = utils.layer_face_count(bm, bm.faces.layers.int.get(face_layer.layer_name))
             bm.free()
 
-        if not self.does_not_need_parts and mean(ob.dimensions.to_tuple()) < 20:
-            mesh.nwo.precise_position = True
+        mesh.nwo.precise_position = True # Always set precise since we're importing game processed geo anyway
             
         if self.is_pca:
             mesh.color_attributes.new("tension", 'FLOAT_COLOR', 'POINT')
             
         if self.uncompressed:
             mesh.nwo.uncompressed = True
-            mesh.nwo.precise_position = True
 
         return ob
 
