@@ -1099,6 +1099,7 @@ class NWO_CinematicEvent(PropertyGroup):
     sound_scale: bpy.props.FloatProperty(
         name="Scale",
         description="Scale to apply to the sound",
+        default=1,
         min=0,
         max=1,
         subtype='FACTOR',
@@ -1144,7 +1145,7 @@ class NWO_CinematicEvent(PropertyGroup):
     )
     
     # Effect
-    effect_tag: bpy.props.StringProperty(
+    effect: bpy.props.StringProperty(
         name="Effect Tag",
         description="Tag relative path to the effect tag this event uses",
         options=set(),
@@ -1182,7 +1183,68 @@ class NWO_CinematicEvent(PropertyGroup):
     
     script: bpy.props.StringProperty(
         name="Script",
-        description="The script that should be executed at the given frame. If this text matches the name of a text file in the Blender text editor, the contents of that file will be used. Otherwise, the text will be used directly"
+        description="The script that should be executed at the given frame"
+    )
+    
+    text: bpy.props.PointerProperty(
+        name="Script Text",
+        type=bpy.types.Text
+    )
+    
+    script_type: bpy.props.EnumProperty(
+        name="Script Type",
+        description="Type of script to execute",
+        options=set(),
+        items=[
+            ("CUSTOM", "Custom", "If this text matches the name of a text file in the Blender text editor, the contents of that file will be used. Otherwise, the text will be used directly"),
+            ("WEAPON_TRIGGER_START", "Start Firing Weapon", "Causes a weapon to start shooting"),
+            ("WEAPON_TRIGGER_STOP", "Stop Firing Weapon", "Causes a weapon to stop shooting"),
+            ("SET_VARIANT", "Set Object Variant", "Sets an object variant to the named variant"),
+            ("SET_PERMUTATION", "Set Object Permutation", "Sets an objects permutation(s)"),
+            ("SET_REGION_STATE", "Set Region State", "Sets an objects permutation(s)"),
+            ("SET_MODEL_STATE_PROPERTY", "Set Model State Property", ""),
+            ('HIDE', "Hide Object", ""),
+            ('UNHIDE', "Unhide Object", ""),
+            ('DESTROY', "Destroy Object", ""),
+        ]
+    )
+    
+    script_object: bpy.props.PointerProperty(
+        name="Object",
+        type=bpy.types.Object,
+        poll=poll_actor,
+        options=set(),
+    )
+    
+    script_arg_1: bpy.props.StringProperty(
+        name="Script Argument 1",
+    )
+    script_arg_2: bpy.props.StringProperty(
+        name="Script Argument 2",
+    )
+    script_arg_3: bpy.props.StringProperty(
+        name="Script Argument 3",
+    )
+    script_arg_4: bpy.props.StringProperty(
+        name="Script Argument 4",
+    )
+    script_arg_color: bpy.props.FloatVectorProperty( # converted to 3 args of RGB float values
+        name="Script Argument Color",
+        subtype='COLOR'
+    )
+    script_arg_seconds: bpy.props.FloatProperty( # converted to ticks with seconds * 30 for scripts
+        name="Script Argument Seconds",
+    )
+    
+    script_arg_bool: bpy.props.BoolProperty()
+    
+    def script_dynamic_enum_items(self, context):
+        items = []
+        return items
+    
+    script_dynamic_enum: bpy.props.EnumProperty(
+        name="Script Enum",
+        items=script_dynamic_enum_items,
     )
     
 

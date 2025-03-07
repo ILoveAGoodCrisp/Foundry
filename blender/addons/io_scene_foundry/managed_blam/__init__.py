@@ -344,6 +344,9 @@ class Tag():
     def _GameColor_from_ARGB(self, a, r, g, b):
         return Halo.Game.GameColor.FromArgb(a, linear_to_srgb(r), linear_to_srgb(g), linear_to_srgb(b))
     
+    def self_referential(self, tag_path: TagPath):
+        return self.tag_path == tag_path
+    
 def switch_project_from_filepath(context, path: Path):
     root = any_partition(str(path), "\\tags\\").lower()
     for project in get_prefs().projects:
@@ -409,3 +412,8 @@ def mb_init(tag_path=None):
         
 def close_managed_blam():
     Halo.ManagedBlamSystem.Stop()
+    
+def tag_path_from_string(path: str | Path) -> TagPath:
+    """Returns a Bungie TagPath from the given tag filepath. Filepath must include file extension"""
+    rel_path = relative_path(path)
+    return Tags.TagPath.FromPathAndExtension(rel_path.rpartition(".")[0], rel_path.rpartition(".")[2])

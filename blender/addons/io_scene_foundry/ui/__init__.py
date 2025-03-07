@@ -148,6 +148,11 @@ classes = [
     cinematic.NWO_OT_CameraActorRemove,
     cinematic.NWO_OT_SelectCameraActors,
     cinematic.NWO_OT_CameraActorsClear,
+    cinematic.NWO_UL_CinematicEvents,
+    cinematic.NWO_OT_CinematicEventAdd,
+    cinematic.NWO_OT_CinematicEventRemove,
+    cinematic.NWO_OT_CinematicEventSetFrame,
+    cinematic.NWO_OT_GetSoundEffects,
 ]
 
 def register():

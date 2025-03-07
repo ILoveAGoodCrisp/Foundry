@@ -4296,10 +4296,12 @@ def get_end_node(start_node: bpy.types.Node) -> bpy.types.Node:
 
 def ultimate_armature_parent(ob: bpy.types.Object):
     """Traverses an objects parentage until it finds an armature, if no armature is found then returns None"""
+    if ob is None:
+        return
     while ob.type != 'ARMATURE':
         parent = ob.parent
         if parent is None:
-            return None
+            return
         ob = parent
         
     return ob

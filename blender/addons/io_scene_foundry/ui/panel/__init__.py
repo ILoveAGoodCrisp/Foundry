@@ -2882,8 +2882,90 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col_props.prop(bitmap, "bitmap_type", text="Type")
             col_props.prop(bitmap, "reexport_tiff", text="Always Export Image")
             
-    def draw_cinematic_events(self):
-        pass
+    def draw_cinematic_events(self, nwo, ob, box):
+        row = box.row()
+        row.template_list(
+            "NWO_UL_CinematicEvents",
+            "",
+            nwo,
+            "cinematic_events",
+            nwo,
+            "active_cinematic_event_index",
+        )
+        col = row.column(align=True)
+        col.operator("nwo.cinematic_event_add", icon="ADD", text="")
+        col.operator("nwo.cinematic_event_remove", icon="REMOVE", text="")
+        
+        if not (nwo.cinematic_events and nwo.active_cinematic_event_index > -1):
+            return
+        
+        col = box.column()
+        col.use_property_split = True
+        event = nwo.cinematic_events[nwo.active_cinematic_event_index]
+        row = col.row()
+        row.use_property_split = False
+        row.prop(event, "type", expand=True)
+        row = col.row(align=True)
+        row.prop(event, "frame")
+        row.operator("nwo.cinematic_event_set_frame", text="", icon="KEYFRAME_HLT")
+        match event.type:
+            case 'DIALOGUE':
+                row = col.row(align=True)
+                row.prop(event, "sound_tag")
+                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "sound_tag"
+                row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'sound_tag'
+                row = col.row(align=True)
+                row.prop(event, "female_sound_tag")
+                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "female_sound_tag"
+                row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'female_sound_tag'
+                col.prop(event, "sound_scale")
+                col.prop(event, "lipsync_actor")
+                row = col.row(align=True)
+                row.prop(event, "default_sound_effect")
+                row.operator_menu_enum("nwo.get_sound_effects", "fx", icon="DOWNARROW_HLT", text="")
+                col.prop(event, "subtitle")
+                col.prop(event, "female_subtitle")
+                col.prop(event, "subtitle_character")
+            case 'EFFECT':
+                row = col.row(align=True)
+                row.prop(event, "effect")
+                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "effect"
+                row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'effect'
+                col.prop(event, "marker")
+                col.prop(event, "marker_name")
+                if self.h4:
+                    col.prop(event, "function_a")
+                    col.prop(event, "function_b")
+                    col.prop(event, "looping")
+            case 'SCRIPT':
+                col.prop(event, "script_type")
+                match event.script_type:
+                    case 'CUSTOM':
+                        row = col.row()
+                        row.prop(event, "script")
+                        row.enabled = event.text is None
+                        col.prop(event, "text")
+                    case 'WEAPON_TRIGGER_START' | 'WEAPON_TRIGGER_STOP':
+                        col.prop(event, "script_object", text="Weapon")
+                    case 'SET_VARIANT':
+                        row = col.row()
+                        col.prop(event, "script_object", text="Object")
+                        col.prop(event, "script_arg_1", text="Variant")
+                    case 'SET_PERMUTATION':
+                        col.prop(event, "script_object", text="Object")
+                        col.prop(event, "script_arg_1", text="Region")
+                        col.prop(event, "script_arg_2", text="Permutation")
+                    case 'SET_REGION_STATE':
+                        col.prop(event, "script_object", text="Object")
+                        col.prop(event, "script_arg_1", text="Region")
+                        col.prop(event, "script_arg_2", text="State")
+                    case 'SET_MODEL_STATE_PROPERTY':
+                        col.prop(event, "script_object", text="Object")
+                        col.prop(event, "script_dynamic_enum", text="State Property")
+                        col.prop(event, "script_arg_bool", text="On")
+                    case 'HIDE' | 'UNHIDE' | 'DESTROY':
+                        col.prop(event, "script_object", text="Object")
+        
 
     def draw_animation_manager(self):
         box = self.box.box()
@@ -2893,7 +2975,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         scene_nwo = context.scene.nwo
         
         if self.asset_type == 'cinematic':
-            return self.draw_cinematic_events(box)
+            return self.draw_cinematic_events(scene_nwo, ob, box)
         
         row = box.row()
         if not scene_nwo.animations:

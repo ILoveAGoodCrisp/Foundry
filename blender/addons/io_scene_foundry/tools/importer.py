@@ -711,38 +711,41 @@ class NWO_Import(bpy.types.Operator):
             self.filepath = ''
             
         self.filename = ''
-        if (not self.scope or 'bitmap' in self.scope):
-            self.directory = utils.get_tags_path()
-            self.filter_glob += "*.bitmap;"
-        if (not self.scope or 'camera_track' in self.scope):
-            self.filter_glob += '*.camera_track;'
-        if (not self.scope or 'model' in self.scope):
-            self.filter_glob += '*.model;'
-        if (not self.scope or 'render_model' in self.scope):
-            self.filter_glob += '*.render_model;'
-        if (not self.scope or 'scenario' in self.scope):
-            self.filter_glob += '*.scenario;'
-        if (not self.scope or 'scenario_structure_bsp' in self.scope):
-            self.filter_glob += '*.scen*_bsp;'
-        if (not self.scope or 'particle_model' in self.scope):
-            self.filter_glob += '*.particle_model;'
-        if (not self.scope or 'object' in self.scope):
-            if context.scene.nwo.asset_type == "cinematic":
-                self.filter_glob += '*.scenery;*.biped;'
-            else:
-                self.filter_glob += '*.biped;*.crate;*.creature;*.d*_control;*.d*_dispenser;*.e*_scenery;*.equipment;*.giant;*.d*_machine;*.projectile;*.scenery;*.spawner;*.sound_scenery;*.d*_terminal;*.vehicle;*.weapon;'
-        if (not self.scope or 'animation' in self.scope):
-            self.filter_glob += '*.mod*_*_graph;'
-                
-        if utils.amf_addon_installed() and (not self.scope or 'amf' in self.scope):
-            self.amf_okay = True
-            self.filter_glob += "*.amf;"
-        if utils.blender_toolset_installed() and (not self.scope or 'jms' in self.scope):
-            self.legacy_okay = True
-            self.filter_glob += '*.jms;*.ass;'
-        if utils.blender_toolset_installed() and (not self.scope or 'jma' in self.scope):
-            self.legacy_okay = True
-            self.filter_glob += '*.jmm;*.jma;*.jmt;*.jmz;*.jmv;*.jmw;*.jmo;*.jmr;*.jmrx;'
+        if not self.scope:
+            self.filter_glob = "*"
+        else:
+            if 'bitmap' in self.scope:
+                self.directory = utils.get_tags_path()
+                self.filter_glob += "*.bitmap;"
+            if 'camera_track' in self.scope:
+                self.filter_glob += '*.camera_track;'
+            if 'model' in self.scope:
+                self.filter_glob += '*.model;'
+            if 'render_model' in self.scope:
+                self.filter_glob += '*.render_model;'
+            if 'scenario' in self.scope:
+                self.filter_glob += '*.scenario;'
+            if 'scenario_structure_bsp' in self.scope:
+                self.filter_glob += '*.scen*_bsp;'
+            if 'particle_model' in self.scope:
+                self.filter_glob += '*.particle_model;'
+            if 'object' in self.scope:
+                if context.scene.nwo.asset_type == "cinematic":
+                    self.filter_glob += '*.scenery;*.biped;'
+                else:
+                    self.filter_glob += '*.biped;*.crate;*.creature;*.d*_control;*.d*_dispenser;*.e*_scenery;*.equipment;*.giant;*.d*_machine;*.projectile;*.scenery;*.spawner;*.sound_scenery;*.d*_terminal;*.vehicle;*.weapon;'
+            if 'animation' in self.scope:
+                self.filter_glob += '*.mod*_*_graph;'
+                    
+            if utils.amf_addon_installed() and 'amf' in self.scope:
+                self.amf_okay = True
+                self.filter_glob += "*.amf;"
+            if utils.blender_toolset_installed() and 'jms' in self.scope:
+                self.legacy_okay = True
+                self.filter_glob += '*.jms;*.ass;'
+            if utils.blender_toolset_installed() and 'jma' in self.scope:
+                self.legacy_okay = True
+                self.filter_glob += '*.jmm;*.jma;*.jmt;*.jmz;*.jmv;*.jmw;*.jmo;*.jmr;*.jmrx;'
             
         # if skip_fileselect:
         #     return self.execute(context)

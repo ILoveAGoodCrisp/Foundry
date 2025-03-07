@@ -290,6 +290,8 @@ class ShaderTag(Tag):
         self.block_parameters = self.render_method.SelectField("parameters")
         self.block_options = self.render_method.SelectField('options')
         self.reference = self.render_method.SelectField('reference')
+        if self.reference.Path and self.reference.Path == self.tag_path: # prevent recursion issues
+            self.reference.Path = None
         self.definition = self.render_method.SelectField('definition')
     
     @classmethod

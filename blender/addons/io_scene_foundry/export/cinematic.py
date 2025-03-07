@@ -593,15 +593,14 @@ class QUA:
             elements_zip = zip(block_shots.Elements, block_shots.Elements)
         
         for element, data_element in elements_zip:
-            # TODO Uncomment this when dialogue system in place
-            # block_dialogue = data_element.SelectField("dialogue")
-            # block_dialogue.RemoveAllElements()
+            block_dialogue = data_element.SelectField("dialogue")
+            block_dialogue.RemoveAllElements()
             
             block_effects = data_element.SelectField("effects")
             for sub_element in block_effects.Elements:
                 c = CinematicEffect()
                 c.from_element(sub_element, block_objects, self.corinth)
-                if not c.comes_from_blender:
+                if not c.use_maya_value:
                     effects[c] = current_frame_index + c.frame + int(self.corinth)
             block_effects.RemoveAllElements()
             
@@ -609,7 +608,7 @@ class QUA:
             for sub_element in block_custom_script.Elements:
                 c = CinematicCustomScript()
                 c.from_element(sub_element)
-                if not c.comes_from_blender:
+                if not c.use_maya_value:
                     custom_scripts[c] = current_frame_index + c.frame + int(self.corinth)
             block_custom_script.RemoveAllElements()
         
@@ -734,6 +733,8 @@ class QUA:
         for idx in reversed(to_remove_object_element_indexes):
             block_objects.RemoveElement(idx)
             
+        object_tag_weapon_names = {} # used for custom scripts
+            
         # Add elements for actors without them
         for actor, element in actor_elements.items():
             if element is None:
@@ -747,6 +748,7 @@ class QUA:
                         if attachment_path is None:
                             continue
                         elif attachment_path.Path.RelativePathWithExtension == actor.weapon_tag:
+                            object_tag_weapon_names[actor.original_tag] = attachment_element.SelectField("attachment object name").GetStringData()
                             break
                     else:
                         attachment_element = block_attachments.AddElement()
@@ -755,6 +757,7 @@ class QUA:
                         attachment_element.SelectField("attachment object name").SetStringData(f"{actor.name}_weapon")
                         attachment_element.SelectField("attachment marker name").SetStringData("primary_trigger")
                         attachment_element.SelectField("attachment type").Path = tag._TagPath_from_string(actor.weapon_tag)
+                        object_tag_weapon_names[actor.original_tag] = attachment_element.SelectField("attachment object name").GetStringData()
                         
                 actor_elements[actor] = element
 
@@ -785,7 +788,28 @@ class QUA:
                 flags.ClearShots()
                 for idx in actor.shots_active:
                     flags.SetShotChecked(idx, True) # SetShotChecked is part of TagFieldCustomCinematicShotFlags, which is not used by Reach
-                    
+        
+        # Add cinematic events
+        frame_start = int(bpy.context.scene.frame_start)
+        for event in bpy.context.scene.nwo.cinematic_events:
+            match event.type:
+                case 'DIALOGUE':
+                    c = CinematicDialogue()
+                    c.from_event(event)
+                    if c.dialogue is not None:
+                        dialogue[c] = event.frame - frame_start
+                case 'EFFECT':
+                    c = CinematicEffect()
+                    c.from_event(event)
+                    if c.effect is not None:
+                        effects[c] = event.frame - frame_start
+                case 'SCRIPT':
+                    c = CinematicCustomScript()
+                    c.from_event(event, object_tag_weapon_names)
+                    if c.script.strip():
+                        custom_scripts[c] = event.frame - frame_start
+        
+        
         # Add back data blocks
         # Dialogue comes from blender
         block = block_shots

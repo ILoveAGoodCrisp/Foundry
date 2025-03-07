@@ -1,4 +1,6 @@
-from . import Tag
+from .. import utils
+from ..props.scene import NWO_CinematicEvent
+from . import Tag, tag_path_from_string
 from .Tags import TagFieldBlock, TagFieldBlockElement, TagPath
 
 def get_subject_name(subject_index: int, object_block: TagFieldBlock) -> str:
@@ -91,6 +93,23 @@ class CinematicDialogue:
         element.SelectField("subtitle").SetStringData(self.subtitle)
         element.SelectField("female subtitle").SetStringData(self.female_subtitle)
         element.SelectField("character").SetStringData(self.character)
+        
+    def from_event(self, event: NWO_CinematicEvent):
+        if event.sound_tag.strip():
+            self.dialogue = tag_path_from_string(event.sound_tag)
+        if event.female_sound_tag.strip():
+            self.female_dialogue = tag_path_from_string(event.female_sound_tag)
+            if self.dialogue is None:
+                self.dialogue = self.female_dialogue
+        else:
+            self.female_dialogue = self.dialogue
+            
+        self.scale = event.sound_scale
+        self.lipsync_actor = "" if event.lipsync_actor is None else event.lipsync_actor.name
+        self.default_sound_effect = event.default_sound_effect
+        self.subtitle = event.subtitle
+        self.female_dialogue = event.female_subtitle if event.female_subtitle.strip() else self.subtitle
+        self.character = event.subtitle_character
 
 class CinematicMusic:
     def __init__(self):
@@ -157,9 +176,26 @@ class CinematicEffect:
             element.SelectField("function a").SetStringData(self.function_a)
             element.SelectField("function b").SetStringData(self.function_b)
             
-    @property
-    def comes_from_blender(self):
-        return self.node_id == 117
+    def from_event(self, event: NWO_CinematicEvent):
+        self.use_maya_value = True
+        if event.effect is not None:
+            self.effect = tag_path_from_string(event.effect)
+        
+        ob = event.marker
+        if ob is None or ob.type != 'EMPTY':
+            self.marker_name = event.marker_name
+        else:
+            self.marker_name = event.marker.nwo.marker_model_group
+            
+        if ob is not None:
+            actor = utils.ultimate_armature_parent(ob)
+            if actor is not None:
+                self.marker_parent = actor.name
+                
+        self.function_a = event.function_a
+        self.function_b = event.function_b
+        self.looping = event.looping
+            
         
 class CinematicObjectFunctionKeyframe:
     def __init__(self, ob: str, func: str):
@@ -255,13 +291,26 @@ class CinematicCustomScript:
     def to_element(self, element: TagFieldBlockElement):
         element.SelectField("flags").SetBit("use maya value", self.use_maya_value)
         element.SelectField("frame").Data = self.frame
-        element.SelectField("script").Elements[0].Fields[0].DataAsText = self.script
+        element.SelectField("script").Elements[0].Fields[0].Data = self.script.encode()
         element.SelectField("node id").Data = self.node_id
         element.SelectField("sequence id").Data = self.sequence_id
         
-    @property
-    def comes_from_blender(self):
-        return self.node_id == 117
+    def from_event(self, event: NWO_CinematicEvent, object_tag_weapon_names: dict):
+        self.use_maya_value = True
+        match event.script_type:
+            case 'CUSTOM':
+                if event.text is None:
+                    self.script = event.script
+                else:
+                    self.script = event.text.as_string()
+            case 'WEAPON_TRIGGER_START' | 'WEAPON_TRIGGER_STOP':
+                if event.script_object is not None:
+                    weapon_name = object_tag_weapon_names.get(utils.relative_path(event.script_object.nwo.cinematic_object))
+                    if weapon_name is not None:
+                        self.script = f'weapon_set_primary_barrel_firing (cinematic_weapon_get "{weapon_name}") {int(event.script_type == "WEAPON_TRIGGER_START")}'
+            case 'SET_VARIANT':
+                if event.script_object is not None:
+                    self.script = f'object_set_variant (cinematic_object_get "{event.script_object.name}") {event.script_arg_1}'
         
 class CinematicUserInputConstraints:
     def __init__(self):
