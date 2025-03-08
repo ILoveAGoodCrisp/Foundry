@@ -741,23 +741,23 @@ class QUA:
                 element = block_objects.AddElement()
                 element.SelectField("name").SetStringData(actor.name)
                 element.SelectField("variant name").SetStringData(actor.variant)
-                if actor.weapon_tag is not None:
-                    block_attachments = element.SelectField("Block:attachments")
-                    for attachment_element in block_attachments.Elements:
-                        attachment_path = element.SelectField("Reference:attachment type").Path
-                        if attachment_path is None:
-                            continue
-                        elif attachment_path.Path.RelativePathWithExtension == actor.weapon_tag:
-                            object_tag_weapon_names[actor.original_tag] = attachment_element.SelectField("attachment object name").GetStringData()
-                            break
-                    else:
-                        attachment_element = block_attachments.AddElement()
-                        attachment_element.SelectField("flags").SetBit("invisible", True)
-                        attachment_element.SelectField("object marker name").SetStringData("primary_trigger")
-                        attachment_element.SelectField("attachment object name").SetStringData(f"{actor.name}_weapon")
-                        attachment_element.SelectField("attachment marker name").SetStringData("primary_trigger")
-                        attachment_element.SelectField("attachment type").Path = tag._TagPath_from_string(actor.weapon_tag)
+            if actor.weapon_tag is not None:
+                block_attachments = element.SelectField("Block:attachments")
+                for attachment_element in block_attachments.Elements:
+                    attachment_path = element.SelectField("Reference:attachment type").Path
+                    if attachment_path is None:
+                        continue
+                    elif attachment_path.Path.RelativePathWithExtension == actor.weapon_tag:
                         object_tag_weapon_names[actor.original_tag] = attachment_element.SelectField("attachment object name").GetStringData()
+                        break
+                else:
+                    attachment_element = block_attachments.AddElement()
+                    attachment_element.SelectField("flags").SetBit("invisible", True)
+                    attachment_element.SelectField("object marker name").SetStringData("primary_trigger")
+                    attachment_element.SelectField("attachment object name").SetStringData(f"{actor.name}_weapon")
+                    attachment_element.SelectField("attachment marker name").SetStringData("primary_trigger")
+                    attachment_element.SelectField("attachment type").Path = tag._TagPath_from_string(actor.weapon_tag)
+                    object_tag_weapon_names[actor.original_tag] = attachment_element.SelectField("attachment object name").GetStringData()
                         
                 actor_elements[actor] = element
 
@@ -879,7 +879,7 @@ class QUA:
                 continue
             shot_element = block.Elements[shot_index]
             data.frame = shot_frame
-            data.to_element(shot_element.SelectField("dialogue").AddElement(), block_objects)
+            data.to_element(shot_element.SelectField("dialogue").AddElement())
             
         for data, frame_index in effects.items():
             shot_index, shot_frame = self.get_shot_index_and_frame(frame_index)

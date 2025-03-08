@@ -80,7 +80,7 @@ class CinematicDialogue:
         self.character = ""
     
     # Dialog is always sourced from Blender
-    # def from_element(self, element: TagFieldBlockElement):
+    # def from_element(self, element: TagFieldBlockElement): 
     #     pass
     
     def to_element(self, element: TagFieldBlockElement):
@@ -108,7 +108,7 @@ class CinematicDialogue:
         self.lipsync_actor = "" if event.lipsync_actor is None else event.lipsync_actor.name
         self.default_sound_effect = event.default_sound_effect
         self.subtitle = event.subtitle
-        self.female_dialogue = event.female_subtitle if event.female_subtitle.strip() else self.subtitle
+        self.female_subtitle = event.female_subtitle if event.female_subtitle.strip() else self.subtitle
         self.character = event.subtitle_character
 
 class CinematicMusic:
@@ -291,7 +291,7 @@ class CinematicCustomScript:
     def to_element(self, element: TagFieldBlockElement):
         element.SelectField("flags").SetBit("use maya value", self.use_maya_value)
         element.SelectField("frame").Data = self.frame
-        element.SelectField("script").Elements[0].Fields[0].Data = self.script.encode()
+        element.SelectField("script").Elements[0].Fields[0].DataAsText = self.script
         element.SelectField("node id").Data = self.node_id
         element.SelectField("sequence id").Data = self.sequence_id
         
@@ -310,7 +310,37 @@ class CinematicCustomScript:
                         self.script = f'weapon_set_primary_barrel_firing (cinematic_weapon_get "{weapon_name}") {int(event.script_type == "WEAPON_TRIGGER_START")}'
             case 'SET_VARIANT':
                 if event.script_object is not None:
-                    self.script = f'object_set_variant (cinematic_object_get "{event.script_object.name}") {event.script_arg_1}'
+                    self.script = f'object_set_variant (cinematic_object_get "{event.script_object.name}") {event.script_variant}'
+            case 'SET_PERMUTATION':
+                if event.script_object is not None:
+                    self.script = f'object_set_permutation (cinematic_object_get "{event.script_object.name}") {event.script_region} {event.script_permutation}'
+            case 'SET_REGION_STATE':
+                if event.script_object is not None:
+                    self.script = f'object_set_region_state (cinematic_object_get "{event.script_object.name}") {event.script_region} {event.script_state}'
+            case 'SET_MODEL_STATE_PROPERTY':
+                if event.script_object is not None:
+                    self.script = f'object_set_model_state_property (cinematic_object_get "{event.script_object.name}") {int(event.script_state_property)} {event.script_bool}'
+            case 'HIDE' | 'UNHIDE':
+                if event.script_object is not None:
+                    self.script = f'object_hide (cinematic_object_get "{event.script_object.name}") {int(event.script_type == "HIDE")}'
+            case 'DESTROY':
+                if event.script_object is not None:
+                    self.script = f'object_destroy (cinematic_object_get "{event.script_object.name}")'
+            case 'FADE_IN':
+                red, green, blue = event.script_color
+                self.script = f'fade_in {red} {green} {blue} {int(event.script_seconds * 30)}'
+            case 'FADE_OUT':
+                red, green, blue = event.script_color
+                self.script = f'fade_out {red} {green} {blue} {int(event.script_seconds * 30)}'
+            case 'SET_TITLE':
+                self.script = f'cinematic_set_title {self.script_text}'
+            case 'SHOW_HUD':
+                self.script = 'chud_cinematic_fade 0 0\nchud_show_cinematics 1'
+            case 'HIDE_HUD':
+                self.script = f'chud_cinematic_fade 1 0\nchud_show_cinematics 0'
+            case 'OBJECT_CANNOT_DIE' | 'OBJECT_CAN_DIE':
+                if event.script_object is not None:
+                    self.script = f'object_cannot_die (cinematic_object_get "{event.script_object.name}") {int(event.script_type == "OBJECT_CANNOT_DIE")}'
         
 class CinematicUserInputConstraints:
     def __init__(self):

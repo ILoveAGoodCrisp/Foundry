@@ -11,17 +11,52 @@ SOUND_FX_TAG = r"sound\global_fx.sound_effect_collection"
 
 # CINEMATIC EVENTS
 
+
 class NWO_UL_CinematicEvents(bpy.types.UIList):
+    
+    use_filter_sort_frame: bpy.props.BoolProperty(
+        name="Sort By Frame",
+        default=True,
+    )
+    
     def draw_item(self, context, layout: bpy.types.UILayout, data, item, icon, active_data, active_propname, index):
         match item.type:
             case 'DIALOGUE':
-                layout.prop(item, "name", icon='PLAY_SOUND', text="", emboss=False)
+                layout.label(text=item.name, icon='PLAY_SOUND')
             case 'EFFECT':
-                layout.prop(item, "name", icon_value=get_icon_id("effects"), text="", emboss=False)
+                layout.label(text=item.name, icon_value=get_icon_id("effects"))
             case 'SCRIPT':
-                layout.prop(item, "name", icon='TEXT', text="", emboss=False)
-                
-        layout.label(text=str(item.frame))
+                layout.label(text=item.name, icon='TEXT')
+        
+        row = layout.row()
+        row.alignment = 'RIGHT'
+        row.label(text=str(item.frame))
+        
+    def draw_filter(self, context, layout):
+        if self.use_filter_show:
+            row = layout.row(align=True)
+            row.prop(self, "filter_name", text="")
+            row.prop(self, "use_filter_invert", text="", icon='ARROW_LEFTRIGHT')
+            row = row.row()
+            row = row.row(align=True)
+            row.prop(self, "use_filter_sort_frame", text="", icon='KEYFRAME_HLT')
+            row.prop(self, "use_filter_sort_reverse", text="", icon="SORT_ASC")
+
+    def filter_items(self, context, data, propname):
+        items = getattr(data, propname)
+        if self.filter_name:
+            flt_flags = bpy.types.UI_UL_list.filter_items_by_name(self.filter_name, self.bitflag_filter_item, items, "name", reverse=self.use_filter_sort_reverse)
+            if self.use_filter_invert:
+                flt_flags = [f for f in [self.bitflag_filter_item] * len(items) if f not in flt_flags]
+        else:
+            flt_flags = [self.bitflag_filter_item] * len(items)
+            
+        if self.use_filter_sort_frame:
+            _sort = [(idx, i.frame) for idx, i in enumerate(items)]
+            order = bpy.types.UI_UL_list.sort_items_helper(_sort, key=lambda i: i[1], reverse=self.use_filter_sort_reverse)
+
+
+        return flt_flags, order
 
 class NWO_OT_CinematicEventAdd(bpy.types.Operator):
     bl_idname = "nwo.cinematic_event_add"
@@ -32,7 +67,7 @@ class NWO_OT_CinematicEventAdd(bpy.types.Operator):
     def execute(self, context):
         events = context.scene.nwo.cinematic_events
         event = events.add()
-        event.name = event.type
+        event.name = "EVENT"
         event.frame = context.scene.frame_current
         ob = context.object
         active_cinematic_object = utils.ultimate_armature_parent(ob)
@@ -60,7 +95,7 @@ class NWO_OT_CinematicEventRemove(bpy.types.Operator):
         return context.scene.nwo.cinematic_events and context.scene.nwo.active_cinematic_event_index > -1
     
     def execute(self, context):
-        nwo = context.object.nwo
+        nwo = context.scene.nwo
         events = nwo.cinematic_events
         events.remove(nwo.active_cinematic_event_index)
         if nwo.active_cinematic_event_index > len(events) - 1:
@@ -173,70 +208,7 @@ class NWO_OT_CinematicItemSearch(bpy.types.Operator):
         event = nwo.cinematic_events[nwo.active_cinematic_event_index]
         event.default_sound_effect = self.fx
         return {'FINISHED'}
-    
-class NWO_OT_CinematicScriptTemplate(bpy.types.Operator):
-    bl_idname = "nwo.cinematic_script_template"
-    bl_label = "Template Script"
-    bl_description = "Adds a template cinematic script"
-    bl_options = {"UNDO"}
-    
-    @classmethod
-    def poll(cls, context):
-        return context.scene.nwo.cinematic_events and context.scene.nwo.active_cinematic_event_index > -1
-
-    option: bpy.props.EnumProperty(
-        name="Option",
-        description="Type of cinematic script template to add",
-        items=[
-            ("WEAPON_TRIGGER_START", "Start Firing Weapon", "Causes a weapon to start shooting"),
-            ("WEAPON_TRIGGER_STOP", "Stop Firing Weapon", "Causes a weapon to stop shooting"),
-            ("SET_VARIANT", "Set Object Variant", "Sets an object variant to the named variant"),
-            ("SET_PERMUTATION", "Set Object Permutation", "Sets an objects permutation(s)"),
-        ]
-    )
-    
-    arg_1: bpy.props.StringProperty()
-    arg_2: bpy.props.StringProperty()
-    
-    def execute(self, context):
-        nwo = context.scene.nwo
-        event = nwo.cinematic_events[nwo.active_cinematic_event_index]
-        active_cinematic_object = utils.ultimate_armature_parent(context.object)
-        if active_cinematic_object is None or not active_cinematic_object.nwo.cinematic_object:
-            ob_name = "REPLACE_WITH_OBJECT_NAME"
-        else:
-            ob_name = active_cinematic_object.name.replace(".", "_")
-        match self.option:
-            case 'WEAPON_TRIGGER_START':
-                event.script = f'weapon_set_primary_barrel_firing (cinematic_weapon_get "{ob_name}_weapon") 1'
-            case 'WEAPON_TRIGGER_STOP':
-                event.script = f'weapon_set_primary_barrel_firing (cinematic_weapon_get "{ob_name}_weapon") 0'
-            case 'SET_VARIANT':
-                event.script = f'object_set_variant (cinematic_object_get "{ob_name}") {self.arg_1}'
-            case 'SET_PERMUTATION':
-                event.script = f'object_set_permutation  (cinematic_object_get "{ob_name}") {self.arg_1} {self.arg_2}'
-            case 'SET_REGION_STATE':
-                event.script = f'object_set_region_state (cinematic_object_get "{ob_name}") {self.arg_1} {self.script_dynamic_enum}'
-            case 'SET_MODEL_STATE_PROPERTY':
-                event.script = f'object_set_model_state_property  (cinematic_object_get "{ob_name}") {self.script_dynamic_enum} {self.script_arg_bool}'
-            case 'HIDE':
-                event.script = f'object_hide (cinematic_object_get "{ob_name}") 1'
-            case 'UNHIDE':
-                event.script = f'object_hide (cinematic_object_get "{ob_name}") Fals0e'
-            case 'DESTROY':
-                event.script = f'object_destroy (cinematic_object_get "{ob_name}")'
-            case 'SET_TITLE':
-                event.script = f'cinematic_set_title {self.script_arg_1}'
-            case 'SHOW_HUD':
-                event.script = f'chud_cinematic_fade 0 0\nchud_show_cinematics 1'
-            case 'HIDE_HUD':
-                event.script = f'chud_cinematic_fade 1 0\nchud_show_cinematics 0'
-            case 'OBJECT_CANNOT_DIE':
-                event.script = f'object_cannot_die (cinematic_object_get "{ob_name}") 1'
-            case 'OBJECT_CAN_DIE':
-                event.script = f'object_cannot_die (cinematic_object_get "{ob_name}") 0'
         
-
 # CAMERA STUFF
         
 class NWO_UL_CameraActors(bpy.types.UIList):

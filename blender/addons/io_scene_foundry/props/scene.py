@@ -10,6 +10,9 @@ from ..managed_blam.scenario import ScenarioTag
 from ..icons import get_icon_id
 from .. import utils
 
+script_object_types = ('WEAPON_TRIGGER_START', 'WEAPON_TRIGGER_STOP', 'SET_VARIANT', 'SET_PERMUTATION', 'SET_REGION_STATE', 'SET_MODEL_STATE_PROPERTY', 'HIDE', 'UNHIDE', 'DESTROY', 'OBJECT_CANNOT_DIE', 'OBJECT_CAN_DIE')
+
+
 def poll_armature(self, object: bpy.types.Object):
     return object.type == 'ARMATURE'
 
@@ -1073,6 +1076,65 @@ class NWO_CinematicEvent(PropertyGroup):
             ("SCRIPT", "Script", "")
         ]
         
+    def get_name(self):
+        match self.type:
+            case 'DIALOGUE':
+                # layout.prop(item, "name", icon='PLAY_SOUND', text="", emboss=False)
+                if self.sound_tag.strip():
+                    if self.lipsync_actor is None:
+                        return f"{Path(self.sound_tag).with_suffix('').name} -> NONE"
+                    else:
+                        return f"{Path(self.sound_tag).with_suffix('').name} -> {self.lipsync_actor.name}"
+                else:
+                    return "NONE"
+            case 'EFFECT':
+                if self.effect.strip():
+                    if self.marker is None:
+                        return f"{Path(self.effect).with_suffix('').name} -> NONE"
+                    else:
+                        if self.marker.type == 'EMPTY':
+                            arm = utils.ultimate_armature_parent(self.marker)
+                            if arm is None:
+                                return f"{Path(self.effect).with_suffix('').name} -> NONE -> {self.marker.name}"
+                                layout.alert = True
+                            else:
+                                return f"{Path(self.effect).with_suffix('').name} -> {arm.name} -> {self.marker.name}"
+                        else:
+                            return f"{Path(self.effect).with_suffix('').name} -> {self.marker.name}"
+                else:
+                    return "NONE"
+            case 'SCRIPT':
+                if self.script_type == 'CUSTOM':
+                    if self.text is None:
+                        if self.script.strip():
+                            return self.script
+                        else:
+                            return "NONE"
+                    else:
+                        return self.text.name
+                else:
+                    if self.script_type in script_object_types:
+                        if self.script_object is None:
+                            return f"{self.script_type.lower()} -> NONE"
+                        else:
+                            match self.script_type:
+                                case 'SET_VARIANT':
+                                    return f"{self.script_type.lower()} -> {self.script_object.name} -> {self.script_variant}"
+                                case 'SET_PERMUTATION':
+                                    return f"{self.script_type.lower()} -> {self.script_object.name} -> {self.script_region} {self.script_permutation}"
+                                case 'SET_REGION_STATE':
+                                    return f"{self.script_type.lower()} -> {self.script_object.name} -> {self.script_region} {self.script_state}"
+                                case 'SET_MODEL_STATE_PROPERTY':
+                                    return f"{self.script_type.lower()} -> {self.script_object.name} -> {self.script_state_property} {'on' if self.script_bool else 'off'}"
+                                case _:
+                                    return f"{self.script_type.lower()} -> {self.script_object.name}"
+                    else:
+                        return self.script_type.lower()
+        
+    name: bpy.props.StringProperty(
+        name="Name",
+        get=get_name,
+    )
     
     type: bpy.props.EnumProperty(
         name="Type",
@@ -1084,6 +1146,7 @@ class NWO_CinematicEvent(PropertyGroup):
         name="Frame",
         description="Play on which this event plays",
         default=1,
+        min=0,
     )
     
     # Dialogue
@@ -1200,14 +1263,23 @@ class NWO_CinematicEvent(PropertyGroup):
             ("WEAPON_TRIGGER_START", "Start Firing Weapon", "Causes a weapon to start shooting"),
             ("WEAPON_TRIGGER_STOP", "Stop Firing Weapon", "Causes a weapon to stop shooting"),
             ("SET_VARIANT", "Set Object Variant", "Sets an object variant to the named variant"),
-            ("SET_PERMUTATION", "Set Object Permutation", "Sets an objects permutation(s)"),
-            ("SET_REGION_STATE", "Set Region State", "Sets an objects permutation(s)"),
+            ("SET_PERMUTATION", "Set Object Permutation", "Sets an objects permutation(s). Leave the region blank for all regions"),
+            ("SET_REGION_STATE", "Set Region State", "Sets a region(s) state. Leave region blank for all regions"),
             ("SET_MODEL_STATE_PROPERTY", "Set Model State Property", ""),
             ('HIDE', "Hide Object", ""),
             ('UNHIDE', "Unhide Object", ""),
             ('DESTROY', "Destroy Object", ""),
+            ('FADE_IN', "Fade in from Color", ""),
+            ('FADE_OUT', "Fade out to Color", ""),
+            ('SET_TITLE', "Set Cinematic Title", ""),
+            ('SHOW_HUD', "Show Player HUD", ""),
+            ('HIDE_HUD', "Hide Player HUD", ""),
+            ('OBJECT_CANNOT_DIE', "Make Object Immortal", ""),
+            ('OBJECT_CAN_DIE', "Make Object Mortal", ""),
         ]
     )
+    
+    script_text: bpy.props.StringProperty()
     
     script_object: bpy.props.PointerProperty(
         name="Object",
@@ -1216,27 +1288,49 @@ class NWO_CinematicEvent(PropertyGroup):
         options=set(),
     )
     
-    script_arg_1: bpy.props.StringProperty(
-        name="Script Argument 1",
+    script_variant: bpy.props.StringProperty(
+        name="Script Variant",
     )
-    script_arg_2: bpy.props.StringProperty(
-        name="Script Argument 2",
+    script_region: bpy.props.StringProperty(
+        name="Script Region",
     )
-    script_arg_3: bpy.props.StringProperty(
-        name="Script Argument 3",
+    script_permutation: bpy.props.StringProperty(
+        name="Script Permutation",
     )
-    script_arg_4: bpy.props.StringProperty(
-        name="Script Argument 4",
+    script_state: bpy.props.EnumProperty(
+        name="Script State",
+        items=[
+            ("standard", "Standard", ""),
+            ("minor_damage", "Minor Damage", ""),
+            ("medium_damage", "Medium Damage", ""),
+            ("major_damage", "Major Damage", ""),
+            ("destroyed", "Destroyed", ""),
+        ]
     )
-    script_arg_color: bpy.props.FloatVectorProperty( # converted to 3 args of RGB float values
+    script_state_property: bpy.props.EnumProperty(
+        name="Script State",
+        items=[
+            ("0", "Blurred", ""),
+            ("1", "Hella Blurred", ""),
+            ("2", "Unshielded", ""),
+            ("3", "Battery Depleted", ""),
+        ]
+    )
+    script_color: bpy.props.FloatVectorProperty( # converted to 3 args of RGB float values
         name="Script Argument Color",
-        subtype='COLOR'
+        subtype='COLOR',
+        options=set(),
+        size=3,
+        default=(0.0, 0.0, 0.0),
+        min=0,
+        max=1,
     )
-    script_arg_seconds: bpy.props.FloatProperty( # converted to ticks with seconds * 30 for scripts
+    script_seconds: bpy.props.FloatProperty( # converted to ticks with seconds * 30 for scripts
         name="Script Argument Seconds",
+        options=set(),
     )
     
-    script_arg_bool: bpy.props.BoolProperty()
+    script_bool: bpy.props.BoolProperty(options=set(),)
     
     def script_dynamic_enum_items(self, context):
         items = []

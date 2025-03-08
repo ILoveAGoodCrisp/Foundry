@@ -1029,6 +1029,8 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="",
         subtype="COLOR",
+        min=0.0,
+        max=1.0,
     )
 
     # marker_light_cone_alpha: bpy.props.FloatProperty(

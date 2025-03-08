@@ -2950,22 +2950,26 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     case 'SET_VARIANT':
                         row = col.row()
                         col.prop(event, "script_object", text="Object")
-                        col.prop(event, "script_arg_1", text="Variant")
+                        col.prop(event, "script_variant", text="Variant")
                     case 'SET_PERMUTATION':
                         col.prop(event, "script_object", text="Object")
-                        col.prop(event, "script_arg_1", text="Region")
-                        col.prop(event, "script_arg_2", text="Permutation")
+                        col.prop(event, "script_region", text="Region")
+                        col.prop(event, "script_permutation", text="Permutation")
                     case 'SET_REGION_STATE':
                         col.prop(event, "script_object", text="Object")
-                        col.prop(event, "script_arg_1", text="Region")
-                        col.prop(event, "script_arg_2", text="State")
+                        col.prop(event, "script_region", text="Region")
+                        col.prop(event, "script_state", text="State")
                     case 'SET_MODEL_STATE_PROPERTY':
                         col.prop(event, "script_object", text="Object")
-                        col.prop(event, "script_dynamic_enum", text="State Property")
-                        col.prop(event, "script_arg_bool", text="On")
-                    case 'HIDE' | 'UNHIDE' | 'DESTROY':
+                        col.prop(event, "script_state_property", text="State Property")
+                        col.prop(event, "script_bool", text="On")
+                    case 'HIDE' | 'UNHIDE' | 'DESTROY' | 'OBJECT_CANNOT_DIE' | 'OBJECT_CAN_DIE':
                         col.prop(event, "script_object", text="Object")
-        
+                    case 'FADE_IN' | 'FADE_OUT':
+                        col.prop(event, "script_color", text="Color")
+                        col.prop(event, "script_seconds", text="Seconds")
+                    case 'SET_TITLE':
+                        col.prop(event, "script_text", text="Title String ID")
 
     def draw_animation_manager(self):
         box = self.box.box()
