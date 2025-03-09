@@ -1140,6 +1140,11 @@ class ShaderTag(Tag):
             old_bump = e_bump_mapping.name
             e_bump_mapping = BumpMapping.STANDARD
             utils.print_warning(f"Unsupported bump mapping : {old_bump}. Using {e_bump_mapping.name} instead")
+            
+        if e_environment_mapping.value > 2:
+            old_env = e_environment_mapping.name
+            e_environment_mapping = EnvironmentMapping.DYNAMIC
+            utils.print_warning(f"Unsupported environment mapping : {old_env}. Using {e_environment_mapping.name} instead")
         
         self.shader_parameters = {}
         self.shader_parameters.update(self.category_parameters["albedo"][utils.game_str(e_albedo.name)])
