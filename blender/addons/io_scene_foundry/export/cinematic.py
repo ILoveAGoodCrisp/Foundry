@@ -803,17 +803,17 @@ class QUA:
                             strip = sound_sequences.get(event.sound_strip)
                             if strip is not None:
                                 frame = int(strip.frame_start)
-                        dialogue[c] = frame - frame_start
+                        dialogue[c] = frame - frame_start + int(self.corinth)
                 case 'EFFECT':
                     c = CinematicEffect()
                     c.from_event(event)
                     if c.effect is not None:
-                        effects[c] = event.frame - frame_start
+                        effects[c] = event.frame - frame_start + int(self.corinth)
                 case 'SCRIPT':
                     c = CinematicCustomScript()
                     c.from_event(event, object_tag_weapon_names)
                     if c.script.strip():
-                        custom_scripts[c] = event.frame - frame_start
+                        custom_scripts[c] = event.frame - frame_start + int(self.corinth)
         
         
         # Add back data blocks

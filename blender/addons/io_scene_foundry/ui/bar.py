@@ -772,8 +772,8 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
         name="Cinematic Scope",
         description="Whether to export object animation or camera animation, or both",
         items=[
-            ('BOTH', "Camera & Object Animation", ""),
-            ('CAMERA', "Camera Only", ""),
+            ('BOTH', "Shot Data & Object Animation", ""),
+            ('CAMERA', "Shot Data Only", ""),
             ('OBJECT', "Object Animation Only", ""),
         ],
         options=set(),

@@ -2906,11 +2906,10 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         row.use_property_split = False
         row.prop(event, "type", expand=True)
         row = col.row(align=True)
-        row.prop(event, "frame", text="Fallback Frame" if event.type == 'DIALOGUE' else "Frame")
+        row.prop(event, "frame", text="Fallback Frame" if event.type == 'DIALOGUE' and event.sound_strip else "Frame")
         row.operator("nwo.cinematic_event_set_frame", text="", icon="KEYFRAME_HLT")
         match event.type:
             case 'DIALOGUE':
-                row.enabled = not event.sound_strip
                 row = col.row(align=True)
                 row.prop(event, "sound_tag")
                 row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "sound_tag"
