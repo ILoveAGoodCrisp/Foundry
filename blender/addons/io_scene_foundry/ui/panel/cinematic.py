@@ -10,8 +10,6 @@ from ... import utils
 SOUND_FX_TAG = r"sound\global_fx.sound_effect_collection"
 
 # CINEMATIC EVENTS
-
-
 class NWO_UL_CinematicEvents(bpy.types.UIList):
     
     use_filter_sort_frame: bpy.props.BoolProperty(
@@ -37,23 +35,21 @@ class NWO_UL_CinematicEvents(bpy.types.UIList):
             row = layout.row(align=True)
             row.prop(self, "filter_name", text="")
             row.prop(self, "use_filter_invert", text="", icon='ARROW_LEFTRIGHT')
-            row = row.row()
-            row = row.row(align=True)
+            row.separator()
             row.prop(self, "use_filter_sort_frame", text="", icon='KEYFRAME_HLT')
             row.prop(self, "use_filter_sort_reverse", text="", icon="SORT_ASC")
 
     def filter_items(self, context, data, propname):
         items = getattr(data, propname)
         if self.filter_name:
-            flt_flags = bpy.types.UI_UL_list.filter_items_by_name(self.filter_name, self.bitflag_filter_item, items, "name", reverse=self.use_filter_sort_reverse)
-            if self.use_filter_invert:
-                flt_flags = [f for f in [self.bitflag_filter_item] * len(items) if f not in flt_flags]
+            flt_flags = bpy.types.UI_UL_list.filter_items_by_name(self.filter_name, self.bitflag_filter_item, items, "name", reverse=False)
         else:
             flt_flags = [self.bitflag_filter_item] * len(items)
-            
+        
+        order = None
         if self.use_filter_sort_frame:
             _sort = [(idx, i.frame) for idx, i in enumerate(items)]
-            order = bpy.types.UI_UL_list.sort_items_helper(_sort, key=lambda i: i[1], reverse=self.use_filter_sort_reverse)
+            order = bpy.types.UI_UL_list.sort_items_helper(_sort, key=lambda i: i[1], reverse=False)
 
 
         return flt_flags, order
