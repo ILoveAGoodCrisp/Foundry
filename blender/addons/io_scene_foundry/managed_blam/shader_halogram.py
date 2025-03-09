@@ -86,8 +86,9 @@ class ShaderHalogramTag(ShaderTag):
         nodes.clear()
         
         illum_uses_diffuse = e_self_illumination in {SelfIllumination.FROM_DIFFUSE, SelfIllumination.SELF_ILLUM_TIMES_DIFFUSE}
+        has_illum = e_self_illumination != SelfIllumination.OFF
         
-        if illum_uses_diffuse:
+        if illum_uses_diffuse or not has_illum:
             node_albedo = self._add_group_node(tree, nodes, f"albedo - {utils.game_str(e_albedo.name)}")
             final_node = node_albedo
             
@@ -133,18 +134,19 @@ class ShaderHalogramTag(ShaderTag):
             final_node = node_self_illumination
             if illum_uses_diffuse:
                 tree.links.new(input=node_self_illumination.inputs[0], output=node_albedo.outputs[0])
-            uses_overlay = e_overlay.value > 0
-            uses_edge_fade = e_edge_fade.value > 0
+        
+        uses_overlay = e_overlay.value > 0
+        uses_edge_fade = e_edge_fade.value > 0
+        
+        if uses_overlay:
+            node_overlay = self._add_group_node(tree, nodes, f"shader_halogram overlay - {utils.game_str(e_overlay.name)}")
+            tree.links.new(input=node_overlay.inputs[0], output=final_node.outputs[0])
+            final_node = node_overlay
             
-            if uses_overlay:
-                node_overlay = self._add_group_node(tree, nodes, f"shader_halogram overlay - {utils.game_str(e_overlay.name)}")
-                tree.links.new(input=node_overlay.inputs[0], output=node_self_illumination.outputs[0])
-                final_node = node_overlay
-                
-            if uses_edge_fade:
-                node_edge_fade = self._add_group_node(tree, nodes, f"shader_halogram edge_fade - {utils.game_str(e_edge_fade.name)}")
-                tree.links.new(input=node_edge_fade.inputs[0], output=final_node.outputs[0])
-                final_node = node_edge_fade
+        if uses_edge_fade:
+            node_edge_fade = self._add_group_node(tree, nodes, f"shader_halogram edge_fade - {utils.game_str(e_edge_fade.name)}")
+            tree.links.new(input=node_edge_fade.inputs[0], output=final_node.outputs[0])
+            final_node = node_edge_fade
             
         if e_blend_mode != BlendMode.OPAQUE:
             blender_material.surface_render_method = 'BLENDED'

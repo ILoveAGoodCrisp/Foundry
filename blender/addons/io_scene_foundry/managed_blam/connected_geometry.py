@@ -161,7 +161,7 @@ class InstanceDefinition:
                 self.blender_cookie.name = f"{self.blender_render.name}_proxy_cookie_cutter"
                 self.blender_cookie.nwo.proxy_parent = self.blender_render.data
                 self.blender_cookie.nwo.proxy_type = "cookie_cutter"
-                self.blender_render.data.nwo.proxy_cookie_cutter = self.blender_collision
+                self.blender_render.data.nwo.proxy_cookie_cutter = self.blender_cookie
             if self.has_collision:
                 self.blender_collision = self.collision_info.to_object()
                 if self.blender_render and self.blender_render.type == 'MESH':
@@ -234,6 +234,8 @@ class InstanceDefinition:
             objects.append(self.blender_render)
         if self.blender_collision:
             objects.append(self.blender_collision)
+        if self.blender_cookie:
+            objects.append(self.blender_cookie)
             
         return objects
             
