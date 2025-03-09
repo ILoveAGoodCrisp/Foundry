@@ -1,6 +1,7 @@
 from pathlib import Path
 import bpy
 
+from ..managed_blam.shader_glass import ShaderGlassTag
 from ..managed_blam.shader_custom import ShaderCustomTag
 from ..managed_blam.shader_halogram import ShaderHalogramTag
 from ..managed_blam.shader_foliage import ShaderFoliageTag
@@ -62,6 +63,9 @@ def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str, always_e
                     shader.to_nodes(mat, always_extract_bitmaps)
             case 'shader_custom':
                 with ShaderCustomTag(path=tag_path) as shader:
+                    shader.to_nodes(mat, always_extract_bitmaps)
+            case 'shader_glass':
+                with ShaderGlassTag(path=tag_path) as shader:
                     shader.to_nodes(mat, always_extract_bitmaps)
     
     if shader is None:
