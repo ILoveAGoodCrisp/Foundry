@@ -343,6 +343,8 @@ class ExportScene:
             self.temp_objects.add(null_ob)
             self.temp_meshes.add(null_ob.data)
             self.export_objects.append(null_ob)
+        elif self.asset_type == AssetType.CINEMATIC:
+            self.export_objects = [ob for ob in self.context.view_layer.objects if ob.nwo.export_this and ob.type == "ARMATURE" and ob not in self.skip_obs]
         else:    
             self.export_objects = [ob for ob in self.context.view_layer.objects if ob.nwo.export_this and ob.type in VALID_OBJECTS and ob not in self.support_armatures and ob not in self.skip_obs]
         
