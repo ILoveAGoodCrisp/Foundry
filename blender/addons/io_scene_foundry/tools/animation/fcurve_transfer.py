@@ -10,6 +10,15 @@ from ... import utils
 list_source_bones = []
 list_root_bones = []
 
+turn_rots = {
+    "turn_left": (6.66, 120.0),
+    "turn_left_slow": (1.92, 86.7),
+    "turn_left_fast": (12.1, 360),
+    "turn_right": (-6.66, -120.0),
+    "turn_right_slow": (-1.92, -86.7),
+    "turn_right_fast": (-12.1, -360),
+}
+
 class NWO_OT_MovementDataToPedestal(bpy.types.Operator):
     bl_idname = "nwo.movement_data_transfer"
     bl_label = "Movement Data Transfer"
@@ -96,16 +105,21 @@ class NWO_OT_MovementDataToPedestal(bpy.types.Operator):
         current_animation_index = context.scene.nwo.active_animation_index
         current_animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
         current_pose = self.ob.data.pose_position
+        current_object = context.object
         
         if not self.all_animations and (current_animation.animation_type != "base" or current_animation.animation_movement_data == "none"):
             self.report({'WARNING'}, "Active animation has no movement data")
             return {'CANCELLED'}
         
+        utils.set_active_object(self.ob)
         
         self.ob.data.pose_position = 'REST'
         context.view_layer.update()
         source_rest_matrix = self.ob.pose.bones[self.source_bone].matrix
         root_rest_matrix = self.ob.pose.bones[self.root_bone].matrix
+        bpy.ops.object.editmode_toggle()
+        self.ob.data.edit_bones[self.source_bone].parent = None
+        bpy.ops.object.editmode_toggle()
         self.ob.data.pose_position = 'POSE'
         context.view_layer.update()
         
@@ -128,10 +142,14 @@ class NWO_OT_MovementDataToPedestal(bpy.types.Operator):
             print(f"Converting {current_animation.name}")
             transfer_movement(context, current_animation, current_animation_index, self.ob, self.source_bone, self.root_bone, source_rest_matrix, root_rest_matrix)
             
+        bpy.ops.object.editmode_toggle()
+        self.ob.data.edit_bones[self.source_bone].parent = self.ob.data.edit_bones[self.root_bone]
+        bpy.ops.object.editmode_toggle()
         
         self.ob.data.pose_position = current_pose
         context.scene.nwo.active_animation_index = current_animation_index
         context.scene.frame_set(current_frame)
+        context.view_layer.objects.active = current_object
         
         print("\n-----------------------------------------------------------------------")
         print(f"Completed in {utils.human_time(time.perf_counter() - start, True)}")
@@ -148,22 +166,42 @@ def transfer_movement(context: bpy.types.Context, animation, animation_index: in
     yaw = "yaw" in movement
     full = movement == "full"
     
+    # Reach TURN
+    # turn_left 6.66 -> 120
+    # turn_left_slow 1.92 -> 86.7
+    # turn_left_fast 12.1 -> 360
+    # turn_right
+    # turn_right_slow
+    # turn_right_fast
+    
     root_bone = ob.pose.bones[root_bone_name]
     root_bone: bpy.types.PoseBone
     source_bone = ob.pose.bones[source_bone_name]
     source_bone: bpy.types.PoseBone
     
+    # special turn
+    special_turn = False
+    final_token = animation.name.rpartition(" ")[2].lower()
+    if yaw and turn_rots.get(final_token) is not None:
+        special_turn = True
+        yaw = False
+    
+    # Add constraints if rotation
+    if yaw or full:
+        con = root_bone.constraints.new(type='COPY_ROTATION')
+        con.target = ob
+        con.subtarget = source_bone_name
+        con.target_space = 'LOCAL_OWNER_ORIENT'
+        con.owner_space = 'LOCAL'
+    
     # Neutralise source movement and save offets
     source_rest_loc = source_rest_matrix.to_translation()
-    source_rest_rot = source_rest_matrix.to_euler('XYZ')
+    root_rest_rot = root_rest_matrix.to_euler()
     scene.frame_set(animation.frame_start)
     offsets = []
-    rot_negative = False
-    previous_yaw = None
-    direction_found = False
     for i in range(animation.frame_start, animation.frame_end + 1):
         scene.frame_set(i)
-        frame_offsets = [0, 0, 0, 0, 0, 0] # LOC XYZ, ROT XYZ
+        frame_offsets = [0, 0, 0] # LOC XYZ
         loc, rot, sca = source_bone.matrix.decompose()
         rot = rot.to_euler('XYZ')
         if horizontal or vertical or full:
@@ -179,41 +217,6 @@ def transfer_movement(context: bpy.types.Context, animation, animation_index: in
             loc.y += y_offset
             if vertical or full:
                 loc.z += z_offset
-                
-        if yaw or full:
-            z_rot = rot.z
-            if full:
-                x_rot_offset = source_rest_rot.x - rot.x
-                y_rot_offset = source_rest_rot.y - rot.y
-                frame_offsets[3] = x_rot_offset
-                frame_offsets[4] = y_rot_offset
-            
-            if direction_found:
-                if rot_negative:
-                    while z_rot > previous_yaw:
-                        z_rot -= math.radians(180)
-                else:
-                    while z_rot < previous_yaw:
-                        z_rot += math.radians(180)
-            elif previous_yaw is not None:
-                if z_rot > previous_yaw:
-                    direction_found = True
-                elif z_rot < previous_yaw:
-                    direction_found = True
-                    rot_negative = True
-                
-            z_rot_offset = source_rest_rot.z - z_rot
-            previous_yaw = z_rot
-            frame_offsets[5] = z_rot_offset
-            
-            
-            if full:
-                rot.x += x_rot_offset
-                rot.y += y_rot_offset
-            rot.z += z_rot_offset
-            
-        if abs(frame_offsets[5]) > 180:
-            frame_offsets[5] = -((360 - abs(frame_offsets[5])) * (1 if frame_offsets[5] > 0 else -1))
 
         offsets.append(frame_offsets)
 
@@ -221,8 +224,6 @@ def transfer_movement(context: bpy.types.Context, animation, animation_index: in
         
         if horizontal or vertical or full:
             source_bone.keyframe_insert(data_path='location', frame=scene.frame_current)
-        if yaw or full:
-            source_bone.keyframe_insert(data_path='rotation_quaternion', frame=scene.frame_current)
     
     # Apply offsets to root
     for idx, i in enumerate(range(animation.frame_start, animation.frame_end + 1)):
@@ -236,32 +237,45 @@ def transfer_movement(context: bpy.types.Context, animation, animation_index: in
                 loc.y -= frame_offsets[1]
                 if vertical or full:
                     loc.z -= frame_offsets[2]
-                    
-            if yaw or full:
-                if full:
-                    rot.x -= frame_offsets[3]
-                    rot.y -= frame_offsets[4]
-                rot.z -= frame_offsets[5]
         else:
             if horizontal or vertical or full:
                 loc.x -= (frame_offsets[0] - offsets[idx - 1][0])
                 loc.y -= (frame_offsets[1] - offsets[idx - 1][1])
                 if vertical or full:
                     loc.z -= (frame_offsets[2] - offsets[idx - 1][2])
-                    
-            if yaw or full:
-                if full:
-                    rot.x -= (frame_offsets[3] - offsets[idx - 1][3])
-                    rot.y -= (frame_offsets[4] - offsets[idx - 1][4])
-                rot.z -= (frame_offsets[5] - offsets[idx - 1][5])
         
         root_bone.matrix = Matrix.LocRotScale(loc, rot, sca)
         if horizontal or vertical or full:
             root_bone.keyframe_insert(data_path='location', frame=scene.frame_current)
         if yaw or full:
             root_bone.keyframe_insert(data_path='rotation_quaternion', frame=scene.frame_current)
-
         
+    if yaw or full:
+        root_bone.constraints.remove(con)
+        for i in range(animation.frame_start, animation.frame_end + 1):
+            source_bone.keyframe_delete(data_path='rotation_quaternion', frame=i)
+            source_bone.keyframe_delete(data_path='rotation_euler', frame=i)
+    elif special_turn:
+        turn_start, turn_end = turn_rots.get(final_token)
+        scene.frame_set(animation.frame_start)
+        euler_rot = Euler((0, 0, math.radians(turn_start)))
+        euler_rot.rotate(root_rest_rot)
+        loc, _, sca = root_bone.matrix.decompose()
+        root_bone.matrix = Matrix.LocRotScale(loc, euler_rot, sca)
+        root_bone.keyframe_insert(data_path='rotation_quaternion', frame=scene.frame_current)
+        scene.frame_set(animation.frame_end)
+        euler_rot = Euler((0, 0, math.radians(turn_end)))
+        euler_rot.rotate(root_rest_rot)
+        loc, _, sca = root_bone.matrix.decompose()
+        root_bone.matrix = Matrix.LocRotScale(loc, euler_rot, sca)
+        root_bone.keyframe_insert(data_path='rotation_quaternion', frame=scene.frame_current)
+            
+        for i in range(animation.frame_start, animation.frame_end + 1):
+            scene.frame_set(i)
+            parent_rot = root_bone.matrix_basis.to_3x3().inverted_safe().to_4x4()
+            source_bone.matrix = parent_rot @ source_bone.matrix
+            source_bone.keyframe_insert(data_path='rotation_quaternion', frame=i)
+            
     
     # Step 1: Add pedestal movement via constraints
     # scene.frame_set(animation.frame_start)
