@@ -797,7 +797,12 @@ class QUA:
                     c = CinematicDialogue()
                     c.from_event(event)
                     if c.dialogue is not None:
-                        dialogue[c] = event.frame - frame_start
+                        frame = event.frame
+                        if item.sound_strip:
+                            strip = bpy.context.scene.sequence_editor.sequences_all.get(item.sound_strip)
+                            if strip is not None:
+                                frame = int(strip.frame_start)
+                        dialogue[c] = frame - frame_start
                 case 'EFFECT':
                     c = CinematicEffect()
                     c.from_event(event)

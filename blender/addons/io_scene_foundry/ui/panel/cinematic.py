@@ -47,9 +47,19 @@ class NWO_UL_CinematicEvents(bpy.types.UIList):
             flt_flags = [self.bitflag_filter_item] * len(items)
         
         order = None
+        sort = []
+        sequences = context.scene.sequence_editor.sequences_all
         if self.use_filter_sort_frame:
-            _sort = [(idx, i.frame) for idx, i in enumerate(items)]
-            order = bpy.types.UI_UL_list.sort_items_helper(_sort, key=lambda i: i[1], reverse=False)
+            for idx, item in enumerate(items):
+                if item.type == 'DIALOGUE' and item.sound_strip:
+                    strip = sequences.get(item.sound_strip)
+                    if strip is not None:
+                        sort.append(int(strip.frame_start))
+                        continue
+                    
+                sort.append(item.frame)
+                        
+            order = bpy.types.UI_UL_list.sort_items_helper(sort, key=lambda i: i[1], reverse=False)
 
 
         return flt_flags, order
