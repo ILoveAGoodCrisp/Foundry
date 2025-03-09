@@ -628,10 +628,10 @@ class ITagFieldSelector:
     def SelectField(fieldPath: str) -> 'TagField | TagFieldBlock | TagFieldCustom | TagFieldElementString | TagFieldElementStringID | TagFieldReference | TagFieldEnum | TagElement | TagFieldFlags':
         """"""
     @staticmethod
-    def SelectFields(fieldPath: str) -> list['TagField']:
+    def SelectFields(fieldPath: str) -> list['TagField | TagFieldBlock | TagFieldCustom | TagFieldElementString | TagFieldElementStringID | TagFieldReference | TagFieldEnum | TagElement | TagFieldFlags']:
         """"""
     @staticmethod
-    def SelectFieldType(fieldPath: str) -> 'TagField':
+    def SelectFieldType(fieldPath: str) -> 'TagField | TagFieldBlock | TagFieldCustom | TagFieldElementString | TagFieldElementStringID | TagFieldReference | TagFieldEnum | TagElement | TagFieldFlags':
         """"""
         
 class ITagFieldSerializable:
@@ -669,7 +669,7 @@ class TagElement(ITagFieldSelector, ITagFieldSerializable, _IEnumerator):
     ElementIndex: int
     FieldPath: str
     FieldPathWithoutindices: str
-    Fields: list['TagField']
+    Fields: list['TagField | TagFieldBlock | TagFieldCustom | TagFieldElementString | TagFieldElementStringID | TagFieldReference | TagFieldEnum | TagElement | TagFieldFlags']
     Size: int
     def GetParentContainer(self) -> ITagElementContainer:
         """"""
@@ -716,7 +716,7 @@ class TagFieldArray(_IEnumerator, ITagFieldSerializable, ITagElementContainer, _
         
 class TagFieldArrayElement(TagElement, ITagFieldInlined, ITagFieldSerializable):
     ElementDefinition: TagElementDefinition
-    Fields: list[TagField]
+    Fields: list['TagField | TagFieldBlock | TagFieldCustom | TagFieldElementString | TagFieldElementStringID | TagFieldReference | TagFieldEnum | TagElement | TagFieldFlags']
     Size: int
     
 class TagFieldBlock(TagField, ITagElementContainer, ITagFieldSerializable, _IEnumerator, _GetParent):
@@ -765,7 +765,7 @@ class TagAlternateStream(TagFieldBlock):
 class TagFieldBlockElement(TagElement, ITagFieldSerializable, _ToString):
     ElementDefinition: TagElementDefinition
     ElementHeaderText: str
-    Fields: list[TagField]
+    Fields: list['TagField | TagFieldBlock | TagFieldCustom | TagFieldElementString | TagFieldElementStringID | TagFieldReference | TagFieldEnum | TagElement | TagFieldFlags']
     Size: int
         
 class TagFieldBlockElementCollection(ITagElementCollection):
@@ -1099,7 +1099,7 @@ class TagFieldStruct(TagField, ITagElementContainer, ITagFieldInlined, ITagField
     
 class TagFieldStructElement(TagElement, ITagFieldInlined, ITagFieldSerializable):
     ElementDefinition: TagElementDefinition
-    Fields: list[TagField]
+    Fields: list['TagField | TagFieldBlock | TagFieldCustom | TagFieldElementString | TagFieldElementStringID | TagFieldReference | TagFieldEnum | TagElement | TagFieldFlags']
     Size: int
     
 class TagFieldVertexBuffer(TagField):
@@ -1110,7 +1110,7 @@ class TagFile(ITagFieldSelector, ITagElementContainer, ITagFieldSerializable, _I
     Elements: ITagElementCollection
     FieldPath: str
     FieldPathWithoutindices: str
-    Fields: list[TagField]
+    Fields: list['TagField | TagFieldBlock | TagFieldCustom | TagFieldElementString | TagFieldElementStringID | TagFieldReference | TagFieldEnum | TagElement | TagFieldFlags']
     HasPostprocessOnSyncProc: bool
     HasPostprocessProc: bool
     IsFutureVersion: bool
@@ -1169,7 +1169,7 @@ class TagFile(ITagFieldSelector, ITagElementContainer, ITagFieldSerializable, _I
     def SelectField(fieldPath: str) -> 'TagField | TagFieldBlock | TagFieldCustom | TagFieldElementString | TagFieldElementStringID | TagFieldReference | TagFieldEnum | TagElement | TagFieldFlags':
         """"""
     @staticmethod
-    def SelectFields(fieldPath: str) -> list[TagField]:
+    def SelectFields(fieldPath: str) -> list['TagField | TagFieldBlock | TagFieldCustom | TagFieldElementString | TagFieldElementStringID | TagFieldReference | TagFieldEnum | TagElement | TagFieldFlags']:
         """Gets the TagFields at the given path"""
     @staticmethod
     def SelectFieldType(fieldPath: str) -> TagField:
@@ -1183,7 +1183,7 @@ class TagFile(ITagFieldSelector, ITagElementContainer, ITagFieldSerializable, _I
     
 class TagFileElement(TagElement, ITagFieldSerializable):
     ElementDefinition: TagElementDefinition
-    Fields: list[TagField]
+    Fields: list['TagField | TagFieldBlock | TagFieldCustom | TagFieldElementString | TagFieldElementStringID | TagFieldReference | TagFieldEnum | TagElement | TagFieldFlags']
     Size: int
     
 class TagGroupType:
@@ -1432,9 +1432,9 @@ class TagValueCustomFunctionEditor(TagValueCustom):
         """"""
     def GetFieldCount(self) -> int:
         """"""
-    def GetFields(self, tagFile: TagFile, tagField: TagField) -> list[TagField]:
+    def GetFields(self, tagFile: TagFile, tagField: TagField) -> list['TagField | TagFieldBlock | TagFieldCustom | TagFieldElementString | TagFieldElementStringID | TagFieldReference | TagFieldEnum | TagElement | TagFieldFlags']:
         """"""
-    def GetFields(self, tagFile: TagFile) -> list[TagField]:
+    def GetFields(self, tagFile: TagFile) -> list['TagField | TagFieldBlock | TagFieldCustom | TagFieldElementString | TagFieldElementStringID | TagFieldReference | TagFieldEnum | TagElement | TagFieldFlags']:
         """"""
     def GetFrequency(self, graphIndex: int) -> float:
         """"""

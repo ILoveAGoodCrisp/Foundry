@@ -744,10 +744,10 @@ class QUA:
             if actor.weapon_tag is not None:
                 block_attachments = element.SelectField("Block:attachments")
                 for attachment_element in block_attachments.Elements:
-                    attachment_path = element.SelectField("Reference:attachment type").Path
+                    attachment_path = attachment_element.SelectField("Reference:attachment type").Path
                     if attachment_path is None:
                         continue
-                    elif attachment_path.Path.RelativePathWithExtension == actor.weapon_tag:
+                    elif attachment_path.RelativePathWithExtension == actor.weapon_tag:
                         object_tag_weapon_names[actor.original_tag] = attachment_element.SelectField("attachment object name").GetStringData()
                         break
                 else:
@@ -791,6 +791,7 @@ class QUA:
         
         # Add cinematic events
         frame_start = int(bpy.context.scene.frame_start)
+        sound_sequences = bpy.context.scene.sequence_editor.sequences_all
         for event in bpy.context.scene.nwo.cinematic_events:
             match event.type:
                 case 'DIALOGUE':
@@ -798,8 +799,8 @@ class QUA:
                     c.from_event(event)
                     if c.dialogue is not None:
                         frame = event.frame
-                        if item.sound_strip:
-                            strip = bpy.context.scene.sequence_editor.sequences_all.get(item.sound_strip)
+                        if event.sound_strip:
+                            strip = sound_sequences.get(event.sound_strip)
                             if strip is not None:
                                 frame = int(strip.frame_start)
                         dialogue[c] = frame - frame_start

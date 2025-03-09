@@ -2948,6 +2948,14 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     col.prop(event, "looping")
             case 'SCRIPT':
                 col.prop(event, "script_type")
+                get_item_available = False
+                ob = event.script_object
+                if ob is not None:
+                    tag_path = ob.nwo.cinematic_object
+                    if tag_path.strip():
+                        path = Path(utils.get_tags_path(), utils.relative_path(tag_path))
+                        get_item_available = path.exists() and path.is_file()
+                        
                 match event.script_type:
                     case 'CUSTOM':
                         row = col.row()
@@ -2957,16 +2965,27 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     case 'WEAPON_TRIGGER_START' | 'WEAPON_TRIGGER_STOP':
                         col.prop(event, "script_object", text="Weapon")
                     case 'SET_VARIANT':
-                        row = col.row()
                         col.prop(event, "script_object", text="Object")
-                        col.prop(event, "script_variant", text="Variant")
+                        row = col.row()
+                        row.prop(event, "script_variant", text="Variant")
+                        if get_item_available:
+                            row.operator_menu_enum("nwo.get_cinematic_variant", "item", icon="DOWNARROW_HLT", text="")
                     case 'SET_PERMUTATION':
                         col.prop(event, "script_object", text="Object")
-                        col.prop(event, "script_region", text="Region")
-                        col.prop(event, "script_permutation", text="Permutation")
+                        row = col.row()
+                        row.prop(event, "script_region", text="Region")
+                        if get_item_available:
+                            row.operator_menu_enum("nwo.get_cinematic_region", "item", icon="DOWNARROW_HLT", text="")
+                        row = col.row()
+                        row.prop(event, "script_permutation", text="Permutation")
+                        if get_item_available:
+                            row.operator_menu_enum("nwo.get_cinematic_permutation", "item", icon="DOWNARROW_HLT", text="")
                     case 'SET_REGION_STATE':
                         col.prop(event, "script_object", text="Object")
-                        col.prop(event, "script_region", text="Region")
+                        row = col.row()
+                        row.prop(event, "script_region", text="Region")
+                        if get_item_available:
+                            row.operator_menu_enum("nwo.get_cinematic_region", "item", icon="DOWNARROW_HLT", text="")
                         col.prop(event, "script_state", text="State")
                     case 'SET_MODEL_STATE_PROPERTY':
                         col.prop(event, "script_object", text="Object")

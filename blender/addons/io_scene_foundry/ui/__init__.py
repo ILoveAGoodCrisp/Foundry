@@ -153,6 +153,10 @@ classes = [
     cinematic.NWO_OT_CinematicEventRemove,
     cinematic.NWO_OT_CinematicEventSetFrame,
     cinematic.NWO_OT_GetSoundEffects,
+    cinematic.NWO_OT_CinematicEventsClear,
+    cinematic.NWO_OT_GetCinematicVariant,
+    cinematic.NWO_OT_GetCinematicRegion,
+    cinematic.NWO_OT_GetCinematicPermutation,
 ]
 
 def register():

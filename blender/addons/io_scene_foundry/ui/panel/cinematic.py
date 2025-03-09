@@ -1,6 +1,7 @@
 from pathlib import Path
 import bpy
 
+from ...managed_blam.render_model import RenderModelTag
 from ...managed_blam.model import ModelTag
 from ...managed_blam.object import ObjectTag
 from ...managed_blam import Tag
@@ -8,6 +9,10 @@ from ...icons import get_icon_id
 from ... import utils
 
 SOUND_FX_TAG = r"sound\global_fx.sound_effect_collection"
+
+variants = {}
+regions = {}
+permutations = {}
 
 # CINEMATIC EVENTS
 class NWO_UL_CinematicEvents(bpy.types.UIList):
@@ -54,10 +59,10 @@ class NWO_UL_CinematicEvents(bpy.types.UIList):
                 if item.type == 'DIALOGUE' and item.sound_strip:
                     strip = sequences.get(item.sound_strip)
                     if strip is not None:
-                        sort.append(int(strip.frame_start))
+                        sort.append((idx, int(strip.frame_start)))
                         continue
                     
-                sort.append(item.frame)
+                sort.append((idx, item.frame))
                         
             order = bpy.types.UI_UL_list.sort_items_helper(sort, key=lambda i: i[1], reverse=False)
 
@@ -73,7 +78,6 @@ class NWO_OT_CinematicEventAdd(bpy.types.Operator):
     def execute(self, context):
         events = context.scene.nwo.cinematic_events
         event = events.add()
-        event.name = "EVENT"
         event.frame = context.scene.frame_current
         ob = context.object
         active_cinematic_object = utils.ultimate_armature_parent(ob)
@@ -108,6 +112,23 @@ class NWO_OT_CinematicEventRemove(bpy.types.Operator):
             nwo.active_cinematic_event_index -= 1
         context.area.tag_redraw()
         return {'FINISHED'}
+    
+class NWO_OT_CinematicEventsClear(bpy.types.Operator):
+    bl_idname = "nwo.cinematic_events_clear"
+    bl_label = "Clear Cinematic Events"
+    bl_description = "Removes all cinematic events"
+    bl_options = {"UNDO"}
+    
+    @classmethod
+    def poll(cls, context):
+        return context.scene.nwo.cinematic_events and context.scene.nwo.active_cinematic_event_index > -1
+    
+    def execute(self, context):
+        context.scene.nwo.active_cinematic_event_index = 0
+        context.scene.nwo.cinematic_events.clear()
+        
+    def invoke(self, context: bpy.types.Context, event):
+        return context.window_manager.invoke_confirm(self, event, title="Clear all events?", confirm_text="Yes", icon='WARNING')
     
 class NWO_OT_CinematicEventSetFrame(bpy.types.Operator):
     bl_idname = "nwo.cinematic_event_set_frame"
@@ -164,10 +185,7 @@ class NWO_OT_GetSoundEffects(bpy.types.Operator):
         event.default_sound_effect = self.fx
         return {'FINISHED'}
     
-class NWO_OT_CinematicItemSearch(bpy.types.Operator):
-    bl_label = "Get item"
-    bl_idname = 'nwo.get_cinematic_item'
-    bl_description = "Returns a searchable list of cinematic items"
+class GetCinematicBase(bpy.types.Operator):
     bl_options = {"UNDO"}
     
     @classmethod
@@ -175,25 +193,48 @@ class NWO_OT_CinematicItemSearch(bpy.types.Operator):
         return context.scene.nwo.cinematic_events and context.scene.nwo.active_cinematic_event_index > -1
     
     def items(self, context):
-        items = []
-        relative_tag_path = utils.relative_path(self.tag)
-        if not Path(utils.get_tags_path(), relative_tag_path).exists():
+        global variants
+        global regions
+        global permutations
+        event = context.scene.nwo.cinematic_events[context.scene.nwo.active_cinematic_event_index]
+        relative_tag_path = utils.relative_path(event.script_object.nwo.cinematic_object)
+        match self.get_type:
+            case 'script_variant':
+                items = variants.get(relative_tag_path)
+            case 'script_region':
+                items = regions.get(relative_tag_path)
+            case 'script_permutation':
+                items = permutations.get(f"{relative_tag_path}::{event.script_region}")
+                
+        if items is None:
+            items = []
+        else:
             return items
         
         with ObjectTag(path=relative_tag_path) as obj:
             model_path = obj.get_model_tag_path()
             with ModelTag(path=model_path) as model:
-                match self.type:
-                    case 'VARIANT':
-                        variants = model.get_model_variants()
-                        for v in variants:
-                            items.append((v, v, ""))
-                    case 'REGION':
-                        pass
-                    case 'PERMUTATION':
-                        pass
-                    case 'STATE':
-                        pass
+                if self.get_type == 'script_variant':
+                    print(model.get_model_variants())
+                    for v in model.get_model_variants():
+                        items.append((v, v, ""))
+                else:
+                    render_path = model.get_model_paths()[0]
+                    with RenderModelTag(path=render_path) as render:
+                        if self.get_type == 'script_region':
+                            for r in render.get_regions():
+                                items.append((r, r, ""))
+                        else:
+                            for p in render.get_permutations(event.script_region):
+                                items.append((p, p, ""))
+
+        match self.get_type:
+            case 'script_variant':
+                variants[relative_tag_path] = items
+            case 'script_region':
+                regions[relative_tag_path] = items
+            case 'script_permutation':
+                permutations[f"{relative_tag_path}::{event.script_region}"] = items
 
         return items
     
@@ -202,19 +243,42 @@ class NWO_OT_CinematicItemSearch(bpy.types.Operator):
         items=items,
     )
     
-    type: bpy.props.StringProperty(
-        options={'HIDDEN', 'SKIP_SAVE'}
-    )
-    
     def execute(self, context):
-        if not Path(utils.get_tags_path(), SOUND_FX_TAG).exists():
-            self.report({'WARNING'}, f"Could not find tag {SOUND_FX_TAG}")
-            return {'CANCELLED'}
         nwo = context.scene.nwo
         event = nwo.cinematic_events[nwo.active_cinematic_event_index]
-        event.default_sound_effect = self.fx
+        setattr(event, self.get_type, self.item)
         return {'FINISHED'}
-        
+
+class NWO_OT_GetCinematicVariant(GetCinematicBase):
+    bl_label = "Get Variant"
+    bl_idname = 'nwo.get_cinematic_variant'
+    bl_description = "Returns a searchable list of variants"
+    
+    get_type: bpy.props.StringProperty(
+        options={'HIDDEN', 'SKIP_SAVE'},
+        default="script_variant"
+    )
+    
+class NWO_OT_GetCinematicRegion(GetCinematicBase):
+    bl_label = "Get Region"
+    bl_idname = 'nwo.get_cinematic_region'
+    bl_description = "Returns a searchable list of regions"
+    
+    get_type: bpy.props.StringProperty(
+        options={'HIDDEN', 'SKIP_SAVE'},
+        default="script_region"
+    )
+    
+class NWO_OT_GetCinematicPermutation(GetCinematicBase):
+    bl_label = "Get Permuation"
+    bl_idname = 'nwo.get_cinematic_permutation'
+    bl_description = "Returns a searchable list of permutations"
+    
+    get_type: bpy.props.StringProperty(
+        options={'HIDDEN', 'SKIP_SAVE'},
+        default="script_permutation"
+    )
+
 # CAMERA STUFF
         
 class NWO_UL_CameraActors(bpy.types.UIList):

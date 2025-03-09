@@ -1140,6 +1140,7 @@ class NWO_CinematicEvent(PropertyGroup):
         name="Type",
         description="Type of cinematic event",
         items=cinematic_event_types,
+        options=set(),
     )
     
     frame: bpy.props.IntProperty(
@@ -1147,6 +1148,7 @@ class NWO_CinematicEvent(PropertyGroup):
         description="Play on which this event plays",
         default=1,
         min=0,
+        options=set(),
     )
     
     # Dialogue
@@ -1251,7 +1253,8 @@ class NWO_CinematicEvent(PropertyGroup):
     
     text: bpy.props.PointerProperty(
         name="Script Text",
-        type=bpy.types.Text
+        type=bpy.types.Text,
+        options=set(),
     )
     
     script_type: bpy.props.EnumProperty(
@@ -1299,6 +1302,7 @@ class NWO_CinematicEvent(PropertyGroup):
     )
     script_state: bpy.props.EnumProperty(
         name="Script State",
+        options=set(),
         items=[
             ("standard", "Standard", ""),
             ("minor_damage", "Minor Damage", ""),
@@ -1308,7 +1312,8 @@ class NWO_CinematicEvent(PropertyGroup):
         ]
     )
     script_state_property: bpy.props.EnumProperty(
-        name="Script State",
+        name="Script State Property",
+        options=set(),
         items=[
             ("0", "Blurred", ""),
             ("1", "Hella Blurred", ""),

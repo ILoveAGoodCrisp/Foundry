@@ -34,6 +34,23 @@ class RenderModelTag(Tag):
     def get_nodes(self):
         return [e.SelectField('name').GetStringData() for e in self.block_nodes.Elements]
     
+    def get_regions(self) -> list[str]:
+        return [e.Fields[0].GetStringData() for e in self.block_regions.Elements]
+    
+    def get_permutations(self, region: str = "") -> list[str]:
+        '''Returns a list of render model permutations. A region name can be passed in to only return permutations from that region'''
+        if region:
+            for element in self.block_regions.Elements:
+                if element.Fields[0].GetStringData() == region:
+                    return [e.Fields[0].GetStringData() for e in element.Fields[1].Elements]
+            else:
+                return []
+        else:
+            permutations = {}
+            for element in self.block_regions.Elements:
+                permutations.update({e.Fields[0].GetStringData(): None for e in element.Fields[1].Elements}) # using dict instead of set to maintain insertion order
+            return list(permutations)
+    
     def read_render_geometry(self):
         render_geo = self._GameRenderGeometry()
         mesh_info = render_geo.GetMeshInfo(self.struct_render_geometry)
