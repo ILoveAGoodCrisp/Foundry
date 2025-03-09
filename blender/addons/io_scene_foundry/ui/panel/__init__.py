@@ -2895,6 +2895,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         col = row.column(align=True)
         col.operator("nwo.cinematic_event_add", icon="ADD", text="")
         col.operator("nwo.cinematic_event_remove", icon="REMOVE", text="")
+        col.separator()
+        col.operator("nwo.cinematic_events_clear", icon="CANCEL", text="")
         
         if not (nwo.cinematic_events and nwo.active_cinematic_event_index > -1):
             return

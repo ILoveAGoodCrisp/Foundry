@@ -77,18 +77,40 @@ class NWO_OT_CinematicEventAdd(bpy.types.Operator):
     
     def execute(self, context):
         events = context.scene.nwo.cinematic_events
+        event_data = None
+        current_event = None
+        if events and context.scene.nwo.active_cinematic_event_index > -1 and context.scene.nwo.active_cinematic_event_index < len(events):
+            current_event = events[context.scene.nwo.active_cinematic_event_index]
+            if current_event.type != 'DIALOGUE': # don't copy dialogue data
+                event_data = current_event.items()
+                
         event = events.add()
+        if event_data is not None:
+            for key, value in event_data:
+                event[key] = value
+                
         event.frame = context.scene.frame_current
         ob = context.object
         active_cinematic_object = utils.ultimate_armature_parent(ob)
         cinematic_object_valid = active_cinematic_object is not None and active_cinematic_object.nwo.cinematic_object
+        set_marker = False
         if ob is not None and ob.type == 'EMPTY' and cinematic_object_valid:
+            set_marker = True
             event.marker = ob
             
         if cinematic_object_valid:
             event.lipsync_actor = active_cinematic_object
-            if event.marker is None:
-                event.marker = active_cinematic_object 
+            if not set_marker:
+                event.marker = active_cinematic_object
+        
+        if current_event is not None:
+            if event.marker != current_event.marker:
+                event.marker_name = ""
+                
+            if event.script_object != current_event.script_object:
+                event.script_variant = ""
+                event.script_region = ""
+                event.script_permutation = ""
         
         context.scene.nwo.active_cinematic_event_index = len(events) - 1
         context.area.tag_redraw()
@@ -102,7 +124,7 @@ class NWO_OT_CinematicEventRemove(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.cinematic_events and context.scene.nwo.active_cinematic_event_index > -1
+        return context.scene.nwo.cinematic_events and context.scene.nwo.active_cinematic_event_index > -1 and context.scene.nwo.active_cinematic_event_index < len(context.scene.nwo.cinematic_events)
     
     def execute(self, context):
         nwo = context.scene.nwo
@@ -121,11 +143,13 @@ class NWO_OT_CinematicEventsClear(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.cinematic_events and context.scene.nwo.active_cinematic_event_index > -1
+        return context.scene.nwo.cinematic_events and context.scene.nwo.active_cinematic_event_index > -1 and context.scene.nwo.active_cinematic_event_index < len(context.scene.nwo.cinematic_events)
     
     def execute(self, context):
         context.scene.nwo.active_cinematic_event_index = 0
         context.scene.nwo.cinematic_events.clear()
+        context.area.tag_redraw()
+        return {'FINISHED'}
         
     def invoke(self, context: bpy.types.Context, event):
         return context.window_manager.invoke_confirm(self, event, title="Clear all events?", confirm_text="Yes", icon='WARNING')
@@ -138,7 +162,7 @@ class NWO_OT_CinematicEventSetFrame(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.cinematic_events and context.scene.nwo.active_cinematic_event_index > -1
+        return context.scene.nwo.cinematic_events and context.scene.nwo.active_cinematic_event_index > -1 and context.scene.nwo.active_cinematic_event_index < len(context.scene.nwo.cinematic_events)
 
     def execute(self, context):
         nwo = context.scene.nwo
@@ -154,7 +178,7 @@ class NWO_OT_GetSoundEffects(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.cinematic_events and context.scene.nwo.active_cinematic_event_index > -1
+        return context.scene.nwo.cinematic_events and context.scene.nwo.active_cinematic_event_index > -1 and context.scene.nwo.active_cinematic_event_index < len(context.scene.nwo.cinematic_events)
     
     def fx_items(self, context):
         items = []
@@ -190,7 +214,7 @@ class GetCinematicBase(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.cinematic_events and context.scene.nwo.active_cinematic_event_index > -1
+        return context.scene.nwo.cinematic_events and context.scene.nwo.active_cinematic_event_index > -1 and context.scene.nwo.active_cinematic_event_index < len(context.scene.nwo.cinematic_events)
     
     def items(self, context):
         global variants
