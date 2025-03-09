@@ -120,7 +120,7 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
     face_global_material: bpy.props.StringProperty(
         name="Collision Material",
         default="",
-        description="A material used for collision and physics meshes to control material responses to projectiles and physics objects, and seperates a model for the purpose of damage regions. If the name matches a valid material defined in tags\globals\globals.globals then this mesh will automatically take the correct material response type, otherwise, the material override can be manually defined in the .model tag in materials tag block",
+        description="A material used for collision and physics meshes to control material responses to projectiles and physics objects, and separates a model for the purpose of damage regions. If the name matches a valid material defined in tags\globals\globals.globals then this mesh will automatically take the correct material response type, otherwise, the material override can be manually defined in the .model tag in materials tag block",
         update=update_face_global_material,
     )
 
@@ -540,7 +540,7 @@ class NWO_MeshPropertiesGroup(bpy.types.PropertyGroup):
     face_global_material: bpy.props.StringProperty(
         name="Collision Material",
         default="",
-        description="A material used for collision and physics meshes to control material responses to projectiles and physics objects, and seperates a model for the purpose of damage regions. If the name matches a valid material defined in tags\globals\globals.globals then this mesh will automatically take the correct material response type, otherwise, the material override can be manually defined in the .model tag in materials tag block",
+        description="A material used for collision and physics meshes to control material responses to projectiles and physics objects, and separates a model for the purpose of damage regions. If the name matches a valid material defined in tags\globals\globals.globals then this mesh will automatically take the correct material response type, otherwise, the material override can be manually defined in the .model tag in materials tag block",
     )
 
     mesh_face: bpy.props.EnumProperty(

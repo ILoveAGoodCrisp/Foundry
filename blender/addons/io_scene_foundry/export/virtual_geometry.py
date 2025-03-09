@@ -1754,7 +1754,7 @@ class VirtualScene:
         if not node.invalid:
             self.nodes[node.ob] = node
             if node.new_mesh:
-                # This is a tuple containing whether the object has a negative scale. This because we need to create seperate mesh data for negatively scaled objects
+                # This is a tuple containing whether the object has a negative scale. This because we need to create separate mesh data for negatively scaled objects
                 negative_scaling = id.matrix_world.is_negative
                 if id.nwo.invert_topology:
                     negative_scaling = not negative_scaling

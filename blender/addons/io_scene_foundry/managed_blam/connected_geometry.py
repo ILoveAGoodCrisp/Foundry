@@ -135,15 +135,19 @@ class InstanceDefinition:
         self.mesh = Mesh(mesh_block.Elements[self.mesh_index], self.compression, materials=render_materials)
         self.has_collision = False
         self.collision_info = None
+        self.has_cookie = False
         self.cookie_info = None
         self.blender_collision = None
         self.blender_cookie = None
+        self.blender_physics = None
         self.blender_render = None
         if not utils.is_corinth() and not for_cinematic:
             self.has_collision = element.SelectField("Struct:collision info[0]/Block:surfaces").Elements.Count > 0
             if self.has_collision:
                 self.collision_info = InstanceCollision(element.SelectField("Struct:collision info").Elements[0], f"instance_collision:{self.index}", collision_materials)
-            # self.cookie_info = InstanceCollision(element.SelectField("Struct:poopie cutter collision").Elements[0], collision_materials)
+            self.has_cookie = element.SelectField("Struct:poopie cutter collision[0]/Block:surfaces").Elements.Count > 0
+            if self.has_cookie:
+                self.cookie_info = InstanceCollision(element.SelectField("Struct:poopie cutter collision").Elements[0], f"instance_collision:{self.index}", collision_materials)
     
     def create(self, render_model, temp_meshes) -> list[bpy.types.Object]:
         objects = []
@@ -152,6 +156,12 @@ class InstanceDefinition:
         if result:
             self.blender_render = result[0]
         if not utils.is_corinth():
+            if self.has_cookie:
+                self.blender_cookie = self.cookie_info.to_object()
+                self.blender_cookie.name = f"{self.blender_render.name}_proxy_cookie_cutter"
+                self.blender_cookie.nwo.proxy_parent = self.blender_render.data
+                self.blender_cookie.nwo.proxy_type = "cookie_cutter"
+                self.blender_render.data.nwo.proxy_cookie_cutter = self.blender_collision
             if self.has_collision:
                 self.blender_collision = self.collision_info.to_object()
                 if self.blender_render and self.blender_render.type == 'MESH':
@@ -219,7 +229,7 @@ class InstanceDefinition:
                     
             elif self.blender_render and self.blender_render.data:
                 self.blender_render.data.nwo.render_only = True
-            
+
         if self.blender_render:
             objects.append(self.blender_render)
         if self.blender_collision:
@@ -1060,6 +1070,10 @@ class InstanceCollision(BSP):
     def __init__(self, element: TagFieldBlockElement, name, collision_materials: list[CollisionMaterial]):
         super().__init__(element, name, collision_materials)
         self.uses_materials = True
+        
+# class InstancePhysics():
+#     def __init__(self, element: TagFieldBlockElement, name, physics_materials: list[CollisionMaterial]):
+        
         
 class StructureCollision(BSP):
     def __init__(self, element: TagFieldBlockElement, name, collision_materials: list[CollisionMaterial]):

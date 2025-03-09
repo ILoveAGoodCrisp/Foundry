@@ -187,7 +187,7 @@ class ScenarioStructureBspTag(Tag):
             
         # Merge structure
         utils.deselect_all_objects()
-        print("Seperating Water Surfaces from Structure")
+        print("Separating Water Surfaces from Structure")
         for ob in structure_objects:
             structure_mesh = ob.data
             bm = bmesh.new()

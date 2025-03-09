@@ -655,7 +655,7 @@ def space_partition(target_string, get_suffix=False):
         return shortest_string(target_string.rpartition(" ")[0], target_string)
     
 def os_sep_partition(target_string, get_suffix=False):
-    """Returns a string after partitioning it using the OS seperator. If the returned string will be empty, the function will instead return the argument passed"""
+    """Returns a string after partitioning it using the OS separator. If the returned string will be empty, the function will instead return the argument passed"""
     if get_suffix:
         return shortest_string(target_string.rpartition(os.sep)[2], target_string)
     else:

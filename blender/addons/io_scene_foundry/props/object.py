@@ -1132,7 +1132,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     permutation_name: bpy.props.StringProperty(
         name="Permutation",
         default="default",
-        description="The permutation of this object. Permutations get exported to seperate files in scenario exports, or in model exports if the mesh type is one of render/collision/physics",
+        description="The permutation of this object. Permutations get exported to separate files in scenario exports, or in model exports if the mesh type is one of render/collision/physics",
         get=get_permutation_name,
         set=set_permutation_name,
         override={'LIBRARY_OVERRIDABLE'},

@@ -835,7 +835,7 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
         default='DEFAULT',
         items=[
             ("DEFAULT", "Default Events", ""),
-            ("LOG", "Log Events", "Errors & warnings are logged to a seperate file instead of being shown in the Blender output. This file will be opened once Tool has finished executing if any warnings or errors were reported"),
+            ("LOG", "Log Events", "Errors & warnings are logged to a separate file instead of being shown in the Blender output. This file will be opened once Tool has finished executing if any warnings or errors were reported"),
             ("VERBOSE", "Verbose Events", ""),
             ("STATUS", "Status Events", ""),
             ("MESSAGE", "Message Events", ""),
