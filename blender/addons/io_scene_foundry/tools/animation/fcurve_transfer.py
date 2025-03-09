@@ -11,12 +11,12 @@ list_source_bones = []
 list_root_bones = []
 
 turn_rots = {
-    "turn_left": (6.66, 120.0),
-    "turn_left_slow": (1.92, 86.7),
-    "turn_left_fast": (12.1, 360),
-    "turn_right": (-6.66, -120.0),
-    "turn_right_slow": (-1.92, -86.7),
-    "turn_right_fast": (-12.1, -360),
+    "turn_left": (6.66, 90),
+    "turn_left_slow": (0, 45),
+    "turn_left_fast": (0, 360),
+    "turn_right": (-6.66, -90), # Added 90 to compensate for how legacy games handle turns, reach expects the biped facing right at the start of a right turn
+    "turn_right_slow": (0, -45),
+    "turn_right_fast": (0, -360),
 }
 
 class NWO_OT_MovementDataToPedestal(bpy.types.Operator):
