@@ -1181,18 +1181,28 @@ class IndexBuffer:
         self.index_layout = IndexLayoutType(index_buffer_type)
         self.indices = indices
 
-    def get_faces(self, mesh: 'Mesh') -> list[Face]:
+    def get_faces(self, mesh: 'Mesh', subparts=None) -> list[Face]:
         idx = 0
         faces = []
         if mesh.subparts:
-            for subpart in mesh.subparts:
-                start = subpart.index_start
-                count = subpart.index_count
-                list_indices = list(self._get_indices(start, count))
-                indices = [list_indices[n:n+3] for n in range(0, len(list_indices), 3) if len(list_indices[n:n+3]) == 3]
-                for i in indices:
-                    faces.append(Face(indices=i, subpart=subpart, index=idx))
-                    idx += 1
+            if subparts is None:
+                for subpart in mesh.subparts:
+                    start = subpart.index_start
+                    count = subpart.index_count
+                    list_indices = list(self._get_indices(start, count))
+                    indices = [list_indices[n:n+3] for n in range(0, len(list_indices), 3) if len(list_indices[n:n+3]) == 3]
+                    for i in indices:
+                        faces.append(Face(indices=i, subpart=subpart, index=idx))
+                        idx += 1
+            else:
+                for subpart in subparts:
+                    start = subpart.index_start
+                    count = subpart.index_count
+                    list_indices = list(self._get_indices(start, count))
+                    indices = [list_indices[n:n+3] for n in range(0, len(list_indices), 3) if len(list_indices[n:n+3]) == 3]
+                    for i in indices:
+                        faces.append(Face(indices=i, subpart=subpart, index=idx))
+                        idx += 1
         else:
             start = 0
             count = len(self.indices)
@@ -1270,12 +1280,13 @@ class MeshPart:
         self.material = next(m for m in materials if m.index == self.material_index)
             
 class MeshSubpart:
-    def __init__(self, element: TagFieldBlockElement, parts: list[MeshPart]):
+    def __init__(self, element: TagFieldBlockElement, parts: list[MeshPart], water_indices: list[int]):
         self.index = element.ElementIndex
         self.index_start = element.SelectField("index start").Data
         self.index_count = element.SelectField("index count").Data
         self.part_index = element.SelectField("part index").Value
         self.part = next(p for p in parts if p.index == self.part_index)
+        self.is_water_subpart = self.index_start in water_indices
         
     def create(self, ob: bpy.types.Object, tris: Face, face_transparent: bool, face_draw_distance: bool, face_tesselation: bool, face_no_shadow: bool, face_lightmap_only: bool, water_surface_parts: list[MeshPart]):
         mesh = ob.data
@@ -1355,10 +1366,12 @@ class Mesh:
         self.parts = []
         self.subparts = []
         
+        water_indices = [e.Fields[0].Data for e in element.SelectField("Block:water indices start").Elements]
+        
         for part_element in element.SelectField("parts").Elements:
             self.parts.append(MeshPart(part_element, materials))
         for subpart_element in element.SelectField("subparts").Elements:
-            self.subparts.append(MeshSubpart(subpart_element, self.parts))
+            self.subparts.append(MeshSubpart(subpart_element, self.parts, water_indices))
             
         self.valid = (bool(self.parts) and bool(self.subparts)) or does_not_need_parts
         
@@ -1386,6 +1399,7 @@ class Mesh:
         if block_node_map is not None and block_node_map.Elements.Count and self.index < block_node_map.Elements.Count:
             map_element = block_node_map.Elements[self.index]
             self.node_map = [e.Fields[0].Data for e in map_element.Fields[0].Elements]
+                
             
     def _true_uvs(self, texcoords):
         return [self._interp_uv(tc) for tc in texcoords]
@@ -1412,6 +1426,7 @@ class Mesh:
         self.raw_lightmap_texcoords = [e.Fields[5].Data for e in raw_vertices.Elements]
         self.raw_vertex_colors = [e.Fields[8].Data for e in raw_vertices.Elements]
         self.raw_texcoords1 = [e.Fields[9].Data for e in raw_vertices.Elements] if utils.is_corinth() else []
+        self.raw_water_texcoords = []
 
         if not instances and self.rigid_node_index == -1:
             self.raw_node_indices = list(render_model.GetNodeIndiciesFromMesh(temp_meshes, self.index))
@@ -1420,6 +1435,17 @@ class Mesh:
         indices = [utils.unsigned_int16(element.Fields[0].Data) for element in raw_indices.Elements]
         buffer = IndexBuffer(self.index_buffer_type, indices)
         self.tris = buffer.get_faces(self)
+        self.water_tris = None
+        if temp_mesh.SelectField("raw water data").Elements.Count > 0:
+            water_data = temp_mesh.SelectField("raw water data").Elements[0]
+            raw_water_indices = water_data.Fields[0]
+            water_indices = [utils.unsigned_int16(element.Fields[0].Data) for element in raw_water_indices.Elements]
+            water_buffer = IndexBuffer(self.index_buffer_type, water_indices)
+            self.water_tris = water_buffer.get_faces(self, [sp for sp in self.subparts if sp.is_water_subpart])
+            raw_water_vertices = water_data.Fields[1]
+            self.raw_water_texcoords = [e.Fields[0].Data for e in raw_water_vertices.Elements]
+            if len(self.raw_water_texcoords) != len(self.raw_texcoords):
+                self.raw_water_texcoords.extend([(0, 0)] * (len(self.raw_texcoords) - len(self.raw_water_texcoords)))
 
         objects = []
 
@@ -1441,6 +1467,7 @@ class Mesh:
         matrix = local_matrix or (parent.matrix_world if parent else Matrix.Identity(4))
 
         indices = [t.indices for t in self.tris if not subpart or t.subpart == subpart]
+        water_indices = [] if self.water_tris is None else [t.indices for t in self.water_tris if not subpart or t.subpart == subpart]
 
         vertex_indices = sorted({idx for tri in indices for idx in tri})
         idx_start, idx_end = vertex_indices[0], vertex_indices[-1]
@@ -1454,9 +1481,12 @@ class Mesh:
         lighting_texcoords = [[float(v) for v in self.raw_lightmap_texcoords[n]] for n in range(idx_start, idx_end+1)]
         vertex_colors = [[float(v) for v in self.raw_vertex_colors[n]] for n in range(idx_start, idx_end+1)]
         texcoords1 = [[float(v) for v in self.raw_texcoords1[n]] for n in range(idx_start, idx_end+1)] if self.raw_texcoords1 else []
+        water_texcoords = [[float(v) for v in self.raw_water_texcoords[n]] for n in range(idx_start, idx_end+1)] if self.raw_water_texcoords else []
 
         if idx_start > 0:
             indices = [[i - idx_start for i in tri] for tri in indices]
+            if water_indices:
+                water_indices = [[i - idx_start for i in tri] for tri in water_indices]
 
         mesh.from_pydata(positions, [], indices)
 
@@ -1468,13 +1498,22 @@ class Mesh:
         has_vertex_colors = any(any(v) for v in vertex_colors)
         has_lighting_texcoords = any(any(v) for v in lighting_texcoords)
         has_texcoords1 = bool(texcoords1) and any(any(v) for v in texcoords1)
-
+        has_water_texcoords = bool(water_texcoords) and any(any(v) for v in water_texcoords)
         uvs = self._true_uvs(texcoords) if self.bounds else [Vector((u, 1-v)) for (u, v) in texcoords]
         if has_texcoords1:
             uvs1 = self._true_uvs(texcoords1) if self.bounds else [Vector((u, 1-v)) for (u, v) in texcoords1]
         uv_layer = mesh.uv_layers.new(name="UVMap0", do_init=False)
         lighting_uv_layer = mesh.uv_layers.new(name="lighting", do_init=False) if has_lighting_texcoords else None
         uvs1_layer = mesh.uv_layers.new(name="UVMap1", do_init=False) if has_texcoords1 else None
+        
+        if has_water_texcoords:
+            if uvs1_layer is None:
+                water_uvs_layer = mesh.uv_layers.new(name="UVMap1", do_init=False)
+            else:
+                water_uvs_layer = mesh.uv_layers.new(name="UVMap2", do_init=False)
+                
+            water_uvs = self._true_uvs(water_texcoords) if self.bounds else [Vector((u, 1-v)) for (u, v) in water_texcoords]
+            
 
         if uv_layer:
             for face in mesh.polygons:
@@ -1482,6 +1521,8 @@ class Mesh:
                     uv_layer.data[loop_idx].uv = uvs[vert_idx]
                     if has_texcoords1:
                         uvs1_layer.data[loop_idx].uv = uvs1[vert_idx]
+                    if has_water_texcoords:
+                        water_uvs_layer.data[loop_idx].uv = water_uvs[vert_idx]
                     if lighting_uv_layer:
                         lighting_uv_layer.data[loop_idx].uv = lighting_texcoords[vert_idx]
 
