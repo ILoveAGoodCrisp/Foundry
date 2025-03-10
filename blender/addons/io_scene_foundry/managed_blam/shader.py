@@ -730,6 +730,7 @@ class ShaderTag(Tag):
         element = None
         bitmap_path = None
         wrap_mode = 'REPEAT'
+        plate_info = None
         for element in self.block_parameters.Elements:
             if element.Fields[0].GetStringData() == parameter.name:
                 break
@@ -792,7 +793,21 @@ class ShaderTag(Tag):
                 else:
                     image_path = bitmap.save_to_tiff(for_normal)
                     
+            # Check if this image is a plate
+            plate_dir = Path(image_path).with_suffix("")
+            if plate_dir.exists() and plate_dir.is_dir():
+                print(plate_dir)
+                plate_info = []
+                tifs = list(plate_dir.iterdir())
+                plate_info.append(len(tifs))
+                first_tiff = str(tifs[0])
+                first_image = bpy.data.images.load(filepath=first_tiff, check_existing=True)
+                first_image: bpy.types.Image
+                plate_info.append(first_image.size[0])
+                
             image = bpy.data.images.load(filepath=image_path, check_existing=True)
+            if plate_info:
+                plate_info.append(image.size[0])
 
             image.colorspace_settings.name = 'Non-Color'
             image.alpha_mode = 'CHANNEL_PACKED'
@@ -801,7 +816,7 @@ class ShaderTag(Tag):
             # else:
             #     image.colorspace_settings.name = 'Non-Color'
                 
-            return image, wrap_mode
+            return image, wrap_mode, plate_info
     
     def _normal_type_from_parameter_name(self, name):
         if not self.corinth:
@@ -1011,7 +1026,7 @@ class ShaderTag(Tag):
         if result is None:
             return
         
-        data, wrap_mode = result
+        data, wrap_mode, plate_info = result
         
         if data is None:
             return
@@ -1019,6 +1034,14 @@ class ShaderTag(Tag):
         data_node = tree.nodes.new("ShaderNodeTexImage")
         data_node.image = data
         data_node.extension = wrap_mode
+        
+        if plate_info is not None:
+            plate_node = tree.nodes.new('ShaderNodeGroup')
+            plate_node.node_tree = utils.add_node_from_resources("shared_nodes", 'Plate')
+            plate_node.inputs[1].default_value = plate_info[0]
+            plate_node.inputs[2].default_value = plate_info[1]
+            plate_node.inputs[3].default_value = plate_info[2]
+            tree.links.new(input=data_node.inputs[0], output=plate_node.outputs[0])
         
         if specified_input is None:
             match channel_type:
@@ -1040,7 +1063,12 @@ class ShaderTag(Tag):
         
         tiling_node = self._tiling_from_animated_parameters(tree, parameter)
         if tiling_node is not None:
-            tree.links.new(input=data_node.inputs[0], output=tiling_node.outputs[0])
+            if plate_info:
+                tree.links.new(input=plate_node.inputs[0], output=tiling_node.outputs[0])
+            else:
+                tree.links.new(input=data_node.inputs[0], output=tiling_node.outputs[0])
+        elif plate_info:
+            self.vector_inputs.append(plate_node.inputs[0])
         
         return data_node
     

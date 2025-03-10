@@ -139,6 +139,7 @@ class InstanceDefinition:
         self.cookie_info = None
         self.blender_collision = None
         self.blender_cookie = None
+        self.has_physics = False
         self.blender_physics = None
         self.blender_render = None
         if not utils.is_corinth() and not for_cinematic:
@@ -156,6 +157,14 @@ class InstanceDefinition:
         if result:
             self.blender_render = result[0]
         if not utils.is_corinth():
+            # if self.has_physics:
+            #     for info in self.physics_info:
+            #         phys = self.info.to_object()
+            #         info.name = f"{self.blender_render.name}_proxy_cookie_cutter"
+            #         info.nwo.proxy_parent = self.blender_render.data
+            #         info.nwo.proxy_type = "cookie_cutter"
+            #         self.blender_render.data.nwo.proxy_physics = phys
+            #         self.blender_physics.append(phys)
             if self.has_cookie:
                 self.blender_cookie = self.cookie_info.to_object()
                 self.blender_cookie.name = f"{self.blender_render.name}_proxy_cookie_cutter"
@@ -217,8 +226,6 @@ class InstanceDefinition:
                                     bm_render.free()
                                     
                             self.blender_collision = None
-                                    
-                                     
                     else:
                         self.blender_collision.name = f"{self.blender_render.name}_proxy_collision"
                         self.blender_collision.nwo.proxy_parent = self.blender_render.data
@@ -236,6 +243,8 @@ class InstanceDefinition:
             objects.append(self.blender_collision)
         if self.blender_cookie:
             objects.append(self.blender_cookie)
+        if self.blender_physics:
+            objects.extend(self.blender_physics)
             
         return objects
             

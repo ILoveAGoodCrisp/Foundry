@@ -1747,7 +1747,6 @@ class VirtualScene:
     def _create_curve_data_type(self):
         pass
         
-        
     def add(self, id: bpy.types.Object, props: dict, region: str = None, permutation: str = None, fp_defaults: dict = None, proxies: list = [], template_node: VirtualNode = None, bones: list[str] = [], parent_matrix: Matrix = IDENTITY_MATRIX, animation_owner=None) -> VirtualNode:
         '''Creates a new node with the given parameters and appends it to the virtual scene'''
         node = VirtualNode(id, props, region, permutation, fp_defaults, self, proxies, template_node, bones, parent_matrix, animation_owner)

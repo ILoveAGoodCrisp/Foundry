@@ -1,13 +1,11 @@
 
 
-from ctypes import c_void_p
 from math import sqrt
 import math
 import os
 import clr
 from pathlib import Path
-
-from mathutils import Vector
+import ctypes
 
 from ..constants import NormalType
 from ..managed_blam import Tag
@@ -24,6 +22,44 @@ path_cache = set()
 def clear_path_cache():
     global path_cache
     path_cache.clear()
+    
+def get_tif_width(path):
+    # Load shell properties
+    SHGetPropertyStoreFromParsingName = ctypes.windll.ole32.SHGetPropertyStoreFromParsingName
+    SHGetPropertyStoreFromParsingName.argtypes = [ctypes.c_wchar_p, ctypes.c_void_p, ctypes.c_uint32, ctypes.POINTER(ctypes.c_void_p)]
+    
+    # Define property keys
+    PROPERTYKEY = ctypes.c_byte * 16
+    PKEY_Image_HorizontalSize = PROPERTYKEY(0xE6, 0xD1, 0x8E, 0xC1, 0x6F, 0xEC, 0xE0, 0xF8, 0x4F, 0x56, 0x82, 0x8D, 0xD4, 0x72, 0x9A, 0x9F)
+
+    # Initialize COM
+    ctypes.windll.ole32.CoInitialize(None)
+    
+    # Retrieve file properties
+    ps = ctypes.c_void_p()
+    hr = SHGetPropertyStoreFromParsingName(str(path), None, 0, ctypes.byref(ps))
+    
+    if hr != 0:
+        raise RuntimeError("Failed to get property store")
+    
+    # Get property value
+    IPropertyStore_GetValue = ctypes.windll.ole32.IPropertyStore_GetValue
+    IPropertyStore_GetValue.argtypes = [ctypes.c_void_p, ctypes.POINTER(PROPERTYKEY), ctypes.POINTER(ctypes.c_void_p)]
+    
+    propvar = ctypes.c_void_p()
+    hr = IPropertyStore_GetValue(ps, ctypes.byref(PKEY_Image_HorizontalSize), ctypes.byref(propvar))
+    
+    if hr != 0:
+        raise RuntimeError("Failed to retrieve width property")
+    
+    # Extract width
+    width = ctypes.cast(propvar, ctypes.POINTER(ctypes.c_uint)).contents.value
+
+    # Cleanup
+    ctypes.windll.ole32.CoUninitialize()
+    
+    return width
+
 
 class BitmapTag(Tag):
     tag_ext = 'bitmap'
@@ -154,7 +190,7 @@ class BitmapTag(Tag):
         handle = GCHandle.Alloc(rgba_array, GCHandleType.Pinned)
         rgba_ptr = None
         try:
-            rgba_ptr = c_void_p(handle.AddrOfPinnedObject().ToInt64())
+            rgba_ptr = ctypes.c_void_p(handle.AddrOfPinnedObject().ToInt64())
         finally:
             if handle.IsAllocated:
                 handle.Free()
@@ -398,7 +434,7 @@ class BitmapTag(Tag):
                 utils.run_tool(["plate", str(full_tiff_path.with_suffix(""))], null_output=True)
                 tif_path = full_tiff_path.with_suffix(".tif")
                 if tif_path.exists():
-                    return str(tif_path) 
+                    return str(tif_path)
         else:
             tiff_path = self._save_single(blue_channel_fix, format, 0, "")
         
