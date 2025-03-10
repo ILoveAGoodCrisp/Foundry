@@ -574,7 +574,7 @@ class NWO_Import(bpy.types.Operator):
                     bsp_files = importer.sorted_filepaths["scenario_structure_bsp"]
                     imported_bsp_objects = []
                     for bsp in bsp_files:
-                        bsp_objects, _, _ = importer.import_bsp(bsp)
+                        bsp_objects, _ = importer.import_bsp(bsp)
                         imported_bsp_objects.extend(bsp_objects)
                     if needs_scaling:
                         utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_bsp_objects, actions=[])
@@ -730,10 +730,7 @@ class NWO_Import(bpy.types.Operator):
             if 'particle_model' in self.scope:
                 self.filter_glob += '*.particle_model;'
             if 'object' in self.scope:
-                if context.scene.nwo.asset_type == "cinematic":
-                    self.filter_glob += '*.scenery;*.biped;'
-                else:
-                    self.filter_glob += '*.biped;*.crate;*.creature;*.d*_control;*.d*_dispenser;*.e*_scenery;*.equipment;*.giant;*.d*_machine;*.projectile;*.scenery;*.spawner;*.sound_scenery;*.d*_terminal;*.vehicle;*.weapon;'
+                self.filter_glob += '*.biped;*.crate;*.creature;*.d*_control;*.d*_dispenser;*.e*_scenery;*.equipment;*.giant;*.d*_machine;*.projectile;*.scenery;*.spawner;*.sound_scenery;*.d*_terminal;*.vehicle;*.weapon;'
             if 'animation' in self.scope:
                 self.filter_glob += '*.mod*_*_graph;'
                     

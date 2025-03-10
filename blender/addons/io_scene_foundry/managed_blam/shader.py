@@ -809,8 +809,11 @@ class ShaderTag(Tag):
             if plate_info:
                 plate_info.append(image.size[0])
 
-            image.colorspace_settings.name = 'Non-Color'
-            image.alpha_mode = 'CHANNEL_PACKED'
+            if for_normal:
+                image.colorspace_settings.name = 'Non-Color'
+            else:
+                image.colorspace_settings.name = 'Linear Rec.709'
+                image.alpha_mode = 'CHANNEL_PACKED'
             # if bitmap.uses_srgb():
             #     image.alpha_mode = 'CHANNEL_PACKED'
             # else:

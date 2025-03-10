@@ -2992,7 +2992,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                         col.prop(event, "script_object", text="Object")
                         col.prop(event, "script_state_property", text="State Property")
                         col.prop(event, "script_bool", text="On")
-                    case 'HIDE' | 'UNHIDE' | 'DESTROY' | 'OBJECT_CANNOT_DIE' | 'OBJECT_CAN_DIE':
+                    case 'HIDE' | 'UNHIDE' | 'DESTROY' | 'OBJECT_CANNOT_DIE' | 'OBJECT_CAN_DIE' | 'OBJECT_PROJECTILE_COLLISION_ON' | 'OBJECT_PROJECTILE_COLLISION_OFF':
                         col.prop(event, "script_object", text="Object")
                     case 'FADE_IN' | 'FADE_OUT':
                         col.prop(event, "script_color", text="Color")

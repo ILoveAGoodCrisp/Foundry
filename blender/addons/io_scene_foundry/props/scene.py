@@ -10,7 +10,7 @@ from ..managed_blam.scenario import ScenarioTag
 from ..icons import get_icon_id
 from .. import utils
 
-script_object_types = ('WEAPON_TRIGGER_START', 'WEAPON_TRIGGER_STOP', 'SET_VARIANT', 'SET_PERMUTATION', 'SET_REGION_STATE', 'SET_MODEL_STATE_PROPERTY', 'HIDE', 'UNHIDE', 'DESTROY', 'OBJECT_CANNOT_DIE', 'OBJECT_CAN_DIE')
+script_object_types = ('WEAPON_TRIGGER_START', 'WEAPON_TRIGGER_STOP', 'SET_VARIANT', 'SET_PERMUTATION', 'SET_REGION_STATE', 'SET_MODEL_STATE_PROPERTY', 'HIDE', 'UNHIDE', 'DESTROY', 'OBJECT_CANNOT_DIE', 'OBJECT_CAN_DIE', 'OBJECT_PROJECTILE_COLLISION_ON', 'OBJECT_PROJECTILE_COLLISION_OFF')
 
 
 def poll_armature(self, object: bpy.types.Object):
@@ -1279,6 +1279,8 @@ class NWO_CinematicEvent(PropertyGroup):
             ('HIDE_HUD', "Hide Player HUD", ""),
             ('OBJECT_CANNOT_DIE', "Make Object Immortal", ""),
             ('OBJECT_CAN_DIE', "Make Object Mortal", ""),
+            ('OBJECT_PROJECTILE_COLLISION_ON', "Projectiles Collide With Object", ""),
+            ('OBJECT_PROJECTILE_COLLISION_OFF', "Projectiles Pass Through Object", ""),
         ]
     )
     
