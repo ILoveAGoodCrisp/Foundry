@@ -1,11 +1,13 @@
 
 
 from enum import Enum
+import logging
 from math import radians
 import os
 from pathlib import Path
 import re
 import time
+import traceback
 from uuid import uuid4
 import bmesh
 import bpy
@@ -153,6 +155,7 @@ class NWO_OT_ConvertScene(bpy.types.Operator):
         return context.window_manager.invoke_props_dialog(self)
     
     def execute(self, context):
+        failed = False
         if self.selected_only:
             objects_in_scope = context.selected_objects[:]
         else:
@@ -187,14 +190,31 @@ class NWO_OT_ConvertScene(bpy.types.Operator):
             except KeyboardInterrupt:
                 utils.print_warning("\nCANCELLED BY USER")
                 user_cancelled = True
+                failed = True
+            except:
+                print("FOUNDRY VERSION: ", utils.get_version_string())
+                utils.print_warning(
+                    "\ Import failed spectacularly. Please let the developer know: https://github.com/ILoveAGoodCrisp/Foundry/issues\n"
+                )
+                utils.print_error(
+                    "\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
+                )
+                failed = True
                 
         end = time.perf_counter()
         if user_cancelled:
             self.report({'WARNING'}, "Cancelled by user")
+        elif failed:
+            self.report({'WARNING'}, "Import failed")
         else:
             print("\n-----------------------------------------------------------------------")
             print(f"Completed in {utils.human_time(end - start, True)}")
             print("-----------------------------------------------------------------------\n")
+
+        if failed:
+            bpy.ops.ed.undo_push()
+            bpy.ops.ed.undo()
+        
         return {'FINISHED'}
 
 class NWO_Import(bpy.types.Operator):
@@ -355,6 +375,7 @@ class NWO_Import(bpy.types.Operator):
     )
     
     def execute(self, context):
+        failed = False
         filepaths = [self.directory + f.name for f in self.files]
         if self.filepath and self.filepath not in filepaths:
             filepaths.append(self.filepath)
@@ -661,10 +682,30 @@ class NWO_Import(bpy.types.Operator):
             except KeyboardInterrupt:
                 utils.print_warning("\nIMPORT CANCELLED BY USER")
                 self.user_cancelled = True
+                failed = True
+            except Exception as e:
+                failed = True
+                if isinstance(e, RuntimeError):
+                    # logging.error(traceback.format_exc())
+                    utils.print_warning(traceback.format_exception_only(e)[0][14:])
+                else:
+                    utils.print_error("\n\nException hit. Please include in report\n")
+                    logging.error(traceback.format_exc())
+                    print("FOUNDRY VERSION: ", utils.get_version_string())
+                    utils.print_warning(
+                        "\ Import failed spectacularly. Please let the developer know: https://github.com/ILoveAGoodCrisp/Foundry/issues\n"
+                    )
+                    utils.print_error(
+                        "\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
+                    )
+                    failed = True
+
         
         end = time.perf_counter()
         if self.user_cancelled:
             self.report({'WARNING'}, "Import cancelled by user")
+        elif failed:
+            self.report({'WARNING'}, "Import failed")
         elif self.nothing_imported:
             print("No Folders/Filepaths supplied")
             self.report({'WARNING'}, "Nothing imported. No filepaths/folders supplied")
@@ -677,7 +718,11 @@ class NWO_Import(bpy.types.Operator):
             print(
                 "-----------------------------------------------------------------------\n"
             )
-            
+        
+        if failed:
+            bpy.ops.ed.undo_push()
+            bpy.ops.ed.undo()
+        
         return {'FINISHED'}
     
     def link_anchor(self, context, objects):

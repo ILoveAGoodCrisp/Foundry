@@ -224,6 +224,19 @@ functions_list = [
     GameFunction("change_color_tertiary", tuple((1, 1, 1, 1)), GameFunctionType.OBJECT),
     GameFunction("change_color_quaternary", tuple((1, 1, 1, 1)), GameFunctionType.OBJECT),
     GameFunction("zero", 0, GameFunctionType.CONSTANT),
+    GameFunction("one", 1, GameFunctionType.CONSTANT),
+    GameFunction("current_body_damage", 0, GameFunctionType.OBJECT),
+    GameFunction("current_shield_damage", 0, GameFunctionType.OBJECT),
+    GameFunction("body_vitality", 1, GameFunctionType.OBJECT),
+    GameFunction("shield_vitality", 1, GameFunctionType.OBJECT),
+    GameFunction("active_shield_vitality", 1, GameFunctionType.OBJECT),
+    GameFunction("shield_depleted", 0, GameFunctionType.OBJECT),
+    GameFunction("random_constant", 0, GameFunctionType.WORLD), # foundry will select a random float on blender load
+    GameFunction("cinematic_in_progress", 0, GameFunctionType.WORLD), # bpy.context.scene.nwo.asset_type == "cinematic"
+    GameFunction("compass", 1, GameFunctionType.OBJECT), # GET BY DIRECTION
+    GameFunction("variant", 0, GameFunctionType.OBJECT), # Set based on current variant index % of variant count
+    GameFunction("object_overshield_amount", 0, GameFunctionType.OBJECT),
+    GameFunction("electrical_power", 0, GameFunctionType.OBJECT),
 ]
 
 game_functions = {func.name: func for func in functions_list}
