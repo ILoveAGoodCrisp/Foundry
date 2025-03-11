@@ -540,6 +540,7 @@ class NWO_Import(bpy.types.Operator):
                     
                 elif 'animation' in importer.extensions:
                     context.scene.render.fps = 30
+                    importer.tag_animation_filter = self.tag_animation_filter
                     animation_files = importer.sorted_filepaths['animation']
                     if context.object and context.object.type == 'ARMATURE':
                         existing_armature = context.object
