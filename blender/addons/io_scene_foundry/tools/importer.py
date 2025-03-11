@@ -1174,9 +1174,12 @@ class NWOImporter:
         for file in paths:
             print(f'Importing Object Tag: {Path(file).name} ')
             with utils.TagImportMover(self.project.tags_directory, file) as mover:
-                with ObjectTag(path=mover.tag_path, raise_on_error=False) as scenery:
-                    model_path = scenery.get_model_tag_path_full()
-                    change_colors = scenery.get_change_colors(self.tag_variant)
+                with ObjectTag(path=mover.tag_path, raise_on_error=False) as obj:
+                    model_path = obj.get_model_tag_path_full()
+                    change_colors = obj.get_change_colors(self.tag_variant)
+                    has_change_colors = change_colors is not None
+                    magazine_size = obj.get_magazine_size()
+                    has_ammo = magazine_size > 0
                     with utils.TagImportMover(self.project.tags_directory, model_path) as model_mover:
                         with ModelTag(path=model_mover.tag_path, raise_on_error=False) as model:
                             if not model.valid: continue
@@ -1196,24 +1199,62 @@ class NWOImporter:
                             allowed_region_permutations = model.get_variant_regions_and_permutations(temp_variant, self.tag_state)
                             model_collection = bpy.data.collections.new(model.tag_path.ShortName)
                             self.context.scene.collection.children.link(model_collection)
+                            prop_names = []
+                            
+                            if has_change_colors:
+                                prop_names.extend(["change_color_primary", "change_color_secondary", "change_color_tertiary", "change_color_quaternary"])
+                            
+                            if has_ammo:
+                                prop_names.append("ammo")
+                                
+                            # possible compas driver = abs(var/pi / (2*pi))
                             if render:
                                 render_objects, armature = self.import_render_model(render, model_collection, existing_armature, allowed_region_permutations)
                                 imported_objects.extend(render_objects)
                                 for ob in render_objects:
+                                    if ob.type != 'EMPTY':
+                                        if has_change_colors:
+                                            ob["change_color_primary"] = change_colors[0]
+                                            ob["change_color_secondary"] = change_colors[1]
+                                            ob["change_color_tertiary"] = change_colors[2]
+                                            ob["change_color_quaternary"] = change_colors[3]
+                                            ob.id_properties_ui("change_color_primary").update(subtype="COLOR", min=0, max=1)
+                                            ob.id_properties_ui("change_color_secondary").update(subtype="COLOR", min=0, max=1)
+                                            ob.id_properties_ui("change_color_tertiary").update(subtype="COLOR", min=0, max=1)
+                                            ob.id_properties_ui("change_color_quaternary").update(subtype="COLOR", min=0, max=1)
+                                        if has_ammo:
+                                            ob["ammo"] = magazine_size
+                                            ob.id_properties_ui("ammo").update(min=0, max=999)
+                                        
                                     if ob.type == 'ARMATURE':
                                         self.to_cursor_objects.add(ob)
-                                        ob.nwo.cinematic_object = scenery.tag_path.RelativePathWithExtension
+                                        ob.nwo.cinematic_object = obj.tag_path.RelativePathWithExtension
                                         if temp_variant == self.tag_variant:
                                             ob.nwo.cinematic_variant = temp_variant
-                                    
-                                    ob["change_color_primary"] = change_colors[0]
-                                    ob["change_color_secondary"] = change_colors[1]
-                                    ob["change_color_tertiary"] = change_colors[2]
-                                    ob["change_color_quaternary"] = change_colors[3]
-                                    ob.id_properties_ui("change_color_primary").update(subtype="COLOR", min=0, max=1)
-                                    ob.id_properties_ui("change_color_secondary").update(subtype="COLOR", min=0, max=1)
-                                    ob.id_properties_ui("change_color_tertiary").update(subtype="COLOR", min=0, max=1)
-                                    ob.id_properties_ui("change_color_quaternary").update(subtype="COLOR", min=0, max=1)
+                                    elif ob.type == 'MESH':
+                                        for prop in prop_names:
+                                            # Add driver
+                                            result = ob.driver_add(f'["{prop}"]')
+                                            if isinstance(result, list):
+                                                for idx, fcurve in enumerate(result):
+                                                    driver = fcurve.driver
+                                                    driver.type = 'SCRIPTED'
+                                                    # Add variable
+                                                    var = driver.variables.new()
+                                                    var.name = "var"
+                                                    var.type = 'SINGLE_PROP'
+                                                    var.targets[0].id = armature
+                                                    var.targets[0].data_path = f'["{prop}"][{idx}]'
+                                                    driver.expression = var.name
+                                            else:
+                                                driver = result.driver
+                                                driver.type = 'SCRIPTED'
+                                                var = driver.variables.new()
+                                                var.name = "var"
+                                                var.type = 'SINGLE_PROP'
+                                                var.targets[0].id = armature
+                                                var.targets[0].data_path = f'["{prop}"]'
+                                                driver.expression = var.name
                                                                                 
                             if collision and self.tag_collision:
                                 imported_objects.extend(self.import_collision_model(collision, armature, model_collection, allowed_region_permutations))
@@ -1240,10 +1281,13 @@ class NWOImporter:
         imported_objects = []
         if child_object.child_object is None:
             return
-        with ObjectTag(path=child_object.child_object, raise_on_error=False) as scenery:
-            model_path = scenery.get_model_tag_path_full()
-            change_colors = scenery.get_change_colors(self.tag_variant)
-            default_variant = scenery.default_variant.GetStringData()
+        with ObjectTag(path=child_object.child_object, raise_on_error=False) as obj:
+            model_path = obj.get_model_tag_path_full()
+            change_colors = obj.get_change_colors(self.tag_variant)
+            has_change_colors = change_colors is not None
+            magazine_size = obj.get_magazine_size()
+            has_ammo = magazine_size > 0
+            default_variant = obj.default_variant.GetStringData()
             with ModelTag(path=model_path, raise_on_error=False) as model:
                 if not model.valid: return
                     
@@ -1259,24 +1303,62 @@ class NWOImporter:
                 allowed_region_permutations = model.get_variant_regions_and_permutations(temp_variant, self.tag_state)
                 model_collection = bpy.data.collections.new(model.tag_path.ShortName)
                 self.context.scene.collection.children.link(model_collection)
+                
+                prop_names = []
+                
+                if has_change_colors:
+                    prop_names.extend(["change_color_primary", "change_color_secondary", "change_color_tertiary", "change_color_quaternary"])
+                
+                if has_ammo:
+                    prop_names.append("ammo")
+                
                 if render:
                     render_objects, armature = self.import_render_model(render, model_collection, None, allowed_region_permutations)
                     imported_objects.extend(render_objects)
                     for ob in render_objects:
+                        if ob.type != 'EMPTY':
+                            if has_change_colors:
+                                ob["change_color_primary"] = change_colors[0]
+                                ob["change_color_secondary"] = change_colors[1]
+                                ob["change_color_tertiary"] = change_colors[2]
+                                ob["change_color_quaternary"] = change_colors[3]
+                                ob.id_properties_ui("change_color_primary").update(subtype="COLOR", min=0, max=1)
+                                ob.id_properties_ui("change_color_secondary").update(subtype="COLOR", min=0, max=1)
+                                ob.id_properties_ui("change_color_tertiary").update(subtype="COLOR", min=0, max=1)
+                                ob.id_properties_ui("change_color_quaternary").update(subtype="COLOR", min=0, max=1)
+                            if has_ammo:
+                                ob["ammo"] = magazine_size
+                                ob.id_properties_ui("ammo").update(min=0, max=999)
+                            
                         if ob.type == 'ARMATURE':
                             ob.nwo.export_this = False
-                            ob.nwo.cinematic_object = scenery.tag_path.RelativePathWithExtension
+                            ob.nwo.cinematic_object = obj.tag_path.RelativePathWithExtension
                             if temp_variant == self.tag_variant:
                                 ob.nwo.cinematic_variant = temp_variant
-                        
-                        ob["change_color_primary"] = change_colors[0]
-                        ob["change_color_secondary"] = change_colors[1]
-                        ob["change_color_tertiary"] = change_colors[2]
-                        ob["change_color_quaternary"] = change_colors[3]
-                        ob.id_properties_ui("change_color_primary").update(subtype="COLOR")
-                        ob.id_properties_ui("change_color_secondary").update(subtype="COLOR")
-                        ob.id_properties_ui("change_color_tertiary").update(subtype="COLOR")
-                        ob.id_properties_ui("change_color_quaternary").update(subtype="COLOR")
+                        elif ob.type == 'MESH':
+                            for prop in prop_names:
+                                # Add driver
+                                result = ob.driver_add(f'["{prop}"]')
+                                if isinstance(result, list):
+                                    for idx, fcurve in enumerate(result):
+                                        driver = fcurve.driver
+                                        driver.type = 'SCRIPTED'
+                                        # Add variable
+                                        var = driver.variables.new()
+                                        var.name = "var"
+                                        var.type = 'SINGLE_PROP'
+                                        var.targets[0].id = armature
+                                        var.targets[0].data_path = f'["{prop}"][{idx}]'
+                                        driver.expression = var.name
+                                else:
+                                    driver = result.driver
+                                    driver.type = 'SCRIPTED'
+                                    var = driver.variables.new()
+                                    var.name = "var"
+                                    var.type = 'SINGLE_PROP'
+                                    var.targets[0].id = armature
+                                    var.targets[0].data_path = f'["{prop}"]'
+                                    driver.expression = var.name
                                                                     
                     if collision and self.tag_collision:
                         imported_objects.extend(self.import_collision_model(collision, armature, model_collection, allowed_region_permutations))

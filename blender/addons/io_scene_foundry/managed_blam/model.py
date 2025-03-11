@@ -43,21 +43,21 @@ class ModelTag(Tag):
             if optional_tag_root:
                 collision = str(Path(optional_tag_root, collision_path.RelativePathWithExtension))
             else:
-                render = collision_path.Filename
+                collision = collision_path.Filename
             
         animation_path = self.reference_animation.Path
         if animation_path:
             if optional_tag_root:
                 animation = str(Path(optional_tag_root, animation_path.RelativePathWithExtension))
             else:
-                render = animation_path.Filename
+                animation = animation_path.Filename
             
         physics_path = self.reference_physics_model.Path
         if physics_path:
             if optional_tag_root:
                 physics = str(Path(optional_tag_root, physics_path.RelativePathWithExtension))
             else:
-                render = physics_path.Filename
+                physics = physics_path.Filename
             
         return render, collision, animation, physics
                 

@@ -100,7 +100,11 @@ class RenderModelTag(Tag):
         
         if render:
             print("Creating Render Geometry")
-            objects.extend(self._create_render_geometry(allowed_region_permutations))
+            result = self._create_render_geometry(allowed_region_permutations)
+            if result:
+                objects.extend(result)
+            else:
+                return objects, self.armature
         if markers:
             print("Creating Markers")
             objects.extend(self._create_markers(allowed_region_permutations))
@@ -155,7 +159,8 @@ class RenderModelTag(Tag):
     def _create_render_geometry(self, allowed_region_permutations: set):
         objects = []
         if not self.block_compression_info.Elements.Count:
-            raise RuntimeError("Render Model has no compression info. Cannot import render model mesh")
+            utils.print_warning("Render Model has no compression info. Cannot import render model mesh")
+            return []
         self.bounds = CompressionBounds(self.block_compression_info.Elements[0])
         render_model = self._GameRenderModel()
         

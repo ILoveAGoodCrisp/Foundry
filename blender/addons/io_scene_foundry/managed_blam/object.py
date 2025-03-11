@@ -63,12 +63,14 @@ class ObjectTag(Tag):
         self.tag_has_changes = True
         
     def get_change_colors(self, variant="") -> list:
+        if self.block_change_colors.Elements.Count == 0:
+            return
         change_colors = [tuple((1.0, 1.0, 1.0, 1.0)), tuple((1.0, 1.0, 1.0, 1.0)), tuple((1.0, 1.0, 1.0, 1.0)), tuple((1.0, 1.0, 1.0, 1.0))]
         if not variant:
             variant = self.default_variant.GetStringData()
         if not variant:
             return change_colors
-        
+
         for element in self.block_change_colors.Elements:
             perms = element.Fields[0]
             for sub_element in perms.Elements:
@@ -80,6 +82,16 @@ class ObjectTag(Tag):
                     break
                  
         return change_colors
+    
+    def get_magazine_size(self):
+        if self.tag_path.Extension != "weapon":
+            return 0
+        
+        magazines = self.tag.SelectField("Block:magazines")
+        if magazines.Elements.Count == 0:
+            return 0
+        
+        return magazines.Elements[0].SelectField("rounds loaded maximum").Data
     
     def get_variants(self) -> list[str]:
         model_path = self.get_model_tag_path_full()
