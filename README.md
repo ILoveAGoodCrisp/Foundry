@@ -54,3 +54,7 @@ Testing and reporting bugs:
 - [ivanovitch](https://github.com/ivanivanovitch)
 - [Greenknight](https://github.com/GreenKnight5417)
 - [Gashnor](https://github.com/Gashnor)
+
+## Support
+
+ If you like what I make, please consider supporting me on [Ko-fi](https://ko-fi.com/iloveagoodcrisp)
