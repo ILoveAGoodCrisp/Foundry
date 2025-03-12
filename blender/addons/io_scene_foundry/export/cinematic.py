@@ -734,7 +734,7 @@ class QUA:
             block_objects.RemoveElement(idx)
             
         object_tag_weapon_names = {} # used for custom scripts
-            
+        actor_objects = {a.ob for a in self.objects} # for checking an event is valid
         # Add elements for actors without them
         for actor, element in actor_elements.items():
             if element is None:
@@ -742,6 +742,7 @@ class QUA:
                 element.SelectField("name").SetStringData(actor.name)
                 element.SelectField("variant name").SetStringData(actor.variant)
             if actor.weapon_tag is not None:
+                print(actor.name, element)
                 block_attachments = element.SelectField("Block:attachments")
                 for attachment_element in block_attachments.Elements:
                     attachment_path = attachment_element.SelectField("Reference:attachment type").Path
@@ -796,7 +797,7 @@ class QUA:
             match event.type:
                 case 'DIALOGUE':
                     c = CinematicDialogue()
-                    c.from_event(event)
+                    c.from_event(event, actor_objects)
                     if c.dialogue is not None:
                         frame = event.frame
                         if event.sound_strip:
@@ -806,12 +807,12 @@ class QUA:
                         dialogue[c] = frame - frame_start + int(self.corinth)
                 case 'EFFECT':
                     c = CinematicEffect()
-                    c.from_event(event)
+                    c.from_event(event, actor_objects)
                     if c.effect is not None:
                         effects[c] = event.frame - frame_start + int(self.corinth)
                 case 'SCRIPT':
                     c = CinematicCustomScript()
-                    c.from_event(event, object_tag_weapon_names)
+                    c.from_event(event, object_tag_weapon_names, actor_objects)
                     if c.script.strip():
                         custom_scripts[c] = event.frame - frame_start + int(self.corinth)
         

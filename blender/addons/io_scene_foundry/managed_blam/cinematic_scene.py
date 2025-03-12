@@ -94,7 +94,7 @@ class CinematicDialogue:
         element.SelectField("female subtitle").SetStringData(self.female_subtitle)
         element.SelectField("character").SetStringData(self.character)
         
-    def from_event(self, event: NWO_CinematicEvent):
+    def from_event(self, event: NWO_CinematicEvent, actor_objects: set):
         if event.sound_tag.strip():
             self.dialogue = tag_path_from_string(event.sound_tag)
         if event.female_sound_tag.strip():
@@ -105,7 +105,9 @@ class CinematicDialogue:
             self.female_dialogue = self.dialogue
             
         self.scale = event.sound_scale
-        self.lipsync_actor = "" if event.lipsync_actor is None else event.lipsync_actor.name
+        self.lipsync_actor = ""
+        if event.lipsync_actor is not None and event.lipsync_actor in actor_objects:
+            self.lipsync_actor = event.lipsync_actor.name
         self.default_sound_effect = event.default_sound_effect
         self.subtitle = event.subtitle
         self.female_subtitle = event.female_subtitle if event.female_subtitle.strip() else self.subtitle
@@ -176,7 +178,7 @@ class CinematicEffect:
             element.SelectField("function a").SetStringData(self.function_a)
             element.SelectField("function b").SetStringData(self.function_b)
             
-    def from_event(self, event: NWO_CinematicEvent):
+    def from_event(self, event: NWO_CinematicEvent, actor_objects: set):
         self.use_maya_value = True
         if event.effect is not None:
             self.effect = tag_path_from_string(event.effect)
@@ -189,7 +191,7 @@ class CinematicEffect:
             
         if ob is not None:
             actor = utils.ultimate_armature_parent(ob)
-            if actor is not None:
+            if actor is not None and actor in actor_objects:
                 self.marker_parent = actor.name
                 
         self.function_a = event.function_a
@@ -295,7 +297,7 @@ class CinematicCustomScript:
         element.SelectField("node id").Data = self.node_id
         element.SelectField("sequence id").Data = self.sequence_id
         
-    def from_event(self, event: NWO_CinematicEvent, object_tag_weapon_names: dict):
+    def from_event(self, event: NWO_CinematicEvent, object_tag_weapon_names: dict, actor_objects: set):
         self.use_maya_value = True
         match event.script_type:
             case 'CUSTOM':
@@ -304,27 +306,27 @@ class CinematicCustomScript:
                 else:
                     self.script = event.text.as_string()
             case 'WEAPON_TRIGGER_START' | 'WEAPON_TRIGGER_STOP':
-                if event.script_object is not None:
+                if event.script_object is not None and event.script_object in actor_objects:
                     weapon_name = object_tag_weapon_names.get(utils.relative_path(event.script_object.nwo.cinematic_object))
                     if weapon_name is not None:
                         self.script = f'weapon_set_primary_barrel_firing (cinematic_weapon_get "{weapon_name}") {int(event.script_type == "WEAPON_TRIGGER_START")}'
             case 'SET_VARIANT':
-                if event.script_object is not None:
+                if event.script_object is not None and event.script_object in actor_objects:
                     self.script = f'object_set_variant (cinematic_object_get "{event.script_object.name}") {event.script_variant}'
             case 'SET_PERMUTATION':
-                if event.script_object is not None:
+                if event.script_object is not None and event.script_object in actor_objects:
                     self.script = f'object_set_permutation (cinematic_object_get "{event.script_object.name}") {event.script_region} {event.script_permutation}'
             case 'SET_REGION_STATE':
-                if event.script_object is not None:
+                if event.script_object is not None and event.script_object in actor_objects:
                     self.script = f'object_set_region_state (cinematic_object_get "{event.script_object.name}") {event.script_region} {event.script_state}'
             case 'SET_MODEL_STATE_PROPERTY':
-                if event.script_object is not None:
+                if event.script_object is not None and event.script_object in actor_objects:
                     self.script = f'object_set_model_state_property (cinematic_object_get "{event.script_object.name}") {int(event.script_state_property)} {event.script_bool}'
             case 'HIDE' | 'UNHIDE':
-                if event.script_object is not None:
+                if event.script_object is not None and event.script_object in actor_objects:
                     self.script = f'object_hide (cinematic_object_get "{event.script_object.name}") {int(event.script_type == "HIDE")}'
             case 'DESTROY':
-                if event.script_object is not None:
+                if event.script_object is not None and event.script_object in actor_objects:
                     self.script = f'object_destroy (cinematic_object_get "{event.script_object.name}")'
             case 'FADE_IN':
                 red, green, blue = event.script_color
@@ -339,10 +341,10 @@ class CinematicCustomScript:
             case 'HIDE_HUD':
                 self.script = f'chud_cinematic_fade 1 0\nchud_show_cinematics 0'
             case 'OBJECT_CANNOT_DIE' | 'OBJECT_CAN_DIE':
-                if event.script_object is not None:
+                if event.script_object is not None and event.script_object in actor_objects:
                     self.script = f'object_cannot_die (cinematic_object_get "{event.script_object.name}") {int(event.script_type == "OBJECT_CANNOT_DIE")}'
             case 'OBJECT_PROJECTILE_COLLISION_ON' | 'OBJECT_PROJECTILE_COLLISION_OFF':
-                if event.script_object is not None:
+                if event.script_object is not None and event.script_object in actor_objects:
                     # weird script function, setting this to false makes the object had projectile collision
                     self.script = f'object_cinematic_visibility (cinematic_object_get "{event.script_object.name}") {int(event.script_type == "OBJECT_PROJECTILE_COLLISION_OFF")}'
         
