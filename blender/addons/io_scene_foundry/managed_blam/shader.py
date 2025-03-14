@@ -1252,8 +1252,13 @@ class ShaderTag(Tag):
         # Clear it out
         nodes.clear()
         
-        node_albedo = self._add_group_node(tree, nodes, f"albedo - {utils.game_str(e_albedo.name)}")
-        final_node = node_albedo
+        illum_uses_diffuse = e_self_illumination in {SelfIllumination.FROM_DIFFUSE, SelfIllumination.SELF_ILLUM_TIMES_DIFFUSE}
+        has_illum = e_self_illumination != SelfIllumination.OFF
+        has_albedo = illum_uses_diffuse or not has_illum
+        
+        if has_albedo:
+            node_albedo = self._add_group_node(tree, nodes, f"albedo - {utils.game_str(e_albedo.name)}")
+            final_node = node_albedo
         
         no_material_model = e_material_model == MaterialModel.NONE
         has_bump = e_bump_mapping.value > 0 and not no_material_model
@@ -1265,23 +1270,19 @@ class ShaderTag(Tag):
             node_material_model = self._add_group_material_model(tree, nodes, utils.game_str(e_material_model.name), mm_supports_glancing_spec, e_material_model == MaterialModel.COOK_TORRANCE)
             final_node = node_material_model
         
-        if e_albedo == Albedo.FOUR_CHANGE_COLOR_APPLYING_TO_SPECULAR and mm_supports_glancing_spec:
+        if has_albedo and e_albedo == Albedo.FOUR_CHANGE_COLOR_APPLYING_TO_SPECULAR and mm_supports_glancing_spec:
             tree.links.new(input=node_material_model.inputs["glancing_specular_color"], output=node_albedo.outputs["glancing_specular_color"])
             tree.links.new(input=node_material_model.inputs["normal_specular_color"], output=node_albedo.outputs["normal_specular_color"])
         
-        if e_albedo in {Albedo.FOUR_CHANGE_COLOR, Albedo.FOUR_CHANGE_COLOR_APPLYING_TO_SPECULAR, Albedo.TWO_CHANGE_COLOR}:
+        if has_albedo and e_albedo in {Albedo.FOUR_CHANGE_COLOR, Albedo.FOUR_CHANGE_COLOR_APPLYING_TO_SPECULAR, Albedo.TWO_CHANGE_COLOR}:
             node_cc_primary = nodes.new(type="ShaderNodeAttribute")
             node_cc_primary.attribute_name = "change_color_primary"
             node_cc_primary.attribute_type = 'INSTANCER'
-            node_cc_primary.location.x = node_albedo.location.x - 300
-            node_cc_primary.location.y = node_albedo.location.y + 200
             tree.links.new(input=node_albedo.inputs["Primary Color"], output=node_cc_primary.outputs[0])
             self.game_functions.add("change_color_primary")
             node_cc_secondary = nodes.new(type="ShaderNodeAttribute")
             node_cc_secondary.attribute_name = "change_color_secondary"
             node_cc_secondary.attribute_type = 'INSTANCER'
-            node_cc_secondary.location.x = node_albedo.location.x - 300
-            node_cc_secondary.location.y = node_albedo.location.y
             tree.links.new(input=node_albedo.inputs["Secondary Color"], output=node_cc_secondary.outputs[0])
             self.game_functions.add("change_color_secondary")
 
@@ -1289,19 +1290,15 @@ class ShaderTag(Tag):
                 node_cc_tertiary = nodes.new(type="ShaderNodeAttribute")
                 node_cc_tertiary.attribute_name = "change_color_tertiary"
                 node_cc_tertiary.attribute_type = 'INSTANCER'
-                node_cc_tertiary.location.x = node_albedo.location.x - 300
-                node_cc_tertiary.location.y = node_albedo.location.y - 200
                 tree.links.new(input=node_albedo.inputs["Tertiary Color"], output=node_cc_tertiary.outputs[0])
                 self.game_functions.add("change_color_tertiary")
                 node_cc_quaternary = nodes.new(type="ShaderNodeAttribute")
                 node_cc_quaternary.attribute_name = "change_color_quaternary"
                 node_cc_quaternary.attribute_type = 'INSTANCER'
-                node_cc_quaternary.location.x = node_albedo.location.x - 300
-                node_cc_quaternary.location.y = node_albedo.location.y - 400
                 tree.links.new(input=node_albedo.inputs["Quaternary Color"], output=node_cc_quaternary.outputs[0])
                 self.game_functions.add("change_color_quaternary")
         
-        if not no_material_model:
+        if not no_material_model and has_albedo:
             tree.links.new(input=node_material_model.inputs[0], output=node_albedo.outputs[0])
             if material_model_has_alpha_input: # Diffuse only does not have alpha input
                 match e_specular_mask:
@@ -1323,8 +1320,6 @@ class ShaderTag(Tag):
                 tree.links.new(input=node_environment_mapping.inputs[1], output=node_material_model.outputs[2])
                 
             node_model_environment_add = nodes.new(type='ShaderNodeAddShader')
-            node_model_environment_add.location.x = node_environment_mapping.location.x + 300
-            node_model_environment_add.location.y = node_material_model.location.y
             tree.links.new(input=node_model_environment_add.inputs[0], output=node_material_model.outputs[0])
             tree.links.new(input=node_model_environment_add.inputs[1], output=node_environment_mapping.outputs[0])
             final_node = node_model_environment_add
@@ -1333,6 +1328,7 @@ class ShaderTag(Tag):
             
         if e_self_illumination.value > 0:
             node_self_illumination = self._add_group_node(tree, nodes, f"self_illumination - {utils.game_str(e_self_illumination.name)}")
+            final_node = node_self_illumination
             if e_self_illumination == SelfIllumination.PALETTIZED_PLASMA:
                 node_self_illumination_vector = self._add_group_node(tree, nodes, f"self_illumination - palettized_plasma - Vector")
                 end_node = utils.get_end_node(node_self_illumination)
@@ -1340,12 +1336,11 @@ class ShaderTag(Tag):
                     
             elif e_self_illumination in {SelfIllumination.FROM_DIFFUSE, SelfIllumination.SELF_ILLUM_TIMES_DIFFUSE}:
                 tree.links.new(input=node_self_illumination.inputs[0], output=node_albedo.outputs[0])
-            node_illum_add = nodes.new(type='ShaderNodeAddShader')
-            node_illum_add.location.x = node_self_illumination.location.x + 300
-            node_illum_add.location.y = final_node.location.y
-            tree.links.new(input=node_illum_add.inputs[0], output=final_node.outputs[0])
-            tree.links.new(input=node_illum_add.inputs[1], output=node_self_illumination.outputs[0])
-            final_node = node_illum_add
+            if has_albedo:
+                node_illum_add = nodes.new(type='ShaderNodeAddShader')
+                tree.links.new(input=node_illum_add.inputs[0], output=node_albedo.outputs[0])
+                tree.links.new(input=node_illum_add.inputs[1], output=node_self_illumination.outputs[0])
+                final_node = node_illum_add
             
         if e_blend_mode in {BlendMode.ADDITIVE, BlendMode.ALPHA_BLEND}:
             blender_material.surface_render_method = 'BLENDED'
@@ -1370,9 +1365,7 @@ class ShaderTag(Tag):
             
         # Make the Output
         node_output = nodes.new(type='ShaderNodeOutputMaterial')
-        node_output.location.x = final_node.location.x + 300
-        node_output.location.y = final_node.location.y
-        
+
         # Link to output
         tree.links.new(input=node_output.inputs[0], output=final_node.outputs[0])
         
