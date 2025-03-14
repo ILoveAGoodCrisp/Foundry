@@ -2465,12 +2465,12 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 "_connected_geometry_mesh_type_structure",
                 "_connected_geometry_mesh_type_default",
                 )
-                and (nwo.proxy_instance or nwo.mesh_type != "_connected_geometry_mesh_type_structure"))) or (not self.h4 and nwo.mesh_type in (
+                and nwo.mesh_type != "_connected_geometry_mesh_type_structure")) or (not self.h4 and nwo.mesh_type in (
                 "_connected_geometry_mesh_type_collision",
                 "_connected_geometry_mesh_type_physics",
                 )):
                     if not (nwo.mesh_type in ("_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_default") and mesh_nwo.render_only):
-                        if not (self.asset_type == 'model' and nwo.mesh_type == '_connected_geometry_mesh_type_default'):
+                        if not (self.asset_type == 'model' and nwo.mesh_type == '_connected_geometry_mesh_type_default') and not (self.asset_type in ('scenario', 'prefab') and nwo.mesh_type == '_connected_geometry_mesh_type_collision'):
                             row = box.row()
                             row.use_property_split = True
                             coll_mat_text = 'Collision Material'
@@ -2994,6 +2994,13 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                         col.prop(event, "script_bool", text="On")
                     case 'HIDE' | 'UNHIDE' | 'DESTROY' | 'OBJECT_CANNOT_DIE' | 'OBJECT_CAN_DIE' | 'OBJECT_PROJECTILE_COLLISION_ON' | 'OBJECT_PROJECTILE_COLLISION_OFF':
                         col.prop(event, "script_object", text="Object")
+                    case 'DAMAGE_OBJECT':
+                        col.prop(event, "script_object", text="Object")
+                        row = col.row()
+                        row.prop(event, "script_region", text="Region")
+                        if get_item_available:
+                            row.operator_menu_enum("nwo.get_cinematic_region", "item", icon="DOWNARROW_HLT", text="")
+                        col.prop(event, "script_damage", text="Damage")
                     case 'FADE_IN' | 'FADE_OUT':
                         col.prop(event, "script_color", text="Color")
                         col.prop(event, "script_seconds", text="Seconds")

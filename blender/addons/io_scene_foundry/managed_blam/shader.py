@@ -242,6 +242,9 @@ class AnimatedParameter:
         self.range_max = 1
         self.clamp_min = 0
         self.clamp_max = 1
+        self.is_exclusion = False
+        self.exclusion_min = 0
+        self.exclusion_max = 0
         self.colors = [tuple((1, 1, 1)), tuple((1, 1, 1)), tuple((1, 1, 1)), tuple((1, 1, 1))]
         self.control_points = []
     
@@ -255,35 +258,40 @@ class AnimatedParameter:
         self.color_type = FunctionEditorColorGraphType(editor.ColorGraphType.value__)
         self.is_color = self.color_type != FunctionEditorColorGraphType.Scalar
         self.color_count = editor.ColorCount
+        
+        self.is_exclusion = editor.IsExclusion
+        self.exclusion_min = editor.ExclusionMin
+        self.exclusion_max = editor.ExclusionMax
+        
         match self.master_type:
             case FunctionEditorMasterType.Periodic:
-                self.input_periodic_function = editor.GetPeriodicFunctionText(0)
+                self.input_periodic_function = editor.GetPeriodicFunctionText(editor.GetFunctionIndex(0))
                 self.input_frequency = editor.GetFrequency(0)
                 self.input_phase = editor.GetPhase(0)
                 self.input_min = editor.GetAmplitudeMin(0)
-                self.input_max = editor.GetAmplitudeMin(0)
+                self.input_max = editor.GetAmplitudeMax(0)
                 if self.is_ranged:
-                    self.range_periodic_function = editor.GetPeriodicFunctionText(1)
+                    self.range_periodic_function = editor.GetPeriodicFunctionText(editor.GetFunctionIndex(1))
                     self.range_frequency = editor.GetFrequency(1)
                     self.range_phase = editor.GetPhase(1)
                     self.range_min = editor.GetAmplitudeMin(1)
-                    self.range_max = editor.GetAmplitudeMin(1)
+                    self.range_max = editor.GetAmplitudeMax(1)
             case FunctionEditorMasterType.Exponent:
                 self.input_exponent = editor.GetExponent(0)
                 self.input_min = editor.GetAmplitudeMin(0)
-                self.input_max = editor.GetAmplitudeMin(0)
+                self.input_max = editor.GetAmplitudeMax(0)
                 if self.is_ranged:
                     self.range_exponent = editor.GetExponent(1)
                     self.range_min = editor.GetAmplitudeMin(1)
-                    self.range_max = editor.GetAmplitudeMin(1)
+                    self.range_max = editor.GetAmplitudeMax(1)
             case FunctionEditorMasterType.Transition:
-                self.input_transition_function = editor.GetTransitionFunctionText(0)
+                self.input_transition_function = editor.GetTransitionFunctionText(editor.GetFunctionIndex(0))
                 self.input_min = editor.GetAmplitudeMin(0)
-                self.input_max = editor.GetAmplitudeMin(0)
+                self.input_max = editor.GetAmplitudeMax(0)
                 if self.is_ranged:
-                    self.input_transition_function = editor.GetTransitionFunctionText(1)
+                    self.range_transition_function = editor.GetTransitionFunctionText(editor.GetFunctionIndex(1))
                     self.range_min = editor.GetAmplitudeMin(1)
-                    self.range_max = editor.GetAmplitudeMin(1)
+                    self.range_max = editor.GetAmplitudeMax(1)
             case FunctionEditorMasterType.Curve:
                 pass
                 # Loop segments
@@ -1436,6 +1444,10 @@ class ShaderTag(Tag):
             else:
                 tree.links.new(input=function_node.inputs[0], output=clamp_node.outputs[0])
                 first_node_input = clamp_node
+                
+        if data.master_type != FunctionEditorMasterType.Basic and data.is_exclusion:
+            exclusion_node = tree.nodes.new('ShaderNodeGroup')
+            periodic_node.node_tree = utils.add_node_from_resources("shared_nodes", "Exclusion")
         
         match data.master_type:
             case FunctionEditorMasterType.Curve:

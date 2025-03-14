@@ -347,6 +347,9 @@ class CinematicCustomScript:
                 if event.script_object is not None and event.script_object in actor_objects:
                     # weird script function, setting this to false makes the object had projectile collision
                     self.script = f'object_cinematic_visibility (cinematic_object_get "{event.script_object.name}") {int(event.script_type == "OBJECT_PROJECTILE_COLLISION_OFF")}'
+            case 'DAMAGE_OBJECT':
+                if event.script_object is not None and event.script_object in actor_objects:
+                    self.script = f'damage_object (cinematic_object_get "{event.script_object.name}") {event.script_region} {event.script_damage}'
         
 class CinematicUserInputConstraints:
     def __init__(self):

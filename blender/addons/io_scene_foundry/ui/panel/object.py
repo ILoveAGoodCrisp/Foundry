@@ -406,6 +406,7 @@ class NWO_OT_FaceLayerAdd(bpy.types.Operator):
     bl_idname = "nwo.face_layer_add"
     bl_label = "Add Face Layer"
     bl_options = {'REGISTER', 'UNDO'}
+    bl_description = "Add a new face layer"
 
     @classmethod
     def poll(cls, context):

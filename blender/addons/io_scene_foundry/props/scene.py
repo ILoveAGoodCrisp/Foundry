@@ -10,7 +10,7 @@ from ..managed_blam.scenario import ScenarioTag
 from ..icons import get_icon_id
 from .. import utils
 
-script_object_types = ('WEAPON_TRIGGER_START', 'WEAPON_TRIGGER_STOP', 'SET_VARIANT', 'SET_PERMUTATION', 'SET_REGION_STATE', 'SET_MODEL_STATE_PROPERTY', 'HIDE', 'UNHIDE', 'DESTROY', 'OBJECT_CANNOT_DIE', 'OBJECT_CAN_DIE', 'OBJECT_PROJECTILE_COLLISION_ON', 'OBJECT_PROJECTILE_COLLISION_OFF')
+script_object_types = ('WEAPON_TRIGGER_START', 'WEAPON_TRIGGER_STOP', 'SET_VARIANT', 'SET_PERMUTATION', 'SET_REGION_STATE', 'SET_MODEL_STATE_PROPERTY', 'HIDE', 'UNHIDE', 'DESTROY', 'OBJECT_CANNOT_DIE', 'OBJECT_CAN_DIE', 'OBJECT_PROJECTILE_COLLISION_ON', 'OBJECT_PROJECTILE_COLLISION_OFF', 'DAMAGE_OBJECT')
 
 
 def poll_armature(self, object: bpy.types.Object):
@@ -1126,6 +1126,8 @@ class NWO_CinematicEvent(PropertyGroup):
                                     return f"{self.script_type.lower()} -> {self.script_object.name} -> {self.script_region} {self.script_state}"
                                 case 'SET_MODEL_STATE_PROPERTY':
                                     return f"{self.script_type.lower()} -> {self.script_object.name} -> {self.script_state_property} {'on' if self.script_bool else 'off'}"
+                                case 'DAMAGE_OBJECT':
+                                    return f"{self.script_type.lower()} -> {self.script_object.name} -> {self.script_region} -> {round(self.script_damage, 2)}"
                                 case _:
                                     return f"{self.script_type.lower()} -> {self.script_object.name}"
                     else:
@@ -1281,6 +1283,7 @@ class NWO_CinematicEvent(PropertyGroup):
             ('OBJECT_CAN_DIE', "Make Object Mortal", ""),
             ('OBJECT_PROJECTILE_COLLISION_ON', "Projectiles Collide With Object", ""),
             ('OBJECT_PROJECTILE_COLLISION_OFF', "Projectiles Pass Through Object", ""),
+            ('DAMAGE_OBJECT', "Damage Object", ""),
         ]
     )
     
@@ -1335,19 +1338,16 @@ class NWO_CinematicEvent(PropertyGroup):
     script_seconds: bpy.props.FloatProperty( # converted to ticks with seconds * 30 for scripts
         name="Script Argument Seconds",
         options=set(),
+        default=1,
+        min=0,
+    )
+    script_damage: bpy.props.FloatProperty(
+        name="Script Damage",
+        default=50,
+        options=set(),
     )
     
     script_bool: bpy.props.BoolProperty(options=set(),)
-    
-    def script_dynamic_enum_items(self, context):
-        items = []
-        return items
-    
-    script_dynamic_enum: bpy.props.EnumProperty(
-        name="Script Enum",
-        items=script_dynamic_enum_items,
-    )
-    
 
 class NWO_ScenePropertiesGroup(PropertyGroup):
     # CINEMATIC EVENTS
