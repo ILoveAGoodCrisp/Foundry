@@ -661,14 +661,11 @@ class ShaderTag(Tag):
     def to_nodes(self, blender_material, always_extract_bitmaps=False):
         self.game_functions = set()
         self.always_extract_bitmaps = always_extract_bitmaps
-        self.vector_inputs = []
         self._get_info(self.reference_material_shader.Path if self.corinth else self.definition.Path)
         if self.group_supported:
             self._to_nodes_group(blender_material)
         else:
             self._to_nodes_bsdf(blender_material)
-            
-        self._set_tiling_vectors(blender_material)
             
     def _option_value_from_index(self, index):
         option_enum = self.block_options.Elements[index].Fields[0].Data
@@ -1038,7 +1035,7 @@ class ShaderTag(Tag):
             with BitmapTag(path=bitmap_path) as bitmap:
                 return bitmap.get_granny_data(fill_alpha, calc_blue)
             
-    def _tiling_from_animated_parameters(self, tree: bpy.types.NodeTree, parameter: OptionParameter):
+    def _tiling_from_animated_parameters(self, tree: bpy.types.NodeTree, parameter: OptionParameter, needs_texcoord_node=True):
         animated_parameters = {}
 
         if not self.corinth and self.reference.Path:
@@ -1059,7 +1056,8 @@ class ShaderTag(Tag):
         if animated_parameters:
             tiling_node = tree.nodes.new('ShaderNodeGroup')
             tiling_node.node_tree = utils.add_node_from_resources("shared_nodes", 'Texture Tiling')
-            self.vector_inputs.append(tiling_node.inputs["Vector"])
+            if needs_texcoord_node:
+                self.add_texcoord_node(tree, tiling_node.inputs["Vector"])
             for value_type, ap in animated_parameters.items():
                 self._setup_input_with_function(tiling_node.inputs[TilingNodeInputs[value_type.name].value], ap)
             return tiling_node
@@ -1117,15 +1115,15 @@ class ShaderTag(Tag):
                 case ChannelType.ALPHA:
                     tree.links.new(input=node.inputs[specified_input], output=data_node.outputs[1])
         
-        tiling_node = self._tiling_from_animated_parameters(tree, parameter)
+        tiling_node = self._tiling_from_animated_parameters(tree, parameter, not plate_info)
         if tiling_node is not None:
             if plate_info:
                 tree.links.new(input=plate_node.inputs[0], output=tiling_node.outputs[0])
             else:
                 tree.links.new(input=data_node.inputs[0], output=tiling_node.outputs[0])
         elif plate_info:
-            self.vector_inputs.append(plate_node.inputs[0])
             self._setup_input_with_function(plate_node.inputs["Image Index"], self._value_from_parameter(parameter, AnimatedParameterType.FRAME_INDEX))
+            self.add_texcoord_node(tree, plate_node.inputs[0])
         
         return data_node
     
@@ -1189,17 +1187,10 @@ class ShaderTag(Tag):
 
         return node_material_model
     
-    def _set_tiling_vectors(self, blender_material):
-        inputs_in_need = [i for i in self.vector_inputs if not i.is_linked]
-        if not inputs_in_need:
-            return
-        
-        tree = blender_material.node_tree
+    def add_texcoord_node(self, tree, input):
         nodes = tree.nodes
         node = nodes.new(type="ShaderNodeTexCoord")
-
-        for input in inputs_in_need:
-            tree.links.new(input=input, output=node.outputs[2])
+        tree.links.new(input=input, output=node.outputs[2])
     
     def _to_nodes_group(self, blender_material: bpy.types.Material):
         # Get options
@@ -1354,7 +1345,7 @@ class ShaderTag(Tag):
                     tree.links.new(input=node_blend_mode.inputs[1], output=node_alpha_blend_source.outputs[0])
                     if has_bump:
                         tree.links.new(input=node_alpha_blend_source.inputs["Normal"], output=node_bump_mapping.outputs[0])
-                else:
+                elif has_albedo:
                     tree.links.new(input=node_blend_mode.inputs[1], output=node_albedo.outputs[1])
             
         if e_alpha_test.value > 0:
