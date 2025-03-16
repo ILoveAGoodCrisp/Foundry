@@ -30,7 +30,8 @@ from ..tools.clear_duplicate_materials import clear_duplicate_materials
 from ..tools.property_apply import apply_props_material
 from ..tools.shader_finder import find_shaders
 from ..tools.shader_reader import tag_to_nodes
-from ..constants import IDENTITY_MATRIX, VALID_MESHES, game_functions
+from ..constants import VALID_MESHES
+from ..managed_blam.connected_material import game_functions
 from .. import utils
 
 pose_hints = 'aim', 'look', 'acc', 'steer', 'pain'
@@ -80,10 +81,52 @@ object_tag_types = (
 
 tag_files_cache = set()
 
-def add_function(name: str, ob: bpy.types.Object):
-    function = game_functions.get(name)
-    if function is not None:
-        function.setup(ob)
+def add_function(scene: bpy.types.Scene, name: str, ob: bpy.types.Object, armature: bpy.types.Object=None):
+    func = game_functions.get(name)
+    has_armature = armature is not None
+    needs_id_prop = False
+    id = None
+    if func is None:
+        if has_armature:
+            id = armature
+            needs_id_prop = armature.get(name) is None
+        if needs_id_prop:
+            id[name] = 0.0
+            id.id_properties_ui(name).update(min=0, max=1, subtype='FACTOR')
+        ob[name] = 0.0
+        ob.id_properties_ui(name).update(min=0, max=1, subtype='FACTOR')
+    else:
+        value_is_bool = isinstance(func.default_value, bool)
+        value_comes_from_scene = func.attribute_type == 'VIEW_LAYER'
+        if value_comes_from_scene:
+            id = scene
+            needs_id_prop = scene.get(name) is None
+        elif has_armature:
+            id = armature
+            needs_id_prop = armature.get(name) is None
+        
+        if value_is_bool:
+            if needs_id_prop:
+                id[name] = func.default_value
+            ob[name] = func.default_value
+        else:
+            if needs_id_prop:
+                id[name] = float(func.default_value)
+                id.id_properties_ui(name).update(min=0, max=1, subtype='FACTOR')
+            ob[name] = float(func.default_value)
+            ob.id_properties_ui(name).update(min=0, max=1, subtype='FACTOR')
+    
+    if id is not None:
+        result = ob.driver_add(f'["{name}"]')
+        driver = result.driver
+        driver.type = 'SCRIPTED'
+        var = driver.variables.new()
+        var.name = "var"
+        var.type = 'SINGLE_PROP'
+        var.targets[0].id = id
+        var.targets[0].data_path = f'["{name}"]'
+        driver.expression = var.name
+        
 
 class State(Enum):
     all_states = -1
@@ -387,6 +430,7 @@ class NWO_Import(bpy.types.Operator):
         start = time.perf_counter()
         imported_objects = []
         imported_actions = []
+        armature = None
         starting_materials = bpy.data.materials[:]
         for_cinematic = context.scene.nwo.asset_type == 'cinematic'
         self.anchor = None
@@ -556,7 +600,7 @@ class NWO_Import(bpy.types.Operator):
                             good_to_go = False
                         full_render_path = Path(utils.get_tags_path(), utils.relative_path(render_model))
                         if not full_render_path.exists():
-                            utils.print_warning(f"Armature [{armature.name}] has invalid render model set (it does not exist) [{full_render_path}]")
+                            utils.print_warning(f"Armature [{existing_armature.name}] has invalid render model set (it does not exist) [{full_render_path}]")
                             good_to_go = False
                         
                         if good_to_go:
@@ -660,7 +704,7 @@ class NWO_Import(bpy.types.Operator):
                                 functions = mat_function_map.get(slot.material)
                                 if functions is not None:
                                     for func in functions:
-                                        add_function(func, ob)
+                                        add_function(context.scene, func, ob, ob.parent)
                         
                 if 'bitmap' in importer.extensions:
                     bitmap_files = importer.sorted_filepaths["bitmap"]
@@ -1226,6 +1270,8 @@ class NWOImporter:
                     has_change_colors = change_colors is not None
                     magazine_size = obj.get_magazine_size()
                     has_ammo = magazine_size > 0
+                    functions = obj.functions_to_blender()
+                    prop_names = []
                     with utils.TagImportMover(self.project.tags_directory, model_path) as model_mover:
                         with ModelTag(path=model_mover.tag_path, raise_on_error=False) as model:
                             if not model.valid: continue
@@ -1245,13 +1291,12 @@ class NWOImporter:
                             allowed_region_permutations = model.get_variant_regions_and_permutations(temp_variant, self.tag_state)
                             model_collection = bpy.data.collections.new(model.tag_path.ShortName)
                             self.context.scene.collection.children.link(model_collection)
-                            prop_names = []
                             
                             if has_change_colors:
-                                prop_names.extend(["change_color_primary", "change_color_secondary", "change_color_tertiary", "change_color_quaternary"])
+                                prop_names.extend(["Primary Color", "Secondary Color", "Tertiary Color", "Quaternary Color"])
                             
                             if has_ammo:
-                                prop_names.append("ammo")
+                                prop_names.append("Ammo")
                                 
                             # possible compas driver = abs(var/pi / (2*pi))
                             if render:
@@ -1260,18 +1305,22 @@ class NWOImporter:
                                 for ob in render_objects:
                                     if ob.type != 'EMPTY':
                                         if has_change_colors:
-                                            ob["change_color_primary"] = change_colors[0]
-                                            ob["change_color_secondary"] = change_colors[1]
-                                            ob["change_color_tertiary"] = change_colors[2]
-                                            ob["change_color_quaternary"] = change_colors[3]
-                                            ob.id_properties_ui("change_color_primary").update(subtype="COLOR", min=0, max=1)
-                                            ob.id_properties_ui("change_color_secondary").update(subtype="COLOR", min=0, max=1)
-                                            ob.id_properties_ui("change_color_tertiary").update(subtype="COLOR", min=0, max=1)
-                                            ob.id_properties_ui("change_color_quaternary").update(subtype="COLOR", min=0, max=1)
+                                            ob["Primary Color"] = change_colors[0]
+                                            ob["Secondary Color"] = change_colors[1]
+                                            ob["Tertiary Color"] = change_colors[2]
+                                            ob["Quaternary Color"] = change_colors[3]
+                                            ob.id_properties_ui("Primary Color").update(subtype="COLOR", min=0, max=1)
+                                            ob.id_properties_ui("Secondary Color").update(subtype="COLOR", min=0, max=1)
+                                            ob.id_properties_ui("Tertiary Color").update(subtype="COLOR", min=0, max=1)
+                                            ob.id_properties_ui("Quaternary Color").update(subtype="COLOR", min=0, max=1)
                                         if has_ammo:
-                                            ob["ammo"] = magazine_size
-                                            ob.id_properties_ui("ammo").update(min=0, max=999)
-                                        
+                                            ob["Ammo"] = magazine_size
+                                            ob.id_properties_ui("Ammo").update(min=0, max=int('9' * len(str(magazine_size))))
+                                            
+                                        if ob.type == 'MESH':
+                                            for function_name in functions:
+                                                add_function(self.context.scene, function_name, ob, armature)
+                                            
                                     if ob.type == 'ARMATURE':
                                         self.to_cursor_objects.add(ob)
                                         ob.nwo.cinematic_object = obj.tag_path.RelativePathWithExtension
@@ -1353,7 +1402,7 @@ class NWOImporter:
                 prop_names = []
                 
                 if has_change_colors:
-                    prop_names.extend(["change_color_primary", "change_color_secondary", "change_color_tertiary", "change_color_quaternary"])
+                    prop_names.extend(["Primary Color", "Secondary Color", "Tertiary Color", "Quaternary Color"])
                 
                 if has_ammo:
                     prop_names.append("ammo")
@@ -1364,14 +1413,14 @@ class NWOImporter:
                     for ob in render_objects:
                         if ob.type != 'EMPTY':
                             if has_change_colors:
-                                ob["change_color_primary"] = change_colors[0]
-                                ob["change_color_secondary"] = change_colors[1]
-                                ob["change_color_tertiary"] = change_colors[2]
-                                ob["change_color_quaternary"] = change_colors[3]
-                                ob.id_properties_ui("change_color_primary").update(subtype="COLOR", min=0, max=1)
-                                ob.id_properties_ui("change_color_secondary").update(subtype="COLOR", min=0, max=1)
-                                ob.id_properties_ui("change_color_tertiary").update(subtype="COLOR", min=0, max=1)
-                                ob.id_properties_ui("change_color_quaternary").update(subtype="COLOR", min=0, max=1)
+                                ob["Primary Color"] = change_colors[0]
+                                ob["Secondary Color"] = change_colors[1]
+                                ob["Tertiary Color"] = change_colors[2]
+                                ob["Quaternary Color"] = change_colors[3]
+                                ob.id_properties_ui("Primary Color").update(subtype="COLOR", min=0, max=1)
+                                ob.id_properties_ui("Secondary Color").update(subtype="COLOR", min=0, max=1)
+                                ob.id_properties_ui("Tertiary Color").update(subtype="COLOR", min=0, max=1)
+                                ob.id_properties_ui("Quaternary Color").update(subtype="COLOR", min=0, max=1)
                             if has_ammo:
                                 ob["ammo"] = magazine_size
                                 ob.id_properties_ui("ammo").update(min=0, max=999)

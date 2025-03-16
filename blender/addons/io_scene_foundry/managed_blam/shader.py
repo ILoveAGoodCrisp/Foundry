@@ -4,6 +4,8 @@ from enum import Enum
 from pathlib import Path
 from mathutils import Vector
 
+from .connected_material import Function, AnimatedParameterType, FunctionEditorColorGraphType, FunctionEditorMasterType, TilingNodeInputs
+
 from .render_method_option import OptionParameter
 
 from ..constants import NormalType
@@ -19,8 +21,6 @@ from ..managed_blam.render_method_definition import RenderMethodDefinitionTag
 
 global_render_method_definition = None
 last_group_node = None
-
-ammo_names = "primary_ammunition_ones", "primary_ammunition_tens", "primary_ammunition_hundreds"
 
 class ChannelType(Enum):
     DEFAULT = 0
@@ -123,212 +123,6 @@ class AlphaBlendSource(Enum):
     FROM_OPACITY_MAP_ALPHA = 2
     FROM_OPACITY_MAP_RGB = 3
     FROM_OPACITY_MAP_ALPHA_AND_ALBEDO_ALPHA = 4
-    
-class FunctionEditorColorGraphType(Enum):
-    Scalar = 0
-    OneColor = 1
-    TwoColor = 2
-    ThreeColor = 3
-    FourColor = 4
-    
-class FunctionEditorMasterType(Enum):
-    Basic = 0
-    Curve = 1
-    Periodic = 2
-    Exponent = 3
-    Transition = 4
-    
-class FunctionEditorSegmentCornerType(Enum):
-    NotApplicable = 0
-    Corner = 1
-    Smooth = 2
-    
-class FunctionEditorSegmentType(Enum):
-    Linear = 0
-    Spline = 1
-    Spline2 = 2
-    
-# class FunctionEditorPeriodicType(Enum):
-#     One = 0
-#     Zero = 1
-#     Cosine = 2
-#     CosineVariable = 3
-#     DiagonalWave = 4
-#     DiagonalWaveVariable = 5
-#     Slide = 6
-#     SlideVariable = 7
-#     Noise = 8
-#     Jitter = 9
-#     Wander = 10
-#     Spark = 11
-    
-# class FunctionEditorTransitionType(Enum):
-#     Linear = 0
-#     Early = 1
-#     VeryEarly = 2
-#     Late = 3
-#     VeryLate = 4
-#     Cosine = 5
-#     One = 6
-#     Zero = 7
-    
-class AnimatedParameterType(Enum):
-    VALUE = 0
-    COLOR = 1
-    SCALE_UNIFORM = 2
-    SCALE_X = 3
-    SCALE_Y = 4
-    TRANSLATION_X = 5
-    TRANSLATION_Y = 6
-    FRAME_INDEX = 7
-    ALPHA = 8
-    
-class TilingNodeInputs(Enum):
-    TRANSLATION_X = 0
-    TRANSLATION_Y = 1
-    SCALE_UNIFORM = 2
-    SCALE_X = 3
-    SCALE_Y = 4
-    
-class ControlPoint:
-    def __init__(self, graph_index, point_index):
-        self.graph_index = graph_index
-        self.point_index = point_index
-        self.x = 0
-        self.y = 0
-        self.corner_type = FunctionEditorSegmentCornerType.NotApplicable
-        self.segment = None
-        
-    def from_editor(self, editor, last_point_index):
-        game_point_2d = editor.GetControlPoint(self.graph_index, self.point_index)
-        self.x = game_point_2d.X
-        self.y = game_point_2d.Y
-        if self.point_index > 0 and self.point_index < last_point_index:
-            print(self.point_index)
-            self.corner_type = FunctionEditorSegmentCornerType[editor.GetControlPointCornerType(self.graph_index, self.point_index).ToString()]
-        
-class Segment:
-    def __init__(self, graph_index, segment_index):
-        self.graph_index = graph_index
-        self.segment_index = segment_index
-        self.type = FunctionEditorSegmentType.Linear
-        
-    def from_editor(self, editor):
-        self.type = FunctionEditorSegmentType[editor.GetSegmentType(self.graph_index, self.segment_index).ToString()]
-    
-class AnimatedParameter:
-    def __init__(self):
-        self.time_period = 0.0
-        self.input = ""
-        self.range = ""
-        self.is_ranged = False
-        self.master_type = FunctionEditorMasterType.Basic
-        self.is_color = False
-        self.color_type = FunctionEditorColorGraphType.Scalar
-        self.color_count = 1
-        self.input_periodic_function = "one"
-        self.range_periodic_function = "one"
-        self.input_transition_function = "linear"
-        self.range_transition_function = "linear"
-        self.input_frequency = 0
-        self.range_frequency = 0
-        self.input_phase = 0
-        self.range_phase = 0
-        self.input_exponent = 5
-        self.range_exponent = 5
-        self.input_min = 0
-        self.input_max = 1
-        self.range_min = 0
-        self.range_max = 1
-        self.clamp_min = 0
-        self.clamp_max = 1
-        self.is_exclusion = False
-        self.exclusion_min = 0
-        self.exclusion_max = 0
-        self.colors = [tuple((1, 1, 1)), tuple((1, 1, 1)), tuple((1, 1, 1)), tuple((1, 1, 1))]
-        self.control_points = []
-    
-    def from_element(self, element: TagFieldBlockElement, animated_name: str):
-        self.time_period = element.SelectField("time period").Data
-        self.input = element.SelectField("input name").GetStringData()
-        self.range = element.SelectField("range name").GetStringData()
-        editor = element.SelectField(animated_name).Value
-        self.is_ranged = editor.IsRanged
-        self.master_type = FunctionEditorMasterType(editor.MasterType.value__)
-        self.color_type = FunctionEditorColorGraphType(editor.ColorGraphType.value__)
-        self.is_color = self.color_type != FunctionEditorColorGraphType.Scalar
-        self.color_count = editor.ColorCount
-        
-        self.is_exclusion = editor.IsExclusion
-        self.exclusion_min = editor.ExclusionMin
-        self.exclusion_max = editor.ExclusionMax
-        
-        match self.master_type:
-            case FunctionEditorMasterType.Periodic:
-                self.input_periodic_function = editor.GetPeriodicFunctionText(editor.GetFunctionIndex(0))
-                self.input_frequency = editor.GetFrequency(0)
-                self.input_phase = editor.GetPhase(0)
-                self.input_min = editor.GetAmplitudeMin(0)
-                self.input_max = editor.GetAmplitudeMax(0)
-                if self.is_ranged:
-                    self.range_periodic_function = editor.GetPeriodicFunctionText(editor.GetFunctionIndex(1))
-                    self.range_frequency = editor.GetFrequency(1)
-                    self.range_phase = editor.GetPhase(1)
-                    self.range_min = editor.GetAmplitudeMin(1)
-                    self.range_max = editor.GetAmplitudeMax(1)
-            case FunctionEditorMasterType.Exponent:
-                self.input_exponent = editor.GetExponent(0)
-                self.input_min = editor.GetAmplitudeMin(0)
-                self.input_max = editor.GetAmplitudeMax(0)
-                if self.is_ranged:
-                    self.range_exponent = editor.GetExponent(1)
-                    self.range_min = editor.GetAmplitudeMin(1)
-                    self.range_max = editor.GetAmplitudeMax(1)
-            case FunctionEditorMasterType.Transition:
-                self.input_transition_function = editor.GetTransitionFunctionText(editor.GetFunctionIndex(0))
-                self.input_min = editor.GetAmplitudeMin(0)
-                self.input_max = editor.GetAmplitudeMax(0)
-                if self.is_ranged:
-                    self.range_transition_function = editor.GetTransitionFunctionText(editor.GetFunctionIndex(1))
-                    self.range_min = editor.GetAmplitudeMin(1)
-                    self.range_max = editor.GetAmplitudeMax(1)
-            case FunctionEditorMasterType.Curve:
-                pass
-                # Loop segments
-                # Get segment type, if spline then each CP on segment has a handle (another CP)
-                
-                
-                # input_control_count = editor.GetControlPointCount(0)
-                # segment_count = editor.GetSegmentCount(0)
-                # last_control_index = input_control_count - 1
-                # for i in range(input_control_count):
-                #     control_point = ControlPoint(0, i)
-                #     control_point.from_editor(editor, segment_count)
-                #     if i < segment_count:
-                #         segment = Segment(0, i)
-                #         segment.from_editor(editor)
-                #         control_point.segment = segment
-                #     self.control_points.append(control_point)
-                    
-        if self.is_color:
-            for i in range(self.color_count):
-                game_color = editor.GetColor(i)
-                if game_color.ColorMode == 1:
-                    game_color = game_color.ToRgb()
-                
-                self.colors[i] = game_color.Red, game_color.Green, game_color.Blue, game_color.Alpha
-        else:
-            self.clamp_min = editor.ClampRangeMin
-            self.clamp_max = editor.ClampRangeMax
-            
-    
-    def to_element(self, element: TagFieldBlockElement):
-        element.SelectField("time period").Data = self.time_period
-        editor = element.SelectField(self.animated_function).Value
-        editor.BeginUpdate()
-        # Do stuff
-        editor.EndUpdate()
-        
 
 class ShaderTag(Tag):
     tag_ext = 'shader'
@@ -659,8 +453,8 @@ class ShaderTag(Tag):
             
     # READING
     def to_nodes(self, blender_material, always_extract_bitmaps=False):
-        self.game_functions = set()
         self.always_extract_bitmaps = always_extract_bitmaps
+        self.game_functions = set()
         self._get_info(self.reference_material_shader.Path if self.corinth else self.definition.Path)
         if self.group_supported:
             self._to_nodes_group(blender_material)
@@ -695,7 +489,7 @@ class ShaderTag(Tag):
     #         block_animated_parameters = element.SelectField(self.function_parameters)
     #         for e in block_animated_parameters.Elements:
     #             ap_type = AnimatedParameterType(e.Fields[0].Value)
-    #             ap = AnimatedParameter()
+    #             ap = Function()
     #             ap.from_element(e, self.animated_function)
     #             mapping[ap_type] = ap
                     
@@ -851,7 +645,6 @@ class ShaderTag(Tag):
             # Check if this image is a plate
             plate_dir = Path(image_path).with_suffix("")
             if plate_dir.exists() and plate_dir.is_dir():
-                print(plate_dir)
                 plate_info = []
                 tifs = list(plate_dir.iterdir())
                 plate_info.append(len(tifs))
@@ -907,9 +700,9 @@ class ShaderTag(Tag):
         for element in element.SelectField(self.function_parameters).Elements:
             if element.Fields[0].Value != value_type.value:
                 continue
-            ap = AnimatedParameter()
-            ap.from_element(element, self.animated_function)
-            return ap
+            func = Function()
+            func.from_element(element, self.animated_function)
+            return func
 
         if not self.corinth and self.reference.Path:
             with ShaderTag(path=self.reference.Path) as shader:
@@ -1047,11 +840,11 @@ class ShaderTag(Tag):
                 for element in element.SelectField(self.function_parameters).Elements:
                     value_type = AnimatedParameterType(element.Fields[0].Value)
                     if value_type in {AnimatedParameterType.SCALE_UNIFORM, AnimatedParameterType.SCALE_X, AnimatedParameterType.SCALE_Y, AnimatedParameterType.TRANSLATION_X, AnimatedParameterType.TRANSLATION_Y}:
-                        ap = AnimatedParameter()
-                        ap.from_element(element, self.animated_function)
+                        func = Function()
+                        func.from_element(element, self.animated_function)
                         # if value_type == AnimatedParameterType.TRANSLATION_Y and ap.clamp_min != 0:
                         #     ap.clamp_min = -3.669 * ap.clamp_min -33.125
-                        animated_parameters[value_type] = ap
+                        animated_parameters[value_type] = func
         
         if animated_parameters:
             tiling_node = tree.nodes.new('ShaderNodeGroup')
@@ -1068,9 +861,9 @@ class ShaderTag(Tag):
                 for element in element.SelectField(self.function_parameters).Elements:
                     value_type = AnimatedParameterType(element.Fields[0].Value)
                     if value_type in {AnimatedParameterType.SCALE_UNIFORM, AnimatedParameterType.SCALE_X, AnimatedParameterType.SCALE_Y, AnimatedParameterType.TRANSLATION_X, AnimatedParameterType.TRANSLATION_Y}:
-                        ap = AnimatedParameter()
-                        ap.from_element(element, self.animated_function)
-                        animated_parameters[value_type] = ap
+                        func = Function()
+                        func.from_element(element, self.animated_function)
+                        animated_parameters[value_type] = func
                     
         if not self.corinth and self.reference.Path:
             with ShaderTag(path=self.reference.Path) as shader:
@@ -1122,18 +915,19 @@ class ShaderTag(Tag):
             else:
                 tree.links.new(input=data_node.inputs[0], output=tiling_node.outputs[0])
         elif plate_info:
+            value = self._value_from_parameter(parameter, AnimatedParameterType.FRAME_INDEX)
             self._setup_input_with_function(plate_node.inputs["Image Index"], self._value_from_parameter(parameter, AnimatedParameterType.FRAME_INDEX))
             self.add_texcoord_node(tree, plate_node.inputs[0])
         
         return data_node
     
-    def _set_input_from_animated_parameter(self, tree: bpy.types.NodeTree, input, ap: AnimatedParameter):
-        match ap.master_type:
+    def _set_input_from_animated_parameter(self, tree: bpy.types.NodeTree, input, func: Function):
+        match func.master_type:
             case FunctionEditorMasterType.Basic:
-                if ap.color_type != FunctionEditorColorGraphType.Scalar:
-                    input.default_value = ap.colors[0]
+                if func.color_type != FunctionEditorColorGraphType.Scalar:
+                    input.default_value = func.colors[0]
                 else:
-                    input.default_value = ap.input_min
+                    input.default_value = func.input_min
             case FunctionEditorMasterType.Curve:
                 # I'm scared
                 pass
@@ -1245,7 +1039,7 @@ class ShaderTag(Tag):
         
         illum_uses_diffuse = e_self_illumination in {SelfIllumination.FROM_DIFFUSE, SelfIllumination.SELF_ILLUM_TIMES_DIFFUSE}
         has_illum = e_self_illumination != SelfIllumination.OFF
-        has_albedo = illum_uses_diffuse or not has_illum
+        has_albedo = not (e_albedo == Albedo.CONSTANT_COLOR and has_illum and not illum_uses_diffuse)
         
         if has_albedo:
             node_albedo = self._add_group_node(tree, nodes, f"albedo - {utils.game_str(e_albedo.name)}")
@@ -1267,27 +1061,23 @@ class ShaderTag(Tag):
         
         if has_albedo and e_albedo in {Albedo.FOUR_CHANGE_COLOR, Albedo.FOUR_CHANGE_COLOR_APPLYING_TO_SPECULAR, Albedo.TWO_CHANGE_COLOR}:
             node_cc_primary = nodes.new(type="ShaderNodeAttribute")
-            node_cc_primary.attribute_name = "change_color_primary"
+            node_cc_primary.attribute_name = "Primary Color"
             node_cc_primary.attribute_type = 'INSTANCER'
             tree.links.new(input=node_albedo.inputs["Primary Color"], output=node_cc_primary.outputs[0])
-            self.game_functions.add("change_color_primary")
             node_cc_secondary = nodes.new(type="ShaderNodeAttribute")
-            node_cc_secondary.attribute_name = "change_color_secondary"
+            node_cc_secondary.attribute_name = "Secondary Color"
             node_cc_secondary.attribute_type = 'INSTANCER'
             tree.links.new(input=node_albedo.inputs["Secondary Color"], output=node_cc_secondary.outputs[0])
-            self.game_functions.add("change_color_secondary")
 
             if e_albedo != Albedo.TWO_CHANGE_COLOR:
                 node_cc_tertiary = nodes.new(type="ShaderNodeAttribute")
-                node_cc_tertiary.attribute_name = "change_color_tertiary"
+                node_cc_tertiary.attribute_name = "Tertiary Color"
                 node_cc_tertiary.attribute_type = 'INSTANCER'
                 tree.links.new(input=node_albedo.inputs["Tertiary Color"], output=node_cc_tertiary.outputs[0])
-                self.game_functions.add("change_color_tertiary")
                 node_cc_quaternary = nodes.new(type="ShaderNodeAttribute")
-                node_cc_quaternary.attribute_name = "change_color_quaternary"
+                node_cc_quaternary.attribute_name = "Quaternary Color"
                 node_cc_quaternary.attribute_type = 'INSTANCER'
                 tree.links.new(input=node_albedo.inputs["Quaternary Color"], output=node_cc_quaternary.outputs[0])
-                self.game_functions.add("change_color_quaternary")
         
         if not no_material_model and has_albedo:
             tree.links.new(input=node_material_model.inputs[0], output=node_albedo.outputs[0])
@@ -1316,10 +1106,9 @@ class ShaderTag(Tag):
             final_node = node_model_environment_add
             if has_bump:
                 tree.links.new(input=node_environment_mapping.inputs["Normal"], output=node_bump_mapping.outputs[0])
-            
-        if e_self_illumination.value > 0:
+                
+        if has_illum:
             node_self_illumination = self._add_group_node(tree, nodes, f"self_illumination - {utils.game_str(e_self_illumination.name)}")
-            final_node = node_self_illumination
             if e_self_illumination == SelfIllumination.PALETTIZED_PLASMA:
                 node_self_illumination_vector = self._add_group_node(tree, nodes, f"self_illumination - palettized_plasma - Vector")
                 end_node = utils.get_end_node(node_self_illumination)
@@ -1327,11 +1116,11 @@ class ShaderTag(Tag):
                     
             elif e_self_illumination in {SelfIllumination.FROM_DIFFUSE, SelfIllumination.SELF_ILLUM_TIMES_DIFFUSE}:
                 tree.links.new(input=node_self_illumination.inputs[0], output=node_albedo.outputs[0])
-            if has_albedo:
-                node_illum_add = nodes.new(type='ShaderNodeAddShader')
-                tree.links.new(input=node_illum_add.inputs[0], output=node_albedo.outputs[0])
-                tree.links.new(input=node_illum_add.inputs[1], output=node_self_illumination.outputs[0])
-                final_node = node_illum_add
+                
+            node_illum_add = nodes.new(type='ShaderNodeAddShader')
+            tree.links.new(input=node_illum_add.inputs[0], output=node_self_illumination.outputs[0])
+            tree.links.new(input=node_illum_add.inputs[1], output=final_node.outputs[0])
+            final_node = node_illum_add
             
         if e_blend_mode in {BlendMode.ADDITIVE, BlendMode.ALPHA_BLEND}:
             blender_material.surface_render_method = 'BLENDED'
@@ -1360,18 +1149,25 @@ class ShaderTag(Tag):
         # Link to output
         tree.links.new(input=node_output.inputs[0], output=final_node.outputs[0])
         
-    def _setup_input_with_function(self, end_input, data: float | tuple | AnimatedParameter, for_alpha=False):
+    def _setup_input_with_function(self, end_input, data: float | tuple | Function | int | bool, for_alpha=False):
         tree: bpy.types.NodeTree = end_input.id_data
-        if not isinstance(data, AnimatedParameter):
-            if type(data) == tuple:
+        if not isinstance(data, Function):
+            if isinstance(data, tuple):
                 if for_alpha:
                     end_input.default_value = data[1]
                 else:
                     end_input.default_value = data[0]
-            else:
-                end_input.default_value = data
+            elif isinstance(data, float) or isinstance(data, int) or isinstance(data, bool):
+                match end_input.type:
+                    case 'FLOAT' | 'ROTATION' | 'VALUE':
+                        end_input.default_value = float(data)
+                    case 'BOOL':
+                        end_input.default_value = bool(data)
+                    case 'INT':
+                        end_input.default_value = int(data)
+                        
             return
-
+        
         if data.master_type == FunctionEditorMasterType.Basic and not data.is_ranged:
             if data.color_type != FunctionEditorColorGraphType.Scalar and end_input.type == 'RGBA':
                 end_input.default_value = data.colors[0]
@@ -1382,131 +1178,11 @@ class ShaderTag(Tag):
                     end_input.default_value = data.clamp_min
             return
         
-        function_node = tree.nodes.new('ShaderNodeGroup')
-        first_node_input = function_node
-        first_node_range = function_node
-        
-        # print(self.tag_path.ShortName, data.color_type.name, data.master_type.name)
-        
-        match data.color_type:
-            case FunctionEditorColorGraphType.Scalar:
-                function_node.node_tree = utils.add_node_from_resources("reach_nodes", "Function - 2-float")
-                function_node.inputs[1].default_value = data.clamp_min
-                function_node.inputs[2].default_value = data.clamp_max
-            case FunctionEditorColorGraphType.TwoColor:
-                function_node.node_tree = utils.add_node_from_resources("reach_nodes", "Function - 2-color")
-                function_node.inputs[1].default_value = data.colors[0]
-                function_node.inputs[2].default_value = data.colors[1]
-            case FunctionEditorColorGraphType.ThreeColor:
-                function_node.node_tree = utils.add_node_from_resources("reach_nodes", "Function - 3-color")
-                function_node.inputs[1].default_value = data.colors[0]
-                function_node.inputs[2].default_value = data.colors[1]
-                function_node.inputs[3].default_value = data.colors[2]
-            case FunctionEditorColorGraphType.FourColor:
-                function_node.node_tree = utils.add_node_from_resources("reach_nodes", "Function - 4-color")
-                function_node.inputs[1].default_value = data.colors[0]
-                function_node.inputs[2].default_value = data.colors[1]
-                function_node.inputs[3].default_value = data.colors[2]
-                function_node.inputs[4].default_value = data.colors[3]
-        
-        if data.master_type not in {FunctionEditorMasterType.Basic, FunctionEditorMasterType.Curve}:
-            clamp_node = tree.nodes.new('ShaderNodeClamp')
-            clamp_node.inputs["Max"].default_value = data.input_max
-            clamp_node.inputs["Min"].default_value = data.input_min
-            if data.is_ranged:
-                clamp_node_ranged = tree.nodes.new('ShaderNodeClamp')
-                clamp_node_ranged.inputs["Max"].default_value = data.range_max
-                clamp_node_ranged.inputs["Min"].default_value = data.range_min
-                mix_clamp_node = tree.nodes.new('ShaderNodeMix')
-                mix_clamp_node.clamp_factor = True
-                mix_clamp_node.inputs[0].default_value = 0.5
-                tree.links.new(input=mix_clamp_node.inputs["A"], output=clamp_node.outputs[0])
-                tree.links.new(input=mix_clamp_node.inputs["B"], output=clamp_node_ranged.outputs[0])
-                tree.links.new(input=function_node.inputs[0], output=mix_clamp_node.outputs[0])
-                first_node_input = clamp_node
-                first_node_range = clamp_node_ranged
-            else:
-                tree.links.new(input=function_node.inputs[0], output=clamp_node.outputs[0])
-                first_node_input = clamp_node
-                
-        if data.master_type != FunctionEditorMasterType.Basic and data.is_exclusion:
-            exclusion_node = tree.nodes.new('ShaderNodeGroup')
-            periodic_node.node_tree = utils.add_node_from_resources("shared_nodes", "Exclusion")
-        
-        match data.master_type:
-            case FunctionEditorMasterType.Curve:
-                curve_node = tree.nodes.new('ShaderNodeFloatCurve')
-                tree.links.new(input=first_node_input.inputs[0], output=curve_node.outputs[0])
-                first_node_input = curve_node
-                if data.is_ranged:
-                    curve_node_range = tree.nodes.new('ShaderNodeFloatCurve')
-                    tree.links.new(input=first_node_range.inputs[0], output=curve_node_range.outputs[0])
-                    first_node_range = curve_node_range
-            case FunctionEditorMasterType.Periodic:
-                periodic_node = tree.nodes.new('ShaderNodeGroup')
-                periodic_node.node_tree = utils.add_node_from_resources("reach_nodes", f"periodic function type - {data.input_periodic_function}")
-                if data.input_periodic_function not in {"one", "zero"}:
-                    periodic_node.inputs[1].default_value = data.input_frequency
-                    periodic_node.inputs[2].default_value = data.input_phase
-                tree.links.new(input=first_node_input.inputs[0], output=periodic_node.outputs[0])
-                first_node_input = periodic_node
-                if data.is_ranged:
-                    periodic_node_range = tree.nodes.new('ShaderNodeGroup')
-                    periodic_node_range.node_tree = utils.add_node_from_resources("reach_nodes", f"periodic function type - {data.range_periodic_function}")
-                    if data.range_periodic_function not in {"one", "zero"}:
-                        periodic_node_range.inputs[1].default_value = data.range_frequency
-                        periodic_node_range.inputs[2].default_value = data.range_phase
-                    tree.links.new(input=first_node_range.inputs[0], output=periodic_node_range.outputs[0])
-                    first_node_range = periodic_node_range
-            case FunctionEditorMasterType.Exponent:
-                math_node = tree.nodes.new('ShaderNodeMath')
-                math_node.operation = 'EXPONENT'
-                math_node.inputs[0].default_value = data.input_exponent
-                tree.links.new(input=first_node_input.inputs[0], output=math_node.outputs[0])
-                first_node_input = math_node
-                if data.is_ranged:
-                    math_node_range = tree.nodes.new('ShaderNodeMath')
-                    math_node_range.operation = 'EXPONENT'
-                    math_node_range.inputs[0].default_value = data.range_exponent
-                    tree.links.new(input=first_node_range.inputs[0], output=math_node_range.outputs[0])
-                    first_node_range = math_node_range
-            case FunctionEditorMasterType.Transition:
-                transition_node = tree.nodes.new('ShaderNodeGroup')
-                transition_node.node_tree = utils.add_node_from_resources("reach_nodes", f"transition function type - {data.input_transition_function}")
-                tree.links.new(input=first_node_input.inputs[0], output=transition_node.outputs[0])
-                first_node_input = transition_node
-                if data.is_ranged:
-                    transition_node_range = tree.nodes.new('ShaderNodeGroup')
-                    transition_node_range.node_tree = utils.add_node_from_resources("reach_nodes", f"transition function type - {data.range_transition_function}")
-                    tree.links.new(input=first_node_range.inputs[0], output=transition_node_range.outputs[0])
-                    first_node_range = transition_node_range
-                
-        if data.input:
-            attribute_node = tree.nodes.new('ShaderNodeAttribute')
-            attribute_node.attribute_type = 'INSTANCER'
-            if data.input in ammo_names:
-                attribute_node.attribute_name = "ammo"
-                digits_node = tree.nodes.new('ShaderNodeGroup')
-                digits_node.node_tree = utils.add_node_from_resources("shared_nodes", f"Digits")
-                tree.links.new(input=digits_node.inputs[0], output=attribute_node.outputs[2])
-                tree.links.new(input=first_node_input.inputs[1] if data.master_type == FunctionEditorMasterType.Curve else first_node_input.inputs[0], output=digits_node.outputs[data.input.rpartition("_")[2].capitalize()])
-            else:
-                attribute_node.attribute_name = data.input
-                tree.links.new(input=first_node_input.inputs[1] if data.master_type == FunctionEditorMasterType.Curve else first_node_input.inputs[0], output=attribute_node.outputs[2])
-            if data.is_ranged:
-                attribute_node_range = tree.nodes.new('ShaderNodeAttribute')
-                attribute_node_range.attribute_type = 'INSTANCER'
-                if data.range in ammo_names:
-                    attribute_node_range.attribute_name = "ammo"
-                    digits_node_range = tree.nodes.new('ShaderNodeGroup')
-                    digits_node_range.node_tree = utils.add_node_from_resources("shared_nodes", f"Digits")
-                    tree.links.new(input=digits_node_range.inputs[0], output=attribute_node_range.outputs[2])
-                    tree.links.new(input=first_node_range.inputs[1] if data.master_type == FunctionEditorMasterType.Curve else first_node_range.inputs[0], output=digits_node_range.outputs[data.range.rpartition("_")[2].capitalize()])
-                else:
-                    attribute_node_range.attribute_name = data.range
-                    tree.links.new(input=first_node_range.inputs[1] if data.master_type == FunctionEditorMasterType.Curve else first_node_range.inputs[0], output=attribute_node_range.outputs[2])
-            
-        tree.links.new(input=end_input, output=function_node.outputs[0])
+        tree.links.new(input=end_input, output=data.to_blend_nodes(tree))
+        if data.input.strip() and not data.input_uses_group_node:
+            self.game_functions.add(data.input)
+        if data.is_ranged and data.range.strip() and not data.range_uses_group_node:
+            self.game_functions.add(data.range)
         
     
     def populate_chiefster_node(self, tree: bpy.types.NodeTree, node: bpy.types.Node):

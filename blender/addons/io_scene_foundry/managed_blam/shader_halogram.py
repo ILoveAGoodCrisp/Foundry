@@ -94,34 +94,34 @@ class ShaderHalogramTag(ShaderTag):
             
             if e_albedo in {Albedo.FOUR_CHANGE_COLOR, Albedo.TWO_CHANGE_COLOR}:
                 node_cc_primary = nodes.new(type="ShaderNodeAttribute")
-                node_cc_primary.attribute_name = "change_color_primary"
+                node_cc_primary.attribute_name = "Primary Color"
                 node_cc_primary.attribute_type = 'INSTANCER'
                 node_cc_primary.location.x = node_albedo.location.x - 300
                 node_cc_primary.location.y = node_albedo.location.y + 200
                 tree.links.new(input=node_albedo.inputs["Primary Color"], output=node_cc_primary.outputs[0])
-                self.game_functions.add("change_color_primary")
+                self.game_functions.add("Primary Color")
                 node_cc_secondary = nodes.new(type="ShaderNodeAttribute")
-                node_cc_secondary.attribute_name = "change_color_secondary"
+                node_cc_secondary.attribute_name = "Secondary Color"
                 node_cc_secondary.attribute_type = 'INSTANCER'
                 node_cc_secondary.location.x = node_albedo.location.x - 300
                 node_cc_secondary.location.y = node_albedo.location.y
                 tree.links.new(input=node_albedo.inputs["Secondary Color"], output=node_cc_secondary.outputs[0])
-                self.game_functions.add("change_color_secondary")
+                self.game_functions.add("Secondary Color")
                 if e_albedo != Albedo.TWO_CHANGE_COLOR:
                     node_cc_tertiary = nodes.new(type="ShaderNodeAttribute")
-                    node_cc_tertiary.attribute_name = "change_color_tertiary"
+                    node_cc_tertiary.attribute_name = "Tertiary Color"
                     node_cc_tertiary.attribute_type = 'INSTANCER'
                     node_cc_tertiary.location.x = node_albedo.location.x - 300
                     node_cc_tertiary.location.y = node_albedo.location.y - 200
                     tree.links.new(input=node_albedo.inputs["Tertiary Color"], output=node_cc_tertiary.outputs[0])
-                    self.game_functions.add("change_color_tertiary")
+                    self.game_functions.add("Tertiary Color")
                     node_cc_quaternary = nodes.new(type="ShaderNodeAttribute")
-                    node_cc_quaternary.attribute_name = "change_color_quaternary"
+                    node_cc_quaternary.attribute_name = "Quaternary Color"
                     node_cc_quaternary.attribute_type = 'INSTANCER'
                     node_cc_quaternary.location.x = node_albedo.location.x - 300
                     node_cc_quaternary.location.y = node_albedo.location.y - 400
                     tree.links.new(input=node_albedo.inputs["Quaternary Color"], output=node_cc_quaternary.outputs[0])
-                    self.game_functions.add("change_color_quaternary")
+                    self.game_functions.add("Quaternary Color")
         
         
         if e_self_illumination.value > 0:

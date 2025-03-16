@@ -1494,6 +1494,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     
     # ANIMATION
     def update_active_animation_index(self, context):
+        previous_animation = None
         if self.active_animation_index > -1:
             animation = self.animations[self.active_animation_index]
             if self.previous_active_animation_index > -1:

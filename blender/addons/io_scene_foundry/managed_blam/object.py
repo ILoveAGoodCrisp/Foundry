@@ -1,33 +1,10 @@
 
 
 from pathlib import Path
-
-from .Tags import TagFieldBlockElement
-
-from .. import utils
+from .connected_material import Function
 import bpy
-
 from .model import ModelTag
 from . import Tag
-
-class Function:
-    def __init__(self):
-        self.import_name = ""
-        self.export_name = ""
-        self.turn_off_with = ""
-        self.ranged_interpolation_name = ""
-        self.min_value = 0
-        self.invert = False
-        self.mapping_does_not_controls_active = False
-        self.always_active = False
-        self.always_exports_value = False
-        self.turn_off_with_uses_magnitude = False
-        self.scale_by = ""
-        
-    def from_element(self, element: TagFieldBlockElement):
-        self.import_name = element.SelectField("import name").GetStringData()
-        self.export_name = element.SelectField("export name").GetStringData()
-        self.turn_off_with = element.SelectField("turn off with").GetStringData()
 
 class ObjectTag(Tag):
     """For ManagedBlam task that cover all tags that are classed as objects"""
@@ -109,3 +86,22 @@ class ObjectTag(Tag):
             group = bpy.data.node_groups.get(node_group_name)
             if group is None:
                 group = bpy.data.node_groups.new(node_group_name)
+                
+    def functions_to_blender(self) -> list:
+        '''Converts object functions to blender shader node groups'''
+        functions = set()
+        for element in self.block_functions.Elements:
+            export_name = element.SelectField("StringId:export name").GetStringData()
+            if not export_name.strip():
+                continue
+            func = Function()
+            func.from_element(element, "default function")
+            func.to_blend_nodes(name=export_name)
+            # functions.add(export_name)
+            if func.input:
+                functions.add(func.input)
+            if func.ranged_interpolation_name:
+                functions.add(func.ranged_interpolation_name)
+
+        return sorted(functions)
+            
