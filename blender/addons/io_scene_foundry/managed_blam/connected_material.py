@@ -614,7 +614,7 @@ def add_attribute_node(tree: bpy.types.NodeTree, function_name: str):
         if func is None:
             attr_node = tree.nodes.new('ShaderNodeAttribute')
             attr_node.attribute_name = function_name
-            utils.print_warning(f"Failed to find game function: {function_name}")
+            # utils.print_warning(f"Failed to find game function: {function_name}")
             attr_node.attribute_type = 'INSTANCER'
         elif func.function_type == GameFunctionType.CONSTANT:
             attr_node = tree.nodes.new('ShaderNodeValue')
@@ -855,7 +855,10 @@ class Function:
                     tree.links.new(input=node_mix.inputs["Factor"], output=node_attribute.outputs[0])
             
             if return_node_group:
-                tree.links.new(input=group_output.inputs[0], output=node_mix.outputs[0])
+                if self.is_ranged:
+                    tree.links.new(input=group_output.inputs[0], output=node_mix.outputs[0])
+                else:
+                    tree.links.new(input=group_output.inputs[0], output=node.outputs[0])
                 return tree
             else:
                 return node_mix.outputs[0]

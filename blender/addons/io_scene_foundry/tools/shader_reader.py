@@ -69,6 +69,6 @@ def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str, always_e
                     shader.to_nodes(mat, always_extract_bitmaps)
     
     if shader is None:
-        return []
+        return
     else:
-        return sorted(shader.game_functions)
+        return sorted(shader.game_functions), sorted(shader.object_functions)

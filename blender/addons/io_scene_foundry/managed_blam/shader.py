@@ -455,6 +455,7 @@ class ShaderTag(Tag):
     def to_nodes(self, blender_material, always_extract_bitmaps=False):
         self.always_extract_bitmaps = always_extract_bitmaps
         self.game_functions = set()
+        self.object_functions = set()
         self._get_info(self.reference_material_shader.Path if self.corinth else self.definition.Path)
         if self.group_supported:
             self._to_nodes_group(blender_material)
@@ -1040,6 +1041,7 @@ class ShaderTag(Tag):
         illum_uses_diffuse = e_self_illumination in {SelfIllumination.FROM_DIFFUSE, SelfIllumination.SELF_ILLUM_TIMES_DIFFUSE}
         has_illum = e_self_illumination != SelfIllumination.OFF
         has_albedo = not (e_albedo == Albedo.CONSTANT_COLOR and has_illum and not illum_uses_diffuse)
+        final_node = None
         
         if has_albedo:
             node_albedo = self._add_group_node(tree, nodes, f"albedo - {utils.game_str(e_albedo.name)}")
@@ -1116,11 +1118,14 @@ class ShaderTag(Tag):
                     
             elif e_self_illumination in {SelfIllumination.FROM_DIFFUSE, SelfIllumination.SELF_ILLUM_TIMES_DIFFUSE}:
                 tree.links.new(input=node_self_illumination.inputs[0], output=node_albedo.outputs[0])
-                
-            node_illum_add = nodes.new(type='ShaderNodeAddShader')
-            tree.links.new(input=node_illum_add.inputs[0], output=node_self_illumination.outputs[0])
-            tree.links.new(input=node_illum_add.inputs[1], output=final_node.outputs[0])
-            final_node = node_illum_add
+            
+            if final_node is None:
+                final_node = node_self_illumination
+            else:
+                node_illum_add = nodes.new(type='ShaderNodeAddShader')
+                tree.links.new(input=node_illum_add.inputs[0], output=node_self_illumination.outputs[0])
+                tree.links.new(input=node_illum_add.inputs[1], output=final_node.outputs[0])
+                final_node = node_illum_add
             
         if e_blend_mode in {BlendMode.ADDITIVE, BlendMode.ALPHA_BLEND}:
             blender_material.surface_render_method = 'BLENDED'
@@ -1179,10 +1184,16 @@ class ShaderTag(Tag):
             return
         
         tree.links.new(input=end_input, output=data.to_blend_nodes(tree))
-        if data.input.strip() and not data.input_uses_group_node:
-            self.game_functions.add(data.input)
-        if data.is_ranged and data.range.strip() and not data.range_uses_group_node:
-            self.game_functions.add(data.range)
+        if data.input.strip():
+            if data.input_uses_group_node:
+                self.object_functions.add(data.input)
+            else:
+                self.game_functions.add(data.input)
+        if data.is_ranged and data.range.strip():
+            if data.range_uses_group_node:
+                self.object_functions.add(data.input)
+            else:
+                self.game_functions.add(data.range)
         
     
     def populate_chiefster_node(self, tree: bpy.types.NodeTree, node: bpy.types.Node):

@@ -1,5 +1,6 @@
 
 
+from collections import defaultdict
 from pathlib import Path
 from .connected_material import Function
 import bpy
@@ -48,17 +49,20 @@ class ObjectTag(Tag):
         if not variant:
             return change_colors
 
+        has_data = False
         for element in self.block_change_colors.Elements:
             perms = element.Fields[0]
             for sub_element in perms.Elements:
+                has_data = True
                 text = sub_element.Fields[3].GetStringData()
                 if text == variant or (variant == "default" and not text):
                     color = [float(n) for n in sub_element.Fields[2].Data]
                     color.append(1.0) # Alpha
                     change_colors[element.ElementIndex] = color
                     break
-                 
-        return change_colors
+        
+        if has_data:
+            return change_colors
     
     def get_magazine_size(self):
         if self.tag_path.Extension != "weapon":
@@ -89,7 +93,7 @@ class ObjectTag(Tag):
                 
     def functions_to_blender(self) -> list:
         '''Converts object functions to blender shader node groups'''
-        functions = set()
+        functions = defaultdict(list)
         for element in self.block_functions.Elements:
             export_name = element.SelectField("StringId:export name").GetStringData()
             if not export_name.strip():
@@ -99,9 +103,9 @@ class ObjectTag(Tag):
             func.to_blend_nodes(name=export_name)
             # functions.add(export_name)
             if func.input:
-                functions.add(func.input)
+                functions[export_name].append(func.input)
             if func.ranged_interpolation_name:
-                functions.add(func.ranged_interpolation_name)
+                functions[export_name].append(func.ranged_interpolation_name)
 
-        return sorted(functions)
+        return functions
             

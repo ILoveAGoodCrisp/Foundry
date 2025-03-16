@@ -685,6 +685,7 @@ class NWO_Import(bpy.types.Operator):
                             
                 if self.build_blender_materials:
                     mat_function_map = {}
+                    validated_funcs = set()
                     if utils.is_corinth(context):
                         print('Building Blender materials from material tags')
                     else:
@@ -696,7 +697,9 @@ class NWO_Import(bpy.types.Operator):
                             continue
                         shader_path = mat.nwo.shader_path
                         if shader_path:
-                            mat_function_map[mat] = tag_to_nodes(corinth, mat, shader_path, self.always_extract_bitmaps)
+                            result = tag_to_nodes(corinth, mat, shader_path, self.always_extract_bitmaps)
+                            mat_function_map[mat] = result[0]
+                            validated_funcs.update(result[1])
                             
                     for ob in imported_objects:
                         for slot in ob.material_slots:
@@ -705,6 +708,12 @@ class NWO_Import(bpy.types.Operator):
                                 if functions is not None:
                                     for func in functions:
                                         add_function(context.scene, func, ob, ob.parent)
+                                        
+                    for ob, func_dict in importer.obs_for_props.items():
+                        for export_name, funcs in func_dict.items():
+                            if export_name in validated_funcs:
+                                for func in funcs:
+                                    add_function(context.scene, func, ob, ob.parent)
                         
                 if 'bitmap' in importer.extensions:
                     bitmap_files = importer.sorted_filepaths["bitmap"]
@@ -1123,6 +1132,7 @@ class NWOImporter:
         self.tag_animation_filter = ""
         self.import_variant_children = False
         self.for_cinematic = context.scene.nwo.asset_type == "cinematic"
+        self.obs_for_props = {}
         if filepaths:
             self.sorted_filepaths = self.group_filetypes(scope)
         else:
@@ -1270,7 +1280,11 @@ class NWOImporter:
                     has_change_colors = change_colors is not None
                     magazine_size = obj.get_magazine_size()
                     has_ammo = magazine_size > 0
+                    if has_ammo:
+                        print(f"--- Weapon has magazine size: {magazine_size}")
                     functions = obj.functions_to_blender()
+                    if functions:
+                        print(f"--- Created Blender node groups for {len(functions)} object functions")
                     prop_names = []
                     with utils.TagImportMover(self.project.tags_directory, model_path) as model_mover:
                         with ModelTag(path=model_mover.tag_path, raise_on_error=False) as model:
@@ -1318,8 +1332,7 @@ class NWOImporter:
                                             ob.id_properties_ui("Ammo").update(min=0, max=int('9' * len(str(magazine_size))))
                                             
                                         if ob.type == 'MESH':
-                                            for function_name in functions:
-                                                add_function(self.context.scene, function_name, ob, armature)
+                                            self.obs_for_props[ob] = functions
                                             
                                     if ob.type == 'ARMATURE':
                                         self.to_cursor_objects.add(ob)
