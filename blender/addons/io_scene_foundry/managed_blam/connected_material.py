@@ -898,7 +898,11 @@ class Function:
         
     def sample(self, graph_index: int, start: int, end: int, sample_count=16):
         sampled_points = []
+        first = 0
+        last = sample_count
         for i in range(sample_count + 1):
+            if i == first or i == last:
+                continue
             t = i / sample_count
             x = start + (end - start) * t
             y = self.editor.Evaluate(x, x)
@@ -1057,6 +1061,7 @@ class Function:
                 curve_points = []
                 for segment in self.segments:
                     cp0, cp1 = segment.control_points
+
                     if segment.type != FunctionEditorSegmentType.Linear:
                         # Blender float curves don't allow for handle control, so sampling the value to add more points for accuracy
                         curve_points.append((cp0.x, cp0.y, 'AUTO'))
