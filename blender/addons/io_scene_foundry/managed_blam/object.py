@@ -106,10 +106,14 @@ class ObjectTag(Tag):
             func.from_element(element, "default function")
             func.to_blend_nodes(name=export_name)
             # functions.add(export_name)
-            if func.input:
+            if func.input.strip():
                 functions[export_name].append(func.input)
-            if func.ranged_interpolation_name:
+            if func.ranged_interpolation_name.strip():
                 functions[export_name].append(func.ranged_interpolation_name)
+            if func.scale_by.strip():
+                functions[export_name].append(func.scale_by)
+            if func.turn_off_with.strip():
+                functions[export_name].append(func.turn_off_with)
 
         return functions
             

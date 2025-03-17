@@ -700,7 +700,7 @@ class Function:
         self.input = ""
         self.range = ""
         self.ranged_interpolation_name = ""
-        self.min_value = ""
+        self.min_value = 0
         self.turn_off_with = ""
         
         self.invert = False
@@ -865,8 +865,6 @@ class Function:
                 return node_mix.outputs[0]
         
         function_node = tree.nodes.new('ShaderNodeGroup')
-        first_node_input = function_node
-        first_node_range = function_node
         
         # print(self.tag_path.ShortName, data.color_type.name, data.master_type.name)
         
@@ -891,13 +889,53 @@ class Function:
                 function_node.inputs[3].default_value = self.colors[2]
                 function_node.inputs[4].default_value = self.colors[3]
                 
+        first_node_input = function_node.inputs[0]
+        first_node_range = function_node.inputs[0]
+                
+        if self.turn_off_with.strip():
+            greater_node = tree.nodes.new('ShaderNodeMath')
+            greater_node.operation = 'GREATER_THAN'
+            turn_off_attr_node = add_attribute_node(tree, self.turn_off_with)
+            tree.links.new(input=greater_node.inputs[0], output=turn_off_attr_node.outputs[2] if turn_off_attr_node.bl_idname == 'ShaderNodeAttribute' else turn_off_attr_node.outputs[0])
+            turn_off_mix_node = tree.nodes.new('ShaderNodeMix')
+            tree.links.new(input=turn_off_mix_node.inputs[0], output=greater_node.outputs[0])
+            tree.links.new(input=first_node_input, output=turn_off_mix_node.outputs[0])
+            first_node_input = turn_off_mix_node.inputs[1]
+            first_node_range = turn_off_mix_node.inputs[1]
+            
+        if self.min_value > 0:
+            min_node = tree.nodes.new('ShaderNodeMath')
+            min_node.operation = 'MAXIMUM'
+            min_node.inputs[0].default_value = self.min_value
+            tree.links.new(input=first_node_input, output=min_node.outputs[0])
+            first_node_input = min_node.inputs[1]
+            first_node_range = min_node.inputs[1]
+                
+        if self.invert:
+            invert_node = tree.nodes.new('ShaderNodeMath')
+            invert_node.operation = 'SUBTRACT'
+            invert_node.inputs[0].default_value = 1.0
+            tree.links.new(input=first_node_input, output=invert_node.outputs[0])
+            first_node_input = invert_node.inputs[1]
+            first_node_range = invert_node.inputs[1]
+            
+        if self.scale_by.strip():
+            multiply_node = tree.nodes.new('ShaderNodeMath')
+            multiply_node.operation = 'MULTIPLY'
+            scale_by_attr_node = add_attribute_node(tree, self.scale_by)
+            tree.links.new(input=multiply_node.inputs[0], output=scale_by_attr_node.outputs[0])
+            tree.links.new(input=first_node_input, output=multiply_node.outputs[0])
+            first_node_input = multiply_node.inputs[1]
+            first_node_range = multiply_node.inputs[1]
+                
         if self.master_type != FunctionEditorMasterType.Basic and self.is_exclusion:
             exclusion_node = tree.nodes.new('ShaderNodeGroup')
             exclusion_node.node_tree = utils.add_node_from_resources("shared_nodes", "Exclusion")
             exclusion_node.inputs[1].default_value = self.exclusion_min
             exclusion_node.inputs[2].default_value = self.exclusion_max
-            first_node_input = exclusion_node
-            first_node_range = exclusion_node
+            tree.links.new(input=first_node_input, output=exclusion_node.outputs[0])
+            first_node_input = exclusion_node.inputs[0]
+            first_node_range = exclusion_node.inputs[0]
         
         if self.master_type not in {FunctionEditorMasterType.Basic, FunctionEditorMasterType.Curve}:
             clamp_node = tree.nodes.new('ShaderNodeClamp')
@@ -913,12 +951,12 @@ class Function:
                     tree.links.new(input=mix_clamp_node.inputs[0], output=interp_attr_node.outputs[2] if interp_attr_node.bl_idname == 'ShaderNodeAttribute' else interp_attr_node.outputs[0])
                 tree.links.new(input=mix_clamp_node.inputs["A"], output=clamp_node.outputs[0])
                 tree.links.new(input=mix_clamp_node.inputs["B"], output=clamp_node_ranged.outputs[0])
-                tree.links.new(input=first_node_input.inputs[0], output=mix_clamp_node.outputs[0])
-                first_node_range = clamp_node_ranged
+                tree.links.new(input=first_node_input, output=mix_clamp_node.outputs[0])
+                first_node_range = clamp_node_ranged.inputs[0]
             else:
-                tree.links.new(input=first_node_input.inputs[0], output=clamp_node.outputs[0])
+                tree.links.new(input=first_node_input, output=clamp_node.outputs[0])
                 
-            first_node_input = clamp_node
+            first_node_input = clamp_node.inputs[0]
         
         match self.master_type:
             case FunctionEditorMasterType.Curve:
@@ -929,11 +967,11 @@ class Function:
                     mix_curve_node = tree.nodes.new('ShaderNodeMix')
                     tree.links.new(input=mix_curve_node.inputs["A"], output=curve_node.outputs[0])
                     tree.links.new(input=mix_curve_node.inputs["B"], output=curve_node_range.outputs[0])
-                    tree.links.new(input=first_node_input.inputs[0], output=mix_curve_node.outputs[0])
-                    first_node_range = curve_node_range
+                    tree.links.new(input=first_node_input, output=mix_curve_node.outputs[0])
+                    first_node_range = curve_node_range.inputs[1]
                 else:
-                    tree.links.new(input=first_node_input.inputs[0], output=curve_node.outputs[0])
-                first_node_input = curve_node
+                    tree.links.new(input=first_node_input, output=curve_node.outputs[0])
+                first_node_input = curve_node.inputs[1]
                 
             case FunctionEditorMasterType.Periodic:
                 periodic_node = tree.nodes.new('ShaderNodeGroup')
@@ -949,12 +987,12 @@ class Function:
                         periodic_node_range.inputs[1].default_value = self.range_frequency
                         periodic_node_range.inputs[2].default_value = self.range_phase
 
-                    tree.links.new(input=first_node_input.inputs[0], output=periodic_node.outputs[0])
-                    tree.links.new(input=first_node_range.inputs[0], output=periodic_node_range.outputs[0])
-                    first_node_range = periodic_node_range
+                    tree.links.new(input=first_node_input, output=periodic_node.outputs[0])
+                    tree.links.new(input=first_node_range, output=periodic_node_range.outputs[0])
+                    first_node_range = periodic_node_range.inputs[0]
                 else:
-                    tree.links.new(input=first_node_input.inputs[0], output=periodic_node.outputs[0])
-                first_node_input = periodic_node
+                    tree.links.new(input=first_node_input, output=periodic_node.outputs[0])
+                first_node_input = periodic_node.inputs[0]
                 
             case FunctionEditorMasterType.Exponent:
                 math_node = tree.nodes.new('ShaderNodeMath')
@@ -966,12 +1004,12 @@ class Function:
                     math_node_range.operation = 'POWER'
                     math_node_range.inputs[1].default_value = self.range_exponent
 
-                    tree.links.new(input=first_node_input.inputs[0], output=math_node.outputs[0])
-                    tree.links.new(input=first_node_range.inputs[0], output=math_node_range.outputs[0])
-                    first_node_range = math_node_range
+                    tree.links.new(input=first_node_input, output=math_node.outputs[0])
+                    tree.links.new(input=first_node_range, output=math_node_range.outputs[0])
+                    first_node_range = math_node_range.inputs[0]
                 else:
-                    tree.links.new(input=first_node_input.inputs[0], output=math_node.outputs[0])
-                first_node_input = math_node
+                    tree.links.new(input=first_node_input, output=math_node.outputs[0])
+                first_node_input = math_node.inputs[0]
             case FunctionEditorMasterType.Transition:
                 transition_node = tree.nodes.new('ShaderNodeGroup')
                 transition_node.node_tree = utils.add_node_from_resources("reach_nodes", f"transition function type - {self.input_transition_function}")
@@ -980,21 +1018,21 @@ class Function:
                     transition_node_range = tree.nodes.new('ShaderNodeGroup')
                     transition_node_range.node_tree = utils.add_node_from_resources("reach_nodes", f"transition function type - {self.range_transition_function}")
 
-                    tree.links.new(input=first_node_input.inputs[0], output=transition_node_range.outputs[0])
-                    tree.links.new(input=first_node_range.inputs[0], output=transition_node_range.outputs[0])
-                    first_node_range = transition_node_range
+                    tree.links.new(input=first_node_input, output=transition_node_range.outputs[0])
+                    tree.links.new(input=first_node_range, output=transition_node_range.outputs[0])
+                    first_node_range = transition_node_range.inputs[0]
                 else:
-                    tree.links.new(input=first_node_input.inputs[0], output=transition_node.outputs[0])
-                first_node_input = transition_node
+                    tree.links.new(input=first_node_input, output=transition_node.outputs[0])
+                first_node_input = transition_node.inputs[0]
                 
         if self.input:
             attribute_node = add_attribute_node(tree, self.input)
             self.input_uses_group_node = attribute_node.bl_idname == 'ShaderNodeGroup'
-            tree.links.new(input=first_node_input.inputs[1] if self.master_type == FunctionEditorMasterType.Curve else first_node_input.inputs[0], output=attribute_node.outputs[2] if attribute_node.bl_idname == 'ShaderNodeAttribute' else attribute_node.outputs[0])
+            tree.links.new(input=first_node_input, output=attribute_node.outputs[2] if attribute_node.bl_idname == 'ShaderNodeAttribute' else attribute_node.outputs[0])
             if self.is_ranged:
                 attribute_node_range = add_attribute_node(tree, self.range)
                 self.range_uses_group_node = attribute_node_range.bl_idname == 'ShaderNodeGroup'
-                tree.links.new(input=first_node_range.inputs[1] if self.master_type == FunctionEditorMasterType.Curve else first_node_range.inputs[0], output=attribute_node_range.outputs[2] if attribute_node_range.bl_idname == 'ShaderNodeAttribute' else attribute_node_range.outputs[0])
+                tree.links.new(input=first_node_range, output=attribute_node_range.outputs[2] if attribute_node_range.bl_idname == 'ShaderNodeAttribute' else attribute_node_range.outputs[0])
         
         if return_node_group:
             tree.links.new(input=group_output.inputs[0], output=function_node.outputs[0])
