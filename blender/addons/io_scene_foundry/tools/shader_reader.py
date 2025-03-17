@@ -71,5 +71,4 @@ def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str, always_e
     if shader is None:
         return
     else:
-        print(shader.tag_path.ShortName, shader.sequence_drivers)
         return sorted(shader.game_functions), sorted(shader.object_functions), shader.sequence_drivers

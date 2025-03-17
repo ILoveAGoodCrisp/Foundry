@@ -31,7 +31,7 @@ from ..tools.property_apply import apply_props_material
 from ..tools.shader_finder import find_shaders
 from ..tools.shader_reader import tag_to_nodes
 from ..constants import VALID_MESHES
-from ..managed_blam.connected_material import game_functions
+from ..managed_blam.connected_material import GameFunctionType, game_functions
 from .. import utils
 
 pose_hints = 'aim', 'look', 'acc', 'steer', 'pain'
@@ -107,6 +107,8 @@ def add_function(scene: bpy.types.Scene, name: str, ob: bpy.types.Object, armatu
         ob[name] = 0.0
         ob.id_properties_ui(name).update(min=0, max=1, subtype='FACTOR')
     else:
+        if func.function_type == GameFunctionType.CONSTANT:
+            return
         value_is_bool = isinstance(func.default_value, bool)
         value_comes_from_scene = func.attribute_type == 'VIEW_LAYER'
         if value_comes_from_scene:

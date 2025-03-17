@@ -729,6 +729,8 @@ class Function:
         
         if block_name == "default function": # indicates that function comes from an object tag
             self.input = element.SelectField("import name").GetStringData()
+            if not self.input:
+                self.input = "zero"
             self.range = self.input
             self.turn_off_with = element.SelectField("turn off with").GetStringData()
             self.ranged_interpolation_name = element.SelectField("ranged interpolation name").GetStringData()
@@ -817,10 +819,11 @@ class Function:
         return_node_group = False
         if tree is None:
             return_node_group = True
-            tree = bpy.data.node_groups.get("function -> ", name)
+            group_name = f"function -> {name}"
+            tree = bpy.data.node_groups.get(group_name)
             if tree is not None:
                 return tree
-            tree = bpy.data.node_groups.new(name, 'ShaderNodeTree')
+            tree = bpy.data.node_groups.new(group_name, 'ShaderNodeTree')
             group_output = tree.nodes.new('NodeGroupOutput')
             if self.color_type == FunctionEditorColorGraphType.Scalar:
                 tree.interface.new_socket("Value", in_out='OUTPUT', socket_type='NodeSocketFloat').default_value = 0.0
@@ -887,6 +890,14 @@ class Function:
                 function_node.inputs[2].default_value = self.colors[1]
                 function_node.inputs[3].default_value = self.colors[2]
                 function_node.inputs[4].default_value = self.colors[3]
+                
+        if self.master_type != FunctionEditorMasterType.Basic and self.is_exclusion:
+            exclusion_node = tree.nodes.new('ShaderNodeGroup')
+            exclusion_node.node_tree = utils.add_node_from_resources("shared_nodes", "Exclusion")
+            exclusion_node.inputs[1].default_value = self.exclusion_min
+            exclusion_node.inputs[2].default_value = self.exclusion_max
+            first_node_input = exclusion_node
+            first_node_range = exclusion_node
         
         if self.master_type not in {FunctionEditorMasterType.Basic, FunctionEditorMasterType.Curve}:
             clamp_node = tree.nodes.new('ShaderNodeClamp')
@@ -897,73 +908,88 @@ class Function:
                 clamp_node_ranged.inputs["Max"].default_value = self.range_max
                 clamp_node_ranged.inputs["Min"].default_value = self.range_min
                 mix_clamp_node = tree.nodes.new('ShaderNodeMix')
-                mix_clamp_node.clamp_factor = True
-                mix_clamp_node.inputs[0].default_value = 0.5
+                if self.ranged_interpolation_name:
+                    interp_attr_node = add_attribute_node(tree, self.ranged_interpolation_name)
+                    tree.links.new(input=mix_clamp_node.inputs[0], output=interp_attr_node.outputs[2] if interp_attr_node.bl_idname == 'ShaderNodeAttribute' else interp_attr_node.outputs[0])
                 tree.links.new(input=mix_clamp_node.inputs["A"], output=clamp_node.outputs[0])
                 tree.links.new(input=mix_clamp_node.inputs["B"], output=clamp_node_ranged.outputs[0])
-                tree.links.new(input=function_node.inputs[0], output=mix_clamp_node.outputs[0])
-                first_node_input = clamp_node
+                tree.links.new(input=first_node_input.inputs[0], output=mix_clamp_node.outputs[0])
                 first_node_range = clamp_node_ranged
             else:
-                tree.links.new(input=function_node.inputs[0], output=clamp_node.outputs[0])
-                first_node_input = clamp_node
+                tree.links.new(input=first_node_input.inputs[0], output=clamp_node.outputs[0])
                 
-        if self.master_type != FunctionEditorMasterType.Basic and self.is_exclusion:
-            exclusion_node = tree.nodes.new('ShaderNodeGroup')
-            periodic_node.node_tree = utils.add_node_from_resources("shared_nodes", "Exclusion")
+            first_node_input = clamp_node
         
         match self.master_type:
             case FunctionEditorMasterType.Curve:
                 curve_node = tree.nodes.new('ShaderNodeFloatCurve')
-                tree.links.new(input=first_node_input.inputs[0], output=curve_node.outputs[0])
-                first_node_input = curve_node
+                
                 if self.is_ranged:
                     curve_node_range = tree.nodes.new('ShaderNodeFloatCurve')
-                    tree.links.new(input=first_node_range.inputs[0], output=curve_node_range.outputs[0])
+                    mix_curve_node = tree.nodes.new('ShaderNodeMix')
+                    tree.links.new(input=mix_curve_node.inputs["A"], output=curve_node.outputs[0])
+                    tree.links.new(input=mix_curve_node.inputs["B"], output=curve_node_range.outputs[0])
+                    tree.links.new(input=first_node_input.inputs[0], output=mix_curve_node.outputs[0])
                     first_node_range = curve_node_range
+                else:
+                    tree.links.new(input=first_node_input.inputs[0], output=curve_node.outputs[0])
+                first_node_input = curve_node
+                
             case FunctionEditorMasterType.Periodic:
                 periodic_node = tree.nodes.new('ShaderNodeGroup')
                 periodic_node.node_tree = utils.add_node_from_resources("reach_nodes", f"periodic function type - {self.input_periodic_function}")
                 if self.input_periodic_function not in {"one", "zero"}:
                     periodic_node.inputs[1].default_value = self.input_frequency
                     periodic_node.inputs[2].default_value = self.input_phase
-                tree.links.new(input=first_node_input.inputs[0], output=periodic_node.outputs[0])
-                first_node_input = periodic_node
+                
                 if self.is_ranged:
                     periodic_node_range = tree.nodes.new('ShaderNodeGroup')
                     periodic_node_range.node_tree = utils.add_node_from_resources("reach_nodes", f"periodic function type - {self.range_periodic_function}")
                     if self.range_periodic_function not in {"one", "zero"}:
                         periodic_node_range.inputs[1].default_value = self.range_frequency
                         periodic_node_range.inputs[2].default_value = self.range_phase
+
+                    tree.links.new(input=first_node_input.inputs[0], output=periodic_node.outputs[0])
                     tree.links.new(input=first_node_range.inputs[0], output=periodic_node_range.outputs[0])
                     first_node_range = periodic_node_range
+                else:
+                    tree.links.new(input=first_node_input.inputs[0], output=periodic_node.outputs[0])
+                first_node_input = periodic_node
+                
             case FunctionEditorMasterType.Exponent:
                 math_node = tree.nodes.new('ShaderNodeMath')
                 math_node.operation = 'POWER'
                 math_node.inputs[1].default_value = self.input_exponent
-                tree.links.new(input=first_node_input.inputs[0], output=math_node.outputs[0])
-                first_node_input = math_node
+                
                 if self.is_ranged:
                     math_node_range = tree.nodes.new('ShaderNodeMath')
                     math_node_range.operation = 'POWER'
                     math_node_range.inputs[1].default_value = self.range_exponent
+
+                    tree.links.new(input=first_node_input.inputs[0], output=math_node.outputs[0])
                     tree.links.new(input=first_node_range.inputs[0], output=math_node_range.outputs[0])
                     first_node_range = math_node_range
+                else:
+                    tree.links.new(input=first_node_input.inputs[0], output=math_node.outputs[0])
+                first_node_input = math_node
             case FunctionEditorMasterType.Transition:
                 transition_node = tree.nodes.new('ShaderNodeGroup')
                 transition_node.node_tree = utils.add_node_from_resources("reach_nodes", f"transition function type - {self.input_transition_function}")
-                tree.links.new(input=first_node_input.inputs[0], output=transition_node.outputs[0])
-                first_node_input = transition_node
+                
                 if self.is_ranged:
                     transition_node_range = tree.nodes.new('ShaderNodeGroup')
                     transition_node_range.node_tree = utils.add_node_from_resources("reach_nodes", f"transition function type - {self.range_transition_function}")
+
+                    tree.links.new(input=first_node_input.inputs[0], output=transition_node_range.outputs[0])
                     tree.links.new(input=first_node_range.inputs[0], output=transition_node_range.outputs[0])
                     first_node_range = transition_node_range
+                else:
+                    tree.links.new(input=first_node_input.inputs[0], output=transition_node.outputs[0])
+                first_node_input = transition_node
                 
         if self.input:
             attribute_node = add_attribute_node(tree, self.input)
             self.input_uses_group_node = attribute_node.bl_idname == 'ShaderNodeGroup'
-            print(attribute_node.name)
             tree.links.new(input=first_node_input.inputs[1] if self.master_type == FunctionEditorMasterType.Curve else first_node_input.inputs[0], output=attribute_node.outputs[2] if attribute_node.bl_idname == 'ShaderNodeAttribute' else attribute_node.outputs[0])
             if self.is_ranged:
                 attribute_node_range = add_attribute_node(tree, self.range)
