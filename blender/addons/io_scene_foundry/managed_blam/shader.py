@@ -22,6 +22,8 @@ from ..managed_blam.render_method_definition import RenderMethodDefinitionTag
 global_render_method_definition = None
 last_group_node = None
 
+used_plate_paths = []
+
 class ChannelType(Enum):
     DEFAULT = 0
     RGB = 1
@@ -456,6 +458,7 @@ class ShaderTag(Tag):
         self.always_extract_bitmaps = always_extract_bitmaps
         self.game_functions = set()
         self.object_functions = set()
+        self.sequence_drivers = {}
         self._get_info(self.reference_material_shader.Path if self.corinth else self.definition.Path)
         if self.group_supported:
             self._to_nodes_group(blender_material)
@@ -580,7 +583,6 @@ class ShaderTag(Tag):
         element = None
         bitmap_path = None
         wrap_mode = 'REPEAT'
-        plate_info = None
         for element in self.block_parameters.Elements:
             if element.Fields[0].GetStringData() == parameter.name:
                 break
@@ -645,14 +647,21 @@ class ShaderTag(Tag):
                     
             # Check if this image is a plate
             plate_dir = Path(image_path).with_suffix("")
+            sequence_length = 1
             if plate_dir.exists() and plate_dir.is_dir():
-                plate_info = []
                 tifs = list(plate_dir.iterdir())
-                plate_info.append(len(tifs))
+                if len(tifs) > sequence_length:
+                    sequence_length = len(tifs)
+                    for tif in tifs:
+                        if tif in used_plate_paths:
+                            continue
+                        used_plate_paths.append(tif)
+                        image_path = str(tif)
+                        break
+                    else:
+                        image_path = str(tifs[0])
                 
             image = bpy.data.images.load(filepath=image_path, check_existing=True)
-            if plate_info:
-                plate_info.append(image.size[0])
 
             if for_normal:
                 image.colorspace_settings.name = 'Non-Color'
@@ -663,8 +672,11 @@ class ShaderTag(Tag):
             #     image.alpha_mode = 'CHANNEL_PACKED'
             # else:
             #     image.colorspace_settings.name = 'Non-Color'
+            
+            if sequence_length > 1:
+                image.source = 'SEQUENCE'
                 
-            return image, wrap_mode, plate_info
+            return image, wrap_mode, sequence_length
     
     def _normal_type_from_parameter_name(self, name):
         if not self.corinth:
@@ -829,7 +841,7 @@ class ShaderTag(Tag):
             with BitmapTag(path=bitmap_path) as bitmap:
                 return bitmap.get_granny_data(fill_alpha, calc_blue)
             
-    def _tiling_from_animated_parameters(self, tree: bpy.types.NodeTree, parameter: OptionParameter, needs_texcoord_node=True):
+    def _tiling_from_animated_parameters(self, tree: bpy.types.NodeTree, parameter: OptionParameter):
         animated_parameters = {}
 
         if not self.corinth and self.reference.Path:
@@ -850,8 +862,7 @@ class ShaderTag(Tag):
         if animated_parameters:
             tiling_node = tree.nodes.new('ShaderNodeGroup')
             tiling_node.node_tree = utils.add_node_from_resources("shared_nodes", 'Texture Tiling')
-            if needs_texcoord_node:
-                self.add_texcoord_node(tree, tiling_node.inputs["Vector"])
+            self.add_texcoord_node(tree, tiling_node.inputs["Vector"])
             for value_type, ap in animated_parameters.items():
                 self._setup_input_with_function(tiling_node.inputs[TilingNodeInputs[value_type.name].value], ap)
             return tiling_node
@@ -875,7 +886,7 @@ class ShaderTag(Tag):
         if result is None:
             return
         
-        data, wrap_mode, plate_info = result
+        data, wrap_mode, sequence_length = result
         
         if data is None:
             return
@@ -884,12 +895,28 @@ class ShaderTag(Tag):
         data_node.image = data
         data_node.extension = wrap_mode
         
-        if plate_info is not None:
-            plate_node = tree.nodes.new('ShaderNodeGroup')
-            plate_node.node_tree = utils.add_node_from_resources("shared_nodes", 'Plate')
-            plate_node.inputs[1].default_value = plate_info[0]
-            plate_node.inputs[2].default_value = plate_info[1]
-            tree.links.new(input=data_node.inputs[0], output=plate_node.outputs[0])
+        if sequence_length > 1:
+            value = self._value_from_parameter(parameter, AnimatedParameterType.FRAME_INDEX)
+            data_node.image_user.frame_duration = sequence_length
+            data_node.image_user.frame_start = -sequence_length
+            if isinstance(value, Function):
+                data_node.image_user.use_auto_refresh = True
+                self.game_functions.add(value.input)
+                result = tree.driver_add(f'nodes["{data_node.name}"].image_user.frame_offset')
+                driver = result.driver
+                driver.type = 'SCRIPTED'
+                var = driver.variables.new()
+                var.name = "var"
+                var.type = 'SINGLE_PROP'
+                var.targets[0].id = None
+                var.targets[0].data_path = f'["{value.input}"]'
+                driver.expression = f"{var.name} * {sequence_length} - {sequence_length - 1}"
+                self.sequence_drivers[value.input] = (driver, sequence_length)
+            else:
+                result = tree.driver_add(f'nodes["{data_node.name}"].image_user.frame_offset')
+                driver = result.driver
+                driver.type = 'SCRIPTED'
+                driver.expression = f"-{sequence_length - 1}"
         
         if specified_input is None:
             match channel_type:
@@ -909,17 +936,10 @@ class ShaderTag(Tag):
                 case ChannelType.ALPHA:
                     tree.links.new(input=node.inputs[specified_input], output=data_node.outputs[1])
         
-        tiling_node = self._tiling_from_animated_parameters(tree, parameter, not plate_info)
+        tiling_node = self._tiling_from_animated_parameters(tree, parameter)
         if tiling_node is not None:
-            if plate_info:
-                tree.links.new(input=plate_node.inputs[0], output=tiling_node.outputs[0])
-            else:
-                tree.links.new(input=data_node.inputs[0], output=tiling_node.outputs[0])
-        elif plate_info:
-            value = self._value_from_parameter(parameter, AnimatedParameterType.FRAME_INDEX)
-            self._setup_input_with_function(plate_node.inputs["Image Index"], self._value_from_parameter(parameter, AnimatedParameterType.FRAME_INDEX))
-            self.add_texcoord_node(tree, plate_node.inputs[0])
-        
+            tree.links.new(input=data_node.inputs[0], output=tiling_node.outputs[0])
+            
         return data_node
     
     def _set_input_from_animated_parameter(self, tree: bpy.types.NodeTree, input, func: Function):

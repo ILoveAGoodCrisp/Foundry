@@ -42,6 +42,9 @@ legacy_frame_prefixes = "frame_", "frame ", "bip_", "bip ", "b_", "b "
 
 global variant_items
 
+ammo_names = "primary_ammunition", "airstrike_launch_count", "secondary_ammunition"
+tether_name = "tether_distance"
+
 ### Steps for adding a new file type ###
 ########################################
 # 1. Add the name of the file extension to formats
@@ -83,9 +86,17 @@ tag_files_cache = set()
 
 def add_function(scene: bpy.types.Scene, name: str, ob: bpy.types.Object, armature: bpy.types.Object=None):
     func = game_functions.get(name)
-    has_armature = armature is not None
+    ammo = name.startswith(ammo_names)
+    tether = name.startswith(tether_name)
+    has_armature = armature is not None # because we handle these differently
     needs_id_prop = False
     id = None
+    
+    if ammo or tether:
+        ob[name] = 0.0
+        ob.id_properties_ui(name).update(min=0, max=1, subtype='FACTOR')
+        return
+    
     if func is None:
         if has_armature:
             id = armature
@@ -686,6 +697,7 @@ class NWO_Import(bpy.types.Operator):
                 if self.build_blender_materials:
                     mat_function_map = {}
                     validated_funcs = set()
+                    sequence_drivers = {}
                     if utils.is_corinth(context):
                         print('Building Blender materials from material tags')
                     else:
@@ -700,7 +712,8 @@ class NWO_Import(bpy.types.Operator):
                             result = tag_to_nodes(corinth, mat, shader_path, self.always_extract_bitmaps)
                             mat_function_map[mat] = result[0]
                             validated_funcs.update(result[1])
-                            
+                            sequence_drivers.update(result[2])
+
                     for ob in imported_objects:
                         for slot in ob.material_slots:
                             if slot.material:
@@ -708,6 +721,30 @@ class NWO_Import(bpy.types.Operator):
                                 if functions is not None:
                                     for func in functions:
                                         add_function(context.scene, func, ob, ob.parent)
+                                        key = sequence_drivers.get(func)
+                                        if key is not None:
+                                            driver, sequence_length = key
+                                            driver: bpy.types.Driver
+                                            driver.variables[0].targets[0].id = ob
+                                            ob.id_properties_ui(func).update(min=0, max=sequence_length - 1)
+                                            ammo = func.startswith(ammo_names)
+                                            tether = func.startswith(tether_name)
+                                            if ammo or tether:
+                                                result = ob.driver_add(f'["{func}"]')
+                                                driver = result.driver
+                                                driver.type = 'SCRIPTED'
+                                                var = driver.variables.new()
+                                                var.name = "var"
+                                                var.type = 'SINGLE_PROP'
+                                                var.targets[0].id = ob.parent
+                                                var.targets[0].data_path = '["Tether Distance"]' if tether else '["Ammo"]'
+                                                match func.rpartition("_")[2]:
+                                                    case "ones":
+                                                        driver.expression = f"({var.name} - floor({var.name} / 10) * 10) / {sequence_length}"
+                                                    case "tens":
+                                                        driver.expression = f"(floor({var.name} / 10) - floor({var.name} / 100) * 10) / {sequence_length}"
+                                                    case "hundreds":
+                                                        driver.expression = f"(floor({var.name} / 100) - floor({var.name} / 1000) * 10) / {sequence_length}"
                                         
                     for ob, func_dict in importer.obs_for_props.items():
                         for export_name, funcs in func_dict.items():
@@ -1282,6 +1319,7 @@ class NWOImporter:
                     has_ammo = magazine_size > 0
                     if has_ammo:
                         print(f"--- Weapon has magazine size: {magazine_size}")
+                    uses_tether = obj.get_uses_tether()
                     functions = obj.functions_to_blender()
                     if functions:
                         print(f"--- Created Blender node groups for {len(functions)} object functions")
@@ -1308,9 +1346,6 @@ class NWOImporter:
                             
                             if has_change_colors:
                                 prop_names.extend(["Primary Color", "Secondary Color", "Tertiary Color", "Quaternary Color"])
-                            
-                            if has_ammo:
-                                prop_names.append("Ammo")
                                 
                             # possible compas driver = abs(var/pi / (2*pi))
                             if render:
@@ -1327,10 +1362,7 @@ class NWOImporter:
                                             ob.id_properties_ui("Secondary Color").update(subtype="COLOR", min=0, max=1)
                                             ob.id_properties_ui("Tertiary Color").update(subtype="COLOR", min=0, max=1)
                                             ob.id_properties_ui("Quaternary Color").update(subtype="COLOR", min=0, max=1)
-                                        if has_ammo:
-                                            ob["Ammo"] = magazine_size
-                                            ob.id_properties_ui("Ammo").update(min=0, max=int('9' * len(str(magazine_size))))
-                                            
+
                                         if ob.type == 'MESH':
                                             self.obs_for_props[ob] = functions
                                             
@@ -1339,6 +1371,14 @@ class NWOImporter:
                                         ob.nwo.cinematic_object = obj.tag_path.RelativePathWithExtension
                                         if temp_variant == self.tag_variant:
                                             ob.nwo.cinematic_variant = temp_variant
+                                            
+                                        if has_ammo:
+                                           ob["Ammo"] = magazine_size
+                                           ob.id_properties_ui("Ammo").update(min=0, max=int('9' * len(str(magazine_size))))
+                                        if uses_tether:
+                                           ob["Tether Distance"] = 0
+                                           ob.id_properties_ui("Tether Distance").update(min=0, max=999)
+                                            
                                     elif ob.type == 'MESH':
                                         for prop in prop_names:
                                             # Add driver

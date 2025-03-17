@@ -6,8 +6,6 @@ from .. import utils
 from .Tags import TagFieldBlockElement
 import bpy
 
-ammo_names = "primary_ammunition_ones", "primary_ammunition_tens", "primary_ammunition_hundreds"
-
 # OPTIONS
 
 class AlbedoOption(Enum):
@@ -608,7 +606,7 @@ functions_list = [
 game_functions = {func.name: func for func in functions_list}
     
 def add_attribute_node(tree: bpy.types.NodeTree, function_name: str):
-    group = bpy.data.node_groups.get(function_name)
+    group = bpy.data.node_groups.get(f"function -> {function_name}")
     if group is None:
         func = game_functions.get(function_name)
         if func is None:
@@ -819,7 +817,7 @@ class Function:
         return_node_group = False
         if tree is None:
             return_node_group = True
-            tree = bpy.data.node_groups.get(name)
+            tree = bpy.data.node_groups.get("function -> ", name)
             if tree is not None:
                 return tree
             tree = bpy.data.node_groups.new(name, 'ShaderNodeTree')
@@ -965,25 +963,12 @@ class Function:
         if self.input:
             attribute_node = add_attribute_node(tree, self.input)
             self.input_uses_group_node = attribute_node.bl_idname == 'ShaderNodeGroup'
-            if self.input in ammo_names:
-                attribute_node.attribute_name = "Ammo"
-                digits_node = tree.nodes.new('ShaderNodeGroup')
-                digits_node.node_tree = utils.add_node_from_resources("shared_nodes", "Digits")
-                tree.links.new(input=digits_node.inputs[0], output=attribute_node.outputs[2])
-                tree.links.new(input=first_node_input.inputs[1] if self.master_type == FunctionEditorMasterType.Curve else first_node_input.inputs[0], output=digits_node.outputs[self.input.rpartition("_")[2].capitalize()])
-            else:
-                tree.links.new(input=first_node_input.inputs[1] if self.master_type == FunctionEditorMasterType.Curve else first_node_input.inputs[0], output=attribute_node.outputs[2] if attribute_node.bl_idname == 'ShaderNodeAttribute' else attribute_node.outputs[0])
+            print(attribute_node.name)
+            tree.links.new(input=first_node_input.inputs[1] if self.master_type == FunctionEditorMasterType.Curve else first_node_input.inputs[0], output=attribute_node.outputs[2] if attribute_node.bl_idname == 'ShaderNodeAttribute' else attribute_node.outputs[0])
             if self.is_ranged:
                 attribute_node_range = add_attribute_node(tree, self.range)
                 self.range_uses_group_node = attribute_node_range.bl_idname == 'ShaderNodeGroup'
-                if self.range in ammo_names:
-                    attribute_node_range.attribute_name = "Ammo"
-                    digits_node_range = tree.nodes.new('ShaderNodeGroup')
-                    digits_node_range.node_tree = utils.add_node_from_resources("shared_nodes", "Digits")
-                    tree.links.new(input=digits_node_range.inputs[0], output=attribute_node_range.outputs[2])
-                    tree.links.new(input=first_node_range.inputs[1] if self.master_type == FunctionEditorMasterType.Curve else first_node_range.inputs[0], output=digits_node_range.outputs[self.range.rpartition("_")[2].capitalize()])
-                else:
-                    tree.links.new(input=first_node_range.inputs[1] if self.master_type == FunctionEditorMasterType.Curve else first_node_range.inputs[0], output=attribute_node_range.outputs[2] if attribute_node_range.bl_idname == 'ShaderNodeAttribute' else attribute_node_range.outputs[0])
+                tree.links.new(input=first_node_range.inputs[1] if self.master_type == FunctionEditorMasterType.Curve else first_node_range.inputs[0], output=attribute_node_range.outputs[2] if attribute_node_range.bl_idname == 'ShaderNodeAttribute' else attribute_node_range.outputs[0])
         
         if return_node_group:
             tree.links.new(input=group_output.inputs[0], output=function_node.outputs[0])

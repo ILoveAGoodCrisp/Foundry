@@ -432,9 +432,7 @@ class BitmapTag(Tag):
             if not self.is_cubemap:
                 full_tiff_path = Path(tiff_path)
                 utils.run_tool(["plate", str(full_tiff_path.with_suffix(""))], null_output=True)
-                tif_path = full_tiff_path.with_suffix(".tif")
-                if tif_path.exists():
-                    return str(tif_path)
+                # create plate but no longer use it blender
         else:
             tiff_path = self._save_single(blue_channel_fix, format, 0, "")
         

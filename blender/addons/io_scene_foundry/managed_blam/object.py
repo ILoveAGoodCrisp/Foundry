@@ -74,22 +74,26 @@ class ObjectTag(Tag):
         
         return magazines.Elements[0].SelectField("rounds loaded maximum").Data
     
+    def get_uses_tether(self):
+        if self.tag_path.Extension != "weapon":
+            return False
+        
+        triggers = self.tag.SelectField("Block:new triggers")
+        if triggers.Elements.Count == 0:
+            return False
+        
+        for element in triggers.Elements:
+            if element.SelectField("behavior").Value == 3:
+                return True
+            
+        return False
+    
     def get_variants(self) -> list[str]:
         model_path = self.get_model_tag_path_full()
         if not Path(model_path).exists():
             return []
         with ModelTag(path=model_path) as model:
             return model.get_model_variants()
-        
-    def functions_from_tag(self) -> list[str, float]:
-        for element in self.block_functions.Elements:
-            export_name = element.SelectField("export name").GetStringData()
-            if not export_name.strip():
-                continue
-            node_group_name = f"{self.tag_path.ShortName} {export_name}"
-            group = bpy.data.node_groups.get(node_group_name)
-            if group is None:
-                group = bpy.data.node_groups.new(node_group_name)
                 
     def functions_to_blender(self) -> list:
         '''Converts object functions to blender shader node groups'''
