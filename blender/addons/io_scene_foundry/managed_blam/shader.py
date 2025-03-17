@@ -899,8 +899,8 @@ class ShaderTag(Tag):
             value = self._value_from_parameter(parameter, AnimatedParameterType.FRAME_INDEX)
             data_node.image_user.frame_duration = sequence_length
             data_node.image_user.frame_start = -sequence_length
+            data_node.image_user.use_auto_refresh = True
             if isinstance(value, Function):
-                data_node.image_user.use_auto_refresh = True
                 self.game_functions.add(value.input)
                 result = tree.driver_add(f'nodes["{data_node.name}"].image_user.frame_offset')
                 driver = result.driver

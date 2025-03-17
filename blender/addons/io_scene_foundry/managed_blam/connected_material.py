@@ -8,6 +8,32 @@ import bpy
 
 # OPTIONS
 
+def approximate_spline_segment(segment, sample_count=4):
+    """Approximate the spline segment by sampling points along it."""
+    cp0, cp1 = segment.control_points
+    if not segment.spline_control_points:
+        return [(cp0.x, cp0.y), (cp1.x, cp1.y)]
+
+    scp0, scp1 = segment.spline_control_points
+
+    # Use Bezier formula to sample between cp0 and cp1
+    def bezier(t, p0, p1, p2, p3):
+        return (
+            (1 - t)**3 * p0 +
+            3 * (1 - t)**2 * t * p1 +
+            3 * (1 - t) * t**2 * p2 +
+            t**3 * p3
+        )
+
+    sampled_points = []
+    for i in range(sample_count + 1):
+        t = i / sample_count
+        x = bezier(t, cp0.x, scp0.x, scp1.x, cp1.x)
+        y = bezier(t, cp0.y, scp0.y, scp1.y, cp1.y)
+        sampled_points.append((x, y))
+
+    return sampled_points
+
 class AlbedoOption(Enum):
     default = 0
     detail_blend = 1
@@ -634,24 +660,53 @@ class ControlPoint:
         self.point_index = point_index
         self.x = 0
         self.y = 0
-        self.corner_type = FunctionEditorSegmentCornerType.NotApplicable
-        self.segment = None
+        #self.is_spline_control = False
         
-    def from_editor(self, editor, last_point_index):
+    def from_editor(self, editor):
         game_point_2d = editor.GetControlPoint(self.graph_index, self.point_index)
         self.x = game_point_2d.X
         self.y = game_point_2d.Y
-        if self.point_index > 0 and self.point_index < last_point_index:
-            self.corner_type = FunctionEditorSegmentCornerType[editor.GetControlPointCornerType(self.graph_index, self.point_index).ToString()]
+        #self.is_spline_control = not editor.GetIsGraphPoint(self.graph_index, self.point_index)
         
 class Segment:
     def __init__(self, graph_index, segment_index):
         self.graph_index = graph_index
         self.segment_index = segment_index
         self.type = FunctionEditorSegmentType.Linear
+        self.corner_type = FunctionEditorSegmentCornerType.NotApplicable
+        self.control_points = []
+        self.spline_control_points = []
         
-    def from_editor(self, editor):
-        self.type = FunctionEditorSegmentType[editor.GetSegmentType(self.graph_index, self.segment_index).ToString()]
+    def from_editor(self, editor, control_point_index) -> int:
+        self.type = FunctionEditorSegmentType(editor.GetSegmentType(self.graph_index, self.segment_index).value__)
+        points_to_find = 2 + int(self.type != FunctionEditorSegmentType.Linear) * 2
+        first = control_point_index
+        last = control_point_index + points_to_find - 1
+        print(points_to_find, first, last)
+        for i in range(first, last + 1):
+            point = ControlPoint(self.graph_index, i)
+            point.from_editor(editor)
+            if i == first or i == last:
+                self.control_points.append(point)
+                if self.segment_index != 0 and i == first:
+                    self.corner_type = FunctionEditorSegmentCornerType(editor.GetControlPointCornerType(self.graph_index, i).value__)
+            else:
+                self.spline_control_points.append(point)
+            
+        # points_found = 0 
+        # while points_found < 2:
+        #     point = ControlPoint(self.graph_index, control_point_index)
+        #     point.from_editor(editor)
+        #     if point.is_spline_control:
+        #         self.spline_control_points.append(point)
+        #     else:
+        #         self.control_points.append(point)
+        #         points_found += 1
+        #         if self.segment_index != 0 and points_found == 1:
+        #             self.corner_type = FunctionEditorSegmentCornerType(editor.GetControlPointCornerType(self.graph_index, control_point_index + len(self.control_points) + len(self.spline_control_points)).value__)
+                
+        return last
+        
         
 class Interpolation:
     def __init__(self):
@@ -714,9 +769,13 @@ class Function:
         self.interpolation_symmetric = None
         self.interpolation_increasing = None
         self.interpolation_decreasing = None
+        
+        self.segments = []
+        self.editor = None
     
     def from_element(self, element: TagFieldBlockElement, block_name: str):
         editor = element.SelectField(block_name).Value
+        self.editor = editor
         self.is_ranged = editor.IsRanged
         self.master_type = FunctionEditorMasterType(editor.MasterType.value__)
         self.color_type = FunctionEditorColorGraphType(editor.ColorGraphType.value__)
@@ -778,7 +837,30 @@ class Function:
                     self.range_min = editor.GetAmplitudeMin(1)
                     self.range_max = editor.GetAmplitudeMax(1)
             case FunctionEditorMasterType.Curve:
-                pass
+                input_control_count = editor.GetControlPointCount(0)
+                input_segment_count = editor.GetSegmentCount(0)
+                # print(self.input)
+                # print("CONTROLS: ", input_control_count)
+                # print("SEGMENTS: ", input_segment_count)
+                control_point_index = 0
+                segments = []
+                for i in range(input_segment_count):
+                    segment = Segment(0, i)
+                    control_point_index = segment.from_editor(editor, control_point_index)
+                    segments.append(segment)
+                    
+                self.segments = segments
+                
+                # print("SEGMENT INFO")
+                # for segment in segments:
+                #     print("INDEX ", segment.segment_index)
+                #     print("TYPE ", segment.type)
+                #     print("CORNER ", segment.corner_type)
+                #     for p in segment.control_points:
+                #         print("POINT ", p.point_index, p.x, p.y)
+                #     for p in segment.spline_control_points:
+                #         print("SPLINE ", p.point_index, p.x, p.y)
+                    
                 # Loop segments
                 # Get segment type, if spline then each CP on segment has a handle (another CP)
                 
@@ -813,6 +895,15 @@ class Function:
         editor.BeginUpdate()
         # Do stuff
         editor.EndUpdate()
+        
+    def sample(self, graph_index: int, start: int, end: int, sample_count=16):
+        sampled_points = []
+        for i in range(sample_count + 1):
+            t = i / sample_count
+            x = start + (end - start) * t
+            y = self.editor.Evaluate(x, x)
+            sampled_points.append((x, y, 'AUTO'))
+        return sampled_points
         
     def to_blend_nodes(self, tree: bpy.types.NodeTree=None, name="") -> list[bpy.types.Nodes]:
         '''Creates blender nodes for a game function, returns the output'''
@@ -895,13 +986,14 @@ class Function:
         if self.turn_off_with.strip():
             greater_node = tree.nodes.new('ShaderNodeMath')
             greater_node.operation = 'GREATER_THAN'
+            greater_node.inputs[1].default_value = 0.0
             turn_off_attr_node = add_attribute_node(tree, self.turn_off_with)
             tree.links.new(input=greater_node.inputs[0], output=turn_off_attr_node.outputs[2] if turn_off_attr_node.bl_idname == 'ShaderNodeAttribute' else turn_off_attr_node.outputs[0])
             turn_off_mix_node = tree.nodes.new('ShaderNodeMix')
             tree.links.new(input=turn_off_mix_node.inputs[0], output=greater_node.outputs[0])
             tree.links.new(input=first_node_input, output=turn_off_mix_node.outputs[0])
-            first_node_input = turn_off_mix_node.inputs[1]
-            first_node_range = turn_off_mix_node.inputs[1]
+            first_node_input = turn_off_mix_node.inputs["A"]
+            first_node_range = turn_off_mix_node.inputs["A"]
             
         if self.min_value > 0:
             min_node = tree.nodes.new('ShaderNodeMath')
@@ -961,16 +1053,41 @@ class Function:
         match self.master_type:
             case FunctionEditorMasterType.Curve:
                 curve_node = tree.nodes.new('ShaderNodeFloatCurve')
+                curve = curve_node.mapping.curves[0]
+                curve_points = []
+                for segment in self.segments:
+                    cp0, cp1 = segment.control_points
+                    if segment.type != FunctionEditorSegmentType.Linear:
+                        # Blender float curves don't allow for handle control, so sampling the value to add more points for accuracy
+                        curve_points.append((cp0.x, cp0.y, 'AUTO'))
+                        curve_points.append((cp1.x, cp1.y, 'AUTO'))
+                        curve_points.extend(self.sample(0, cp0.x, cp1.x, 16))
+                    else:
+                        curve_points.append((cp0.x, cp0.y, 'VECTOR'))
+                        curve_points.append((cp1.x, cp1.y, 'VECTOR'))
+                        
+                unique_points = list({(round(x, 6), round(y, 6)): (x, y, handle) for x, y, handle in curve_points}.values())
+                unique_points.sort(key=lambda pt: pt[0])
                 
-                if self.is_ranged:
-                    curve_node_range = tree.nodes.new('ShaderNodeFloatCurve')
-                    mix_curve_node = tree.nodes.new('ShaderNodeMix')
-                    tree.links.new(input=mix_curve_node.inputs["A"], output=curve_node.outputs[0])
-                    tree.links.new(input=mix_curve_node.inputs["B"], output=curve_node_range.outputs[0])
-                    tree.links.new(input=first_node_input, output=mix_curve_node.outputs[0])
-                    first_node_range = curve_node_range.inputs[1]
-                else:
-                    tree.links.new(input=first_node_input, output=curve_node.outputs[0])
+                for i, (x, y, handle) in enumerate(unique_points):
+                    if i < 2:
+                        curve.points[i].location = (x, y)
+                        curve.points[i].handle_type = handle
+                    else:
+                        curve.points.new(x, y).handle_type = handle
+
+                # Update mapping
+                curve_node.mapping.update()
+                        
+                # if self.is_ranged:
+                #     curve_node_range = tree.nodes.new('ShaderNodeFloatCurve')
+                #     mix_curve_node = tree.nodes.new('ShaderNodeMix')
+                #     tree.links.new(input=mix_curve_node.inputs["A"], output=curve_node.outputs[0])
+                #     tree.links.new(input=mix_curve_node.inputs["B"], output=curve_node_range.outputs[0])
+                #     tree.links.new(input=first_node_input, output=mix_curve_node.outputs[0])
+                #     first_node_range = curve_node_range.inputs[1]
+                # else:
+                tree.links.new(input=first_node_input, output=curve_node.outputs[0])
                 first_node_input = curve_node.inputs[1]
                 
             case FunctionEditorMasterType.Periodic:
