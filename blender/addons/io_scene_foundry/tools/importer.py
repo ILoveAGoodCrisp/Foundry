@@ -91,6 +91,7 @@ def add_function(scene: bpy.types.Scene, name: str, ob: bpy.types.Object, armatu
     has_armature = armature is not None # because we handle these differently
     needs_id_prop = False
     id = None
+    value_comes_from_scene = False
     
     if ammo or tether:
         ob[name] = 0.0
@@ -136,6 +137,8 @@ def add_function(scene: bpy.types.Scene, name: str, ob: bpy.types.Object, armatu
         var = driver.variables.new()
         var.name = "var"
         var.type = 'SINGLE_PROP'
+        if value_comes_from_scene:
+            var.targets[0].id_type = 'SCENE'
         var.targets[0].id = id
         var.targets[0].data_path = f'["{name}"]'
         driver.expression = var.name
@@ -1437,7 +1440,14 @@ class NWOImporter:
             has_change_colors = change_colors is not None
             magazine_size = obj.get_magazine_size()
             has_ammo = magazine_size > 0
+            if has_ammo:
+                print(f"--- Weapon has magazine size: {magazine_size}")
+            uses_tether = obj.get_uses_tether()
+            functions = obj.functions_to_blender()
+            if functions:
+                print(f"--- Created Blender node groups for {len(functions)} object functions")
             default_variant = obj.default_variant.GetStringData()
+            prop_names = []
             with ModelTag(path=model_path, raise_on_error=False) as model:
                 if not model.valid: return
                     
@@ -1453,14 +1463,9 @@ class NWOImporter:
                 allowed_region_permutations = model.get_variant_regions_and_permutations(temp_variant, self.tag_state)
                 model_collection = bpy.data.collections.new(model.tag_path.ShortName)
                 self.context.scene.collection.children.link(model_collection)
-                
-                prop_names = []
-                
+
                 if has_change_colors:
                     prop_names.extend(["Primary Color", "Secondary Color", "Tertiary Color", "Quaternary Color"])
-                
-                if has_ammo:
-                    prop_names.append("ammo")
                 
                 if render:
                     render_objects, armature = self.import_render_model(render, model_collection, None, allowed_region_permutations)
@@ -1476,15 +1481,23 @@ class NWOImporter:
                                 ob.id_properties_ui("Secondary Color").update(subtype="COLOR", min=0, max=1)
                                 ob.id_properties_ui("Tertiary Color").update(subtype="COLOR", min=0, max=1)
                                 ob.id_properties_ui("Quaternary Color").update(subtype="COLOR", min=0, max=1)
-                            if has_ammo:
-                                ob["ammo"] = magazine_size
-                                ob.id_properties_ui("ammo").update(min=0, max=999)
-                            
+
+                            if ob.type == 'MESH':
+                                self.obs_for_props[ob] = functions
+                                
                         if ob.type == 'ARMATURE':
                             ob.nwo.export_this = False
                             ob.nwo.cinematic_object = obj.tag_path.RelativePathWithExtension
                             if temp_variant == self.tag_variant:
                                 ob.nwo.cinematic_variant = temp_variant
+                                
+                            if has_ammo:
+                                ob["Ammo"] = magazine_size
+                                ob.id_properties_ui("Ammo").update(min=0, max=int('9' * len(str(magazine_size))))
+                            if uses_tether:
+                                ob["Tether Distance"] = 0
+                                ob.id_properties_ui("Tether Distance").update(min=0, max=999)
+                                
                         elif ob.type == 'MESH':
                             for prop in prop_names:
                                 # Add driver
@@ -1509,7 +1522,7 @@ class NWOImporter:
                                     var.targets[0].id = armature
                                     var.targets[0].data_path = f'["{prop}"]'
                                     driver.expression = var.name
-                                                                    
+                                    
                     if collision and self.tag_collision:
                         imported_objects.extend(self.import_collision_model(collision, armature, model_collection, allowed_region_permutations))
                     if physics and self.tag_physics:

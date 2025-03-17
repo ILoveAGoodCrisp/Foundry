@@ -986,6 +986,14 @@ class Function:
                 
         first_node_input = function_node.inputs[0]
         first_node_range = function_node.inputs[0]
+        
+        if self.time_period > 0:
+            time_node = tree.nodes.new('ShaderNodeGroup')
+            time_node.node_tree = utils.add_node_from_resources("shared_nodes", "Time Period")
+            time_node.inputs[0].default_value = self.time_period / utils.time_step()
+            tree.links.new(input=first_node_input, output=time_node.outputs[0])
+            first_node_input = time_node.inputs[1]
+            first_node_range = time_node.inputs[1]
                 
         if self.turn_off_with.strip():
             greater_node = tree.nodes.new('ShaderNodeMath')
@@ -1154,7 +1162,7 @@ class Function:
             if self.is_ranged:
                 attribute_node_range = add_attribute_node(tree, self.range)
                 self.range_uses_group_node = attribute_node_range.bl_idname == 'ShaderNodeGroup'
-                tree.links.new(input=first_node_range, output=attribute_node_range.outputs[2] if attribute_node_range.bl_idname == 'ShaderNodeAttribute' else attribute_node_range.outputs[0])
+                tree.links.new(input=first_node_range, output=attribute_node_range.outputs[2] if attribute_node_range.bl_idname == 'ShaderNodeAttribute' else attribute_node_range.outputs[0])            
         
         if return_node_group:
             tree.links.new(input=group_output.inputs[0], output=function_node.outputs[0])

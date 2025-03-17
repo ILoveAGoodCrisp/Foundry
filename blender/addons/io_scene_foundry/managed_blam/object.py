@@ -102,6 +102,8 @@ class ObjectTag(Tag):
             export_name = element.SelectField("StringId:export name").GetStringData()
             if not export_name.strip():
                 continue
+            if export_name == element.SelectField("StringId:import name").GetStringData():
+                continue
             func = Function()
             func.from_element(element, "default function")
             func.to_blend_nodes(name=export_name)

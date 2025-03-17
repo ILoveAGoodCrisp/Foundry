@@ -4305,3 +4305,6 @@ def ultimate_armature_parent(ob: bpy.types.Object):
         ob = parent
         
     return ob
+
+def time_step() -> float:
+    return bpy.context.scene.render.fps_base / bpy.context.scene.render.fps
