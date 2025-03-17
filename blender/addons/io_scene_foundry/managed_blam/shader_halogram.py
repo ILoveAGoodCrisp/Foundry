@@ -88,9 +88,10 @@ class ShaderHalogramTag(ShaderTag):
         illum_uses_diffuse = e_self_illumination in {SelfIllumination.FROM_DIFFUSE, SelfIllumination.SELF_ILLUM_TIMES_DIFFUSE}
         has_illum = e_self_illumination != SelfIllumination.OFF
         
-        if illum_uses_diffuse or not has_illum:
+        if illum_uses_diffuse or not has_illum or e_blend_mode == BlendMode.ALPHA_BLEND:
             node_albedo = self._add_group_node(tree, nodes, f"albedo - {utils.game_str(e_albedo.name)}")
-            final_node = node_albedo
+            if not has_illum:
+                final_node = node_albedo
             
             if e_albedo in {Albedo.FOUR_CHANGE_COLOR, Albedo.TWO_CHANGE_COLOR}:
                 node_cc_primary = nodes.new(type="ShaderNodeAttribute")
@@ -122,7 +123,6 @@ class ShaderHalogramTag(ShaderTag):
                     node_cc_quaternary.location.y = node_albedo.location.y - 400
                     tree.links.new(input=node_albedo.inputs["Quaternary Color"], output=node_cc_quaternary.outputs[0])
                     self.game_functions.add("Quaternary Color")
-        
         
         if e_self_illumination.value > 0:
             node_self_illumination = self._add_group_node(tree, nodes, f"self_illumination - {utils.game_str(e_self_illumination.name)}")
