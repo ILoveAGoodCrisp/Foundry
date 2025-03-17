@@ -682,7 +682,6 @@ class Segment:
         points_to_find = 2 + int(self.type != FunctionEditorSegmentType.Linear) * 2
         first = control_point_index
         last = control_point_index + points_to_find - 1
-        print(points_to_find, first, last)
         for i in range(first, last + 1):
             point = ControlPoint(self.graph_index, i)
             point.from_editor(editor)
@@ -837,11 +836,7 @@ class Function:
                     self.range_min = editor.GetAmplitudeMin(1)
                     self.range_max = editor.GetAmplitudeMax(1)
             case FunctionEditorMasterType.Curve:
-                input_control_count = editor.GetControlPointCount(0)
                 input_segment_count = editor.GetSegmentCount(0)
-                # print(self.input)
-                # print("CONTROLS: ", input_control_count)
-                # print("SEGMENTS: ", input_segment_count)
                 control_point_index = 0
                 segments = []
                 for i in range(input_segment_count):
@@ -851,31 +846,18 @@ class Function:
                     
                 self.segments = segments
                 
-                # print("SEGMENT INFO")
-                # for segment in segments:
-                #     print("INDEX ", segment.segment_index)
-                #     print("TYPE ", segment.type)
-                #     print("CORNER ", segment.corner_type)
-                #     for p in segment.control_points:
-                #         print("POINT ", p.point_index, p.x, p.y)
-                #     for p in segment.spline_control_points:
-                #         print("SPLINE ", p.point_index, p.x, p.y)
-                    
-                # Loop segments
-                # Get segment type, if spline then each CP on segment has a handle (another CP)
+                if self.is_ranged:
+                    range_segment_count = editor.GetSegmentCount(1)
+                    control_point_index = 0
+                    segments = []
+                    for i in range(range_segment_count):
+                        segment = Segment(0, i)
+                        control_point_index = segment.from_editor(editor, control_point_index)
+                        segments.append(segment)
+                        
+                    self.segments_range = segments
                 
-                
-                # input_control_count = editor.GetControlPointCount(0)
-                # segment_count = editor.GetSegmentCount(0)
-                # last_control_index = input_control_count - 1
-                # for i in range(input_control_count):
-                #     control_point = ControlPoint(0, i)
-                #     control_point.from_editor(editor, segment_count)
-                #     if i < segment_count:
-                #         segment = Segment(0, i)
-                #         segment.from_editor(editor)
-                #         control_point.segment = segment
-                #     self.control_points.append(control_point)
+
                     
         if self.is_color:
             for i in range(self.color_count):
@@ -896,7 +878,7 @@ class Function:
         # Do stuff
         editor.EndUpdate()
         
-    def sample(self, graph_index: int, start: int, end: int, sample_count=16):
+    def sample(self, start: int, end: int, sample_count=16):
         sampled_points = []
         first = 0
         last = sample_count
@@ -909,7 +891,7 @@ class Function:
             sampled_points.append((x, y, 'AUTO'))
         return sampled_points
         
-    def to_blend_nodes(self, tree: bpy.types.NodeTree=None, name="") -> list[bpy.types.Nodes]:
+    def to_blend_nodes(self, tree: bpy.types.NodeTree=None, name="", uses_time_period=False) -> list[bpy.types.Nodes]:
         '''Creates blender nodes for a game function, returns the output'''
         return_node_group = False
         if tree is None:
@@ -987,7 +969,7 @@ class Function:
         first_node_input = function_node.inputs[0]
         first_node_range = function_node.inputs[0]
         
-        if self.time_period > 0:
+        if uses_time_period and self.time_period > 0:
             time_node = tree.nodes.new('ShaderNodeGroup')
             time_node.node_tree = utils.add_node_from_resources("shared_nodes", "Time Period")
             time_node.inputs[0].default_value = self.time_period / utils.time_step()
@@ -1004,8 +986,12 @@ class Function:
             turn_off_mix_node = tree.nodes.new('ShaderNodeMix')
             tree.links.new(input=turn_off_mix_node.inputs[0], output=greater_node.outputs[0])
             tree.links.new(input=first_node_input, output=turn_off_mix_node.outputs[0])
-            first_node_input = turn_off_mix_node.inputs["A"]
-            first_node_range = turn_off_mix_node.inputs["A"]
+            if self.turn_off_with_uses_magnitude:
+                first_node_input = turn_off_mix_node.inputs["B"]
+                first_node_range = turn_off_mix_node.inputs["B"]
+            else:
+                first_node_input = turn_off_mix_node.inputs["A"]
+                first_node_range = turn_off_mix_node.inputs["A"]
             
         if self.min_value > 0:
             min_node = tree.nodes.new('ShaderNodeMath')
@@ -1074,7 +1060,7 @@ class Function:
                         # Blender float curves don't allow for handle control, so sampling the value to add more points for accuracy
                         curve_points.append((cp0.x, cp0.y, 'AUTO'))
                         curve_points.append((cp1.x, cp1.y, 'AUTO'))
-                        curve_points.extend(self.sample(0, cp0.x, cp1.x, 16))
+                        curve_points.extend(self.sample(cp0.x, cp1.x, 16))
                     else:
                         curve_points.append((cp0.x, cp0.y, 'VECTOR'))
                         curve_points.append((cp1.x, cp1.y, 'VECTOR'))
@@ -1089,18 +1075,41 @@ class Function:
                     else:
                         curve.points.new(x, y).handle_type = handle
 
-                # Update mapping
                 curve_node.mapping.update()
                         
-                # if self.is_ranged:
-                #     curve_node_range = tree.nodes.new('ShaderNodeFloatCurve')
-                #     mix_curve_node = tree.nodes.new('ShaderNodeMix')
-                #     tree.links.new(input=mix_curve_node.inputs["A"], output=curve_node.outputs[0])
-                #     tree.links.new(input=mix_curve_node.inputs["B"], output=curve_node_range.outputs[0])
-                #     tree.links.new(input=first_node_input, output=mix_curve_node.outputs[0])
-                #     first_node_range = curve_node_range.inputs[1]
-                # else:
-                tree.links.new(input=first_node_input, output=curve_node.outputs[0])
+                if self.is_ranged:
+                    curve_node_range = tree.nodes.new('ShaderNodeFloatCurve')
+                    curve = curve_node_range.mapping.curves[0]
+                    curve_points = []
+                    for segment in self.segments_range:
+                        cp0, cp1 = segment.control_points
+
+                        if segment.type != FunctionEditorSegmentType.Linear:
+                            curve_points.append((cp0.x, cp0.y, 'AUTO'))
+                            curve_points.append((cp1.x, cp1.y, 'AUTO'))
+                            curve_points.extend(self.sample(cp0.x, cp1.x, 16))
+                        else:
+                            curve_points.append((cp0.x, cp0.y, 'VECTOR'))
+                            curve_points.append((cp1.x, cp1.y, 'VECTOR'))
+                            
+                    unique_points = list({(round(x, 6), round(y, 6)): (x, y, handle) for x, y, handle in curve_points}.values())
+                    unique_points.sort(key=lambda pt: pt[0])
+                    
+                    for i, (x, y, handle) in enumerate(unique_points):
+                        if i < 2:
+                            curve.points[i].location = (x, y)
+                            curve.points[i].handle_type = handle
+                        else:
+                            curve.points.new(x, y).handle_type = handle
+
+                    curve_node_range.mapping.update()
+                    mix_curve_node = tree.nodes.new('ShaderNodeMix')
+                    tree.links.new(input=mix_curve_node.inputs["A"], output=curve_node.outputs[0])
+                    tree.links.new(input=mix_curve_node.inputs["B"], output=curve_node_range.outputs[0])
+                    tree.links.new(input=first_node_input, output=mix_curve_node.outputs[0])
+                    first_node_range = curve_node_range.inputs[1]
+                else:
+                    tree.links.new(input=first_node_input, output=curve_node.outputs[0])
                 first_node_input = curve_node.inputs[1]
                 
             case FunctionEditorMasterType.Periodic:

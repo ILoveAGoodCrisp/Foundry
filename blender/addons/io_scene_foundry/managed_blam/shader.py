@@ -24,6 +24,15 @@ last_group_node = None
 
 used_plate_paths = []
 
+supports_time_period = {"shader": ("self_illum_color", "self_illum_intensity"),
+                        "shader_terrain": tuple(),
+                        "shader_custom": tuple(),
+                        "shader_decal": tuple(),
+                        "shader_foliage": tuple(),
+                        "shader_glass": tuple(),
+                        "shader_halogram": tuple(),
+                        }
+
 class ChannelType(Enum):
     DEFAULT = 0
     RGB = 1
@@ -864,7 +873,7 @@ class ShaderTag(Tag):
             tiling_node.node_tree = utils.add_node_from_resources("shared_nodes", 'Texture Tiling')
             self.add_texcoord_node(tree, tiling_node.inputs["Vector"])
             for value_type, ap in animated_parameters.items():
-                self._setup_input_with_function(tiling_node.inputs[TilingNodeInputs[value_type.name].value], ap)
+                self._setup_input_with_function(tiling_node.inputs[TilingNodeInputs[value_type.name].value], ap, uses_time=True)
             return tiling_node
     
     def _recursive_tiling_parameters_get(self, parameter: OptionParameter, animated_parameters: dict):
@@ -1174,7 +1183,7 @@ class ShaderTag(Tag):
         # Link to output
         tree.links.new(input=node_output.inputs[0], output=final_node.outputs[0])
         
-    def _setup_input_with_function(self, end_input, data: float | tuple | Function | int | bool, for_alpha=False):
+    def _setup_input_with_function(self, end_input, data: float | tuple | Function | int | bool, for_alpha=False, uses_time=False):
         tree: bpy.types.NodeTree = end_input.id_data
         if not isinstance(data, Function):
             if isinstance(data, tuple):
@@ -1203,7 +1212,7 @@ class ShaderTag(Tag):
                     end_input.default_value = data.clamp_min
             return
         
-        tree.links.new(input=end_input, output=data.to_blend_nodes(tree))
+        tree.links.new(input=end_input, output=data.to_blend_nodes(tree, uses_time_period=uses_time))
         if data.input.strip():
             if data.input_uses_group_node:
                 self.object_functions.add(data.input)
@@ -1222,7 +1231,7 @@ class ShaderTag(Tag):
         for input in node.inputs:
             parameter_name_ui = input.name.lower() if "." not in input.name else input.name.partition(".")[0].lower()
             if "gamma curve" in parameter_name_ui:
-                if "base_map" in parameter_name_ui:
+                if "base_map" in parameter_name_ui or "palette" in parameter_name_ui:
                     input.default_value = 2.2
                 else:
                     input.default_value = 1
@@ -1250,9 +1259,9 @@ class ShaderTag(Tag):
                 parameter_type = ParameterType(parameter.type)
                 match parameter_type:
                     case ParameterType.COLOR | ParameterType.ARGB_COLOR:
-                        self._setup_input_with_function(input, self._value_from_parameter(parameter, AnimatedParameterType.COLOR))
+                        self._setup_input_with_function(input, self._value_from_parameter(parameter, AnimatedParameterType.COLOR), uses_time=parameter_name_ui in supports_time_period[self.tag_ext])
                     case ParameterType.REAL | ParameterType.INT | ParameterType.BOOL:
-                        self._setup_input_with_function(input, self._value_from_parameter(parameter, AnimatedParameterType.VALUE))
+                        self._setup_input_with_function(input, self._value_from_parameter(parameter, AnimatedParameterType.VALUE), uses_time=parameter_name_ui in supports_time_period[self.tag_ext])
                     case _:
                         if ".rgb" in input.name:
                             last_input_node = self.group_set_image(tree, node, parameter, ChannelType.RGB)
