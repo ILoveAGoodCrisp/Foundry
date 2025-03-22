@@ -414,7 +414,7 @@ class BitmapTag(Tag):
         elif expected_tif_path in path_cache and expected_tif_path.exists():
             return expected_tif_path
         
-        self.is_cubemap = "cube" in self.tag_path.ShortName
+        self.is_cubemap = "cube" in self.tag_path.ShortName or "env" in self.tag_path.ShortName
         if self.block_bitmaps.Elements.Count <= 0:
             return
         gamma = self.get_gamma_value()

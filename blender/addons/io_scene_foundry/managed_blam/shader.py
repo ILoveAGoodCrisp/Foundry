@@ -919,7 +919,7 @@ class ShaderTag(Tag):
                 var.type = 'SINGLE_PROP'
                 var.targets[0].id = None
                 var.targets[0].data_path = f'["{value.input}"]'
-                driver.expression = f"{var.name} * {sequence_length} - {sequence_length - 1}"
+                driver.expression = f"{var.name} * {sequence_length} - {sequence_length - 0.9999}"
                 self.sequence_drivers[value.input] = (driver, sequence_length)
             else:
                 result = tree.driver_add(f'nodes["{data_node.name}"].image_user.frame_offset')

@@ -298,7 +298,7 @@ functions_list = [
     GameFunction("engine_value_d", 0, GameFunctionType.OBJECT),
     GameFunction("flashlights_allowed", True, GameFunctionType.WORLD),
     GameFunction("forerunner_eye_glow", 1, GameFunctionType.OBJECT),
-    GameFunction("holiday", False, GameFunctionType.WORLD, "holiday"), # 1 if its a holiday, else 0. Needs an NWO prop
+    GameFunction("holiday", 0.0 , GameFunctionType.WORLD, "holiday"),
     GameFunction("impending_reinforcement", 0, GameFunctionType.OBJECT),
     GameFunction("in_phantom", 0, GameFunctionType.OBJECT),
     GameFunction("megalo_object_function_1", 0, GameFunctionType.OBJECT),

@@ -84,7 +84,7 @@ object_tag_types = (
 
 tag_files_cache = set()
 
-def add_function(scene: bpy.types.Scene, name: str, ob: bpy.types.Object, armature: bpy.types.Object=None):
+def add_function(scene: bpy.types.Scene, name: str, ob: bpy.types.Object, armature: bpy.types.Object=None) -> bool:
     func = game_functions.get(name)
     ammo = name.startswith(ammo_names)
     tether = name.startswith(tether_name)
@@ -92,6 +92,7 @@ def add_function(scene: bpy.types.Scene, name: str, ob: bpy.types.Object, armatu
     needs_id_prop = False
     id = None
     value_comes_from_scene = False
+    value_is_bool = False
     
     if ammo or tether:
         ob[name] = 0.0
@@ -142,6 +143,8 @@ def add_function(scene: bpy.types.Scene, name: str, ob: bpy.types.Object, armatu
         var.targets[0].id = id
         var.targets[0].data_path = f'["{name}"]'
         driver.expression = var.name
+        
+    return value_is_bool
         
 
 class State(Enum):
@@ -725,13 +728,14 @@ class NWO_Import(bpy.types.Operator):
                                 functions = mat_function_map.get(slot.material)
                                 if functions is not None:
                                     for func in functions:
-                                        add_function(context.scene, func, ob, ob.parent)
+                                        bool_prop = add_function(context.scene, func, ob, ob.parent)
                                         key = sequence_drivers.get(func)
                                         if key is not None:
                                             driver, sequence_length = key
                                             driver: bpy.types.Driver
                                             driver.variables[0].targets[0].id = ob
-                                            ob.id_properties_ui(func).update(min=0, max=sequence_length - 1)
+                                            if not bool_prop:
+                                                ob.id_properties_ui(func).update(min=0, max=sequence_length - 1)
                                             ammo = func.startswith(ammo_names)
                                             tether = func.startswith(tether_name)
                                             if ammo or tether:
