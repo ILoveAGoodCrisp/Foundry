@@ -173,6 +173,10 @@ class NWO_OT_AnimationsFromActions(bpy.types.Operator):
     
     def execute(self, context):
         objects = [ob for ob in context.selected_objects if ob.animation_data]
+        if not objects:
+            arm = utils.get_rig(context)
+            if arm is not None:
+                objects = [arm]
         scene_nwo = context.scene.nwo
         current_animation_names = {animation.name for animation in context.scene.nwo.animations}
         for action in bpy.data.actions:
