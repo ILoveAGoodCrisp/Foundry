@@ -706,6 +706,11 @@ class Segment:
                 
         return last
         
+class InterpolationMode(Enum):
+    CONSTANT_VELOCITY = 0
+    LINEAR_ACCELERATION = 1
+    DAMPED_SPRING = 2
+    FRACTIONAL = 3
         
 class Interpolation:
     def __init__(self):
@@ -715,12 +720,19 @@ class Interpolation:
         self.spring_k = 0
         self.spring_c = 0
         self.fraction = 0
-    
+        
+    def from_element(self, element: TagFieldBlockElement):
+        self.interpolation_mode = InterpolationMode(element.SelectField("interpolation mode").Value)
+        self.linear_travel_time = element.SelectField("linear travel time").Data
+        self.acceleration = element.SelectField("acceleration").Data
+
 class Function:
     def __init__(self):
+        self.animated_type = AnimatedParameterType.VALUE
         self.time_period = 0.0
         self.input = ""
         self.range = ""
+        self.graph_count = 0
         self.input_uses_group_node = False
         self.range_uses_group_node = False
         self.is_ranged = False
@@ -728,20 +740,13 @@ class Function:
         self.is_color = False
         self.color_type = FunctionEditorColorGraphType.Scalar
         self.color_count = 1
-        self.input_periodic_function = "one"
-        self.range_periodic_function = "one"
-        self.input_transition_function = "linear"
-        self.range_transition_function = "linear"
-        self.input_frequency = 0
-        self.range_frequency = 0
-        self.input_phase = 0
-        self.range_phase = 0
-        self.input_exponent = 5
-        self.range_exponent = 5
-        self.input_min = 0
-        self.input_max = 1
-        self.range_min = 0
-        self.range_max = 1
+        self.periodic_functions = []
+        self.transition_functions = []
+        self.frequencies = []
+        self.phases = []
+        self.exponents = []
+        self.mins = [0]
+        self.maxes = []
         self.clamp_min = 0
         self.clamp_max = 1
         self.is_exclusion = False
@@ -751,9 +756,6 @@ class Function:
         self.control_points = []
         
         self.time_period = 0
-        self.input = ""
-        self.range = ""
-        self.ranged_interpolation_name = ""
         self.min_value = 0
         self.turn_off_with = ""
         
@@ -768,9 +770,12 @@ class Function:
         self.interpolation_symmetric = None
         self.interpolation_increasing = None
         self.interpolation_decreasing = None
+        self.has_interpolation = False
         
-        self.segments = []
+        self.graph_segments = []
         self.editor = None
+        
+        self.is_object_function = False
     
     def from_element(self, element: TagFieldBlockElement, block_name: str):
         editor = element.SelectField(block_name).Value
@@ -780,18 +785,18 @@ class Function:
         self.color_type = FunctionEditorColorGraphType(editor.ColorGraphType.value__)
         self.is_color = self.color_type != FunctionEditorColorGraphType.Scalar
         self.color_count = editor.ColorCount
+        self.graph_count = editor.GraphCount
         
         self.is_exclusion = editor.IsExclusion
         self.exclusion_min = editor.ExclusionMin
         self.exclusion_max = editor.ExclusionMax
         
-        if block_name == "default function": # indicates that function comes from an object tag
+        self.is_object_function = block_name == "default function"
+        
+        if self.is_object_function:
             self.input = element.SelectField("import name").GetStringData()
-            if not self.input:
-                self.input = "zero"
-            self.range = self.input
             self.turn_off_with = element.SelectField("turn off with").GetStringData()
-            self.ranged_interpolation_name = element.SelectField("ranged interpolation name").GetStringData()
+            self.range = element.SelectField("ranged interpolation name").GetStringData()
             self.min_value = element.SelectField("min value").Data
             self.scale_by = element.SelectField("scale by").GetStringData()
             flags = element.SelectField("flags")
@@ -801,64 +806,57 @@ class Function:
             self.random_time_offset = flags.TestBit("random time offset")
             self.always_exports_value = flags.TestBit("always exports value")
             self.turn_off_with_uses_magnitude = flags.TestBit("turn off with uses magnitude")
-        else: # function comes from shader
+            interp_elements = element.SelectField("interpolation").Elements
+            if interp_elements.Count > 0:
+                self.has_interpolation = True
+                if interp_elements.Count == 2:
+                    self.interpolation_increasing = Interpolation()
+                    self.interpolation_increasing.from_element(interp_elements[0])
+                    self.interpolation_decreasing = Interpolation()
+                    self.interpolation_decreasing.from_element(interp_elements[1])
+                    self.time_period = self.interpolation_increasing.linear_travel_time
+                else:
+                    self.interpolation_symmetric = Interpolation()
+                    self.interpolation_symmetric.from_element(interp_elements[0])
+                    self.time_period = self.interpolation_symmetric.linear_travel_time
+                
+        else:
             self.time_period = element.SelectField("time period").Data
             self.input = element.SelectField("input name").GetStringData()
             self.range = element.SelectField("range name").GetStringData()
+            
+        if not self.input:
+            self.input = "one"
+            
+        graph_range = range(self.graph_count)
         
         match self.master_type:
             case FunctionEditorMasterType.Periodic:
-                self.input_periodic_function = editor.GetPeriodicFunctionText(editor.GetFunctionIndex(0))
-                self.input_frequency = editor.GetFrequency(0)
-                self.input_phase = editor.GetPhase(0)
-                self.input_min = editor.GetAmplitudeMin(0)
-                self.input_max = editor.GetAmplitudeMax(0)
-                if self.is_ranged:
-                    self.range_periodic_function = editor.GetPeriodicFunctionText(editor.GetFunctionIndex(1))
-                    self.range_frequency = editor.GetFrequency(1)
-                    self.range_phase = editor.GetPhase(1)
-                    self.range_min = editor.GetAmplitudeMin(1)
-                    self.range_max = editor.GetAmplitudeMax(1)
+                self.periodic_functions = [editor.GetPeriodicFunctionText(editor.GetFunctionIndex(i)) for i in graph_range]
+                self.frequencies = [editor.GetFrequency(i) for i in graph_range]
+                self.phases = [editor.GetPhase(i) for i in graph_range]
+                self.mins = [editor.GetAmplitudeMin(i) for i in graph_range]
+                self.maxes = [editor.GetAmplitudeMax(i) for i in graph_range]
             case FunctionEditorMasterType.Exponent:
-                self.input_exponent = editor.GetExponent(0)
-                self.input_min = editor.GetAmplitudeMin(0)
-                self.input_max = editor.GetAmplitudeMax(0)
-                if self.is_ranged:
-                    self.range_exponent = editor.GetExponent(1)
-                    self.range_min = editor.GetAmplitudeMin(1)
-                    self.range_max = editor.GetAmplitudeMax(1)
+                self.exponents = [editor.GetExponent(i) for i in graph_range]
+                self.mins = [editor.GetAmplitudeMin(i) for i in graph_range]
+                self.maxes = [editor.GetAmplitudeMax(i) for i in graph_range]
             case FunctionEditorMasterType.Transition:
-                self.input_transition_function = editor.GetTransitionFunctionText(editor.GetFunctionIndex(0))
-                self.input_min = editor.GetAmplitudeMin(0)
-                self.input_max = editor.GetAmplitudeMax(0)
-                if self.is_ranged:
-                    self.range_transition_function = editor.GetTransitionFunctionText(editor.GetFunctionIndex(1))
-                    self.range_min = editor.GetAmplitudeMin(1)
-                    self.range_max = editor.GetAmplitudeMax(1)
+                self.transition_functions = [editor.GetTransitionFunctionText(editor.GetFunctionIndex(i)) for i in graph_range]
+                self.mins = [editor.GetAmplitudeMin(i) for i in graph_range]
+                self.maxes = [editor.GetAmplitudeMax(i) for i in graph_range]
             case FunctionEditorMasterType.Curve:
-                input_segment_count = editor.GetSegmentCount(0)
-                control_point_index = 0
-                segments = []
-                for i in range(input_segment_count):
-                    segment = Segment(0, i)
-                    control_point_index = segment.from_editor(editor, control_point_index)
-                    segments.append(segment)
-                    
-                self.segments = segments
-                
-                if self.is_ranged:
-                    range_segment_count = editor.GetSegmentCount(1)
+                for i in graph_range:
+                    input_segment_count = editor.GetSegmentCount(0)
                     control_point_index = 0
                     segments = []
-                    for i in range(range_segment_count):
+                    for i in range(input_segment_count):
                         segment = Segment(0, i)
                         control_point_index = segment.from_editor(editor, control_point_index)
                         segments.append(segment)
-                        
-                    self.segments_range = segments
-                
-
                     
+                    self.graph_segments.append(segments)
+
         if self.is_color:
             for i in range(self.color_count):
                 game_color = editor.GetColor(i)
@@ -883,177 +881,30 @@ class Function:
         first = 0
         last = sample_count
         for i in range(sample_count + 1):
-            if i == first or i == last:
+            if i == first or i == last: 
+                # don't sample the first or last point, as these are covered by the control points
                 continue
             t = i / sample_count
             x = start + (end - start) * t
             y = self.editor.Evaluate(x, x)
             sampled_points.append((x, y, 'AUTO'))
         return sampled_points
-        
-    def to_blend_nodes(self, tree: bpy.types.NodeTree=None, name="", uses_time_period=False) -> list[bpy.types.Nodes]:
-        '''Creates blender nodes for a game function, returns the output'''
-        return_node_group = False
-        if tree is None:
-            return_node_group = True
-            group_name = f"function -> {name}"
-            tree = bpy.data.node_groups.get(group_name)
-            if tree is not None:
-                return tree
-            tree = bpy.data.node_groups.new(group_name, 'ShaderNodeTree')
-            group_output = tree.nodes.new('NodeGroupOutput')
-            if self.color_type == FunctionEditorColorGraphType.Scalar:
-                tree.interface.new_socket("Value", in_out='OUTPUT', socket_type='NodeSocketFloat').default_value = 0.0
-            else:
-                tree.interface.new_socket("Color", in_out='OUTPUT', socket_type='NodeSocketColor').default_value = (1.0, 1.0, 1.0, 1.0)
-        
-        if self.master_type == FunctionEditorMasterType.Basic:
-            if self.color_type == FunctionEditorColorGraphType.Scalar:
-                node = tree.nodes.new('ShaderNodeValue')
-                node.outputs[0].default_value = self.clamp_min
-                if self.is_ranged:
-                    node_range = tree.nodes.new('ShaderNodeValue')
-                    node_range.outputs[0].default_value = self.clamp_max
-                    node_mix = tree.nodes.new('ShaderNodeMix')
-                    node_attribute = add_attribute_node(tree, self.ranged_interpolation_name)
-                    tree.links.new(input=node_mix.inputs["A"], output=node.outputs[0])
-                    tree.links.new(input=node_mix.inputs["B"], output=node_range.outputs[0])
-                    tree.links.new(input=node_mix.inputs["Factor"], output=node_attribute.outputs[2] if node_attribute.bl_idname == 'ShaderNodeAttribute' else node_attribute.outputs[0])
-            else:
-                node = tree.nodes.new('ShaderNodeRGB')
-                node.outputs[0].default_value = self.colors[0]
-                if self.is_ranged:
-                    node_range = tree.nodes.new('ShaderNodeRGB')
-                    node_range.outputs[0].default_value = self.colors[1]
-                    node_mix = tree.nodes.new('ShaderNodeMix')
-                    node_mix.data_type = 'RGBA'
-                    node_attribute = add_attribute_node(tree, self.ranged_interpolation_name)
-                    tree.links.new(input=node_mix.inputs["A"], output=node.outputs[0])
-                    tree.links.new(input=node_mix.inputs["B"], output=node_range.outputs[0])
-                    tree.links.new(input=node_mix.inputs["Factor"], output=node_attribute.outputs[0])
-            
-            if return_node_group:
-                if self.is_ranged:
-                    tree.links.new(input=group_output.inputs[0], output=node_mix.outputs[0])
-                else:
-                    tree.links.new(input=group_output.inputs[0], output=node.outputs[0])
-                return tree
-            else:
-                return node_mix.outputs[0]
-        
-        function_node = tree.nodes.new('ShaderNodeGroup')
-        
-        # print(self.tag_path.ShortName, data.color_type.name, data.master_type.name)
-        
-        match self.color_type:
-            case FunctionEditorColorGraphType.Scalar:
-                function_node.node_tree = utils.add_node_from_resources("reach_nodes", "Function - 2-float")
-                function_node.inputs[1].default_value = self.clamp_min
-                function_node.inputs[2].default_value = self.clamp_max
-            case FunctionEditorColorGraphType.TwoColor:
-                function_node.node_tree = utils.add_node_from_resources("reach_nodes", "Function - 2-color")
-                function_node.inputs[1].default_value = self.colors[0]
-                function_node.inputs[2].default_value = self.colors[1]
-            case FunctionEditorColorGraphType.ThreeColor:
-                function_node.node_tree = utils.add_node_from_resources("reach_nodes", "Function - 3-color")
-                function_node.inputs[1].default_value = self.colors[0]
-                function_node.inputs[2].default_value = self.colors[1]
-                function_node.inputs[3].default_value = self.colors[2]
-            case FunctionEditorColorGraphType.FourColor:
-                function_node.node_tree = utils.add_node_from_resources("reach_nodes", "Function - 4-color")
-                function_node.inputs[1].default_value = self.colors[0]
-                function_node.inputs[2].default_value = self.colors[1]
-                function_node.inputs[3].default_value = self.colors[2]
-                function_node.inputs[4].default_value = self.colors[3]
-                
-        first_node_input = function_node.inputs[0]
-        first_node_range = function_node.inputs[0]
-        
-        if uses_time_period and self.time_period > 0:
-            time_node = tree.nodes.new('ShaderNodeGroup')
-            time_node.node_tree = utils.add_node_from_resources("shared_nodes", "Time Period")
-            time_node.inputs[0].default_value = self.time_period / utils.time_step()
-            tree.links.new(input=first_node_input, output=time_node.outputs[0])
-            first_node_input = time_node.inputs[1]
-            first_node_range = time_node.inputs[1]
-                
-        if self.turn_off_with.strip():
-            greater_node = tree.nodes.new('ShaderNodeMath')
-            greater_node.operation = 'GREATER_THAN'
-            greater_node.inputs[1].default_value = 0.0
-            turn_off_attr_node = add_attribute_node(tree, self.turn_off_with)
-            tree.links.new(input=greater_node.inputs[0], output=turn_off_attr_node.outputs[2] if turn_off_attr_node.bl_idname == 'ShaderNodeAttribute' else turn_off_attr_node.outputs[0])
-            turn_off_mix_node = tree.nodes.new('ShaderNodeMix')
-            tree.links.new(input=turn_off_mix_node.inputs[0], output=greater_node.outputs[0])
-            tree.links.new(input=first_node_input, output=turn_off_mix_node.outputs[0])
-            if self.turn_off_with_uses_magnitude:
-                first_node_input = turn_off_mix_node.inputs["B"]
-                first_node_range = turn_off_mix_node.inputs["B"]
-            else:
-                first_node_input = turn_off_mix_node.inputs["A"]
-                first_node_range = turn_off_mix_node.inputs["A"]
-            
-        if self.min_value > 0:
-            min_node = tree.nodes.new('ShaderNodeMath')
-            min_node.operation = 'MAXIMUM'
-            min_node.inputs[0].default_value = self.min_value
-            tree.links.new(input=first_node_input, output=min_node.outputs[0])
-            first_node_input = min_node.inputs[1]
-            first_node_range = min_node.inputs[1]
-                
-        if self.invert:
-            invert_node = tree.nodes.new('ShaderNodeMath')
-            invert_node.operation = 'SUBTRACT'
-            invert_node.inputs[0].default_value = 1.0
-            tree.links.new(input=first_node_input, output=invert_node.outputs[0])
-            first_node_input = invert_node.inputs[1]
-            first_node_range = invert_node.inputs[1]
-            
-        if self.scale_by.strip():
-            multiply_node = tree.nodes.new('ShaderNodeMath')
-            multiply_node.operation = 'MULTIPLY'
-            scale_by_attr_node = add_attribute_node(tree, self.scale_by)
-            tree.links.new(input=multiply_node.inputs[0], output=scale_by_attr_node.outputs[0])
-            tree.links.new(input=first_node_input, output=multiply_node.outputs[0])
-            first_node_input = multiply_node.inputs[1]
-            first_node_range = multiply_node.inputs[1]
-                
-        if self.master_type != FunctionEditorMasterType.Basic and self.is_exclusion:
-            exclusion_node = tree.nodes.new('ShaderNodeGroup')
-            exclusion_node.node_tree = utils.add_node_from_resources("shared_nodes", "Exclusion")
-            exclusion_node.inputs[1].default_value = self.exclusion_min
-            exclusion_node.inputs[2].default_value = self.exclusion_max
-            tree.links.new(input=first_node_input, output=exclusion_node.outputs[0])
-            first_node_input = exclusion_node.inputs[0]
-            first_node_range = exclusion_node.inputs[0]
-        
-        if self.master_type not in {FunctionEditorMasterType.Basic, FunctionEditorMasterType.Curve}:
-            clamp_node = tree.nodes.new('ShaderNodeClamp')
-            clamp_node.inputs["Max"].default_value = self.input_max
-            clamp_node.inputs["Min"].default_value = self.input_min
-            if self.is_ranged:
-                clamp_node_ranged = tree.nodes.new('ShaderNodeClamp')
-                clamp_node_ranged.inputs["Max"].default_value = self.range_max
-                clamp_node_ranged.inputs["Min"].default_value = self.range_min
-                mix_clamp_node = tree.nodes.new('ShaderNodeMix')
-                if self.ranged_interpolation_name:
-                    interp_attr_node = add_attribute_node(tree, self.ranged_interpolation_name)
-                    tree.links.new(input=mix_clamp_node.inputs[0], output=interp_attr_node.outputs[2] if interp_attr_node.bl_idname == 'ShaderNodeAttribute' else interp_attr_node.outputs[0])
-                tree.links.new(input=mix_clamp_node.inputs["A"], output=clamp_node.outputs[0])
-                tree.links.new(input=mix_clamp_node.inputs["B"], output=clamp_node_ranged.outputs[0])
-                tree.links.new(input=first_node_input, output=mix_clamp_node.outputs[0])
-                first_node_range = clamp_node_ranged.inputs[0]
-            else:
-                tree.links.new(input=first_node_input, output=clamp_node.outputs[0])
-                
-            first_node_input = clamp_node.inputs[0]
+    
+    def _graph_to_nodes(self, tree: bpy.types.NodeTree, graph_index: int) -> list[bpy.types.NodeSocket]:
+        final_output = None
+        if self.master_type in (FunctionEditorMasterType.Periodic, FunctionEditorMasterType.Exponent, FunctionEditorMasterType.Transition):
+            map_range_node = tree.nodes.new('ShaderNodeGroup')
+            map_range_node.node_tree = utils.add_node_from_resources("shared_nodes", f"Function Range")
+            map_range_node.inputs[1].default_value = self.mins[graph_index]
+            map_range_node.inputs[2].default_value = self.maxes[graph_index]
+            final_output = map_range_node.outputs[0]
         
         match self.master_type:
             case FunctionEditorMasterType.Curve:
                 curve_node = tree.nodes.new('ShaderNodeFloatCurve')
                 curve = curve_node.mapping.curves[0]
                 curve_points = []
-                for segment in self.segments:
+                for segment in self.graph_segments[graph_index]:
                     cp0, cp1 = segment.control_points
 
                     if segment.type != FunctionEditorSegmentType.Linear:
@@ -1076,105 +927,166 @@ class Function:
                         curve.points.new(x, y).handle_type = handle
 
                 curve_node.mapping.update()
-                        
-                if self.is_ranged:
-                    curve_node_range = tree.nodes.new('ShaderNodeFloatCurve')
-                    curve = curve_node_range.mapping.curves[0]
-                    curve_points = []
-                    for segment in self.segments_range:
-                        cp0, cp1 = segment.control_points
-
-                        if segment.type != FunctionEditorSegmentType.Linear:
-                            curve_points.append((cp0.x, cp0.y, 'AUTO'))
-                            curve_points.append((cp1.x, cp1.y, 'AUTO'))
-                            curve_points.extend(self.sample(cp0.x, cp1.x, 16))
-                        else:
-                            curve_points.append((cp0.x, cp0.y, 'VECTOR'))
-                            curve_points.append((cp1.x, cp1.y, 'VECTOR'))
-                            
-                    unique_points = list({(round(x, 6), round(y, 6)): (x, y, handle) for x, y, handle in curve_points}.values())
-                    unique_points.sort(key=lambda pt: pt[0])
-                    
-                    for i, (x, y, handle) in enumerate(unique_points):
-                        if i < 2:
-                            curve.points[i].location = (x, y)
-                            curve.points[i].handle_type = handle
-                        else:
-                            curve.points.new(x, y).handle_type = handle
-
-                    curve_node_range.mapping.update()
-                    mix_curve_node = tree.nodes.new('ShaderNodeMix')
-                    tree.links.new(input=mix_curve_node.inputs["A"], output=curve_node.outputs[0])
-                    tree.links.new(input=mix_curve_node.inputs["B"], output=curve_node_range.outputs[0])
-                    tree.links.new(input=first_node_input, output=mix_curve_node.outputs[0])
-                    first_node_range = curve_node_range.inputs[1]
-                else:
-                    tree.links.new(input=first_node_input, output=curve_node.outputs[0])
                 first_node_input = curve_node.inputs[1]
+                final_output = curve_node.outputs[0]
                 
             case FunctionEditorMasterType.Periodic:
                 periodic_node = tree.nodes.new('ShaderNodeGroup')
-                periodic_node.node_tree = utils.add_node_from_resources("reach_nodes", f"periodic function type - {self.input_periodic_function}")
-                if self.input_periodic_function not in {"one", "zero"}:
-                    periodic_node.inputs[1].default_value = self.input_frequency
-                    periodic_node.inputs[2].default_value = self.input_phase
-                
-                if self.is_ranged:
-                    periodic_node_range = tree.nodes.new('ShaderNodeGroup')
-                    periodic_node_range.node_tree = utils.add_node_from_resources("reach_nodes", f"periodic function type - {self.range_periodic_function}")
-                    if self.range_periodic_function not in {"one", "zero"}:
-                        periodic_node_range.inputs[1].default_value = self.range_frequency
-                        periodic_node_range.inputs[2].default_value = self.range_phase
-
-                    tree.links.new(input=first_node_input, output=periodic_node.outputs[0])
-                    tree.links.new(input=first_node_range, output=periodic_node_range.outputs[0])
-                    first_node_range = periodic_node_range.inputs[0]
-                else:
-                    tree.links.new(input=first_node_input, output=periodic_node.outputs[0])
+                periodic_node.node_tree = utils.add_node_from_resources("reach_nodes", f"periodic function type - {self.periodic_functions[graph_index]}")
+                if self.periodic_functions[graph_index] not in {"one", "zero"}:
+                    periodic_node.inputs[1].default_value = self.frequencies[graph_index]
+                    periodic_node.inputs[2].default_value = self.phases[graph_index]
+                tree.links.new(input=map_range_node.inputs[0], output=periodic_node.outputs[0])
                 first_node_input = periodic_node.inputs[0]
                 
             case FunctionEditorMasterType.Exponent:
                 math_node = tree.nodes.new('ShaderNodeMath')
                 math_node.operation = 'POWER'
-                math_node.inputs[1].default_value = self.input_exponent
-                
-                if self.is_ranged:
-                    math_node_range = tree.nodes.new('ShaderNodeMath')
-                    math_node_range.operation = 'POWER'
-                    math_node_range.inputs[1].default_value = self.range_exponent
-
-                    tree.links.new(input=first_node_input, output=math_node.outputs[0])
-                    tree.links.new(input=first_node_range, output=math_node_range.outputs[0])
-                    first_node_range = math_node_range.inputs[0]
-                else:
-                    tree.links.new(input=first_node_input, output=math_node.outputs[0])
+                math_node.inputs[1].default_value = self.exponents[graph_index]
+                tree.links.new(input=map_range_node.inputs[0], output=math_node.outputs[0])
                 first_node_input = math_node.inputs[0]
             case FunctionEditorMasterType.Transition:
                 transition_node = tree.nodes.new('ShaderNodeGroup')
-                transition_node.node_tree = utils.add_node_from_resources("reach_nodes", f"transition function type - {self.input_transition_function}")
-                
-                if self.is_ranged:
-                    transition_node_range = tree.nodes.new('ShaderNodeGroup')
-                    transition_node_range.node_tree = utils.add_node_from_resources("reach_nodes", f"transition function type - {self.range_transition_function}")
-
-                    tree.links.new(input=first_node_input, output=transition_node_range.outputs[0])
-                    tree.links.new(input=first_node_range, output=transition_node_range.outputs[0])
-                    first_node_range = transition_node_range.inputs[0]
-                else:
-                    tree.links.new(input=first_node_input, output=transition_node.outputs[0])
+                transition_node.node_tree = utils.add_node_from_resources("reach_nodes", f"transition function type - {self.transition_functions[graph_index]}")
+                tree.links.new(input=map_range_node.inputs[0], output=transition_node.outputs[0])
                 first_node_input = transition_node.inputs[0]
                 
-        if self.input:
-            attribute_node = add_attribute_node(tree, self.input)
-            self.input_uses_group_node = attribute_node.bl_idname == 'ShaderNodeGroup'
-            tree.links.new(input=first_node_input, output=attribute_node.outputs[2] if attribute_node.bl_idname == 'ShaderNodeAttribute' else attribute_node.outputs[0])
-            if self.is_ranged:
-                attribute_node_range = add_attribute_node(tree, self.range)
-                self.range_uses_group_node = attribute_node_range.bl_idname == 'ShaderNodeGroup'
-                tree.links.new(input=first_node_range, output=attribute_node_range.outputs[2] if attribute_node_range.bl_idname == 'ShaderNodeAttribute' else attribute_node_range.outputs[0])            
+        attribute_node = add_attribute_node(tree, self.input)
+        self.input_uses_group_node = attribute_node.bl_idname == 'ShaderNodeGroup'
+        tree.links.new(input=first_node_input, output=attribute_node.outputs[2] if attribute_node.bl_idname == 'ShaderNodeAttribute' else attribute_node.outputs[0])    
+        
+        return final_output
+    
+    def make_node_group(self, name):
+        group_name = f"function -> {name}"
+        tree = bpy.data.node_groups.get(group_name)
+        if tree is None:
+            tree = bpy.data.node_groups.new(group_name, 'ShaderNodeTree')
+            tree.nodes.new('NodeGroupOutput')
+            tree.nodes.new('NodeGroupOutput')
+            if self.color_type == FunctionEditorColorGraphType.Scalar:
+                tree.interface.new_socket("Value", in_out='OUTPUT', socket_type='NodeSocketFloat').default_value = 0.0
+            else:
+                tree.interface.new_socket("Color", in_out='OUTPUT', socket_type='NodeSocketColor').default_value = (1.0, 1.0, 1.0, 1.0)
+                
+        return tree
+        
+    def to_blend_nodes(self, tree: bpy.types.NodeTree=None, name="", force_time_period=False) -> list[bpy.types.Nodes]:
+        '''Creates blender nodes for a game function, returns the output'''
+        return_node_group = False
+        if tree is None:
+            return_node_group = True
+            tree = self.make_node_group(name)
+            group_output = tree.nodes["Group Output"]
+        
+        if self.master_type == FunctionEditorMasterType.Basic:
+            if self.color_type == FunctionEditorColorGraphType.Scalar:
+                node = tree.nodes.new('ShaderNodeValue')
+                node.outputs[0].default_value = self.clamp_min
+                if self.is_ranged:
+                    node_range = tree.nodes.new('ShaderNodeValue')
+                    node_range.outputs[0].default_value = self.clamp_max
+                    node_mix = tree.nodes.new('ShaderNodeMix')
+                    node_attribute = add_attribute_node(tree, self.range)
+                    tree.links.new(input=node_mix.inputs["A"], output=node.outputs[0])
+                    tree.links.new(input=node_mix.inputs["B"], output=node_range.outputs[0])
+                    tree.links.new(input=node_mix.inputs["Factor"], output=node_attribute.outputs[2] if node_attribute.bl_idname == 'ShaderNodeAttribute' else node_attribute.outputs[0])
+            else:
+                node = tree.nodes.new('ShaderNodeRGB')
+                node.outputs[0].default_value = self.colors[0]
+                if self.is_ranged:
+                    node_range = tree.nodes.new('ShaderNodeRGB')
+                    node_range.outputs[0].default_value = self.colors[1]
+                    node_mix = tree.nodes.new('ShaderNodeMix')
+                    node_mix.data_type = 'RGBA'
+                    node_attribute = add_attribute_node(tree, self.range)
+                    tree.links.new(input=node_mix.inputs["A"], output=node.outputs[0])
+                    tree.links.new(input=node_mix.inputs["B"], output=node_range.outputs[0])
+                    tree.links.new(input=node_mix.inputs["Factor"], output=node_attribute.outputs[0])
+            
+            if return_node_group:
+                if self.is_ranged:
+                    tree.links.new(input=group_output.inputs[0], output=node_mix.outputs[0])
+                else:
+                    tree.links.new(input=group_output.inputs[0], output=node.outputs[0])
+                return tree
+            else:
+                return node_mix.outputs[0]
+        
+        function_node = tree.nodes.new('ShaderNodeGroup')
+        final_node = function_node
+        
+        match self.color_type:
+            case FunctionEditorColorGraphType.Scalar:
+                function_node.node_tree = utils.add_node_from_resources("reach_nodes", "Function - 2-float")
+                function_node.inputs[1].default_value = self.clamp_min
+                function_node.inputs[2].default_value = self.clamp_max
+                if self.is_object_function:
+                    object_function_node = tree.nodes.new('ShaderNodeGroup')
+                    final_node = object_function_node
+                    object_function_node.node_tree = utils.add_node_from_resources("shared_nodes", "Object Function")
+                    object_function_node.inputs[1].default_value = self.invert
+                    
+                    if self.scale_by:
+                        scale_by_attr_node = add_attribute_node(tree, self.scale_by)
+                        tree.links.new(input=object_function_node.inputs[4], output=scale_by_attr_node.outputs[2] if scale_by_attr_node.bl_idname == 'ShaderNodeAttribute' else scale_by_attr_node.outputs[0])
+                    
+                    object_function_node.inputs[3].default_value = self.min_value
+                    
+                    if self.turn_off_with:
+                        turn_off_attr_node = add_attribute_node(tree, self.turn_off_with)
+                        tree.links.new(input=object_function_node.inputs[4], output=turn_off_attr_node.outputs[2] if turn_off_attr_node.bl_idname == 'ShaderNodeAttribute' else turn_off_attr_node.outputs[0])
+                    tree.links.new(input=object_function_node.inputs[0], output=function_node.outputs[0])
+
+            case FunctionEditorColorGraphType.TwoColor:
+                function_node.node_tree = utils.add_node_from_resources("reach_nodes", "Function - 2-color")
+                function_node.inputs[1].default_value = self.colors[0]
+                function_node.inputs[2].default_value = self.colors[1]
+            case FunctionEditorColorGraphType.ThreeColor:
+                function_node.node_tree = utils.add_node_from_resources("reach_nodes", "Function - 3-color")
+                function_node.inputs[1].default_value = self.colors[0]
+                function_node.inputs[2].default_value = self.colors[1]
+                function_node.inputs[3].default_value = self.colors[2]
+            case FunctionEditorColorGraphType.FourColor:
+                function_node.node_tree = utils.add_node_from_resources("reach_nodes", "Function - 4-color")
+                function_node.inputs[1].default_value = self.colors[0]
+                function_node.inputs[2].default_value = self.colors[1]
+                function_node.inputs[3].default_value = self.colors[2]
+                function_node.inputs[4].default_value = self.colors[3]
+                
+        first_node_input = function_node.inputs[0]
+        
+        if force_time_period or (not self.is_object_function and not self.input) or (self.is_object_function and self.master_type == FunctionEditorMasterType.Periodic):
+            time_node = tree.nodes.new('ShaderNodeGroup')
+            time_node.node_tree = utils.add_node_from_resources("shared_nodes", "Time Period")
+            time_node.inputs[0].default_value = (self.time_period if self.time_period > 0 else 1) / utils.time_step()
+            tree.links.new(input=first_node_input, output=time_node.outputs[0])
+            first_node_input = time_node.inputs[1]
+                
+        if self.master_type != FunctionEditorMasterType.Basic and self.is_exclusion:
+            exclusion_node = tree.nodes.new('ShaderNodeGroup')
+            exclusion_node.node_tree = utils.add_node_from_resources("shared_nodes", "Exclusion")
+            exclusion_node.inputs[1].default_value = self.exclusion_min
+            exclusion_node.inputs[2].default_value = self.exclusion_max
+            tree.links.new(input=first_node_input, output=exclusion_node.outputs[0])
+            first_node_input = exclusion_node.inputs[0]
+        
+        outputs = [self._graph_to_nodes(tree, i) for i in range(self.graph_count)]
+        if len(outputs) > 1:
+            graph_mix_node = tree.nodes.new('ShaderNodeMix')
+            tree.links.new(input=graph_mix_node.inputs["A"], output=outputs[0])
+            tree.links.new(input=graph_mix_node.inputs["B"], output=outputs[1])
+            graph_mix_node.inputs["Factor"].default_value = 0
+            if self.range:
+                node_attribute = add_attribute_node(tree, self.range)
+                tree.links.new(input=graph_mix_node.inputs["Factor"], output=node_attribute.outputs[2] if node_attribute.bl_idname == 'ShaderNodeAttribute' else node_attribute.outputs[0])
+                self.range_uses_group_node = node_attribute.bl_idname == 'ShaderNodeGroup'
+            tree.links.new(input=first_node_input, output=graph_mix_node.outputs[0])
+        else:
+            tree.links.new(input=first_node_input, output=outputs[0])
         
         if return_node_group:
-            tree.links.new(input=group_output.inputs[0], output=function_node.outputs[0])
+            tree.links.new(input=group_output.inputs[0], output=final_node.outputs[0])
             return tree
         else:
-            return function_node.outputs[0]
+            return final_node.outputs[0]

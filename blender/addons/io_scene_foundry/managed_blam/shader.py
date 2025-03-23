@@ -24,14 +24,14 @@ last_group_node = None
 
 used_plate_paths = []
 
-supports_time_period = {"shader": ("self_illum_color", "self_illum_intensity"),
-                        "shader_terrain": tuple(),
-                        "shader_custom": tuple(),
-                        "shader_decal": tuple(),
-                        "shader_foliage": tuple(),
-                        "shader_glass": tuple(),
-                        "shader_halogram": tuple(),
-                        }
+# supports_time_period = {"shader": ("self_illum_color", "self_illum_intensity"),
+#                         "shader_terrain": tuple(),
+#                         "shader_custom": tuple(),
+#                         "shader_decal": tuple(),
+#                         "shader_foliage": tuple(),
+#                         "shader_glass": tuple(),
+#                         "shader_halogram": tuple(),
+#                         }
 
 class ChannelType(Enum):
     DEFAULT = 0
@@ -951,19 +951,6 @@ class ShaderTag(Tag):
             
         return data_node
     
-    def _set_input_from_animated_parameter(self, tree: bpy.types.NodeTree, input, func: Function):
-        match func.master_type:
-            case FunctionEditorMasterType.Basic:
-                if func.color_type != FunctionEditorColorGraphType.Scalar:
-                    input.default_value = func.colors[0]
-                else:
-                    input.default_value = func.input_min
-            case FunctionEditorMasterType.Curve:
-                # I'm scared
-                pass
-            case FunctionEditorMasterType.Periodic:
-                pass
-    
     def _add_group_node(self, tree: bpy.types.NodeTree, nodes: bpy.types.Nodes, name: str) -> bpy.types.Node:
         node = nodes.new(type='ShaderNodeGroup')
         node.node_tree = utils.add_node_from_resources("reach_nodes", name)
@@ -1212,7 +1199,7 @@ class ShaderTag(Tag):
                     end_input.default_value = data.clamp_min
             return
         
-        tree.links.new(input=end_input, output=data.to_blend_nodes(tree, uses_time_period=uses_time))
+        tree.links.new(input=end_input, output=data.to_blend_nodes(tree, force_time_period=uses_time))
         if data.input.strip():
             if data.input_uses_group_node:
                 self.object_functions.add(data.input)
@@ -1220,10 +1207,9 @@ class ShaderTag(Tag):
                 self.game_functions.add(data.input)
         if data.is_ranged and data.range.strip():
             if data.range_uses_group_node:
-                self.object_functions.add(data.input)
+                self.object_functions.add(data.range)
             else:
                 self.game_functions.add(data.range)
-        
     
     def populate_chiefster_node(self, tree: bpy.types.NodeTree, node: bpy.types.Node):
         last_parameter_name = None
@@ -1259,9 +1245,9 @@ class ShaderTag(Tag):
                 parameter_type = ParameterType(parameter.type)
                 match parameter_type:
                     case ParameterType.COLOR | ParameterType.ARGB_COLOR:
-                        self._setup_input_with_function(input, self._value_from_parameter(parameter, AnimatedParameterType.COLOR), uses_time=parameter_name_ui in supports_time_period[self.tag_ext])
+                        self._setup_input_with_function(input, self._value_from_parameter(parameter, AnimatedParameterType.COLOR))
                     case ParameterType.REAL | ParameterType.INT | ParameterType.BOOL:
-                        self._setup_input_with_function(input, self._value_from_parameter(parameter, AnimatedParameterType.VALUE), uses_time=parameter_name_ui in supports_time_period[self.tag_ext])
+                        self._setup_input_with_function(input, self._value_from_parameter(parameter, AnimatedParameterType.VALUE))
                     case _:
                         if ".rgb" in input.name:
                             last_input_node = self.group_set_image(tree, node, parameter, ChannelType.RGB)
