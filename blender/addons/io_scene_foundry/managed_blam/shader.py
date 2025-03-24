@@ -910,7 +910,10 @@ class ShaderTag(Tag):
             data_node.image_user.frame_start = -sequence_length
             data_node.image_user.use_auto_refresh = True
             if isinstance(value, Function):
-                self.game_functions.add(value.input)
+                text = value.input
+                if text in ("one", "zero"):
+                    text = "sequence_image"
+                self.game_functions.add(text)
                 result = tree.driver_add(f'nodes["{data_node.name}"].image_user.frame_offset')
                 driver = result.driver
                 driver.type = 'SCRIPTED'
@@ -918,9 +921,9 @@ class ShaderTag(Tag):
                 var.name = "var"
                 var.type = 'SINGLE_PROP'
                 var.targets[0].id = None
-                var.targets[0].data_path = f'["{value.input}"]'
+                var.targets[0].data_path = f'["{text}"]'
                 driver.expression = f"{var.name} * {sequence_length} - {sequence_length - 0.9999}"
-                self.sequence_drivers[value.input] = (driver, sequence_length)
+                self.sequence_drivers[text] = (driver, sequence_length)
             else:
                 result = tree.driver_add(f'nodes["{data_node.name}"].image_user.frame_offset')
                 driver = result.driver

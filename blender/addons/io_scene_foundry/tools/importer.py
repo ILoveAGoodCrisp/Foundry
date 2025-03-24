@@ -734,7 +734,7 @@ class NWO_Import(bpy.types.Operator):
                                             driver, sequence_length = key
                                             driver: bpy.types.Driver
                                             driver.variables[0].targets[0].id = ob
-                                            if not bool_prop and ob.get(func):
+                                            if not bool_prop:
                                                 ob.id_properties_ui(func).update(min=0, max=sequence_length - 1)
                                             ammo = func.startswith(ammo_names)
                                             tether = func.startswith(tether_name)
