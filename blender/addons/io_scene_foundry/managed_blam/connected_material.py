@@ -2,6 +2,8 @@
 
 from enum import Enum
 
+from ..tools.node_tree_arrange import arrange
+
 from .. import utils
 from .Tags import TagFieldBlockElement
 import bpy
@@ -963,7 +965,6 @@ class Function:
         if tree is None:
             tree = bpy.data.node_groups.new(group_name, 'ShaderNodeTree')
             tree.nodes.new('NodeGroupOutput')
-            tree.nodes.new('NodeGroupOutput')
             if self.color_type == FunctionEditorColorGraphType.Scalar:
                 tree.interface.new_socket("Value", in_out='OUTPUT', socket_type='NodeSocketFloat').default_value = 0.0
             else:
@@ -1087,6 +1088,7 @@ class Function:
         
         if return_node_group:
             tree.links.new(input=group_output.inputs[0], output=final_node.outputs[0])
+            arrange(tree)
             return tree
         else:
             return final_node.outputs[0]

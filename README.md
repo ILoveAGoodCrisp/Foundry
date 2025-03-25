@@ -42,7 +42,6 @@ Foundry only needs to be installed once. Thereafter, you can use Blender to down
 - [Chiefster](https://github.com/chiefster-4014) - Creation of Blender Material Nodes for Halo models
 - Soul - Creation of Blender Material Nodes for Halo models
 
-
 ## Special Thanks
 Testing and reporting bugs:
 - [SpacedZed](https://github.com/SpacedZed)
@@ -54,6 +53,10 @@ Testing and reporting bugs:
 - [ivanovitch](https://github.com/ivanivanovitch)
 - [Greenknight](https://github.com/GreenKnight5417)
 - [Gashnor](https://github.com/Gashnor)
+
+## Acknowledgements
+This project includes code from [node-arrange](https://github.com/Leonardo-Pike-Excell/node-arrange)  
+by Leonardo Pike-Excell, licensed under the [GNU General Public License v3.0](https://www.gnu.org/licenses/gpl-3.0.html).
 
 ## Support
 

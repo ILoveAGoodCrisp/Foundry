@@ -24,7 +24,8 @@ wheels = [
   "./wheels/clr_loader-0.2.7.post0-py3-none-any.whl",
   "./wheels/pycparser-2.22-py3-none-any.whl",
   "./wheels/pymem-1.13.1-py3-none-any.whl",
-  "./wheels/pythonnet-3.0.5-py3-none-any.whl"
+  "./wheels/pythonnet-3.0.5-py3-none-any.whl",
+  "./wheels/networkx-3.4.2-py3-none-any.whl"
 ]
 
 [build]
