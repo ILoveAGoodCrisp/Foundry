@@ -1057,7 +1057,7 @@ class Function:
                 
         first_node_input = function_node.inputs[0]
         
-        if force_time_period or (not self.is_object_function and not self.input) or (self.is_object_function and self.master_type == FunctionEditorMasterType.Periodic):
+        if utils.get_prefs().import_shaders_with_time_period and (force_time_period or (not self.is_object_function and not self.input) or (self.is_object_function and self.master_type == FunctionEditorMasterType.Periodic)):
             time_node = tree.nodes.new('ShaderNodeGroup')
             time_node.node_tree = utils.add_node_from_resources("shared_nodes", "Time Period")
             time_node.inputs[0].default_value = (self.time_period if self.time_period > 0 else 1) / utils.time_step()

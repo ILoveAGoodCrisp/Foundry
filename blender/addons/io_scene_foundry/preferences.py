@@ -340,6 +340,12 @@ class FoundryPreferences(AddonPreferences):
         description="Updates the debug menu at game launch (sapien or tagtest) with the current scene asset (if it is a model)",
         default=True,
     )
+    
+    import_shaders_with_time_period: BoolProperty(
+        name="Import Game Shader/Materials with animated functions",
+        default=True,
+        description="Allows importing of animated functions when importing a Halo shader or material tag into Blender. Animated shaders can be taxing on Blender when the timeline is playing"
+    )
 
     def draw(self, context):
         prefs = self
@@ -393,6 +399,8 @@ class FoundryPreferences(AddonPreferences):
         row.prop(prefs, "debug_menu_on_export")
         row = box.row(align=True)
         row.prop(prefs, "debug_menu_on_launch")
+        row = box.row(align=True)
+        row.prop(prefs, "import_shaders_with_time_period")
         
 classes = [
     H2AMPEKLocationPath,
