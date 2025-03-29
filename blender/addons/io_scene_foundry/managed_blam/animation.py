@@ -444,7 +444,7 @@ class AnimationTag(Tag):
             bone_matrices[bone] = matrix
             
         bone_dict = {}
-        list_node_bones = list(nodes_bones.keys())
+        list_node_bones = list(nodes_bones)
         for bone in list_node_bones:
             if bone.parent:
                 bone_dict[bone] = bone_dict[bone.parent] + 1

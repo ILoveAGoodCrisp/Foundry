@@ -14,6 +14,8 @@ import bpy
 import addon_utils
 from mathutils import Color
 
+from ..legacy.jma import JMA
+
 from ..managed_blam.object import ObjectTag
 from ..managed_blam.particle_model import ParticleModelTag
 from ..managed_blam.scenario_structure_bsp import ScenarioStructureBspTag
@@ -2774,57 +2776,54 @@ class NWOImporter:
         
     def import_legacy_animation(self, path, arm):
         path = Path(path)
-        existing_animations = bpy.data.actions[:]
+        # existing_animations = bpy.data.actions[:]
         extension = path.suffix.strip('.')
         anim_name = path.with_suffix("").name
         print(f"--- {anim_name}")
-        with utils.MutePrints():
-            bpy.ops.import_scene.jma(filepath=str(path))
-        if bpy.data.actions:
-            new_actions = [a for a in bpy.data.actions if a not in existing_animations]
-            if not new_actions:
-                return utils.print_warning(f"Failed to import animation: {path}")
-                
-            action = new_actions[0]
+        jma = JMA()
+        jma.from_file(path)
+        action = jma.to_armature_action(arm)
+        # with utils.MutePrints():
+        #     bpy.ops.import_scene.jma(filepath=str(path))
+        if action is not None:
             self.actions.append(action)
-            if action:
-                animation = self.context.scene.nwo.animations.add()
-                animation.name = anim_name
-                action.use_fake_user = True
-                action.use_frame_range = True
-                animation.frame_start = int(action.frame_start)
-                animation.frame_end = int(action.frame_end)
-                track = animation.action_tracks.add()
-                track.object = arm
-                track.action = action
-                match extension.lower():
-                    case 'jmm':
-                        animation.animation_type = 'base'
-                        animation.animation_movement_data = 'none'
-                    case 'jma':
-                        animation.animation_type = 'base'
-                        animation.animation_movement_data = 'xy'
-                    case 'jmt':
-                        animation.animation_type = 'base'
-                        animation.animation_movement_data = 'xyyaw'
-                    case 'jmz':
-                        animation.animation_type = 'base'
-                        animation.animation_movement_data = 'xyzyaw'
-                    case 'jmv':
-                        animation.animation_type = 'base'
-                        animation.animation_movement_data = 'full'
-                    case 'jmw':
-                        animation.animation_type = 'world'
-                    case 'jmo':
-                        animation.animation_type = 'overlay'
-                        # animation.animation_is_pose = any(hint in anim_name.lower() for hint in pose_hints)
-                        # if animation.animation_is_pose:
-                        #     pass
-                    case 'jmr':
-                        animation.animation_type = 'replacement'
-                    case 'jmrx':
-                        animation.animation_type = 'replacement'
-                        animation.animation_space = 'local'
+            animation = self.context.scene.nwo.animations.add()
+            animation.name = anim_name
+            action.use_fake_user = True
+            action.use_frame_range = True
+            animation.frame_start = int(action.frame_start)
+            animation.frame_end = int(action.frame_end)
+            track = animation.action_tracks.add()
+            track.object = arm
+            track.action = action
+            match extension.lower():
+                case 'jmm':
+                    animation.animation_type = 'base'
+                    animation.animation_movement_data = 'none'
+                case 'jma':
+                    animation.animation_type = 'base'
+                    animation.animation_movement_data = 'xy'
+                case 'jmt':
+                    animation.animation_type = 'base'
+                    animation.animation_movement_data = 'xyyaw'
+                case 'jmz':
+                    animation.animation_type = 'base'
+                    animation.animation_movement_data = 'xyzyaw'
+                case 'jmv':
+                    animation.animation_type = 'base'
+                    animation.animation_movement_data = 'full'
+                case 'jmw':
+                    animation.animation_type = 'world'
+                case 'jmo':
+                    animation.animation_type = 'overlay'
+                    # animation.animation_is_pose = any(hint in anim_name.lower() for hint in pose_hints)
+                    # if animation.animation_is_pose:
+                    #     pass
+                case 'jmr':
+                    animation.animation_type = 'replacement'
+                case 'jmrx':
+                    animation.animation_type = 'replacement'
+                    animation.animation_space = 'local'
                         
 class NWO_OT_ImportFromDrop(bpy.types.Operator):
     bl_idname = "nwo.import_from_drop"
