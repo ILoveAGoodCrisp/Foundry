@@ -720,9 +720,10 @@ class NWO_Import(bpy.types.Operator):
                         shader_path = mat.nwo.shader_path
                         if shader_path:
                             result = tag_to_nodes(corinth, mat, shader_path, self.always_extract_bitmaps)
-                            mat_function_map[mat] = result[0]
-                            validated_funcs.update(result[1])
-                            sequence_drivers.update(result[2])
+                            if result is not None:
+                                mat_function_map[mat] = result[0]
+                                validated_funcs.update(result[1])
+                                sequence_drivers.update(result[2])
 
                     for ob in imported_objects:
                         for slot in ob.material_slots:

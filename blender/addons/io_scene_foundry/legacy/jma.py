@@ -1,5 +1,3 @@
-# Based on the JMA class
-
 import math
 from pathlib import Path
 from typing import cast
@@ -24,6 +22,9 @@ class Node:
         self.fc_rot_x: bpy.types.FCurve
         self.fc_rot_y: bpy.types.FCurve
         self.fc_rot_z: bpy.types.FCurve
+        self.fc_sca_x: bpy.types.FCurve
+        self.fc_sca_y: bpy.types.FCurve
+        self.fc_sca_z: bpy.types.FCurve
         self.pose_bone: bpy.types.PoseBone = None
     
 def gen_lines(filepath: Path | str):
@@ -150,6 +151,9 @@ class JMA:
             node.fc_rot_x = fcurves.new(data_path=f'pose.bones["{node.name}"].rotation_quaternion', index=1)
             node.fc_rot_y = fcurves.new(data_path=f'pose.bones["{node.name}"].rotation_quaternion', index=2)
             node.fc_rot_z = fcurves.new(data_path=f'pose.bones["{node.name}"].rotation_quaternion', index=3)
+            node.fc_sca_x = fcurves.new(data_path=f'pose.bones["{node.name}"].scale', index=0)
+            node.fc_sca_y = fcurves.new(data_path=f'pose.bones["{node.name}"].scale', index=1)
+            node.fc_sca_z = fcurves.new(data_path=f'pose.bones["{node.name}"].scale', index=2)
             valid_nodes.append(node)
             
         bone_dict = {}
@@ -171,7 +175,6 @@ class JMA:
             else:
                 bone_base_matrices[bone] = bone.matrix
         
-        print("keyframe write start")
         for idx, nodes_transforms in enumerate(self.transforms):
             frame_idx = idx + 1
             for node in valid_nodes:
@@ -181,8 +184,6 @@ class JMA:
                 transform_matrix = bone_base_matrices[node.pose_bone].inverted_safe() @ matrix
                 loc, rot, sca = transform_matrix.decompose()
                 
-                # print(frame_idx, node.name, bone_base_matrices[node.pose_bone].translation, matrix.translation)
-                
                 node.fc_loc_x.keyframe_points.insert(frame_idx, loc.x, options={'FAST'})
                 node.fc_loc_y.keyframe_points.insert(frame_idx, loc.y, options={'FAST'})
                 node.fc_loc_z.keyframe_points.insert(frame_idx, loc.z, options={'FAST'})
@@ -191,6 +192,10 @@ class JMA:
                 node.fc_rot_x.keyframe_points.insert(frame_idx, rot.x, options={'FAST'})
                 node.fc_rot_y.keyframe_points.insert(frame_idx, rot.y, options={'FAST'})
                 node.fc_rot_z.keyframe_points.insert(frame_idx, rot.z, options={'FAST'})
+                
+                node.fc_sca_x.keyframe_points.insert(frame_idx, sca.x, options={'FAST'})
+                node.fc_sca_y.keyframe_points.insert(frame_idx, sca.y, options={'FAST'})
+                node.fc_sca_z.keyframe_points.insert(frame_idx, sca.z, options={'FAST'})
                 
                 
         return action

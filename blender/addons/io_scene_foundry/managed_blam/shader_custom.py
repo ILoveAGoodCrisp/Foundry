@@ -152,7 +152,8 @@ class ShaderCustomTag(ShaderTag):
         has_bump = e_bump_mapping.value > 0 and e_material_model != MaterialModel.NONE
         mm_supports_glancing_spec = False
         material_model_has_alpha_input = False
-        if e_material_model != MaterialModel.NONE:
+        has_material_model = e_material_model != MaterialModel.NONE
+        if has_material_model:
             material_model_has_alpha_input = e_material_model != MaterialModel.FOLIAGE
             mm_supports_glancing_spec = e_material_model.value > 0
             node_material_model = self._add_group_material_model(tree, nodes, utils.game_str(e_material_model.name), mm_supports_glancing_spec, False)
@@ -190,34 +191,35 @@ class ShaderCustomTag(ShaderTag):
                 tree.links.new(input=node_albedo.inputs["Quaternary Color"], output=node_cc_quaternary.outputs[0])
                 self.game_functions.add("Quaternary Color")
         
-        tree.links.new(input=node_material_model.inputs[0], output=node_albedo.outputs[0])
-        if material_model_has_alpha_input: # Diffuse only does not have alpha input
-            match e_specular_mask:
-                case SpecularMask.SPECULAR_MASK_FROM_DIFFUSE:
-                    tree.links.new(input=node_material_model.inputs[1], output=node_albedo.outputs[1])
-                case SpecularMask.SPECULAR_MASK_FROM_TEXTURE | SpecularMask.SPECULAR_MASK_MULT_DIFFUSE:
-                    spec_param = self.true_parameters.get("specular_mask_texture")
-                    if spec_param is not None:
-                        self.group_set_image(tree, node_material_model, spec_param, ChannelType.ALPHA, specified_input=1)
+        if has_material_model:
+            tree.links.new(input=node_material_model.inputs[0], output=node_albedo.outputs[0])
+            if material_model_has_alpha_input: # Diffuse only does not have alpha input
+                match e_specular_mask:
+                    case SpecularMask.SPECULAR_MASK_FROM_DIFFUSE:
+                        tree.links.new(input=node_material_model.inputs[1], output=node_albedo.outputs[1])
+                    case SpecularMask.SPECULAR_MASK_FROM_TEXTURE | SpecularMask.SPECULAR_MASK_MULT_DIFFUSE:
+                        spec_param = self.true_parameters.get("specular_mask_texture")
+                        if spec_param is not None:
+                            self.group_set_image(tree, node_material_model, spec_param, ChannelType.ALPHA, specified_input=1)
         
-        if has_bump:
-            node_bump_mapping = self._add_group_node(tree, nodes, f"bump_mapping - {utils.game_str(e_bump_mapping.name)}")
-            tree.links.new(input=node_material_model.inputs["Normal"], output=node_bump_mapping.outputs[0])
-            
-        if e_environment_mapping.value > 0:
-            node_environment_mapping = self._add_group_node(tree, nodes, f"environment_mapping - {utils.game_str(e_environment_mapping.name)}")
-            tree.links.new(input=node_environment_mapping.inputs[0], output=node_material_model.outputs[1])
-            if e_environment_mapping == EnvironmentMapping.DYNAMIC:
-                tree.links.new(input=node_environment_mapping.inputs[1], output=node_material_model.outputs[2])
-                
-            node_model_environment_add = nodes.new(type='ShaderNodeAddShader')
-            node_model_environment_add.location.x = node_environment_mapping.location.x + 300
-            node_model_environment_add.location.y = node_material_model.location.y
-            tree.links.new(input=node_model_environment_add.inputs[0], output=node_material_model.outputs[0])
-            tree.links.new(input=node_model_environment_add.inputs[1], output=node_environment_mapping.outputs[0])
-            final_node = node_model_environment_add
             if has_bump:
-                tree.links.new(input=node_environment_mapping.inputs["Normal"], output=node_bump_mapping.outputs[0])
+                node_bump_mapping = self._add_group_node(tree, nodes, f"bump_mapping - {utils.game_str(e_bump_mapping.name)}")
+                tree.links.new(input=node_material_model.inputs["Normal"], output=node_bump_mapping.outputs[0])
+            
+            if e_environment_mapping.value > 0:
+                node_environment_mapping = self._add_group_node(tree, nodes, f"environment_mapping - {utils.game_str(e_environment_mapping.name)}")
+                tree.links.new(input=node_environment_mapping.inputs[0], output=node_material_model.outputs[1])
+                if e_environment_mapping == EnvironmentMapping.DYNAMIC:
+                    tree.links.new(input=node_environment_mapping.inputs[1], output=node_material_model.outputs[2])
+                
+                node_model_environment_add = nodes.new(type='ShaderNodeAddShader')
+                node_model_environment_add.location.x = node_environment_mapping.location.x + 300
+                node_model_environment_add.location.y = node_material_model.location.y
+                tree.links.new(input=node_model_environment_add.inputs[0], output=node_material_model.outputs[0])
+                tree.links.new(input=node_model_environment_add.inputs[1], output=node_environment_mapping.outputs[0])
+                final_node = node_model_environment_add
+                if has_bump:
+                    tree.links.new(input=node_environment_mapping.inputs["Normal"], output=node_bump_mapping.outputs[0])
             
         if e_self_illumination.value > 0:
             node_self_illumination = self._add_group_node(tree, nodes, f"self_illumination - {utils.game_str(e_self_illumination.name)}")
