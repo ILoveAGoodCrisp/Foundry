@@ -363,6 +363,8 @@ class AnimationTag(Tag):
                 frame_count = exporter.GetAnimationFrameCount(index)
                 new_name = name.replace(":", " ")
                 action = bpy.data.actions.new(new_name)
+                slot = action.slots.new('OBJECT', armature.name)
+                armature.animation_data.last_slot_identifier = slot.identifier
                 armature.animation_data.action = action
                 print(f"--- {action.name}")
                 animation = self.context.scene.nwo.animations.add()
@@ -457,8 +459,6 @@ class AnimationTag(Tag):
         for frame_idx, nodes_transforms in transforms.items():
             for node in valid_nodes:
                 matrix = nodes_transforms[node]
-                print(frame_idx, node.name, matrix.translation, bone_base_matrices[node.pose_bone].translation)
-                # get diff between base and jma transform
                 transform_matrix = bone_base_matrices[node.pose_bone].inverted_safe() @ matrix
                 loc, rot, sca = transform_matrix.decompose()
                 

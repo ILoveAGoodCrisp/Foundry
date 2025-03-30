@@ -132,8 +132,6 @@ class JMA:
         fcurves = cast(bpy.types.ActionFCurves, action.fcurves)
         fcurves.clear()
         
-        armature.animation_data.action = action
-        
         armature_bone_names = {utils.remove_node_prefix(bone.name): bone for bone in armature.pose.bones}
         
         valid_nodes = []
@@ -193,6 +191,10 @@ class JMA:
                 node.fc_sca_y.keyframe_points.insert(frame_idx, sca.y, options={'FAST', 'NEEDED'})
                 node.fc_sca_z.keyframe_points.insert(frame_idx, sca.z, options={'FAST', 'NEEDED'})
                 
+                
+        slot = action.slots.new('OBJECT', armature.name)
+        armature.animation_data.last_slot_identifier = slot.identifier
+        armature.animation_data.action = action
                 
         return action
                 

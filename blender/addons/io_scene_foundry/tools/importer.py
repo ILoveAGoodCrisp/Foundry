@@ -466,6 +466,8 @@ class NWO_Import(bpy.types.Operator):
         if self.always_extract_bitmaps:
             clear_path_cache()
             
+        set_animation_index = context.scene.nwo.asset_type in {'model', 'animation'}
+            
         with utils.ExportManager():
             os.system("cls")
             if context.scene.nwo_export.show_output:
@@ -547,11 +549,8 @@ class NWO_Import(bpy.types.Operator):
                         if needs_scaling:
                             utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=[arm], actions=imported_jma_animations)
                             
-                        if imported_jma_animations:
-                            if context.scene.nwo.asset_type in {'model', 'animation'}:
-                                context.scene.nwo.active_animation_index = len(context.scene.nwo.animations) - 1
-                            else:
-                                arm.animation_data.action = imported_jma_animations[-1]
+                        if imported_jma_animations and set_animation_index:
+                            context.scene.nwo.active_animation_index = len(context.scene.nwo.animations) - 1
                         
                 if 'model' in importer.extensions:
                     importer.tag_render = self.tag_render
@@ -581,6 +580,9 @@ class NWO_Import(bpy.types.Operator):
                         
                     if existing_armature is not None:
                         existing_armature.data.pose_position = arm_pose
+                    
+                    if imported_animations and set_animation_index:
+                        context.scene.nwo.active_animation_index = len(context.scene.nwo.animations) - 1
                         
                     imported_objects.extend(imported_model_objects)
                     
@@ -614,6 +616,9 @@ class NWO_Import(bpy.types.Operator):
                         existing_armature.data.pose_position = arm_pose
                         
                     imported_objects.extend(imported_object_objects)
+                    
+                    if imported_animations and set_animation_index:
+                        context.scene.nwo.active_animation_index = len(context.scene.nwo.animations) - 1
                     
                 elif 'render_model' in importer.extensions:
                     importer.tag_render = self.tag_render
@@ -672,11 +677,8 @@ class NWO_Import(bpy.types.Operator):
                             if needs_scaling:
                                 utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=[existing_armature], actions=imported_animations)
                             
-                            if imported_actions:
-                                if context.scene.nwo.asset_type in {'model', 'animation'}:
-                                    context.scene.nwo.active_animation_index = len(context.scene.nwo.animations) - 1
-                                else:
-                                    existing_armature.animation_data.action = imported_animations[-1]
+                        if imported_animations and set_animation_index:
+                            context.scene.nwo.active_animation_index = len(context.scene.nwo.animations) - 1
                                     
                         existing_armature.data.pose_position = arm_pose
                     
