@@ -103,8 +103,7 @@ class JMA:
                 if h1:
                     quat.invert()
                 scale = float(get())
-                matrix = Matrix.LocRotScale(loc, quat, Vector.Fill(3, scale))
-                frame_data[node] = matrix
+                frame_data[node] = Matrix.LocRotScale(loc, quat, Vector.Fill(3, scale))
                 
             self.transforms.append(frame_data)
             
@@ -169,6 +168,7 @@ class JMA:
         bone_base_matrices = {}
         for bone in armature.pose.bones:
             bone.matrix_basis = Matrix.Identity(4)
+        bpy.context.view_layer.update()
         for bone in bones_ordered:
             if bone.parent:
                 bone_base_matrices[bone] = bone.parent.matrix.inverted_safe() @ bone.matrix
@@ -184,18 +184,18 @@ class JMA:
                 transform_matrix = bone_base_matrices[node.pose_bone].inverted_safe() @ matrix
                 loc, rot, sca = transform_matrix.decompose()
                 
-                node.fc_loc_x.keyframe_points.insert(frame_idx, loc.x, options={'FAST'})
-                node.fc_loc_y.keyframe_points.insert(frame_idx, loc.y, options={'FAST'})
-                node.fc_loc_z.keyframe_points.insert(frame_idx, loc.z, options={'FAST'})
+                node.fc_loc_x.keyframe_points.insert(frame_idx, loc.x, options={'FAST', 'NEEDED'})
+                node.fc_loc_y.keyframe_points.insert(frame_idx, loc.y, options={'FAST', 'NEEDED'})
+                node.fc_loc_z.keyframe_points.insert(frame_idx, loc.z, options={'FAST', 'NEEDED'})
                 
-                node.fc_rot_w.keyframe_points.insert(frame_idx, rot.w, options={'FAST'})
-                node.fc_rot_x.keyframe_points.insert(frame_idx, rot.x, options={'FAST'})
-                node.fc_rot_y.keyframe_points.insert(frame_idx, rot.y, options={'FAST'})
-                node.fc_rot_z.keyframe_points.insert(frame_idx, rot.z, options={'FAST'})
+                node.fc_rot_w.keyframe_points.insert(frame_idx, rot.w, options={'FAST', 'NEEDED'})
+                node.fc_rot_x.keyframe_points.insert(frame_idx, rot.x, options={'FAST', 'NEEDED'})
+                node.fc_rot_y.keyframe_points.insert(frame_idx, rot.y, options={'FAST', 'NEEDED'})
+                node.fc_rot_z.keyframe_points.insert(frame_idx, rot.z, options={'FAST', 'NEEDED'})
                 
-                node.fc_sca_x.keyframe_points.insert(frame_idx, sca.x, options={'FAST'})
-                node.fc_sca_y.keyframe_points.insert(frame_idx, sca.y, options={'FAST'})
-                node.fc_sca_z.keyframe_points.insert(frame_idx, sca.z, options={'FAST'})
+                node.fc_sca_x.keyframe_points.insert(frame_idx, sca.x, options={'FAST', 'NEEDED'})
+                node.fc_sca_y.keyframe_points.insert(frame_idx, sca.y, options={'FAST', 'NEEDED'})
+                node.fc_sca_z.keyframe_points.insert(frame_idx, sca.z, options={'FAST', 'NEEDED'})
                 
                 
         return action

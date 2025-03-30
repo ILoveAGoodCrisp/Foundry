@@ -492,12 +492,12 @@ class NWO_Import(bpy.types.Operator):
                     
                     if to_x_rot:
                         utils.transform_scene(context, 1, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_amf_objects, actions=[])
-                if self.legacy_okay and any([ext in ('jms', 'jma') for ext in importer.extensions]):
+                        
+                if self.legacy_okay and 'jms'  in importer.extensions:
                     toolset_addon_enabled = addon_utils.check('io_scene_halo')[0]
                     if not toolset_addon_enabled:
                         addon_utils.enable('io_scene_halo')
                     jms_files = importer.sorted_filepaths["jms"]
-                    jma_files = importer.sorted_filepaths["jma"]
                     
                     arm = None
                     
@@ -506,25 +506,19 @@ class NWO_Import(bpy.types.Operator):
                         arm = scene_nwo.main_armature
                     else:
                         arm = utils.get_rig_prioritize_active(context)
-                        if not arm and jma_files:
-                            arm_data = bpy.data.armatures.new('Armature')
-                            arm = bpy.data.objects.new('Armature', arm_data)
-                            context.scene.collection.objects.link(arm)
                     
                     if arm is not None:
                         arm.hide_set(False)
                         arm.hide_select = False
                         utils.set_active_object(arm)
                         
-                    # Transform Scene so it's ready for JMA/JMS files
+                    # Transform Scene so it's ready for JMS files
                     if needs_scaling:
                         if arm is not None:
                             utils.transform_scene(context, (1 / scale_factor), to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[arm], actions=[])
          
                     imported_jms_objects = importer.import_jms_files(jms_files, self.legacy_type)
-                    imported_jma_animations = importer.import_jma_files(jma_files, arm)
-                    if imported_jma_animations:
-                        imported_actions.extend(imported_jma_animations)
+
                     if imported_jms_objects:
                         imported_objects.extend(imported_jms_objects)
                     if not toolset_addon_enabled:
@@ -535,6 +529,23 @@ class NWO_Import(bpy.types.Operator):
                             utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_jms_objects, actions=imported_jma_animations)
                         else:
                             utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=[arm] + imported_jms_objects, actions=imported_jma_animations)
+                            
+                if 'jma' in importer.extensions:
+                    jma_files = importer.sorted_filepaths["jma"]
+                    arm = None
+                    arm = utils.get_rig_prioritize_active(context)
+                        
+                    if arm is None:
+                        utils.print_warning("No armature in scene, cannot import JMA files")
+                    else:
+                        if needs_scaling:
+                            utils.transform_scene(context, (1 / scale_factor), to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[arm], actions=[])
+                        imported_jma_animations = importer.import_jma_files(jma_files, arm)
+                        if imported_jma_animations:
+                            imported_actions.extend(imported_jma_animations)
+                            
+                        if needs_scaling:
+                            utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=[arm], actions=imported_jma_animations)
                         
                 if 'model' in importer.extensions:
                     importer.tag_render = self.tag_render
@@ -704,7 +715,7 @@ class NWO_Import(bpy.types.Operator):
                     if imported_meshes:
                         find_shaders(new_materials)
                             
-                if self.build_blender_materials:
+                if self.build_blender_materials and new_materials:
                     mat_function_map = {}
                     validated_funcs = set()
                     sequence_drivers = {}
@@ -888,7 +899,7 @@ class NWO_Import(bpy.types.Operator):
             if utils.blender_toolset_installed() and 'jms' in self.scope:
                 self.legacy_okay = True
                 self.filter_glob += '*.jms;*.ass;'
-            if utils.blender_toolset_installed() and 'jma' in self.scope:
+            if 'jma' in self.scope:
                 self.legacy_okay = True
                 self.filter_glob += '*.jmm;*.jma;*.jmt;*.jmz;*.jmv;*.jmw;*.jmo;*.jmr;*.jmrx;'
             

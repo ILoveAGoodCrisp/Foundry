@@ -2266,6 +2266,7 @@ def halo_transforms_matrix(matrix: Matrix, scale=None, rotation=None, marker=Fal
     return final_matrix
 
 def halo_transform_matrix(matrix: Matrix) -> Matrix:
+    """Converts a matrix from blender space to halo space"""
     scale = WU_SCALAR
     if bpy.context.scene.nwo.scale == 'max':
         scale = 0.03048 * WU_SCALAR
