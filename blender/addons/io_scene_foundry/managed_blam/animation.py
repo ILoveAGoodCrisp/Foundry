@@ -3,6 +3,7 @@
 from collections import defaultdict
 from math import radians
 from pathlib import Path
+from typing import cast
 import bpy
 from mathutils import Euler, Matrix, Quaternion, Vector
 
@@ -10,6 +11,7 @@ from .Tags import TagFieldBlock, TagFieldElement
 
 from ..managed_blam.render_model import RenderModelTag
 from ..managed_blam import Tag
+from ..legacy.jma import Node
 from .. import utils
 
 tolerance = 1e-6
@@ -339,9 +341,8 @@ class AnimationTag(Tag):
             from System import Array # type: ignore
             animation_nodes = [self._GameAnimationNode() for _ in range(nodes_count)]
             animation_nodes = Array[self._GameAnimationNodeType()](animation_nodes)
-            first_node = animation_nodes[0]
-            animation_count = exporter.GetAnimationCount()
-            if not armature.animation_data:
+            
+            if armature.animation_data is None:
                 armature.animation_data_create()
             
             for element in self.block_animations.Elements:
@@ -394,29 +395,101 @@ class AnimationTag(Tag):
                 track = animation.action_tracks.add()
                 track.object = armature
                 track.action = action
-                # for node in animation_nodes:
-                #     print(node.Name)
-                for frame in range(frame_count):
-                    #if exporter.GetRenderModelBasePose(animation_nodes, nodes_count):
-                    if exporter.GetAnimationFrame(index, frame, animation_nodes, nodes_count):
-                        self._apply_frames(animation_nodes, armature, frame + 1, action, overlay, bone_base_matrices)
-                
-                actions.append(action)
-                
-                action.frame_end = frame_count
-                    
+                if exporter.GetRenderModelBasePose(animation_nodes, nodes_count):
+                    nodes = [Node(n.Name, n.ParentIndex) for n in animation_nodes]
+                    for node in nodes:
+                        if node.parent_index > -1:
+                            node.parent = nodes[node.parent_index]
+                            
+                    node_base_matrices = {}
+                    self._get_base_pose(animation_nodes, nodes, node_base_matrices)
+                    transforms = {}
+                    for frame in range(frame_count):
+                        if exporter.GetAnimationFrame(index, frame, animation_nodes, nodes_count):
+                            self._add_transforms(animation_nodes, nodes, frame + 1, overlay, node_base_matrices, transforms)
+                            
+                    self._to_armature_action(transforms, armature, action, nodes)
+                    actions.append(action)
+                    action.frame_end = frame_count
         
         return actions
+    
+    def _to_armature_action(self, transforms, armature: bpy.types.Object, action: bpy.types.Action, nodes: list[Node]):
+        fcurves = cast(bpy.types.ActionFCurves, action.fcurves)
+        fcurves.clear()
+        
+        armature_bone_names = {utils.remove_node_prefix(bone.name): bone for bone in armature.pose.bones}
+        valid_nodes = []
+        
+        for node in nodes:
+            node.pose_bone = armature_bone_names.get(utils.remove_node_prefix(node.name))
+            if node.pose_bone is None:
+                continue
+            node.fc_loc_x = fcurves.new(data_path=f'pose.bones["{node.name}"].location', index=0)
+            node.fc_loc_y = fcurves.new(data_path=f'pose.bones["{node.name}"].location', index=1)
+            node.fc_loc_z = fcurves.new(data_path=f'pose.bones["{node.name}"].location', index=2)
+            node.fc_rot_w = fcurves.new(data_path=f'pose.bones["{node.name}"].rotation_quaternion', index=0)
+            node.fc_rot_x = fcurves.new(data_path=f'pose.bones["{node.name}"].rotation_quaternion', index=1)
+            node.fc_rot_y = fcurves.new(data_path=f'pose.bones["{node.name}"].rotation_quaternion', index=2)
+            node.fc_rot_z = fcurves.new(data_path=f'pose.bones["{node.name}"].rotation_quaternion', index=3)
+            node.fc_sca_x = fcurves.new(data_path=f'pose.bones["{node.name}"].scale', index=0)
+            node.fc_sca_y = fcurves.new(data_path=f'pose.bones["{node.name}"].scale', index=1)
+            node.fc_sca_z = fcurves.new(data_path=f'pose.bones["{node.name}"].scale', index=2)
+            valid_nodes.append(node)
+            
+        bone_dict = {}
+        bones_ordered = [node.pose_bone for node in valid_nodes]
+        for bone in bones_ordered:
+            if bone.parent:
+                bone_dict[bone] = bone_dict[bone.parent] + 1
+            else:
+                bone_dict[bone] = 0
+                
+        bones_ordered.sort(key=lambda x: bone_dict[x])
+        
+        bone_base_matrices = {}
+        for bone in bones_ordered:
+            if bone.parent:
+                bone_base_matrices[bone] = bone.parent.matrix.inverted_safe() @ bone.matrix
+            else:
+                bone_base_matrices[bone] = bone.matrix
+        
+        for frame_idx, nodes_transforms in transforms.items():
+            for node in valid_nodes:
+                matrix = nodes_transforms[node]
+                print(frame_idx, node.name, matrix.translation, bone_base_matrices[node.pose_bone].translation)
+                # get diff between base and jma transform
+                transform_matrix = bone_base_matrices[node.pose_bone].inverted_safe() @ matrix
+                loc, rot, sca = transform_matrix.decompose()
+                
+                node.fc_loc_x.keyframe_points.insert(frame_idx, loc.x, options={'FAST', 'NEEDED'})
+                node.fc_loc_y.keyframe_points.insert(frame_idx, loc.y, options={'FAST', 'NEEDED'})
+                node.fc_loc_z.keyframe_points.insert(frame_idx, loc.z, options={'FAST', 'NEEDED'})
+                
+                node.fc_rot_w.keyframe_points.insert(frame_idx, rot.w, options={'FAST', 'NEEDED'})
+                node.fc_rot_x.keyframe_points.insert(frame_idx, rot.x, options={'FAST', 'NEEDED'})
+                node.fc_rot_y.keyframe_points.insert(frame_idx, rot.y, options={'FAST', 'NEEDED'})
+                node.fc_rot_z.keyframe_points.insert(frame_idx, rot.z, options={'FAST', 'NEEDED'})
+                
+                node.fc_sca_x.keyframe_points.insert(frame_idx, sca.x, options={'FAST', 'NEEDED'})
+                node.fc_sca_y.keyframe_points.insert(frame_idx, sca.y, options={'FAST', 'NEEDED'})
+                node.fc_sca_z.keyframe_points.insert(frame_idx, sca.z, options={'FAST', 'NEEDED'})
+    
+    def _get_base_pose(self, animation_nodes, nodes, node_base_matrices: dict):
+        for idx, (an, node) in enumerate(zip(animation_nodes, nodes)):
+            translation = Vector((an.Translation.X, an.Translation.Y, an.Translation.Z)) * 100
+            rotation = Quaternion((an.Rotation.W, an.Rotation.V.X, an.Rotation.V.Y, an.Rotation.V.Z))
+            scale = an.Scale
+            matrix = Matrix.LocRotScale(translation, rotation, Vector.Fill(3, scale))
+            node_base_matrices[node] = matrix
 
-    def _apply_frames(self, animation_nodes, armature, frame, action: bpy.types.Action, overlay: bool, bone_base_matrices: dict):
-        nodes_bones = {bone: node for bone in armature.pose.bones for node in animation_nodes if utils.remove_node_prefix(bone.name) == utils.remove_node_prefix(node.Name)}
-        bone_matrices = {}
-        for idx, (bone, node) in enumerate(nodes_bones.items()):
-            translation = Vector((node.Translation.X, node.Translation.Y, node.Translation.Z)) * 100
-            rotation = Quaternion((node.Rotation.W, node.Rotation.V.X, node.Rotation.V.Y, node.Rotation.V.Z))
-            scale = node.Scale
-            base_matrix = bone_base_matrices[bone]
-            base_matrix: Matrix
+    def _add_transforms(self, animation_nodes, nodes, frame, overlay: bool, node_base_matrices: dict, transforms: dict):
+        frame_data = {}
+        for idx, (an, node) in enumerate(zip(animation_nodes, nodes)):
+            translation = Vector((an.Translation.X, an.Translation.Y, an.Translation.Z)) * 100
+            rotation = Quaternion((an.Rotation.W, an.Rotation.V.X, an.Rotation.V.Y, an.Rotation.V.Z))
+            scale = an.Scale
+            base_matrix = cast(Matrix, node_base_matrices[node])
             overlay_keyed = False
             translation_keyed = False
             rotation_keyed = False
@@ -441,29 +514,10 @@ class AnimationTag(Tag):
                     matrix = base_matrix
             else:
                 matrix = Matrix.LocRotScale(translation, rotation, Vector.Fill(3, scale))
-            bone_matrices[bone] = matrix
-            
-        bone_dict = {}
-        list_node_bones = list(nodes_bones)
-        for bone in list_node_bones:
-            if bone.parent:
-                bone_dict[bone] = bone_dict[bone.parent] + 1
-            else:
-                bone_dict[bone] = 0
                 
-        list_node_bones.sort(key=lambda x: bone_dict[x])
-            
-        for bone in list_node_bones:
-            matrix = bone_matrices[bone]
-            if bone.parent:
-                bone.matrix = bone.parent.matrix @ matrix
-            else:
-                bone.matrix = matrix
-
-        for bone in list_node_bones:
-            bone.keyframe_insert(data_path='location', frame=frame)
-            bone.keyframe_insert(data_path='rotation_quaternion', frame=frame)
-            bone.keyframe_insert(data_path='scale', frame=frame)
+            frame_data[node] = matrix
+        
+        transforms[frame] = frame_data
             
     def get_play_text(self, animation, loop: bool, unit: bool, game_object: str = "(player_get 0)") -> str:
         hs_func = "custom_animation_loop" if loop else "custom_animation"

@@ -733,6 +733,7 @@ class Function:
         self.animated_type = AnimatedParameterType.VALUE
         self.time_period = 0.0
         self.input = ""
+        self.uses_input = False
         self.range = ""
         self.graph_count = 0
         self.input_uses_group_node = False
@@ -827,7 +828,9 @@ class Function:
             self.input = element.SelectField("input name").GetStringData()
             self.range = element.SelectField("range name").GetStringData()
             
-        if not self.input:
+        self.uses_input = bool(self.input)
+            
+        if not self.uses_input:
             self.input = "one"
             
         graph_range = range(self.graph_count)
@@ -892,7 +895,7 @@ class Function:
             sampled_points.append((x, y, 'AUTO'))
         return sampled_points
     
-    def _graph_to_nodes(self, tree: bpy.types.NodeTree, graph_index: int) -> list[bpy.types.NodeSocket]:
+    def _graph_to_nodes(self, tree: bpy.types.NodeTree, graph_index: int, uses_time_period: bool) -> list[bpy.types.NodeSocket]:
         final_output = None
         if self.master_type in (FunctionEditorMasterType.Periodic, FunctionEditorMasterType.Exponent, FunctionEditorMasterType.Transition):
             map_range_node = tree.nodes.new('ShaderNodeGroup')
@@ -952,6 +955,13 @@ class Function:
                 transition_node.node_tree = utils.add_node_from_resources("reach_nodes", f"transition function type - {self.transition_functions[graph_index]}")
                 tree.links.new(input=map_range_node.inputs[0], output=transition_node.outputs[0])
                 first_node_input = transition_node.inputs[0]
+                
+        if uses_time_period:
+            time_node = tree.nodes.new('ShaderNodeGroup')
+            time_node.node_tree = utils.add_node_from_resources("shared_nodes", "Time Period")
+            time_node.inputs[0].default_value = (self.time_period if self.time_period > 0 else 1) / utils.time_step()
+            tree.links.new(input=first_node_input, output=time_node.outputs[0])
+            first_node_input = time_node.inputs[1]
                 
         attribute_node = add_attribute_node(tree, self.input)
         self.input_uses_group_node = attribute_node.bl_idname == 'ShaderNodeGroup'
@@ -1056,13 +1066,6 @@ class Function:
                 function_node.inputs[4].default_value = self.colors[3]
                 
         first_node_input = function_node.inputs[0]
-        
-        if utils.get_prefs().import_shaders_with_time_period and (force_time_period or (not self.is_object_function and not self.input) or (self.is_object_function and self.master_type == FunctionEditorMasterType.Periodic)):
-            time_node = tree.nodes.new('ShaderNodeGroup')
-            time_node.node_tree = utils.add_node_from_resources("shared_nodes", "Time Period")
-            time_node.inputs[0].default_value = (self.time_period if self.time_period > 0 else 1) / utils.time_step()
-            tree.links.new(input=first_node_input, output=time_node.outputs[0])
-            first_node_input = time_node.inputs[1]
                 
         if self.master_type != FunctionEditorMasterType.Basic and self.is_exclusion:
             exclusion_node = tree.nodes.new('ShaderNodeGroup')
@@ -1072,7 +1075,8 @@ class Function:
             tree.links.new(input=first_node_input, output=exclusion_node.outputs[0])
             first_node_input = exclusion_node.inputs[0]
         
-        outputs = [self._graph_to_nodes(tree, i) for i in range(self.graph_count)]
+        uses_time_period = utils.get_prefs().import_shaders_with_time_period and (force_time_period or (not self.is_object_function and not self.uses_input) or (self.is_object_function and self.master_type == FunctionEditorMasterType.Periodic))
+        outputs = [self._graph_to_nodes(tree, i, uses_time_period) for i in range(self.graph_count)]
         if len(outputs) > 1:
             graph_mix_node = tree.nodes.new('ShaderNodeMix')
             tree.links.new(input=graph_mix_node.inputs["A"], output=outputs[0])

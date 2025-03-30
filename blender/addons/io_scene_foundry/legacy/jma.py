@@ -123,17 +123,16 @@ class JMA:
                 
             
     def to_armature_action(self, armature: bpy.types.Object, action: bpy.types.Action=None):
-        bpy.context.scene.frame_set(0)
         if action is None:
             action = bpy.data.actions.new(name=self.name)
 
         if armature.animation_data is None:
             armature.animation_data_create()
             
-        armature.animation_data.action = action
-            
         fcurves = cast(bpy.types.ActionFCurves, action.fcurves)
         fcurves.clear()
+        
+        armature.animation_data.action = action
         
         armature_bone_names = {utils.remove_node_prefix(bone.name): bone for bone in armature.pose.bones}
         
@@ -166,9 +165,6 @@ class JMA:
         bones_ordered.sort(key=lambda x: bone_dict[x])
         
         bone_base_matrices = {}
-        for bone in armature.pose.bones:
-            bone.matrix_basis = Matrix.Identity(4)
-        bpy.context.view_layer.update()
         for bone in bones_ordered:
             if bone.parent:
                 bone_base_matrices[bone] = bone.parent.matrix.inverted_safe() @ bone.matrix

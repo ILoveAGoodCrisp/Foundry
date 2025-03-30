@@ -32,7 +32,7 @@ from ..tools.clear_duplicate_materials import clear_duplicate_materials
 from ..tools.property_apply import apply_props_material
 from ..tools.shader_finder import find_shaders
 from ..tools.shader_reader import tag_to_nodes
-from ..constants import VALID_MESHES
+from ..constants import IDENTITY_MATRIX, VALID_MESHES
 from ..managed_blam.connected_material import GameFunctionType, game_functions
 from .. import utils
 
@@ -546,6 +546,12 @@ class NWO_Import(bpy.types.Operator):
                             
                         if needs_scaling:
                             utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=[arm], actions=imported_jma_animations)
+                            
+                        if imported_jma_animations:
+                            if context.scene.nwo.asset_type in {'model', 'animation'}:
+                                context.scene.nwo.active_animation_index = len(context.scene.nwo.animations) - 1
+                            else:
+                                arm.animation_data.action = imported_jma_animations[-1]
                         
                 if 'model' in importer.extensions:
                     importer.tag_render = self.tag_render
@@ -561,14 +567,23 @@ class NWO_Import(bpy.types.Operator):
                     existing_armature = None
                     if self.reuse_armature:
                         existing_armature = utils.get_rig_prioritize_active(context)
-                        if needs_scaling:
-                            utils.transform_scene(context, (1 / scale_factor), to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[existing_armature], actions=[])
+                        if existing_armature is not None:
+                            arm_pose = existing_armature.data.pose_position
+                            existing_armature.data.pose_position = 'REST'
+                            context.view_layer.update()
+                            if needs_scaling:
+                                utils.transform_scene(context, (1 / scale_factor), to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[existing_armature], actions=[])
                             
                     imported_model_objects, imported_animations = importer.import_models(model_files, existing_armature)
+                    
                     if needs_scaling:
                         utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_model_objects, actions=imported_animations)
                         
+                    if existing_armature is not None:
+                        existing_armature.data.pose_position = arm_pose
+                        
                     imported_objects.extend(imported_model_objects)
+                    
                     
                 elif 'object' in importer.extensions:
                     importer.tag_render = self.tag_render
@@ -584,12 +599,19 @@ class NWO_Import(bpy.types.Operator):
                     existing_armature = None
                     if self.reuse_armature:
                         existing_armature = utils.get_rig_prioritize_active(context)
-                        if needs_scaling:
-                            utils.transform_scene(context, (1 / scale_factor), to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[existing_armature], actions=[])
+                        if existing_armature is not None:
+                            arm_pose = existing_armature.data.pose_position
+                            existing_armature.data.pose_position = 'REST'
+                            context.view_layer.update()
+                            if needs_scaling:
+                                utils.transform_scene(context, (1 / scale_factor), to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[existing_armature], actions=[])
                             
                     imported_object_objects, imported_animations = importer.import_object(object_files, existing_armature)
                     if needs_scaling:
                         utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_object_objects, actions=imported_animations)
+                        
+                    if existing_armature is not None:
+                        existing_armature.data.pose_position = arm_pose
                         
                     imported_objects.extend(imported_object_objects)
                     
@@ -625,6 +647,9 @@ class NWO_Import(bpy.types.Operator):
                     if existing_armature is None:
                         utils.print_warning("No armature found, cannot import animations. Ensure you have the appropriate armature for this animation graph import and selected")
                     else:
+                        arm_pose = existing_armature.data.pose_position
+                        existing_armature.data.pose_position = 'REST'
+                        context.view_layer.update()
                         good_to_go = True
                         render_model = existing_armature.nwo.node_order_source
                         if not render_model.strip():
@@ -646,9 +671,14 @@ class NWO_Import(bpy.types.Operator):
                                 
                             if needs_scaling:
                                 utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=[existing_armature], actions=imported_animations)
-                                
-                            if context.scene.nwo.asset_type in {'model', 'animation'}:
-                                context.scene.nwo.active_animation_index = len(context.scene.nwo.animations) - 1
+                            
+                            if imported_actions:
+                                if context.scene.nwo.asset_type in {'model', 'animation'}:
+                                    context.scene.nwo.active_animation_index = len(context.scene.nwo.animations) - 1
+                                else:
+                                    existing_armature.animation_data.action = imported_animations[-1]
+                                    
+                        existing_armature.data.pose_position = arm_pose
                     
                 if 'scenario' in importer.extensions:
                     importer.tag_zone_set = self.tag_zone_set
@@ -2775,6 +2805,9 @@ class NWOImporter:
                 "-----------------------------------------------------------------------\n"
             )
             try:
+                for bone in arm.pose.bones:
+                    bone.matrix_basis = IDENTITY_MATRIX
+                self.context.view_layer.update()
                 for path in jma_files:
                     self.import_legacy_animation(path, arm)
             finally:

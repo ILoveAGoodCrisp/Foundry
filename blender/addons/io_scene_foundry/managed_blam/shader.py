@@ -33,6 +33,8 @@ used_plate_paths = []
 #                         "shader_halogram": tuple(),
 #                         }
 
+srgb_names = "base_map", "palette", "self_illum_map"
+
 class ChannelType(Enum):
     DEFAULT = 0
     RGB = 1
@@ -1220,7 +1222,7 @@ class ShaderTag(Tag):
         for input in node.inputs:
             parameter_name_ui = input.name.lower() if "." not in input.name else input.name.partition(".")[0].lower()
             if "gamma curve" in parameter_name_ui:
-                if "base_map" in parameter_name_ui or "palette" in parameter_name_ui:
+                if any(srgb_name in parameter_name_ui for srgb_name in srgb_names):
                     input.default_value = 2.2
                 else:
                     input.default_value = 1
