@@ -226,6 +226,11 @@ class TilingNodeInputs(Enum):
     SCALE_X = 3
     SCALE_Y = 4
     
+class RotateNodeInputs(Enum):
+    TRANSLATION_X = 0
+    TRANSLATION_Y = 1
+    SCALE_X = 2
+    
 class GameFunctionType(Enum):
     OBJECT = 0
     WORLD = 1

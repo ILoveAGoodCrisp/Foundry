@@ -4,7 +4,7 @@ from enum import Enum
 from pathlib import Path
 from mathutils import Vector
 
-from .connected_material import Function, AnimatedParameterType, FunctionEditorColorGraphType, FunctionEditorMasterType, TilingNodeInputs
+from .connected_material import Function, AnimatedParameterType, FunctionEditorColorGraphType, FunctionEditorMasterType, RotateNodeInputs, TilingNodeInputs
 
 from .render_method_option import OptionParameter
 
@@ -470,6 +470,7 @@ class ShaderTag(Tag):
         self.game_functions = set()
         self.object_functions = set()
         self.sequence_drivers = {}
+        self.has_rotating_bitmaps = False
         self._get_info(self.reference_material_shader.Path if self.corinth else self.definition.Path)
         if self.group_supported:
             self._to_nodes_group(blender_material)
@@ -871,12 +872,22 @@ class ShaderTag(Tag):
                         animated_parameters[value_type] = func
         
         if animated_parameters:
-            tiling_node = tree.nodes.new('ShaderNodeGroup')
-            tiling_node.node_tree = utils.add_node_from_resources("shared_nodes", 'Texture Tiling')
-            self.add_texcoord_node(tree, tiling_node.inputs["Vector"])
-            for value_type, ap in animated_parameters.items():
-                self._setup_input_with_function(tiling_node.inputs[TilingNodeInputs[value_type.name].value], ap, uses_time=True)
-            return tiling_node
+            node = tree.nodes.new('ShaderNodeGroup')
+            if self.has_rotating_bitmaps:
+                # SCALE X = the angle of rotation
+                # TRANSLATION X, TRANSLATION Y = vector of the center of rotation
+                node.node_tree = utils.add_node_from_resources("shared_nodes", 'Texture Rotate')
+                for value_type, ap in animated_parameters.items():
+                    if value_type not in {AnimatedParameterType.SCALE_X, AnimatedParameterType.TRANSLATION_X, AnimatedParameterType.TRANSLATION_Y}:
+                        continue
+                    self._setup_input_with_function(node.inputs[RotateNodeInputs[value_type.name].value], ap, uses_time=True)
+            else:
+                node.node_tree = utils.add_node_from_resources("shared_nodes", 'Texture Tiling')
+                for value_type, ap in animated_parameters.items():
+                    self._setup_input_with_function(node.inputs[TilingNodeInputs[value_type.name].value], ap, uses_time=True)
+                    
+            self.add_texcoord_node(tree, node.inputs["Vector"])
+            return node
     
     def _recursive_tiling_parameters_get(self, parameter: OptionParameter, animated_parameters: dict):
         for element in self.block_parameters.Elements:
@@ -1022,6 +1033,8 @@ class ShaderTag(Tag):
         e_misc = Misc(self._option_value_from_index(9))
         e_wetness = Wetness(self._option_value_from_index(10))
         e_alpha_blend_source = AlphaBlendSource(self._option_value_from_index(11))
+        
+        self.has_rotating_bitmaps = e_misc == Misc.ROTATING_BITMAPS_SUPER_SLOW
         
         if e_material_model.value > 4:
             old_model = e_material_model.name

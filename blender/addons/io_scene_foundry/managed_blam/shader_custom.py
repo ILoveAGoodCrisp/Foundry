@@ -105,6 +105,10 @@ class ShaderCustomTag(ShaderTag):
         e_environment_mapping = EnvironmentMapping(self._option_value_from_index(5))
         e_self_illumination = SelfIllumination(self._option_value_from_index(6))
         e_blend_mode = BlendMode(self._option_value_from_index(7))
+        # e_parallax = BlendMode(self._option_value_from_index(8))
+        e_misc = Misc(self._option_value_from_index(9))
+        
+        self.has_rotating_bitmaps = e_misc == Misc.ROTATING_BITMAPS_SUPER_SLOW
         
         if e_albedo == Albedo.MULTIPLY_MAP:
             old_albedo = e_albedo.name

@@ -762,17 +762,14 @@ class NWO_Import(bpy.types.Operator):
                             continue
                         shader_path = mat.nwo.shader_path
                         if shader_path:
-                            result = tag_to_nodes(corinth, mat, shader_path, self.always_extract_bitmaps)
-                            if result is not None:
-                                mat_function_map[mat] = result[0]
-                                validated_funcs.update(result[1])
-                                sequence_drivers.update(result[2])
+                            tag_to_nodes(corinth, mat, shader_path, self.always_extract_bitmaps)
 
                     for ob in imported_objects:
                         for slot in ob.material_slots:
                             if slot.material:
-                                functions = mat_function_map.get(slot.material)
-                                if functions is not None:
+                                functions = slot.material.nwo.game_functions.split(",")
+                                validated_funcs.update(slot.material.nwo.object_functions.split(","))
+                                if functions:
                                     for func in functions:
                                         bool_prop = add_function(context.scene, func, ob, ob.parent)
                                         key = sequence_drivers.get(func)

@@ -69,8 +69,8 @@ def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str, always_e
                 with ShaderGlassTag(path=tag_path) as shader:
                     shader.to_nodes(mat, always_extract_bitmaps)
     
-    if shader is None:
-        return
-    else:
+    if shader is not None:
+        mat.nwo.game_functions = ",".join(shader.game_functions)
+        mat.nwo.object_functions = ",".join(shader.object_functions)
         arrange(mat.node_tree)
-        return sorted(shader.game_functions), sorted(shader.object_functions), shader.sequence_drivers
+        return shader.sequence_drivers

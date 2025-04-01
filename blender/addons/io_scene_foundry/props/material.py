@@ -86,6 +86,11 @@ class NWO_MaterialPropertiesGroup(PropertyGroup):
         options=set(),
     )
     
+    
+    game_functions: bpy.props.StringProperty(options={'HIDDEN'}) # comma delimited list of functions for this shader
+    object_functions: bpy.props.StringProperty(options={'HIDDEN'})
+    sequence_drivers: bpy.props.StringProperty(options={'HIDDEN'})
+    
     def get_special_material(self):
         material_name: str = self.id_data.name
         return material_name.startswith(tuple([m.name for m in special_materials]))
