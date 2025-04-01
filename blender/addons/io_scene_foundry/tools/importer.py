@@ -528,9 +528,9 @@ class NWO_Import(bpy.types.Operator):
 
                     if needs_scaling:
                         if arm is None:
-                            utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_jms_objects, actions=imported_jma_animations)
+                            utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_jms_objects, actions=[])
                         else:
-                            utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=[arm] + imported_jms_objects, actions=imported_jma_animations)
+                            utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=[arm] + imported_jms_objects, actions=[])
                             
                 if 'jma' in importer.extensions:
                     jma_files = importer.sorted_filepaths["jma"]
