@@ -44,6 +44,12 @@ class BlendMode(Enum):
     ALPHA_BLEND = 3
     DOUDBLE_MULTIPLY = 4
     
+class Misc(Enum):
+    FIRST_PERSON_NEVER = 0
+    FIRST_PERSON_SOMETIMES = 1
+    FIRST_PERSON_ALWAYS = 2
+    FIRST_PERSON_W_ROTATING_BITMAPS = 3
+    
 class Overlay(Enum):
     NONE = 0
     ADDITIVE = 1
@@ -68,8 +74,11 @@ class ShaderHalogramTag(ShaderTag):
         if e_self_illumination == SelfIllumination.SCOPE_BLUR:
             e_self_illumination = SelfIllumination.SIMPLE
         e_blend_mode = BlendMode(self._option_value_from_index(2))
+        e_misc = Misc(self._option_value_from_index(3))
         e_overlay = Overlay(self._option_value_from_index(5))
         e_edge_fade = EdgeFade(self._option_value_from_index(6))
+        
+        self.has_rotating_bitmaps = e_misc == Misc.FIRST_PERSON_W_ROTATING_BITMAPS
         
         self.shader_parameters = {}
         self.shader_parameters.update(self.category_parameters["albedo"][utils.game_str(e_albedo.name)])
