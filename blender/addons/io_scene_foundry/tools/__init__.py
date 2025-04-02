@@ -2,6 +2,8 @@
 
 import bpy
 
+from .animation.transforms_lock import NWO_OT_LockChildBoneTransforms
+
 
 
 from .refresh_cinematic_controls import NWO_OT_RefreshCinematicControls
@@ -200,6 +202,7 @@ classes = (
     NWO_FH_ImportShaderAsMaterial,
     NWO_OT_AnimationNameSearch,
     NWO_OT_PlayGameAnimation,
+    NWO_OT_LockChildBoneTransforms,
 )
 
 def register():
