@@ -59,36 +59,72 @@ class NWO_OT_MovementDataToPedestal(bpy.types.Operator):
     
     include_no_movement: bpy.props.BoolProperty(
         name="Include All Base Animations",
+        default=False,
+        description="Transfers movement data for no movement base animations. These will be treated as if they have XY yaw movement by default; this will be overridden if the movement data type is set to manual"
+    )
+    
+    movement_type: bpy.props.EnumProperty(
+        name="Movement Type",
+        description="Determines what transforms are moved from the source bone to the root bone",
+        items=[
+            ('AUTOMATIC', "Automatic", "Movement type used accounts for the animation movement data type"),
+            ('MANUAL', "Manual", "Define the exact type of transforms to move"),
+        ]
+    )
+    
+    use_x_loc: bpy.props.BoolProperty(
+        name="Forward",
         default=True,
-        description="Transfers movement data for no movement base animations. These will be treated as if they have XYZ & yaw movement"
+        description=""
+    )
+    use_y_loc: bpy.props.BoolProperty(
+        name="Side to Side",
+        default=True,
+        description=""
+    )
+    use_z_loc: bpy.props.BoolProperty(
+        name="Vertical",
+        description=""
+    )
+    use_x_rot: bpy.props.BoolProperty(
+        name="X Rotation",
+        description=""
+    )
+    use_y_rot: bpy.props.BoolProperty(
+        name="Y Rotation",
+        description=""
+    )
+    use_z_rot: bpy.props.BoolProperty(
+        name="Z Rotation",
+        default=True,
+        description=""
     )
     
     def find_armature_ob(self, context):
-        if getattr(self, "ob", None) is None:
-            ob = None
-            if context.object and context.object.type == "ARMATURE":
-                ob = context.object
-            else:
-                ob = utils.get_rig(context)
+        ob = None
+        if context.object and context.object.type == "ARMATURE":
+            ob = context.object
+        else:
+            ob = utils.get_rig(context)
+            
+        if ob is None:
+            self.report({'WARNING'}, "No armature in scene")
+            return {'CANCELLED'}
+        
+        
+        global list_root_bones
+        list_root_bones = []
+        for bone in ob.pose.bones:
+            if not bone.parent:
+                list_root_bones.append((bone.name, bone.name, ""))
                 
-            if ob is None:
-                self.report({'WARNING'}, "No armature in scene")
-                return {'CANCELLED'}
-            
-            
-            global list_root_bones
-            list_root_bones = []
-            for bone in ob.pose.bones:
-                if not bone.parent:
-                    list_root_bones.append((bone.name, bone.name, ""))
-                    
-            global list_source_bones
-            list_source_bones = []
-            for bone in ob.pose.bones:
-                if bone.parent:
-                    list_source_bones.append((bone.name, bone.name, ""))
-                    
-            self.ob = ob
+        global list_source_bones
+        list_source_bones = []
+        for bone in ob.pose.bones:
+            if bone.parent:
+                list_source_bones.append((bone.name, bone.name, ""))
+                
+        self.ob = ob
     
     def invoke(self, context, event):
         self.find_armature_ob(context)
@@ -113,8 +149,29 @@ class NWO_OT_MovementDataToPedestal(bpy.types.Operator):
         layout.use_property_split = True
         layout.prop(self, "source_bone")
         layout.prop(self, "root_bone")
-        layout.prop(self, "include_no_movement")
         layout.prop(self, "all_animations")
+        layout.prop(self, "movement_type", expand=True)
+        if self.movement_type == 'MANUAL':
+            layout.prop(self, "use_x_loc")
+            layout.prop(self, "use_y_loc")
+            layout.prop(self, "use_z_loc")
+            layout.prop(self, "use_x_rot")
+            layout.prop(self, "use_y_rot")
+            layout.prop(self, "use_z_rot")
+        else:
+            layout.prop(self, "include_no_movement")
+        
+    def has_movement_data(self, animation) -> bool:
+        if animation.animation_type not in {'base', 'world'}:
+            return False
+        none_movement = animation.animation_movement_data == "none"
+        if none_movement:
+            if not self.include_no_movement:
+                return False
+            state = utils.space_partition(animation.name.replace(":", " "), True).lower()
+            return state not in {'idle', 'takeoff'}
+        
+        return True
     
     def execute(self, context):
         if not context.scene.nwo.animations:
@@ -133,7 +190,16 @@ class NWO_OT_MovementDataToPedestal(bpy.types.Operator):
         current_pose = self.ob.data.pose_position
         current_object = context.object
         
-        if not self.all_animations and (current_animation.animation_type != "base" or (not self.include_no_movement and current_animation.animation_movement_data == "none")):
+        settings_dict = {}
+        if self.movement_type == 'MANUAL':
+            settings_dict["use_x_loc"] = self.use_x_loc
+            settings_dict["use_y_loc"] = self.use_y_loc
+            settings_dict["use_z_loc"] = self.use_z_loc
+            settings_dict["use_x_rot"] = self.use_x_rot
+            settings_dict["use_y_rot"] = self.use_y_rot
+            settings_dict["use_z_rot"] = self.use_z_rot
+        
+        if not self.all_animations and not self.has_movement_data(current_animation) and not settings_dict:
             self.report({'WARNING'}, "Active animation has no movement data")
             return {'CANCELLED'}
         
@@ -149,26 +215,27 @@ class NWO_OT_MovementDataToPedestal(bpy.types.Operator):
         self.ob.data.pose_position = 'POSE'
         context.view_layer.update()
         
-        os.system("cls")
-        start = time.perf_counter()
-        if context.scene.nwo_export.show_output:
-            bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
-            context.scene.nwo_export.show_output = False
-            
-        export_title = f"►►► MOVEMENT DATA TRANSFER ◄◄◄\n"
-        print(export_title)
+        if self.all_animations:
+            os.system("cls")
+            start = time.perf_counter()
+            if context.scene.nwo_export.show_output:
+                bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
+                context.scene.nwo_export.show_output = False
+                
+            export_title = f"►►► MOVEMENT DATA TRANSFER ◄◄◄\n"
+            print(export_title)
         
         source_bone_anim_matrices = {}
         
         if self.all_animations:
             print("Calculating new root movement for all animations")
             for idx, animation in enumerate(context.scene.nwo.animations):
-                if animation.animation_type == "base" and (self.include_no_movement or animation.animation_movement_data != "none"):
+                if settings_dict or self.has_movement_data(animation):
                     print(f"--- {animation.name}")
-                    source_bone_anim_matrices[idx] = transfer_movement(context, animation, idx, self.ob, self.source_bone, self.root_bone, source_rest_matrix, root_rest_matrix)
+                    source_bone_anim_matrices[idx] = transfer_movement(context, animation, idx, self.ob, self.source_bone, self.root_bone, source_rest_matrix, root_rest_matrix, settings_dict)
         else:
             print(f"Calculating new root movement for {current_animation.name}")
-            source_bone_anim_matrices[current_animation_index] = transfer_movement(context, current_animation, current_animation_index, self.ob, self.source_bone, self.root_bone, source_rest_matrix, root_rest_matrix)
+            source_bone_anim_matrices[current_animation_index] = transfer_movement(context, current_animation, current_animation_index, self.ob, self.source_bone, self.root_bone, source_rest_matrix, root_rest_matrix, settings_dict)
             
         bpy.ops.object.editmode_toggle()
         self.ob.data.edit_bones[self.source_bone].parent = self.ob.data.edit_bones[self.root_bone]
@@ -185,9 +252,10 @@ class NWO_OT_MovementDataToPedestal(bpy.types.Operator):
         context.scene.frame_set(current_frame)
         context.view_layer.objects.active = current_object
         
-        print("\n-----------------------------------------------------------------------")
-        print(f"Completed in {utils.human_time(time.perf_counter() - start, True)}")
-        print("-----------------------------------------------------------------------\n")
+        if self.all_animations:
+            print("\n-----------------------------------------------------------------------")
+            print(f"Completed in {utils.human_time(time.perf_counter() - start, True)}")
+            print("-----------------------------------------------------------------------\n")
         
         return {'FINISHED'}
     
@@ -202,15 +270,19 @@ def fix_source_movement(context: bpy.types.Context, animation, animation_index: 
         source_bone.keyframe_insert(data_path='rotation_quaternion', frame=i)
         source_bone.keyframe_insert(data_path='rotation_euler', frame=i)
         
-def transfer_movement(context: bpy.types.Context, animation, animation_index: int, ob: bpy.types.Object, source_bone_name: str, root_bone_name: str, source_rest_matrix: Matrix, root_rest_matrix: Matrix):
+def transfer_movement(context: bpy.types.Context, animation, animation_index: int, ob: bpy.types.Object, source_bone_name: str, root_bone_name: str, source_rest_matrix: Matrix, root_rest_matrix: Matrix, custom_settings: dict = {}):
     context.scene.nwo.active_animation_index = animation_index
     scene = context.scene
+    horizontal = False
+    vertical = False
+    yaw = False
+    full = False
     movement = animation.animation_movement_data
-    if movement == "none":
+    if animation.animation_type == 'world':
+        full = True
+    elif movement == "none":
         horizontal = True
-        vertical = True
         yaw = True
-        full = False
     else:
         horizontal = "xy" in movement
         vertical = "z" in movement
@@ -241,35 +313,64 @@ def transfer_movement(context: bpy.types.Context, animation, animation_index: in
         
     con_rot = None
     con_loc = None
-    con_height = None
-    con_pitch_roll = None
+    con_limit_rot = None
+    con_limit_loc = None
     
     # Add constraints if rotation
-    if yaw or full:
+    if custom_settings:
         con_rot = root_bone.constraints.new(type='COPY_ROTATION')
         con_rot.target = ob
         con_rot.subtarget = source_bone_name
         con_rot.target_space = 'LOCAL_OWNER_ORIENT'
         con_rot.owner_space = 'LOCAL'
         
-        if not full:
-            con_pitch_roll = root_bone.constraints.new(type='LIMIT_ROTATION')
-            con_pitch_roll.use_limit_x = True
-            con_pitch_roll.use_limit_y = True
-            con_pitch_roll.owner_space = 'LOCAL'
-        
-    if horizontal or vertical or full:
         con_loc = root_bone.constraints.new(type='COPY_LOCATION')
         con_loc.target = ob
         con_loc.subtarget = source_bone_name
         con_loc.target_space = 'LOCAL_OWNER_ORIENT'
         con_loc.owner_space = 'LOCAL'
         
-        if not (vertical or full):
-            con_height = root_bone.constraints.new(type='LIMIT_LOCATION')
-            con_height.use_min_z = True
-            con_height.use_max_z = True
-            con_height.owner_space = 'LOCAL'
+        con_limit_rot = root_bone.constraints.new(type='LIMIT_ROTATION')
+        con_limit_rot.use_limit_x = not custom_settings.get("use_x_rot")
+        con_limit_rot.use_limit_y = not custom_settings.get("use_y_rot")
+        con_limit_rot.use_limit_z = not custom_settings.get("use_z_rot")
+        con_limit_rot.owner_space = 'LOCAL'
+        
+        con_limit_loc = root_bone.constraints.new(type='LIMIT_LOCATION')
+        con_limit_loc.use_min_x = not custom_settings.get("use_x_loc")
+        con_limit_loc.use_max_x = not custom_settings.get("use_x_loc")
+        con_limit_loc.use_min_y = not custom_settings.get("use_y_loc")
+        con_limit_loc.use_max_y = not custom_settings.get("use_y_loc")
+        con_limit_loc.use_min_z = not custom_settings.get("use_z_loc")
+        con_limit_loc.use_max_z = not custom_settings.get("use_z_loc")
+        con_limit_loc.owner_space = 'LOCAL'
+            
+    else:
+        if yaw or full:
+            con_rot = root_bone.constraints.new(type='COPY_ROTATION')
+            con_rot.target = ob
+            con_rot.subtarget = source_bone_name
+            con_rot.target_space = 'LOCAL_OWNER_ORIENT'
+            con_rot.owner_space = 'LOCAL'
+            
+            if not full:
+                con_limit_rot = root_bone.constraints.new(type='LIMIT_ROTATION')
+                con_limit_rot.use_limit_x = True
+                con_limit_rot.use_limit_y = True
+                con_limit_rot.owner_space = 'LOCAL'
+        
+        if horizontal or vertical or full:
+            con_loc = root_bone.constraints.new(type='COPY_LOCATION')
+            con_loc.target = ob
+            con_loc.subtarget = source_bone_name
+            con_loc.target_space = 'LOCAL_OWNER_ORIENT'
+            con_loc.owner_space = 'LOCAL'
+            
+            if not (vertical or full):
+                con_limit_loc = root_bone.constraints.new(type='LIMIT_LOCATION')
+                con_limit_loc.use_min_z = True
+                con_limit_loc.use_max_z = True
+                con_limit_loc.owner_space = 'LOCAL'
     
     # Neutralise source movement and save offets
     # source_rest_loc = source_rest_matrix.to_translation()
@@ -306,12 +407,12 @@ def transfer_movement(context: bpy.types.Context, animation, animation_index: in
                 
     if con_loc is not None:
         root_bone.constraints.remove(con_loc)
-        if con_height is not None:
-            root_bone.constraints.remove(con_height)
+        if con_limit_loc is not None:
+            root_bone.constraints.remove(con_limit_loc)
     if con_rot is not None:
         root_bone.constraints.remove(con_rot)
-        if con_pitch_roll is not None:
-            root_bone.constraints.remove(con_pitch_roll)
+        if con_limit_rot is not None:
+            root_bone.constraints.remove(con_limit_rot)
         
     return source_bone_matrices
 
