@@ -5,19 +5,20 @@ class LockChildBoneTransforms(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return context.mode == 'POSE' and context.active_pose_bone
+        return context.mode == 'POSE' and context.selected_pose_bones
     
     def main(self, context: bpy.types.Context):
         self.bone_constraints = {}
         bone_selection = set(context.selected_pose_bones)
-        for bone in context.active_pose_bone.children:
-            if bone in bone_selection:
-                continue
-            ob = bpy.data.objects.new("temp_bone_constraint_object", object_data=None)
-            ob.matrix_world = context.object.matrix_world @ bone.matrix
-            con = bone.constraints.new(type='COPY_TRANSFORMS')
-            con.target = ob
-            self.bone_constraints[bone] = con
+        for bone in bone_selection:
+            for child_bone in bone.children:
+                if child_bone in bone_selection:
+                    continue
+                ob = bpy.data.objects.new("temp_bone_constraint_object", object_data=None)
+                ob.matrix_world = context.object.matrix_world @ child_bone.matrix
+                con = child_bone.constraints.new(type='COPY_TRANSFORMS')
+                con.target = ob
+                self.bone_constraints[child_bone] = con
         
         context.window_manager.modal_handler_add(self)
     
@@ -43,9 +44,9 @@ class LockChildBoneTransforms(bpy.types.Operator):
             bone.constraints.remove(con)
 
 class NWO_OT_LockChildBoneLocation(LockChildBoneTransforms):
-    bl_idname = "nwo.lock_child_bone_location"
-    bl_label = "Lock Child Bone Location"
-    bl_description = "Locks the visual location of the children of the currently active pose bone"
+    bl_idname = "nwo.translate_bone_without_children"
+    bl_label = "Translate Without Children"
+    bl_description = "Translates the current pose bone selection without affecting bone children"
 
     def execute(self, context):
         self.main(context)
@@ -53,9 +54,9 @@ class NWO_OT_LockChildBoneLocation(LockChildBoneTransforms):
         return {'RUNNING_MODAL'}
     
 class NWO_OT_LockChildBoneRotation(LockChildBoneTransforms):
-    bl_idname = "nwo.lock_child_bone_rotation"
-    bl_label = "Lock Child Bone Rotation"
-    bl_description = "Locks the visual rotation of the children of the currently active pose bone"
+    bl_idname = "nwo.rotate_bone_without_children"
+    bl_label = "Rotate Without Children"
+    bl_description = "Rotates the current pose bone selection without affecting bone children"
 
     def execute(self, context):
         self.main(context)
@@ -63,9 +64,9 @@ class NWO_OT_LockChildBoneRotation(LockChildBoneTransforms):
         return {'RUNNING_MODAL'}
     
 class NWO_OT_LockChildBoneScale(LockChildBoneTransforms):
-    bl_idname = "nwo.lock_child_bone_scale"
-    bl_label = "Lock Child Bone Scale"
-    bl_description = "Locks the visual scale of the children of the currently active pose bone"
+    bl_idname = "nwo.resize_bone_without_children"
+    bl_label = "Resize Without Children"
+    bl_description = "Scales the current pose bone selection without affecting bone children"
 
     def execute(self, context):
         self.main(context)

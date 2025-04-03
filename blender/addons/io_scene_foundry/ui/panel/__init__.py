@@ -24,6 +24,9 @@ HOTKEYS = [
     ("apply_marker_type", "ALT+F"),
     ("halo_join", "ALT+J"),
     ("move_to_halo_collection", "ALT+M"),
+    ("translate_bone_without_children", "CTRL+SHIFT+G"),
+    ("rotate_bone_without_children", "CTRL+SHIFT+R"),
+    ("resize_bone_without_children", "CTRL+SHIFT+S"),
 ]
 
 PANELS_PROPS = [

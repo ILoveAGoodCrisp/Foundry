@@ -56,7 +56,7 @@ def register():
     
     # POSE MODE
     kmi = km.keymap_items.new(
-        idname="nwo.lock_child_bone_location",
+        idname="nwo.translate_bone_without_children",
         type="G",
         value="PRESS",
         ctrl=True,
@@ -65,7 +65,7 @@ def register():
     keys.append((km, kmi))
     
     kmi = km.keymap_items.new(
-        idname="nwo.lock_child_bone_rotation",
+        idname="nwo.rotate_bone_without_children",
         type="R",
         value="PRESS",
         ctrl=True,
@@ -74,7 +74,7 @@ def register():
     keys.append((km, kmi))
     
     kmi = km.keymap_items.new(
-        idname="nwo.lock_child_bone_scale",
+        idname="nwo.resize_bone_without_children",
         type="S",
         value="PRESS",
         ctrl=True,
