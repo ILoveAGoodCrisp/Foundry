@@ -129,6 +129,10 @@ class JMA:
         if armature.animation_data is None:
             armature.animation_data_create()
             
+        slot = action.slots.new('OBJECT', armature.name)
+        armature.animation_data.last_slot_identifier = slot.identifier
+        armature.animation_data.action = action
+            
         fcurves = cast(bpy.types.ActionFCurves, action.fcurves)
         fcurves.clear()
         
@@ -140,16 +144,16 @@ class JMA:
             node.pose_bone = armature_bone_names.get(utils.remove_node_prefix(node.name))
             if node.pose_bone is None:
                 continue
-            node.fc_loc_x = fcurves.new(data_path=f'pose.bones["{node.name}"].location', index=0)
-            node.fc_loc_y = fcurves.new(data_path=f'pose.bones["{node.name}"].location', index=1)
-            node.fc_loc_z = fcurves.new(data_path=f'pose.bones["{node.name}"].location', index=2)
-            node.fc_rot_w = fcurves.new(data_path=f'pose.bones["{node.name}"].rotation_quaternion', index=0)
-            node.fc_rot_x = fcurves.new(data_path=f'pose.bones["{node.name}"].rotation_quaternion', index=1)
-            node.fc_rot_y = fcurves.new(data_path=f'pose.bones["{node.name}"].rotation_quaternion', index=2)
-            node.fc_rot_z = fcurves.new(data_path=f'pose.bones["{node.name}"].rotation_quaternion', index=3)
-            node.fc_sca_x = fcurves.new(data_path=f'pose.bones["{node.name}"].scale', index=0)
-            node.fc_sca_y = fcurves.new(data_path=f'pose.bones["{node.name}"].scale', index=1)
-            node.fc_sca_z = fcurves.new(data_path=f'pose.bones["{node.name}"].scale', index=2)
+            node.fc_loc_x = fcurves.new(data_path=f'pose.bones["{node.pose_bone.name}"].location', index=0)
+            node.fc_loc_y = fcurves.new(data_path=f'pose.bones["{node.pose_bone.name}"].location', index=1)
+            node.fc_loc_z = fcurves.new(data_path=f'pose.bones["{node.pose_bone.name}"].location', index=2)
+            node.fc_rot_w = fcurves.new(data_path=f'pose.bones["{node.pose_bone.name}"].rotation_quaternion', index=0)
+            node.fc_rot_x = fcurves.new(data_path=f'pose.bones["{node.pose_bone.name}"].rotation_quaternion', index=1)
+            node.fc_rot_y = fcurves.new(data_path=f'pose.bones["{node.pose_bone.name}"].rotation_quaternion', index=2)
+            node.fc_rot_z = fcurves.new(data_path=f'pose.bones["{node.pose_bone.name}"].rotation_quaternion', index=3)
+            node.fc_sca_x = fcurves.new(data_path=f'pose.bones["{node.pose_bone.name}"].scale', index=0)
+            node.fc_sca_y = fcurves.new(data_path=f'pose.bones["{node.pose_bone.name}"].scale', index=1)
+            node.fc_sca_z = fcurves.new(data_path=f'pose.bones["{node.pose_bone.name}"].scale', index=2)
             valid_nodes.append(node)
             
         bone_dict = {}
@@ -190,11 +194,6 @@ class JMA:
                 node.fc_sca_x.keyframe_points.insert(frame_idx, sca.x, options={'FAST', 'NEEDED'})
                 node.fc_sca_y.keyframe_points.insert(frame_idx, sca.y, options={'FAST', 'NEEDED'})
                 node.fc_sca_z.keyframe_points.insert(frame_idx, sca.z, options={'FAST', 'NEEDED'})
-                
-                
-        slot = action.slots.new('OBJECT', armature.name)
-        armature.animation_data.last_slot_identifier = slot.identifier
-        armature.animation_data.action = action
                 
         return action
                 
