@@ -2,7 +2,7 @@
 
 import bpy
 
-from .animation.transforms_lock import NWO_OT_LockChildBoneTransforms
+from .animation.transforms_lock import NWO_OT_LockChildBoneLocation, NWO_OT_LockChildBoneRotation, NWO_OT_LockChildBoneScale
 
 
 
@@ -202,7 +202,9 @@ classes = (
     NWO_FH_ImportShaderAsMaterial,
     NWO_OT_AnimationNameSearch,
     NWO_OT_PlayGameAnimation,
-    NWO_OT_LockChildBoneTransforms,
+    NWO_OT_LockChildBoneLocation,
+    NWO_OT_LockChildBoneRotation,
+    NWO_OT_LockChildBoneScale,
 )
 
 def register():

@@ -1370,23 +1370,3 @@ def foundry_toolbar(layout, context):
         
 def menu_func_import(self, context):
     self.layout.operator("nwo.foundry_import", text="Halo Foundry Import")
-    
-class NWO_PT_LockChildBoneTransforms(bpy.types.Panel):
-    bl_label = "Lock Child Bone Transforms Settings"
-    bl_idname = "NWO_PT_LockChildBoneTransforms"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "HEADER"
-
-    def draw(self, context):
-        layout = self.layout
-        nwo = context.scene.nwo
-        layout.prop(nwo, 'lock_bone_loc')
-        layout.prop(nwo, 'lock_bone_rot')
-        layout.prop(nwo, 'lock_bone_sca')
-        
-def draw_bone_transforms_lock(self, context):
-    if context.mode == 'POSE':
-        layout = self.layout
-        row = layout.row(align=True)
-        row.operator("nwo.lock_child_bone_transforms", text="", icon='CONSTRAINT_BONE', depress=context.scene.nwo.bone_transform_lock_active)
-        row.popover(panel="NWO_PT_LockChildBoneTransforms", text="")

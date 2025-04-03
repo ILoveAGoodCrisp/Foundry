@@ -2568,22 +2568,3 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         name="Object Expression",
         description="A halo script expression which evaluates to the object you wish to animate. This might be the object name directly in the scenario or something like (player_get 2)",
     )
-    
-    # Bone lock
-    lock_bone_loc: bpy.props.BoolProperty(
-        name="Lock Child Bone Location",
-        options=set(),
-        default=True
-        )
-    lock_bone_rot: bpy.props.BoolProperty(
-        name="Lock Child Bone Rotation",
-        options=set(),
-        default=True
-        )
-    lock_bone_sca: bpy.props.BoolProperty(
-        name="Lock Child Bone Scale",
-        options=set(),
-        default=True
-        )
-    
-    bone_transform_lock_active: bpy.props.BoolProperty(options={'HIDDEN'})

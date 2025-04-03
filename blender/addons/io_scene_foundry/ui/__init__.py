@@ -20,7 +20,6 @@ classes = [
     bar.NWO_HaloExport,
     bar.NWO_HaloExportPropertiesGroup,
     bar.NWO_OT_StartFoundry,
-    bar.NWO_PT_LockChildBoneTransforms,
     node_editor.NWO_OT_HaloMaterialNodes,
     node_editor.NWO_OT_HaloMaterialTilingNode,
     outliner.NWO_OT_PermutationListCollection,
@@ -167,7 +166,6 @@ def register():
     bpy.types.VIEW3D_MT_object_context_menu.append(viewport.object_context_sets)
     bpy.types.OUTLINER_MT_collection.append(viewport.collection_context)
     bpy.types.NODE_MT_add.append(node_editor.node_context_menu)
-    bpy.types.VIEW3D_HT_tool_header.append(bar.draw_bone_transforms_lock)
     bpy.types.VIEW3D_HT_tool_header.append(bar.draw_foundry_toolbar)
     # bpy.types.NODE_HT_header.append(bar.draw_foundry_nodes_toolbar)
     bpy.types.VIEW3D_MT_mesh_add.append(viewport.add_halo_scale_model_button)
@@ -186,7 +184,6 @@ def unregister():
     bpy.types.DOPESHEET_HT_header.remove(timeline.draw_cinematic_info)
     bpy.types.TOPBAR_MT_file_import.remove(bar.menu_func_import)
     bpy.types.VIEW3D_HT_tool_header.remove(bar.draw_foundry_toolbar)
-    bpy.types.VIEW3D_HT_tool_header.remove(bar.draw_bone_transforms_lock)
     # bpy.types.NODE_HT_header.remove(bar.draw_foundry_nodes_toolbar)
     bpy.types.VIEW3D_MT_mesh_add.remove(viewport.add_halo_scale_model_button)
     bpy.types.VIEW3D_MT_armature_add.remove(viewport.add_halo_armature_buttons)

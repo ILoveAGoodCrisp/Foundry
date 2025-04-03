@@ -53,6 +53,34 @@ def register():
         shift=True,
     )
     keys.append((km, kmi))
+    
+    # POSE MODE
+    kmi = km.keymap_items.new(
+        idname="nwo.lock_child_bone_location",
+        type="G",
+        value="PRESS",
+        ctrl=True,
+        shift=True,
+    )
+    keys.append((km, kmi))
+    
+    kmi = km.keymap_items.new(
+        idname="nwo.lock_child_bone_rotation",
+        type="R",
+        value="PRESS",
+        ctrl=True,
+        shift=True,
+    )
+    keys.append((km, kmi))
+    
+    kmi = km.keymap_items.new(
+        idname="nwo.lock_child_bone_scale",
+        type="S",
+        value="PRESS",
+        ctrl=True,
+        shift=True,
+    )
+    keys.append((km, kmi))
 
     # OUTLINER
 
