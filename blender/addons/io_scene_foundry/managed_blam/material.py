@@ -28,6 +28,10 @@ class MaterialTag(ShaderTag):
     default_parameters = None
     shader_parameters = None
     
+    global_material_shader = None
+    last_group_node = None
+    group_node = None
+    
     def _read_fields(self):
         self.block_parameters = self.tag.SelectField("Block:material parameters")
         self.reference_material_shader = self.tag.SelectField("Reference:material shader")
@@ -37,12 +41,12 @@ class MaterialTag(ShaderTag):
     def _get_info(cls, material_shader_path: TagPath):
         with MaterialShaderTag(path=material_shader_path) as material_shader:
             cls.default_parameters, cls.shader_parameters = material_shader.get_defaults()
-        # if not cls.global_material_shader or cls.last_group_node != cls.group_node or path == "":
-            # group_node_name = utils.dot_partition(cls.group_node.node_tree.name.lower().replace(' ', '_'))
-            # path = cls._material_shader_path_from_group_node(group_node_name)
-            # assert path, f"Group node in use for material but no corresponding material shader found. Expected material shader named {group_node_name} in {MATERIAL_SHADERS_DIR} (or sub-folders)"
-            # with MaterialShaderTag(path=path) as material_shader:
-            #     cls.material_shader_data[material_shader.tag_path.RelativePath] = material_shader.read_parameters()
+        if not cls.global_material_shader or cls.last_group_node != cls.group_node or path == "":
+            group_node_name = utils.dot_partition(cls.group_node.node_tree.name.lower().replace(' ', '_'))
+            path = cls._material_shader_path_from_group_node(group_node_name)
+            assert path, f"Group node in use for material but no corresponding material shader found. Expected material shader named {group_node_name} in {MATERIAL_SHADERS_DIR} (or sub-folders)"
+            with MaterialShaderTag(path=path) as material_shader:
+                cls.material_shader_data[material_shader.tag_path.RelativePath] = material_shader.read_parameters()
 
     def _material_shader_path_from_group_node(self, group_node_name):
         filename = group_node_name + '.material_shader'

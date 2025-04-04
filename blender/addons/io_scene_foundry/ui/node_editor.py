@@ -53,9 +53,9 @@ class NWO_OT_HaloMaterialNodes(bpy.types.Operator):
         if h4:
             lib_blend = Path(utils.MATERIAL_RESOURCES, 'h4_nodes.blend')
         else:
-            lib_blend = Path(utils.MATERIAL_RESOURCES, 'hr_nodes.blend')
+            lib_blend = Path(utils.MATERIAL_RESOURCES, 'reach_nodes.blend')
         
-        with bpy.data.libraries.load(lib_blend, link=True) as (data_from, _):
+        with bpy.data.libraries.load(str(lib_blend), link=True) as (data_from, _):
             for n_group in data_from.node_groups:
                 if not h4:
                     items.append((n_group, n_group, ''))

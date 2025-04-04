@@ -194,7 +194,6 @@ class ShaderTag(Tag):
                     return from_node
             return None
         self.group_node = _get_group_node(blender_material)
-        # TODO implement custom shaders for Reach. Currently forcing custom off if reach
         self.custom = True if self.group_node and self.corinth else False
         if linked_to_blender and blender_material.use_nodes:
             self._edit_tag()
@@ -206,8 +205,8 @@ class ShaderTag(Tag):
     def _edit_tag(self):
         self.alpha_type = self._alpha_type_from_blender_material()
         if self.custom:
-            self._get_info(self.definition.Path)
-            self._build_custom()
+            self._get_info(self.material_shader if self.corinth else self.definition.Path)
+            self._from_nodes_group()
         else:
             def get_basic_mapping(blender_material):
                 """Maps all the important parts we need from a blender material node tree to generate a basic shader"""
