@@ -244,7 +244,7 @@ class NWO_OT_MovementDataToPedestal(bpy.types.Operator):
             self.report({'WARNING'}, "Active animation has no movement data")
             return {'CANCELLED'}
 
-        # utils.set_object_mode(context)
+        utils.set_object_mode(context)
         utils.set_active_object(self.ob)
         
         
@@ -306,7 +306,7 @@ class NWO_OT_MovementDataToPedestal(bpy.types.Operator):
         context.scene.nwo.active_animation_index = current_animation_index
         context.scene.frame_set(current_frame)
         context.view_layer.objects.active = current_object
-        # utils.restore_mode(current_mode)
+        utils.restore_mode(current_mode)
         
         if self.all_animations:
             print("\n-----------------------------------------------------------------------")
