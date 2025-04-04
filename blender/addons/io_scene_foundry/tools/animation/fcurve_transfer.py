@@ -263,7 +263,7 @@ class NWO_OT_MovementDataToPedestal(bpy.types.Operator):
         if self.all_animations:
             print("Getting existing source bone poses")
             for i in range(len(context.scene.nwo.animations)):
-                animation = context.scene.nwo.animations[idx]
+                animation = context.scene.nwo.animations[i]
                 print(f"--- {animation.name}")
                 source_bone_anim_matrices[i] = get_source_bone_matrices(context, i, animation, source_bone)
         else:
