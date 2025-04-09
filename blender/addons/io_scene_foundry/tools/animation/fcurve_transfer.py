@@ -127,8 +127,8 @@ class NWO_OT_MovementDataToPedestal(bpy.types.Operator):
     
     relative: bpy.props.BoolProperty(
         name="Relative Source Transforms",
-        description="Source positions are tested relative (so we'll get the source bone transforms as if the root bone has identity transforms), otherwise get their final transforms",
-        default=True,
+        description="Source positions are tested relative to the root bone (so we'll get the source bone transforms as if they had no parent), otherwise get their final transforms. Toggle this if you're getting weird results!",
+        default=False,
     )
     
     def find_armature_ob(self, context):

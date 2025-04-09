@@ -342,7 +342,7 @@ class FoundryPreferences(AddonPreferences):
     )
     
     import_shaders_with_time_period: BoolProperty(
-        name="Import Game Shader/Materials with animated functions",
+        name="Import Game Shader/Materials with Animated Functions",
         default=False,
         description="Allows importing of animated functions when importing a Halo shader or material tag into Blender. Animated shaders can be taxing on Blender when the timeline is playing"
     )

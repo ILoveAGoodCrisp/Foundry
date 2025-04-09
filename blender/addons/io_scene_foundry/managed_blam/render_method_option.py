@@ -19,7 +19,7 @@ def convert_bungie_rgb(color):
     blue = convert_channel(color[3])
     alpha = convert_channel(color[0])
     
-    return [red, green, blue, alpha]
+    return red, green, blue, alpha
 
 class OptionParameter:
     def __init__(self, element):

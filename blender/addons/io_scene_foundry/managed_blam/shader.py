@@ -1187,14 +1187,17 @@ class ShaderTag(Tag):
         # Link to output
         tree.links.new(input=node_output.inputs[0], output=final_node.outputs[0])
         
-    def _setup_input_with_function(self, end_input, data: float | tuple | Function | int | bool, for_alpha=False, uses_time=False):
+    def _setup_input_with_function(self, end_input, data: float | tuple | Function | int | bool, for_alpha=False, uses_time=False, color_no_alpha=False):
         tree: bpy.types.NodeTree = end_input.id_data
         if not isinstance(data, Function):
             if isinstance(data, tuple):
-                if for_alpha:
-                    end_input.default_value = data[1]
+                if color_no_alpha:
+                    end_input.default_value = data
                 else:
-                    end_input.default_value = data[0]
+                    if for_alpha:
+                        end_input.default_value = data[1]
+                    else:
+                        end_input.default_value = data[0]
             elif isinstance(data, float) or isinstance(data, int) or isinstance(data, bool):
                 match end_input.type:
                     case 'FLOAT' | 'ROTATION' | 'VALUE':
@@ -1262,7 +1265,7 @@ class ShaderTag(Tag):
                 parameter_type = ParameterType(parameter.type)
                 match parameter_type:
                     case ParameterType.COLOR | ParameterType.ARGB_COLOR:
-                        self._setup_input_with_function(input, self._value_from_parameter(parameter, AnimatedParameterType.COLOR))
+                        self._setup_input_with_function(input, self._value_from_parameter(parameter, AnimatedParameterType.COLOR), color_no_alpha=parameter_type == ParameterType.COLOR)
                     case ParameterType.REAL | ParameterType.INT | ParameterType.BOOL:
                         self._setup_input_with_function(input, self._value_from_parameter(parameter, AnimatedParameterType.VALUE))
                     case _:

@@ -2,17 +2,42 @@
 
 import os
 from pathlib import Path
+from typing import cast
 from mathutils import Vector
 
-from .Tags import TagPath
+from .connected_material import AnimatedParameterType, Function
+from .Tags import TagFieldBlockElement, TagPath
 
 from .bitmap import BitmapTag
-from .material_shader import MaterialShaderTag
-from .shader import BSDFParameter, ShaderTag
+from .material_shader import MaterialShaderParameter, MaterialShaderTag, convert_argb
+from .shader import BSDFParameter, ChannelType, ParameterType, ShaderTag, srgb_names
 from .. import utils
 import bpy
 
 from ..constants import MATERIAL_SHADERS_DIR
+
+class MaterialParameter:
+    def __init__(self, material_shader_parameter: MaterialShaderParameter):
+        self.name = material_shader_parameter.name
+        self.ui_name = material_shader_parameter.ui_name
+        self.type = material_shader_parameter.type
+        self.default = material_shader_parameter.default
+        self.functions: list[Function] = []
+        
+    def from_element(self, element: TagFieldBlockElement):
+        match self.type:
+            case 0:
+                bitmap_path = element.SelectField("bitmap").Path
+                if bitmap_path is not None:
+                    self.default = bitmap_path
+            case 1:
+                self.default = element.SelectField("real").Data
+            case 2 | 3:
+                self.default = element.SelectField(r"int\bool").Data
+            case 4:
+                self.default = convert_argb(element.SelectField("color").Data)
+            
+                
 
 class MaterialTag(ShaderTag):
     tag_ext = 'material'
@@ -27,10 +52,14 @@ class MaterialTag(ShaderTag):
     
     default_parameters = None
     shader_parameters = None
+    material_parameters: dict[str: MaterialParameter] = None
     
     global_material_shader = None
     last_group_node = None
+    last_material_shader = None
     group_node = None
+    
+    material_shaders = {}
     
     def _read_fields(self):
         self.block_parameters = self.tag.SelectField("Block:material parameters")
@@ -39,14 +68,23 @@ class MaterialTag(ShaderTag):
     
     @classmethod
     def _get_info(cls, material_shader_path: TagPath):
-        with MaterialShaderTag(path=material_shader_path) as material_shader:
-            cls.default_parameters, cls.shader_parameters = material_shader.get_defaults()
-        if not cls.global_material_shader or cls.last_group_node != cls.group_node or path == "":
-            group_node_name = utils.dot_partition(cls.group_node.node_tree.name.lower().replace(' ', '_'))
-            path = cls._material_shader_path_from_group_node(group_node_name)
-            assert path, f"Group node in use for material but no corresponding material shader found. Expected material shader named {group_node_name} in {MATERIAL_SHADERS_DIR} (or sub-folders)"
-            with MaterialShaderTag(path=path) as material_shader:
-                cls.material_shader_data[material_shader.tag_path.RelativePath] = material_shader.read_parameters()
+        if material_shader_path is None:
+            return
+        
+        material_parameters = cls.material_shaders.get(material_shader_path.ShortName)
+        if material_parameters is None:
+            with MaterialShaderTag(path=material_shader_path) as material_shader:
+                material_parameters = material_shader.get_defaults()
+                cls.material_shaders[material_shader.tag_path.ShortName] = material_parameters
+        
+        # with MaterialShaderTag(path=material_shader_path) as material_shader:
+        #     cls.default_parameters, cls.shader_parameters = material_shader.get_defaults()
+        # if not cls.global_material_shader or cls.last_group_node != cls.group_node or path == "":
+        #     group_node_name = utils.dot_partition(cls.group_node.node_tree.name.lower().replace(' ', '_'))
+        #     path = cls._material_shader_path_from_group_node(group_node_name)
+        #     assert path, f"Group node in use for material but no corresponding material shader found. Expected material shader named {group_node_name} in {MATERIAL_SHADERS_DIR} (or sub-folders)"
+        #     with MaterialShaderTag(path=path) as material_shader:
+        #         cls.material_shader_data[material_shader.tag_path.RelativePath] = material_shader.read_parameters()
 
     def _material_shader_path_from_group_node(self, group_node_name):
         filename = group_node_name + '.material_shader'
@@ -356,3 +394,67 @@ class MaterialTag(ShaderTag):
             bitmap_path = element.SelectField("bitmap").Path.RelativePathWithExtension
             with BitmapTag(path=bitmap_path) as bitmap:
                 return bitmap.get_granny_data(fill_alpha, calc_blue)
+            
+            
+    def _to_nodes_group(self, blender_material: bpy.types.Material):
+        if self.reference_material_shader.Path is None:
+            return
+        material_shader_name = self.reference_material_shader.Path.ShortName
+        material_parameters = self.material_parameters.get(material_shader_name)
+        if material_parameters is None:
+            return
+        try:
+            node_tree = utils.add_node_from_resources("h4_nodes", name=material_shader_name)
+        except:
+            utils.print_warning(f"No node group for {material_shader_name}, creating BSDF shader nodes")
+            return self._to_nodes_bsdf(blender_material)
+        
+        blender_material.use_nodes = True
+        tree = blender_material.node_tree
+        nodes = tree.nodes
+        nodes.clear()
+        group_node = nodes.new(type='ShaderNodeGroup')
+        group_node.node_tree = node_tree
+        
+        material_parameters = {}
+        
+        for element in self.block_parameters.Elements:
+            shader_parameter = self.material_shader_parameters.get(element.Fields[0].GetStringData())
+            if shader_parameter is None:
+                continue
+            
+            material_parameter = MaterialParameter(shader_parameter)
+        
+        
+        self.populate_chiefster_node(tree, group_node, )
+            
+            
+    def populate_chiefster_node(self, tree: bpy.types.NodeTree, node: bpy.types.Node, material_parameters: dict[MaterialParameter]):
+        
+        match self.alpha_blend_mode.Value:
+            case 0:
+                node.inputs[0].default_value = 0.0
+            case 3:
+                node.inputs[0].default_value = 1.0
+            case _:
+                node.inputs[0].default_value = 0.5
+        
+        for input in cast(list[bpy.types.NodeSocket], node.inputs[3:]): # ignore the first 3 inputs
+            parameter_name_ui = input.name.lower() if "." not in input.name else input.name.partition(".")[0].lower()
+            if "gamma curve" in parameter_name_ui:
+                if any(srgb_name in parameter_name_ui for srgb_name in srgb_names):
+                    input.default_value = 2.2
+                else:
+                    input.default_value = 1
+            # parameter_type = self._parameter_type_from_name(parameter_name)
+            parameter = material_parameters.get(parameter_name_ui)
+            if parameter is None:
+                continue
+            parameter_type = ParameterType(parameter.type)
+            match parameter_type:
+                case ParameterType.COLOR | ParameterType.ARGB_COLOR:
+                    self._setup_input_with_function(input, self._value_from_parameter(parameter, AnimatedParameterType.COLOR))
+                case ParameterType.REAL | ParameterType.INT | ParameterType.BOOL:
+                    self._setup_input_with_function(input, self._value_from_parameter(parameter, AnimatedParameterType.VALUE))
+                case _:
+                    self.group_set_image(tree, node, parameter, ChannelType.DEFAULT)
