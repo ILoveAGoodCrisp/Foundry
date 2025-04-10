@@ -642,6 +642,7 @@ class ExportScene:
         
         props["bungie_object_type"] = object_type.value
         is_mesh = object_type == ObjectType.mesh
+        is_marker = object_type == ObjectType.marker
         instanced_object = (is_mesh and nwo.mesh_type == '_connected_geometry_mesh_type_object_instance')
         tmp_region, tmp_permutation = nwo.region_name, nwo.permutation_name
         
@@ -685,6 +686,11 @@ class ExportScene:
                         if perm not in marker_perms:
                             permutation = perm
                             break
+        elif is_marker and self.asset_type.supports_regions and nwo.marker_uses_regions:
+            if tmp_region in self.regions_set:
+                region = tmp_region
+            else:
+                self.warnings.append(f"Object [{ob.name}] has {self.reg_name} [{tmp_region}] which is not present in the {self.reg_name}s table. Setting {self.reg_name} to: {self.default_region}")
         else:
             if is_mesh or self.asset_type.supports_bsp:
                 if tmp_region in self.regions_set:
