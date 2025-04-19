@@ -523,6 +523,7 @@ class ShaderTag(Tag):
         if element is None:
             if not self.corinth and self.reference.Path:
                 with ShaderTag(path=self.reference.Path) as shader:
+                    shader.always_extract_bitmaps = self.always_extract_bitmaps
                     return shader._image_from_parameter_name(name)
             else:
                 return
@@ -536,7 +537,7 @@ class ShaderTag(Tag):
         system_tiff_path = Path(self.data_dir, bitmap_path.RelativePath).with_suffix('.tiff')
         with BitmapTag(path=bitmap_path) as bitmap:
             is_non_color = bitmap.is_linear()
-            if system_tiff_path.exists():
+            if not self.always_extract_bitmaps and system_tiff_path.exists():
                 image_path = str(system_tiff_path)
             else:
                 image_path = bitmap.save_to_tiff(blue_channel_fix)

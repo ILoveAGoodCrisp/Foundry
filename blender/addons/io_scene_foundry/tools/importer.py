@@ -14,6 +14,8 @@ import bpy
 import addon_utils
 from mathutils import Color
 
+from ..managed_blam import start_mb_for_import
+
 from ..legacy.jma import JMA
 
 from ..managed_blam.object import ObjectTag
@@ -1206,7 +1208,6 @@ class NWOImporter:
         self.apply_materials = utils.get_prefs().apply_materials
         self.prefix_setting = utils.get_prefs().apply_prefix
         self.corinth = utils.is_corinth(context)
-        self.project = utils.get_project(context.scene.nwo.scene_project)
         self.arm = utils.get_rig_prioritize_active(context)
         self.tag_render = False
         self.tag_markers = False
@@ -1318,7 +1319,8 @@ class NWOImporter:
         return cameras, actions
             
     def import_camera_track(self, file, animation_scale):
-        with utils.TagImportMover(self.project.tags_directory, file) as mover:
+        start_mb_for_import(file)
+        with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
             with CameraTrackTag(path=mover.tag_path) as camera_track:
                 camera, action = camera_track.to_blender_animation(self.context, animation_scale)
             
@@ -1331,13 +1333,14 @@ class NWOImporter:
         imported_animations = []
         for file in paths:
             print(f'Importing Model Tag: {Path(file).with_suffix("").name} ')
-            with utils.TagImportMover(self.project.tags_directory, file) as mover:
+            start_mb_for_import(file)
+            with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
                 with ModelTag(path=mover.tag_path, raise_on_error=False) as model:
                     if not model.valid: continue
                     if mover.needs_to_move:
                         source_tag_root = mover.potential_source_tag_dir
                     else:
-                        source_tag_root = self.project.tags_directory
+                        source_tag_root = utils.get_project(self.context.scene.nwo.scene_project).tags_directory
                         
                     render, collision, animation, physics = model.get_model_paths(optional_tag_root=source_tag_root)
                     
@@ -1361,8 +1364,9 @@ class NWOImporter:
         imported_objects = []
         imported_animations = []
         for file in paths:
+            start_mb_for_import(file)
             print(f'Importing Object Tag: {Path(file).name} ')
-            with utils.TagImportMover(self.project.tags_directory, file) as mover:
+            with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
                 with ObjectTag(path=mover.tag_path, raise_on_error=False) as obj:
                     model_path = obj.get_model_tag_path_full()
                     change_colors = obj.get_change_colors(self.tag_variant)
@@ -1376,13 +1380,13 @@ class NWOImporter:
                     if functions:
                         print(f"--- Created Blender node groups for {len(functions)} object functions")
                     prop_names = []
-                    with utils.TagImportMover(self.project.tags_directory, model_path) as model_mover:
+                    with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, model_path) as model_mover:
                         with ModelTag(path=model_mover.tag_path, raise_on_error=False) as model:
                             if not model.valid: continue
                             if model_mover.needs_to_move:
                                 source_tag_root = mover.potential_source_tag_dir
                             else:
-                                source_tag_root = self.project.tags_directory
+                                source_tag_root = utils.get_project(self.context.scene.nwo.scene_project).tags_directory
                                 
                             render, collision, animation, physics = model.get_model_paths(optional_tag_root=source_tag_root)
                             
@@ -1604,49 +1608,51 @@ class NWOImporter:
                         
                     # con.inverse_matrix = IDENTITY_MATRIX
                         
-                    
-                    
         return imported_objects
             
     def import_render_model(self, file, model_collection, existing_armature, allowed_region_permutations, skip_print=False):
+        start_mb_for_import(file)
         if not skip_print:
             print("Importing Render Model")
         render_model_objects = []
         armature = None
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_render")
         model_collection.children.link(collection)
-        with utils.TagImportMover(self.project.tags_directory, file) as mover:
+        with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
             with RenderModelTag(path=mover.tag_path) as render_model:
                 render_model_objects, armature = render_model.to_blend_objects(collection, self.tag_render, self.tag_markers, model_collection, existing_armature, allowed_region_permutations)
             
         return render_model_objects, armature
     
     def import_collision_model(self, file, armature, model_collection,allowed_region_permutations):
+        start_mb_for_import(file)
         print("Importing Collision Model")
         collision_model_objects = []
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_collision")
         model_collection.children.link(collection)
-        with utils.TagImportMover(self.project.tags_directory, file) as mover:
+        with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
             with CollisionTag(path=mover.tag_path) as collision_model:
                 collision_model_objects = collision_model.to_blend_objects(collection, armature, allowed_region_permutations)
             
         return collision_model_objects
     
     def import_physics_model(self, file, armature, model_collection, allowed_region_permutations):
+        start_mb_for_import(file)
         print("Importing Physics Model")
         physics_model_objects = []
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_physics")
         model_collection.children.link(collection)
-        with utils.TagImportMover(self.project.tags_directory, file) as mover:
+        with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
             with PhysicsTag(path=mover.tag_path) as physics_model:
                 physics_model_objects = physics_model.to_blend_objects(collection, armature, allowed_region_permutations)
             
         return physics_model_objects
     
     def import_animation_graph(self, file, armature, render):
+        start_mb_for_import(file)
         actions = []
         filter = self.tag_animation_filter.replace(" ", ":")
-        with utils.TagImportMover(self.project.tags_directory, file) as mover:
+        with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
             with AnimationTag(path=mover.tag_path) as graph:
                 actions = graph.to_blender(render, armature, filter)
             
@@ -1655,9 +1661,10 @@ class NWOImporter:
     def import_scenarios(self, paths):
         imported_objects = []
         for file in paths:
+            start_mb_for_import(file)
             print(f'Importing Scenario Tag: {Path(file).with_suffix("").name} ')
             structure_collision = []
-            with utils.TagImportMover(self.project.tags_directory, file) as mover:
+            with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
                 with ScenarioTag(path=mover.tag_path, raise_on_error=False) as scenario:
                     if not scenario.valid: continue
                     bsps = scenario.get_bsp_paths(self.tag_zone_set)
@@ -1674,13 +1681,14 @@ class NWOImporter:
             # if seams_tag is not None:
             #     seams_collection = bpy.data.collections.new(f"seams_{scenario_name}")
             #     scenario_collection.children.link(seams_collection)
-            #     with utils.TagImportMover(self.project.tags_directory, seams_tag) as mover:
+            #     with utils.TagImportMover(utils.get_project(context.scene.nwo.scene_project).tags_directory, seams_tag) as mover:
             #         with StructureSeamsTag(path=mover.tag_path, raise_on_error=False) as structure_seams:
             #             imported_objects.extend(structure_seams.to_blend_objects(seams, seams_collection))
         
         return imported_objects
     
     def import_bsp(self, file, scenario_collection=None):
+        
         bsp_name = Path(file).with_suffix("").name
         print(f"Importing BSP {bsp_name}")
         bsp_objects = []
@@ -1689,7 +1697,7 @@ class NWOImporter:
             self.context.scene.collection.children.link(collection)
         else:
             scenario_collection.children.link(collection)
-        with utils.TagImportMover(self.project.tags_directory, file) as mover:
+        with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
             with ScenarioStructureBspTag(path=mover.tag_path) as bsp:
                 bsp_objects = bsp.to_blend_objects(collection, scenario_collection is not None, self.tag_bsp_render_only)
                 # seams = bsp.get_seams(bsp_name, seams)
@@ -1702,12 +1710,13 @@ class NWOImporter:
         return bsp_objects, bsp.structure_collision
     
     def import_particle_model(self, file):
+        start_mb_for_import(file)
         filename = Path(file).with_suffix("").name
         print(f"Importing Particle Model: {filename}")
         particle_model_objects = []
         collection = bpy.data.collections.new(f"{filename}_particle")
         self.context.scene.collection.children.link(collection)
-        with utils.TagImportMover(self.project.tags_directory, file) as mover:
+        with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
             with ParticleModelTag(path=mover.tag_path) as particle_model:
                 particle_model_objects = particle_model.to_blend_objects(collection, filename)
             
@@ -1723,10 +1732,11 @@ class NWOImporter:
         job = "Progress"
         bitmap_count = len(bitmap_files)
         for idx, fp in enumerate(bitmap_files):
+            start_mb_for_import(fp)
             utils.update_progress(job, idx / bitmap_count)
             bitmap_name = utils.dot_partition(os.path.basename(fp))
             if 'lp_array' in bitmap_name or 'global_render_texture' in bitmap_name: continue # Filter out the bitmaps that crash ManagedBlam
-            with utils.TagImportMover(self.project.tags_directory, fp) as mover:
+            with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, fp) as mover:
                 with BitmapTag(path=mover.tag_path) as bitmap:
                     if not bitmap.has_bitmap_data(): continue
                     is_non_color = bitmap.is_linear()

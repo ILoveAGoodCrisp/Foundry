@@ -10,11 +10,13 @@ from .Tags import TagFieldBlockElement, TagPath
 
 from .bitmap import BitmapTag
 from .material_shader import MaterialShaderParameter, MaterialShaderTag, convert_argb
-from .shader import BSDFParameter, ChannelType, ParameterType, ShaderTag, srgb_names
+from .shader import BSDFParameter, ChannelType, ParameterType, ShaderTag
 from .. import utils
 import bpy
 
 from ..constants import MATERIAL_SHADERS_DIR
+
+srgb_names = "color map", "control map", "self illum"
 
 class MaterialParameter:
     def __init__(self, material_shader_parameter: MaterialShaderParameter):
@@ -37,8 +39,6 @@ class MaterialParameter:
             case 4:
                 self.default = convert_argb(element.SelectField("color").Data)
             
-                
-
 class MaterialTag(ShaderTag):
     tag_ext = 'material'
     scale_u = 'scale u'
@@ -48,7 +48,7 @@ class MaterialTag(ShaderTag):
     function_parameters = 'function parameters'
     animated_function = 'function'
     color_parameter_type = 'color'
-    group_supported = False
+    group_supported = True
     
     default_parameters = None
     shader_parameters = None
@@ -308,7 +308,7 @@ class MaterialTag(ShaderTag):
             tree.links.new(input=separate_node.inputs[0], output=control_map_node.outputs[0])
         
         if has_color_map or has_albedo_tint:
-            diffuse = BSDFParameter(tree, bsdf, bsdf.inputs[0], 'ShaderNodeTexImage', data=self._image_from_parameter_name('color_map', True), mapping=self._mapping_from_parameter_name('color_map'), diffalpha=bool(alpha_type))
+            diffuse = BSDFParameter(tree, bsdf, bsdf.inputs[0], 'ShaderNodeTexImage', data=self._image_from_parameter_name('color_map'), mapping=self._mapping_from_parameter_name('color_map'), diffalpha=bool(alpha_type))
             if not diffuse.data:
                 diffuse = BSDFParameter(tree, bsdf, bsdf.inputs[0], 'ShaderNodeRGB', data=self._color_from_parameter_name('albedo_tint'))
                 
@@ -328,7 +328,7 @@ class MaterialTag(ShaderTag):
         elif diffuse and 'diffspec' in material_shader_name and type(diffuse.data) == bpy.types.Image:
             diffuse.special_type = 'diffspec'
         elif has_specular_map:
-            specular = BSDFParameter(tree, bsdf, bsdf.inputs['Specular IOR Level'], 'ShaderNodeTexImage', data=self._image_from_parameter_name('specular_map', True), mapping=self._mapping_from_parameter_name('specular_map'))
+            specular = BSDFParameter(tree, bsdf, bsdf.inputs['Specular IOR Level'], 'ShaderNodeTexImage', data=self._image_from_parameter_name('specular_map'), mapping=self._mapping_from_parameter_name('specular_map'))
             if specular.data:
                 specular.data.colorspace_settings.name = 'Non-Color'
             else:
@@ -341,7 +341,7 @@ class MaterialTag(ShaderTag):
         elif diffuse and 'selfillum' in material_shader_name and type(diffuse.data) == bpy.types.Image:
             diffuse.diffillum = True
         elif has_self_illum_map:
-            self_illum = BSDFParameter(tree, bsdf, bsdf.inputs['Emission Color'], 'ShaderNodeTexImage', data=self._image_from_parameter_name('selfillum_map', True), mapping=self._mapping_from_parameter_name('selfillum_map'))
+            self_illum = BSDFParameter(tree, bsdf, bsdf.inputs['Emission Color'], 'ShaderNodeTexImage', data=self._image_from_parameter_name('selfillum_map'), mapping=self._mapping_from_parameter_name('selfillum_map'))
         else:
             self_illum = None
                 
@@ -355,7 +355,7 @@ class MaterialTag(ShaderTag):
                 
         if alpha_type:
             if has_alpha_map:
-                alpha = BSDFParameter(tree, bsdf, bsdf.inputs['Alpha'], 'ShaderNodeTexImage', data=self._image_from_parameter_name('alpha_mask_map', True), mapping=self._mapping_from_parameter_name('alpha_mask_map'))
+                alpha = BSDFParameter(tree, bsdf, bsdf.inputs['Alpha'], 'ShaderNodeTexImage', data=self._image_from_parameter_name('alpha_mask_map'), mapping=self._mapping_from_parameter_name('alpha_mask_map'))
             else:
                 if diffuse and diffuse.data:
                     diffuse.diffalpha = True
@@ -400,12 +400,12 @@ class MaterialTag(ShaderTag):
         if self.reference_material_shader.Path is None:
             return
         material_shader_name = self.reference_material_shader.Path.ShortName
-        material_parameters = self.material_parameters.get(material_shader_name)
-        if material_parameters is None:
+        material_shader_parameters = self.material_shaders.get(material_shader_name)
+        if material_shader_parameters is None:
             return
-        try:
-            node_tree = utils.add_node_from_resources("h4_nodes", name=material_shader_name)
-        except:
+
+        node_tree = utils.add_node_from_resources("h4_nodes", name=material_shader_name)
+        if node_tree is None:
             utils.print_warning(f"No node group for {material_shader_name}, creating BSDF shader nodes")
             return self._to_nodes_bsdf(blender_material)
         
@@ -419,14 +419,20 @@ class MaterialTag(ShaderTag):
         material_parameters = {}
         
         for element in self.block_parameters.Elements:
-            shader_parameter = self.material_shader_parameters.get(element.Fields[0].GetStringData())
+            shader_parameter = material_shader_parameters.get(element.Fields[0].GetStringData())
             if shader_parameter is None:
                 continue
             
-            material_parameter = MaterialParameter(shader_parameter)
+            mat_par = MaterialParameter(shader_parameter)
+            material_parameters[mat_par.ui_name.lower()] = mat_par
+
+        self.populate_chiefster_node(tree, group_node, material_parameters)
         
-        
-        self.populate_chiefster_node(tree, group_node, )
+        # Make the Output
+        node_output = nodes.new(type='ShaderNodeOutputMaterial')
+
+        # Link to output
+        tree.links.new(input=node_output.inputs[0], output=group_node.outputs[0])
             
             
     def populate_chiefster_node(self, tree: bpy.types.NodeTree, node: bpy.types.Node, material_parameters: dict[MaterialParameter]):

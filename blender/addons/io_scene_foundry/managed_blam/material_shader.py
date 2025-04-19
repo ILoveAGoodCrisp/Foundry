@@ -21,7 +21,7 @@ class MaterialShaderParameter:
         self.default_bitmap = None
         tif = element.SelectField("bitmap path").GetStringData()
         if tif.strip():
-           tif_path = Path(tags_dir, tif_path).with_suffix(".bitmap")
+           tif_path = Path(tags_dir, tif).with_suffix(".bitmap")
            if tif_path.exists():
                self.default_bitmap = tag_path_from_string(tif_path)
            

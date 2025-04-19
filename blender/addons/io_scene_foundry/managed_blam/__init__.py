@@ -356,6 +356,10 @@ def switch_project_from_filepath(context, path: Path):
             context.scene.nwo.scene_project = project.name
             print(f"Project was changed to {project.name} in order to read file: {path}")
             return
+        
+def start_mb_for_import(tag_path: str | Path):
+    if mb_active: return
+    mb_init(tag_path)
 
 def mb_init(tag_path=None):
     context = bpy.context

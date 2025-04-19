@@ -43,7 +43,7 @@ def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str, always_e
     shader = None
     if corinth:
         with MaterialTag(path=tag_path) as shader:
-            shader.to_nodes(mat)
+            shader.to_nodes(mat, always_extract_bitmaps)
     else:
         shader_type = Path(tag_path).suffix[1:]
         match shader_type:
