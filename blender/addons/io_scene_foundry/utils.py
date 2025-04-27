@@ -1281,8 +1281,15 @@ def read_projects_list() -> list:
     if not os.path.exists(projects):
         return print("No Foundry json")
     
-    with open(projects, 'r') as file:
-        projects_list = json.load(file)
+    try:
+        with open(projects, 'r') as file:
+            projects_list = json.load(file)
+    except:
+        try:
+            os.remove(projects)
+        except:
+            return print("Foundry JSON corrupt. Failed to delete")
+        return print("Foundry JSON corrupt. Deleted")
 
     return projects_list
 
