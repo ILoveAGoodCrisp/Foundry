@@ -417,22 +417,24 @@ def pose_overlay_armature_validate(armature: bpy.types.Object, nwo, report):
     if not armature.animation_data:
         armature.animation_data_create()
         
+    all_bone_names = [b.name for b in armature.pose.bones]
+        
     pedestal_name = nwo.node_usage_pedestal
-    if not pedestal_name:
+    if not pedestal_name or pedestal_name not in all_bone_names:
         p = utils.get_pose_bone(armature, "b_pedestal")
         if p is not None:
             pedestal_name = p.name
             nwo.node_usage_pedestal = p.name
         
     yaw_name = nwo.node_usage_pose_blend_yaw
-    if not yaw_name:
+    if not yaw_name or yaw_name not in all_bone_names:
         y = utils.get_pose_bone(armature, "b_aim_yaw")
         if y is not None:
             yaw_name = y.name
             nwo.node_usage_pose_blend_yaw = y.name
 
     pitch_name = nwo.node_usage_pose_blend_pitch
-    if not pitch_name:
+    if not pitch_name or pitch_name not in all_bone_names:
         pi = utils.get_pose_bone(armature, "b_aim_pitch")
         if pi is not None:
             pitch_name = pi.name
@@ -443,6 +445,7 @@ def pose_overlay_armature_validate(armature: bpy.types.Object, nwo, report):
     
     pedestal = armature.pose.bones.get(pedestal_name)
     if pedestal is None:
+        utils.print_warning(f"Pedestal bone {pedestal_name} does not exist in {armature.name}")
         report({'WARNING'}, f"Pedestal bone {pedestal_name} does not exist in {armature.name}")
     yaw = armature.pose.bones.get(yaw_name)
     if yaw is None:
@@ -454,7 +457,7 @@ def pose_overlay_armature_validate(armature: bpy.types.Object, nwo, report):
         aim = armature.pose.bones.get(aim_name)
         if aim is None:
             report({'WARNING'}, f"Aim bone {aim_name} does not exist in {armature.name}")
-            
+
     return pedestal, pitch, yaw, aim
     
 class NWO_OT_GeneratePoses(bpy.types.Operator):
@@ -588,6 +591,8 @@ class NWO_OT_GeneratePoses(bpy.types.Operator):
         animation = nwo.animations[nwo.active_animation_index]
         
         pedestal, pitch, yaw, aim = pose_overlay_armature_validate(armature, nwo, self.report)
+        
+        print(pedestal, pitch, yaw, aim)
         
         if not aim and (not yaw and not pitch):
             self.report({'WARNING'}, f"Armature {armature.name} does not have aim bones. Cannot build poses")
