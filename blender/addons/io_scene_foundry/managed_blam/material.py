@@ -114,7 +114,7 @@ class MaterialTag(ShaderTag):
         group_node_name = utils.dot_partition(self.group_node.node_tree.name.lower().replace(' ', '_'))
         self.reference_material_shader.Path = self._TagPath_from_string(self._material_shader_path_from_group_node(group_node_name))
                 
-    def _from_nodes_bsdf(self, map: dict):
+    def _build_basic(self, map: dict):
         # Set up shader parameters
         self.group_node = map.get("bsdf")
         spec_alpha_from_diffuse = False
