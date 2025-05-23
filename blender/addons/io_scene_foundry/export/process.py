@@ -832,7 +832,7 @@ class ExportScene:
                     
             case AssetType.PREFAB:
                 mesh_type = '_connected_geometry_mesh_type_poop'
-                self._setup_poop_props(ob, nwo, data_nwo, props)
+                self._setup_poop_props(ob, nwo, data_nwo, props, mesh_props)
                 
             case _:
                 mesh_type = '_connected_geometry_mesh_type_default'
