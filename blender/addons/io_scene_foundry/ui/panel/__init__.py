@@ -839,6 +839,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col.prop(item, "name")
             
     def draw_animation_composites(self, box: bpy.types.UILayout, nwo):
+        box.prop(nwo, "debug_composites")
         if not nwo.animation_composites:
             box.operator("nwo.animation_composite_add", text="New Composite Animation", icon_value=get_icon_id("animation_composite"))
             return

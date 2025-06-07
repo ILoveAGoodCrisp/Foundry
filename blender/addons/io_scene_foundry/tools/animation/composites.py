@@ -413,12 +413,13 @@ class CompositeXML:
             composites_dir_full_path.mkdir(parents=True, exist_ok=True)
         relative_path = Path(composites_dir, self.data.name.replace(" ", "_")).with_suffix(".composite.xml")
         full_path = Path(utils.get_data_path(), relative_path)
-        with open(full_path, "w") as xfile:
-            xfile.write(
-                part1
-                + 'encoding="{}"?>'.format(m_encoding)
-                + part2
-            )
+        if not bpy.context.scene.nwo.debug_composites or not full_path.exists():
+            with open(full_path, "w") as xfile:
+                xfile.write(
+                    part1
+                    + 'encoding="{}"?>'.format(m_encoding)
+                    + part2
+                )
             
         return str(relative_path)
         
