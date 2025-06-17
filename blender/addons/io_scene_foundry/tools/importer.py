@@ -80,13 +80,71 @@ object_tag_types = (
     ".projectile",
     ".scenery",
     ".spawner",
-    "sound_scenery",
-    "device_terminal",
-    "vehicle",
-    "weapon",
+    ".sound_scenery",
+    ".device_terminal",
+    ".vehicle",
+    ".weapon",
 )
 
 tag_files_cache = set()
+
+
+
+def set_asset(tag_ext: str, ob: bpy.types.Object=None, sky=False):
+    scene_nwo = bpy.context.scene.nwo
+    
+    if tag_ext in object_tag_types:
+        tags_dir = utils.get_tags_path()
+        scene_nwo.asset_type = 'sky' if sky else 'model'
+        if ob.type != 'ARMATURE':
+            return utils.print_warning(f"Tried to setup {ob.name} as an asset but it is not an armature")
+        render_path = ob.nwo.node_order_source
+        if not render_path.strip():
+            return utils.print_warning(f"Tried to setup {ob.name} as an asset but it has not render model source path")
+        
+        path = Path(render_path).with_suffix("")
+    
+        scene_nwo.main_armature = ob
+        if not sky:
+            def enable_output_tag(tag_type: str):
+                if Path(tags_dir, path).with_suffix(tag_type).exists():
+                    tag_type_no_period = tag_type[1:]
+                    setattr(scene_nwo, f"output_{tag_type_no_period}", True)
+                    setattr(scene_nwo, f"template_{tag_type_no_period}", str(path.with_suffix(tag_type)))
+                    
+            for tag_type in object_tag_types:
+                enable_output_tag(tag_type)
+                
+        scene_nwo.template_model = str(path.with_suffix(".model"))
+        scene_nwo.template_render_model = str(path.with_suffix(".render_model"))
+        if Path(tags_dir, path).with_suffix(".collision_model").exists():
+            scene_nwo.template_collision_model = str(path.with_suffix(".collision_model"))
+        if Path(tags_dir, path).with_suffix(".model_animation_graph").exists():
+            scene_nwo.template_model_animation_graph = str(path.with_suffix(".model_animation_graph"))
+            with AnimationTag(path=scene_nwo.template_model_animation_graph) as animation:
+                skeleton_node_names = animation.get_nodes()
+                for element in animation.block_node_usages.Elements:
+                    usage = element.Fields[0].Items[element.Fields[0].Value].EnumName.replace(" ", "_")
+                    node_index = element.Fields[1].Value
+                    if node_index > -1:
+                        node = skeleton_node_names[node_index]
+                        setattr(scene_nwo, f"node_usage_{usage}", node)
+                    
+        if Path(tags_dir, path).with_suffix(".physics_model").exists():
+            scene_nwo.template_physics_model = str(path.with_suffix(".physics_model"))
+             
+    else:
+        match tag_ext:
+            case '.scenario' | '.scenario_structure_bsp':
+                scene_nwo.asset_type = 'scenario'
+            case '.prefab':
+                scene_nwo.asset_type = 'prefab'
+            case '.particle_model':
+                scene_nwo.asset_type = 'particle_model'
+            case '.decorator_set':
+                scene_nwo.asset_type = 'decorator_set'
+            case '.camera_track':
+                scene_nwo.asset_type = 'camera_track_set'
 
 def add_function(scene: bpy.types.Scene, name: str, ob: bpy.types.Object, armature: bpy.types.Object=None) -> bool:
     func = game_functions.get(name)
@@ -407,6 +465,11 @@ class NWO_Import(bpy.types.Operator):
         items=state_items,
     )
     
+    setup_as_asset: bpy.props.BoolProperty(
+        name="Setup as Asset",
+        description="Updates the scene asset settings so that this object can be immediately reimported into the game"
+    )
+    
     tag_zone_set: bpy.props.StringProperty(
         name="Zone Set",
         options={'SKIP_SAVE'},
@@ -564,6 +627,7 @@ class NWO_Import(bpy.types.Operator):
                     importer.tag_state = State[self.tag_state].value
                     importer.tag_animation_filter = self.tag_animation_filter
                     importer.import_variant_children = self.import_variant_children
+                    importer.setup_as_asset = self.setup_as_asset
                     model_files = importer.sorted_filepaths["model"]
                     existing_armature = None
                     if self.reuse_armature:
@@ -599,6 +663,7 @@ class NWO_Import(bpy.types.Operator):
                     importer.tag_state = State[self.tag_state].value
                     importer.tag_animation_filter = self.tag_animation_filter
                     importer.import_variant_children = self.import_variant_children
+                    importer.setup_as_asset = self.setup_as_asset
                     object_files = importer.sorted_filepaths["object"]
                     existing_armature = None
                     if self.reuse_armature:
@@ -687,6 +752,7 @@ class NWO_Import(bpy.types.Operator):
                 if 'scenario' in importer.extensions:
                     importer.tag_zone_set = self.tag_zone_set
                     importer.tag_bsp_render_only = self.tag_bsp_render_only
+                    importer.setup_as_asset = self.setup_as_asset
                     scenario_files = importer.sorted_filepaths["scenario"]
                     imported_scenario_objects = importer.import_scenarios(scenario_files)
                     if needs_scaling:
@@ -965,6 +1031,8 @@ class NWO_Import(bpy.types.Operator):
             box.prop(self, 'tag_state')
             if self.tag_variant and self.tag_markers:
                 box.prop(self, "import_variant_children")
+                
+            box.prop(self, "setup_as_asset")
             
         if not self.scope or ('scenario' in self.scope) or ('scenario_structure_bsp' in self.scope):
             box = layout.box()
@@ -974,6 +1042,8 @@ class NWO_Import(bpy.types.Operator):
             box.prop(self, 'tag_bsp_render_only')
             box.prop(self, 'build_blender_materials', text=f"Blender Materials from {tag_type.capitalize()} Tags")
             box.prop(self, 'always_extract_bitmaps')
+            if not self.scope or ('scenario' in self.scope):
+                box.prop(self, "setup_as_asset")
         
         if not self.scope or 'jms' in self.scope:
             box = layout.box()
@@ -993,6 +1063,7 @@ class NWO_Import(bpy.types.Operator):
             box = layout.box()
             box.label(text='Camera Track Settings')
             box.prop(self, 'camera_track_animation_scale')
+            box.prop(self, "setup_as_asset")
             
 class JMSMaterialSlot:
     def __init__(self, slot: bpy.types.MaterialSlot):
@@ -1221,6 +1292,7 @@ class NWOImporter:
         self.tag_bsp_render_only = False
         self.tag_animation_filter = ""
         self.import_variant_children = False
+        self.setup_as_asset = False
         self.for_cinematic = context.scene.nwo.asset_type == "cinematic"
         self.obs_for_props = {}
         if filepaths:
@@ -1357,6 +1429,9 @@ class NWOImporter:
                     if animation and self.tag_animation:
                         print("Importing Animations")
                         imported_animations.extend(self.import_animation_graph(animation, armature, render))
+                        
+                    if self.setup_as_asset:
+                        set_asset(Path(file).suffix, armature)
         
         return imported_objects, imported_animations
     
@@ -1403,7 +1478,7 @@ class NWOImporter:
                             if has_change_colors:
                                 prop_names.extend(["Primary Color", "Secondary Color", "Tertiary Color", "Quaternary Color"])
                                 
-                            # possible compas driver = abs(var/pi / (2*pi))
+                            # possible compass driver = abs(var/pi / (2*pi))
                             if render:
                                 render_objects, armature = self.import_render_model(render, model_collection, existing_armature, allowed_region_permutations)
                                 imported_objects.extend(render_objects)
@@ -1478,6 +1553,9 @@ class NWOImporter:
                                         print(f"--- {child.child_object.ShortNameWithExtension}")
                                         imported_objects.extend(self.import_child_object(child, armature, {ob: ob.nwo.marker_model_group for ob in render_objects if ob.type == 'EMPTY'}))
                                     self.context.view_layer.update()
+                                    
+                            if self.setup_as_asset:
+                                set_asset(Path(file).suffix, armature)
                                         
         return imported_objects, imported_animations
     
@@ -1684,6 +1762,9 @@ class NWOImporter:
             #     with utils.TagImportMover(utils.get_project(context.scene.nwo.scene_project).tags_directory, seams_tag) as mover:
             #         with StructureSeamsTag(path=mover.tag_path, raise_on_error=False) as structure_seams:
             #             imported_objects.extend(structure_seams.to_blend_objects(seams, seams_collection))
+            
+                    if self.setup_as_asset:
+                        set_asset(Path(file).suffix)
         
         return imported_objects
     
@@ -2975,6 +3056,11 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         items=items_tag_variant,
     )
     
+    setup_as_asset: bpy.props.BoolProperty(
+        name="Setup as Asset",
+        description="Updates the scene asset settings so that this object can be immediately reimported into the game"
+    )
+    
     def items_tag_zone_set(self, context):
         items = [("all_zone_sets", "All Zone Sets", "All scenario bsps will be imported")]
         for zs, bsps in zone_set_items.items():
@@ -3100,6 +3186,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 layout.prop(self, "tag_collision")
                 layout.prop(self, "tag_physics")
                 layout.prop(self, "tag_animation")
+                layout.prop(self, "setup_as_asset")
                 if self.tag_animation:
                     layout.prop(self, "tag_animation_filter")
                 layout.prop(self, "build_blender_materials")
@@ -3113,6 +3200,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
             case "scenario":
                 layout.prop(self, "tag_zone_set")
                 layout.prop(self, "tag_bsp_render_only")
+                layout.prop(self, "setup_as_asset")
                 layout.prop(self, "build_blender_materials")
                 layout.prop(self, "always_extract_bitmaps")
             case "scenario_structure_bsp":
@@ -3122,6 +3210,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 layout.prop(self, "tag_animation_filter")
             case "camera_track":
                 layout.prop(self, "camera_track_animation_scale")
+                layout.prop(self, "setup_as_asset")
             case "ass" | "jms":
                 layout.prop(self, "legacy_type")
             
