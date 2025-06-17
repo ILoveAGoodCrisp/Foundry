@@ -16,6 +16,9 @@ script_object_types = ('WEAPON_TRIGGER_START', 'WEAPON_TRIGGER_STOP', 'SET_VARIA
 def poll_armature(self, object: bpy.types.Object):
     return object.type == 'ARMATURE'
 
+def poll_empty(self, object: bpy.types.Object):
+    return object.type == 'EMPTY'
+
 #############################################################
 # ANIMATION COPIES
 #############################################################
@@ -709,6 +712,13 @@ class NWO_AnimationPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         min=0,
     )
+    
+    # Suspension Settings, only visible when animation name is prefixed: suspension
+    
+    suspension_marker: bpy.props.PointerProperty(poll=poll_empty, type=bpy.types.Object, name="Suspension Point", description="Empty whose position marks the midpoint of the suspension (i.e. the midpoint of a wheel). This empty should be parented to the root bone of the armature")
+    suspension_contact_marker: bpy.props.PointerProperty(poll=poll_empty, type=bpy.types.Object, name="Ground Point", description="Empty whose position marks the bottom of the object undergoing suspension (i.e. the bottom point of a wheel). This empty should be parented to the same bone that the suspension object is parented / vertex weighted to (usually a wheel or tread). This empty does not need to be exported")
+    suspension_destroyed_region_name: bpy.props.StringProperty(name="Destroyed Region Name", description="Optional. Only necessary for suspension with a destroyed state")
+    suspension_destroyed_contact_marker: bpy.props.PointerProperty(poll=poll_empty, type=bpy.types.Object, name="Destroyed Ground Point", description="Optional. Empty whose position marks the bottom of the object undergoing suspension (i.e. the bottom point of a wheel) when destroyed. This empty should be parented to the same bone that the suspension object is parented / vertex weighted to (usually a wheel or tread). This empty does not need to be exported")
 
     # NOT VISIBLE TO USER, USED FOR ANIMATION RENAMES
     state_type: bpy.props.EnumProperty(

@@ -283,6 +283,33 @@ class VirtualAnimation:
         self.granny_morph_targets = {}
         
         self.nodes = []
+        self.suspension = False
+        self.suspension_marker = None
+        self.suspension_contact_marker = None
+        self.suspension_extension_depth = 0.0
+        self.suspension_compression_depth = 0.0
+        self.suspension_destroyed_contact_marker = None
+        self.suspension_destroyed_extension_depth = 0.0
+        self.suspension_destroyed_compression_depth = 0.0
+        self.suspension_destroyed_region_name = ""
+        
+        uses_suspension = not scene.disable_automatic_suspension_computation and utils.tokenise(self.name)[0] == "suspension"
+        if uses_suspension:
+            if not animation.suspension_marker:
+                scene.warnings.append(f"Suspension Point not set for {animation.name}. Cannot automatically calculate suspension extension and compression points")
+            if not animation.suspension_contact_marker:
+                scene.warnings.append(f"Suspension Contact Point not set for {animation.name}. Cannot automatically calculate suspension extension and compression points")
+                
+            if animation.suspension_marker is not None and animation.suspension_contact_marker is not None:
+                self.suspension = True
+                self.suspension_marker = animation.suspension_marker
+                self.suspension_contact_marker = animation.suspension_contact_marker
+                if animation.suspension_destroyed_region_name.strip():
+                    self.suspension_destroyed_region_name = animation.suspension_destroyed_region_name
+                    if animation.suspension_destroyed_contact_marker is None:
+                        self.suspension_destroyed_contact_marker = animation.suspension_contact_marker
+                    else:
+                        self.suspension_destroyed_contact_marker = animation.suspension_destroyed_contact_marker
 
         if sample:
             self.create_track_group(scene.skeleton_model.skeleton.animated_bones + animation_controls, scene, shape_key_objects, vector_events)
@@ -337,8 +364,39 @@ class VirtualAnimation:
             self.is_pca = True
         
         first_frame = True
+        suspension_extension_frame = False
+        suspension_reference_height = 0.0
+        suspension_extension_height = 0.0
+        suspension_compression_height = 0.0
+        suspension_destroyed_extension_height = 0.0
+        suspension_destroyed_compression_height = 0.0
+        
         for frame in range(self.frame_range[0], self.frame_range[1] + 1):
             scene.context.scene.frame_set(frame)
+            
+            # suspension calcs
+            if self.suspension:
+                if first_frame:
+                    scene.atten_scalar
+                    suspension_reference_height = self.suspension_marker.matrix_world.translation.z
+                    suspension_extension_frame = True
+                elif suspension_extension_frame:
+                    suspension_extension_height = self.suspension_contact_marker.matrix_world.translation.z
+                    if self.suspension_destroyed_region_name:
+                        suspension_destroyed_extension_height = self.suspension_destroyed_contact_marker.matrix_world.translation.z
+                    suspension_extension_frame = False
+                elif frame == self.frame_range[1]:
+                    suspension_compression_height = self.suspension_contact_marker.matrix_world.translation.z
+                
+                    self.suspension_extension_depth = (suspension_reference_height - suspension_extension_height) * scene.unit_factor * WU_SCALAR
+                    self.suspension_compression_depth = (suspension_reference_height - suspension_compression_height) * scene.unit_factor * WU_SCALAR
+                    
+                    if self.suspension_destroyed_region_name:
+                        suspension_destroyed_compression_height = self.suspension_destroyed_contact_marker.matrix_world.translation.z
+                            
+                        self.suspension_destroyed_extension_depth = (suspension_reference_height - suspension_destroyed_extension_height) * scene.unit_factor * WU_SCALAR
+                        self.suspension_destroyed_compression_depth = (suspension_reference_height - suspension_destroyed_compression_height) * scene.unit_factor * WU_SCALAR
+ 
             bone_inverse_matrices = {}
             for bone in bones:
                 if bone.is_object:
@@ -1734,6 +1792,8 @@ class VirtualScene:
         
         self.has_main_skeleton = asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.ANIMATION}
         self.is_cinematic = asset_type == AssetType.CINEMATIC
+        
+        self.disable_automatic_suspension_computation = export_settings.disable_automatic_suspension_computation
         
     def _create_material_extended_data_type(self):
         material_extended_data_type = (GrannyDataTypeDefinition * 3)(

@@ -214,6 +214,7 @@ class ExportScene:
                 
         self.sidecar = Sidecar(sidecar_path_full, sidecar_path, asset_path, asset_name, self.asset_type, scene_settings, corinth, context, self.tags_dir, parent_sidecar)
         self.active_animation = ""
+        self.suspension_animations = {}
         
     def _get_export_tag_types(self):
         tag_types = set()
@@ -1873,13 +1874,15 @@ class ExportScene:
                 granny_path = self._get_export_path(animation.name, True)
                 self.sidecar.add_animation_file_data(granny_path, bpy.data.filepath, animation.name, animation.compression, animation.animation_type, animation.movement, animation.space, animation.pose_overlay, animation.is_pca)
                 if export and (not active_only or (self.current_animation is not None and animation.anim == self.current_animation)):
-                    job = f"--- {animation.name}"
-                    utils.update_job(job, 0)
+                    if animation.suspension:
+                        self.suspension_animations[animation.name.replace(" ", ":")] = animation
+                        print(f"--- {animation.name} -> with computed suspension depth of: Extension = {animation.suspension_extension_depth} || Compression = {animation.suspension_compression_depth}")
+                    else:
+                        print(f"--- {animation.name}")
                     nodes = self.animation_groups.get(animation.name, [])
                     nodes.extend(animation.nodes)
                     nodes_dict = {node.ob: node for node in nodes + [self.virtual_scene.skeleton_node]}
                     self._export_granny_file(granny_path, nodes_dict, animation)
-                    utils.update_job(job, 1)
                     exported_something = True
                 
             if export and not exported_something:
@@ -2164,7 +2167,7 @@ class ExportScene:
         """ManagedBlam tasks to run after tool import is called"""
         if not self.is_child_asset:
             self._setup_model_overrides()
-            if self.sidecar.reach_world_animations or self.sidecar.pose_overlays or self.defer_graph_process:
+            if self.sidecar.reach_world_animations or self.sidecar.pose_overlays or self.defer_graph_process or self.suspension_animations:
                 with AnimationTag() as animation:
                     if self.sidecar.reach_world_animations:
                         self.print_post(f"--- Setting up {len(self.sidecar.reach_world_animations)} world relative animation{'s' if len(self.sidecar.reach_world_animations) > 1 else ''}")
@@ -2172,6 +2175,26 @@ class ExportScene:
                     if self.sidecar.pose_overlays:
                         self.print_post(f"--- Updating animation blend screens for {len(self.sidecar.pose_overlays)} pose overlay animation{'s' if len(self.sidecar.pose_overlays) > 1 else ''}")
                         animation.setup_blend_screens(self.sidecar.pose_overlays)
+                        
+                    if self.suspension_animations:
+                        self.print_post(f"--- Writing vehicle suspension data for {len(self.suspension_animations)} suspension animation{'s' if len(self.suspension_animations) > 1 else ''}")
+                        for element in animation.tag.SelectField("Struct:content[0]/Block:vehicle suspension").Elements:
+                            label = element.Fields[0].GetStringData()
+                            virtual_animation = self.suspension_animations.get(label)
+                            if virtual_animation is not None:
+                                element.SelectField("marker name").SetStringData(virtual_animation.suspension_marker.nwo.marker_model_group)
+                                element.SelectField("full extension ground_depth").Data = virtual_animation.suspension_extension_depth
+                                element.SelectField("full compression ground_depth").Data = virtual_animation.suspension_compression_depth
+                                
+                                # if not element.SelectField("function name").GetStringData().strip():
+                                #     element.SelectField("function name").SetStringData(label.replace(":", "_"))
+                                
+                                if virtual_animation.suspension_destroyed_region_name:
+                                    element.SelectField("region name").SetStringData(virtual_animation.suspension_destroyed_region_name)
+                                    element.SelectField("destroyed full extension ground_depth").Data = virtual_animation.suspension_destroyed_extension_depth
+                                    element.SelectField("destroyed full compression ground_depth").Data = virtual_animation.suspension_destroyed_compression_depth
+                                
+                                animation.tag_has_changes = True
                         
                     if self.defer_graph_process and (self.node_usage_set or self.scene_settings.ik_chains or self.has_animations):
                         has_skeleton = self.virtual_scene.skeleton_model is not None and self.virtual_scene.skeleton_model.skeleton is not None
@@ -2197,6 +2220,8 @@ class ExportScene:
                                 # Graph should be data driven if ik chains or overlay groups in use.
                                 # Node usages are a sign the user intends to create overlays group
                                 animation.tag.SelectField("Struct:definitions[0]/ByteFlags:private flags").SetBit('uses data driven animation', True)
+                                
+                            
                                 
                             # TODO check if frame event list ref set correctly after templating
                                 

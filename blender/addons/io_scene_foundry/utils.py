@@ -578,6 +578,9 @@ def run_tool_sidecar(tool_args: list, asset_path, event_level='WARNING'):
                 elif "unrecognized output tag type cinematic_scene for object cinematic_scene" in line:
                     # Bungie what you doing
                     continue
+                elif "Suspension marker(s)" in line:
+                    # Useless warning. Tool is unable to automatically calculate suspension ground depth
+                    continue
                 else:
                     # need to handle animation stuff. Most animation output is written to stderr...
                     if line.startswith("animation:import:"):
@@ -4316,3 +4319,9 @@ def ultimate_armature_parent(ob: bpy.types.Object):
 
 def time_step() -> float:
     return bpy.context.scene.render.fps_base / bpy.context.scene.render.fps
+
+def tokenise(name: str) -> tuple:
+    '''Tokenises an animation name'''
+    token_name = name.replace(":", " ").lower()
+    tokens = token_name.split()
+    return tuple(tokens)

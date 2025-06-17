@@ -580,6 +580,8 @@ class NWO_HaloExportSettingsFlags(bpy.types.Panel):
         h4 = utils.is_corinth(context)
         scenario = scene_nwo.asset_type == "scenario"
         prefab = scene_nwo.asset_type == "prefab"
+        model = scene_nwo.asset_type == "model"
+        animation = scene_nwo.asset_type == "animation"
 
         layout.use_property_split = False
         flow = layout.grid_flow(
@@ -590,7 +592,10 @@ class NWO_HaloExportSettingsFlags(bpy.types.Panel):
             align=False,
         )
         col = flow.column()
-        col.prop(scene_nwo_export, "force_imposter_policy_never")
+        if scenario or prefab:
+            col.prop(scene_nwo_export, "force_imposter_policy_never")
+        if model or animation:
+            col.prop(scene_nwo_export, "disable_automatic_suspension_computation")
         col.prop(scene_nwo_export, "import_force", text="Force full export")
         if h4:
             if scenario or prefab:
@@ -1157,6 +1162,11 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
         name="Animation Exports Mesh",
         description="Exports meshes with animation exports. This has no effect on the results of the imported animations but can be useful for debugging animation issues",
         options=set(),
+    )
+    
+    disable_automatic_suspension_computation: bpy.props.BoolProperty(
+        name="Disable Suspension Depth Calculation",
+        description="Stops the export process from trying to automatically calcuate suspension extension/compression depth (and stops warnings about it)"
     )
 
     import_force: bpy.props.BoolProperty(

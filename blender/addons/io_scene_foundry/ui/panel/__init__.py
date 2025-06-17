@@ -3111,6 +3111,26 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             row = col.row()
             row.use_property_split = True
             row.prop(animation, "compression", text="Compression")
+            tokens = utils.tokenise(animation.name)
+            if tokens[0] == "suspension":
+                col.separator()
+                row = col.row()
+                row.use_property_split = True
+                row.prop(animation, "suspension_marker", icon='OUTLINER_OB_EMPTY')
+                col.separator()
+                row = col.row()
+                row.use_property_split = True
+                row.prop(animation, "suspension_contact_marker", icon='OUTLINER_OB_EMPTY')
+                col.separator()
+                row = col.row()
+                row.use_property_split = True
+                row.prop_search(animation, "suspension_destroyed_region_name", scene_nwo, "regions_table")
+                if animation.suspension_destroyed_region_name:
+                    col.separator()
+                    row = col.row()
+                    row.use_property_split = True
+                    row.prop(animation, "suspension_destroyed_contact_marker", icon='OUTLINER_OB_EMPTY')
+                
             col.separator()
             row = col.row()
             row.use_property_split = True
