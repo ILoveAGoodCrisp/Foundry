@@ -1164,7 +1164,7 @@ class ShaderTag(Tag):
         if e_blend_mode in {BlendMode.ADDITIVE, BlendMode.ALPHA_BLEND}:
             blender_material.surface_render_method = 'BLENDED'
             node_blend_mode = self._add_group_node(tree, nodes, f"blend_mode - {utils.game_str(e_blend_mode.name)}")
-            node_blend_mode.inputs["material is two-sided"].default_value = True
+            # node_blend_mode.inputs["material is two-sided"].default_value = True
             tree.links.new(input=node_blend_mode.inputs[0], output=final_node.outputs[0])
             final_node = node_blend_mode
             if e_blend_mode == BlendMode.ALPHA_BLEND:

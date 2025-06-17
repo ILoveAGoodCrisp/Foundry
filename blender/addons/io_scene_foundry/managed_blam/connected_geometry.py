@@ -1580,7 +1580,7 @@ class Mesh:
                     subpart.create(ob, self.tris, self.face_transparent, self.face_draw_distance, self.face_tesselation, self.face_no_shadow, self.face_lightmap_only, water_surface_parts)
 
 
-        self._set_two_sided(mesh, is_io)
+        # self._set_two_sided(mesh, is_io) NOTE no longer setting this. This both saves time and means we don't need to worry about per material two-sidedness
         # utils.loop_normal_magic(mesh)
         
         if mesh.nwo.face_props:

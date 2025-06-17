@@ -116,7 +116,7 @@ class ShaderDecalTag(ShaderTag):
             tree.links.new(input=node_albedo.inputs["Normal"], output=node_bump_mapping.outputs[0])
             
             
-        if e_blend_mode != BlendMode.OPAQUE:
+        if e_blend_mode in {BlendMode.ADDITIVE, BlendMode.ALPHA_BLEND}:
             blender_material.surface_render_method = 'BLENDED'
             node_blend_mode = self._add_group_node(tree, nodes, f"blend_mode - {utils.game_str(e_blend_mode.name)}")
             tree.links.new(input=node_blend_mode.inputs[0], output=final_node.outputs[0])
