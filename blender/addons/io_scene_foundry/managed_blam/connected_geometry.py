@@ -1689,10 +1689,13 @@ class Marker:
         self.scale = 0.01
         self.direction = []
         self.linked_to = []
+        self.uses_regions = False
         region_index = element.SelectField("region index").Data
         permutation_index = element.SelectField("permutation index").Data
         node_index = element.SelectField("node index").Data
+        
         if region_index > -1:
+            self.uses_regions = True
             self.region = next(r for r in regions if r.index == region_index)
             if permutation_index > -1:
                 self.permutation = next(p for p in self.region.permutations if p.index == permutation_index)
@@ -1705,8 +1708,7 @@ class Marker:
         self.rotation = utils.ijkw_to_wxyz([n for n in element.SelectField("rotation").Data])
         self.scale = element.SelectField("scale").Data
         self.direction = ([n for n in element.SelectField("direction").Data])
-        
-        self.uses_regions = False
+
         self.permutation_type = "exclude"
         self.permutations = []
     
