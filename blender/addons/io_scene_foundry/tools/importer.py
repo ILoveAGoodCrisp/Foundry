@@ -1302,9 +1302,9 @@ class NWOImporter:
     
     def group_filetypes(self, scope):
         if scope:
-            filetype_dict = {ext: [] for ext in scope}
+            filetype_dict = {ext: {} for ext in scope}
         else:
-            filetype_dict = {ext: [] for ext in formats}
+            filetype_dict = {ext: {} for ext in formats}
         # Search for folders first and add their files to filepaths
         folders = [path for path in self.filepaths if os.path.isdir(path)]
         for f in folders:
@@ -1313,43 +1313,48 @@ class NWOImporter:
                     self.filepaths.append(os.path.join(root, file))
                     
         valid_exts = filetype_dict.keys()
+            
         for path in self.filepaths:
             if 'amf' in valid_exts and path.lower().endswith('.amf'):
                 self.extensions.add('amf')
-                filetype_dict["amf"].append(path)
+                filetype_dict["amf"][path] = None
             elif 'jms' in valid_exts and path.lower().endswith(legacy_model_formats):
                 self.extensions.add('jms')
-                filetype_dict["jms"].append(path)
+                filetype_dict["jms"][path] = None
             elif 'jma' in valid_exts and path.lower().endswith(legacy_animation_formats):
                 self.extensions.add('jma')
-                filetype_dict["jma"].append(path)
+                filetype_dict["jma"][path] = None
             elif 'bitmap' in valid_exts and path.lower().endswith('.bitmap'):
                 self.extensions.add('bitmap')
-                filetype_dict["bitmap"].append(path)
+                filetype_dict["bitmap"][path] = None
             elif 'camera_track' in valid_exts and path.lower().endswith('.camera_track'):
                 self.extensions.add('camera_track')
-                filetype_dict["camera_track"].append(path)
+                filetype_dict["camera_track"][path] = None
             elif 'model' in valid_exts and path.lower().endswith('.model'):
                 self.extensions.add('model')
-                filetype_dict["model"].append(path)
+                filetype_dict["model"][path] = None
             elif 'render_model' in valid_exts and path.lower().endswith('.render_model'):
                 self.extensions.add('render_model')
-                filetype_dict["render_model"].append(path)
+                filetype_dict["render_model"][path] = None
             elif 'scenario' in valid_exts and path.lower().endswith('.scenario'):
                 self.extensions.add('scenario')
-                filetype_dict["scenario"].append(path)
+                filetype_dict["scenario"][path] = None
             elif 'scenario_structure_bsp' in valid_exts and path.lower().endswith('.scenario_structure_bsp'):
                 self.extensions.add('scenario_structure_bsp')
-                filetype_dict["scenario_structure_bsp"].append(path)
+                filetype_dict["scenario_structure_bsp"][path] = None
             elif 'particle_model' in valid_exts and path.lower().endswith('.particle_model'):
                 self.extensions.add('particle_model')
-                filetype_dict["particle_model"].append(path)
+                filetype_dict["particle_model"][path] = None
             elif 'object' in valid_exts and path.lower().endswith(object_tag_types):
                 self.extensions.add('object')
-                filetype_dict["object"].append(path)
+                filetype_dict["object"][path] = None
             elif 'animation' in valid_exts and path.lower().endswith(".model_animation_graph"):
                 self.extensions.add('animation')
-                filetype_dict["animation"].append(path)
+                filetype_dict["animation"][path] = None
+            
+        # First stored as dict then converted to list. Avoids duplicate files
+        for k, v in filetype_dict.items():
+            filetype_dict[k] = list(v)
                 
         return filetype_dict
         
@@ -2926,8 +2931,8 @@ class NWOImporter:
             animation.name = anim_name
             action.use_fake_user = True
             action.use_frame_range = True
-            animation.frame_start = int(action.frame_start)
-            animation.frame_end = int(action.frame_end)
+            animation.frame_start = 1
+            animation.frame_end = jma.frame_count
             track = animation.action_tracks.add()
             track.object = arm
             track.action = action

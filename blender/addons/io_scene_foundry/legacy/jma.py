@@ -26,6 +26,11 @@ class Node:
         self.fc_sca_y: bpy.types.FCurve
         self.fc_sca_z: bpy.types.FCurve
         self.pose_bone: bpy.types.PoseBone = None
+        no_prefix = utils.remove_node_prefix(name)
+        if no_prefix:
+            self.aim_bone = no_prefix in ("aim_pitch", "aim_yaw", bpy.context.scene.nwo.node_usage_pose_blend_pitch, bpy.context.scene.nwo.node_usage_pose_blend_yaw)
+        else:
+            self.aim_bone = False
     
 def gen_lines(filepath: Path | str):
     with open(filepath, "r") as file:
@@ -57,8 +62,10 @@ class JMA:
         self.node_count = 0
         self.nodes: list[Node] = []
         self.transforms: list[dict[Node: Matrix]] = []
+        self.overlay = False
         
     def from_file(self, filepath: Path | str):
+        self.overlay = Path(filepath).suffix.lower() == '.jmo'
         self.name = Path(filepath).with_suffix("").name
         lines = gen_lines(filepath)
         get = lambda: next(lines)
@@ -186,10 +193,17 @@ class JMA:
                 node.fc_loc_y.keyframe_points.insert(frame_idx, loc.y, options={'FAST', 'NEEDED'})
                 node.fc_loc_z.keyframe_points.insert(frame_idx, loc.z, options={'FAST', 'NEEDED'})
                 
-                node.fc_rot_w.keyframe_points.insert(frame_idx, rot.w, options={'FAST', 'NEEDED'})
-                node.fc_rot_x.keyframe_points.insert(frame_idx, rot.x, options={'FAST', 'NEEDED'})
-                node.fc_rot_y.keyframe_points.insert(frame_idx, rot.y, options={'FAST', 'NEEDED'})
-                node.fc_rot_z.keyframe_points.insert(frame_idx, rot.z, options={'FAST', 'NEEDED'})
+                if self.overlay and node.aim_bone:
+                    # Always include exact keyframes for aim bones on overlays
+                    node.fc_rot_w.keyframe_points.insert(frame_idx, rot.w, options={'FAST'})
+                    node.fc_rot_x.keyframe_points.insert(frame_idx, rot.x, options={'FAST'})
+                    node.fc_rot_y.keyframe_points.insert(frame_idx, rot.y, options={'FAST'})
+                    node.fc_rot_z.keyframe_points.insert(frame_idx, rot.z, options={'FAST'})
+                else:
+                    node.fc_rot_w.keyframe_points.insert(frame_idx, rot.w, options={'FAST', 'NEEDED'})
+                    node.fc_rot_x.keyframe_points.insert(frame_idx, rot.x, options={'FAST', 'NEEDED'})
+                    node.fc_rot_y.keyframe_points.insert(frame_idx, rot.y, options={'FAST', 'NEEDED'})
+                    node.fc_rot_z.keyframe_points.insert(frame_idx, rot.z, options={'FAST', 'NEEDED'})
                 
                 node.fc_sca_x.keyframe_points.insert(frame_idx, sca.x, options={'FAST', 'NEEDED'})
                 node.fc_sca_y.keyframe_points.insert(frame_idx, sca.y, options={'FAST', 'NEEDED'})
