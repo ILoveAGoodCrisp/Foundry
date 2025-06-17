@@ -976,7 +976,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     self.draw_animation_leaves(col, phase_set, True)
             
             
-    def draw_animation_leaves(self,col: bpy.types.UILayout, parent, in_set):
+    def draw_animation_leaves(self, col: bpy.types.UILayout, parent, in_set):
         box = col.box()
         name = "Set Animations" if in_set else "Blend Axis Animations"
         box.label(text=name)
@@ -1003,7 +1003,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             leaf = parent.leaves[parent.leaves_active_index]
             col = box.column()
             col.use_property_split = True
-            col.prop(leaf, "animation")
+            col.prop_search(leaf, "animation", self.scene.nwo, "animations")
             col.prop(leaf, "uses_move_speed")
             if leaf.uses_move_speed:
                 col.prop(leaf, "move_speed")

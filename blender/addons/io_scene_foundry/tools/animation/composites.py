@@ -318,7 +318,7 @@ class NWO_UL_AnimationLeaf(bpy.types.UIList):
         if item:
             animation_name = "None"
             if item.animation:
-                animation_name = item.animation.nwo.name_override if item.animation.nwo.name_override.strip() else item.animation.name
+                animation_name = item.animation
             layout.label(text=animation_name, icon='ACTION')
         else:
             layout.label(text="", translate=False, icon_value=icon)
@@ -468,7 +468,7 @@ class CompositeXML:
             self.write_leaf_entry(element_phase_set, leaf)
             
     def write_leaf_entry(self, element, leaf):
-        props = {"source": leaf.animation.nwo.name_override}
+        props = {"source": leaf.animation}
         if leaf.uses_move_speed:
             props["get_move_speed"] = str(round(leaf.move_speed, 1))
         if leaf.uses_move_angle:

@@ -29,7 +29,8 @@ class NWO_AnimationCopiesItems(PropertyGroup):
 #############################################################
 
 class NWO_AnimationLeavesItems(PropertyGroup):
-    animation: bpy.props.PointerProperty(name="Animation", type=bpy.types.Action)
+    animation: bpy.props.StringProperty(name="Animation")
+    # animation: bpy.props.PointerProperty(name="Animation", type=bpy.types.Action)
     uses_move_speed: bpy.props.BoolProperty(name="Uses Move Speed", options=set())
     move_speed: bpy.props.FloatProperty(name="Move Speed", options=set(), min=0, max=1, subtype='FACTOR')
     uses_move_angle: bpy.props.BoolProperty(name="Uses Move Angle", options=set())
