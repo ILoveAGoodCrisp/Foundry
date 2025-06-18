@@ -139,4 +139,18 @@ class ObjectTag(Tag):
                     functions[export_name].append(func.turn_off_with)
 
         return functions
+    
+    
+    def set_fp_weapon_render_model(self, render_model_path: str):
+        fp_block = self.tag.SelectField("Struct:player interface[0]/Block:first person")
+        
+        while fp_block.Elements.Count < 2:
+            fp_block.AddElement()
+            
+        render_tag_path = self._TagPath_from_string(render_model_path)
+            
+        for element in fp_block.Elements:
+            if element.Fields[0].Path != render_tag_path:
+                element.Fields[0].Path = render_tag_path
+                self.tag_has_changes = True
             

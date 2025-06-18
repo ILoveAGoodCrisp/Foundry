@@ -1821,6 +1821,12 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         options=set(),
     )
     
+    use_as_fp_render_model: bpy.props.BoolProperty(
+        name="Use Render Model for First Person",
+        description="Sets the first person render model reference for this weapon tag to the render model exported by this file",
+        default=True,
+    )
+    
     def template_model_clean_tag_path(self, context):
         self["template_model"] = utils.clean_tag_path(
             self["template_model"],

@@ -588,6 +588,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         
     def draw_weapon(self, box: bpy.types.UILayout, nwo):
         self.draw_output_tag(box, nwo,'weapon')
+        box.prop(nwo, "use_as_fp_render_model")
         
     def draw_equipment(self, box: bpy.types.UILayout, nwo):
         self.draw_output_tag(box, nwo,'equipment')

@@ -2167,6 +2167,16 @@ class ExportScene:
         """ManagedBlam tasks to run after tool import is called"""
         if not self.is_child_asset:
             self._setup_model_overrides()
+            
+            # Set FP weapon
+            if self.scene_settings.output_weapon and self.scene_settings.use_as_fp_render_model:
+                expected_weapon_path = utils.get_asset_tag("weapon", True)
+                if Path(expected_weapon_path).exists():
+                    render_path = utils.get_asset_tag("render_model")
+                    self.print_post(f"--- Setting first person render model for weapon to {render_path}")
+                    with ObjectTag(path=expected_weapon_path) as weapon:
+                        weapon.set_fp_weapon_render_model(render_path)
+                    
             if self.sidecar.reach_world_animations or self.sidecar.pose_overlays or self.defer_graph_process or self.suspension_animations:
                 with AnimationTag() as animation:
                     if self.sidecar.reach_world_animations:
