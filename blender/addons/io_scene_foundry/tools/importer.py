@@ -888,6 +888,9 @@ class NWO_Import(bpy.types.Operator):
                     cameras, actions = importer.import_camera_tracks(camera_track_files, self.camera_track_animation_scale)
                     if needs_scaling:
                         utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=cameras, actions=actions)
+                    
+                    if context.scene.nwo.animations:
+                        context.scene.nwo.active_animation_index = len(context.scene.nwo.animations) - 1
                         
                         
             except KeyboardInterrupt:

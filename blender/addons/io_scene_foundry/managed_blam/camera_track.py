@@ -95,31 +95,37 @@ class CameraTrackTag(Tag):
                     kfp.co_ui.x  -= animation_scale - 1 
                     kfp.interpolation = 'BEZIER'
                     kfp.easing = 'AUTO'
+                    
+        animation = self.context.scene.nwo.animations.add()
+        animation.name = action.name
+        animation.frame_start = int(action.frame_start)
+        animation.frame_end = int(action.frame_end)
+        track = animation.action_tracks.add()
+        track.object = camera_ob
+        track.action = action
         
         return camera_ob, action
 
-    def to_tag(self, context: bpy.types.Context, action: bpy.types.Action, ob: bpy.types.Object):
+    def to_tag(self, context: bpy.types.Context, animation, ob: bpy.types.Object):
         current_frame = int(context.scene.frame_current)
         # verify no. of fcurves, must be 16 or less
         scene = context.scene
-        frame_range = action.frame_range
-        if frame_range[1] - frame_range[0] > 15:
+        if animation.frame_end - animation.frame_start > 15:
             utils.print_warning("Camera animation has more than 16 frames. Only using the first 16 frames for camera track")
         control_points = []
-        frame = int(action.frame_start)
+        frame = animation.frame_start
         idx = 0
-        while frame <= action.frame_end and idx < 16:
+        while frame <= animation.frame_end and idx < 16:
             scene.frame_set(frame)
             control_point = ControlPoint(idx)
-            loc = ob.location / 100
-            control_point.set_ijk_from_location(loc)
             
-            if ob.rotation_mode == 'EULER':
-                rotation = ob.rotation_euler.to_quaternion()
-            else:
-                rotation = ob.rotation_quaternion
+            matrix = utils.halo_transforms_matrix(ob.matrix_world)
+
+            loc, rot, _ = matrix.decompose()
+            
+            control_point.set_ijk_from_location(loc)
                 
-            blender_orientation_matrix = rotation.to_matrix()
+            blender_orientation_matrix = rot.to_matrix()
             camera_matrix_fixed = blender_orientation_matrix @ camera_correction_matrix.inverted_safe()
             control_point.set_ijkw_from_rotation(camera_matrix_fixed.to_quaternion())
             
@@ -133,8 +139,8 @@ class CameraTrackTag(Tag):
         
         for cp in control_points:
             e = self.block_control_points.AddElement()
-            e.Fields[0].SetStringData([str(cp.pi), str(cp.pj), str(cp.pk)])
-            e.Fields[1].SetStringData([str(cp.oi), str(cp.oj), str(cp.ok), str(cp.ow)])
+            e.Fields[0].Data = cp.pi, cp.pj, cp.pk
+            e.Fields[1].Data = cp.oi, cp.oj, cp.ok, cp.ow
             
         self.tag_has_changes = True
         
