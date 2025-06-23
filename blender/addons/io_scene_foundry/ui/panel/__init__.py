@@ -2658,7 +2658,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
     def draw_instance_proxies(self, box, ob):
         nwo = ob.data.nwo
         collision = nwo.proxy_collision
-        physics = [getattr(nwo, f"proxy_physics{i}", None) for i in range(10) if getattr(nwo, f"proxy_physics{i}") is not None]
+        physics = [getattr(nwo, f"proxy_physics{i}", None) for i in range(200) if getattr(nwo, f"proxy_physics{i}") is not None]
+        all_physics_slots_used = all(physics)
         cookie_cutter = nwo.proxy_cookie_cutter
 
         if collision:
@@ -2677,7 +2678,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             row.operator("nwo.proxy_instance_edit", text="Edit Proxy Cookie Cutter", icon_value=get_icon_id("cookie_cutter")).proxy = cookie_cutter.name
             row.operator("nwo.proxy_instance_delete", text="", icon="X").proxy = cookie_cutter.name
 
-        if not (collision and physics and (self.h4 or cookie_cutter)):
+        if not (collision and (self.h4 or cookie_cutter)) and not all_physics_slots_used:
             row = box.row()
             row.scale_y = 1.3
             row.operator("nwo.proxy_instance_new", text="New Instance Proxy", icon="ADD")

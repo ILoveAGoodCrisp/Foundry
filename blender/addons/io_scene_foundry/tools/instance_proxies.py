@@ -69,7 +69,7 @@ class NWO_ProxyInstanceEdit(bpy.types.Operator):
             data_nwo.proxy_cookie_cutter.hide_set(False)
             data_nwo.proxy_cookie_cutter.select_set(True)
             data_nwo.proxy_cookie_cutter.matrix_world = self.parent.matrix_world
-        for i in range(10):
+        for i in range(200):
             phys = getattr(data_nwo, f"proxy_physics{i}", None)
             if phys is not None:
                 if phys == old_ob:
@@ -145,7 +145,7 @@ class NWO_ProxyInstanceNew(bpy.types.Operator):
         nwo = context.object.data.nwo
         if not nwo.proxy_collision:
             items.append(("collision", "Collision", ""))
-        for i in range(10):
+        for i in range(200):
             if not getattr(nwo, f"proxy_physics{i}"):
                 items.append(("physics", "Physics", ""))
                 break
@@ -279,7 +279,7 @@ class NWO_ProxyInstanceNew(bpy.types.Operator):
         proxy_scene = get_foundry_storage_scene()
         proxy_scene.collection.objects.link(ob)
         if proxy_type == "physics":
-            for i in range(10):
+            for i in range(200):
                 if getattr(self.parent.data.nwo, f"proxy_physics{i}", None) is None:
                     print("setting for ", f"proxy_physics{i}")
                     setattr(self.parent.data.nwo, f"proxy_physics{i}", ob)

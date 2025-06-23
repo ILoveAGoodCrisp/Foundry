@@ -140,7 +140,7 @@ class InstanceDefinition:
         self.blender_collision = None
         self.blender_cookie = None
         self.has_physics = False
-        self.blender_physics = None
+        self.blender_physics = []
         self.blender_render = None
         if not utils.is_corinth() and not for_cinematic:
             self.has_collision = element.SelectField("Struct:collision info[0]/Block:surfaces").Elements.Count > 0
@@ -148,7 +148,11 @@ class InstanceDefinition:
                 self.collision_info = InstanceCollision(element.SelectField("Struct:collision info").Elements[0], f"instance_collision:{self.index}", collision_materials)
             self.has_cookie = element.SelectField("Struct:poopie cutter collision[0]/Block:surfaces").Elements.Count > 0
             if self.has_cookie:
-                self.cookie_info = InstanceCollision(element.SelectField("Struct:poopie cutter collision").Elements[0], f"instance_collision:{self.index}", collision_materials)
+                self.cookie_info = InstanceCollision(element.SelectField("Struct:poopie cutter collision").Elements[0], f"instance_cookie_cutter:{self.index}", collision_materials)
+            
+            self.has_physics = element.SelectField("Block:polyhedra_with_materials").Elements.Count > 0
+            if self.has_physics:
+                self.physics_info = InstancePhysics(element, f"instance_physics:{self.index}", collision_materials)
     
     def create(self, render_model, temp_meshes) -> list[bpy.types.Object]:
         objects = []
@@ -157,20 +161,14 @@ class InstanceDefinition:
         if result:
             self.blender_render = result[0]
         if not utils.is_corinth():
-            # if self.has_physics:
-            #     for info in self.physics_info:
-            #         phys = self.info.to_object()
-            #         info.name = f"{self.blender_render.name}_proxy_cookie_cutter"
-            #         info.nwo.proxy_parent = self.blender_render.data
-            #         info.nwo.proxy_type = "cookie_cutter"
-            #         self.blender_render.data.nwo.proxy_physics = phys
-            #         self.blender_physics.append(phys)
+                    
             if self.has_cookie:
                 self.blender_cookie = self.cookie_info.to_object()
                 self.blender_cookie.name = f"{self.blender_render.name}_proxy_cookie_cutter"
                 self.blender_cookie.nwo.proxy_parent = self.blender_render.data
                 self.blender_cookie.nwo.proxy_type = "cookie_cutter"
                 self.blender_render.data.nwo.proxy_cookie_cutter = self.blender_cookie
+                
             if self.has_collision:
                 self.blender_collision = self.collision_info.to_object()
                 if self.blender_render and self.blender_render.type == 'MESH':
@@ -236,6 +234,24 @@ class InstanceDefinition:
                     
             elif self.blender_render and self.blender_render.data:
                 self.blender_render.data.nwo.render_only = True
+                
+            if self.has_physics:
+                for idx, polyhedra in enumerate(self.physics_info.polyhedra):
+                    phys = polyhedra.to_object()
+                    phys.data.materials.append(polyhedra.material.blender_material)
+                    if self.blender_render and self.blender_render.type == 'MESH':
+                        phys.name = f"{self.blender_render.name}_proxy_physics{idx}"
+                        phys.nwo.proxy_parent = self.blender_render.data
+                        phys.nwo.proxy_type = "physics"
+                        setattr(self.blender_render.data.nwo, f"proxy_physics{idx}", phys)
+                    elif self.blender_collision and self.blender_collision.data.nwo.collision_only:
+                        phys.name = f"{self.blender_collision.name}_proxy_physics{idx}"
+                        phys.nwo.proxy_parent = self.blender_collision.data
+                        phys.nwo.proxy_type = "physics"
+                        setattr(self.blender_collision.data.nwo, f"proxy_physics{idx}", phys)
+                    else:
+                        utils.print_warning("Found physics but no render or collision!!!")
+                    self.blender_physics.append(phys)
 
         if self.blender_render:
             objects.append(self.blender_render)
@@ -573,11 +589,16 @@ class ShapeType(Enum):
     mopp = 15
     
 class Shape:
-    def __init__(self, element: TagFieldBlockElement, materials: list[str]):
-        base = element.SelectField("Struct:base").Elements[0]
-        self.name = base.SelectField("name").Data
-        self.material_index = base.SelectField("material").Value
-        self.material = materials[self.material_index]
+    def __init__(self, element: TagFieldBlockElement, materials: list[str], for_bsp=False):
+        if for_bsp:
+            self.name = "instance_physics"
+            self.material_index = element.SelectField("LongInteger:material index").Data
+            self.material = materials[self.material_index]
+        else:
+            base = element.SelectField("Struct:base").Elements[0]
+            self.name = base.SelectField("name").Data
+            self.material_index = base.SelectField("material").Value
+            self.material = materials[self.material_index]
     
 class Sphere(Shape):
     def __init__(self, element: TagFieldBlockElement, materials):
@@ -686,9 +707,12 @@ class PolyhedronFourVectors:
         return vectors
         
 class Polyhedron(Shape):
-    def __init__(self, element: TagFieldBlockElement, materials, vectors_block: TagFieldBlockElement, four_vectors_map: list):
-        super().__init__(element, materials)
-        four_vectors_size = element.SelectField("four vectors size").Data
+    def __init__(self, element: TagFieldBlockElement, materials, vectors_block: TagFieldBlockElement, four_vectors_map: list, for_bsp=False):
+        super().__init__(element, materials, for_bsp)
+        if for_bsp:
+            four_vectors_size = element.SelectField("Struct:polyhedron[0]/LongInteger:four vectors size").Data
+        else:
+            four_vectors_size = element.SelectField("four vectors size").Data
         self.vertices = []
         self.offset = four_vectors_map[element.ElementIndex] - four_vectors_size
         for i in range(self.offset, self.offset + four_vectors_size):
@@ -696,7 +720,10 @@ class Polyhedron(Shape):
             self.vertices.extend(four_vectors.to_vectors())
             
         self.matrix = Matrix.Identity(4)
-        self.radius = element.SelectField("Struct:polyhedron shape[0]/Real:radius").Data
+        if for_bsp:
+            self.radius = element.SelectField("Struct:polyhedron[0]/Struct:polyhedron shape[0]/Real:radius").Data
+        else:
+            self.radius = element.SelectField("Struct:polyhedron shape[0]/Real:radius").Data
             
     def to_object(self) -> bpy.types.Object:
         mesh = bpy.data.meshes.new(self.name)
@@ -709,6 +736,7 @@ class Polyhedron(Shape):
         bm.to_mesh(mesh)
         bm.free()
         self.ob = bpy.data.objects.new(self.name, mesh)
+        return self.ob
     
 class RigidBody:
     def __init__(self, element: TagFieldBlockElement, region, permutation, materials, four_vectors_map, tag, list_shapes_offset, corinth: bool):
@@ -1082,9 +1110,20 @@ class InstanceCollision(BSP):
         super().__init__(element, name, collision_materials)
         self.uses_materials = True
         
-# class InstancePhysics():
-#     def __init__(self, element: TagFieldBlockElement, name, physics_materials: list[CollisionMaterial]):
-        
+class InstancePhysics():
+    def __init__(self, element: TagFieldBlockElement, name, physics_materials: list[CollisionMaterial]):
+        polyhedra_block = element.SelectField("Block:polyhedra_with_materials")
+        four_vectors_block = element.SelectField("Block:polyhedron four vectors")
+        four_vectors_map = []
+        self.polyhedra: list[Polyhedron] = []
+        for poly_element in polyhedra_block.Elements:
+            size = poly_element.SelectField("Struct:polyhedron[0]/LongInteger:four vectors size").Data
+            if poly_element.ElementIndex == 0:
+                four_vectors_map.append(size)
+            else:
+                four_vectors_map.append(size + four_vectors_map[-1])
+                
+            self.polyhedra.append(Polyhedron(poly_element, physics_materials, four_vectors_block, four_vectors_map, True))
         
 class StructureCollision(BSP):
     def __init__(self, element: TagFieldBlockElement, name, collision_materials: list[CollisionMaterial]):

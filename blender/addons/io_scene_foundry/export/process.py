@@ -354,7 +354,7 @@ class ExportScene:
     def create_instance_proxies(self, ob: bpy.types.Object, ob_halo_data: dict, region: str, permutation: str):
         self.processed_poop_meshes.add(ob.data)
         data_nwo = ob.data.nwo
-        proxy_physics_list = [getattr(data_nwo, f"proxy_physics{i}", None) for i in range(10) if getattr(data_nwo, f"proxy_physics{i}") is not None]
+        proxy_physics_list = [getattr(data_nwo, f"proxy_physics{i}", None) for i in range(200) if getattr(data_nwo, f"proxy_physics{i}") is not None]
         proxy_collision = data_nwo.proxy_collision
         proxy_cookie_cutter = data_nwo.proxy_cookie_cutter
 
