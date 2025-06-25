@@ -52,12 +52,16 @@ class NWO_ProxyInstanceEdit(bpy.types.Operator):
             self.proxy_ob.nwo.proxy_parent = self.parent.data
             for collection in old_ob.users_collection:
                 collection.objects.link(self.proxy_ob)
+                
         data_nwo = self.parent.data.nwo
         if data_nwo.proxy_collision is not None:
             if data_nwo.proxy_collision == old_ob:
                 data_nwo.proxy_collision = self.proxy_ob
             self.linked_objects.append(data_nwo.proxy_collision)
-            self.scene_coll.link(data_nwo.proxy_collision)
+            
+            if context.scene.collection not in data_nwo.proxy_collision.users_collection:
+                self.scene_coll.link(data_nwo.proxy_collision)
+                
             data_nwo.proxy_collision.hide_set(False)
             data_nwo.proxy_collision.select_set(True)
             data_nwo.proxy_collision.matrix_world = self.parent.matrix_world
@@ -65,7 +69,10 @@ class NWO_ProxyInstanceEdit(bpy.types.Operator):
             if data_nwo.proxy_cookie_cutter == old_ob:
                 data_nwo.proxy_cookie_cutter = self.proxy_ob
             self.linked_objects.append(data_nwo.proxy_cookie_cutter)
-            self.scene_coll.link(data_nwo.proxy_cookie_cutter)
+            
+            if context.scene.collection not in data_nwo.proxy_cookie_cutter.users_collection:
+                self.scene_coll.link(data_nwo.proxy_cookie_cutter)
+
             data_nwo.proxy_cookie_cutter.hide_set(False)
             data_nwo.proxy_cookie_cutter.select_set(True)
             data_nwo.proxy_cookie_cutter.matrix_world = self.parent.matrix_world
@@ -76,7 +83,10 @@ class NWO_ProxyInstanceEdit(bpy.types.Operator):
                     setattr(data_nwo, f"proxy_physics{i}", self.proxy_ob)
                     phys = self.proxy_ob
                 self.linked_objects.append(phys)
-                self.scene_coll.link(phys)
+                
+                if context.scene.collection not in phys.users_collection:
+                    self.scene_coll.link(phys)
+ 
                 phys.hide_set(False)
                 phys.select_set(True)
                 phys.matrix_world = self.parent.matrix_world

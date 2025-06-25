@@ -144,12 +144,20 @@ class NWO_AnimationCompositesItems(PropertyGroup):
 class NWO_AnimationRenamesItems(bpy.types.PropertyGroup):
     name: bpy.props.StringProperty(name="Name")
 
-
 #############################################################
 # ANIMATION EVENTS
 #############################################################
 
+# ANIMATION EVENT DATA
+
+# class NWO_AnimationEventData_ListItems(bpy.types.PropertyGroup):
+#     data_type: bpy.props.EnumProperty(
+#         name="Type",
+#     )
+
 class NWO_Animation_ListItems(bpy.types.PropertyGroup):
+    # event_data: bpy.props.CollectionProperty(NWO_AnimationEventData_ListItems)
+    
     event_id: bpy.props.IntProperty()
 
     multi_frame: bpy.props.EnumProperty(

@@ -731,8 +731,8 @@ class Polyhedron(Shape):
         bm = bmesh.new()
         bm.from_mesh(mesh)
         bmesh.ops.convex_hull(bm, input=bm.verts)
-        scale_factor = self.radius * 2 + 1
-        bmesh.ops.scale(bm, vec=Vector((scale_factor, scale_factor, scale_factor)), verts=bm.verts)
+        # scale_factor = self.radius * 2 + 1
+        # bmesh.ops.scale(bm, vec=Vector((scale_factor, scale_factor, scale_factor)), verts=bm.verts)
         bm.to_mesh(mesh)
         bm.free()
         self.ob = bpy.data.objects.new(self.name, mesh)
