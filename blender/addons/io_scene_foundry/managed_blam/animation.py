@@ -16,6 +16,9 @@ from .. import utils
 
 tolerance = 1e-6
 
+directions = "front", "left", "right", "back"
+regions = "gut", "chest", "head", "l_arm", "l_hand", "l_leg", "l_foot", "r_arm", "r_hand", "r_leg", "r_foot"
+
 class AnimationTag(Tag):
     tag_ext = 'model_animation_graph'
 
@@ -28,9 +31,12 @@ class AnimationTag(Tag):
         self.block_blend_screens = self.tag.SelectField('Struct:definitions[0]/Block:NEW blend screens')
         self.block_additional_node_dat = self.tag.SelectField("Block:additional node data")
         
-    def get_animation_names(self) -> list[str]:
+    def get_animation_names(self, filter="") -> list[str]:
         """Returns a list of all animation names"""
-        return [element.Fields[0].GetStringData() for element in self.block_animations.Elements]
+        if filter:
+            return [element.Fields[0].GetStringData() for element in self.block_animations.Elements if filter in element.Fields[0].GetStringData()]
+        else:
+            return [element.Fields[0].GetStringData() for element in self.block_animations.Elements]
         
     def _initialize_tag(self):
         self.tag.SelectField('Struct:definitions[0]/ShortInteger:animation codec pack').Data = 6
@@ -529,3 +535,118 @@ class AnimationTag(Tag):
             resource = element.SelectField("tag_resource")
             group = element.SelectField("group_members")
             print(group)
+            
+    def ik_chains_to_blender(self, armature: bpy.types.Object):
+        node_names = self.get_nodes()
+        
+        node_bone_dict = {}
+        
+        for bone in armature.pose.bones:
+            for node in node_names:
+                if utils.remove_node_prefix(bone.name) == utils.remove_node_prefix(node):
+                    node_bone_dict[node] = bone
+        
+        for element in self.block_ik_chains.Elements:
+            name = element.SelectField("name").GetStringData()
+            start_node_index = element.SelectField("start node").Value
+            effector_node_index = element.SelectField("effector node").Value
+            start_node = node_names[start_node_index] if start_node_index > -1 else None
+            effector_node = node_names[effector_node_index] if effector_node_index > -1 else None
+            
+            start_bone = node_bone_dict[start_node] if start_node is not None else ""
+            effector_bone = node_bone_dict[effector_node] if effector_node is not None else ""
+            
+            blender_ik_chains = bpy.context.scene.nwo.ik_chains
+            
+            chain = blender_ik_chains.get(name)
+            if chain is None:
+                chain = blender_ik_chains.add()
+                
+            chain.name = name
+            chain.start_node = start_bone.name
+            chain.effector_node = effector_bone.name
+            
+        print(f"Added / Updated {self.block_ik_chains.Elements.Count} IK Chains")
+        
+            
+    def generate_renames(self, filter=""):
+        '''Reads current blender animation names and then parses in the mode n state graph to set up renames in blender'''
+        # dict with keys as blender animations and values as sets of renames
+        real_animations = {anim: [rename.name.lower().replace(":", " ").split() for rename in anim.animation_renames] for anim in bpy.context.scene.nwo.animations}
+        if filter:
+            real_animations = {k: v for k, v in real_animations.items() if filter in k}
+        graph_animation_names = self.get_animation_names(filter)
+        
+        graph_animations = defaultdict(list) # dict of graph animation names and animation token names
+        current_animation = ["any", "any", "any", "any"] # modes, weapon class, weapon type, sets
+        for m in self.block_modes.Elements:
+            current_animation[0] = m.Fields[0].GetStringData()
+            for wc in m.SelectField("Block:weapon class").Elements:
+                current_animation[1] = wc.Fields[0].GetStringData()
+                for wt in wc.SelectField("Block:weapon type").Elements:
+                    current_animation[2] = wt.Fields[0].GetStringData()
+                    for s in wt.SelectField("Block:sets").Elements:
+                        current_animation[3] = s.Fields[0].GetStringData()
+                        
+                        for a in s.SelectField("Block:actions").Elements:
+                            animation_index = a.SelectField("Struct:animation[0]/ShortBlockIndex:animation").Value
+                            if animation_index > -1:
+                                graph_animations[graph_animation_names[animation_index]].append(current_animation + [a.Fields[0].GetStringData()])
+                            
+                        for oa in s.SelectField("Block:overlay animations").Elements:
+                            animation_index = oa.SelectField("Struct:animation[0]/ShortBlockIndex:animation").Value
+                            if animation_index > -1:
+                                graph_animations[graph_animation_names[animation_index]].append(current_animation + [oa.Fields[0].GetStringData()])
+                            
+                        for dad in s.SelectField("Block:death and damage").Elements:
+                            dad_label = dad.Fields[0].GetStringData()
+                            for d in dad.SelectField("Block:directions").Elements:
+                                for r in d.SelectField("Block:regions").Elements:
+                                    animation_index = r.SelectField("Struct:animation[0]/ShortBlockIndex:animation").Value
+                                    if animation_index > -1:
+                                        graph_animations[graph_animation_names[animation_index]].append(current_animation + [dad_label, directions[d.ElementIndex], regions[r.ElementIndex]])
+                                        
+                        for t in s.SelectField("Block:transitions").Elements:
+                            t_label = t.Fields[0].GetStringData()
+                            for td in t.SelectField("Block:destinations").Elements:
+                                animation_index = td.SelectField("Struct:animation[0]/ShortBlockIndex:animation").Value
+                                if animation_index > -1:
+                                    graph_animations[graph_animation_names[animation_index]].append(current_animation + [t_label, "2", td.Fields[0].GetStringData(), td.Fields[1].GetStringData()])
+        
+        
+        def is_rename(rename: list, name: list, existing_renames: list):
+            rename_no_any = [i for i in rename if i != "any"]
+            name_no_any = [j for j in name if j != "any"]
+            
+            if rename_no_any != name_no_any:
+                for existing_rename in existing_renames:
+                    if rename_no_any == [k for k in existing_rename if k != "any"]:
+                        return False
+                    
+                return True
+            
+            return False
+        
+        animations_with_renames_count = 0
+        renames_count = 0
+        for blender_animation, renames in real_animations.items():
+            import_animation_name = blender_animation.name.lower().replace(" ", ":")
+            graph_animation = graph_animations.get(import_animation_name)
+            if graph_animation is None:
+                continue
+            
+            for rename in graph_animation:
+                if is_rename(rename, import_animation_name.split(":"), renames):
+                    renames.append(rename)
+                    
+            if renames:
+                animations_with_renames_count += 1
+                renames_count += len(renames)
+                blender_animation.animation_renames.clear()
+                str_renames =  [' '.join(map(str, l)) for l in renames]
+                for verified_rename in sorted(str_renames):
+                    blender_animation.animation_renames.add().name = verified_rename
+                    
+                    
+        print(f"Found {animations_with_renames_count} animations with renames out of {len(graph_animation_names)} total animations. {renames_count} total renames generated")
+            

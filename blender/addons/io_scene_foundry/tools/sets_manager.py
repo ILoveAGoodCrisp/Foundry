@@ -333,7 +333,8 @@ class TableEntryHide(bpy.types.Operator):
         available_objects = [ob for ob in context.view_layer.objects if has_region_or_perm(ob) and not ob.nwo.ignore_for_export]
         entry_objects = [ob for ob in available_objects if true_table_entry(ob, self.ob_prop_str, entry.name)]
         if should_hide:
-            [ob.hide_set(True) for ob in entry_objects]
+            for ob in entry_objects:
+                ob.hide_set(True)
         else:
             unhide_objects(entry_objects, nwo)
 

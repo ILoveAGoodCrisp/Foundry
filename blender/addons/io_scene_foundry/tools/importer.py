@@ -12,7 +12,10 @@ from uuid import uuid4
 import bmesh
 import bpy
 import addon_utils
+import bpy.props
 from mathutils import Color
+
+from ..managed_blam.globals import FPARMS, GlobalsTag
 
 from ..managed_blam import start_mb_for_import
 
@@ -87,8 +90,6 @@ object_tag_types = (
 )
 
 tag_files_cache = set()
-
-
 
 def set_asset(tag_ext: str, ob: bpy.types.Object=None, sky=False):
     scene_nwo = bpy.context.scene.nwo
@@ -440,8 +441,8 @@ class NWO_Import(bpy.types.Operator):
         default=False,
     )
     tag_animation: bpy.props.BoolProperty(
-        name="Import Animations (WIP)",
-        description="Animation importer is a work in progress. Only base animations with no movement are fully supported",
+        name="Import Animation Graph",
+        description="Imports animations, renames, and animation events. This importer is work in progress and additional functionaility is still to be added",
         options={'SKIP_SAVE'},
         default=False,
     )
@@ -485,6 +486,33 @@ class NWO_Import(bpy.types.Operator):
         name="Animation Filter",
         options={'SKIP_SAVE'},
         description="Filter for the animations to import. Animations that don't contain the specified strings (space or colon delimited) will be skipped"
+    )
+    
+    graph_import_animations: bpy.props.BoolProperty(
+        name="Import Animations",
+        description="Imports animations from the graph. Currently the root movement element of base movement animations is unsupported and overlay rotations do not import correctly"
+    )
+    graph_generate_renames: bpy.props.BoolProperty(
+        name="Generate Animation Renames",
+        description="Parses the animation mode n state graph to work out which graph elements were imported as renames and adds these to relevant animations in this blend scene"
+    )
+    graph_import_events: bpy.props.BoolProperty(
+        name="Import Animation Events",
+        description="This currently only supports importing of frame events"
+    )
+    graph_import_ik_chains: bpy.props.BoolProperty(
+        name="Import IK Chains",
+        description="Sets up the IK chains graph tag block in blender"
+    )
+    
+    import_fp_arms: bpy.props.EnumProperty(
+        name="FP Arms",
+        description="Imports the First person arms along with the weapon and joins the skeletons",
+        items=[
+            ('NONE', "None", "Don't import first person arms"),
+            ('SPARTAN', "Spartan", "Imports the Spartan first person arms"),
+            ('ELITE', "Elite", "Imports the ELITE first person arms")
+        ]
     )
     
     legacy_type: bpy.props.EnumProperty(
@@ -626,6 +654,10 @@ class NWO_Import(bpy.types.Operator):
                     importer.tag_variant = self.tag_variant.lower()
                     importer.tag_state = State[self.tag_state].value
                     importer.tag_animation_filter = self.tag_animation_filter
+                    importer.graph_import_animations = self.graph_import_animations
+                    importer.graph_generate_renames = self.graph_generate_renames
+                    importer.graph_import_events = self.graph_import_events
+                    importer.graph_import_ik_chains = self.graph_import_ik_chains
                     importer.import_variant_children = self.import_variant_children
                     importer.setup_as_asset = self.setup_as_asset
                     model_files = importer.sorted_filepaths["model"]
@@ -662,8 +694,13 @@ class NWO_Import(bpy.types.Operator):
                     importer.tag_variant = self.tag_variant.lower()
                     importer.tag_state = State[self.tag_state].value
                     importer.tag_animation_filter = self.tag_animation_filter
+                    importer.graph_import_animations = self.graph_import_animations
+                    importer.graph_generate_renames = self.graph_generate_renames
+                    importer.graph_import_events = self.graph_import_events
+                    importer.graph_import_ik_chains = self.graph_import_ik_chains
                     importer.import_variant_children = self.import_variant_children
                     importer.setup_as_asset = self.setup_as_asset
+                    importer.import_fp_arms = FPARMS[self.import_fp_arms]
                     object_files = importer.sorted_filepaths["object"]
                     existing_armature = None
                     if self.reuse_armature:
@@ -711,6 +748,10 @@ class NWO_Import(bpy.types.Operator):
                 elif 'animation' in importer.extensions:
                     context.scene.render.fps = 30
                     importer.tag_animation_filter = self.tag_animation_filter
+                    importer.graph_import_animations = self.graph_import_animations
+                    importer.graph_generate_renames = self.graph_generate_renames
+                    importer.graph_import_events = self.graph_import_events
+                    importer.graph_import_ik_chains = self.graph_import_ik_chains
                     animation_files = importer.sorted_filepaths['animation']
                     if context.object and context.object.type == 'ARMATURE':
                         existing_armature = context.object
@@ -793,8 +834,8 @@ class NWO_Import(bpy.types.Operator):
                         
                     imported_objects.extend(imported_particle_model_objects)
                     
-                for ob in importer.to_cursor_objects:
-                    ob.matrix_world = context.scene.cursor.matrix
+                # for ob in importer.to_cursor_objects:
+                #     ob.matrix_world = context.scene.cursor.matrix
 
                 new_materials = [mat for mat in bpy.data.materials if mat not in starting_materials]
                 # Clear duplicate materials
@@ -835,8 +876,9 @@ class NWO_Import(bpy.types.Operator):
                     for ob in imported_objects:
                         for slot in ob.material_slots:
                             if slot.material:
-                                functions = slot.material.nwo.game_functions.split(",")
-                                validated_funcs.update(slot.material.nwo.object_functions.split(","))
+                                functions = slot.material.nwo.game_functions.split(",") if slot.material.nwo.game_functions.strip(" ,") else []
+                                if slot.material.nwo.object_functions.strip(" ,"):
+                                    validated_funcs.update(slot.material.nwo.object_functions.split(","))
                                 if functions:
                                     for func in functions:
                                         bool_prop = add_function(context.scene, func, ob, ob.parent)
@@ -1036,6 +1078,14 @@ class NWO_Import(bpy.types.Operator):
                 box.prop(self, "import_variant_children")
                 
             box.prop(self, "setup_as_asset")
+            box.prop(self, "import_fp_arms", "FP Arms (Weapon Only)")
+            
+            if self.tag_animation:
+                box.prop(self, "tag_animation_filter")
+                box.prop(self, "graph_import_animations")
+                box.prop(self, "graph_generate_renames")
+                box.prop(self, "graph_import_events")
+                box.prop(self, "graph_import_ik_chains")
             
         if not self.scope or ('scenario' in self.scope) or ('scenario_structure_bsp' in self.scope):
             box = layout.box()
@@ -1288,7 +1338,12 @@ class NWOImporter:
         self.tag_collision = False
         self.tag_physics = False
         self.tag_animation = False
-        self.to_cursor_objects = set()
+        self.graph_import_animations = False
+        self.graph_generate_renames = False
+        self.graph_import_events = False
+        self.graph_import_ik_chains = False
+        self.import_fp_arms = FPARMS.NONE
+        # self.to_cursor_objects = set()
         self.tag_variant = ""
         self.tag_state = -1
         self.tag_zone_set = ""
@@ -1298,6 +1353,7 @@ class NWOImporter:
         self.setup_as_asset = False
         self.for_cinematic = context.scene.nwo.asset_type == "cinematic"
         self.obs_for_props = {}
+        self.fp_arms_imported = False
         if filepaths:
             self.sorted_filepaths = self.group_filetypes(scope)
         else:
@@ -1489,7 +1545,81 @@ class NWOImporter:
                             # possible compass driver = abs(var/pi / (2*pi))
                             if render:
                                 render_objects, armature = self.import_render_model(render, model_collection, existing_armature, allowed_region_permutations)
+                                
+                                # FP Stuff
+                                if self.import_fp_arms.value and not self.fp_arms_imported and obj.tag_path.Extension == "weapon":
+                                    # get fp arms path from globals
+                                    globals_path = Path(utils.get_tags_path(), "globals\\globals.globals")
+                                    if globals_path.exists():
+                                        with GlobalsTag(path=globals_path) as globals:
+                                            fp_arms_path, tp_unit_path  = globals.get_fp_arms_path(self.import_fp_arms)
+                                            if not has_change_colors:
+                                                if Path(tp_unit_path).exists():
+                                                    with ObjectTag(path=tp_unit_path) as unit:
+                                                        change_colors = unit.get_change_colors(unit.default_variant if unit.default_variant else "default")
+                                                        has_change_colors = change_colors is not None
+                                            
+                                        if Path(fp_arms_path).exists():
+                                            fp_collection = bpy.data.collections.new(f"FP Arms - {self.import_fp_arms.name.title()}")
+                                            self.context.scene.collection.children.link(fp_collection)
+                                            with RenderModelTag(path=fp_arms_path) as render_model:
+                                                fp_objects, fp_armature = render_model.to_blend_objects(fp_collection, True, True, self.context.scene.collection, None, "default")
+                                                fp_objects.remove(fp_armature)
+                                                render_objects.extend(fp_objects)
+                                                
+                                                fp_arm_name = fp_armature.name
+                                                root_gun_bone = armature.pose.bones[0].name
+                                                
+                                                utils.deselect_all_objects()
+                                                armature.select_set(True)
+                                                fp_armature.select_set(True)
+                                                utils.set_active_object(armature)
+                                                bpy.ops.object.join()
+                                                armature = self.context.object
+                                                armature.name = fp_arm_name
+                                                utils.unlink(armature)
+                                                fp_collection.objects.link(armature)
+                                                # Load fp graph to work out skeleton
+                                                block_fp = obj.tag.SelectField("Struct:player interface[0]/Block:first person")
+                                                fp_anim_tag = None
+                                                if self.import_fp_arms == FPARMS.SPARTAN:
+                                                    if block_fp.Elements.Count > 0:
+                                                        fp_anim_tag = block_fp.Elements[0].SelectField("Reference:first person animations").Path.Filename
+                                                elif self.import_fp_arms == FPARMS.ELITE:
+                                                    if block_fp.Elements.Count > 1:
+                                                        fp_anim_tag = block_fp.Elements[1].SelectField("Reference:first person animations").Path.Filename
+                                                        
+                                                if fp_anim_tag is not None and Path(fp_anim_tag).exists():
+                                                    with AnimationTag(path=fp_anim_tag) as fp_graph:
+                                                        node_names = fp_graph.get_nodes()
+                                                        for idx, name in enumerate(node_names):
+                                                            if utils.remove_node_prefix(name) == utils.remove_node_prefix(root_gun_bone):
+                                                                fp_root_node_element = fp_graph.block_skeleton_nodes.Elements[idx]
+                                                                parent_index = fp_root_node_element.SelectField("ShortBlockIndex:parent node index").Value
+                                                                parent_node = node_names[parent_index]
+                                                
+                                                bpy.ops.object.editmode_toggle()
+                                                root_gun_edit_bone = armature.data.edit_bones.get(root_gun_bone)
+                                                if root_gun_edit_bone is not None:
+                                                    for bone in armature.data.edit_bones:
+                                                        if utils.remove_node_prefix(bone.name) == utils.remove_node_prefix(parent_node):
+                                                            root_gun_edit_bone.parent = bone
+                                                            break
+                                                        
+                                                bpy.ops.object.editmode_toggle()
+                                                
+                                                for ob in fp_objects:
+                                                    if ob.type == 'MESH':
+                                                        for mod in ob.modifiers:
+                                                            if mod.type == 'ARMATURE':
+                                                                mod.object = armature
+                                    else:
+                                        print(f"Couldn't find globals tag [{globals_path}], cannot import fp arms")
+                                    
+                                    self.fp_arms_imported = True
+                                
                                 imported_objects.extend(render_objects)
+                                
                                 for ob in render_objects:
                                     if ob.type != 'EMPTY':
                                         if has_change_colors:
@@ -1506,7 +1636,7 @@ class NWOImporter:
                                             self.obs_for_props[ob] = functions
                                             
                                     if ob.type == 'ARMATURE':
-                                        self.to_cursor_objects.add(ob)
+                                        # self.to_cursor_objects.add(ob)
                                         ob.nwo.cinematic_object = obj.tag_path.RelativePathWithExtension
                                         if temp_variant == self.tag_variant:
                                             ob.nwo.cinematic_variant = temp_variant
@@ -1542,13 +1672,14 @@ class NWOImporter:
                                                 var.targets[0].id = armature
                                                 var.targets[0].data_path = f'["{prop}"]'
                                                 driver.expression = var.name
+                                                
                                                                                 
                             if collision and self.tag_collision:
                                 imported_objects.extend(self.import_collision_model(collision, armature, model_collection, allowed_region_permutations))
                             if physics and self.tag_physics:
                                 imported_objects.extend(self.import_physics_model(physics, armature, model_collection, allowed_region_permutations))
                             if animation and self.tag_animation:
-                                print("Importing Animations")
+                                print("Importing Animation Graph")
                                 imported_animations.extend(self.import_animation_graph(animation, armature, render))
                                 
                             if self.import_variant_children and temp_variant:
@@ -1740,8 +1871,18 @@ class NWOImporter:
         filter = self.tag_animation_filter.replace(" ", ":")
         with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
             with AnimationTag(path=mover.tag_path) as graph:
-                actions = graph.to_blender(render, armature, filter)
-            
+                if self.graph_import_animations:
+                    print("Importing Animations")
+                    actions = graph.to_blender(render, armature, filter)
+                if self.graph_generate_renames:
+                    print("Generating Animation Renames")
+                    graph.generate_renames(filter)
+                if self.graph_import_events:
+                    print("Importing Animation Events... if it was implemented!!")    
+                if self.graph_import_ik_chains:
+                    print("Importing IK Chains")
+                    graph.ik_chains_to_blender(armature)
+
         return actions
     
     def import_scenarios(self, paths):
@@ -3041,8 +3182,9 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         default=False,
     )
     tag_animation: bpy.props.BoolProperty(
-        name="Import Animations (WIP)",
-        description="Animation importer is a work in progress. Only base animations with no movement are fully supported",
+        name="Import Animation Graph",
+        description="Imports animations, renames, and animation events. This importer is work in progress and additional functionaility is still to be added",
+        options={'SKIP_SAVE'},
         default=False,
     )
     
@@ -3099,6 +3241,32 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         description="The damage state to import. Only valid when a variant is set",
         default=1,
         items=state_items,
+    )
+    
+    graph_import_animations: bpy.props.BoolProperty(
+        name="Import Animations"
+    )
+    graph_generate_renames: bpy.props.BoolProperty(
+        name="Generate Renames",
+        description="Parses the animation mode n state graph to work out what animations were imported as renames"
+    )
+    graph_import_events: bpy.props.BoolProperty(
+        name="Import Animation Events",
+        description="This currently only supports importing of frame events"
+    )
+    graph_import_ik_chains: bpy.props.BoolProperty(
+        name="Import IK Chains",
+        description="Sets up the IK chains graph tag block in blender"
+    )
+    
+    import_fp_arms: bpy.props.EnumProperty(
+        name="FP Arms",
+        description="Imports the First person arms along with the weapon and joins the skeletons",
+        items=[
+            ('NONE', "None", "Don't import first person arms"),
+            ('SPARTAN', "Spartan", "Imports the Spartan first person arms"),
+            ('ELITE', "Elite", "Imports the ELITE first person arms")
+        ]
     )
     
     legacy_type: bpy.props.EnumProperty(
@@ -3195,8 +3363,14 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 layout.prop(self, "tag_physics")
                 layout.prop(self, "tag_animation")
                 layout.prop(self, "setup_as_asset")
+                if self.import_type == "weapon":
+                    layout.prop(self, "import_fp_arms")
                 if self.tag_animation:
                     layout.prop(self, "tag_animation_filter")
+                    layout.prop(self, "graph_import_animations")
+                    layout.prop(self, "graph_generate_renames")
+                    layout.prop(self, "graph_import_events")
+                    layout.prop(self, "graph_import_ik_chains")
                 layout.prop(self, "build_blender_materials")
                 layout.prop(self, "always_extract_bitmaps")
             case "render_model":
@@ -3216,6 +3390,10 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 layout.prop(self, "build_blender_materials")
             case "model_animation_graph":
                 layout.prop(self, "tag_animation_filter")
+                layout.prop(self, "graph_import_animations")
+                layout.prop(self, "graph_generate_renames")
+                layout.prop(self, "graph_import_events")
+                layout.prop(self, "graph_import_ik_chains")
             case "camera_track":
                 layout.prop(self, "camera_track_animation_scale")
                 layout.prop(self, "setup_as_asset")

@@ -156,7 +156,7 @@ class RenderModelTag(Tag):
         return arm.ob
         
 
-    def _create_render_geometry(self, allowed_region_permutations: set):
+    def _create_render_geometry(self, allowed_region_permutations: set | str):
         objects = []
         if not self.block_compression_info.Elements.Count:
             utils.print_warning("Render Model has no compression info. Cannot import render model mesh")
@@ -172,6 +172,10 @@ class RenderModelTag(Tag):
         mesh_node_map = self.tag.SelectField("Struct:render geometry[0]/Block:per mesh node map")
         
         valid_instance_indexes = set() if allowed_region_permutations else None
+        
+        if isinstance(allowed_region_permutations, str): # if str use all regions but only the given perm
+            allowed_region_permutations = {(r.name, allowed_region_permutations) for r in self.regions}
+        
         for region in self.regions:
             for permutation in region.permutations:
                 if allowed_region_permutations:
