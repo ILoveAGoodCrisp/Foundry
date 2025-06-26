@@ -160,7 +160,7 @@ def add_function(scene: bpy.types.Scene, name: str, ob: bpy.types.Object, armatu
     if ammo or tether:
         ob[name] = 0.0
         ob.id_properties_ui(name).update(min=0, max=1, subtype='FACTOR')
-        return
+        return value_is_bool
     
     if func is None:
         if has_armature:
@@ -173,7 +173,7 @@ def add_function(scene: bpy.types.Scene, name: str, ob: bpy.types.Object, armatu
         ob.id_properties_ui(name).update(min=0, max=1, subtype='FACTOR')
     else:
         if func.function_type == GameFunctionType.CONSTANT:
-            return
+            return value_is_bool
         value_is_bool = isinstance(func.default_value, bool)
         value_comes_from_scene = func.attribute_type == 'VIEW_LAYER'
         if value_comes_from_scene:
@@ -871,7 +871,7 @@ class NWO_Import(bpy.types.Operator):
                             continue
                         shader_path = mat.nwo.shader_path
                         if shader_path:
-                            tag_to_nodes(corinth, mat, shader_path, self.always_extract_bitmaps)
+                            sequence_drivers.update(tag_to_nodes(corinth, mat, shader_path, self.always_extract_bitmaps))
 
                     for ob in imported_objects:
                         for slot in ob.material_slots:
@@ -1556,8 +1556,11 @@ class NWOImporter:
                                             if not has_change_colors:
                                                 if Path(tp_unit_path).exists():
                                                     with ObjectTag(path=tp_unit_path) as unit:
-                                                        change_colors = unit.get_change_colors(unit.default_variant if unit.default_variant else "default")
+                                                        change_colors = unit.get_change_colors()
                                                         has_change_colors = change_colors is not None
+                                                        print(unit.tag_path.ShortName, change_colors)
+                                                        if has_change_colors:
+                                                            prop_names.extend(["Primary Color", "Secondary Color", "Tertiary Color", "Quaternary Color"])
                                             
                                         if Path(fp_arms_path).exists():
                                             fp_collection = bpy.data.collections.new(f"FP Arms - {self.import_fp_arms.name.title()}")
@@ -1575,7 +1578,6 @@ class NWOImporter:
                                                 fp_armature.select_set(True)
                                                 utils.set_active_object(armature)
                                                 bpy.ops.object.join()
-                                                armature = self.context.object
                                                 armature.name = fp_arm_name
                                                 utils.unlink(armature)
                                                 fp_collection.objects.link(armature)

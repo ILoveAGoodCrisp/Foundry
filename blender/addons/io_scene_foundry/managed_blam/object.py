@@ -96,7 +96,7 @@ class ObjectTag(Tag):
         with ModelTag(path=model_path) as model:
             return model.get_model_variants()
                 
-    def functions_to_blender(self) -> list:
+    def functions_to_blender(self) -> dict:
         '''Converts object functions to blender shader node groups'''
         functions = defaultdict(list)
         node_funcs = []
