@@ -1509,7 +1509,6 @@ class NWOImporter:
                 with ObjectTag(path=mover.tag_path, raise_on_error=False) as obj:
                     model_path = obj.get_model_tag_path_full()
                     change_colors = obj.get_change_colors(self.tag_variant)
-                    has_change_colors = change_colors is not None
                     magazine_size = obj.get_magazine_size()
                     has_ammo = magazine_size > 0
                     if has_ammo:
@@ -1538,9 +1537,6 @@ class NWOImporter:
                             allowed_region_permutations = model.get_variant_regions_and_permutations(temp_variant, self.tag_state)
                             model_collection = bpy.data.collections.new(model.tag_path.ShortName)
                             self.context.scene.collection.children.link(model_collection)
-                            
-                            if has_change_colors:
-                                prop_names.extend(["Primary Color", "Secondary Color", "Tertiary Color", "Quaternary Color"])
                                 
                             # possible compass driver = abs(var/pi / (2*pi))
                             if render:
@@ -1553,20 +1549,17 @@ class NWOImporter:
                                     if globals_path.exists():
                                         with GlobalsTag(path=globals_path) as globals:
                                             fp_arms_path, tp_unit_path  = globals.get_fp_arms_path(self.import_fp_arms)
-                                            if not has_change_colors:
-                                                if Path(tp_unit_path).exists():
-                                                    with ObjectTag(path=tp_unit_path) as unit:
-                                                        change_colors = unit.get_change_colors()
-                                                        has_change_colors = change_colors is not None
-                                                        print(unit.tag_path.ShortName, change_colors)
-                                                        if has_change_colors:
-                                                            prop_names.extend(["Primary Color", "Secondary Color", "Tertiary Color", "Quaternary Color"])
+                                            if Path(tp_unit_path).exists():
+                                                with ObjectTag(path=tp_unit_path) as unit:
+                                                    fp_change_colors = unit.get_change_colors()
+                                                    if fp_change_colors is not None:
+                                                        change_colors = fp_change_colors
                                             
                                         if Path(fp_arms_path).exists():
                                             fp_collection = bpy.data.collections.new(f"FP Arms - {self.import_fp_arms.name.title()}")
                                             self.context.scene.collection.children.link(fp_collection)
                                             with RenderModelTag(path=fp_arms_path) as render_model:
-                                                fp_objects, fp_armature = render_model.to_blend_objects(fp_collection, True, True, self.context.scene.collection, None, "default")
+                                                fp_objects, fp_armature = render_model.to_blend_objects(fp_collection, True, self.tag_markers, self.context.scene.collection, None, "default")
                                                 fp_objects.remove(fp_armature)
                                                 render_objects.extend(fp_objects)
                                                 
@@ -1621,6 +1614,11 @@ class NWOImporter:
                                     self.fp_arms_imported = True
                                 
                                 imported_objects.extend(render_objects)
+                                
+                                has_change_colors = change_colors is not None
+                                
+                                if has_change_colors:
+                                    prop_names.extend(["Primary Color", "Secondary Color", "Tertiary Color", "Quaternary Color"])
                                 
                                 for ob in render_objects:
                                     if ob.type != 'EMPTY':
