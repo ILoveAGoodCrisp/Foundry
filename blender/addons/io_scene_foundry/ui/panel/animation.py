@@ -1,24 +1,82 @@
 """Animation sub-panel specific operators"""
 
 from collections import defaultdict
-import math
+from pathlib import Path
 import random
-from uuid import uuid4
 import bpy
 
 from ...props.scene import NWO_AnimationPropertiesGroup
 from ... import utils
 from ...icons import get_icon_id
 
+class NWO_UL_AnimProps_EventsData(bpy.types.UIList):
+    def draw_item(
+        self, context, layout, data, item, icon, active_data, active_propname
+    ):
+        match item.data_type:
+            case 'SOUND':
+                layout.label(text=f'{data.frame_frame + item.frame_offset} - {Path(item.event_sound_tag).with_suffix("").name if item.event_sound_tag.strip(". ") else "NONE"}', icon='SOUND')
+            case 'EFFECT':
+                layout.label(text=f'{data.frame_frame + item.frame_offset} - {Path(item.event_effect_tag).with_suffix("").name if item.event_effect_tag.strip(". ") else "NONE"}', icon_value=get_icon_id("effects"))
+            case 'DIALOGUE':
+                layout.label(text=f'{data.frame_frame + item.frame_offset} - {item.dialogue_event}', icon='PLAY_SOUND')
+                
+class NWO_OT_AddAnimationEventData(bpy.types.Operator):
+    bl_idname = "nwo.add_animation_event_data"
+    bl_label = "Add"
+    bl_description = "Add a new animation event data item"
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene.nwo.animations and context.scene.nwo.active_animation_index > -1
+
+    def execute(self, context):
+        animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
+        event = animation.animation_events[animation.active_animation_event_index]
+        event.event_data.add()
+        event.active_event_data_index = len(event.event_data) - 1
+        context.area.tag_redraw()
+        return {"FINISHED"}
+
+
+class NWO_OT_RemoveAnimationEventData(bpy.types.Operator):
+    bl_idname = "nwo.remove_animation_event_data"
+    bl_label = "Remove"
+    bl_description = "Remove an animation event data item from the list"
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene.nwo.animations and context.scene.nwo.active_animation_index > -1 and context.scene.nwo.animations[context.scene.nwo.active_animation_index].animation_events
+
+    def execute(self, context):
+        animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
+        event = animation.animation_events[animation.active_animation_event_index]
+        index = event.active_event_data_index
+        event.event_data.remove(index)
+        if event.active_event_data_index > len(event.event_data) - 1:
+            event.active_event_data_index += -1
+        context.area.tag_redraw()
+        return {"FINISHED"}
+            
 class NWO_UL_AnimProps_Events(bpy.types.UIList):
     def draw_item(
         self, context, layout, data, item, icon, active_data, active_propname
     ):
-        animation = item
-        if animation:
-            layout.prop(animation, "name", text="", emboss=False, icon_value=get_icon_id("animation_event"))
-        else:
-            layout.label(text="", translate=False, icon_value=icon)
+        match item.event_type:
+            case '_connected_geometry_animation_event_type_frame':
+                layout.label(text=f"{item.frame_frame} - {item.frame_name.title()}", icon_value=get_icon_id("animation_event"))
+            case '_connected_geometry_animation_event_type_object_function':
+                layout.label(text=item.object_function_name.rpartition("_")[2].upper())
+            case '_connected_geometry_animation_event_type_import':
+                layout.label(text=f"{item.frame_frame} - {item.import_name}", icon_value=get_icon_id("anim_overlay"))
+            case '_connected_geometry_animation_event_type_wrinkle_map':
+                layout.label(text=item.wrinkle_map_face_region, icon='MOD_NORMALEDIT')
+            case '_connected_geometry_animation_event_type_ik_active':
+                layout.label(text=f"{item.ik_target_usage.replace('_', ' ').title()} - Active", icon='CON_KINEMATIC')
+            case '_connected_geometry_animation_event_type_ik_passive':
+                layout.label(text=f"{item.ik_target_usage} - Passive", icon='CON_KINEMATIC')
             
 class NWO_OT_ClearAnimations(bpy.types.Operator):
     bl_label = "Clear Animations"
@@ -254,6 +312,46 @@ class NWO_MT_AnimationTools(bpy.types.Menu):
         layout = self.layout
         layout.operator("nwo.animations_from_actions", icon='UV_SYNC_SELECT')
         layout.operator("nwo.clear_animations", icon='CANCEL')
+        layout.operator("nwo.clear_renames", icon='CANCEL')
+        layout.operator("nwo.clear_events", icon='CANCEL')
+        
+class NWO_OT_ClearRenames(bpy.types.Operator):
+    bl_label = "Clear Renames"
+    bl_idname = "nwo.clear_renames"
+    bl_description = "Clears all animation renames from all animations"
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    @classmethod
+    def poll(cls, context):
+        return context.scene.nwo.animations
+    
+    def execute(self, context):
+        rename_count = 0
+        for animation in context.scene.nwo.animations:
+            rename_count += len(animation.animation_renames)
+            animation.animation_renames.clear()
+            
+        self.report({'INFO'}, f"Removed {rename_count} animation renames")
+        return {'FINISHED'}
+    
+class NWO_OT_ClearEvents(bpy.types.Operator):
+    bl_label = "Clear Events"
+    bl_idname = "nwo.clear_events"
+    bl_description = "Clears all animation events from all animations"
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    @classmethod
+    def poll(cls, context):
+        return context.scene.nwo.animations
+    
+    def execute(self, context):
+        event_count = 0
+        for animation in context.scene.nwo.animations:
+            event_count += len(animation.animation_events)
+            animation.animation_events.clear()
+            
+        self.report({'INFO'}, f"Removed {event_count} animation events")
+        return {'FINISHED'}
     
 class NWO_OT_SetTimeline(bpy.types.Operator):
     bl_label = "Sync Timeline"

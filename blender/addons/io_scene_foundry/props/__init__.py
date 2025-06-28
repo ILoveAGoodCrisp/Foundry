@@ -1,12 +1,9 @@
 
 
 import bpy
-from . import animation, bone, collection, image, light, material, mesh, object, scene
+from . import bone, collection, image, light, material, mesh, object, scene
 
 classes = [
-    animation.NWO_AnimationRenamesItems,
-    animation.NWO_Animation_ListItems,
-    animation.NWO_ActionPropertiesGroup,
     bone.NWO_BonePropertiesGroup,
     collection.NWO_CollectionPropertiesGroup,
     image.NWO_ImagePropertiesGroup,
@@ -25,6 +22,7 @@ classes = [
     scene.NWO_AnimationCompositesItems,
     scene.NWO_ActionGroup,
     scene.NWO_AnimationRenamesItems,
+    scene.NWO_AnimationEventData_ListItems,
     scene.NWO_Animation_ListItems,
     scene.NWO_AnimationPropertiesGroup,
     scene.NWO_ZoneSets_ListItems,
@@ -77,11 +75,6 @@ def register():
         type=bone.NWO_BonePropertiesGroup,
         name="Halo NWO Properties",
         description="Set Halo Bone Properties",
-    )
-    bpy.types.Action.nwo = bpy.props.PointerProperty(
-        type=animation.NWO_ActionPropertiesGroup,
-        name="Halo NWO Properties",
-        description="Set Halo Animation Properties",
     )
     bpy.types.Mesh.nwo = bpy.props.PointerProperty(
         type=mesh.NWO_MeshPropertiesGroup,

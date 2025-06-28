@@ -11,6 +11,8 @@ scene_props = ('template_render_model', 'template_collision_model', 'template_ph
                'template_model', 'template_biped', 'template_crate', 'template_creature', 'template_device_control', 'template_device_dispenser', 'template_device_machine',
                'template_device_terminal', 'template_effect_scenery', 'template_equipment', 'template_giant', 'template_scenery', 'template_vehicle', 'template_weapon', 'cinematic_scenario', 'animation_cmd_path')
 
+event_data_props = 'event_sound_tag', 'event_effect_tag', 'event_model'
+
 class NWO_GetTagsList(bpy.types.Operator):
     bl_label = ""
     bl_idname = 'nwo.get_tags_list'
@@ -58,6 +60,10 @@ class NWO_GetTagsList(bpy.types.Operator):
             nwo = context.object.data.nwo
         elif self.list_type in cinematic_event_props:
             nwo = context.scene.nwo.cinematic_events[context.scene.nwo.active_cinematic_event_index]
+        elif self.list_type in event_data_props:
+            animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
+            event = animation.animation_events[animation.active_animation_event_index]
+            nwo = event.event_data[event.active_event_data_index]
         else:
             nwo = context.object.nwo
         setattr(nwo, self.list_type, self.tag_list)
@@ -150,6 +156,12 @@ def extensions_from_type(list_type):
             return (".sound")
         case 'effect':
             return (".effect")
+        case 'event_sound_tag':
+            return (".sound")
+        case 'event_effect_tag':
+            return (".effect")
+        case 'event_model':
+            return (".model")
         
 def walk_tags_dir(tags_dir, ext_list):
     tags_set = set()
@@ -203,6 +215,10 @@ class NWO_TagExplore(bpy.types.Operator):
             nwo = context.object.data.nwo
         elif self.prop in cinematic_event_props:
             nwo = context.scene.nwo.cinematic_events[context.scene.nwo.active_cinematic_event_index]
+        elif self.list_type in event_data_props:
+            animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
+            event = animation.animation_events[animation.active_animation_event_index]
+            nwo = event.event_data[event.active_event_data_index]
         else:
             nwo = context.object.nwo
         setattr(nwo, self.prop, self.filepath)
@@ -292,5 +308,11 @@ def get_glob_from_prop(prop):
             return "*.sound"
         case 'effect':
             return "*.effect"
+        case 'event_sound_tag':
+            return "*.sound"
+        case 'event_effect_tag':
+            return "*.effect"
+        case 'event_model':
+            return "*.model"
         case _:
             return "*"

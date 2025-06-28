@@ -150,13 +150,267 @@ class NWO_AnimationRenamesItems(bpy.types.PropertyGroup):
 
 # ANIMATION EVENT DATA
 
-# class NWO_AnimationEventData_ListItems(bpy.types.PropertyGroup):
-#     data_type: bpy.props.EnumProperty(
-#         name="Type",
-#     )
+class NWO_AnimationEventData_ListItems(bpy.types.PropertyGroup):
+    data_type: bpy.props.EnumProperty(
+        name="Type",
+        options=set(),
+        items=[
+            ('SOUND', "Sound", ""),
+            ('EFFECT', "Effect", ""),
+            ('DIALOGUE', "Dialogue", ""),
+        ]
+    )
+    
+    frame_offset: bpy.props.IntProperty(
+        name="Frame Offset",
+        description="Number of frames this data event should be offset from the main event",
+        options=set(),
+    )
+    
+    def sound_clean_tag_path(self, context):
+        self["event_sound_tag"] = utils.clean_tag_path(self["event_sound_tag"], "sound").strip('"')
+    
+    event_sound_tag: bpy.props.StringProperty(
+        name="Sound Tag",
+        description="Path to the sound tag to play when this event is triggered",
+        options=set(),
+        update=sound_clean_tag_path,
+    )
+    
+    def effect_clean_tag_path(self, context):
+        self["event_effect_tag"] = utils.clean_tag_path(self["event_effect_tag"], "effect").strip('"')
+    
+    event_effect_tag: bpy.props.StringProperty(
+        name="Effect Tag",
+        description="Path to the effect tag that should play when this event is triggered",
+        options=set(),
+        update=effect_clean_tag_path,
+    )
+    
+    dialogue_event: bpy.props.EnumProperty(
+        name="Dialogue",
+        description="Type of dialogue event that should play when this event is triggered",
+        options=set(),
+        items=[
+            ("bump", "Bump", ""),
+            ("dive", "Dive", ""),
+            ('evade', "Evade", ""),
+            ('lift', "Lift", ""),
+            ('sigh', "Sigh", ""),
+            ('contempt', "Contempt", ""),
+            ('anger', "Anger", ""),
+            ('fear', "Fear", ""),
+            ('relief', "Relief", ""),
+            ('sprint', "Sprint", ""),
+            ('sprint_end', "Sprint End", ""),
+            ('ass_grabber', "Assassination Grab (Attacker)", ""),
+            ('kill_ass', "Assassination Kill (Attacker)", ""),
+            ('ass_grabbed', "Assassination Grab (Victim)", ""),
+            ('die_ass', "Assassination Kill (Victim)", ""),
+        ]
+    )
+    
+    marker: bpy.props.PointerProperty(
+        type=bpy.types.Object,
+        poll=poll_empty,
+        name="Marker",
+        options=set(),
+        description="Marker that this effect event should play on"
+    )
+    
+    damage_effect_reporting_type: bpy.props.EnumProperty(
+        name="Damage Effect Type",
+        description="If this effect event does damage, report the following damage type to the game engine. This list is a combined list of Reach, Halo 4, and Halo 2AMP damage reporting types. Please check the description of the type to ensure it is valid for the game you are working in",
+        default="unknown",
+        options=set(),
+        items=[
+            ('ai suicide', "AI Suicide", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('airstrike', "Airstrike", "Valid for: Halo Reach"),
+            ('armor lock crush', "Armor Lock Crush", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('assault carbine', "Assault Carbine", "Valid for: Halo 2AMP, Halo 4"),
+            ('assault rifle', "Assault Rifle", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('ball melee damage', "Ball Melee Damage", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('banshee', "Banshee", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('banshee bomb', "Banshee Bomb", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('battle rifle', "Battle Rifle", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('beam rifle', "Beam Rifle", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('birthday party explosion', "Birthday Party Explosion", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('bishop beam', "Bishop Beam", "Valid for: Halo 2AMP, Halo 4"),
+            ('bolt pistol', "Bolt Pistol", "Valid for: Halo 2AMP, Halo 4"),
+            ('bomb explosion damage', "Bomb Explosion Damage", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('bomb melee damage', "Bomb Melee Damage", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('broadsword', "Broadsword", "Valid for: Halo 4"),
+            ('broadsword missile', "Broadsword Missile", "Valid for: Halo 4"),
+            ('brute plasma rifle', "Brute Plasma Rifle", "Valid for: Halo 2AMP"),
+            ('brute shot', "Brute Shot", "Valid for: Halo 2AMP, Halo Reach"),
+            ('carbine', "Carbine", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('chopper', "Chopper", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('claymore grenade', "Claymore Grenade", "Valid for: Halo Reach"),
+            ('concussion rifle', "Concussion Rifle", "Valid for: Halo 2AMP, Halo 4"),
+            ('elephant turret', "Elephant Turret", "Valid for: Halo Reach"),
+            ('energy sword', "Energy Sword", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('excavator', "Excavator", "Valid for: Halo Reach"),
+            ('falcon driver', "Falcon Driver", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('falcon gunner', "Falcon Gunner", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('falling damage', "Falling Damage", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('fire damage', "Fire Damage", "Valid for: Halo 2AMP"),
+            ('firebomb grenade', "Firebomb Grenade", "Valid for: Halo Reach"),
+            ('flag melee damage', "Flag Melee Damage", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('flak cannon', "Flak Cannon", "Valid for: Halo Reach"),
+            ('flame thrower', "Flame Thrower", "Valid for: Halo Reach"),
+            ('flood prongs', "Flood Prongs", "Valid for: Halo 2AMP, Halo 4"),
+            ('forerunner rifle', "Forerunner Rifle", "Valid for: Halo 2AMP, Halo 4"),
+            ('forerunner smg', "Forerunner Smg", "Valid for: Halo 2AMP, Halo 4"),
+            ('forerunner sniper', "Forerunner Sniper", "Valid for: Halo 2AMP, Halo 4"),
+            ('forerunner turret', "Forerunner Turret", "Valid for: Halo 2AMP, Halo 4"),
+            ('forklift', "Forklift", "Valid for: Halo Reach"),
+            ('frag grenade', "Frag Grenade", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('fuel rod cannon', "Fuel Rod Cannon", "Valid for: Halo 2AMP, Halo 4"),
+            ('fusion coil', "Fusion Coil", "Valid for: Halo 2AMP"),
+            ('generic collision damage', "Generic Collision Damage", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('generic explosion', "Generic Explosion", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('generic melee damage', "Generic Melee Damage", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('ghost', "Ghost", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('gravity hammer', "Gravity Hammer", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('grenade launcher', "Grenade Launcher", "Valid for: Halo Reach"),
+            ('gun goose', "Gun Goose", "Valid for: Halo 2AMP"),
+            ('gun goose gun', "Gun Goose Gun", "Valid for: Halo 2AMP"),
+            ('hornet', "Hornet", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('hornet gun', "Hornet Gun", "Valid for: Halo 2AMP"),
+            ('hornet rocket', "Hornet Rocket", "Valid for: Halo 2AMP"),
+            ('human turret', "Human Turret", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('incineration launcher', "Incineration Launcher", "Valid for: Halo 2AMP, Halo 4"),
+            ('lich driver', "Lich Driver", "Valid for: Halo 2AMP, Halo 4"),
+            ('lich gunner', "Lich Gunner", "Valid for: Halo 2AMP, Halo 4"),
+            ('light machine gun', "Light Machine Gun", "Valid for: Halo 2AMP, Halo 4"),
+            ('MAC cannon', "MAC Cannon", "Valid for: Halo 2AMP, Halo 4"),
+            ('magnum pistol', "Magnum Pistol", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('magnum pistol ctf', "Magnum Pistol CTF", "Valid for: Halo 2AMP, Halo 4"),
+            ('mantis', "Mantis", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('marksman rifle', "Marksman Rifle", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('mauler', "Mauler", "Valid for: Halo Reach"),
+            ('mech cannon', "Mech Cannon", "Valid for: Halo 4"),
+            ('mech chaingun', "Mech Chaingun", "Valid for: Halo 4"),
+            ('mech melee', "Mech Melee", "Valid for: Halo 4"),
+            ('mech rocket', "Mech Rocket", "Valid for: Halo 4"),
+            ('missile launcher', "Missile Launcher", "Valid for: Halo Reach"),
+            ('mongoose', "Mongoose", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('needle rifle', "Needle Rifle", "Valid for: Halo Reach"),
+            ('needler', "Needler", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('Orbital cruise missile', "Orbital Cruise Missile", "Valid for: Halo 2AMP, Halo 4"),
+            ('Ordnance drop pod', "Ordnance Drop Pod", "Valid for: Halo 2AMP, Halo 4"),
+            ('Personal auto turret', "Personal Auto Turret", "Valid for: Halo 2AMP, Halo 4"),
+            ('plasma cannon', "Plasma Cannon", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('plasma grenade', "Plasma Grenade", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('plasma launcher', "Plasma Launcher", "Valid for: Halo Reach"),
+            ('plasma mortar', "Plasma Mortar", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('plasma pistol', "Plasma Pistol", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('plasma repeater', "Plasma Repeater", "Valid for: Halo Reach"),
+            ('plasma rifle', "Plasma Rifle", "Valid for: Halo 2AMP, Halo Reach"),
+            ('plasma shot', "Plasma Shot", "Valid for: Halo Reach"),
+            ('plasma turret', "Plasma Turret", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('Portable shield', "Portable Shield", "Valid for: Halo 2AMP, Halo 4"),
+            ('prox-mine', "Proximity Mine", "Valid for: Halo Reach"),
+            ('pulse grenade', "Pulse Grenade", "Valid for: Halo 2AMP, Halo 4"),
+            ('rail gun', "Rail Gun", "Valid for: Halo 2AMP, Halo 4"),
+            ('revenant deux driver', "Revenant Deux Driver", "Valid for: Halo 2AMP, Halo 4"),
+            ('revenant deux gunner', "Revenant Deux Gunner", "Valid for: Halo 2AMP, Halo 4"),
+            ('revenant driver', "Revenant Driver", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('revenant gunner', "Revenant Gunner", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('rocket launcher', "Rocket Launcher", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('sabre', "Sabre", "Valid for: Halo Reach"),
+            ('scorpion', "Scorpion", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('scorpion gunner', "Scorpion Gunner", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('scripting', "Scripting", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('sentinal gun', "Sentinel Gun", "Valid for: Halo Reach"),
+            ('sentinel beam', "Sentinel Beam", "Valid for: Halo 2AMP, Halo Reach"),
+            ('sentinel rpg', "Sentinel RPG", "Valid for: Halo Reach"),
+            ('seraph', "Seraph", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('shade turret', "Shade Turret", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('shotgun', "Shotgun", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('smg', "SMG", "Valid for: Halo 2AMP, Halo Reach"),
+            ('smgs', "Dual SMGs", "Valid for: Halo 2AMP"),
+            ('sniper rifle', "Sniper Rifle", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('spartan laser', "Spartan Laser", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('spectre driver', "Spectre Driver", "Valid for: Halo Reach"),
+            ('spectre gunner', "Spectre Gunner", "Valid for: Halo Reach"),
+            ('spike rifle', "Spike Rifle", "Valid for: Halo Reach"),
+            ('spread gun', "Spread Gun", "Valid for: Halo 2AMP, Halo 4"),
+            ('stalactice', "Stalactite", "Valid for: Halo 2AMP"),
+            ('sticky grenade launcher', "Sticky Grenade Launcher", "Valid for: Halo 2AMP, Halo 4"),
+            ('tank', "Tank", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('Target designator', "Target Designator", "Valid for: Halo 2AMP, Halo 4"),
+            ('Thruster pack', "Thruster Pack", "Valid for: Halo 2AMP, Halo 4"),
+            ('teleporter', "Teleporter", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('teh guardians', "The Guardians", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('tortoise driver', "Tortoise Driver", "Valid for: Halo 4"),
+            ('tortoise gunner', "Tortoise Gunner", "Valid for: Halo 4"),
+            ('transfer damage', "Transfer Damage", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('unknown', "Unknown", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('warthog driver', "Warthog Driver", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('warthog gunner', "Warthog Gunner", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('warthog gunner gauss', "Warthog Gunner Gauss", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('warthog gunner rocket', "Warthog Gunner Rocket", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('wasp driver', "Wasp Driver", "Valid for: Halo 4"),
+            ('wasp gunner', "Wasp Gunner", "Valid for: Halo 4"),
+            ('wasp gunner heavy', "Wasp Gunner Heavy", "Valid for: Halo 4"),
+            ('wraith', "Wraith", "Valid for: Halo 2AMP, Halo 4, Halo Reach"),
+            ('wraith anti-infantry', "Wraith Anti-infantry", "Valid for: Halo 2AMP, Halo 4, Halo Reach")
+        ]
+    )
+    
+    
+    flag_allow_on_player: bpy.props.BoolProperty(
+        options=set(),
+        name="Allow on Player"
+    )
+    flag_left_arm_only: bpy.props.BoolProperty(
+        options=set(),
+        name="Left Arm Only"
+    )
+    flag_right_arm_only: bpy.props.BoolProperty(
+        options=set(),
+        name="Right Arm Only"
+    )
+    flag_first_person_only: bpy.props.BoolProperty(
+        options=set(),
+        name="First Person Only"
+    )
+    flag_third_person_only: bpy.props.BoolProperty(
+        options=set(),
+        name="Third Person Only"
+    )
+    flag_forward_only: bpy.props.BoolProperty(
+        options=set(),
+        name="Forward Only"
+    )
+    flag_reverse_only: bpy.props.BoolProperty(
+        options=set(),
+        name="Reverse Only"
+    )
+    flag_fp_no_aged_weapons: bpy.props.BoolProperty(
+        options=set(),
+        name="Don't Play on Aged Weapons"
+    )
+    
+    def model_clean_tag_path(self, context):
+        self["event_model"] = utils.clean_tag_path(self["event_model"], "model").strip('"')
+    
+    event_model: bpy.props.StringProperty(
+        options=set(),
+        name="Limit to Model",
+        description="Limits the data event to only play on the given model tag",
+        update=model_clean_tag_path
+    )
+    variant: bpy.props.StringProperty(
+        options=set(),
+        name="Limit to Variant",
+        description="Limits the data event to only play on the given variant"
+    )
 
 class NWO_Animation_ListItems(bpy.types.PropertyGroup):
-    # event_data: bpy.props.CollectionProperty(NWO_AnimationEventData_ListItems)
+    event_data: bpy.props.CollectionProperty(type=NWO_AnimationEventData_ListItems)
+    active_event_data_index: bpy.props.IntProperty()
     
     event_id: bpy.props.IntProperty()
 
@@ -422,10 +676,10 @@ class NWO_Animation_ListItems(bpy.types.PropertyGroup):
         name="Object Function",
         options=set(),
         items=[
-            ('animation_event_function_a', 'animation_event_function_a', ''),
-            ('animation_event_function_b', 'animation_event_function_b', ''),
-            ('animation_event_function_c', 'animation_event_function_c', ''),
-            ('animation_event_function_d', 'animation_event_function_d', ''),
+            ('animation_event_function_a', 'A', ''),
+            ('animation_event_function_b', 'B', ''),
+            ('animation_event_function_c', 'C', ''),
+            ('animation_event_function_d', 'D', ''),
         ]
     )
 
@@ -438,41 +692,41 @@ class NWO_Animation_ListItems(bpy.types.PropertyGroup):
     )
 
     frame_frame: bpy.props.IntProperty(
-        name="Event Frame",
-        description="The frame this event should occur on",
+        name="Frame",
+        description="The frame this event occurs on",
         default=0,
         options=set(),
         update=update_frame_range,
     )
 
     frame_name: bpy.props.EnumProperty(
-        name="Frame Name",
-        default="primary keyframe",
+        name="Frame Event",
+        default="none",
         options=set(),
         items=[
-            ("none", "None", ""),
-            ("primary keyframe", "Primary Keyframe", ""),
-            ("secondary keyframe", "Secondary Keyframe", ""),
-            ("tertiary keyframe", "Tertiary Keyframe", ""),
-            ("left foot", "Left Foot", ""),
-            ("right foot", "Right Foot", ""),
-            ("allow interruption", "Allow Interruption", ""),
-            ("do not allow interruption", "Do Not Allow Interruption", ""),
-            ("both-feet shuffle", "Both-Feet Shuffle", ""),
-            ("body impact", "Body Impact", ""),
-            ("left foot lock", "Left Foot Lock", ""),
-            ("left foot unlock", "Left Foot Unlock", ""),
-            ("right foot lock", "Right Foot Lock", ""),
-            ("right foot unlock", "Right Foot Unlock", ""),
-            ("blend range marker", "Blend Range Marker", ""),
-            ("stride expansion", "Stride Expansion", ""),
-            ("stride contraction", "Stride Contraction", ""),
-            ("ragdoll keyframe", "Ragdoll Keyframe", ""),
-            ("drop weapon keyframe", "Drop Weapon Keyframe", ""),
-            ("match a", "Match A", ""),
-            ("match b", "Match B", ""),
-            ("match c", "Match C", ""),
-            ("match d", "Match D", ""),
+            ("none", "None", "Doesn't trigger any special events in animation, but can be used to play sounds, effects, and dialogue"),
+            ("primary keyframe", "Primary Keyframe", "Activates the primary function of an animation, for example:\nCompletes a weapon reload\nApplies damage on melee\nThrows a grenade\nKicks a vehicle occupant when boarding]\nLast frame a biped is on the ground in a ranged action\nPoint in an assassination at which the the victim will die if the animation is interrupted"),
+            ("secondary keyframe", "Secondary Keyframe", "Activates the secondary function of an animation, for example:\nTaking over a vehicle seat after boarding and kicking out the occupant\nDoes something with melee strikes but I'm not sure\nApex of a ranged action"),
+            ("tertiary keyframe", "Tertiary Keyframe", "Activates the tertiary function of an animation, for example:\nDoes something for sync action assassinations\nFirst frame when a biped lands in a ranged action"),
+            ("left foot", "Left Foot", "Point in the animation where the biped's left foot impacts the ground. Used to create footstep effects"),
+            ("right foot", "Right Foot", "Point in the animation where the biped's right foot impacts the ground. Used to create footstep effects"),
+            ("allow interruption", "Allow Interruption", "Point at which an animation may be interrupted, for example it will allow the player to switch weapon when reloading, meleeing, or throwing a grenade"),
+            ("do not allow interruption", "Do Not Allow Interruption", "Prevents an player animation from being interupted by player action... or should do. I haven't found any examples of it being used"),
+            ("both-feet shuffle", "Both-Feet Shuffle", "Point in animation where both feet move along the ground"),
+            ("body impact", "Body Impact", "Plays body impact effects"),
+            ("left foot lock", "Left Foot Lock", "Locks the biped's left foot to the ground"),
+            ("left foot unlock", "Left Foot Unlock", "Unlocks the biped's left foot from the ground"),
+            ("right foot lock", "Right Foot Lock", "Locks the biped's right foot to the ground"),
+            ("right foot unlock", "Right Foot Unlock", "Unlocks the biped's right foot from the ground"),
+            ("blend range marker", "Blend Range Marker", "Necessary for ranged actions (where AI jump from point to point). A blend range marker must be added for the primary, secondary, and teritary events of a ranged action"),
+            ("stride expansion", "Stride Expansion", "Used in walking/running animations to indicate when the biped's stride begins"),
+            ("stride contraction", "Stride Contraction", "Used in walking/running animations to indicate when the biped's stride contracts"),
+            ("ragdoll keyframe", "Ragdoll Keyframe", "Makes the biped ragdoll in death and assassination animations"),
+            ("drop weapon keyframe", "Drop Weapon Keyframe", "Makes the biped drop their weapons in death and assassination animations"),
+            ("match a", "Match A", "Important for walk/run cycles. The point at which the biped's legs are side by side"),
+            ("match b", "Match B", "Important for walk/run cycles. After Match A, the point at which the leading foot touches the ground"),
+            ("match c", "Match C", "Important for walk/run cycles. After Match B, the point at which the legs are side by side again"),
+            ("match d", "Match D", "Important for walk/run cycles. After Match C, the point at which the new leading foot touches the ground"),
             # ("jetpack closed", "Jetpack Closed", ""),
             # ("jetpack open", "Jetpack Open", ""),
             # ("sound event", "Sound Event", ""),

@@ -3148,6 +3148,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             if not animation.animation_renames:
                 row.operator("nwo.animation_rename_add", text="New Rename", icon_value=get_icon_id('animation_rename'))
             else:
+                rename_box = box.box()
+                col = rename_box.column()
                 row = col.row()
                 row.label(text="Animation Renames")
                 row = col.row()
@@ -3176,6 +3178,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 if bpy.ops.nwo.paste_events.poll():
                     row.operator("nwo.paste_events", icon="PASTEDOWN")
             else:
+                box = box.box()
                 row = box.row()
                 row.label(text="Animation Events")
                 row = box.row()
@@ -3201,7 +3204,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 row.operator("nwo.copy_events", icon="COPYDOWN")
                 row.operator("nwo.paste_events", icon="PASTEDOWN")
 
-                if len(animation.animation_events) > 0:
+                if animation.animation_events:
                     item = animation.animation_events[animation.active_animation_event_index]
                     # row = layout.row()
                     # row.prop(item, "name") # debug only
@@ -3220,17 +3223,86 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                         row.prop(item, "multi_frame", expand=True)
                         if item.multi_frame == "range":
                             row = col.row(align=True)
-                            row.prop(item, "frame_frame", text="Event Frame Start")
+                            row.prop(item, "frame_frame", text="Frame Start")
                             row.operator("nwo.animation_event_set_frame", text="", icon="KEYFRAME_HLT").prop_to_set = "frame_frame"
                             row = col.row(align=True)
-                            row.prop(item, "frame_range", text="Event Frame End")
+                            row.prop(item, "frame_range", text="Frame End")
                             row.operator("nwo.animation_event_set_frame", text="", icon="KEYFRAME_HLT").prop_to_set = "frame_range"
                         else:
                             row = col.row(align=True)
                             row.prop(item, "frame_frame")
                             row.operator("nwo.animation_event_set_frame", text="", icon="KEYFRAME_HLT").prop_to_set = "frame_frame"
-
-                        col.prop(item, "frame_name")
+                            
+                        col.prop(item, "frame_name", text="Event")
+                        
+                        
+                        if item.event_data:
+                            box = box.box()
+                            row = box.row()
+                            row.label(text="Animation Event Data")
+                            row = box.row()
+                            rows = 3
+                            row.template_list(
+                                "NWO_UL_AnimProps_EventsData",
+                                "",
+                                item,
+                                "event_data",
+                                item,
+                                "active_event_data_index",
+                                rows=rows,
+                            )
+                            col = row.column(align=True)
+                            col.operator("nwo.add_animation_event_data", icon="ADD", text="")
+                            col.operator("nwo.remove_animation_event_data", icon="REMOVE", text="")
+                            
+                            data = item.event_data[item.active_event_data_index]
+                            
+                            col = box.column()
+                            col.separator()
+                            col.use_property_split = True
+                            row = col.row()
+                            row.use_property_split = False
+                            row.prop(data, "data_type", expand=True)
+                            col.separator()
+                            col.prop(data, "frame_offset")
+                            col.separator()
+                            if data.data_type == 'DIALOGUE':
+                                col.prop(data, "dialogue_event")
+                                col.prop(data, "damage_effect_reporting_type")
+                            else:
+                                if data.data_type == 'EFFECT':
+                                    row = col.row(align=True)
+                                    row.prop(data, "event_effect_tag", icon_value=get_icon_id("tags"))
+                                    row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "event_effect_tag"
+                                    row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'event_effect_tag'
+                                    col.prop(data, "marker")
+                                else:
+                                    row = col.row(align=True)
+                                    row.prop(data, "event_sound_tag", icon_value=get_icon_id("tags"))
+                                    row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "event_sound_tag"
+                                    row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'event_sound_tag'
+                                col.separator()
+                                if self.h4:
+                                    row = col.row()
+                                    row.prop(data, "event_model", icon_value=get_icon_id("tags"))
+                                    row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "event_model"
+                                    row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'event_model'
+                                    col.prop(data, "variant")
+                                col.separator()
+                                col.prop(data, "flag_allow_on_player")
+                                col.prop(data, "flag_left_arm_only")
+                                col.prop(data, "flag_right_arm_only")
+                                col.prop(data, "flag_first_person_only")
+                                col.prop(data, "flag_third_person_only")
+                                col.prop(data, "flag_forward_only")
+                                col.prop(data, "flag_reverse_only")
+                                col.prop(data, "flag_fp_no_aged_weapons")
+                            
+                            
+                            
+                        else:
+                            box.operator("nwo.add_animation_event_data", icon="ADD", text="Add Event Data")
+                        
                     elif (
                         item.event_type
                         == "_connected_geometry_animation_event_type_wrinkle_map"

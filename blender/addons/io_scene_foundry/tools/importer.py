@@ -1078,7 +1078,7 @@ class NWO_Import(bpy.types.Operator):
                 box.prop(self, "import_variant_children")
                 
             box.prop(self, "setup_as_asset")
-            box.prop(self, "import_fp_arms", "FP Arms (Weapon Only)")
+            box.prop(self, "import_fp_arms", text="FP Arms (Weapon Only)")
             
             if self.tag_animation:
                 box.prop(self, "tag_animation_filter")
