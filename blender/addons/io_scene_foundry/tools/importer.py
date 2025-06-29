@@ -1991,13 +1991,16 @@ class NWOImporter:
         image_paths_count = len(image_paths)
         for idx, (path, is_non_color) in enumerate(image_paths.items()):
             utils.update_progress(job, idx / image_paths_count)
-            image = bpy.data.images.load(filepath=path, check_existing=True)
-            images.append(image)
-            image.use_fake_user = fake_user
-            if is_non_color:
-                image.colorspace_settings.name = 'Non-Color'
+            if Path(path).exists():
+                image = bpy.data.images.load(filepath=path, check_existing=True)
+                images.append(image)
+                image.use_fake_user = fake_user
+                if is_non_color:
+                    image.colorspace_settings.name = 'Non-Color'
+                else:
+                    image.alpha_mode = 'CHANNEL_PACKED'
             else:
-                image.alpha_mode = 'CHANNEL_PACKED'
+                utils.print_warning(f"Failed to extract bitmap: {path}")
             
         utils.update_progress(job, 1)
         

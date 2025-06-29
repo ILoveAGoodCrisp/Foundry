@@ -541,14 +541,15 @@ class ShaderTag(Tag):
                 image_path = str(system_tiff_path)
             else:
                 image_path = bitmap.save_to_tiff(blue_channel_fix)
-
-            image = bpy.data.images.load(filepath=image_path, check_existing=True)
-            if is_non_color:
-                image.colorspace_settings.name = 'Non-Color'
-            else:
-                image.alpha_mode = 'CHANNEL_PACKED'
                 
-            return image
+            if Path(image_path).exists():    
+                image = bpy.data.images.load(filepath=image_path, check_existing=True)
+                if is_non_color:
+                    image.colorspace_settings.name = 'Non-Color'
+                else:
+                    image.alpha_mode = 'CHANNEL_PACKED'
+                
+                return image
         
     def _mapping_from_parameter_name(self, name):
         if type(name) == str:
@@ -1290,15 +1291,6 @@ class ShaderTag(Tag):
 
 class BSDFParameter:
     """Representation of a Halo Shader parameter element in Blender node form"""
-    tree: bpy.types.NodeTree
-    main_node: bpy.types.Node
-    input: bpy.types.NodeInputs
-    link_node_type: str
-    data: any
-    default_value: any
-    mapping: list
-    normal_type: str
-    alpha: str
     
     def __init__(self, tree, main_node, input, link_node_type, data=None, default_value=None, mapping=[], normal_type: NormalType = None, diffalpha=False, diffillum=False, diffspec=False):
         self.tree = tree
