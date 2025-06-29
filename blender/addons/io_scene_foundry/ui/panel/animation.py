@@ -238,8 +238,9 @@ class NWO_OT_AnimationsFromActions(bpy.types.Operator):
         scene_nwo = context.scene.nwo
         current_animation_names = {animation.name for animation in context.scene.nwo.animations}
         for action in bpy.data.actions:
-            action_nwo = action.nwo
-            name = action_nwo.name_override if action_nwo.name_override else action.name
+            # action_nwo = action.nwo
+            # name = action_nwo.name_override if action_nwo.name_override else action.name
+            name = action.name
             if name in current_animation_names:
                 continue
             
@@ -255,8 +256,8 @@ class NWO_OT_AnimationsFromActions(bpy.types.Operator):
             animation.frame_start = int(action.frame_start)
             animation.frame_end = int(action.frame_end)
             animation.export_this = action.use_frame_range
-            for key, value in action_nwo.items():
-                animation[key] = value
+            # for key, value in action_nwo.items():
+            #     animation[key] = value
             
         context.area.tag_redraw()
             

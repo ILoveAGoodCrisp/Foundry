@@ -624,6 +624,7 @@ class ShaderTag(Tag):
                         return result
                     
             if not return_none_if_default:
+                print(parameter.name)
                 bitmap_path = parameter.default_bitmap
                 element = None
         elif element is not None:

@@ -84,21 +84,15 @@ class NWO_OT_RenameImporter(bpy.types.Operator):
     )
     
     def create_renames(self, renames: dict):
-        for action in bpy.data.actions:
-            nwo = action.nwo
-            if nwo.name_override.strip():
-                animation_name = nwo.name_override.strip().replace(":", " ").lower()
-            else:
-                animation_name = action.name.strip().replace(":", " ").lower()
-                
+        for animation in bpy.context.scene.nwo.animations:
             for source, new in renames.items():
                 source_clean = source.replace(":", " ").lower()
-                if source_clean != animation_name: continue
-                existing_renames = [item.name for item in nwo.animation_renames]
+                if source_clean != animation.name: continue
+                existing_renames = [item.name for item in animation.animation_renames]
                 for name in new:
                     name_clean = name.replace(":", " ").lower()
                     if name_clean not in existing_renames:
-                        item = nwo.animation_renames.add()
+                        item = animation.animation_renames.add()
                         item.name = name_clean
                         self.rename_count += 1
                 
