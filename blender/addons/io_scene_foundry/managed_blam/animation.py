@@ -31,11 +31,14 @@ class AnimationTag(Tag):
         self.block_blend_screens = self.tag.SelectField('Struct:definitions[0]/Block:NEW blend screens')
         self.block_additional_node_dat = self.tag.SelectField("Block:additional node data")
         
-    def get_frame_events_list(self) -> str | None:
-        '''Returns the animation graph's frame events list filepath if it exists, else None'''
-        file = self.tag.SelectField("Struct:definitions[0]/Reference:imported events").FileName
-        if file and Path(file).exists():
-            return file
+    def get_frame_events_list(self) -> str:
+        '''Returns the animation graph's frame events list filepath'''
+        file = self.tag.SelectField("Struct:definitions[0]/Reference:imported events").Path
+        if not file:
+            return ""
+        
+        return file.Filename
+        
         
     def get_animation_names(self, filter="") -> list[str]:
         """Returns a list of all animation names"""

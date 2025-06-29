@@ -163,7 +163,7 @@ class NWO_AnimationEventData_ListItems(bpy.types.PropertyGroup):
     
     frame_offset: bpy.props.IntProperty(
         name="Frame Offset",
-        description="Number of frames this data event should be offset from the main event",
+        description="Number of frames this data event should be offset from the main event. Where the event is ranged, the offset is from the start frame",
         options=set(),
     )
     
@@ -428,8 +428,8 @@ class NWO_Animation_ListItems(bpy.types.PropertyGroup):
 
     frame_range: bpy.props.IntProperty(
         name="Frame Range",
-        description="Enter the number of frames this event should last",
-        default=1,
+        description="The frame this event is duplicated to",
+        default=0,
         update=update_frame_range,
     )
 
