@@ -215,7 +215,7 @@ class NWO_AnimationEventData_ListItems(bpy.types.PropertyGroup):
         poll=poll_empty,
         name="Marker",
         options=set(),
-        description="Marker that this effect event should play on"
+        description="Marker that this sound / effect event should play on"
     )
     
     damage_effect_reporting_type: bpy.props.EnumProperty(

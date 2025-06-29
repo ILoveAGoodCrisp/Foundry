@@ -3281,6 +3281,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                                     row.prop(data, "event_sound_tag", icon_value=get_icon_id("tags"))
                                     row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "event_sound_tag"
                                     row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'event_sound_tag'
+                                    col.prop(data, "marker")
                                 col.separator()
                                 if self.h4:
                                     row = col.row()
