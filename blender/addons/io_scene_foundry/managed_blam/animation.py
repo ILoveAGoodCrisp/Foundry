@@ -1,13 +1,14 @@
 
 
 from collections import defaultdict
+from enum import Enum
 from math import radians
 from pathlib import Path
 from typing import cast
 import bpy
 from mathutils import Euler, Matrix, Quaternion, Vector
 
-from .Tags import TagFieldBlock, TagFieldElement
+from .Tags import TagFieldBlock, TagFieldBlockElement, TagFieldElement
 
 from ..managed_blam.render_model import RenderModelTag
 from ..managed_blam import Tag
@@ -16,8 +17,51 @@ from .. import utils
 
 tolerance = 1e-6
 
+damage_states = "h_ping", "s_ping", "h_kill", "s_kill"
 directions = "front", "left", "right", "back"
 regions = "gut", "chest", "head", "l_arm", "l_hand", "l_leg", "l_foot", "r_arm", "r_hand", "r_leg", "r_foot"
+
+class AnimationType(Enum):
+    none = 0
+    base = 1
+    overlay = 2
+    replacement = 3
+    
+class FrameInfoType(Enum):
+    none = 0
+    dx_dy = 1
+    dx_dy_dyaw = 2
+    dx_dy_dz_dyaw = 3
+    dx_dy_dz_dangle_axis = 4
+    
+class Compression(Enum):
+    medium_compression = 0
+    rough_compression = 1
+    uncompressed = 2
+    old_codec = 3
+
+class Animation:
+    def __init__(self):
+        self.name = ""
+        self.index = -1
+        self.parent_animation: Animation = None
+        self.next_animation: Animation = None
+        self.frame_count = 0
+        self.animation_type = AnimationType.none
+        self.frame_info_type = FrameInfoType.none
+        self.compression = Compression.medium_compression
+        self.resource_group = -1
+        self.resource_group_member = -1
+        self.element: TagFieldBlockElement = None
+        self.state_types = set()
+        
+    def from_element(self, element: TagFieldBlockElement):
+        self.name = element.Fields[0].GetStringData()
+        self.index = element.ElementIndex
+        
+    def __repr__(self):
+        return self.name
+        
 
 class AnimationTag(Tag):
     tag_ext = 'model_animation_graph'
@@ -342,6 +386,8 @@ class AnimationTag(Tag):
         if self.block_animations.Elements.Count < 1: 
             return print("No animations found in graph")
         
+        graph = self.to_dict()
+        
         animation_nodes = None
         with RenderModelTag(path=render_model) as model:
             exporter = self._AnimationExporter()
@@ -359,6 +405,9 @@ class AnimationTag(Tag):
             
             if armature.animation_data is None:
                 armature.animation_data_create()
+                
+            all_animations = self.get_animation_names()
+            all_animations = {n: idx for idx, n in enumerate(all_animations)}
             
             for element in self.block_animations.Elements:
                 name = element.SelectField("name").GetStringData()
@@ -371,10 +420,10 @@ class AnimationTag(Tag):
                 overlay = anim_type == 2
                 if overlay:
                     utils.print_warning(f"{name} is an overlay, rotations will not be imported")
-                    continue
+                    # continue
                 elif anim_type == 1 and frame_info > 0: # base and has movement
                     utils.print_warning(f"{name} has movement data that won't be imported")
-                    continue
+                    # continue
                 frame_count = exporter.GetAnimationFrameCount(index)
                 new_name = name.replace(":", " ")
                 action = bpy.data.actions.new(new_name)
@@ -421,17 +470,34 @@ class AnimationTag(Tag):
                     node_base_matrices = {}
                     self._get_base_pose(animation_nodes, nodes, node_base_matrices)
                     transforms = {}
+                    base_transforms = {}
+                    nodes_with_animations = set()
                     for frame in range(frame_count):
                         if exporter.GetAnimationFrame(index, frame, animation_nodes, nodes_count):
-                            self._add_transforms(animation_nodes, nodes, frame + 1, overlay, node_base_matrices, transforms)
+                            nodes_with_animations.update(self._add_transforms(animation_nodes, nodes, frame + 1, overlay, node_base_matrices, transforms))
+                    
+                    # TODO Make this code work       
+                    if anim_type == 3: # replacement
+                        tokens = name.split(":")
+                        if tokens[-1].startswith("var"):
+                            tokens.pop(-1)
                             
-                    self._to_armature_action(transforms, armature, action, nodes)
+                        tokens[-1] = "idle"
+
+                        replacement_base_animations = self.find_animation(graph, tokens, ["actions"])
+                        if replacement_base_animations:
+                            
+                            for frame in range(frame_count):
+                                if exporter.GetAnimationFrame(replacement_base_animations[0].index, frame, animation_nodes, nodes_count):
+                                    self._add_base_transforms(animation_nodes, nodes, frame + 1, node_base_matrices, base_transforms)
+                            
+                    self._to_armature_action(transforms, armature, action, nodes, base_transforms, nodes_with_animations)
                     actions.append(action)
                     action.frame_end = frame_count
         
         return actions
     
-    def _to_armature_action(self, transforms, armature: bpy.types.Object, action: bpy.types.Action, nodes: list[Node]):
+    def _to_armature_action(self, transforms, armature: bpy.types.Object, action: bpy.types.Action, nodes: list[Node], base_transforms: dict, nodes_with_animations):
         fcurves = cast(bpy.types.ActionFCurves, action.fcurves)
         fcurves.clear()
         
@@ -471,12 +537,32 @@ class AnimationTag(Tag):
             else:
                 bone_base_matrices[bone] = bone.matrix
         
+        base_repeats = 0
+        
         for frame_idx, nodes_transforms in transforms.items():
             for node in valid_nodes:
-                matrix = nodes_transforms[node]
-                transform_matrix = bone_base_matrices[node.pose_bone].inverted_safe() @ matrix
+                bind_inv    = bone_base_matrices[node.pose_bone].inverted_safe()
+                repl_matrix = nodes_transforms[node]
+                transform_matrix = bind_inv @ repl_matrix
+                base_matrix = Matrix.Identity(4)
+                if base_transforms:
+                    base_frame_idx = frame_idx - (len(base_transforms) * base_repeats)
+                    if base_frame_idx > len(base_transforms):
+                        base_repeats += 1
+                        base_frame_idx = frame_idx - (len(base_transforms) * base_repeats)
+                    base_nodes_transforms = base_transforms[base_frame_idx]
+                    if base_nodes_transforms is not None:
+                        if node not in nodes_with_animations:
+                            base_matrix = base_nodes_transforms[node]
+                            
+                            delta_base  = bind_inv @ base_matrix
+
+                            transform_matrix = delta_base @ transform_matrix
+                            
+
+                # decompose the orthogonal result
                 loc, rot, sca = transform_matrix.decompose()
-                
+
                 node.fc_loc_x.keyframe_points.insert(frame_idx, loc.x, options={'FAST', 'NEEDED'})
                 node.fc_loc_y.keyframe_points.insert(frame_idx, loc.y, options={'FAST', 'NEEDED'})
                 node.fc_loc_z.keyframe_points.insert(frame_idx, loc.z, options={'FAST', 'NEEDED'})
@@ -489,7 +575,7 @@ class AnimationTag(Tag):
                 node.fc_sca_x.keyframe_points.insert(frame_idx, sca.x, options={'FAST', 'NEEDED'})
                 node.fc_sca_y.keyframe_points.insert(frame_idx, sca.y, options={'FAST', 'NEEDED'})
                 node.fc_sca_z.keyframe_points.insert(frame_idx, sca.z, options={'FAST', 'NEEDED'})
-    
+
     def _get_base_pose(self, animation_nodes, nodes, node_base_matrices: dict):
         for idx, (an, node) in enumerate(zip(animation_nodes, nodes)):
             translation = Vector((an.Translation.X, an.Translation.Y, an.Translation.Z)) * 100
@@ -500,10 +586,15 @@ class AnimationTag(Tag):
 
     def _add_transforms(self, animation_nodes, nodes, frame, overlay: bool, node_base_matrices: dict, transforms: dict):
         frame_data = {}
+        nodes_with_animations = set()
         for idx, (an, node) in enumerate(zip(animation_nodes, nodes)):
             translation = Vector((an.Translation.X, an.Translation.Y, an.Translation.Z)) * 100
             rotation = Quaternion((an.Rotation.W, an.Rotation.V.X, an.Rotation.V.Y, an.Rotation.V.Z))
             scale = an.Scale
+            
+            if any((an.Translation.X, an.Translation.Y, an.Translation.Z, an.Rotation.W, an.Rotation.V.X, an.Rotation.V.Y, an.Rotation.V.Z)) or scale != 1.0:
+                nodes_with_animations.add(node)
+                
             base_matrix = cast(Matrix, node_base_matrices[node])
             overlay_keyed = False
             translation_keyed = False
@@ -514,7 +605,10 @@ class AnimationTag(Tag):
             else:
                 overlay_keyed = True
                 translation_keyed = True
-            if rotation.magnitude < tolerance:
+                
+            rot_is_zero = all(abs(c) < tolerance for c in (an.Rotation.V.X, an.Rotation.V.Y, an.Rotation.V.Z))
+                
+            if rot_is_zero:
                 rotation = base_rotation
             else:
                 overlay_keyed = True
@@ -533,6 +627,27 @@ class AnimationTag(Tag):
             frame_data[node] = matrix
         
         transforms[frame] = frame_data
+        
+        return nodes_with_animations
+                    
+    def _add_base_transforms(self, animation_nodes, nodes, frame, node_base_matrices: dict, base_transforms: dict):
+        frame_data = {}
+        for idx, (an, node) in enumerate(zip(animation_nodes, nodes)):
+            translation = Vector((an.Translation.X, an.Translation.Y, an.Translation.Z)) * 100
+            rotation = Quaternion((an.Rotation.W, an.Rotation.V.X, an.Rotation.V.Y, an.Rotation.V.Z))
+            scale = an.Scale
+            base_matrix = cast(Matrix, node_base_matrices[node])
+            base_translation, base_rotation, base_scale = base_matrix.decompose()
+            if translation.magnitude < tolerance:
+                translation = base_translation
+            if rotation.magnitude < tolerance:
+                rotation = base_rotation
+
+            matrix = Matrix.LocRotScale(translation, rotation, Vector.Fill(3, scale))
+                
+            frame_data[node] = matrix
+        
+        base_transforms[frame] = frame_data
             
     def get_play_text(self, animation, loop: bool, unit: bool, game_object: str = "(player_get 0)") -> str:
         hs_func = "custom_animation_loop" if loop else "custom_animation"
@@ -581,81 +696,258 @@ class AnimationTag(Tag):
     def generate_renames(self, filter=""):
         '''Reads current blender animation names and then parses in the mode n state graph to set up renames in blender'''
         # dict with keys as blender animations and values as sets of renames
-        real_animations = {anim: [rename.name.lower().replace(":", " ").split() for rename in anim.animation_renames] for anim in bpy.context.scene.nwo.animations}
+        real_animations = {anim.name.replace(" ", ":"): anim for anim in bpy.context.scene.nwo.animations}
         if filter:
             real_animations = {k: v for k, v in real_animations.items() if filter in k}
-        graph_animation_names = self.get_animation_names(filter)
+
+        graph_dict = self.to_dict()
+        renames = detect_renames(graph_dict)
+        # renames, copies = detect_copies_from_graph(graph_dict, renames)
+        copies = []
         
-        graph_animations = defaultdict(list) # dict of graph animation names and animation token names
-        current_animation = ["any", "any", "any", "any"] # modes, weapon class, weapon type, sets
-        for m in self.block_modes.Elements:
-            current_animation[0] = m.Fields[0].GetStringData()
-            for wc in m.SelectField("Block:weapon class").Elements:
-                current_animation[1] = wc.Fields[0].GetStringData()
-                for wt in wc.SelectField("Block:weapon type").Elements:
-                    current_animation[2] = wt.Fields[0].GetStringData()
-                    for s in wt.SelectField("Block:sets").Elements:
-                        current_animation[3] = s.Fields[0].GetStringData()
-                        
-                        for a in s.SelectField("Block:actions").Elements:
-                            animation_index = a.SelectField("Struct:animation[0]/ShortBlockIndex:animation").Value
-                            if animation_index > -1:
-                                graph_animations[graph_animation_names[animation_index]].append(current_animation + [a.Fields[0].GetStringData()])
-                            
-                        for oa in s.SelectField("Block:overlay animations").Elements:
-                            animation_index = oa.SelectField("Struct:animation[0]/ShortBlockIndex:animation").Value
-                            if animation_index > -1:
-                                graph_animations[graph_animation_names[animation_index]].append(current_animation + [oa.Fields[0].GetStringData()])
-                            
-                        for dad in s.SelectField("Block:death and damage").Elements:
-                            dad_label = dad.Fields[0].GetStringData()
-                            for d in dad.SelectField("Block:directions").Elements:
-                                for r in d.SelectField("Block:regions").Elements:
-                                    animation_index = r.SelectField("Struct:animation[0]/ShortBlockIndex:animation").Value
-                                    if animation_index > -1:
-                                        graph_animations[graph_animation_names[animation_index]].append(current_animation + [dad_label, directions[d.ElementIndex], regions[r.ElementIndex]])
-                                        
-                        for t in s.SelectField("Block:transitions").Elements:
-                            t_label = t.Fields[0].GetStringData()
-                            for td in t.SelectField("Block:destinations").Elements:
-                                animation_index = td.SelectField("Struct:animation[0]/ShortBlockIndex:animation").Value
-                                if animation_index > -1:
-                                    graph_animations[graph_animation_names[animation_index]].append(current_animation + [t_label, "2", td.Fields[0].GetStringData(), td.Fields[1].GetStringData()])
-        
-        
-        def is_rename(rename: list, name: list, existing_renames: list):
-            rename_no_any = [i for i in rename if i != "any"]
-            name_no_any = [j for j in name if j != "any"]
-            
-            if rename_no_any != name_no_any:
-                for existing_rename in existing_renames:
-                    if rename_no_any == [k for k in existing_rename if k != "any"]:
-                        return False
-                    
-                return True
-            
-            return False
+        for src, dst in renames:
+            print(f'renamed "{src}" ==> "{dst}"')
+
+        for src, dst in copies:
+            print(f'copied all "{src}" to "{dst}"')
         
         animations_with_renames_count = 0
         renames_count = 0
-        for blender_animation, renames in real_animations.items():
-            import_animation_name = blender_animation.name.lower().replace(" ", ":")
-            graph_animation = graph_animations.get(import_animation_name)
-            if graph_animation is None:
+        
+        # add renames to animations
+        for src, dst in renames:
+            blender_animation = real_animations.get(src)
+            if blender_animation is None:
                 continue
             
-            for rename in graph_animation:
-                if is_rename(rename, import_animation_name.split(":"), renames):
-                    renames.append(rename)
+            animations_with_renames_count += 1
+            if dst not in {r.name for r in blender_animation.animation_renames}:
+                blender_animation.animation_renames.add().name = dst.replace(":", " ")
+                
+                
+        # Add copies
+        for src, dst in copies:
+            for copy in self.context.scene.nwo.animation_copies:
+                if copy.source_name.replace(":", " ") == src.replace(":", " ") and copy.name.replace(":", " ") == dst.replace(":", " "):
+                    break
+                
+            else:
+                new_copy = self.context.scene.nwo.animation_copies.add()
+                new_copy.source_name = src.replace(":", " ")
+                new_copy.name = dst.replace(":", " ")
+                
                     
-            if renames:
-                animations_with_renames_count += 1
-                renames_count += len(renames)
-                blender_animation.animation_renames.clear()
-                str_renames =  [' '.join(map(str, l)) for l in renames]
-                for verified_rename in sorted(str_renames):
-                    blender_animation.animation_renames.add().name = verified_rename
                     
-                    
-        print(f"Found {animations_with_renames_count} animations with renames out of {len(graph_animation_names)} total animations. {renames_count} total renames generated")
+        print(f"\Generated {len(renames)} renames from tag and applied these to {animations_with_renames_count} blender animations\nCreated {len(copies)} animation copies")
+        
+    def _animation_from_index(self, index, state_type="") -> Animation:
+        element = self.block_animations.Elements[index]
+        animation = Animation()
+        animation.from_element(element)
+        if state_type:
+            animation.state_types.add(state_type)
+        return animation
+        
+    
+    def to_dict(self) -> dict:
+        '''Parses the mode n state graph and turns it into a dict'''
+        graph = {}
+        for mode in self.block_modes.Elements:
+            mode_label = mode.Fields[0].GetStringData()
+            graph[mode_label] = {}
             
+            for weapon_class in mode.Fields[4].Elements:
+                weapon_class_label = weapon_class.Fields[0].GetStringData()
+                graph[mode_label][weapon_class_label] = {}
+                
+                for weapon_type in weapon_class.Fields[3].Elements:
+                    weapon_type_label = weapon_type.Fields[0].GetStringData()
+                    graph[mode_label][weapon_class_label][weapon_type_label] = {}
+                    
+                    for set in weapon_type.Fields[3].Elements:
+                        set_label = set.Fields[0].GetStringData()
+                        graph[mode_label][weapon_class_label][weapon_type_label][set_label] = {}
+                        
+                        graph[mode_label][weapon_class_label][weapon_type_label][set_label]["actions"] = {action.Fields[0].GetStringData(): self._animation_from_index(action.Fields[3].Elements[0].Fields[1].Value, "action") for action in set.Fields[4].Elements if action.Fields[3].Elements[0].Fields[1].Value > -1}
+                        graph[mode_label][weapon_class_label][weapon_type_label][set_label]["overlay_animations"] = {overlay.Fields[0].GetStringData(): self._animation_from_index(overlay.Fields[3].Elements[0].Fields[1].Value, "overlay") for overlay in set.Fields[5].Elements if overlay.Fields[3].Elements[0].Fields[1].Value > -1}
+                        
+                        graph[mode_label][weapon_class_label][weapon_type_label][set_label]["death_and_damage"] = {}
+                        for death_and_damage in set.Fields[6].Elements:
+                            death_and_damage_label = death_and_damage.Fields[0].GetStringData()
+                            graph[mode_label][weapon_class_label][weapon_type_label][set_label]["death_and_damage"][death_and_damage_label] = {}
+                            for direction in death_and_damage.Fields[1].Elements:
+                                direction_label = directions[direction.ElementIndex]
+                                graph[mode_label][weapon_class_label][weapon_type_label][set_label]["death_and_damage"][death_and_damage_label][direction_label] = {regions[region.ElementIndex]: self._animation_from_index(region.Fields[0].Elements[0].Fields[1].Value, "death and damage") for region in direction.Fields[0].Elements if region.Fields[0].Elements[0].Fields[1].Value > -1}
+                                
+                            
+                        graph[mode_label][weapon_class_label][weapon_type_label][set_label]["transitions"] = {}
+                        
+                        for transition in set.Fields[7].Elements:
+                            transition_state = transition.Fields[0].GetStringData()
+                            graph[mode_label][weapon_class_label][weapon_type_label][set_label]["transitions"][transition_state] = {f"2:{destination.Fields[0].GetStringData()}:{destination.Fields[1].GetStringData()}": self._animation_from_index(destination.Fields[2].Elements[0].Fields[1].Value, "transition") for destination in transition.Fields[1].Elements if destination.Fields[2].Elements[0].Fields[1].Value > -1}
+                            
+                            
+        return graph
+    
+    def find_animation(self, graph: dict, tokens: list | str, categories: list[str] | None = None):
+        '''Finds animations given tokens'''
+        if isinstance(tokens, str):
+            if ":2:" in tokens:
+                p1, p2 = tokens.split(":2:")
+                tokens = p1.replace(" ", ":").split(":") + [p2]
+            else:
+                tokens = tokens.replace(" ", ":").split(":")
+
+        *path_tokens, state_token = tokens
+
+        def walk_tree(level, remaining_tokens, depth=0):
+            if not remaining_tokens:
+                if any(isinstance(v, dict) for v in level.values()) and not all(
+                    k in ("actions", "overlay_animations", "death_and_damage", "transitions") for k in level.keys()
+                ):
+                    results = []
+                    for sublevel in level.values():
+                        if isinstance(sublevel, dict):
+                            results += walk_tree(sublevel, [], depth + 1)
+                    return results
+
+                results = []
+                search_categories = categories or ("actions", "overlay_animations", "death_and_damage", "transitions")
+
+                for category in search_categories:
+                    cat_data = level.get(category)
+                    if not cat_data:
+                        continue
+
+                    if category in ("actions", "overlay_animations"):
+                        anim = cat_data.get(state_token)
+                        if anim:
+                            results.append(anim)
+
+                    elif category == "death_and_damage":
+                        damage_group = cat_data.get(state_token)
+                        if damage_group:
+                            for direction in damage_group.values():
+                                for animation in direction.values():
+                                    results.append(animation)
+
+                    elif category == "transitions":
+                        trans_group = cat_data.get(state_token)
+                        if trans_group:
+                            results.extend(trans_group.values())
+
+                return results
+
+            token = remaining_tokens[0]
+            next_tokens = remaining_tokens[1:]
+
+            exact_matches = []
+            fallback_matches = []
+
+            if token == "any":
+                fallback_matches = [v for v in level.values() if isinstance(v, dict)]
+            else:
+                if token in level:
+                    exact_matches.append(level[token])
+                if "any" in level:
+                    fallback_matches.append(level["any"])
+
+            results = []
+            for branch in exact_matches:
+                results += walk_tree(branch, next_tokens, depth + 1)
+
+            if not results:
+                for branch in fallback_matches:
+                    results += walk_tree(branch, next_tokens, depth + 1)
+
+            return results
+
+
+        return walk_tree(graph, path_tokens)
+
+    def test_find_animation(self, tokens: list | str, categories=[], graph_dict={}):
+        if not graph_dict:
+            graph_dict = self.to_dict()
+        print("")
+        for animation in self.find_animation(graph_dict, tokens):
+            print(animation.name, sorted(list(animation.state_types)))
+        print("+++++++++++++++++++++++++++++++")
+
+def detect_renames(graph):
+    name_to_paths = defaultdict(list)
+
+    def walk(path_tokens, node):
+        # Categories that hold Animation objects
+        for cat in ("actions", "overlay_animations", "transitions", "death_and_damage"):
+            if cat not in node:
+                continue
+
+            if cat in ("actions", "overlay_animations"):
+                for state, anim in node[cat].items():
+                    name_to_paths[anim.name].append(":".join(path_tokens + [state]))
+
+            elif cat == "transitions":
+                for state, dests in node[cat].items():
+                    for key, anim in dests.items():
+                        name_to_paths[anim.name].append(":".join(path_tokens + [state, key]))
+
+            elif cat == "death_and_damage":
+                for dmg_state, dirs in node[cat].items():
+                    for dir_label, regions in dirs.items():
+                        for reg_label, anim in regions.items():
+                            name_to_paths[anim.name].append(
+                                ":".join(path_tokens + [dmg_state, dir_label, reg_label])
+                            )
+
+        # Recurse into structural layers
+        for k, sub in node.items():
+            if isinstance(sub, dict) and k not in (
+                "actions",
+                "overlay_animations",
+                "transitions",
+                "death_and_damage",
+            ):
+                walk(path_tokens + [k], sub)
+
+    walk([], graph)
+
+    renames = []
+    for anim_name, paths in name_to_paths.items():
+        if len(paths) < 2:
+            continue  # unique ⇒ no rename
+        canonical_src = ":".join(minimal_path(anim_name.split(":")))
+        for p in paths:
+            short_p = ":".join(minimal_path(p.split(":")))
+            if short_p != canonical_src:
+                renames.append((anim_name, short_p))
+    return renames
+
+
+def _strip_trailing_any(toks):
+    while toks and toks[-1] == "any":
+        toks.pop()
+    return toks
+
+def minimal_path(toks):
+
+    # Strip variant markers (…:varX)
+    toks = [t for t in toks if not (t.startswith("var") and t[3:].isdigit())]
+
+    # Transition pattern …:state:2:mode:new_state
+    if len(toks) >= 5 and toks[-3] == "2":
+        base, tail = toks[:-4], toks[-4:]
+        return _strip_trailing_any(base) + tail
+
+    # Death & damage …:h_ping:back:gut
+    if (
+        len(toks) >= 5
+        and toks[-3] in damage_states
+        and toks[-2] in directions
+        and toks[-1] in regions
+    ):
+        base, tail = toks[:-3], toks[-3:]
+        return _strip_trailing_any(base) + tail
+
+    # Normal action / overlay
+    head, state = toks[:-1], [toks[-1]]
+    return _strip_trailing_any(head) + state

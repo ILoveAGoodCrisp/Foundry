@@ -4325,3 +4325,13 @@ def tokenise(name: str) -> tuple:
     token_name = name.replace(":", " ").lower()
     tokens = token_name.split()
     return tuple(tokens)
+
+def flatten_dict(d, parent_keys=()):
+    flat = {}
+    for k, v in d.items():
+        new_keys = parent_keys + (k,)
+        if isinstance(v, dict):
+            flat.update(flatten_dict(v, new_keys))
+        else:
+            flat[new_keys] = v
+    return flat
