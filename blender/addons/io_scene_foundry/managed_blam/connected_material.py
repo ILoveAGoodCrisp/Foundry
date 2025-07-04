@@ -670,9 +670,14 @@ class ControlPoint:
         #self.is_spline_control = False
         
     def from_editor(self, editor):
-        game_point_2d = editor.GetControlPoint(self.graph_index, self.point_index)
-        self.x = game_point_2d.X
-        self.y = game_point_2d.Y
+        try:
+            game_point_2d = editor.GetControlPoint(self.graph_index, self.point_index)
+            self.x = game_point_2d.X
+            self.y = game_point_2d.Y
+        except:
+            utils.print_warning("Failed to get control point for a function")
+            self.x = 0
+            self.y = 0
         #self.is_spline_control = not editor.GetIsGraphPoint(self.graph_index, self.point_index)
         
 class Segment:
