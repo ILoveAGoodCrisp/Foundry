@@ -8,6 +8,8 @@ from typing import cast
 import bpy
 from mathutils import Euler, Matrix, Quaternion, Vector
 
+from ..managed_blam.frame_event_list import AnimationEvent, DialogueEvent, EffectEvent, Reference, SoundEvent
+
 from .Tags import TagFieldBlock, TagFieldBlockElement, TagFieldElement
 
 from ..managed_blam.render_model import RenderModelTag
@@ -74,6 +76,8 @@ class AnimationTag(Tag):
         self.block_ik_chains = self.tag.SelectField('Struct:definitions[0]/Block:ik chains')
         self.block_blend_screens = self.tag.SelectField('Struct:definitions[0]/Block:NEW blend screens')
         self.block_additional_node_dat = self.tag.SelectField("Block:additional node data")
+        self.block_sound_references = self.tag.SelectField("Struct:definitions[0]/Block:sound references")
+        self.block_effect_references = self.tag.SelectField("Struct:definitions[0]/Block:effect references")
         
     def get_frame_events_list(self) -> str:
         '''Returns the animation graph's frame events list filepath'''
@@ -872,6 +876,107 @@ class AnimationTag(Tag):
         for animation in self.find_animation(graph_dict, tokens):
             print(animation.name, sorted(list(animation.state_types)))
         print("+++++++++++++++++++++++++++++++")
+        
+    def collect_events(self):
+        '''Create AnimationEvents from legacy graph events'''
+        unique_sounds = []
+        for element in self.block_sound_references.Elements:
+            ref = Reference()
+            ref.from_element(element, self.corinth)
+            unique_sounds.append(ref)
+            
+        unique_effects = []
+        for element in self.block_effect_references.Elements:
+            ref = Reference()
+            ref.from_element(element, self.corinth)
+            unique_effects.append(ref)
+        
+        blender_animations = self.context.scene.nwo.animations
+        blender_markers = {ob.nwo.marker_model_group: ob for ob in bpy.data.objects if ob.type == 'EMPTY'}
+        
+        for animation in self.block_animations.Elements:
+            name = animation.SelectField("StringId:name").GetStringData()
+            name_with_spaces = name.replace(":", " ")
+            blender_animation = blender_animations.get(name_with_spaces)
+            if blender_animation is None:
+                blender_animation = blender_animations.get(name)
+                if not blender_animation:
+                    utils.print_warning(f"--- Animation graph contains animation {name_with_spaces} but Blender does not")
+                    continue
+                
+            print(f"--- Getting events for {blender_animation.name}")
+            
+            animation_events: list[AnimationEvent] = []
+            
+            for element in animation.SelectField("Block:shared animation data[0]/Block:frame events").Elements:
+                event = AnimationEvent()
+                event.from_element(element)
+                animation_events.append(event)
+            
+            # See if we can make any ranged frame events
+            def collapse_events(aes):
+                aes.sort(key=lambda x: x.frame, reverse=True)
+                result = []
+                group_end_frame = aes[0].frame
+                
+                for curr, next in zip(aes, aes[1:] + [None]):
+                    if next:
+                        if next.frame == curr.frame - 1 and curr.type == next.type:
+                            continue
+
+                    # Finalize current group
+                    curr.end_frame = group_end_frame
+                    group_end_frame = curr.frame
+                    result.append(curr)
+                        
+                return result
+
+            if len(animation_events) > 1:
+                animation_events = collapse_events(animation_events)
+            
+            for element in animation.SelectField("Block:shared animation data[0]/Block:sound events").Elements:
+                if element.SelectField("ShortBlockIndex:sound").Value > -1:
+                    sound_event = SoundEvent()
+                    sound_event.from_element(element, unique_sounds)
+                    if animation_events:
+                        closest_animation_event = min(animation_events, key=lambda ae: abs(ae.frame - sound_event.frame_offset))
+                        sound_event.frame_offset = sound_event.frame_offset - closest_animation_event.frame
+                        closest_animation_event.sound_events.append(sound_event)
+                    else:
+                        animation_event_sound = AnimationEvent()
+                        animation_event_sound.frame = sound_event.frame_offset
+                        sound_event.frame_offset = 0
+                        animation_event_sound.sound_events.append(sound_event)
+                        animation_events.append(animation_event_sound)
+                    
+            for element in animation.SelectField("Block:shared animation data[0]/Block:effect events").Elements:
+                if element.SelectField("ShortBlockIndex:effect").Value > -1:
+                    effect_event = EffectEvent()
+                    effect_event.from_element(element, unique_effects)
+                    if animation_events:
+                        closest_animation_event = min(animation_events, key=lambda ae: abs(ae.frame - effect_event.frame_offset))
+                        effect_event.frame_offset = effect_event.frame_offset - closest_animation_event.frame
+                        closest_animation_event.effect_events.append(effect_event)
+                    else:
+                        animation_event_effect = AnimationEvent()
+                        animation_event_effect.frame = effect_event.frame_offset
+                        effect_event.frame_offset = 0
+                        animation_event_effect.effect_events.append(effect_event)
+                        animation_events.append(animation_event_effect)
+                        
+            for element in animation.SelectField("Block:shared animation data[0]/Block:dialogue events").Elements:
+                dialogue_event = DialogueEvent()
+                dialogue_event.from_element(element)
+                if animation_events:
+                    closest_animation_event = min(animation_events, key=lambda ae: abs(ae.frame - dialogue_event.frame_offset))
+                    dialogue_event.frame_offset = dialogue_event.frame_offset - closest_animation_event.frame
+                    closest_animation_event.dialogue_events.append(dialogue_event)
+                else:
+                    animation_event_dialogue = AnimationEvent()
+                    animation_event_dialogue.frame = dialogue_event.frame_offset
+                    dialogue_event.frame_offset = 0
+                    animation_event_dialogue.dialogue_events.append(dialogue_event)
+                    animation_events.append(animation_event_dialogue)
 
 def detect_renames(graph):
     name_to_paths = defaultdict(list)

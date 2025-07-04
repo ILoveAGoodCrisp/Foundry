@@ -150,7 +150,7 @@ class FrameEventListTag(Tag):
             frame_event.SelectField("StringId:animation name").SetStringData(animation.name)
             frame_event.SelectField("LongInteger:animation frame count").Data = animation.frame_end - animation.frame_start + 1
             
-    def to_blender(self):
+    def to_blender(self, graph_events: list[AnimationEvent] = []):
         unique_sounds = []
         for element in self.block_sound_references.Elements:
             ref = Reference()

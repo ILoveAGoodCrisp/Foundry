@@ -679,8 +679,10 @@ class ShaderTag(Tag):
 
             if for_normal:
                 image.colorspace_settings.name = 'Non-Color'
-            else:
+            elif bitmap.tag.SelectField("Block:bitmaps[0]/CharEnum:curve").Value == 3:
                 image.colorspace_settings.name = 'Linear Rec.709'
+            else:
+                image.colorspace_settings.name = 'sRGB'
                 image.alpha_mode = 'CHANNEL_PACKED'
             # if bitmap.uses_srgb():
             #     image.alpha_mode = 'CHANNEL_PACKED'
@@ -1240,10 +1242,10 @@ class ShaderTag(Tag):
         for input in node.inputs:
             parameter_name_ui = input.name.lower() if "." not in input.name else input.name.partition(".")[0].lower()
             if "gamma curve" in parameter_name_ui:
-                if any(srgb_name in parameter_name_ui for srgb_name in srgb_names):
-                    input.default_value = 2.2
-                else:
-                    input.default_value = 1
+                # if any(srgb_name in parameter_name_ui for srgb_name in srgb_names):
+                #     input.default_value = 2.2
+                # else:
+                #     input.default_value = 1
                 # if last_input_node.image.colorspace_settings.name == 'Non-Color':
                 #     input.default_value = 1
                 # else:
