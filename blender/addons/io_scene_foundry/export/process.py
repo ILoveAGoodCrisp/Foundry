@@ -8,6 +8,8 @@ import bmesh
 import bpy
 from mathutils import Matrix, Vector
 
+from ..managed_blam.scenario_structure_bsp import ScenarioStructureBspTag
+
 from ..managed_blam.object import ObjectTag
 
 from ..managed_blam.cinematic import CinematicTag
@@ -216,6 +218,8 @@ class ExportScene:
         self.active_animation = ""
         self.suspension_animations = {}
         
+        self.any_collision_proxies = False
+        
     def _get_export_tag_types(self):
         tag_types = set()
         match self.asset_type:
@@ -388,6 +392,7 @@ class ExportScene:
             coll_props.update(mesh_props)
             ob_halo_data[proxy_collision] = (coll_props, region, permutation, fp_defaults, tuple())
             proxies.append(proxy_collision)
+            self.any_collision_proxies = True
             
         if has_phys:
             for proxy_physics in proxy_physics_list:
@@ -769,9 +774,9 @@ class ExportScene:
                     case '_connected_geometry_mesh_type_poop':
                         self._setup_poop_props(ob, nwo, data_nwo, props, mesh_props)
                     case '_connected_geometry_mesh_type_seam':
-                        props["bungie_mesh_seam_associated_bsp"] = region
-                        if not nwo.seam_back_manual:
-                            copy = ObjectCopy.SEAM
+                            props["bungie_mesh_seam_associated_bsp"] = region
+                            if not nwo.seam_back_manual:
+                                copy = ObjectCopy.SEAM
                             
                     case "_connected_geometry_mesh_type_portal":
                         props["bungie_mesh_portal_type"] = nwo.portal_type
@@ -2055,7 +2060,8 @@ class ExportScene:
         # print("\n--- Foundry Tags Pre-Process\n")
         # Skip pre processing the graph if this is a first time export and the user has specified a template animation graph
         # This is done to ensure the templating is not skipped
-        self.defer_graph_process = not Path(self.asset_path, f"{self.asset_name}.model_animation_graph").exists() and self.scene_settings.template_model_animation_graph and Path(self.tags_dir, utils.relative_path(self.scene_settings.template_model_animation_graph)).exists()
+        # NOTE Always writing this animation data first now as it prevents a tool crash for invalid nodes usages
+        self.defer_graph_process =  False # not Path(self.asset_path, f"{self.asset_name}.model_animation_graph").exists() and self.scene_settings.template_model_animation_graph and Path(self.tags_dir, utils.relative_path(self.scene_settings.template_model_animation_graph)).exists()
         if not self.defer_graph_process and (self.node_usage_set or self.scene_settings.ik_chains or self.has_animations):
             has_skeleton = self.virtual_scene.skeleton_model is not None and self.virtual_scene.skeleton_model.skeleton is not None
             with AnimationTag() as animation:
@@ -2236,17 +2242,29 @@ class ExportScene:
                             # TODO check if frame event list ref set correctly after templating
                                 
                 # print("--- Setup World Animations")
-          
-            if self.asset_type == AssetType.SCENARIO and self.setup_scenario:
-                lm_value = 6 if self.corinth else 3
-                with ScenarioTag() as scenario:
-                    for bsp in self.virtual_scene.structure:
-                        res = scenario.set_bsp_lightmap_res(bsp, lm_value, 0)
-                        self.print_post(f"--- Setting scenario lightmap resolution to {res}")
-                
-            if self.asset_type == AssetType.SCENARIO and self.scene_settings.zone_sets:
-                self.print_post(f"--- Updating scenario zone sets: {[zs.name for zs in self.scene_settings.zone_sets]}")
-                write_zone_sets_to_scenario(self.scene_settings, self.asset_name)
+            if self.asset_type == AssetType.SCENARIO:
+                if self.setup_scenario:
+                    lm_value = 6 if self.corinth else 3
+                    with ScenarioTag() as scenario:
+                        for bsp in self.virtual_scene.structure:
+                            res = scenario.set_bsp_lightmap_res(bsp, lm_value, 0)
+                            self.print_post(f"--- Setting scenario lightmap resolution to {res}")
+                    
+                if self.scene_settings.zone_sets:
+                    self.print_post(f"--- Updating scenario zone sets: {[zs.name for zs in self.scene_settings.zone_sets]}")
+                    write_zone_sets_to_scenario(self.scene_settings, self.asset_name)
+                    
+                if not self.corinth and self.any_collision_proxies:
+                    self.print_post(f"--- Fixing Up collision proxy surface mapping")
+                    with ScenarioTag() as scenario:
+                        for element in scenario.block_bsps.Elements:
+                            bsp_path = element.Fields[0].Path
+                            if bsp_path is None:
+                                continue
+                            
+                            if Path(bsp_path.Filename).exists():
+                                with ScenarioStructureBspTag(path=bsp_path.RelativePathWithExtension) as bsp:
+                                    bsp.fix_collision_render_surface_mapping()
 
         if self.export_settings.update_lighting_info:
             light_asset = self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB} or (self.corinth and self.asset_type in {AssetType.MODEL, AssetType.SKY})

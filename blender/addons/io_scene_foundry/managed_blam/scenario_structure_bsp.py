@@ -317,6 +317,23 @@ class ScenarioStructureBspTag(Tag):
 
     #     return seams
     
+    def fix_collision_render_surface_mapping(self):
+        '''
+        Adds a single surfaces element to instance geometry surface mapping
+        The game skips calculating this data when an instanced geometry has proxy collision
+        Not having any data here prevents decals rendering on the collision surface
+        '''
+        if self.corinth:
+            return
+        
+        for igd in self.block_instance_definitions.Elements:
+            surfaces = igd.SelectField("Block:surfaces")
+            if surfaces.Elements.Count > 0: # Already has data
+                continue
+            
+            surfaces.AddElement().Fields[0].Data = -1
+            self.tag_has_changes = True
+    
 def are_faces_overlapping(face1, face2):
     # Check if faces are coplanar (i.e., their normals are parallel)
     if not face1.normal.dot(face2.normal) > 0.999:  # or a small epsilon

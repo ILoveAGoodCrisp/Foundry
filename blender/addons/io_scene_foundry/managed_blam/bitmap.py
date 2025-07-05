@@ -347,6 +347,7 @@ class BitmapTag(Tag):
         game_bitmap = self._GameBitmap(frame_index=frame_index)
         bitmap = game_bitmap.GetBitmap()
         game_bitmap.Dispose()
+        is_linear = self.is_linear()
         
         if bitmap.PixelFormat == PixelFormat.Format32bppArgb and blue_channel_fix:
             bitmap_data = bitmap.LockBits(Rectangle(0, 0, bitmap.Width, bitmap.Height), ImageLockMode.ReadWrite, bitmap.PixelFormat)
@@ -360,10 +361,11 @@ class BitmapTag(Tag):
                 blue = rgbValues[i] / 255.0
                 red = red ** 2.2
                 green = green ** 2.2
-                blue = calculate_z_vector(red, green)
-                rgbValues[i + 2] = int(red * 255)
-                rgbValues[i + 1] = int(green * 255)
-                rgbValues[i] = int(blue * 255)
+                if blue_channel_fix:
+                    blue = calculate_z_vector(red, green)
+                    rgbValues[i + 2] = int(red * 255)
+                    rgbValues[i + 1] = int(green * 255)
+                    rgbValues[i] = int(blue * 255)
 
             Marshal.Copy(rgbValues, 0, bitmap_data.Scan0, total_bytes)
             bitmap.UnlockBits(bitmap_data)
@@ -378,7 +380,7 @@ class BitmapTag(Tag):
         
         if not os.path.exists(tiff_dir):
             os.makedirs(tiff_dir, exist_ok=True)
-        if self.is_cubemap:
+        if False and self.is_cubemap: # TODO Make this work properly
             # save the original cubemap
             match format:
                 case 'bmp':

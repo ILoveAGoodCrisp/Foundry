@@ -3404,7 +3404,9 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 layout.prop(self, "always_extract_bitmaps")
             case "scenario_structure_bsp":
                 layout.prop(self, "tag_bsp_render_only")
+                layout.prop(self, "setup_as_asset")
                 layout.prop(self, "build_blender_materials")
+                layout.prop(self, "always_extract_bitmaps")
             case "model_animation_graph":
                 layout.prop(self, "tag_animation_filter")
                 layout.prop(self, "graph_import_animations")

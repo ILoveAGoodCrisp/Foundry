@@ -679,8 +679,8 @@ class ShaderTag(Tag):
 
             if for_normal:
                 image.colorspace_settings.name = 'Non-Color'
-            elif bitmap.tag.SelectField("Block:bitmaps[0]/CharEnum:curve").Value == 3:
-                image.colorspace_settings.name = 'Linear Rec.709'
+            # elif bitmap.tag.SelectField("Block:bitmaps[0]/CharEnum:curve").Value == 3:
+            #     image.colorspace_settings.name = 'Linear Rec.709'
             else:
                 image.colorspace_settings.name = 'sRGB'
                 image.alpha_mode = 'CHANNEL_PACKED'
