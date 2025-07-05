@@ -331,7 +331,7 @@ class ScenarioStructureBspTag(Tag):
             if surfaces.Elements.Count > 0: # Already has data
                 continue
             
-            surfaces.AddElement().Fields[0].Data = -1
+            surfaces.AddElement()
             self.tag_has_changes = True
     
 def are_faces_overlapping(face1, face2):
