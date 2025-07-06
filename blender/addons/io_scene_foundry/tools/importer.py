@@ -1882,16 +1882,9 @@ class NWOImporter:
                     print("Generating Animation Renames")
                     graph.generate_renames(filter)
                 if self.graph_import_events:
-                    print("Importing Animation Events")    
-                    frame_events_list_path = graph.get_frame_events_list()
-                    if not frame_events_list_path:
-                        utils.print_warning(f"Animation graph contains no reference to a frame events list")
-                    elif not Path(frame_events_list_path).exists():
-                        utils.print_warning(f"Frame events list tag does not exist: {frame_events_list_path}")
-                    else:
-                        with FrameEventListTag(path=frame_events_list_path) as events:
-                            count = events.to_blender()
-                            print(f"Imported {count} frame events")
+                    print("Importing Animation Events")
+                    count = graph.events_to_blender()
+                    print(f"Imported {count} frame events")
                             
                 if self.graph_import_ik_chains:
                     print("Importing IK Chains")

@@ -8,7 +8,7 @@ from typing import cast
 import bpy
 from mathutils import Euler, Matrix, Quaternion, Vector
 
-from ..managed_blam.frame_event_list import AnimationEvent, DialogueEvent, EffectEvent, Reference, SoundEvent
+from ..managed_blam.frame_event_list import AnimationEvent, DialogueEvent, EffectEvent, FrameEventListTag, Reference, SoundEvent
 
 from .Tags import TagFieldBlock, TagFieldBlockElement, TagFieldElement
 
@@ -79,8 +79,8 @@ class AnimationTag(Tag):
         self.block_sound_references = self.tag.SelectField("Struct:definitions[0]/Block:sound references")
         self.block_effect_references = self.tag.SelectField("Struct:definitions[0]/Block:effect references")
         
-    def get_frame_events_list(self) -> str:
-        '''Returns the animation graph's frame events list filepath'''
+    def get_frame_event_list(self) -> str:
+        '''Returns the animation graph's frame event list filepath'''
         file = self.tag.SelectField("Struct:definitions[0]/Reference:imported events").Path
         if not file:
             return ""
@@ -479,8 +479,7 @@ class AnimationTag(Tag):
                     for frame in range(frame_count):
                         if exporter.GetAnimationFrame(index, frame, animation_nodes, nodes_count):
                             nodes_with_animations.update(self._add_transforms(animation_nodes, nodes, frame + 1, overlay, node_base_matrices, transforms))
-                    
-                    # TODO Make this code work       
+                       
                     if anim_type == 3: # replacement
                         tokens = name.split(":")
                         if tokens[-1].startswith("var"):
@@ -877,8 +876,18 @@ class AnimationTag(Tag):
             print(animation.name, sorted(list(animation.state_types)))
         print("+++++++++++++++++++++++++++++++")
         
-    def collect_events(self):
+    def events_to_blender(self) -> int:
         '''Create AnimationEvents from legacy graph events'''
+        event_list_events = []
+        frame_event_list_path = self.get_frame_event_list()
+        if not frame_event_list_path:
+            utils.print_warning(f"Animation graph contains no reference to a frame event list")
+        elif not Path(frame_event_list_path).exists():
+            utils.print_warning(f"Frame events list tag does not exist: {frame_event_list_path}")
+        else:
+            with FrameEventListTag(path=frame_event_list_path) as events:
+                event_list_events = events.collect_events()
+                
         unique_sounds = []
         for element in self.block_sound_references.Elements:
             ref = Reference()
@@ -893,6 +902,7 @@ class AnimationTag(Tag):
         
         blender_animations = self.context.scene.nwo.animations
         blender_markers = {ob.nwo.marker_model_group: ob for ob in bpy.data.objects if ob.type == 'EMPTY'}
+        event_count = 0
         
         for animation in self.block_animations.Elements:
             name = animation.SelectField("StringId:name").GetStringData()
@@ -910,7 +920,7 @@ class AnimationTag(Tag):
             
             for element in animation.SelectField("Block:shared animation data[0]/Block:frame events").Elements:
                 event = AnimationEvent()
-                event.from_element(element)
+                event.from_element(element, True)
                 animation_events.append(event)
             
             # See if we can make any ranged frame events
@@ -926,7 +936,7 @@ class AnimationTag(Tag):
 
                     # Finalize current group
                     curr.end_frame = group_end_frame
-                    group_end_frame = curr.frame
+                    group_end_frame = next.frame if next else 0
                     result.append(curr)
                         
                 return result
@@ -937,7 +947,7 @@ class AnimationTag(Tag):
             for element in animation.SelectField("Block:shared animation data[0]/Block:sound events").Elements:
                 if element.SelectField("ShortBlockIndex:sound").Value > -1:
                     sound_event = SoundEvent()
-                    sound_event.from_element(element, unique_sounds)
+                    sound_event.from_element(element, unique_sounds, True)
                     if animation_events:
                         closest_animation_event = min(animation_events, key=lambda ae: abs(ae.frame - sound_event.frame_offset))
                         sound_event.frame_offset = sound_event.frame_offset - closest_animation_event.frame
@@ -952,7 +962,7 @@ class AnimationTag(Tag):
             for element in animation.SelectField("Block:shared animation data[0]/Block:effect events").Elements:
                 if element.SelectField("ShortBlockIndex:effect").Value > -1:
                     effect_event = EffectEvent()
-                    effect_event.from_element(element, unique_effects)
+                    effect_event.from_element(element, unique_effects, True)
                     if animation_events:
                         closest_animation_event = min(animation_events, key=lambda ae: abs(ae.frame - effect_event.frame_offset))
                         effect_event.frame_offset = effect_event.frame_offset - closest_animation_event.frame
@@ -966,7 +976,7 @@ class AnimationTag(Tag):
                         
             for element in animation.SelectField("Block:shared animation data[0]/Block:dialogue events").Elements:
                 dialogue_event = DialogueEvent()
-                dialogue_event.from_element(element)
+                dialogue_event.from_element(element, True)
                 if animation_events:
                     closest_animation_event = min(animation_events, key=lambda ae: abs(ae.frame - dialogue_event.frame_offset))
                     dialogue_event.frame_offset = dialogue_event.frame_offset - closest_animation_event.frame
@@ -977,6 +987,71 @@ class AnimationTag(Tag):
                     dialogue_event.frame_offset = 0
                     animation_event_dialogue.dialogue_events.append(dialogue_event)
                     animation_events.append(animation_event_dialogue)
+                    
+            # Apply to blender
+            def apply_flags(blender_data_event, reference: Reference):
+                blender_data_event.flag_allow_on_player = reference.allow_on_player
+                blender_data_event.flag_left_arm_only = reference.left_arm_only
+                blender_data_event.flag_right_arm_only = reference.right_arm_only
+                blender_data_event.flag_first_person_only = reference.first_person_only
+                blender_data_event.flag_third_person_only = reference.third_person_only
+                blender_data_event.flag_forward_only = reference.forward_only
+                blender_data_event.flag_reverse_only = reference.reverse_only
+                blender_data_event.flag_fp_no_aged_weapons = reference.fp_no_aged_weapons
+                
+            # Merge with event list events, frame event list gets priority
+            list_events = event_list_events.get(name)
+            if list_events is not None:
+                graph_events = animation_events
+                if not graph_events:
+                    animation_events = list_events
+                else:
+                    valid_graph_events = []
+                    for g_event in animation_events:
+                        for f_event in list_events:
+                            if f_event == g_event:
+                                break
+                        else:
+                            valid_graph_events.append(g_event)
+                        
+                    animation_events = list_events + valid_graph_events
+            
+            if animation_events:
+                blender_animation.animation_events.clear()     
+                for event in sorted(animation_events, key=lambda x: x.frame):
+                    blender_event = blender_animation.animation_events.add()
+                    blender_event.name = event.name
+                    blender_event.frame_frame = event.frame
+                    if event.end_frame > event.frame:
+                        blender_event.multi_frame = 'range'
+                        blender_event.frame_range = event.end_frame
+                    blender_event.frame_name = event.type
+                    
+                    data_events = event.sound_events + event.effect_events + event.dialogue_events
+                    data_events.sort(key=lambda x: x.frame_offset)
+                    
+                    for data_event in data_events:
+                        blender_data_event = blender_event.event_data.add()
+                        blender_data_event.frame_offset = data_event.frame_offset
+                        if isinstance(data_event, SoundEvent):
+                            blender_data_event.data_type = 'SOUND'
+                            blender_data_event.frame_offset = data_event.frame_offset
+                            blender_data_event.marker = blender_markers.get(data_event.marker_name)
+                            blender_data_event.event_sound_tag = data_event.sound_reference.tag
+                            apply_flags(blender_data_event, data_event.sound_reference)
+                        elif isinstance(data_event, EffectEvent):
+                            blender_data_event.data_type = 'EFFECT'
+                            blender_data_event.marker = blender_markers.get(data_event.marker_name)
+                            blender_data_event.event_effect_tag = data_event.effect_reference.tag
+                            apply_flags(blender_data_event, data_event.effect_reference)
+                            blender_data_event.damage_effect_reporting_type = data_event.damage_effect_reporting_type
+                        else:
+                            blender_data_event.data_type = 'DIALOGUE'
+                            blender_data_event.dialogue_event = data_event.dialogue_type
+                    
+                event_count += len(animation_events)
+            
+        return event_count
 
 def detect_renames(graph):
     name_to_paths = defaultdict(list)

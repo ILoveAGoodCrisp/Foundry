@@ -57,9 +57,12 @@ class SoundEvent:
         self.sound_reference: Reference = None
         self.marker_name = ""
     
-    def from_element(self, element: TagFieldBlockElement, sounds: list[Reference]):
-        self.animation_event_index = element.SelectField("ShortBlockIndex:frame event").Value
-        self.frame_offset = element.SelectField("ShortInteger:frame offset").Data
+    def from_element(self, element: TagFieldBlockElement, sounds: list[Reference], graph=False):
+        if not graph:
+            self.animation_event_index = element.SelectField("ShortBlockIndex:frame event").Value
+            self.frame_offset = element.SelectField("ShortInteger:frame offset").Data
+        else:
+            self.frame_offset = element.SelectField("ShortInteger:frame").Data
         self.marker_name = element.SelectField("StringId:marker name").GetStringData()
         sound_index = element.SelectField("ShortBlockIndex:sound").Value
         if sound_index > -1:
@@ -67,6 +70,9 @@ class SoundEvent:
     
     def to_element(self, element: TagFieldBlockElement):
         pass
+    
+    def __hash__(self):
+        return hash((self.frame_offset, self.sound_reference.__dict__.values(), self.marker_name))
     
 class EffectEvent:
     def __init__(self):
@@ -76,9 +82,12 @@ class EffectEvent:
         self.marker_name = ""
         self.damage_effect_reporting_type = "unknown"
     
-    def from_element(self, element: TagFieldBlockElement, effects: list[Reference]):
-        self.animation_event_index = element.SelectField("ShortBlockIndex:frame event").Value
-        self.frame_offset = element.SelectField("ShortInteger:frame offset").Data
+    def from_element(self, element: TagFieldBlockElement, effects: list[Reference], graph=False):
+        if not graph:
+            self.animation_event_index = element.SelectField("ShortBlockIndex:frame event").Value
+            self.frame_offset = element.SelectField("ShortInteger:frame offset").Data
+        else:
+            self.frame_offset = element.SelectField("ShortInteger:frame").Data
         self.marker_name = element.SelectField("StringId:marker name").GetStringData()
         effect_index = element.SelectField("ShortBlockIndex:effect").Value
         if effect_index > -1:
@@ -90,21 +99,30 @@ class EffectEvent:
     def to_element(self, element: TagFieldBlockElement):
         pass
     
+    def __hash__(self):
+        return hash((self.frame_offset, self.effect_reference.__dict__.values(), self.marker_name, self.damage_effect_reporting_type))
+    
 class DialogueEvent:
     def __init__(self):
         self.animation_event_index = -1
         self.frame_offset = 0
         self.dialogue_type = "bump"
     
-    def from_element(self, element: TagFieldBlockElement):
-        self.animation_event_index = element.SelectField("ShortBlockIndex:frame event").Value
-        self.frame_offset = element.SelectField("ShortInteger:frame offset").Data
+    def from_element(self, element: TagFieldBlockElement, graph=False):
+        if not graph:
+            self.animation_event_index = element.SelectField("ShortBlockIndex:frame event").Value
+            self.frame_offset = element.SelectField("ShortInteger:frame offset").Data
+        else:
+            self.frame_offset = element.SelectField("ShortInteger:frame").Data
         dialogue_items = element.SelectField("ShortEnum:dialogue event").Items
         self.dialogue_type = dialogue_items[element.SelectField("ShortEnum:dialogue event").Value].DisplayName
         
     
     def to_element(self, element: TagFieldBlockElement):
         pass
+    
+    def __hash__(self):
+        return hash((self.frame_offset, self.dialogue_type))
     
 class AnimationEvent:
     def __init__(self):
@@ -117,15 +135,35 @@ class AnimationEvent:
         self.name = ""
         self.end_frame = 0
         
-    def from_element(self, element: TagFieldBlockElement):
-        self.frame = element.SelectField("ShortInteger:frame").Data + element.SelectField("ShortInteger:frame offset").Data
+    def from_element(self, element: TagFieldBlockElement, graph=False):
+        if graph:
+            self.frame = element.SelectField("ShortInteger:frame").Data
+        else:
+            self.frame = element.SelectField("ShortInteger:frame").Data + element.SelectField("ShortInteger:frame offset").Data
+            self.name = element.SelectField("StringId:event name").GetStringData()
+            
         self.end_frame = self.frame
-        self.name = element.SelectField("StringId:event name").GetStringData()
         type_items = element.SelectField("ShortEnum:type").Items
         self.type = type_items[element.SelectField("ShortEnum:type").Value].DisplayName
     
     def to_element(self, element: TagFieldBlockElement):
         pass
+    
+    def __eq__(self, value):
+        return isinstance(value, AnimationEvent) and self.frame == value.frame and self.type == value.type
+        # if not isinstance(value, AnimationEvent) and self.frame == value.frame and self.type == value.type and self.end_frame == value.end_frame:
+        #     return False
+        # if [s.__hash__() for s in self.sound_events] != [s.__hash__() for s in value.sound_events]:
+        #     return False
+        # if [e.__hash__() for e in self.effect_events] != [e.__hash__() for e in value.effect_events]:
+        #     return False
+        # if [d.__hash__() for d in self.dialogue_events] != [d.__hash__() for d in value.dialogue_events]:
+        #     return False
+        
+        return True
+        
+        
+        
 
 class FrameEventListTag(Tag):
     tag_ext = 'frame_event_list'
@@ -150,7 +188,7 @@ class FrameEventListTag(Tag):
             frame_event.SelectField("StringId:animation name").SetStringData(animation.name)
             frame_event.SelectField("LongInteger:animation frame count").Data = animation.frame_end - animation.frame_start + 1
             
-    def to_blender(self, graph_events: list[AnimationEvent] = []):
+    def collect_events(self):
         unique_sounds = []
         for element in self.block_sound_references.Elements:
             ref = Reference()
@@ -164,9 +202,8 @@ class FrameEventListTag(Tag):
             unique_effects.append(ref)
         
         blender_animations = self.context.scene.nwo.animations
-        blender_markers = {ob.nwo.marker_model_group: ob for ob in bpy.data.objects if ob.type == 'EMPTY'}
         
-        event_count = 0
+        animation_name_events = {}
         
         for frame_event in self.block_frame_events.Elements:
             name = frame_event.SelectField("StringId:animation name").GetStringData()
@@ -186,7 +223,7 @@ class FrameEventListTag(Tag):
                 event = AnimationEvent()
                 event.from_element(element)
                 animation_events.append(event)
-            
+                
             # See if we can make any ranged frame events
             def collapse_events(aes):
                 aes.sort(key=lambda x: x.frame, reverse=True)
@@ -200,13 +237,17 @@ class FrameEventListTag(Tag):
 
                     # Finalize current group
                     curr.end_frame = group_end_frame
-                    group_end_frame = curr.frame
+                    group_end_frame = next.frame if next else 0
                     result.append(curr)
                         
                 return result
 
             if len(animation_events) > 1:
                 animation_events = collapse_events(animation_events)
+                
+            if name == "panic:unarmed:move_front":
+                utils.print_error("WAHHH")
+                print(len(animation_events))
             
             for element in frame_event.SelectField("Block:sound events").Elements:
                 if element.SelectField("ShortBlockIndex:sound").Value > -1:
@@ -258,50 +299,7 @@ class FrameEventListTag(Tag):
                     animation_event_dialogue.dialogue_events.append(dialogue_event)
                     animation_events.append(animation_event_dialogue)
             
-            # Apply to blender
-            def apply_flags(blender_data_event, reference: Reference):
-                blender_data_event.flag_allow_on_player = reference.allow_on_player
-                blender_data_event.flag_left_arm_only = reference.left_arm_only
-                blender_data_event.flag_right_arm_only = reference.right_arm_only
-                blender_data_event.flag_first_person_only = reference.first_person_only
-                blender_data_event.flag_third_person_only = reference.third_person_only
-                blender_data_event.flag_forward_only = reference.forward_only
-                blender_data_event.flag_reverse_only = reference.reverse_only
-                blender_data_event.flag_fp_no_aged_weapons = reference.fp_no_aged_weapons
+            animation_name_events[name] = animation_events
             
-            blender_animation.animation_events.clear()     
-            for event in sorted(animation_events, key=lambda x: x.frame):
-                blender_event = blender_animation.animation_events.add()
-                blender_event.name = event.name
-                blender_event.frame_frame = event.frame
-                if event.end_frame > event.frame:
-                    blender_event.multi_frame = 'range'
-                    blender_event.frame_range = event.end_frame
-                blender_event.frame_name = event.type
-                
-                data_events = event.sound_events + event.effect_events + event.dialogue_events
-                data_events.sort(key=lambda x: x.frame_offset)
-                
-                for data_event in data_events:
-                    blender_data_event = blender_event.event_data.add()
-                    blender_data_event.frame_offset = data_event.frame_offset
-                    if isinstance(data_event, SoundEvent):
-                        blender_data_event.data_type = 'SOUND'
-                        blender_data_event.frame_offset = data_event.frame_offset
-                        blender_data_event.marker = blender_markers.get(data_event.marker_name)
-                        blender_data_event.event_sound_tag = data_event.sound_reference.tag
-                        apply_flags(blender_data_event, data_event.sound_reference)
-                    elif isinstance(data_event, EffectEvent):
-                        blender_data_event.data_type = 'EFFECT'
-                        blender_data_event.marker = blender_markers.get(data_event.marker_name)
-                        blender_data_event.event_effect_tag = data_event.effect_reference.tag
-                        apply_flags(blender_data_event, data_event.effect_reference)
-                        blender_data_event.damage_effect_reporting_type = data_event.damage_effect_reporting_type
-                    else:
-                        blender_data_event.data_type = 'DIALOGUE'
-                        blender_data_event.dialogue_event = data_event.dialogue_type
-                    
-            event_count += len(animation_events)
-            
-        return event_count
+        return animation_name_events
                     

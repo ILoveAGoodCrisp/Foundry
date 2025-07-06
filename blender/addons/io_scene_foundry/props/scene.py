@@ -430,6 +430,7 @@ class NWO_Animation_ListItems(bpy.types.PropertyGroup):
         name="Frame Range",
         description="The frame this event is duplicated to",
         default=0,
+        options=set(),
         update=update_frame_range,
     )
 
