@@ -5,9 +5,29 @@ from pathlib import Path
 import random
 import bpy
 
+from ...managed_blam.animation import AnimationTag
+
 from ...props.scene import NWO_AnimationPropertiesGroup
 from ... import utils
 from ...icons import get_icon_id
+
+class NWO_OT_ExportFrameEvents(bpy.types.Operator):
+    bl_idname = "nwo.export_animation_frame_events"
+    bl_label = "Export Events"
+    bl_description = "Exports animation frame events to the asset frame_event_list tag. Requires the animation graph tag to exist"
+    bl_options = {"UNDO"}
+    
+    @classmethod
+    def poll(cls, context):
+        return utils.valid_nwo_asset(context) and Path(utils.get_asset_tag(".model_animation_graph", True)).exists()
+    
+    def execute(self, context):
+        graph_path = utils.get_asset_tag(".model_animation_graph")
+        with AnimationTag(path=graph_path) as graph:
+            graph.events_from_blender()
+            
+        self.report({'INFO'}, "Frame events export complete")
+        return {'FINISHED'}
 
 class NWO_UL_AnimProps_EventsData(bpy.types.UIList):
     def draw_item(

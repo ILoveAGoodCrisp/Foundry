@@ -34,6 +34,7 @@ classes = [
     viewport.NWO_PIE_ApplyTypeMarker,
     viewport.NWO_OT_ApplyTypeMarkerSingle,
     viewport.NWO_OT_ApplyTypeMarker,
+    animation.NWO_OT_ExportFrameEvents,
     animation.NWO_UL_AnimProps_EventsData,
     animation.NWO_OT_AddAnimationEventData,
     animation.NWO_OT_RemoveAnimationEventData,

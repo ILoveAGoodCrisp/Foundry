@@ -8,7 +8,7 @@ import bpy
 from .Tags import TagFieldBlockElement, TagPath
 
 from .render_model import RenderModelTag
-from . import Tag
+from . import Tag, tag_path_from_string
 from .. import utils
 
 class Reference:
@@ -25,6 +25,7 @@ class Reference:
         
         self.model_tag = ""
         self.variant = ""
+        self.index = -1
         
     def from_element(self, element: TagFieldBlockElement, corinth: bool):
         tag_path = element.Fields[0].Path
@@ -45,10 +46,22 @@ class Reference:
             model_path = element.SelectField("Reference:model").Path
             if model_path is not None:
                 self.model_tag = model_path.RelativePathWithExtension
-            self.variant = element.SelectField("StringId:variant")
+            self.variant = element.SelectField("StringId:variant").GetStringData()
     
-    def to_element(self, element: TagFieldBlockElement):
-        pass
+    def to_element(self, element: TagFieldBlockElement, corinth: bool):
+        element.Fields[0].Path = tag_path_from_string(self.tag) if self.tag else None
+        flags = element.Fields[1]
+        flags.SetBit("allow on player", self.allow_on_player)
+        flags.SetBit("left arm only", self.left_arm_only)
+        flags.SetBit("right arm only", self.right_arm_only)
+        flags.SetBit("first-person only", self.first_person_only)
+        flags.SetBit("third-person only", self.third_person_only)
+        flags.SetBit("forward only", self.forward_only)
+        flags.SetBit("reverse only", self.reverse_only)
+        flags.SetBit("fp no aged weapons", self.fp_no_aged_weapons)
+        if corinth:
+            element.Fields[2].Path = tag_path_from_string(self.model_tag) if self.model_tag else None
+            element.Fields[3].SetStringData(self.variant)
     
 class SoundEvent:
     def __init__(self):
@@ -149,6 +162,38 @@ class AnimationEvent:
     def to_element(self, element: TagFieldBlockElement):
         pass
     
+    def from_blender(self, blender_animation, blender_animation_event, unique_sounds: dict, unique_effects: dict):
+        self.frame = blender_animation_event.frame_frame - blender_animation.frame_start
+        self.type = blender_animation_event.frame_name
+        self.name = blender_animation_event.frame_name.replace(" ", "_")
+        if blender_animation_event.multi_frame == 'range':
+            self.end_frame = blender_animation_event.frame_range - blender_animation.frame_start
+        
+        for data in blender_animation_event.event_data:
+            match data.data_type:
+                case 'SOUND':
+                    sound = SoundEvent()
+                    sound.frame_offset = data.frame_offset
+                    if data.marker is not None:
+                        sound.marker_name = data.marker.nwo.model_marker_group
+                    sound.sound_reference = unique_sounds.get((data.event_sound_tag, data.flag_allow_on_player, data.flag_left_arm_only, data.flag_right_arm_only, data.flag_first_person_only, data.flag_third_person_only, data.flag_forward_only, data.flag_reverse_only, data.flag_fp_no_aged_weapons, data.event_model, data.variant))
+                    if sound.sound_reference is not None:
+                        self.sound_events.append(sound)
+                case 'EFFECT':
+                    effect = EffectEvent()
+                    effect.frame_offset = data.frame_offset
+                    if effect.marker is not None:
+                        effect.marker_name = data.marker.nwo.model_marker_group
+                    effect.sound_reference = unique_effects.get((data.event_sound_tag, data.flag_allow_on_player, data.flag_left_arm_only, data.flag_right_arm_only, data.flag_first_person_only, data.flag_third_person_only, data.flag_forward_only, data.flag_reverse_only, data.flag_fp_no_aged_weapons, data.event_model, data.variant))
+                    effect.damage_effect_reporting_type = data.damage_effect_reporting_type
+                    if effect.effect_reference is not None:
+                        self.effect_events.append(effect)
+                case 'DIALOGUE':
+                    dialogue = DialogueEvent()
+                    dialogue.frame_offset = data.frame_offset
+                    dialogue.dialogue_type = data.dialogue_event
+                    self.dialogue_events.append(dialogue)
+    
     def __eq__(self, value):
         return isinstance(value, AnimationEvent) and self.frame == value.frame and self.type == value.type
         # if not isinstance(value, AnimationEvent) and self.frame == value.frame and self.type == value.type and self.end_frame == value.end_frame:
@@ -159,8 +204,6 @@ class AnimationEvent:
         #     return False
         # if [d.__hash__() for d in self.dialogue_events] != [d.__hash__() for d in value.dialogue_events]:
         #     return False
-        
-        return True
         
         
         
@@ -187,6 +230,141 @@ class FrameEventListTag(Tag):
             frame_event = self.block_frame_events.AddElement()
             frame_event.SelectField("StringId:animation name").SetStringData(animation.name)
             frame_event.SelectField("LongInteger:animation frame count").Data = animation.frame_end - animation.frame_start + 1
+            
+    def from_blender(self, animations: list):
+        self.block_sound_references.RemoveAllElements()
+        self.block_effect_references.RemoveAllElements()
+        self.block_frame_events.RemoveAllElements()
+        
+        blender_animations = {a.name: a for a in self.context.scene.nwo.animations if a.export_this}
+        
+        unique_sounds_set = set()
+        unique_effects_set = set()
+        
+        for b_animation in blender_animations.values():
+            for event in b_animation.animation_events:
+                for data in event.event_data:
+                    match data.data_type:
+                        case 'SOUND':
+                            if data.event_sound_tag.strip():
+                                unique_sounds_set.add((data.event_sound_tag, data.flag_allow_on_player, data.flag_left_arm_only, data.flag_right_arm_only, data.flag_first_person_only, data.flag_third_person_only, data.flag_forward_only, data.flag_reverse_only, data.flag_fp_no_aged_weapons, data.event_model, data.variant))
+                        case 'EFFECT':
+                            if data.event_effect_tag.strip():
+                                unique_effects_set.add((data.event_effect_tag, data.flag_allow_on_player, data.flag_left_arm_only, data.flag_right_arm_only, data.flag_first_person_only, data.flag_third_person_only, data.flag_forward_only, data.flag_reverse_only, data.flag_fp_no_aged_weapons, data.event_model, data.variant))
+        
+        unique_sounds = {}
+        unique_effects = {}
+        
+        for u in unique_sounds_set:
+            sound = Reference()
+            sound.tag = u[0]
+            sound.allow_on_player = u[1]
+            sound.left_arm_only = u[2]
+            sound.right_arm_only = u[3]
+            sound.first_person_only = u[4]
+            sound.third_person_only = u[5]
+            sound.forward_only = u[6]
+            sound.reverse_only = u[7]
+            sound.fp_no_aged_weapons = u[8]
+            sound.model_tag = u[9]
+            sound.variant = u[10]
+            unique_sounds[u] = sound
+            
+        for u in unique_effects_set:
+            effect = Reference()
+            effect.tag = u[0]
+            effect.allow_on_player = u[1]
+            effect.left_arm_only = u[2]
+            effect.right_arm_only = u[3]
+            effect.first_person_only = u[4]
+            effect.third_person_only = u[5]
+            effect.forward_only = u[6]
+            effect.reverse_only = u[7]
+            effect.fp_no_aged_weapons = u[8]
+            effect.model_tag = u[9]
+            effect.variant = u[10]
+            unique_effects[u] = effect
+            
+        for idx, sound in enumerate(sorted(unique_sounds.values(), key=lambda x: Path(x.tag).with_suffix("").name)):
+            sound.index = idx
+            sound.to_element(self.block_sound_references.AddElement(), self.corinth)
+            
+        for idx, effect in enumerate(sorted(unique_effects.values(), key=lambda x: Path(x.tag).with_suffix("").name)):
+            effect.index = idx
+            effect.to_element(self.block_effect_references.AddElement(), self.corinth)
+        
+        for animation in animations:
+            frame_event = self.block_frame_events.AddElement()
+            frame_event.Fields[0].SetStringData(animation.name)
+            name_with_spaces = animation.name.replace(":", " ")
+            blender_animation = blender_animations.get(name_with_spaces)
+            if blender_animation is None:
+                blender_animation = blender_animations.get(animation.name)
+                if not blender_animation:
+                    utils.print_warning(f"--- Animation Graph contains animation {name_with_spaces} but Blender does not (or it is not set to export)")
+                    continue
+                
+            if not blender_animation.animation_events:
+                continue
+            
+            frame_event.Fields[1].Data = animation.frame_count
+
+            for blender_event in blender_animation.animation_events:
+                animation_event = AnimationEvent()
+                animation_event.from_blender(blender_animation, blender_event, unique_sounds, unique_effects)
+                
+                data_only_event = animation_event.type == "none"
+                
+                if not data_only_event:
+                    event = frame_event.Fields[2].AddElement()
+                    event.Fields[0].SetStringData(animation_event.name)
+                    event.Fields[1].SetStringData(animation.name)
+                    event.Fields[2].Data = animation_event.frame
+                    for idx, item in enumerate(event.Fields[4].Items):
+                        if item.DisplayName == animation_event.type:
+                            event.Fields[4].Value = idx
+                            break
+                            
+                for sound in animation_event.sound_events:
+                    sound_event = frame_event.Fields[3].AddElement()
+                    if not data_only_event:
+                        sound_event.Fields[0].Value = event.ElementIndex
+                        sound_event.Fields[2].Data = sound.frame_offset
+                    else:
+                        sound_event.Fields[2].Data = sound.frame_offset + animation_event.frame
+                        
+                    sound_event.Fields[1].Value = sound.sound_reference.index
+                    sound_event.Fields[4].SetStringData(sound.marker_name)
+                    
+                for effect in animation_event.effect_events:
+                    effect_event = frame_event.Fields[4].AddElement()
+                    if not data_only_event:
+                        effect_event.Fields[0].Value = event.ElementIndex
+                        effect_event.Fields[2].Data = effect.frame_offset
+                    else:
+                        effect_event.Fields[2].Data = effect.frame_offset + animation_event.frame
+                        
+                    effect_event.Fields[1].Value = effect.effect_reference.index
+                    effect_event.Fields[4].SetStringData(effect.marker_name)
+                    for idx, item in enumerate(effect_event.Fields[5].Items):
+                        if item.DisplayName == effect.damage_effect_reporting_type:
+                            event.Fields[5].Value = idx
+                            break
+                        
+                for dialogue in animation_event.dialogue_events:
+                    dialogue_event = frame_event.Fields[5].AddElement()
+                    if not data_only_event:
+                        dialogue_event.Fields[0].Value = dialogue.ElementIndex
+                        dialogue_event.Fields[2].Data = dialogue.frame_offset
+                    else:
+                        dialogue_event.Fields[2].Data = effect.frame_offset + animation_event.frame
+                        
+                    for idx, item in enumerate(dialogue_event.Fields[1].Items):
+                        if item.DisplayName == dialogue.dialogue_type:
+                            event.Fields[1].Value = idx
+                            break
+
+        self.tag_has_changes = True
             
     def collect_events(self):
         unique_sounds = []
@@ -223,37 +401,13 @@ class FrameEventListTag(Tag):
                 event = AnimationEvent()
                 event.from_element(element)
                 animation_events.append(event)
-                
-            # See if we can make any ranged frame events
-            def collapse_events(aes):
-                aes.sort(key=lambda x: x.frame, reverse=True)
-                result = []
-                group_end_frame = aes[0].frame
-                
-                for curr, next in zip(aes, aes[1:] + [None]):
-                    if next:
-                        if next.frame == curr.frame - 1 and curr.type == next.type:
-                            continue
-
-                    # Finalize current group
-                    curr.end_frame = group_end_frame
-                    group_end_frame = next.frame if next else 0
-                    result.append(curr)
-                        
-                return result
-
-            if len(animation_events) > 1:
-                animation_events = collapse_events(animation_events)
-                
-            if name == "panic:unarmed:move_front":
-                utils.print_error("WAHHH")
-                print(len(animation_events))
             
             for element in frame_event.SelectField("Block:sound events").Elements:
                 if element.SelectField("ShortBlockIndex:sound").Value > -1:
                     sound_event = SoundEvent()
                     sound_event.from_element(element, unique_sounds)
                     if sound_event.animation_event_index > -1:
+                        
                         animation_events[sound_event.animation_event_index].sound_events.append(sound_event)
                     elif animation_events:
                         closest_animation_event = min(animation_events, key=lambda ae: abs(ae.frame - sound_event.frame_offset))
@@ -298,6 +452,29 @@ class FrameEventListTag(Tag):
                     dialogue_event.frame_offset = 0
                     animation_event_dialogue.dialogue_events.append(dialogue_event)
                     animation_events.append(animation_event_dialogue)
+                    
+            # See if we can make any ranged frame events
+            def collapse_events(aes):
+                aes.sort(key=lambda x: x.frame, reverse=True)
+                result = []
+                group_end_frame = aes[0].frame
+                data_events = []
+                
+                
+                for curr, next in zip(aes, aes[1:] + [None]):
+                    if next:
+                        if next.frame == curr.frame - 1 and curr.type == next.type and not (curr.sound_events or curr.effect_events or curr.dialogue_events):
+                            continue
+
+                    # Finalize current group
+                    curr.end_frame = group_end_frame
+                    group_end_frame = next.frame if next else 0
+                    result.append(curr)
+                        
+                return result
+
+            if len(animation_events) > 1:
+                animation_events = collapse_events(animation_events)
             
             animation_name_events[name] = animation_events
             

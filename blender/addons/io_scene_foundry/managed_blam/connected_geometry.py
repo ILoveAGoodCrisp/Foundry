@@ -125,6 +125,20 @@ class Cluster:
         result = self.mesh.create(render_model, temp_meshes, name=f"cluster:{self.index}")
         if result:
             return result[0]
+        
+class SurfaceMapping:
+    def __init__(self, first: int, count: int, surface: 'CollisionSurface', surf_to_tri_block: TagFieldBlock):
+        self.surface = surface
+        self.triangle_indices = []
+        self.collision_only = False
+        if count:
+            for i in range(first, first + count):
+                result = ((surf_to_tri_block.Elements[i].Fields[0].Data >> 12) + 1) / 3 - 1
+                if not result.is_integer():
+                    print(result, int(result))
+                self.triangle_indices.append(int(result))
+        else:
+            self.collision_only = True
     
 class InstanceDefinition:
     def __init__(self, element: TagFieldBlockElement, mesh_block: TagFieldBlock, compression_bounds: list['CompressionBounds'], render_materials: list['Material'], collision_materials: list['BSPCollisionMaterial'], for_cinematic = False):
@@ -134,7 +148,10 @@ class InstanceDefinition:
         self.compression = compression_bounds[self.compression_index]
         self.mesh = Mesh(mesh_block.Elements[self.mesh_index], self.compression, materials=render_materials)
         self.has_collision = False
+        self.collision_is_proxy = False
+        self.surface_triangle_mapping = []
         self.collision_info = None
+        self.collision_only_surface_indices = []
         self.has_cookie = False
         self.cookie_info = None
         self.blender_collision = None
@@ -143,9 +160,17 @@ class InstanceDefinition:
         self.blender_physics = []
         self.blender_render = None
         if not utils.is_corinth() and not for_cinematic:
-            self.has_collision = element.SelectField("Struct:collision info[0]/Block:surfaces").Elements.Count > 0
+            self.has_collision = element.SelectField("Struct:collision info[0]/Block:surfaces").Elements.Count > 0 or element.SelectField("Block:render bsp").Elements.Count > 0
+            self.collision_is_proxy = self.has_collision and element.SelectField("Block:surfaces").Elements.Count == 0
             if self.has_collision:
-                self.collision_info = InstanceCollision(element.SelectField("Struct:collision info").Elements[0], f"instance_collision:{self.index}", collision_materials)
+                if element.SelectField("Block:render bsp").Elements.Count > 0:
+                    self.collision_info = InstanceCollision(element.SelectField("Block:render bsp").Elements[0], f"instance_collision:{self.index}", collision_materials)
+                else:
+                    self.collision_info = InstanceCollision(element.SelectField("Struct:collision info").Elements[0], f"instance_collision:{self.index}", collision_materials)
+                if not self.collision_is_proxy:
+                    surf_to_tri_block = element.SelectField("Block:surface to triangle mapping")
+                    self.surface_triangle_mapping = [SurfaceMapping(e.Fields[0].Data, e.Fields[1].Data, self.collision_info.surfaces[e.ElementIndex], surf_to_tri_block) for e in element.SelectField("Block:surfaces").Elements]
+                    self.collision_only_surface_indices = [idx for idx, mapping in enumerate(self.surface_triangle_mapping) if mapping.collision_only]
             self.has_cookie = element.SelectField("Struct:poopie cutter collision[0]/Block:surfaces").Elements.Count > 0
             if self.has_cookie:
                 self.cookie_info = InstanceCollision(element.SelectField("Struct:poopie cutter collision").Elements[0], f"instance_cookie_cutter:{self.index}", collision_materials)
@@ -156,10 +181,14 @@ class InstanceDefinition:
     
     def create(self, render_model, temp_meshes) -> list[bpy.types.Object]:
         objects = []
-        result = self.mesh.create(render_model, temp_meshes, name=f"instance_definition:{self.index}")
+        
+        result = self.mesh.create(render_model, temp_meshes, name=f"instance_definition:{self.index}", surface_triangle_mapping=self.surface_triangle_mapping)
         self.blender_render = None
         if result:
             self.blender_render = result[0]
+            
+        render_valid = self.blender_render and self.blender_render.type == 'MESH'
+            
         if not utils.is_corinth():
                     
             if self.has_cookie:
@@ -170,67 +199,41 @@ class InstanceDefinition:
                 self.blender_render.data.nwo.proxy_cookie_cutter = self.blender_cookie
                 
             if self.has_collision:
-                self.blender_collision = self.collision_info.to_object()
-                if self.blender_render and self.blender_render.type == 'MESH':
-                    breakable_face_props = [prop for prop in self.blender_collision.data.nwo.face_props if prop.breakable_override]
-                    if self.blender_collision.data.nwo.breakable or breakable_face_props:
-                    # Proxy collision can't be breakable, so wing it and use the render as the collision
-                        if self.blender_render:
-                            if self.blender_collision.data.nwo.breakable:
-                                self.blender_render.data.nwo.breakable = True
-                            else:
-                                # This assumes that materials between the render and collision match and are the basis of breakables
-                                bm_coll = bmesh.new()
-                                bm_coll.from_mesh(self.blender_collision.data)
-                                for prop in breakable_face_props:
-                                    breakable_material_indexes_coll = set()
-                                    layer_coll = bm_coll.faces.layers.int.get(prop.layer_name)
-                                    for face in bm_coll.faces:
-                                        if face[layer_coll]:
-                                            breakable_material_indexes_coll.add(face.material_index)
-                                            break
-                                    else:
-                                        bm_coll.free()
-                                        continue
-                                    
-                                    bm_coll.free()
-                                    material_colls = set()
-                                    for i in breakable_material_indexes_coll:
-                                        material_colls.add(self.blender_collision.data.materials[i])
-                                        
-                                    if not material_colls:
-                                        continue
-                                        
-                                    breakable_material_indexes_render = set()
-                                        
-                                    for idx, material in enumerate(self.blender_render.data.materials):
-                                        if material in material_colls:
-                                            breakable_material_indexes_render.add(idx)
-                                            
-                                    if not breakable_material_indexes_render:
-                                        continue
-                                    
-                                    bm_render = bmesh.new()
-                                    bm_render.from_mesh(self.blender_render.data)
-                                    layer_render = utils.add_face_layer(bm_render, self.blender_render.data, "breakable", True)
-                                    face_count = 0
-                                    for face in bm_render.faces:
-                                        if face.material_index in breakable_material_indexes_render:
-                                            face[layer_render] = 1
-                                            face_count += 1
-                                            
-                                    self.blender_render.data.nwo.face_props[-1].face_count = face_count
-                                    bm_render.to_mesh(self.blender_render.data)
-                                    bm_render.free()
-                                    
-                            self.blender_collision = None
-                    else:
-                        self.blender_collision.name = f"{self.blender_render.name}_proxy_collision"
-                        self.blender_collision.nwo.proxy_parent = self.blender_render.data
-                        self.blender_collision.nwo.proxy_type = "collision"
-                        self.blender_render.data.nwo.proxy_collision = self.blender_collision
+                if render_valid:
+                    if self.collision_is_proxy:
+                        self.blender_collision = self.collision_info.to_object()
+                        if self.blender_render and self.blender_render.type == 'MESH':
+                            self.blender_collision.name = f"{self.blender_render.name}_proxy_collision"
+                            self.blender_collision.nwo.proxy_parent = self.blender_render.data
+                            self.blender_collision.nwo.proxy_type = "collision"
+                            self.blender_render.data.nwo.proxy_collision = self.blender_collision
+                    elif len(self.collision_only_surface_indices) == len(self.surface_triangle_mapping):
+                        # self.blender_render.data.nwo.collision_only = True
+                        pass
+                    elif self.collision_only_surface_indices:
+                        print(self.blender_render.name, self.collision_only_surface_indices)
+                        collision_mesh = self.collision_info.to_object(mesh_only=True, surface_indices=self.collision_only_surface_indices)
+                        bm = bmesh.new()
+                        bm.from_mesh(collision_mesh)
+                        collision_only_layer = utils.add_face_layer(bm, collision_mesh, "collision_only", True)
+                        for face in bm.faces:
+                            face[collision_only_layer] = 1
+                        bm.from_mesh(self.blender_render.data)
+                        bm.to_mesh(self.blender_render.data)
+                        bm.free()
+                    
+                        set_two_sided(self.blender_render.data, False) 
+                        utils.loop_normal_magic(self.blender_render.data)
+                        
+                        for layer in collision_mesh.nwo.face_props:
+                            new_layer = self.blender_render.data.nwo.face_props.add()
+                            for k,v in layer.items():
+                                new_layer.__setattr__(k, v)
                 else:
-                    self.blender_collision.data.nwo.collision_only = True
+                    self.blender_render = self.collision_info.to_object()
+                    self.blender_render.name = f"instance_definition:{self.index}"
+                    self.blender_render.data.nwo.collision_only = True
+                    render_valid = True
                     
             elif self.blender_render and self.blender_render.data:
                 self.blender_render.data.nwo.render_only = True
@@ -908,9 +911,13 @@ class BSP:
         self.edges = [CollisionEdge(e) for e in element.SelectField("Block:edges").Elements]
 
         
-    def to_object(self) -> bpy.types.Object:
+    def to_object(self, mesh_only=False, surface_indices=[]) -> bpy.types.Object:
         def yield_indices():
-            for surface in self.surfaces:
+            if surface_indices:
+                surfaces = [i for idx, i in enumerate(self.surfaces) if idx in set(surface_indices)]
+            else:
+                surfaces = self.surfaces
+            for surface in surfaces:
                 first_edge = self.edges[surface.first_edge]
                 edge = first_edge
                 polygon = []
@@ -1090,6 +1097,9 @@ class BSP:
             
         bm.to_mesh(mesh)
         bm.free()
+        
+        if mesh_only:
+            return mesh
         
         ob = bpy.data.objects.new(self.name, mesh)
         if not self.uses_materials:
@@ -1449,7 +1459,7 @@ class Mesh:
         
         return Vector((u, 1-v)) # 1-v to correct UV for Blender
     
-    def create(self, render_model, temp_meshes: TagFieldBlock, nodes=[], parent: bpy.types.Object | None = None, instances: list['InstancePlacement'] = [], name="blam", is_io=False):
+    def create(self, render_model, temp_meshes: TagFieldBlock, nodes=[], parent: bpy.types.Object | None = None, instances: list['InstancePlacement'] = [], name="blam", is_io=False, surface_triangle_mapping=[]):
         if not self.valid:
             return []
 
@@ -1498,11 +1508,11 @@ class Mesh:
         else:
             if self.permutation:
                 name = f"{self.permutation.region.name}:{self.permutation.name}"
-            objects.append(self._create_mesh(name, parent, nodes, None))
+            objects.append(self._create_mesh(name, parent, nodes, None, surface_triangle_mapping=surface_triangle_mapping))
 
         return objects
 
-    def _create_mesh(self, name, parent, nodes, subpart: MeshSubpart | None, parent_bone=None, local_matrix=None, is_io=False):
+    def _create_mesh(self, name, parent, nodes, subpart: MeshSubpart | None, parent_bone=None, local_matrix=None, is_io=False, surface_triangle_mapping=[]):
         matrix = local_matrix or (parent.matrix_world if parent else Matrix.Identity(4))
 
         indices = [t.indices for t in self.tris if not subpart or t.subpart == subpart]
@@ -1617,10 +1627,59 @@ class Mesh:
             else:
                 for subpart in self.subparts:
                     subpart.create(ob, self.tris, self.face_transparent, self.face_draw_distance, self.face_tesselation, self.face_no_shadow, self.face_lightmap_only, water_surface_parts)
+            
+        # for IG figure out what tris are render only
+        if surface_triangle_mapping:
+            mapping_count = sum([len(mapping.triangle_indices) for mapping in surface_triangle_mapping])
+            indices = [t.index for t in self.tris]
+            props = [[] for _ in indices]
+            collision_face_indices = []
+            any_slip_surface = any([mapping.surface.slip_surface for mapping in surface_triangle_mapping])
+            any_ladder = any([mapping.surface.ladder for mapping in surface_triangle_mapping])
+            any_breakable = any([mapping.surface.breakable for mapping in surface_triangle_mapping])
+            bm = bmesh.new()
+            bm.from_mesh(mesh)
+            if any_slip_surface:
+                slip_surface_layer = utils.add_face_layer(bm, mesh, "slip_surface", True)
+            if any_ladder:
+                ladder_layer = utils.add_face_layer(bm, mesh, "ladder", True)
+            if any_breakable:
+                breakable_layer = utils.add_face_layer(bm, mesh, "breakable", True)
+            
+            for mapping in surface_triangle_mapping:
+                mapping: SurfaceMapping
+                
+                if any_slip_surface and mapping.surface.slip_surface:
+                    for i in mapping.triangle_indices:
+                        props[i].append(slip_surface_layer)
+                        
+                if any_ladder and mapping.surface.ladder:
+                    for i in mapping.triangle_indices:
+                        props[i].append(ladder_layer)
+                        
+                if any_breakable and mapping.surface.breakable:
+                    for i in mapping.triangle_indices:
+                        props[i].append(breakable_layer)
+                        
+                collision_face_indices.extend(mapping.triangle_indices)
+                    
+            render_only_indices = [i for i in indices if i not in set(collision_face_indices)]
+            if render_only_indices:
+                render_only_layer = utils.add_face_layer(bm, mesh, "render_only", True)
+                for i in render_only_indices:
+                    props[i].append(render_only_layer)
+                    
+            bm.faces.ensure_lookup_table()
+            for i in indices:
+                for layer in props[i]:
+                    bm.faces[i][layer] = 1
+
+            bm.to_mesh(mesh)
+            bm.free()
 
 
-        # self._set_two_sided(mesh, is_io) NOTE no longer setting this. This both saves time and means we don't need to worry about per material two-sidedness
-        # utils.loop_normal_magic(mesh)
+        set_two_sided(mesh, is_io) # NOTE no longer setting this. This both saves time and means we don't need to worry about per material two-sidedness
+        utils.loop_normal_magic(mesh)
         
         if mesh.nwo.face_props:
             bm = bmesh.new()
@@ -1629,7 +1688,8 @@ class Mesh:
                 face_layer.face_count = utils.layer_face_count(bm, bm.faces.layers.int.get(face_layer.layer_name))
             bm.free()
 
-        mesh.nwo.precise_position = True # Always set precise since we're importing game processed geo anyway
+        # if self.for_model:
+        # mesh.nwo.precise_position = True # Always set precise since we're importing game processed geo anyway
             
         if self.is_pca:
             mesh.color_attributes.new("tension", 'FLOAT_COLOR', 'POINT')
@@ -1638,42 +1698,6 @@ class Mesh:
             mesh.nwo.uncompressed = True
 
         return ob
-
-    def _set_two_sided(self, mesh, is_io: bool):
-        bm = bmesh.new()
-        bm.from_mesh(mesh)
-        bm.faces.ensure_lookup_table()
-
-        face_dict = {}
-        for face in bm.faces:
-            vert_set = frozenset(v.co.to_tuple() for v in face.verts)
-            face_dict.setdefault(vert_set, []).append(face)
-
-        to_remove = set()
-        two_sided = set()
-        for faces in face_dict.values():
-            for i, f1 in enumerate(faces):
-                for f2 in faces[i+1:]:
-                    if {v.co.to_tuple() for v in f1.verts} == {v.co.to_tuple() for v in reversed(f2.verts)} and f1.material_index == f2.material_index:
-                        to_remove.add(f2.index)
-                        two_sided.add(f1.index)
-                        break
-
-        if to_remove:
-            if len(bm.faces) == len(to_remove):
-                mesh.nwo.face_two_sided = True
-            elif is_io:
-                return bm.free()
-            else:
-                layer = utils.add_face_layer(bm, mesh, "two_sided", True)
-                for face in bm.faces:
-                    if face.index in two_sided:
-                        face[layer] = 1
-            
-            bmesh.ops.delete(bm, geom=[bm.faces[i] for i in to_remove], context='FACES')
-            
-        bm.to_mesh(mesh)
-        bm.free()
 
         
 class InstancePlacement:
@@ -1865,3 +1889,39 @@ def get_blender_material(name, shader_path=""):
             mat.nwo.shader_path = shader_path
         
     return mat
+
+def set_two_sided(mesh, is_io: bool):
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    bm.faces.ensure_lookup_table()
+
+    face_dict = {}
+    for face in bm.faces:
+        vert_set = frozenset(v.co.to_tuple() for v in face.verts)
+        face_dict.setdefault(vert_set, []).append(face)
+
+    to_remove = set()
+    two_sided = set()
+    for faces in face_dict.values():
+        for i, f1 in enumerate(faces):
+            for f2 in faces[i+1:]:
+                if {v.co.to_tuple() for v in f1.verts} == {v.co.to_tuple() for v in reversed(f2.verts)} and f1.material_index == f2.material_index:
+                    to_remove.add(f2.index)
+                    two_sided.add(f1.index)
+                    break
+
+    if to_remove:
+        if len(bm.faces) == len(to_remove):
+            mesh.nwo.face_two_sided = True
+        elif is_io:
+            return bm.free()
+        else:
+            layer = utils.add_face_layer(bm, mesh, "two_sided", True)
+            for face in bm.faces:
+                if face.index in two_sided:
+                    face[layer] = 1
+        
+        bmesh.ops.delete(bm, geom=[bm.faces[i] for i in to_remove], context='FACES')
+        
+    bm.to_mesh(mesh)
+    bm.free()

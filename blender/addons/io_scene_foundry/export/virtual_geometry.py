@@ -1181,7 +1181,7 @@ class VirtualMesh:
             
         if self.vertex_ids is not None:
             self.vertex_ids = self.vertex_ids[new_indices, :]
-
+        
         if num_materials > 1 and scene.supports_multiple_materials(ob, props):
             material_indices = np.empty(num_polygons, dtype=np.int32)
             mesh.polygons.foreach_get("material_index", material_indices)
@@ -1191,7 +1191,8 @@ class VirtualMesh:
             unique_indices = np.concatenate(([0], np.where(np.diff(material_indices[sorted_order]) != 0)[0] + 1))
             counts = np.diff(np.concatenate((unique_indices, [len(material_indices)])))
             mat_index_counts = list(zip(unique_indices, counts))
-            used_materials = [self.bpy_materials[i] for i in np.unique(material_indices)]
+            print(ob.name, np.unique(material_indices))
+            used_materials = [self.bpy_materials[i] for i in np.unique(material_indices) if i < len(self.bpy_materials)]
             unique_materials = list(dict.fromkeys([m for m in used_materials]))
             for idx, mat in enumerate(used_materials):
                 virtual_mat = scene._get_material(mat, scene)

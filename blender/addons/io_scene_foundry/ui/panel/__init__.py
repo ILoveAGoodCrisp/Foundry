@@ -3203,6 +3203,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 row = box.row()
                 row.operator("nwo.copy_events", icon="COPYDOWN")
                 row.operator("nwo.paste_events", icon="PASTEDOWN")
+                row = box.row()
+                row.operator("nwo.export_animation_frame_events", icon="EXPORT")
 
                 if animation.animation_events:
                     item = animation.animation_events[animation.active_animation_event_index]

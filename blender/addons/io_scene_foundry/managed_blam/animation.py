@@ -60,6 +60,7 @@ class Animation:
     def from_element(self, element: TagFieldBlockElement):
         self.name = element.Fields[0].GetStringData()
         self.index = element.ElementIndex
+        self.frame_count = element.SelectField("Block:shared animation data[0]/ShortInteger:frame count").Data
         
     def __repr__(self):
         return self.name
@@ -94,6 +95,18 @@ class AnimationTag(Tag):
             return [element.Fields[0].GetStringData() for element in self.block_animations.Elements if filter in element.Fields[0].GetStringData()]
         else:
             return [element.Fields[0].GetStringData() for element in self.block_animations.Elements]
+        
+    def get_animations(self, filter="") -> list[str]:
+        """Returns a list of all animation"""
+        def make_animation(element):
+            anim = Animation()
+            anim.from_element(element)
+            return anim
+        
+        if filter:
+            return [make_animation(element) for element in self.block_animations.Elements if filter in element.Fields[0].GetStringData()]
+        else:
+            return [make_animation(element) for element in self.block_animations.Elements]
         
     def _initialize_tag(self):
         self.tag.SelectField('Struct:definitions[0]/ShortInteger:animation codec pack').Data = 6
@@ -876,6 +889,16 @@ class AnimationTag(Tag):
             print(animation.name, sorted(list(animation.state_types)))
         print("+++++++++++++++++++++++++++++++")
         
+    def events_from_blender(self):
+        frame_event_list_path = Path(self.tag_path.RelativePath).with_suffix(".frame_event_list")
+        with FrameEventListTag(path=frame_event_list_path) as events:
+            events.from_blender(self.get_animations())
+            
+            event_list_tag_ref = self.tag.SelectField("Struct:definitions[0]/Reference:imported events")
+            if event_list_tag_ref.Path.RelativePathWithExtension != events.tag_path.RelativePathWithExtension:
+                event_list_tag_ref.Path = events.tag_path
+                self.tag_has_changes = True
+        
     def events_to_blender(self) -> int:
         '''Create AnimationEvents from legacy graph events'''
         event_list_events = []
@@ -923,27 +946,6 @@ class AnimationTag(Tag):
                 event.from_element(element, True)
                 animation_events.append(event)
             
-            # See if we can make any ranged frame events
-            def collapse_events(aes):
-                aes.sort(key=lambda x: x.frame, reverse=True)
-                result = []
-                group_end_frame = aes[0].frame
-                
-                for curr, next in zip(aes, aes[1:] + [None]):
-                    if next:
-                        if next.frame == curr.frame - 1 and curr.type == next.type:
-                            continue
-
-                    # Finalize current group
-                    curr.end_frame = group_end_frame
-                    group_end_frame = next.frame if next else 0
-                    result.append(curr)
-                        
-                return result
-
-            if len(animation_events) > 1:
-                animation_events = collapse_events(animation_events)
-            
             for element in animation.SelectField("Block:shared animation data[0]/Block:sound events").Elements:
                 if element.SelectField("ShortBlockIndex:sound").Value > -1:
                     sound_event = SoundEvent()
@@ -987,6 +989,29 @@ class AnimationTag(Tag):
                     dialogue_event.frame_offset = 0
                     animation_event_dialogue.dialogue_events.append(dialogue_event)
                     animation_events.append(animation_event_dialogue)
+                    
+            # See if we can make any ranged frame events
+            def collapse_events(aes):
+                aes.sort(key=lambda x: x.frame, reverse=True)
+                result = []
+                group_end_frame = aes[0].frame
+                data_events = []
+                
+                
+                for curr, next in zip(aes, aes[1:] + [None]):
+                    if next:
+                        if next.frame == curr.frame - 1 and curr.type == next.type and not (curr.sound_events or curr.effect_events or curr.dialogue_events):
+                            continue
+
+                    # Finalize current group
+                    curr.end_frame = group_end_frame
+                    group_end_frame = next.frame if next else 0
+                    result.append(curr)
+                        
+                return result
+
+            if len(animation_events) > 1:
+                animation_events = collapse_events(animation_events)
                     
             # Apply to blender
             def apply_flags(blender_data_event, reference: Reference):
