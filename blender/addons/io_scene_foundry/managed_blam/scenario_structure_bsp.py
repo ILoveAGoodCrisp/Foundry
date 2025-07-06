@@ -331,7 +331,8 @@ class ScenarioStructureBspTag(Tag):
             if surfaces.Elements.Count > 0: # Already has data
                 continue
             
-            surfaces.AddElement()
+            for element in igd.SelectField("Struct:collision info[0]/Block:surfaces").Elements:
+                surfaces.AddElement()
             self.tag_has_changes = True
     
 def are_faces_overlapping(face1, face2):
