@@ -5,7 +5,7 @@ import bpy
 
 from ..tools.property_apply import apply_props_material
 
-from .connected_geometry import BSPCollisionMaterial, BSPSeam, Cluster, CompressionBounds, Instance, InstanceDefinition, Material, Mesh, Portal, StructureCollision
+from .connected_geometry import BSPCollisionMaterial, BSPSeam, Cluster, CompressionBounds, Instance, InstanceDefinition, Material, Mesh, Portal, StructureCollision, SurfaceMapping
 from ..utils import jstr
 from ..managed_blam import Tag
 from .. import utils
@@ -178,6 +178,20 @@ class ScenarioStructureBspTag(Tag):
         # Create structure
         structure_objects = []
         print("Creating Structure")
+        
+        raw_resources = self.tag.SelectField("Struct:resource interface[0]/Block:raw_resources")
+        if raw_resources.Elements.Count > 0:
+            collision = None
+            collision_bsp = raw_resources.Elements[0].SelectField("Struct:raw_items[0]/Block:collision bsp")
+            large_collision_bsp = raw_resources.Elements[0].SelectField("Struct:raw_items[0]/Block:large collision bsp")
+            if collision_bsp.Elements.Count > 0:
+                collision = StructureCollision(collision_bsp.Elements[0], "structure_collision", collision_materials)
+            elif large_collision_bsp.Elements.Count > 0:
+                collision = StructureCollision(large_collision_bsp.Elements[0], "structure_collision", collision_materials)
+                
+                
+        
+        structure_surface_triangle_mapping = [SurfaceMapping(e.Fields[0].Data, e.Fields[1].Data, collision.surfaces[e.ElementIndex], self.tag.SelectField("Block:structure surface to triangle mapping")) for e in self.tag.SelectField("Block:large structure surfaces").Elements]
         for element in self.tag.SelectField("Block:clusters").Elements:
             structure = Cluster(element, meshes, render_materials)
             ob = structure.create(render_model, temp_meshes)
@@ -345,3 +359,29 @@ def are_faces_overlapping(face1, face2):
     
     # Check if the sets are identical
     return verts1 == verts2
+
+def auto_merge_and_split():
+    ts = bpy.context.scene.tool_settings
+    ts.use_mesh_automerge         = True
+    ts.use_mesh_automerge_and_split = True
+    # (Optionally tweak the merge threshold; default is quite small)
+    # ts.mesh_automerge_threshold = 0.001
+
+    # 2. For each selected mesh, enter Edit Mode, select all, and apply a no-op transform
+    for obj in bpy.context.selected_objects:
+        if obj.type == 'MESH':
+            bpy.context.view_layer.objects.active = obj
+
+            # Enter Edit Mode and select everything
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.mesh.select_all(action='SELECT')
+
+            # Apply a zero-degree rotation (or any tiny move) around X to trigger the tool
+            bpy.ops.transform.rotate(
+                value=0.0,                  # zero radians == no visible change
+                orient_axis='X',
+                orient_type='GLOBAL'
+            )
+
+            # Back to Object Mode
+            bpy.ops.object.mode_set(mode='OBJECT')

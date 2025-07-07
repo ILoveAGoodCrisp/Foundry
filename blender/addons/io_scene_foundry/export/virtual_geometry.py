@@ -1191,7 +1191,6 @@ class VirtualMesh:
             unique_indices = np.concatenate(([0], np.where(np.diff(material_indices[sorted_order]) != 0)[0] + 1))
             counts = np.diff(np.concatenate((unique_indices, [len(material_indices)])))
             mat_index_counts = list(zip(unique_indices, counts))
-            print(ob.name, np.unique(material_indices))
             used_materials = [self.bpy_materials[i] for i in np.unique(material_indices) if i < len(self.bpy_materials)]
             unique_materials = list(dict.fromkeys([m for m in used_materials]))
             for idx, mat in enumerate(used_materials):

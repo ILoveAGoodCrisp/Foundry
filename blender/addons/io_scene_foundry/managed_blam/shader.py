@@ -648,6 +648,7 @@ class ShaderTag(Tag):
         alt_system_tiff_path = system_tiff_path.with_suffix(".tif")
         with BitmapTag(path=bitmap_path) as bitmap:
             # is_non_color = bitmap.is_linear()
+            curve = bitmap.tag.SelectField("Block:bitmaps[0]/CharEnum:curve").Value
             for_normal = bitmap.used_as_normal_map()
             if self.always_extract_bitmaps:
                 image_path = bitmap.save_to_tiff(for_normal)
@@ -677,10 +678,11 @@ class ShaderTag(Tag):
                 
             image = bpy.data.images.load(filepath=image_path, check_existing=True)
 
-            if for_normal:
+            if for_normal or bitmap.tag_path.RelativePathWithExtension == r"shaders\default_bitmaps\bitmaps\default_detail.bitmap":
                 image.colorspace_settings.name = 'Non-Color'
-            # elif bitmap.tag.SelectField("Block:bitmaps[0]/CharEnum:curve").Value == 3:
-            #     image.colorspace_settings.name = 'Linear Rec.709'
+            elif curve == 3:
+                image.colorspace_settings.name = 'Linear Rec.709'
+                image.alpha_mode = 'CHANNEL_PACKED'
             else:
                 image.colorspace_settings.name = 'sRGB'
                 image.alpha_mode = 'CHANNEL_PACKED'

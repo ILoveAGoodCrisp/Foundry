@@ -9,7 +9,7 @@ from statistics import mean
 from typing import Iterable
 import bmesh
 import bpy
-from mathutils import Matrix, Quaternion, Vector
+from mathutils import Matrix, Quaternion, Vector, geometry
 import numpy as np
 
 from ..tools.append_foundry_materials import add_special_materials
@@ -126,6 +126,12 @@ class Cluster:
         if result:
             return result[0]
         
+class TriangleMapping:
+    def __init__(self, value: int):
+        self.tri = int(((value >> 12) + 1) / 3 - 1)
+        self.section = value & 0x12
+        print(self.tri, self.section)
+        
 class SurfaceMapping:
     def __init__(self, first: int, count: int, surface: 'CollisionSurface', surf_to_tri_block: TagFieldBlock):
         self.surface = surface
@@ -133,10 +139,9 @@ class SurfaceMapping:
         self.collision_only = False
         if count:
             for i in range(first, first + count):
-                result = ((surf_to_tri_block.Elements[i].Fields[0].Data >> 12) + 1) / 3 - 1
-                if not result.is_integer():
-                    print(result, int(result))
-                self.triangle_indices.append(int(result))
+                value = surf_to_tri_block.Elements[i].Fields[0].Data
+                mapping = TriangleMapping(value)
+                self.triangle_indices.append(mapping)
         else:
             self.collision_only = True
     
@@ -160,13 +165,10 @@ class InstanceDefinition:
         self.blender_physics = []
         self.blender_render = None
         if not utils.is_corinth() and not for_cinematic:
-            self.has_collision = element.SelectField("Struct:collision info[0]/Block:surfaces").Elements.Count > 0 or element.SelectField("Block:render bsp").Elements.Count > 0
-            self.collision_is_proxy = self.has_collision and element.SelectField("Block:surfaces").Elements.Count == 0
+            self.has_collision = element.SelectField("Struct:collision info[0]/Block:surfaces").Elements.Count > 0
+            self.collision_is_proxy = self.has_collision and (element.SelectField("Block:surfaces").Elements.Count == 0 or element.SelectField("Block:render bsp").Elements.Count > 0)
             if self.has_collision:
-                if element.SelectField("Block:render bsp").Elements.Count > 0:
-                    self.collision_info = InstanceCollision(element.SelectField("Block:render bsp").Elements[0], f"instance_collision:{self.index}", collision_materials)
-                else:
-                    self.collision_info = InstanceCollision(element.SelectField("Struct:collision info").Elements[0], f"instance_collision:{self.index}", collision_materials)
+                self.collision_info = InstanceCollision(element.SelectField("Struct:collision info").Elements[0], f"instance_collision:{self.index}", collision_materials)
                 if not self.collision_is_proxy:
                     surf_to_tri_block = element.SelectField("Block:surface to triangle mapping")
                     self.surface_triangle_mapping = [SurfaceMapping(e.Fields[0].Data, e.Fields[1].Data, self.collision_info.surfaces[e.ElementIndex], surf_to_tri_block) for e in element.SelectField("Block:surfaces").Elements]
@@ -207,12 +209,9 @@ class InstanceDefinition:
                             self.blender_collision.nwo.proxy_parent = self.blender_render.data
                             self.blender_collision.nwo.proxy_type = "collision"
                             self.blender_render.data.nwo.proxy_collision = self.blender_collision
-                    elif len(self.collision_only_surface_indices) == len(self.surface_triangle_mapping):
-                        # self.blender_render.data.nwo.collision_only = True
-                        pass
                     elif self.collision_only_surface_indices:
-                        print(self.blender_render.name, self.collision_only_surface_indices)
                         collision_mesh = self.collision_info.to_object(mesh_only=True, surface_indices=self.collision_only_surface_indices)
+                        utils.save_loop_normals_mesh(self.blender_render.data)
                         bm = bmesh.new()
                         bm.from_mesh(collision_mesh)
                         collision_only_layer = utils.add_face_layer(bm, collision_mesh, "collision_only", True)
@@ -221,9 +220,10 @@ class InstanceDefinition:
                         bm.from_mesh(self.blender_render.data)
                         bm.to_mesh(self.blender_render.data)
                         bm.free()
+                        utils.apply_loop_normals(self.blender_render.data)
                     
-                        set_two_sided(self.blender_render.data, False) 
-                        utils.loop_normal_magic(self.blender_render.data)
+                        # set_two_sided(self.blender_render.data, False) 
+                        # utils.loop_normal_magic(self.blender_render.data)
                         
                         for layer in collision_mesh.nwo.face_props:
                             new_layer = self.blender_render.data.nwo.face_props.add()
@@ -1094,7 +1094,7 @@ class BSP:
         # bmesh.ops.dissolve_edges(bm, edges=list(edges_to_dissolve), use_face_split=True, use_verts=True)
         for face_layer in mesh.nwo.face_props:
             face_layer.face_count = utils.layer_face_count(bm, bm.faces.layers.int.get(face_layer.layer_name))
-            
+        
         bm.to_mesh(mesh)
         bm.free()
         
@@ -1577,7 +1577,8 @@ class Mesh:
 
         # normalised_normals = [Vector(n).normalized() for n in normals]
         mesh.normals_split_custom_set_from_vertices(normals)
-        mesh.nwo.from_vert_normals = True
+        if self.is_pca: # ensures mesh reimports as closely to the original as possible, necessary for re-using PCA animation
+            mesh.nwo.from_vert_normals = True
 
         if has_vertex_colors:
             bm = bmesh.new()
@@ -1651,17 +1652,17 @@ class Mesh:
                 
                 if any_slip_surface and mapping.surface.slip_surface:
                     for i in mapping.triangle_indices:
-                        props[i].append(slip_surface_layer)
+                        props[i.tri].append(slip_surface_layer)
                         
                 if any_ladder and mapping.surface.ladder:
                     for i in mapping.triangle_indices:
-                        props[i].append(ladder_layer)
+                        props[i.tri].append(ladder_layer)
                         
                 if any_breakable and mapping.surface.breakable:
                     for i in mapping.triangle_indices:
-                        props[i].append(breakable_layer)
+                        props[i.tri].append(breakable_layer)
                         
-                collision_face_indices.extend(mapping.triangle_indices)
+                collision_face_indices.extend(t.tri for t in mapping.triangle_indices)
                     
             render_only_indices = [i for i in indices if i not in set(collision_face_indices)]
             if render_only_indices:
@@ -1678,8 +1679,8 @@ class Mesh:
             bm.free()
 
 
-        set_two_sided(mesh, is_io) # NOTE no longer setting this. This both saves time and means we don't need to worry about per material two-sidedness
-        utils.loop_normal_magic(mesh)
+        # set_two_sided(mesh, is_io) # NOTE no longer setting this. This both saves time and means we don't need to worry about per material two-sidedness
+        # utils.loop_normal_magic(mesh)
         
         if mesh.nwo.face_props:
             bm = bmesh.new()

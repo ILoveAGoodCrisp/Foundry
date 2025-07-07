@@ -4335,3 +4335,54 @@ def flatten_dict(d, parent_keys=()):
         else:
             flat[new_keys] = v
     return flat
+
+def fix_vert_on_edge(ob: bpy.types.Object):
+    TOL = 1.0e-5
+    bm = bmesh.new()
+    bm.from_mesh(ob.data)
+
+    bm.verts.ensure_lookup_table()
+    bm.edges.ensure_lookup_table()
+
+    # Work lists we can mutate safely
+    verts = bm.verts[:]
+    edges = bm.edges[:]
+
+    for e in edges:
+        if not e.is_valid:
+            continue                              # deleted by a previous operation
+
+        v0, v1 = e.verts
+        vec = v1.co - v0.co
+        len_sq = vec.length_squared
+        if len_sq == 0.0:
+            continue                              # degenerate
+
+        for v in verts:
+            if not v.is_valid or v is v0 or v is v1:
+                continue
+
+            t = vec.dot(v.co - v0.co) / len_sq
+            if not (0.0 < t < 1.0):
+                continue                          # projection outside the segment
+
+            proj = v0.co + t * vec
+            if (v.co - proj).length > TOL:
+                continue                          # not close enough
+
+            # --- we have a hit -----------------------------------------------
+            new_edge, new_vert = bmesh.utils.edge_split(e, v0, t)
+            new_vert.co = proj
+
+            bmesh.ops.pointmerge(bm,
+                                verts=[v, new_vert],
+                                merge_co=proj)
+
+            # Update lookup tables because topology changed
+            bm.verts.ensure_lookup_table()
+            bm.edges.ensure_lookup_table()
+
+            break            # 'e' may have been deleted; move on to next edge
+
+    bm.to_mesh(ob.data)
+    bm.free()

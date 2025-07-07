@@ -420,7 +420,7 @@ class BitmapTag(Tag):
         if self.block_bitmaps.Elements.Count <= 0:
             return
         gamma = self.get_gamma_value()
-        if not blue_channel_fix and gamma == 1.95: #dxt5
+        if not blue_channel_fix and gamma != 2.2 and self.tag_path.RelativePathWithExtension != r"shaders\default_bitmaps\bitmaps\default_detail.bitmap": #dxt5
             self.block_bitmaps.Elements[0].SelectField("CharEnum:curve").Value = 5
         bitmap_elements = self.block_bitmaps.Elements
         if bitmap_elements.Count > 1:
