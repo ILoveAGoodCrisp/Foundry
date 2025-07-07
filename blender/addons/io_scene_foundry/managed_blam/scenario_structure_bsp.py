@@ -153,24 +153,27 @@ class ScenarioStructureBspTag(Tag):
         temp_meshes = self.tag.SelectField("Struct:render geometry[0]/Block:per mesh temporary")
         meshes = self.tag.SelectField("Struct:render geometry[0]/Block:meshes")
         # Get all instance definitions
-        instance_definitions = []
-        print("Creating Instance Definitions")
-        for element in self.block_instance_definitions.Elements:
-            definition = InstanceDefinition(element, meshes, bounds, render_materials, collision_materials, for_cinematic)
-            objects.extend(definition.create(render_model, temp_meshes))
-            instance_definitions.append(definition)
+        if self.block_instances.Elements.Count > 0:
+            instance_definitions = []
+            print("Creating Instance Definitions")
+            for element in self.block_instance_definitions.Elements:
+                definition = InstanceDefinition(element, meshes, bounds, render_materials, collision_materials, for_cinematic)
+                objects.extend(definition.create(render_model, temp_meshes))
+                instance_definitions.append(definition)
             
-        # Create instanced geometries
-        print("Creating Instanced Objects")
-        # poops = []
-        for element in self.block_instances.Elements:
-            io = Instance(element, instance_definitions)
-            if io.definition.blender_render or io.definition.blender_collision:
-                ob = io.create()
-                print(ob.name)
-                objects.append(ob)
-                # poops.append(ob)
-                self.collection.objects.link(ob)
+            # Create instanced geometries
+        
+            # poops = []
+            print("Creating Instanced Objects")
+            ig_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_instances")
+            self.collection.children.link(ig_collection)
+            for element in self.block_instances.Elements:
+                io = Instance(element, instance_definitions)
+                if io.definition.blender_render or io.definition.blender_collision:
+                    io_collection = io.get_collection(ig_collection)
+                    ob = io.create()
+                    objects.append(ob)
+                    io_collection.objects.link(ob)
         
         # if poops:
         #     with bpy.context.temp_override(selected_editable_objects=poops, object=poops[0]):
@@ -180,6 +183,8 @@ class ScenarioStructureBspTag(Tag):
         structure_objects = []
         print("Creating Structure")
         collision = None
+        structure_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_structure")
+        self.collection.children.link(structure_collection)
         if for_cinematic:
             structure_surface_triangle_mapping = []
         else:
@@ -199,7 +204,7 @@ class ScenarioStructureBspTag(Tag):
             ob = structure.create(render_model, temp_meshes, structure_surface_triangle_mapping, element.ElementIndex)
             if ob is not None and ob.data and ob.data.polygons:
                 structure_objects.append(ob)
-                self.collection.objects.link(ob)
+                structure_collection.objects.link(ob)
             
         # Merge structure
         utils.deselect_all_objects()
@@ -223,7 +228,7 @@ class ScenarioStructureBspTag(Tag):
                 bmw.to_mesh(water_mesh)
                 if water_mesh.polygons:
                     water_ob = bpy.data.objects.new(water_mesh.name, water_mesh)
-                    self.collection.objects.link(water_ob)
+                    structure_collection.objects.link(water_ob)
                     utils.apply_loop_normals(water_mesh)
                     water_mesh.nwo.mesh_type = "_connected_geometry_mesh_type_water_surface"
                     water_ob.nwo.water_volume_depth = 0 # depth to be handled by structure design
@@ -263,7 +268,7 @@ class ScenarioStructureBspTag(Tag):
                 ob.data.nwo.mesh_type = "_connected_geometry_mesh_type_structure"
                 ob.data.nwo.collision_only = True
                 objects.append(ob)
-                self.collection.objects.link(ob)
+                structure_collection.objects.link(ob)
                 # ob.hide_set(True)
                 ob.data.nwo.collision_only = True
                 self.structure_collision = ob
@@ -301,11 +306,13 @@ class ScenarioStructureBspTag(Tag):
                     
         # Create Portals
         print("Creating Portals")
+        portals_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_portals")
+        self.collection.children.link(portals_collection)
         for element in self.tag.SelectField("Block:cluster portals").Elements:
             portal = Portal(element)
             ob = portal.create()
             objects.append(ob)
-            self.collection.objects.link(ob)
+            portals_collection.objects.link(ob)
         
         return objects
     

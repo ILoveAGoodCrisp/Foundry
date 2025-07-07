@@ -5,6 +5,7 @@ from enum import Enum
 from math import radians, sqrt
 import math
 from pathlib import Path
+import re
 from statistics import mean
 from typing import Iterable
 import bmesh
@@ -222,8 +223,8 @@ class InstanceDefinition:
                         bm.free()
                         utils.apply_loop_normals(self.blender_render.data)
                     
-                        # set_two_sided(self.blender_render.data, False) 
-                        # utils.loop_normal_magic(self.blender_render.data)
+                        set_two_sided(self.blender_render.data, False) 
+                        utils.loop_normal_magic(self.blender_render.data)
                         
                         for layer in collision_mesh.nwo.face_props:
                             new_layer = self.blender_render.data.nwo.face_props.add()
@@ -323,7 +324,7 @@ class Instance:
             ob = self.definition.blender_collision.copy()
         else:
             ob = self.definition.blender_render.copy()
-        ob.name = self.name
+        ob.name = utils.any_partition(self.name, "__(")
         ob.matrix_world = self.matrix
         ob.scale = Vector.Fill(3, self.scale)
         nwo = ob.nwo
@@ -357,6 +358,38 @@ class Instance:
         nwo.poop_lightmap_resolution_scale = min(max(int(self.lightmap_res), 1), 7)
         
         return ob
+    
+    def get_collection(self, ig_collection) -> bpy.types.Collection:
+        if "(" in self.name and ")" in self.name.rpartition("(")[2]:
+            collection_part = re.findall(r'\((.*?)\)', self.name)[0]
+            if ":" in collection_part:
+                sub_collection_name, _, main_collection_name = collection_part.rpartition(":")
+            else:
+                sub_collection_name = None
+                main_collection_name = collection_part
+                
+            main_collection_name = f"layer::{main_collection_name}"
+                
+            main_collection = bpy.data.collections.get(main_collection_name)
+            if main_collection is None:
+                main_collection = bpy.data.collections.new(name=main_collection_name)
+                ig_collection.children.link(main_collection)
+                utils.add_permutation(main_collection_name)
+                main_collection.nwo.type = 'permutation'
+                main_collection.nwo.permutation = main_collection_name
+                
+            if sub_collection_name is not None:
+                sub_collection = bpy.data.collections.get(sub_collection_name)
+                if sub_collection is None:
+                    sub_collection = bpy.data.collections.new(name=sub_collection_name)
+                    main_collection.children.link(sub_collection)
+                    
+                return sub_collection
+            
+            else:
+                return main_collection
+        
+        return ig_collection
         
 
 # class BSPMarker:
@@ -1681,9 +1714,9 @@ class Mesh:
             bm.to_mesh(mesh)
             bm.free()
 
-        # if not self.is_pca:
-        #     set_two_sided(mesh, is_io) # NOTE no longer setting this. This both saves time and means we don't need to worry about per material two-sidedness
-        #     utils.loop_normal_magic(mesh)
+        if not self.is_pca:
+            set_two_sided(mesh, is_io) # NOTE no longer setting this. This both saves time and means we don't need to worry about per material two-sidedness
+            utils.loop_normal_magic(mesh)
         
         if mesh.nwo.face_props:
             bm = bmesh.new()

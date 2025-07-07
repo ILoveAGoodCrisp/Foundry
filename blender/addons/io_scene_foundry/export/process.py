@@ -2254,7 +2254,7 @@ class ExportScene:
                     self.print_post(f"--- Updating scenario zone sets: {[zs.name for zs in self.scene_settings.zone_sets]}")
                     write_zone_sets_to_scenario(self.scene_settings, self.asset_name)
                     
-                if not self.corinth and self.any_collision_proxies: # TODO Figure out how to write a valid surface mapping
+                if False and not self.corinth and self.any_collision_proxies:
                     self.print_post(f"--- Fixing Up collision proxy surface mapping")
                     with ScenarioTag() as scenario:
                         for element in scenario.block_bsps.Elements:
