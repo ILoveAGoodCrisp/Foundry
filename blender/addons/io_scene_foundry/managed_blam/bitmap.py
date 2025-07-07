@@ -488,8 +488,8 @@ class BitmapTag(Tag):
         match color_space:
             case 'sRGB':
                 return 2.2
-            case 'Non-Color':
-                return 1.0
+        
+        return 1.0
             
 def lerp(p1: float, p2: float, fraction: float) -> float:
     return (p1 * (1 - fraction)) + (p2 * fraction)

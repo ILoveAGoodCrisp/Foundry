@@ -121,21 +121,21 @@ class Cluster:
         self.mesh_index = element.SelectField("mesh index").Data
         self.mesh = Mesh(mesh_block.Elements[self.mesh_index], materials=render_materials)
         
-    def create(self, render_model, temp_meshes) -> bpy.types.Object:
-        result = self.mesh.create(render_model, temp_meshes, name=f"cluster:{self.index}")
+    def create(self, render_model, temp_meshes, cluster_surface_triangle_mapping=[], section_index=0) -> bpy.types.Object:
+        result = self.mesh.create(render_model, temp_meshes, name=f"cluster:{self.index}", surface_triangle_mapping=cluster_surface_triangle_mapping, section_index=section_index)
         if result:
             return result[0]
         
 class TriangleMapping:
     def __init__(self, value: int):
         self.tri = int(((value >> 12) + 1) / 3 - 1)
-        self.section = value & 0x12
-        print(self.tri, self.section)
+        self.section = value & 0xFFF
+        # print(self.tri, self.section)
         
 class SurfaceMapping:
     def __init__(self, first: int, count: int, surface: 'CollisionSurface', surf_to_tri_block: TagFieldBlock):
         self.surface = surface
-        self.triangle_indices = []
+        self.triangle_indices: list[TriangleMapping] = []
         self.collision_only = False
         if count:
             for i in range(first, first + count):
@@ -1459,7 +1459,7 @@ class Mesh:
         
         return Vector((u, 1-v)) # 1-v to correct UV for Blender
     
-    def create(self, render_model, temp_meshes: TagFieldBlock, nodes=[], parent: bpy.types.Object | None = None, instances: list['InstancePlacement'] = [], name="blam", is_io=False, surface_triangle_mapping=[]):
+    def create(self, render_model, temp_meshes: TagFieldBlock, nodes=[], parent: bpy.types.Object | None = None, instances: list['InstancePlacement'] = [], name="blam", is_io=False, surface_triangle_mapping=[], section_index=0):
         if not self.valid:
             return []
 
@@ -1508,11 +1508,11 @@ class Mesh:
         else:
             if self.permutation:
                 name = f"{self.permutation.region.name}:{self.permutation.name}"
-            objects.append(self._create_mesh(name, parent, nodes, None, surface_triangle_mapping=surface_triangle_mapping))
+            objects.append(self._create_mesh(name, parent, nodes, None, surface_triangle_mapping=surface_triangle_mapping, section_index=section_index))
 
         return objects
 
-    def _create_mesh(self, name, parent, nodes, subpart: MeshSubpart | None, parent_bone=None, local_matrix=None, is_io=False, surface_triangle_mapping=[]):
+    def _create_mesh(self, name, parent, nodes, subpart: MeshSubpart | None, parent_bone=None, local_matrix=None, is_io=False, surface_triangle_mapping=[], section_index=0):
         matrix = local_matrix or (parent.matrix_world if parent else Matrix.Identity(4))
 
         indices = [t.indices for t in self.tris if not subpart or t.subpart == subpart]
@@ -1652,17 +1652,20 @@ class Mesh:
                 
                 if any_slip_surface and mapping.surface.slip_surface:
                     for i in mapping.triangle_indices:
-                        props[i.tri].append(slip_surface_layer)
+                        if i.section == section_index:
+                            props[i.tri].append(slip_surface_layer)
                         
                 if any_ladder and mapping.surface.ladder:
                     for i in mapping.triangle_indices:
-                        props[i.tri].append(ladder_layer)
+                        if i.section == section_index:
+                            props[i.tri].append(ladder_layer)
                         
                 if any_breakable and mapping.surface.breakable:
                     for i in mapping.triangle_indices:
-                        props[i.tri].append(breakable_layer)
+                        if i.section == section_index:
+                            props[i.tri].append(breakable_layer)
                         
-                collision_face_indices.extend(t.tri for t in mapping.triangle_indices)
+                collision_face_indices.extend(t.tri for t in mapping.triangle_indices if t.section == section_index)
                     
             render_only_indices = [i for i in indices if i not in set(collision_face_indices)]
             if render_only_indices:
@@ -1678,9 +1681,9 @@ class Mesh:
             bm.to_mesh(mesh)
             bm.free()
 
-
-        # set_two_sided(mesh, is_io) # NOTE no longer setting this. This both saves time and means we don't need to worry about per material two-sidedness
-        # utils.loop_normal_magic(mesh)
+        # if not self.is_pca:
+        #     set_two_sided(mesh, is_io) # NOTE no longer setting this. This both saves time and means we don't need to worry about per material two-sidedness
+        #     utils.loop_normal_magic(mesh)
         
         if mesh.nwo.face_props:
             bm = bmesh.new()

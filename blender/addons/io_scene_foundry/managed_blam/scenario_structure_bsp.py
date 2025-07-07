@@ -167,6 +167,7 @@ class ScenarioStructureBspTag(Tag):
             io = Instance(element, instance_definitions)
             if io.definition.blender_render or io.definition.blender_collision:
                 ob = io.create()
+                print(ob.name)
                 objects.append(ob)
                 # poops.append(ob)
                 self.collection.objects.link(ob)
@@ -178,23 +179,24 @@ class ScenarioStructureBspTag(Tag):
         # Create structure
         structure_objects = []
         print("Creating Structure")
+        collision = None
+        if for_cinematic:
+            structure_surface_triangle_mapping = []
+        else:
+            raw_resources = self.tag.SelectField("Struct:resource interface[0]/Block:raw_resources")
+            if raw_resources.Elements.Count > 0:
+                collision_bsp = raw_resources.Elements[0].SelectField("Struct:raw_items[0]/Block:collision bsp")
+                large_collision_bsp = raw_resources.Elements[0].SelectField("Struct:raw_items[0]/Block:large collision bsp")
+                if collision_bsp.Elements.Count > 0:
+                    collision = StructureCollision(collision_bsp.Elements[0], "structure_collision", collision_materials)
+                elif large_collision_bsp.Elements.Count > 0:
+                    collision = StructureCollision(large_collision_bsp.Elements[0], "structure_collision", collision_materials)
+                    
+                structure_surface_triangle_mapping = [SurfaceMapping(e.Fields[0].Data, e.Fields[1].Data, collision.surfaces[e.ElementIndex], self.tag.SelectField("Block:structure surface to triangle mapping")) for e in self.tag.SelectField("Block:large structure surfaces").Elements]
         
-        raw_resources = self.tag.SelectField("Struct:resource interface[0]/Block:raw_resources")
-        if raw_resources.Elements.Count > 0:
-            collision = None
-            collision_bsp = raw_resources.Elements[0].SelectField("Struct:raw_items[0]/Block:collision bsp")
-            large_collision_bsp = raw_resources.Elements[0].SelectField("Struct:raw_items[0]/Block:large collision bsp")
-            if collision_bsp.Elements.Count > 0:
-                collision = StructureCollision(collision_bsp.Elements[0], "structure_collision", collision_materials)
-            elif large_collision_bsp.Elements.Count > 0:
-                collision = StructureCollision(large_collision_bsp.Elements[0], "structure_collision", collision_materials)
-                
-                
-        
-        structure_surface_triangle_mapping = [SurfaceMapping(e.Fields[0].Data, e.Fields[1].Data, collision.surfaces[e.ElementIndex], self.tag.SelectField("Block:structure surface to triangle mapping")) for e in self.tag.SelectField("Block:large structure surfaces").Elements]
         for element in self.tag.SelectField("Block:clusters").Elements:
             structure = Cluster(element, meshes, render_materials)
-            ob = structure.create(render_model, temp_meshes)
+            ob = structure.create(render_model, temp_meshes, structure_surface_triangle_mapping, element.ElementIndex)
             if ob is not None and ob.data and ob.data.polygons:
                 structure_objects.append(ob)
                 self.collection.objects.link(ob)
@@ -239,7 +241,7 @@ class ScenarioStructureBspTag(Tag):
                 structure_mesh.nwo.mesh_type = "_connected_geometry_mesh_type_structure"
                 ob.nwo.proxy_instance = True
                 objects.append(ob)
-                structure_mesh.nwo.render_only = True
+                # structure_mesh.nwo.render_only = True
                 if structure_mesh.nwo.face_props:
                     bm = bmesh.new()
                     bm.from_mesh(structure_mesh)
@@ -249,70 +251,62 @@ class ScenarioStructureBspTag(Tag):
             
         # Create Structure Collision
         self.structure_collision = None
-        if not for_cinematic:
+        if collision is not None:
             if self.corinth:
                 print("Creating Structure Sky")
             else:
                 print("Creating Structure Collision")
-            raw_resources = self.tag.SelectField("Struct:resource interface[0]/Block:raw_resources")
-            if raw_resources.Elements.Count > 0:
-                collision = None
-                collision_bsp = raw_resources.Elements[0].SelectField("Struct:raw_items[0]/Block:collision bsp")
-                large_collision_bsp = raw_resources.Elements[0].SelectField("Struct:raw_items[0]/Block:large collision bsp")
-                if collision_bsp.Elements.Count > 0:
-                    collision = StructureCollision(collision_bsp.Elements[0], "structure_collision", collision_materials)
-                elif large_collision_bsp.Elements.Count > 0:
-                    collision = StructureCollision(large_collision_bsp.Elements[0], "structure_collision", collision_materials)
-                
-                if collision is not None:
-                    ob = collision.to_object()
-                    ob.data.nwo.mesh_type = "_connected_geometry_mesh_type_structure"
-                    ob.data.nwo.collision_only = True
-                    objects.append(ob)
-                    self.collection.objects.link(ob)
-                    ob.hide_set(True)
-                    ob.data.nwo.collision_only = True
-                    self.structure_collision = ob
-                    
-                    if for_scenario:
-                        print("Creating Seams")
-                        seams_mesh = ob.data.copy()
-                        # Remove seam faces
-                        bm = bmesh.new()
-                        seam_bm = bmesh.new()
-                        bm.from_mesh(ob.data)
-                        seam_bm.from_mesh(seams_mesh)
-                        seam_material_indices = set()
-                        for idx, material in enumerate(ob.data.materials):
-                            seam_collision_mat = next((cm for cm in collision_materials if cm.blender_material == material and cm.is_seam), None)
-                            if seam_collision_mat:
-                                seam_material_indices.add(idx)
-                                
-                        bmesh.ops.delete(seam_bm, geom=[f for f in seam_bm.faces if f.material_index not in seam_material_indices], context='FACES')
-                        bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.material_index in seam_material_indices], context='FACES')
-                        seam_bm.to_mesh(seams_mesh)
-                        seam_bm.free()
-                        bm.to_mesh(ob.data)
-                        bm.free()
-                        
-                        if seams_mesh.polygons:
-                            seam_ob = ob.copy()
-                            seam_ob.data = seams_mesh
-                            seam_ob.name = "seams"
-                            seams_mesh.nwo.mesh_type = "_connected_geometry_mesh_type_seam"
-                            seam_ob.nwo.seam_back_manual = True
-                            apply_props_material(seam_ob, "Seam")
-                            objects.append(seam_ob)
-                            collection.objects.link(seam_ob)
-                        
-            # Create Portals
-            print("Creating Portals")
-            for element in self.tag.SelectField("Block:cluster portals").Elements:
-                portal = Portal(element)
-                ob = portal.create()
+            
+            collision_only_indices = [idx for idx, mapping in enumerate(structure_surface_triangle_mapping) if mapping.collision_only]
+            if collision_only_indices:
+                ob = collision.to_object(surface_indices=collision_only_indices)
+                ob.data.nwo.mesh_type = "_connected_geometry_mesh_type_structure"
+                ob.data.nwo.collision_only = True
                 objects.append(ob)
                 self.collection.objects.link(ob)
-            
+                # ob.hide_set(True)
+                ob.data.nwo.collision_only = True
+                self.structure_collision = ob
+                
+                if for_scenario:
+                    print("Creating Seams")
+                    seams_mesh = ob.data.copy()
+                    # Remove seam faces
+                    bm = bmesh.new()
+                    seam_bm = bmesh.new()
+                    bm.from_mesh(ob.data)
+                    seam_bm.from_mesh(seams_mesh)
+                    seam_material_indices = set()
+                    for idx, material in enumerate(ob.data.materials):
+                        seam_collision_mat = next((cm for cm in collision_materials if cm.blender_material == material and cm.is_seam), None)
+                        if seam_collision_mat:
+                            seam_material_indices.add(idx)
+                            
+                    bmesh.ops.delete(seam_bm, geom=[f for f in seam_bm.faces if f.material_index not in seam_material_indices], context='FACES')
+                    bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.material_index in seam_material_indices], context='FACES')
+                    seam_bm.to_mesh(seams_mesh)
+                    seam_bm.free()
+                    bm.to_mesh(ob.data)
+                    bm.free()
+                    
+                    if seams_mesh.polygons:
+                        seam_ob = ob.copy()
+                        seam_ob.data = seams_mesh
+                        seam_ob.name = "seams"
+                        seams_mesh.nwo.mesh_type = "_connected_geometry_mesh_type_seam"
+                        seam_ob.nwo.seam_back_manual = True
+                        apply_props_material(seam_ob, "Seam")
+                        objects.append(seam_ob)
+                        collection.objects.link(seam_ob)
+                    
+        # Create Portals
+        print("Creating Portals")
+        for element in self.tag.SelectField("Block:cluster portals").Elements:
+            portal = Portal(element)
+            ob = portal.create()
+            objects.append(ob)
+            self.collection.objects.link(ob)
+        
         return objects
     
     # def get_seams(self, name, existing_seams: list[BSPSeam]=[]):
