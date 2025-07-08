@@ -4386,3 +4386,77 @@ def fix_vert_on_edge(ob: bpy.types.Object):
 
     bm.to_mesh(ob.data)
     bm.free()
+    
+def delete_face_prop(mesh: bpy.types.Mesh, bm: bmesh.types.BMesh, idx: int):
+    layer = bm.faces.layers.int.get(mesh.nwo.face_props[idx])
+    if layer is not None:
+        bm.faces.layers.int.remove(layer)
+        
+    mesh.nwo.face_props.remove(idx)
+    
+def consolidate_face_layers(mesh: bpy.types.Mesh):
+    two_sided_overrides = "Breakable", "Sphere Collision Only"
+    face_props = defaultdict(list)
+    layer_layers = defaultdict(list)
+    face_prop_counts = {}
+    layer_props = {}
+    two_side_layers = set()
+    two_side_layer = None
+    two_side_prop_idx = -1
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    to_remove_indexes = set()
+    for idx, prop in enumerate(mesh.nwo.face_props):
+        layer = bm.faces.layers.int.get(prop.layer_name)
+        if prop.name == "Two Sided":
+            two_side_prop_idx = idx
+        if layer is None:
+            to_remove_indexes.add(idx)
+        else:
+            face_props[prop.name].append((idx, layer))
+            face_prop_counts[layer] = 0
+            layer_props[layer] = prop
+            
+    for k, v in face_props.items():
+        if len(v) < 2:
+            continue
+        idx, layer = v[0]
+        if k in two_sided_overrides:
+            two_side_layers.add(layer)
+        elif k == "Two Sided":
+            two_side_layer = layer
+        for p in v[1:]:
+            layer_layers[layer].append(p[1])
+            to_remove_indexes.add(p[0])
+            
+    for face in bm.faces:
+        for k, v in layer_layers.items():
+            if face[v]:
+                face[k] = 1
+                face_prop_counts[k] += 1
+                
+    for k, v in face_prop_counts.items():
+        prop = layer_props[k]
+        prop.layer_count = v
+        
+    # clear un-needed two-sidedness
+    if two_side_layer is not None and two_side_layers:
+        prop = layer_props[two_side_layer]
+        two_side_face_count = prop.layer_count
+        for face in bm.faces:
+            if face[two_side_layer] and any(face[layer] for layer in two_side_layers):
+                face[two_side_layer] = 0
+                two_side_face_count -= 1
+                
+        if not two_side_face_count:
+            to_remove_indexes.add(two_side_prop_idx)
+        
+    for idx, prop in enumerate(mesh.nwo.face_props):
+        if not prop.layer_count:
+            to_remove_indexes.add(idx)
+   
+    for i in sorted(to_remove_indexes, reverse=True):
+        delete_face_prop(mesh, bm, i)
+        
+    bm.to_mesh(mesh)
+    bm.free()

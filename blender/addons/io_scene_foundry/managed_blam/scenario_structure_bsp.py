@@ -183,7 +183,10 @@ class ScenarioStructureBspTag(Tag):
         structure_objects = []
         print("Creating Structure")
         collision = None
-        structure_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_structure")
+        layer = utils.add_permutation("structure")
+        structure_collection = bpy.data.collections.new(name=f"layer::{self.tag_path.ShortName}_structure")
+        structure_collection.nwo.type = "permutation"
+        structure_collection.nwo.permutation = layer
         self.collection.children.link(structure_collection)
         if for_cinematic:
             structure_surface_triangle_mapping = []
@@ -303,11 +306,16 @@ class ScenarioStructureBspTag(Tag):
                         apply_props_material(seam_ob, "Seam")
                         objects.append(seam_ob)
                         collection.objects.link(seam_ob)
+                        
+        # Merge all structure objects
                     
         # Create Portals
         if not for_cinematic:
             print("Creating Portals")
-            portals_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_portals")
+            layer = utils.add_permutation("portals")
+            portals_collection = bpy.data.collections.new(name=f"layer::{self.tag_path.ShortName}_portals")
+            portals_collection.nwo.type = "permutation"
+            portals_collection.nwo.permutation = layer
             self.collection.children.link(portals_collection)
             for element in self.tag.SelectField("Block:cluster portals").Elements:
                 portal = Portal(element)

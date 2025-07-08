@@ -1997,7 +1997,6 @@ def set_two_sided(mesh, is_io: bool):
 
     to_remove = set()
     two_sided = set()
-    remove_two_sided = set()
     for faces in face_dict.values():
         for i, f1 in enumerate(faces):
             for f2 in faces[i+1:]:
