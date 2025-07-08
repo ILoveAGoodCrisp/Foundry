@@ -210,6 +210,7 @@ class InstanceDefinition:
                             self.blender_collision.nwo.proxy_parent = self.blender_render.data
                             self.blender_collision.nwo.proxy_type = "collision"
                             self.blender_render.data.nwo.proxy_collision = self.blender_collision
+                            utils.consolidate_face_layers(self.blender_collision.data)
                     elif self.collision_only_surface_indices:
                         collision_mesh = self.collision_info.to_object(mesh_only=True, surface_indices=self.collision_only_surface_indices)
                         # utils.save_loop_normals_mesh(self.blender_render.data)
@@ -262,6 +263,8 @@ class InstanceDefinition:
                             new_layer = self.blender_render.data.nwo.face_props.add()
                             for k,v in layer.items():
                                 new_layer.__setattr__(k, v)
+                                
+                        utils.consolidate_face_layers(self.blender_render.data)
                 else:
                     self.blender_render = self.collision_info.to_object()
                     self.blender_render.name = f"instance_definition:{self.index}"
@@ -1113,6 +1116,9 @@ class BSP:
             if split_material and self.uses_materials:
                 material_indices = [blender_materials_map[mat] for mat in map_material]
             for idx, face in enumerate(bm.faces):
+                if map_invalid[idx]:
+                    to_remove.append(face)
+                    continue
                 # if map_invalid[idx] or map_negated[idx]:
                 #     to_remove.append(face)
                 #     continue

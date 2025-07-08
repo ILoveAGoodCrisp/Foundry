@@ -4388,14 +4388,14 @@ def fix_vert_on_edge(ob: bpy.types.Object):
     bm.free()
     
 def delete_face_prop(mesh: bpy.types.Mesh, bm: bmesh.types.BMesh, idx: int):
-    layer = bm.faces.layers.int.get(mesh.nwo.face_props[idx])
+    layer = bm.faces.layers.int.get(mesh.nwo.face_props[idx].layer_name)
     if layer is not None:
         bm.faces.layers.int.remove(layer)
         
     mesh.nwo.face_props.remove(idx)
     
 def consolidate_face_layers(mesh: bpy.types.Mesh):
-    two_sided_overrides = "Breakable", "Sphere Collision Only"
+    sphere_coll = "Sphere Collision Only"
     face_props = defaultdict(list)
     layer_layers = defaultdict(list)
     face_prop_counts = {}
@@ -4416,18 +4416,17 @@ def consolidate_face_layers(mesh: bpy.types.Mesh):
             face_props[prop.name].append((idx, layer))
             face_prop_counts[layer] = 0
             layer_props[layer] = prop
-            
+    
     for k, v in face_props.items():
-        if len(v) < 2:
-            continue
         idx, layer = v[0]
-        if k in two_sided_overrides:
-            two_side_layers.add(layer)
+        if k == sphere_coll:
+            sphere_coll = layer
         elif k == "Two Sided":
             two_side_layer = layer
-        for p in v[1:]:
-            layer_layers[layer].append(p[1])
-            to_remove_indexes.add(p[0])
+        if len(v) > 1:
+            for p in v[1:]:
+                layer_layers[layer].append(p[1])
+                to_remove_indexes.add(p[0])
             
     for face in bm.faces:
         for k, v in layer_layers.items():
@@ -4436,23 +4435,26 @@ def consolidate_face_layers(mesh: bpy.types.Mesh):
                 face_prop_counts[k] += 1
                 
     for k, v in face_prop_counts.items():
-        prop = layer_props[k]
-        prop.layer_count = v
+        if v:
+            prop = layer_props[k]
+            prop.face_count = v
         
     # clear un-needed two-sidedness
-    if two_side_layer is not None and two_side_layers:
+    if two_side_layer is not None and sphere_coll is not None:
         prop = layer_props[two_side_layer]
-        two_side_face_count = prop.layer_count
+        two_side_face_count = prop.face_count
         for face in bm.faces:
-            if face[two_side_layer] and any(face[layer] for layer in two_side_layers):
+            if face[two_side_layer] and face[sphere_coll]:
                 face[two_side_layer] = 0
                 two_side_face_count -= 1
                 
         if not two_side_face_count:
             to_remove_indexes.add(two_side_prop_idx)
+        else:
+            prop.face_count = two_side_face_count
         
     for idx, prop in enumerate(mesh.nwo.face_props):
-        if not prop.layer_count:
+        if not prop.face_count:
             to_remove_indexes.add(idx)
    
     for i in sorted(to_remove_indexes, reverse=True):
