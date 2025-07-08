@@ -436,7 +436,6 @@ class MaterialTag(ShaderTag):
             
             
     def populate_chiefster_node(self, tree: bpy.types.NodeTree, node: bpy.types.Node, material_parameters: dict[MaterialParameter]):
-        
         match self.alpha_blend_mode.Value:
             case 0:
                 node.inputs[0].default_value = 0.0

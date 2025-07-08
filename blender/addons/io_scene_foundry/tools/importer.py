@@ -1552,66 +1552,70 @@ class NWOImporter:
                                     globals_path = Path(utils.get_tags_path(), "globals\\globals.globals")
                                     if globals_path.exists():
                                         with GlobalsTag(path=globals_path) as globals:
-                                            fp_arms_path, tp_unit_path  = globals.get_fp_arms_path(self.import_fp_arms)
-                                            if Path(tp_unit_path).exists():
-                                                with ObjectTag(path=tp_unit_path) as unit:
-                                                    fp_change_colors = unit.get_change_colors()
-                                                    if fp_change_colors is not None:
-                                                        change_colors = fp_change_colors
+                                            result = globals.get_fp_arms_path(self.import_fp_arms)
+                                            if result is None:
+                                                print("Failed to get FP arms reference")
+                                            else:
+                                                fp_arms_path, tp_unit_path, allowed_fp_region_permutations = result
+                                                if Path(tp_unit_path).exists():
+                                                    with ObjectTag(path=tp_unit_path) as unit:
+                                                        fp_change_colors = unit.get_change_colors()
+                                                        if fp_change_colors is not None:
+                                                            change_colors = fp_change_colors
                                             
-                                        if Path(fp_arms_path).exists():
-                                            fp_collection = bpy.data.collections.new(f"FP Arms - {self.import_fp_arms.name.title()}")
-                                            self.context.scene.collection.children.link(fp_collection)
-                                            with RenderModelTag(path=fp_arms_path) as render_model:
-                                                fp_objects, fp_armature = render_model.to_blend_objects(fp_collection, True, self.tag_markers, self.context.scene.collection, None, "default")
-                                                fp_objects.remove(fp_armature)
-                                                render_objects.extend(fp_objects)
-                                                
-                                                fp_arm_name = fp_armature.name
-                                                root_gun_bone = armature.pose.bones[0].name
-                                                
-                                                utils.deselect_all_objects()
-                                                armature.select_set(True)
-                                                fp_armature.select_set(True)
-                                                utils.set_active_object(armature)
-                                                bpy.ops.object.join()
-                                                armature.name = fp_arm_name
-                                                utils.unlink(armature)
-                                                fp_collection.objects.link(armature)
-                                                # Load fp graph to work out skeleton
-                                                block_fp = obj.tag.SelectField("Struct:player interface[0]/Block:first person")
-                                                fp_anim_tag = None
-                                                if self.import_fp_arms == FPARMS.SPARTAN:
-                                                    if block_fp.Elements.Count > 0:
-                                                        fp_anim_tag = block_fp.Elements[0].SelectField("Reference:first person animations").Path.Filename
-                                                elif self.import_fp_arms == FPARMS.ELITE:
-                                                    if block_fp.Elements.Count > 1:
-                                                        fp_anim_tag = block_fp.Elements[1].SelectField("Reference:first person animations").Path.Filename
+                                                if Path(fp_arms_path).exists():
+                                                    fp_collection = bpy.data.collections.new(f"FP Arms - {self.import_fp_arms.name.title()}")
+                                                    self.context.scene.collection.children.link(fp_collection)
+                                                    with RenderModelTag(path=fp_arms_path) as render_model:
+                                                        fp_objects, fp_armature = render_model.to_blend_objects(fp_collection, True, self.tag_markers, self.context.scene.collection, None, allowed_fp_region_permutations)
+                                                        fp_objects.remove(fp_armature)
+                                                        render_objects.extend(fp_objects)
                                                         
-                                                if fp_anim_tag is not None and Path(fp_anim_tag).exists():
-                                                    with AnimationTag(path=fp_anim_tag) as fp_graph:
-                                                        node_names = fp_graph.get_nodes()
-                                                        for idx, name in enumerate(node_names):
-                                                            if utils.remove_node_prefix(name) == utils.remove_node_prefix(root_gun_bone):
-                                                                fp_root_node_element = fp_graph.block_skeleton_nodes.Elements[idx]
-                                                                parent_index = fp_root_node_element.SelectField("ShortBlockIndex:parent node index").Value
-                                                                parent_node = node_names[parent_index]
-                                                
-                                                bpy.ops.object.editmode_toggle()
-                                                root_gun_edit_bone = armature.data.edit_bones.get(root_gun_bone)
-                                                if root_gun_edit_bone is not None:
-                                                    for bone in armature.data.edit_bones:
-                                                        if utils.remove_node_prefix(bone.name) == utils.remove_node_prefix(parent_node):
-                                                            root_gun_edit_bone.parent = bone
-                                                            break
+                                                        fp_arm_name = fp_armature.name
+                                                        root_gun_bone = armature.pose.bones[0].name
                                                         
-                                                bpy.ops.object.editmode_toggle()
-                                                
-                                                for ob in fp_objects:
-                                                    if ob.type == 'MESH':
-                                                        for mod in ob.modifiers:
-                                                            if mod.type == 'ARMATURE':
-                                                                mod.object = armature
+                                                        utils.deselect_all_objects()
+                                                        armature.select_set(True)
+                                                        fp_armature.select_set(True)
+                                                        utils.set_active_object(armature)
+                                                        bpy.ops.object.join()
+                                                        armature.name = fp_arm_name
+                                                        utils.unlink(armature)
+                                                        fp_collection.objects.link(armature)
+                                                        # Load fp graph to work out skeleton
+                                                        block_fp = obj.tag.SelectField("Struct:player interface[0]/Block:first person")
+                                                        fp_anim_tag = None
+                                                        if self.import_fp_arms == FPARMS.SPARTAN:
+                                                            if block_fp.Elements.Count > 0:
+                                                                fp_anim_tag = block_fp.Elements[0].SelectField("Reference:first person animations").Path.Filename
+                                                        elif self.import_fp_arms == FPARMS.ELITE:
+                                                            if block_fp.Elements.Count > 1:
+                                                                fp_anim_tag = block_fp.Elements[1].SelectField("Reference:first person animations").Path.Filename
+                                                                
+                                                        if fp_anim_tag is not None and Path(fp_anim_tag).exists():
+                                                            with AnimationTag(path=fp_anim_tag) as fp_graph:
+                                                                node_names = fp_graph.get_nodes()
+                                                                for idx, name in enumerate(node_names):
+                                                                    if utils.remove_node_prefix(name) == utils.remove_node_prefix(root_gun_bone):
+                                                                        fp_root_node_element = fp_graph.block_skeleton_nodes.Elements[idx]
+                                                                        parent_index = fp_root_node_element.SelectField("ShortBlockIndex:parent node index").Value
+                                                                        parent_node = node_names[parent_index]
+                                                        
+                                                        bpy.ops.object.editmode_toggle()
+                                                        root_gun_edit_bone = armature.data.edit_bones.get(root_gun_bone)
+                                                        if root_gun_edit_bone is not None:
+                                                            for bone in armature.data.edit_bones:
+                                                                if utils.remove_node_prefix(bone.name) == utils.remove_node_prefix(parent_node):
+                                                                    root_gun_edit_bone.parent = bone
+                                                                    break
+                                                                
+                                                        bpy.ops.object.editmode_toggle()
+                                                        
+                                                        for ob in fp_objects:
+                                                            if ob.type == 'MESH':
+                                                                for mod in ob.modifiers:
+                                                                    if mod.type == 'ARMATURE':
+                                                                        mod.object = armature
                                     else:
                                         print(f"Couldn't find globals tag [{globals_path}], cannot import fp arms")
                                     
