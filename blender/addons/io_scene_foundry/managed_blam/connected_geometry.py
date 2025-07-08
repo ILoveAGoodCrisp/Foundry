@@ -212,19 +212,51 @@ class InstanceDefinition:
                             self.blender_render.data.nwo.proxy_collision = self.blender_collision
                     elif self.collision_only_surface_indices:
                         collision_mesh = self.collision_info.to_object(mesh_only=True, surface_indices=self.collision_only_surface_indices)
-                        utils.save_loop_normals_mesh(self.blender_render.data)
+                        # utils.save_loop_normals_mesh(self.blender_render.data)
                         bm = bmesh.new()
                         bm.from_mesh(collision_mesh)
-                        collision_only_layer = utils.add_face_layer(bm, collision_mesh, "collision_only", True)
-                        for face in bm.faces:
-                            face[collision_only_layer] = 1
+                        if self.collision_info.some_sphere_collision:
+                            sphere_coll_face_props = [prop for prop in collision_mesh.nwo.face_props if prop.name == "Sphere Collision Only"]
+                            if sphere_coll_face_props:
+                                sphere_coll_face_prop = sphere_coll_face_props[0]
+                                sphere_coll_layer = bm.faces.layers.int.get(sphere_coll_face_prop.layer_name)
+                                collision_only_layer = utils.add_face_layer(bm, collision_mesh, "collision_only", True)
+                                coll_face_prop = collision_mesh.nwo.face_props[-1]
+                                coll_face_count = 0
+                                for face in bm.faces:
+                                    if not face[sphere_coll_layer]:
+                                        face[collision_only_layer] = 1
+                                        coll_face_count += 1
+                                        
+                                coll_face_prop.face_count = coll_face_count
+                            else:
+                                sphere_coll_layer = utils.add_face_layer(bm, collision_mesh, "sphere_collision_only", True)
+                                collision_mesh.nwo.face_props[-1].face_count = len(bm.faces)
+                                for face in bm.faces:
+                                    face[sphere_coll_layer] = 1
+                            
+                        elif not self.collision_info.sphere_collision_only:
+                            collision_only_layer = utils.add_face_layer(bm, collision_mesh, "collision_only", True)
+                            collision_mesh.nwo.face_props[-1].face_count = len(bm.faces)
+                            for face in bm.faces:
+                                face[collision_only_layer] = 1
+                                
+                                
                         bm.from_mesh(self.blender_render.data)
                         bm.to_mesh(self.blender_render.data)
                         bm.free()
-                        utils.apply_loop_normals(self.blender_render.data)
+                        # utils.apply_loop_normals(self.blender_render.data)
                     
                         set_two_sided(self.blender_render.data, False) 
                         utils.loop_normal_magic(self.blender_render.data)
+                        
+                        # bm = bmesh.new()
+                        # bm.from_mesh(self.blender_render.data)
+                        # utils.save_loop_normals(bm, self.blender_render.data)
+                        # bmesh.ops.dissolve_degenerate(bm, dist=0.01, edges=bm.edges)
+                        # bm.to_mesh(self.blender_render.data)
+                        # bm.free()
+                        # utils.apply_loop_normals(self.blender_render.data)
                         
                         for layer in collision_mesh.nwo.face_props:
                             new_layer = self.blender_render.data.nwo.face_props.add()
@@ -233,7 +265,10 @@ class InstanceDefinition:
                 else:
                     self.blender_render = self.collision_info.to_object()
                     self.blender_render.name = f"instance_definition:{self.index}"
-                    self.blender_render.data.nwo.collision_only = True
+                    if self.collision_info.sphere_collision_only:
+                        self.blender_render.data.nwo.sphere_collision_only = True
+                    else:
+                        self.blender_render.data.nwo.collision_only = True
                     render_valid = True
                     
             elif self.blender_render and self.blender_render.data:
@@ -248,7 +283,7 @@ class InstanceDefinition:
                         phys.nwo.proxy_parent = self.blender_render.data
                         phys.nwo.proxy_type = "physics"
                         setattr(self.blender_render.data.nwo, f"proxy_physics{idx}", phys)
-                    elif self.blender_collision and self.blender_collision.data.nwo.collision_only:
+                    elif self.blender_collision and (self.blender_collision.data.nwo.collision_only or self.blender_collision.data.sphere_collision_only):
                         phys.name = f"{self.blender_collision.name}_proxy_physics{idx}"
                         phys.nwo.proxy_parent = self.blender_collision.data
                         phys.nwo.proxy_type = "physics"
@@ -363,20 +398,20 @@ class Instance:
         if "(" in self.name and ")" in self.name.rpartition("(")[2]:
             collection_part = re.findall(r'\((.*?)\)', self.name)[0]
             if ":" in collection_part:
-                sub_collection_name, _, main_collection_name = collection_part.rpartition(":")
+                sub_collection_name, _, main_collection_name_main = collection_part.rpartition(":")
             else:
                 sub_collection_name = None
-                main_collection_name = collection_part
+                main_collection_name_main = collection_part
                 
-            main_collection_name = f"layer::{main_collection_name}"
+            main_collection_name = f"layer::{main_collection_name_main}"
                 
             main_collection = bpy.data.collections.get(main_collection_name)
             if main_collection is None:
                 main_collection = bpy.data.collections.new(name=main_collection_name)
                 ig_collection.children.link(main_collection)
-                utils.add_permutation(main_collection_name)
+                utils.add_permutation(main_collection_name_main)
                 main_collection.nwo.type = 'permutation'
-                main_collection.nwo.permutation = main_collection_name
+                main_collection.nwo.permutation = main_collection_name_main
                 
             if sub_collection_name is not None:
                 sub_collection = bpy.data.collections.get(sub_collection_name)
@@ -915,13 +950,13 @@ class CollisionSurface:
         else:
             self.material = materials[material_index]
         flags = element.SelectField("flags")
-        # self.two_sided = flags.TestBit("two sided")
-        self.two_sided = flags.TestBit("plane negated")
-        #self.negated = flags.TestBit("plane negated")
-        self.negated = False
+        self.negated = flags.TestBit("plane negated")
+        self.invalid = flags.TestBit("invalid")
         self.ladder = flags.TestBit("climbable")
         self.breakable = flags.TestBit("breakable")
         self.slip_surface = flags.TestBit("slip")
+        self.invisible = flags.TestBit("invisible")
+        self.two_sided = flags.TestBit("two sided") and not (self.breakable or self.invisible)
         
 class CollisionEdge:
     def __init__(self, element: TagFieldBlockElement):
@@ -942,6 +977,9 @@ class BSP:
         self.surfaces = [CollisionSurface(e, materials) for e in element.SelectField("Block:surfaces").Elements]
         self.vertices = [CollisionVertex(e) for e in element.SelectField("Block:vertices").Elements]
         self.edges = [CollisionEdge(e) for e in element.SelectField("Block:edges").Elements]
+        
+        self.sphere_collision_only = all(surf.invisible for surf in self.surfaces)
+        self.some_sphere_collision = any(surf.invisible for surf in self.surfaces)
 
         
     def to_object(self, mesh_only=False, surface_indices=[]) -> bpy.types.Object:
@@ -976,7 +1014,7 @@ class BSP:
         mesh.from_pydata(vertices=[v.position for v in self.vertices], edges=[], faces=list(indices))
         
         # Check if we need to set any per face properties
-        map_material, map_two_sided, map_ladder, map_breakable, map_slip, map_negated = [], [], [], [], [], []
+        map_material, map_two_sided, map_ladder, map_breakable, map_slip, map_negated, map_invalid, map_invisible = [], [], [], [], [], [], [], []
         for surface in self.surfaces:
             material = surface.material
             two_sided = surface.two_sided
@@ -984,6 +1022,8 @@ class BSP:
             breakable = surface.breakable
             slip = surface.slip_surface
             negated = surface.negated
+            invalid = surface.invalid
+            invisible = surface.invisible
             
             map_material.append(material)
             map_two_sided.append(two_sided)
@@ -991,6 +1031,8 @@ class BSP:
             map_breakable.append(breakable)
             map_slip.append(slip)
             map_negated.append(negated)
+            map_invalid.append(invalid)
+            map_invisible.append(invisible)
 
             
         materials_set = set(map_material)
@@ -999,6 +1041,7 @@ class BSP:
         breakable_set = set(map_breakable)
         slip_set = set(map_slip)
         negated_set = set(map_negated)
+        invisible_set = set(map_invisible)
 
         split_material = len(materials_set) > 1
         split_two_sided = len(two_sided_set) > 1
@@ -1006,10 +1049,11 @@ class BSP:
         split_breakable = len(breakable_set) > 1
         split_slip = len(slip_set) > 1
         split_negated = len(negated_set) > 1
+        split_invisible = len(invisible_set) > 1
 
         blender_materials_map = {}
-        layer_materials, layer_two_sided, layer_ladder, layer_breakable, layer_slip = {}, None, None, None, None
-        using_layers = split_material or split_two_sided or split_ladder or split_breakable or split_slip or split_negated
+        layer_materials, layer_two_sided, layer_ladder, layer_breakable, layer_slip, layer_invisible = {}, None, None, None, None, None
+        using_layers = split_material or split_two_sided or split_ladder or split_breakable or split_slip or split_negated or split_invisible
         bm = bmesh.new()
         bm.from_mesh(mesh)
         
@@ -1058,13 +1102,18 @@ class BSP:
             layer_slip = utils.add_face_layer(bm, mesh, "slip_surface", True)
         else:
             mesh.nwo.slip_surface = surface.slip_surface
+            
+        if split_invisible:
+            layer_invisible = utils.add_face_layer(bm, mesh, "sphere_collision_only", True)
+        else:
+            mesh.nwo.sphere_collision_only = surface.invisible
         
         to_remove = []
         if using_layers:
             if split_material and self.uses_materials:
                 material_indices = [blender_materials_map[mat] for mat in map_material]
             for idx, face in enumerate(bm.faces):
-                # if split_negated and map_negated[idx]:
+                # if map_invalid[idx] or map_negated[idx]:
                 #     to_remove.append(face)
                 #     continue
                 if split_material:
@@ -1081,7 +1130,8 @@ class BSP:
                     face[layer_breakable] = map_breakable[idx]
                 if layer_slip:
                     face[layer_slip] = map_slip[idx]
-
+                if layer_invisible:
+                    face[layer_invisible] = map_invisible[idx]
                     
         if to_remove:
             bmesh.ops.delete(bm, geom=to_remove, context='FACES')
@@ -1113,9 +1163,9 @@ class BSP:
             bmesh.ops.delete(bm, geom=[bm.faces[i] for i in  duplicates], context='FACES')
         # Remove any degenerate faces
         # # bmesh.ops.planar_faces(bm, faces=bm.faces, iterations=200, factor=1)
-        #     # bmesh.ops.dissolve_limit(bm, angle_limit=radians(5), edges=bm.edges, verts=bm.verts, delimit={"NORMAL"})
-        #     # bmesh.ops.dissolve_degenerate(bm, dist=1, edges=bm.edges)
-        #     # bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1)
+        # bmesh.ops.dissolve_limit(bm, angle_limit=radians(5), edges=bm.edges, verts=bm.verts, delimit={"NORMAL"})
+        # bmesh.ops.dissolve_degenerate(bm, dist=0.01, edges=bm.edges)
+        # bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1)
         bm.faces.ensure_lookup_table()
         # bmesh.ops.triangulate(bm, faces=bm.faces)
         # edges_to_dissolve = set()
@@ -1936,9 +1986,18 @@ def set_two_sided(mesh, is_io: bool):
     for face in bm.faces:
         vert_set = frozenset(v.co.to_tuple() for v in face.verts)
         face_dict.setdefault(vert_set, []).append(face)
+        
+    # already_two_sided_face_props = [prop for prop in mesh.nwo.face_props if prop.name in ("Breakable", "Sphere Collision Only", "Two Sided")]
+    # already_two_sided_face_layers = []
+    
+    # for prop in already_two_sided_face_props:
+    #     layer = bm.faces.layers.int.get(prop.layer_name)
+    #     if layer is not None:
+    #         already_two_sided_face_layers.append(layer)
 
     to_remove = set()
     two_sided = set()
+    remove_two_sided = set()
     for faces in face_dict.values():
         for i, f1 in enumerate(faces):
             for f2 in faces[i+1:]:
@@ -1957,7 +2016,7 @@ def set_two_sided(mesh, is_io: bool):
             for face in bm.faces:
                 if face.index in two_sided:
                     face[layer] = 1
-        
+
         bmesh.ops.delete(bm, geom=[bm.faces[i] for i in to_remove], context='FACES')
         
     bm.to_mesh(mesh)

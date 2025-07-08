@@ -305,14 +305,15 @@ class ScenarioStructureBspTag(Tag):
                         collection.objects.link(seam_ob)
                     
         # Create Portals
-        print("Creating Portals")
-        portals_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_portals")
-        self.collection.children.link(portals_collection)
-        for element in self.tag.SelectField("Block:cluster portals").Elements:
-            portal = Portal(element)
-            ob = portal.create()
-            objects.append(ob)
-            portals_collection.objects.link(ob)
+        if not for_cinematic:
+            print("Creating Portals")
+            portals_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_portals")
+            self.collection.children.link(portals_collection)
+            for element in self.tag.SelectField("Block:cluster portals").Elements:
+                portal = Portal(element)
+                ob = portal.create()
+                objects.append(ob)
+                portals_collection.objects.link(ob)
         
         return objects
     

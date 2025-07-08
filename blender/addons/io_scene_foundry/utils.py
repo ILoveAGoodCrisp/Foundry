@@ -3482,7 +3482,7 @@ def add_face_layer(bm: bmesh.types.BMesh, mesh: bpy.types.Mesh, prop: str, value
             other_props = {"collision_only": value}
         case "sphere_collision_only":
             layer_name = f"sphere_collision_only{str(uuid4())}"
-            display_name = "Sphere Collision Onlu"
+            display_name = "Sphere Collision Only"
             override_prop = "sphere_collision_only_override"
             other_props = {"sphere_collision_only": value}
         case "bullet_collision_only":
