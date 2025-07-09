@@ -447,10 +447,10 @@ class MaterialTag(ShaderTag):
         for input in cast(list[bpy.types.NodeSocket], node.inputs[3:]): # ignore the first 3 inputs
             parameter_name_ui = input.name.lower() if "." not in input.name else input.name.partition(".")[0].lower()
             if "gamma curve" in parameter_name_ui:
-                if any(srgb_name in parameter_name_ui for srgb_name in srgb_names):
-                    input.default_value = 2.2
-                else:
-                    input.default_value = 1
+                # if any(srgb_name in parameter_name_ui for srgb_name in srgb_names):
+                #     input.default_value = 2.2
+                # else:
+                input.default_value = 1
             # parameter_type = self._parameter_type_from_name(parameter_name)
             parameter = material_parameters.get(parameter_name_ui)
             if parameter is None:

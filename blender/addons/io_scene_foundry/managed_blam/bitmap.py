@@ -352,10 +352,8 @@ class BitmapTag(Tag):
         }
 
 
-        if out_h is None:
-            out_h = f * 2
-        if out_w is None:
-            out_w = f * 4
+        out_h = f * 2
+        out_w = f * 4
 
         equi = py360convert.c2e(
             faces,
