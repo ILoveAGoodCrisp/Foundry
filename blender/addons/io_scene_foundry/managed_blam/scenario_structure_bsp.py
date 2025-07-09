@@ -256,6 +256,8 @@ class ScenarioStructureBspTag(Tag):
                     for face_layer in structure_mesh.nwo.face_props:
                         face_layer.face_count = utils.layer_face_count(bm, bm.faces.layers.int.get(face_layer.layer_name))
                     bm.free()
+                    
+                utils.consolidate_face_layers(ob.data)
             
         # Create Structure Collision
         self.structure_collision = None
@@ -270,11 +272,14 @@ class ScenarioStructureBspTag(Tag):
                 ob = collision.to_object(surface_indices=collision_only_indices)
                 ob.data.nwo.mesh_type = "_connected_geometry_mesh_type_structure"
                 ob.data.nwo.collision_only = True
-                objects.append(ob)
                 structure_collection.objects.link(ob)
                 # ob.hide_set(True)
-                ob.data.nwo.collision_only = True
+                # ob.data.nwo.collision_only = True
                 self.structure_collision = ob
+                structure_objects.append(ob)
+                objects.append(ob)
+                
+                utils.consolidate_face_layers(ob.data)
                 
                 if for_scenario:
                     print("Creating Seams")
@@ -307,8 +312,49 @@ class ScenarioStructureBspTag(Tag):
                         objects.append(seam_ob)
                         collection.objects.link(seam_ob)
                         
-        # Merge all structure objects
-                    
+        # # Merge all structure objects
+        # if len(structure_objects) > 1:
+        #     print("Merging Structure")
+        #     main_structure_ob, remaining_structure_obs = structure_objects[-1], structure_objects[:-1]
+        #     main_structure_ob.name = f"{self.tag_path.ShortName}_structure"
+        #     bm = bmesh.new()
+        #     bm.from_mesh(main_structure_ob.data)
+        #     # utils.save_loop_normals(bm, main_structure_ob.data)
+        #     for ob in remaining_structure_obs:
+        #         ob_mesh = ob.data
+        #         for layer in ob_mesh.nwo.face_props:
+        #             new_layer = main_structure_ob.data.nwo.face_props.add()
+        #             for k,v in layer.items():
+        #                 new_layer.__setattr__(k, v)
+                        
+        #         bm.from_mesh(ob.data)
+        #         # utils.save_loop_normals(bm, ob.data)
+        #         bpy.data.objects.remove(ob)
+        #         bpy.data.meshes.remove(ob_mesh)
+                
+        #     bm.to_mesh(main_structure_ob.data)
+        #     bm.free()
+            
+        #     # utils.apply_loop_normals(main_structure_ob.data)
+            
+        #     utils.consolidate_face_layers(main_structure_ob.data)
+            
+        #     # bm = bmesh.new()
+        #     # bm.from_mesh(main_structure_ob.data)
+        #     # utils.save_loop_normals(bm, main_structure_ob.data)
+        #     # bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.001*(1 / 0.03048))
+        #     # bmesh.ops.dissolve_degenerate(bm, dist=0.0008*(1 / 0.03048), edges=bm.edges)
+        #     # bm.to_mesh(main_structure_ob.data)
+        #     # bm.free()
+        #     # utils.apply_loop_normals(main_structure_ob.data)
+            
+        #     objects.append(main_structure_ob)
+        #     structure_collection.objects.link(main_structure_ob)
+            
+        # elif structure_objects:
+        #     objects.append(structure_objects[0])
+        #     structure_collection.objects.link(structure_objects[0])
+                
         # Create Portals
         if not for_cinematic:
             print("Creating Portals")

@@ -210,6 +210,13 @@ class InstanceDefinition:
                             self.blender_collision.nwo.proxy_parent = self.blender_render.data
                             self.blender_collision.nwo.proxy_type = "collision"
                             self.blender_render.data.nwo.proxy_collision = self.blender_collision
+                            # bm = bmesh.new()
+                            # bm.from_mesh(self.blender_collision.data)
+                            # utils.save_loop_normals(bm, self.blender_collision.data)
+                            # bmesh.ops.dissolve_degenerate(bm, dist=0.0005*(1 / 0.03048), edges=bm.edges)
+                            # bm.to_mesh(self.blender_collision.data)
+                            # bm.free()
+                            # utils.apply_loop_normals(self.blender_collision.data)
                             utils.consolidate_face_layers(self.blender_collision.data)
                     elif self.collision_only_surface_indices:
                         collision_mesh = self.collision_info.to_object(mesh_only=True, surface_indices=self.collision_only_surface_indices)
@@ -254,7 +261,8 @@ class InstanceDefinition:
                         # bm = bmesh.new()
                         # bm.from_mesh(self.blender_render.data)
                         # utils.save_loop_normals(bm, self.blender_render.data)
-                        # bmesh.ops.dissolve_degenerate(bm, dist=0.01, edges=bm.edges)
+                        # bmesh.ops.dissolve_degenerate(bm, dist=0.0008*(1 / 0.03048), edges=bm.edges)
+                        # bmesh.ops.dissolve_limit(bm, angle_limit=radians(0.1), verts=bm.verts, edges=bm.edges, delimit={'UV'})
                         # bm.to_mesh(self.blender_render.data)
                         # bm.free()
                         # utils.apply_loop_normals(self.blender_render.data)
@@ -1172,7 +1180,10 @@ class BSP:
         # bmesh.ops.dissolve_limit(bm, angle_limit=radians(5), edges=bm.edges, verts=bm.verts, delimit={"NORMAL"})
         # bmesh.ops.dissolve_degenerate(bm, dist=0.01, edges=bm.edges)
         # bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1)
+        if surface_indices:
+            bmesh.ops.delete(bm, geom=[vert for vert in bm.verts if vert.is_wire], context='VERTS')
         bm.faces.ensure_lookup_table()
+        # bmesh.ops.triangulate(bm, faces=bm.faces)
         # bmesh.ops.triangulate(bm, faces=bm.faces)
         # edges_to_dissolve = set()
         # for edge in bm.edges:
@@ -1781,8 +1792,8 @@ class Mesh:
                 face_layer.face_count = utils.layer_face_count(bm, bm.faces.layers.int.get(face_layer.layer_name))
             bm.free()
 
-        # if self.for_model:
-        # mesh.nwo.precise_position = True # Always set precise since we're importing game processed geo anyway
+        if self.permutation is not None: # limits this to models
+            mesh.nwo.precise_position = True # Always set precise since we're importing game processed geo anyway
             
         if self.is_pca:
             mesh.color_attributes.new("tension", 'FLOAT_COLOR', 'POINT')

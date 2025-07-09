@@ -25,7 +25,10 @@ wheels = [
   "./wheels/pycparser-2.22-py3-none-any.whl",
   "./wheels/pymem-1.13.1-py3-none-any.whl",
   "./wheels/pythonnet-3.0.5-py3-none-any.whl",
-  "./wheels/networkx-3.4.2-py3-none-any.whl"
+  "./wheels/networkx-3.4.2-py3-none-any.whl",
+  "./wheels/scipy-1.16.0-cp311-cp311-win_amd64.whl",
+  "./wheels/pillow-11.3.0-cp311-cp311-win_amd64.whl",
+  "./wheels/py360convert-1.0.4-py3-none-any.whl"
 ]
 
 [build]

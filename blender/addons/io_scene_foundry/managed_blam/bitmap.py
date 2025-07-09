@@ -6,6 +6,8 @@ import os
 import clr
 from pathlib import Path
 import ctypes
+import py360convert
+import numpy as np
 
 from ..constants import NormalType
 from ..managed_blam import Tag
@@ -69,6 +71,7 @@ class BitmapTag(Tag):
         self.charenum_usage = self.tag.SelectField('CharEnum:curve mode')
         self.block_usage_override = self.tag.SelectField("Block:usage override")
         self.block_bitmaps = self.tag.SelectField("Block:bitmaps")
+        self.is_cubemap = self.block_bitmaps.Elements.Count > 0 and self.block_bitmaps.Elements[0].SelectField("CharEnum:type").Value == 2
         
     def new_bitmap(self, bitmap_name, bitmap_type, color_space):
         def get_type_from_name(bitmap_name):
@@ -315,29 +318,73 @@ class BitmapTag(Tag):
 
         return faces[face].GetPixel(u, v)
 
-    def cubemap_to_equirectangular(self, bitmap):
-        """ Converts a left-shifted cross cubemap (wrapping -X) to an equirectangular projection """
-        width = bitmap.Width
-        height = bitmap.Height
-        face_size = height // 3
-        faces = self.extract_faces(bitmap, face_size)
-        
-        # Define output image size (2:1 aspect ratio)
-        equirect_width = face_size * 8
-        equirect_height = equirect_width // 2
+# ----------------------------------------------------------------------
 
-        # Create new equirectangular image
-        equirect = Bitmap(equirect_width, equirect_height)
-        
-        for y in range(equirect_height):
-            phi = ((equirect_height - 1 - y) / equirect_height - 0.5) * math.pi  # Flip Y
+    def cubemap_to_equirectangular(self, bitmap: Bitmap, mode: str = "bilinear") -> Bitmap:
+        from System import Array, Byte # type: ignore
+        from System.Runtime.InteropServices import Marshal # type: ignore
+        from System.Drawing import Rectangle, Imaging # type: ignore
 
-            for x in range(equirect_width):
-                theta = (x / equirect_width) * 2 * math.pi - math.pi  # -π to π
-                color = self.sample_cubemap(faces, theta, phi, face_size)
-                equirect.SetPixel(x, y, color)
-                
-        return equirect
+        w, h = bitmap.Width, bitmap.Height
+        bmp_data = bitmap.LockBits(
+            Rectangle(0, 0, w, h),
+            Imaging.ImageLockMode.ReadOnly,
+            Imaging.PixelFormat.Format32bppArgb
+        )
+        stride = bmp_data.Stride
+        buf = Array.CreateInstance(Byte, stride * h)
+        Marshal.Copy(bmp_data.Scan0, buf, 0, buf.Length)
+        bitmap.UnlockBits(bmp_data)
+
+        np_buf = np.frombuffer(bytearray(buf), dtype=np.uint8)
+        np_buf = np_buf.reshape((h, stride))[:, : w * 4] 
+        img_rgba = np_buf.reshape((h, w, 4))
+        img_rgb  = img_rgba[..., [2, 1, 0]]
+
+        f = h // 3                                             # face_size
+        faces = {
+            "U": img_rgb[0:f,           0:f       ],           # +Y
+            "D": img_rgb[2*f:3*f,       0:f       ],           # −Y
+            "F": img_rgb[f:2*f,         0:f       ],           # +Z
+            "R": img_rgb[f:2*f,         f:2*f     ],           # +X
+            "B": img_rgb[f:2*f,   2*f:3*f       ],             # −Z
+            "L": img_rgb[f:2*f,   3*f:4*f       ]              # −X
+        }
+
+
+        if out_h is None:
+            out_h = f * 2
+        if out_w is None:
+            out_w = f * 4
+
+        equi = py360convert.c2e(
+            faces,
+            h=out_h,
+            w=out_w,
+            mode=mode,
+            cube_format="dict"
+        )
+
+        equi_bgr = equi[..., ::-1].copy(order='C')
+        out_bmp  = Bitmap(out_w, out_h,
+                        Imaging.PixelFormat.Format24bppRgb)
+        out_data = out_bmp.LockBits(
+            Rectangle(0, 0, out_w, out_h),
+            Imaging.ImageLockMode.WriteOnly,
+            out_bmp.PixelFormat
+        )
+        dest_stride = out_data.Stride
+        row_bytes = out_w * 3
+        for y in range(out_h):
+            Marshal.Copy(
+                Array[Byte](bytearray(equi_bgr[y].ravel())),
+                0,
+                out_data.Scan0 + y * dest_stride,
+                row_bytes
+            )
+        out_bmp.UnlockBits(out_data)
+        return out_bmp
+
     
     def _convert_cubemap(self, bitmap, suffix):
         equirect = self.cubemap_to_equirectangular(bitmap)
@@ -380,7 +427,7 @@ class BitmapTag(Tag):
         
         if not os.path.exists(tiff_dir):
             os.makedirs(tiff_dir, exist_ok=True)
-        if False and self.is_cubemap: # TODO Make this work properly
+        if self.is_cubemap:
             # save the original cubemap
             match format:
                 case 'bmp':
@@ -416,7 +463,7 @@ class BitmapTag(Tag):
         elif expected_tif_path in path_cache and expected_tif_path.exists():
             return expected_tif_path
         
-        self.is_cubemap = "cube" in self.tag_path.ShortName or "env" in self.tag_path.ShortName
+        
         if self.block_bitmaps.Elements.Count <= 0:
             return
         gamma = self.get_gamma_value()

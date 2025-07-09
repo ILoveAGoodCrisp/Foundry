@@ -648,6 +648,11 @@ class ShaderTag(Tag):
         alt_system_tiff_path = system_tiff_path.with_suffix(".tif")
         with BitmapTag(path=bitmap_path) as bitmap:
             # is_non_color = bitmap.is_linear()
+            if bitmap.is_cubemap:
+                rel_path = f"{bitmap_path.RelativePath}_equirectangular"
+                system_tiff_path = Path(self.data_dir, rel_path).with_suffix('.tiff')
+                alt_system_tiff_path = system_tiff_path.with_suffix(".tif")
+                
             curve = bitmap.tag.SelectField("Block:bitmaps[0]/CharEnum:curve").Value
             for_normal = bitmap.used_as_normal_map()
             if self.always_extract_bitmaps:

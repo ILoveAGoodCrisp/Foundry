@@ -4395,12 +4395,14 @@ def delete_face_prop(mesh: bpy.types.Mesh, bm: bmesh.types.BMesh, idx: int):
     mesh.nwo.face_props.remove(idx)
     
 def consolidate_face_layers(mesh: bpy.types.Mesh):
-    sphere_coll = "Sphere Collision Only"
+    '''Consolidates face layers into the most minimal list. Also removes unused material slots'''
+    used_material_indices = set()
+    
+    sphere_coll = None
     face_props = defaultdict(list)
     layer_layers = defaultdict(list)
     face_prop_counts = {}
     layer_props = {}
-    two_side_layers = set()
     two_side_layer = None
     two_side_prop_idx = -1
     bm = bmesh.new()
@@ -4419,7 +4421,7 @@ def consolidate_face_layers(mesh: bpy.types.Mesh):
     
     for k, v in face_props.items():
         idx, layer = v[0]
-        if k == sphere_coll:
+        if k == "Sphere Collision Only":
             sphere_coll = layer
         elif k == "Two Sided":
             two_side_layer = layer
@@ -4427,12 +4429,14 @@ def consolidate_face_layers(mesh: bpy.types.Mesh):
             for p in v[1:]:
                 layer_layers[layer].append(p[1])
                 to_remove_indexes.add(p[0])
-            
+    
     for face in bm.faces:
+        used_material_indices.add(face.material_index)
         for k, v in layer_layers.items():
-            if face[v]:
-                face[k] = 1
-                face_prop_counts[k] += 1
+            for l in v:
+                if face[l]:
+                    face[k] = 1
+                    face_prop_counts[k] += 1
                 
     for k, v in face_prop_counts.items():
         if v:
@@ -4459,6 +4463,11 @@ def consolidate_face_layers(mesh: bpy.types.Mesh):
    
     for i in sorted(to_remove_indexes, reverse=True):
         delete_face_prop(mesh, bm, i)
+        
+    unused_material_indices = {idx for idx, _ in enumerate(mesh.materials) if idx not in used_material_indices}
+    
+    # for i in sorted(unused_material_indices, reverse=True):
+    #     mesh.materials.pop(index=i)
         
     bm.to_mesh(mesh)
     bm.free()
