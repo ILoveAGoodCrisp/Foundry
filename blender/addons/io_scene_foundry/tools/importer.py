@@ -1362,6 +1362,8 @@ class NWOImporter:
             self.sorted_filepaths = self.group_filetypes(scope)
         else:
             self.sorted_filepaths = []
+            
+        self.game_object_cache: dict[tuple[str, str]: bpy.types.Collection] = {}
     
     def group_filetypes(self, scope):
         if scope:
@@ -1503,14 +1505,31 @@ class NWOImporter:
         
         return imported_objects, imported_animations
     
-    def import_object(self, paths, existing_armature):
+    def import_object(self, paths, existing_armature) -> tuple[list[bpy.types.Object], list] | bpy.types.Collection:
         imported_objects = []
         imported_animations = []
+        is_game_object = isinstance(paths, bpy.types.Object)
+        if is_game_object:
+            paths = [paths]
+            self.tag_render = True
+            self.tag_markers = True
+            self.tag_state = 0
+            self.import_variant_children = True
         for file in paths:
+            if is_game_object:
+                game_object = file
+                file = str(Path(utils.get_tags_path(), game_object.nwo.marker_game_instance_tag_name))
             start_mb_for_import(file)
             print(f'Importing Object Tag: {Path(file).name} ')
             with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
                 with ObjectTag(path=mover.tag_path, raise_on_error=False) as obj:
+                    if is_game_object:
+                        if game_object.nwo.marker_game_instance_tag_variant_name.strip():
+                            self.tag_variant = game_object.nwo.marker_game_instance_tag_variant_name
+                        elif obj.default_variant.GetStringData():
+                            self.tag_variant = obj.default_variant.GetStringData()
+                        else:
+                            self.tag_variant = ""
                     model_path = obj.get_model_tag_path_full()
                     change_colors = obj.get_change_colors(self.tag_variant)
                     magazine_size = obj.get_magazine_size()
@@ -1534,7 +1553,7 @@ class NWOImporter:
                             
                             temp_variant = self.tag_variant
                             
-                            if not temp_variant and self.context.scene.nwo.asset_type == 'cinematic':
+                            if not temp_variant and (is_game_object or self.context.scene.nwo.asset_type == 'cinematic'):
                                 if model.block_variants.Elements.Count:
                                     temp_variant = model.block_variants.Elements[0].Fields[0].GetStringData()
                             
@@ -1547,7 +1566,7 @@ class NWOImporter:
                                 render_objects, armature = self.import_render_model(render, model_collection, existing_armature, allowed_region_permutations)
                                 
                                 # FP Stuff
-                                if self.import_fp_arms.value and not self.fp_arms_imported and obj.tag_path.Extension == "weapon":
+                                if not is_game_object and self.import_fp_arms.value and not self.fp_arms_imported and obj.tag_path.Extension == "weapon":
                                     # get fp arms path from globals
                                     globals_path = Path(utils.get_tags_path(), "globals\\globals.globals")
                                     if globals_path.exists():
@@ -1682,15 +1701,17 @@ class NWOImporter:
                                                 driver.expression = var.name
                                                 
                                                                                 
-                            if collision and self.tag_collision:
+                            if not is_game_object and collision and self.tag_collision:
                                 imported_objects.extend(self.import_collision_model(collision, armature, model_collection, allowed_region_permutations))
-                            if physics and self.tag_physics:
+                            if not is_game_object and physics and self.tag_physics:
                                 imported_objects.extend(self.import_physics_model(physics, armature, model_collection, allowed_region_permutations))
-                            if animation and self.tag_animation:
+                            if not is_game_object and animation and self.tag_animation:
                                 print("Importing Animation Graph")
                                 imported_animations.extend(self.import_animation_graph(animation, armature, render))
                                 
                             if self.import_variant_children and temp_variant:
+                                child_collection = bpy.data.collections.new(name=f"{model.tag_path.ShortName}_child_objects")
+                                model_collection.children.link(child_collection)
                                 child_objects = model.get_variant_children(temp_variant)
                                 if child_objects:
                                     print("Import Child Objects")
@@ -1698,15 +1719,18 @@ class NWOImporter:
                                         if child.child_object is None:
                                             continue
                                         print(f"--- {child.child_object.ShortNameWithExtension}")
-                                        imported_objects.extend(self.import_child_object(child, armature, {ob: ob.nwo.marker_model_group for ob in render_objects if ob.type == 'EMPTY'}))
+                                        imported_objects.extend(self.import_child_object(child, armature, {ob: ob.nwo.marker_model_group for ob in render_objects if ob.type == 'EMPTY'}, child_collection, is_game_object))
                                     self.context.view_layer.update()
                                     
-                            if self.setup_as_asset:
+                            if not is_game_object and self.setup_as_asset:
                                 set_asset(Path(file).suffix, armature)
-                                        
-        return imported_objects, imported_animations
+
+        if is_game_object:
+            return model_collection
+        else:
+            return imported_objects, imported_animations
     
-    def import_child_object(self, child_object: ChildObject, parent_armature: bpy.types.Object, markers: dict[bpy.types.Object: str]):
+    def import_child_object(self, child_object: ChildObject, parent_armature: bpy.types.Object, markers: dict[bpy.types.Object: str], child_collection, is_game_object):
         imported_objects = []
         if child_object.child_object is None:
             return
@@ -1738,7 +1762,7 @@ class NWOImporter:
                 
                 allowed_region_permutations = model.get_variant_regions_and_permutations(temp_variant, self.tag_state)
                 model_collection = bpy.data.collections.new(model.tag_path.ShortName)
-                self.context.scene.collection.children.link(model_collection)
+                child_collection.children.link(model_collection)
 
                 if has_change_colors:
                     prop_names.extend(["Primary Color", "Secondary Color", "Tertiary Color", "Quaternary Color"])
@@ -1799,9 +1823,9 @@ class NWOImporter:
                                     var.targets[0].data_path = f'["{prop}"]'
                                     driver.expression = var.name
                                     
-                    if collision and self.tag_collision:
+                    if not is_game_object and collision and self.tag_collision:
                         imported_objects.extend(self.import_collision_model(collision, armature, model_collection, allowed_region_permutations))
-                    if physics and self.tag_physics:
+                    if not is_game_object and physics and self.tag_physics:
                         imported_objects.extend(self.import_physics_model(physics, armature, model_collection, allowed_region_permutations))
                         
                     marker_children = []
@@ -1824,12 +1848,14 @@ class NWOImporter:
                             if group_name == child_object.parent_marker:
                                 marker_parents.append(marker_ob)
                     
-                    con = armature.constraints.new('CHILD_OF')
-                    con.set_inverse_pending = False
+                    # con = armature.constraints.new('CHILD_OF')
+                    # con.set_inverse_pending = False
                     if marker_parents:
-                        con.target = marker_parents[0]
+                        armature.parent = marker_parents[0]
+                        # con.target = marker_parents[0]
                     else:
-                        con.target = parent_armature
+                        armature.parent = parent_armature
+                        # con.target = parent_armature
                         
                     # con.inverse_matrix = IDENTITY_MATRIX
                         
@@ -1940,7 +1966,25 @@ class NWOImporter:
             scenario_collection.children.link(collection)
         with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
             with ScenarioStructureBspTag(path=mover.tag_path) as bsp:
-                bsp_objects = bsp.to_blend_objects(collection, scenario_collection is not None, self.tag_bsp_render_only)
+                bsp_objects, game_objects = bsp.to_blend_objects(collection, scenario_collection is not None, self.tag_bsp_render_only)
+                if game_objects:
+                    print("Importing Game Object Geometry")
+                    for ob in game_objects:
+                        
+                        key = ob.nwo.marker_game_instance_tag_name, ob.nwo.marker_game_instance_variant_name
+                        game_object_collection = self.game_object_cache.get(key)
+                        
+                        if game_object_collection is None:
+                            game_object_collection = self.import_object(ob, None)
+                            merge_collection(game_object_collection)
+                            bsp_objects.extend(game_object_collection.all_objects)
+                            self.context.scene.collection.children.unlink(game_object_collection)
+                            utils.get_foundry_storage_scene().collection.children.link(game_object_collection)
+                            self.game_object_cache[key] = game_object_collection
+                            
+                        ob.instance_type = 'COLLECTION'
+                        ob.instance_collection = game_object_collection
+                        ob.nwo.marker_instance = True
                 # seams = bsp.get_seams(bsp_name, seams)
         
         bsp_name = utils.add_region(bsp_name)
@@ -3557,4 +3601,30 @@ class NWO_FH_ImportShaderAsMaterial(bpy.types.FileHandler):
     def poll_drop(cls, context):
         return (context.area and context.area.type in {'NODE_EDITOR', 'VIEW_3D', 'PROPERTIES'})
     
+def merge_collection(collection: bpy.types.Collection):
+    """Reduces a collection down to just the meshes. Clearing markers and armatures"""
+    utils.deselect_all_objects()
+    mesh_found = False
+    to_remove_objects = []
+    for ob in collection.all_objects:
+        if ob.type == 'MESH':
+            ob.select_set(True)
+            if not mesh_found:
+                mesh_found = True
+                bpy.context.view_layer.objects.active = ob
+        else:
+            to_remove_objects.append(ob)
+            
+    bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
     
+    for ob in to_remove_objects:
+        bpy.data.objects.remove(ob)
+        
+    # bpy.ops.object.join()
+    
+    for ob in collection.all_objects:
+        utils.unlink(ob)
+        collection.objects.link(ob)
+    
+    for child in collection.children_recursive:
+        bpy.data.collections.remove(child)

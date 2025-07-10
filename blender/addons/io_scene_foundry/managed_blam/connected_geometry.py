@@ -436,21 +436,52 @@ class Instance:
                 return main_collection
         
         return ig_collection
+
+class StructureMarker:
+    def __init__(self, element: TagFieldBlockElement):
+        self.name = element.SelectField("String:marker parameter").GetStringData()
+        self.rotation: Quaternion = utils.ijkw_to_wxyz([n for n in element.SelectField("rotation").Data])
+        self.position: Vector = ([n * 100 for n in element.SelectField("position").Data])
         
-
-# class BSPMarker:
-#     index: int
-#     type: BSPMarkerType
-#     parameter: str
-#     rotation: Quaternion
-#     position: Vector
-
-# class EnvironmentObjectPalette:
-#     definition: str
-#     model: str
-#     index: str
+    def to_object(self):
+        ob = bpy.data.objects.new(name=self.name, object_data=None)
+        ob.empty_display_type = "ARROWS"
+        ob.empty_display_size *= (1 / 0.03048)
+        ob.matrix_world = Matrix.LocRotScale(self.position, self.rotation, Vector.Fill(3, 1))
+        return ob
     
-# class EnvironmentObject:
+class EnvironmentObjectReference:
+    def __init__(self, element: TagFieldBlockElement):
+        self.definition = ""
+        def_path = element.Fields[0].Path
+        if def_path is not None:
+            if Path(def_path.Filename).exists():
+                self.definition = def_path.RelativePathWithExtension
+    
+class EnvironmentObject:
+    def __init__(self, element: TagFieldBlockElement, palette: list[EnvironmentObjectReference]):
+        self.name = element.SelectField("name").GetStringData()
+        self.rotation: Quaternion = utils.ijkw_to_wxyz([n for n in element.SelectField("rotation").Data])
+        self.translation: Vector = ([n * 100 for n in element.SelectField("translation").Data])
+        self.scale = element.SelectField("scale").Data
+        palette_index = element.SelectField("ShortBlockIndex:palette_index").Value
+        self.reference = palette[palette_index] if palette_index > -1  and palette_index < len(palette) else None
+        self.variant = element.SelectField("StringId:variant name").GetStringData()
+        
+    def to_object(self):
+        if self.reference is None or self.reference.definition is None:
+            return print(f"Found environment object named {self.name} but it has no valid tag reference")
+            
+        ob = bpy.data.objects.new(name=self.name, object_data=None)
+        ob.empty_display_type = "ARROWS"
+        ob.matrix_world = Matrix.LocRotScale(self.translation, self.rotation, Vector.Fill(3, self.scale))
+        
+        ob.nwo.marker_type = '_connected_geometry_marker_type_game_instance'
+        ob.nwo.marker_game_instance_tag_name = self.reference.definition
+        ob.nwo.marker_game_instance_tag_variant_name = self.variant
+        
+        return ob
+         
 #     index: int
 #     palette_index: int
 #     palette: EnvironmentObjectPalette
@@ -983,7 +1014,7 @@ class CollisionEdge:
 class BSP:
     def __init__(self, element: TagFieldBlockElement, name, materials: list[CollisionMaterial]):
         self.name = name
-        self.index = element.ElementIndex
+        # self.index = element.ElementIndex
         self.uses_materials = False
         self.surfaces = [CollisionSurface(e, materials) for e in element.SelectField("Block:surfaces").Elements]
         self.vertices = [CollisionVertex(e) for e in element.SelectField("Block:vertices").Elements]
@@ -993,7 +1024,7 @@ class BSP:
         self.some_sphere_collision = any(surf.invisible for surf in self.surfaces)
 
         
-    def to_object(self, mesh_only=False, surface_indices=[]) -> bpy.types.Object:
+    def to_object(self, mesh_only=False, surface_indices=[], cookie_cutter=False) -> bpy.types.Object:
         def yield_indices():
             if surface_indices:
                 surfaces = [i for idx, i in enumerate(self.surfaces) if idx in set(surface_indices)]
@@ -1084,7 +1115,7 @@ class BSP:
                         blender_materials_map[mat] = idx
             elif surface.material:
                 mesh.materials.append(surface.material.blender_material)
-        else:
+        elif not cookie_cutter:
             if split_material:
                 for material in set(map_material):
                     if material and material.name != 'default':
@@ -1202,7 +1233,10 @@ class BSP:
             return mesh
         
         ob = bpy.data.objects.new(self.name, mesh)
-        if not self.uses_materials:
+        if cookie_cutter:
+            mesh.nwo.mesh_type = "_connected_geometry_mesh_type_cookie_cutter"
+            apply_props_material(ob, "CookieCutter")
+        elif not self.uses_materials:
             mesh.nwo.mesh_type = "_connected_geometry_mesh_type_collision"
             apply_props_material(ob, 'Collision')
         return ob

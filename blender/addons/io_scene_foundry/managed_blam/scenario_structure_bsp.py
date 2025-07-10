@@ -5,7 +5,7 @@ import bpy
 
 from ..tools.property_apply import apply_props_material
 
-from .connected_geometry import BSPCollisionMaterial, BSPSeam, Cluster, CompressionBounds, Instance, InstanceDefinition, Material, Mesh, Portal, StructureCollision, SurfaceMapping
+from .connected_geometry import BSP, BSPCollisionMaterial, Cluster, CompressionBounds, EnvironmentObject, EnvironmentObjectReference, Instance, InstanceDefinition, Material, Portal, StructureCollision, StructureMarker, SurfaceMapping
 from ..utils import jstr
 from ..managed_blam import Tag
 from .. import utils
@@ -130,6 +130,7 @@ class ScenarioStructureBspTag(Tag):
         
     def to_blend_objects(self, collection: bpy.types.Collection, for_scenario: bool, for_cinematic: bool):
         objects = []
+        game_objects = []
         self.collection = collection
         # Get all collision materials
         collision_materials = []
@@ -357,19 +358,65 @@ class ScenarioStructureBspTag(Tag):
                 
         # Create Portals
         if not for_cinematic:
-            print("Creating Portals")
-            layer = utils.add_permutation("portals")
-            portals_collection = bpy.data.collections.new(name=f"layer::{self.tag_path.ShortName}_portals")
-            portals_collection.nwo.type = "permutation"
-            portals_collection.nwo.permutation = layer
-            self.collection.children.link(portals_collection)
-            for element in self.tag.SelectField("Block:cluster portals").Elements:
-                portal = Portal(element)
-                ob = portal.create()
-                objects.append(ob)
-                portals_collection.objects.link(ob)
+            if self.tag.SelectField("Block:cluster portals").Elements.Count > 0:
+                print("Creating Portals")
+                layer = utils.add_permutation("portals")
+                portals_collection = bpy.data.collections.new(name=f"layer::{self.tag_path.ShortName}_portals")
+                portals_collection.nwo.type = "permutation"
+                portals_collection.nwo.permutation = layer
+                self.collection.children.link(portals_collection)
+                for element in self.tag.SelectField("Block:cluster portals").Elements:
+                    portal = Portal(element)
+                    ob = portal.create()
+                    objects.append(ob)
+                    portals_collection.objects.link(ob)
+            
+            if self.tag.SelectField("Block:cookie cutters").Elements.Count > 0:
+                print("Creating Cookie Cutters")
+                layer = utils.add_permutation("cookie_cutters")
+                cookies_collection = bpy.data.collections.new(name=f"layer::{self.tag_path.ShortName}_cookie_cutters")
+                cookies_collection.nwo.type = "permutation"
+                cookies_collection.nwo.permutation = layer
+                self.collection.children.link(cookies_collection)
+                for element in self.tag.SelectField("Block:cookie cutters").Elements:
+                    cookie = BSP(element.Fields[1].Elements[0], f"cookie_cutter{element.ElementIndex}", [])
+                    ob = cookie.to_object(cookie_cutter=True)
+                    objects.append(ob)
+                    cookies_collection.objects.link(ob)
         
-        return objects
+            # Create markers
+            if self.tag.SelectField("Block:markers").Elements.Count > 0:
+                print("Creating Structure Markers")
+                layer = utils.add_permutation("markers")
+                markers_collection = bpy.data.collections.new(name=f"layer::{self.tag_path.ShortName}_markers")
+                markers_collection.nwo.type = "permutation"
+                markers_collection.nwo.permutation = layer
+                self.collection.children.link(markers_collection)
+            
+                for element in self.tag.SelectField("Block:markers").Elements:
+                    marker = StructureMarker(element)
+                    ob = marker.to_object()
+                    objects.append(ob)
+                    markers_collection.objects.link(ob)
+            
+        # Now do environment objects
+        if self.tag.SelectField("Block:environment objects").Elements.Count > 0:
+            print("Creating Game Object Markers")
+            layer = utils.add_permutation("objects")
+            env_objects_collection = bpy.data.collections.new(name=f"layer::{self.tag_path.ShortName}_markers")
+            env_objects_collection.nwo.type = "permutation"
+            env_objects_collection.nwo.permutation = layer
+            self.collection.children.link(env_objects_collection)
+            env_objects_palette = [EnvironmentObjectReference(element) for element in self.tag.SelectField("Block:environment object palette").Elements]
+            for element in self.tag.SelectField("Block:environment objects").Elements:
+                env_object = EnvironmentObject(element, env_objects_palette)
+                ob = env_object.to_object()
+                if ob is not None:
+                    env_objects_collection.objects.link(ob)
+                    objects.append(ob)
+                    game_objects.append(ob)
+            
+            return objects, game_objects
     
     # def get_seams(self, name, existing_seams: list[BSPSeam]=[]):
     #     seams = []

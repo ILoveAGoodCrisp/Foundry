@@ -1,10 +1,13 @@
 
 
+from pathlib import Path
 import bpy
 from mathutils import Matrix
+
+from ..managed_blam.object import ObjectTag
 from ..icons import get_icon_id
 
-from ..utils import get_foundry_storage_scene, is_corinth, is_marker, is_mesh, poll_ui, set_active_object, unlink
+from .. import utils
 
 class NWO_MeshToMarker(bpy.types.Operator):
     bl_idname = 'nwo.mesh_to_marker'
@@ -17,10 +20,10 @@ class NWO_MeshToMarker(bpy.types.Operator):
         return bpy.ops.object.mode_set.poll()
     
     def items_marker_type(self, context):
-        h4 = is_corinth()
+        h4 = utils.is_corinth()
         items = []
 
-        if poll_ui(("model", "sky")):
+        if utils.poll_ui(("model", "sky")):
             items.append(
                 (
                     "_connected_geometry_marker_type_model",
@@ -39,7 +42,7 @@ class NWO_MeshToMarker(bpy.types.Operator):
                     1,
                 )
             )
-            if poll_ui("model"):
+            if utils.poll_ui("model"):
                 items.append(
                     (
                         "_connected_geometry_marker_type_garbage",
@@ -95,7 +98,7 @@ class NWO_MeshToMarker(bpy.types.Operator):
                             7,
                         )
                     )
-        elif poll_ui("scenario"):
+        elif utils.poll_ui("scenario"):
             items.append(
                 (
                     "_connected_geometry_marker_type_model",
@@ -161,7 +164,7 @@ class NWO_MeshToMarker(bpy.types.Operator):
     meshes_selected: bpy.props.BoolProperty(options={'SKIP_SAVE'})
 
     def execute(self, context):
-        self.meshes_selected = any([is_mesh(ob) for ob in context.selected_objects])
+        self.meshes_selected = any([utils.is_mesh(ob) for ob in context.selected_objects])
         if not self.called_once and self.meshes_selected and self.marker_type == '_connected_geometry_marker_type_game_instance':
             self.maintain_mesh = True
         self.called_once = True
@@ -169,9 +172,9 @@ class NWO_MeshToMarker(bpy.types.Operator):
         to_set = set()
         active_name = context.object.name
         for ob in context.selected_objects:
-            if is_mesh(ob):
+            if utils.is_mesh(ob):
                 to_convert.add(ob)
-            elif is_marker(ob):
+            elif utils.is_marker(ob):
                 to_set.add(ob)
                 ob.select_set(False)
             else:
@@ -232,7 +235,7 @@ class NWO_MeshToMarker(bpy.types.Operator):
         [ob.select_set(True) for ob in to_set]
         new_active = bpy.data.objects.get(active_name, 0)
         if new_active:
-            set_active_object(new_active)
+            utils.set_active_object(new_active)
         self.report({'INFO'}, f"Converted {len(to_set)} objects to markers")
         return {'FINISHED'}
     
@@ -287,7 +290,7 @@ def convert_to_marker(ob: bpy.types.Object, maintain_mesh=False) -> bpy.types.Ob
         ob.matrix_world = Matrix()
         # mesh_ob = bpy.data.objects.new(original_name + '_TEMP', ob.data)
         secret_coll = bpy.data.collections.new(original_name)
-        get_foundry_storage_scene().collection.children.link(secret_coll)
+        utils.get_foundry_storage_scene().collection.children.link(secret_coll)
         secret_coll.objects.link(ob)
         marker.instance_type = 'COLLECTION'
         marker.instance_collection = secret_coll
