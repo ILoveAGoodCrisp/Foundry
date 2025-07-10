@@ -1971,7 +1971,7 @@ class NWOImporter:
                     print("Importing Game Object Geometry")
                     for ob in game_objects:
                         
-                        key = ob.nwo.marker_game_instance_tag_name, ob.nwo.marker_game_instance_variant_name
+                        key = ob.nwo.marker_game_instance_tag_name, ob.nwo.marker_game_instance_tag_variant_name
                         game_object_collection = self.game_object_cache.get(key)
                         
                         if game_object_collection is None:
