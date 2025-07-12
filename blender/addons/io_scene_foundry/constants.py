@@ -74,6 +74,7 @@ PROTECTED_MATERIALS = (
 
 MAT_SEAMSEALER = '+seamsealer'
 MAT_SKY = '+sky'
+MAT_SEAM = '+seam'
 MAT_INVISIBLE = '+invisible'
 MAT_INVALID = "+invalid"
 

@@ -2753,6 +2753,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             if nwo.SpecialMaterial:
                 if mat.name.startswith('+seamsealer'):
                     col.label(text=f'SeamSealer Material applied')
+                elif mat.name.startswith('+seam'):
+                    col.label(text=f'Seam Material applied')
                 else:
                     col.label(text=f'Sky Material applied')
                     sky_perm = utils.get_sky_perm(mat)

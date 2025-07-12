@@ -145,7 +145,6 @@ class SurfaceMapping:
                 self.triangle_indices.append(mapping)
         else:
             self.collision_only = True
-    
 class InstanceDefinition:
     def __init__(self, element: TagFieldBlockElement, mesh_block: TagFieldBlock, compression_bounds: list['CompressionBounds'], render_materials: list['Material'], collision_materials: list['BSPCollisionMaterial'], for_cinematic = False):
         self.index = element.ElementIndex
@@ -1122,6 +1121,10 @@ class BSP:
                             
                         mesh.materials.append(bmat)
                         blender_materials_map[mat] = idx
+                    elif mat.is_seam:
+                        bmat = get_blender_material("+seam")
+                        mesh.materials.append(bmat)
+                        blender_materials_map[mat] = idx
                     else:
                         mesh.materials.append(mat.blender_material)
                         blender_materials_map[mat] = idx
@@ -1781,7 +1784,6 @@ class Mesh:
             
         # for IG figure out what tris are render only
         if surface_triangle_mapping:
-            mapping_count = sum([len(mapping.triangle_indices) for mapping in surface_triangle_mapping])
             indices = [t.index for t in self.tris]
             props = [[] for _ in indices]
             collision_face_indices = []
@@ -1816,7 +1818,13 @@ class Mesh:
                             props[i.tri].append(breakable_layer)
                         
                 collision_face_indices.extend(t.tri for t in mapping.triangle_indices if t.section == section_index)
-                    
+                
+            if self.index == 359:
+                print("INDICES", len(indices))
+                print(indices)
+                print("COLLSION", len(collision_face_indices))
+                print(collision_face_indices)
+                
             render_only_indices = [i for i in indices if i not in set(collision_face_indices)]
             if render_only_indices:
                 render_only_layer = utils.add_face_layer(bm, mesh, "render_only", True)
@@ -1832,7 +1840,7 @@ class Mesh:
             bm.free()
 
         if not self.is_pca:
-            utils.set_two_sided(mesh, is_io) # NOTE no longer setting this. This both saves time and means we don't need to worry about per material two-sidedness
+            utils.set_two_sided(mesh, is_io)
             utils.loop_normal_magic(mesh)
         
         if mesh.nwo.face_props:
@@ -2035,7 +2043,7 @@ class MarkerGroup:
 def get_blender_material(name, shader_path=""):
     mat = bpy.data.materials.get(name)
     if not mat:
-        if name == '+sky' or name == '+seamsealer':
+        if name == '+sky' or name == '+seamsealer' or name == "+seam":
             add_special_materials('h4' if utils.is_corinth() else 'reach', 'scenario')
             mat = bpy.data.materials.get(name)
         else:

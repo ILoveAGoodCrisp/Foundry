@@ -10,8 +10,9 @@ class SpecialMaterial:
     
 seamsealer = SpecialMaterial('+seamsealer', ['reach', 'h4'], ['scenario',], [1, 1, 1, 0.05], 'bungie_face_type=_connected_geometry_face_type_seam_sealer', True)
 sky = SpecialMaterial('+sky', ['reach', 'h4'], ['scenario',], [0.5, 0.7, 1, 0.05], 'bungie_face_type=_connected_geometry_face_type_sky', True)
+seam = SpecialMaterial('+seam', ['reach', 'h4'], ['scenario',], [0.4, 1.0, 0.4, 0.6], 'bungie_mesh_type=_connected_geometry_mesh_type_seam', True)
 
-special_materials = seamsealer, sky
+special_materials = seamsealer, sky, seam
 
 class ConventionMaterial:
     """Class holding information about materials that get a color assigned to them and cannot be given a shader path, but otherwise have no special properties. At export these are forced to override/invisible"""

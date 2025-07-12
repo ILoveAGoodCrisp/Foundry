@@ -2026,7 +2026,7 @@ class FaceSet:
 def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh, num_faces: int, scene: VirtualScene, sorted_order, special_mats_dict: dict, fp_defaults: dict, props: dict) -> dict:
     bm = bmesh.new()
     bm.from_mesh(mesh)
-    
+    is_structure = props.get("bungie_mesh_type") == MeshType.default.value
     face_properties = {}
     side_layers = {}
     
@@ -2153,8 +2153,9 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
     for material, material_indices in special_mats_dict.items():
         if material.name.lower().startswith('+seamsealer') and props.get("bungie_face_type") is None:
             face_properties.setdefault("bungie_face_type", FaceSet(np.zeros(num_faces, dtype=np.int32))).update_from_material(bm, material_indices, FaceType.seam_sealer.value)
+        elif is_structure and material.name.lower().startswith('+seam'):
+            face_properties.setdefault("bungie_mesh_type", FaceSet(np.zeros(num_faces, dtype=np.int32))).update_from_material(bm, material_indices, MeshType.seam.value)
         elif material.name.lower().startswith('+'):
-            is_structure = props.get("bungie_mesh_type") == MeshType.default.value
             if not is_structure and not scene.corinth:
                 bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.material_index in material_indices], context='FACES')
                 continue

@@ -280,42 +280,6 @@ class ScenarioStructureBspTag(Tag):
                 self.structure_collision = ob
                 structure_objects.append(ob)
                 # objects.append(ob)
-                
-                # utils.consolidate_face_layers(ob.data)
-                
-                if for_scenario:
-                    print("Creating Seams")
-                    seams_mesh = ob.data.copy()
-                    # Remove seam faces
-                    bm = bmesh.new()
-                    seam_bm = bmesh.new()
-                    bm.from_mesh(ob.data)
-                    seam_bm.from_mesh(seams_mesh)
-                    seam_material_indices = set()
-                    for idx, material in enumerate(ob.data.materials):
-                        seam_collision_mat = next((cm for cm in collision_materials if cm.blender_material == material and cm.is_seam), None)
-                        if seam_collision_mat:
-                            seam_material_indices.add(idx)
-                            
-                    bmesh.ops.delete(seam_bm, geom=[f for f in seam_bm.faces if f.material_index not in seam_material_indices], context='FACES')
-                    bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.material_index in seam_material_indices], context='FACES')
-                    seam_bm.to_mesh(seams_mesh)
-                    seam_bm.free()
-                    bm.to_mesh(ob.data)
-                    bm.free()
-                    
-                    if seams_mesh.polygons:
-                        seam_ob = ob.copy()
-                        seam_ob.data = seams_mesh
-                        seam_ob.name = "seams"
-                        seams_mesh.nwo.mesh_type = "_connected_geometry_mesh_type_seam"
-                        seam_ob.nwo.seam_back_manual = True
-                        apply_props_material(seam_ob, "Seam")
-                        objects.append(seam_ob)
-                        collection.objects.link(seam_ob)
-                        
-                        
-                # utils.connect_verts_on_edge(self.structure_collision.data)
                         
         # Merge all structure objects
         if len(structure_objects) > 1:

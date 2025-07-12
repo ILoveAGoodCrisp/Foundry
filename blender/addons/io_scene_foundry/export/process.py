@@ -769,6 +769,9 @@ class ExportScene:
                         mesh_type = '_connected_geometry_mesh_type_poop'
                     case '_connected_geometry_mesh_type_structure':
                         mesh_type = '_connected_geometry_mesh_type_default'
+                        seam_material = mesh.materials.get("+seam")
+                        if seam_material is not None:
+                            props["bungie_mesh_seam_associated_bsp"] = region
                         
                 match mesh_type:
                     case '_connected_geometry_mesh_type_poop':

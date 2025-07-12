@@ -4468,22 +4468,26 @@ def consolidate_face_layers(mesh: bpy.types.Mesh):
     bm.free()
 
 
-def connect_verts_on_edge(mesh: bpy.types.Mesh):
+def connect_verts_on_edge(mesh: bpy.types.Mesh, do_degen_dissolve=True):
     """Split edges so that stray verts become connected – quick AABB version."""
-    bm = bmesh.new();  bm.from_mesh(mesh)
-    bm.verts.ensure_lookup_table(); bm.edges.ensure_lookup_table()
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    bm.verts.ensure_lookup_table()
+    bm.edges.ensure_lookup_table()
+    save_loop_normals(bm, mesh)
 
     tol=0.005
     
     tol2 = tol * tol
 
-    for e in list(bm.edges):
+    for e in bm.edges:
+        if not e.is_valid:
+            continue
         a, b = e.verts
         seg = b.co - a.co
         if seg.length_squared == 0.0:
             continue
 
-        # ~~~ pre-compute expanded AABB ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         bb_min = Vector((min(a.co.x, b.co.x) - tol,
                          min(a.co.y, b.co.y) - tol,
                          min(a.co.z, b.co.z) - tol))
@@ -4496,14 +4500,12 @@ def connect_verts_on_edge(mesh: bpy.types.Mesh):
             if v in e.verts:
                 continue
 
-            # --- ultra-cheap AABB reject ------------------------------------
             c = v.co
             if (c.x < bb_min.x or c.x > bb_max.x or
                 c.y < bb_min.y or c.y > bb_max.y or
                 c.z < bb_min.z or c.z > bb_max.z):
                 continue
 
-            # --- precise test, all C-side (very fast) -----------------------
             closest, t = geom.intersect_point_line(c, a.co, b.co)
             if (c - closest).length_squared > tol2:
                 continue
@@ -4526,8 +4528,13 @@ def connect_verts_on_edge(mesh: bpy.types.Mesh):
             bmesh.ops.pointmerge(bm, verts=[v, helper], merge_co=v.co)
             cur_src = v
             cur_e   = next(ed for ed in v.link_edges if ed.other_vert(v) == b)
+            
+    if do_degen_dissolve:
+        bmesh.ops.dissolve_degenerate(bm, dist=0.0005/0.03048, edges=bm.edges)
 
-    bm.to_mesh(mesh);  bm.free()
+    bm.to_mesh(mesh)
+    bm.free()
+    apply_loop_normals(mesh)
 
 def set_two_sided(mesh, is_io=False):
     bm = bmesh.new()
