@@ -198,34 +198,6 @@ class RenderModelTag(Tag):
                         objects.extend(obs)
                         for ob in obs:
                             self.collection.objects.link(ob)
-                        
-        
-        for cmesh in clone_meshes:
-            for tmesh in original_meshes:
-                if tmesh.permutation.name == cmesh.permutation.clone_name:
-                    permutation = self.context.scene.nwo.permutations_table.get(tmesh.permutation.name)
-                    if permutation is None:
-                        continue
-                    clone = permutation.clones.get(cmesh.permutation.name)
-                    if clone is None:
-                        clone = permutation.clones.add()
-                        clone.name = cmesh.permutation.name
-                        print(f"\n--- Added permutation clone: {permutation.name} --> {clone.name}")
-                    for true_part, clone_part in zip(tmesh.parts, cmesh.parts):
-                        source_material = true_part.material
-                        destination_material = clone_part.material
-                        if source_material is None or destination_material is None or source_material.blender_material is None or destination_material.blender_material is None or source_material.blender_material is destination_material.blender_material:
-                            continue
-                        # check existing
-                        for override in clone.material_overrides:
-                            if source_material.blender_material is override.source_material:
-                                break
-                        else:
-                            override = clone.material_overrides.add()
-                            override.source_material = source_material.blender_material
-                            override.destination_material = destination_material.blender_material
-                            print(f"--- Material Override added for clone {clone.name}: {override.source_material.name} --> {override.destination_material.name}")
-                    break
                 
         # Instances
         self.instances = []
@@ -278,6 +250,35 @@ class RenderModelTag(Tag):
                         break
                 
             objects.extend(ios)
+            
+        for cmesh in clone_meshes:
+            for tmesh in original_meshes:
+                print(tmesh.permutation.name)
+                if tmesh.permutation.name == cmesh.permutation.clone_name:
+                    permutation = self.context.scene.nwo.permutations_table.get(tmesh.permutation.name)
+                    if permutation is None:
+                        print("no find perm??????")
+                        continue
+                    clone = permutation.clones.get(cmesh.permutation.name)
+                    if clone is None:
+                        clone = permutation.clones.add()
+                        clone.name = cmesh.permutation.name
+                        print(f"\n--- Added permutation clone: {permutation.name} --> {clone.name}")
+                    for true_part, clone_part in zip(tmesh.parts, cmesh.parts):
+                        source_material = true_part.material
+                        destination_material = clone_part.material
+                        if source_material is None or destination_material is None or source_material.blender_material is None or destination_material.blender_material is None or source_material.blender_material is destination_material.blender_material:
+                            continue
+                        # check existing
+                        for override in clone.material_overrides:
+                            if source_material.blender_material is override.source_material:
+                                break
+                        else:
+                            override = clone.material_overrides.add()
+                            override.source_material = source_material.blender_material
+                            override.destination_material = destination_material.blender_material
+                            print(f"--- Material Override added for clone {clone.name}: {override.source_material.name} --> {override.destination_material.name}")
+                    break
         
         return objects
     

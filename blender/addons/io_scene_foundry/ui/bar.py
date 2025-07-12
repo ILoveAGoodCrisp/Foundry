@@ -657,11 +657,11 @@ class NWO_HaloExportSettingsFlags(bpy.types.Panel):
                     "import_skip_instances",
                     text="Skip importing instances",
                 )
-                col.prop(
-                    scene_nwo_export,
-                    "import_decompose_instances",
-                    text="Run convex physics decomposition",
-                )
+                # col.prop(
+                #     scene_nwo_export,
+                #     "import_decompose_instances",
+                #     text="Run convex physics decomposition",
+                # )
             # else:
             #     col.prop(scene_nwo_export, "import_draft", text="Skip PRT generation")
                 
