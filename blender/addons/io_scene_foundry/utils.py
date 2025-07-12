@@ -4529,8 +4529,8 @@ def connect_verts_on_edge(mesh: bpy.types.Mesh, do_degen_dissolve=True):
             cur_src = v
             cur_e   = next(ed for ed in v.link_edges if ed.other_vert(v) == b)
             
-    if do_degen_dissolve:
-        bmesh.ops.dissolve_degenerate(bm, dist=0.0005/0.03048, edges=bm.edges)
+    # if do_degen_dissolve:
+    #     bmesh.ops.dissolve_degenerate(bm, dist=0.000725/0.03048, edges=bm.edges)
 
     bm.to_mesh(mesh)
     bm.free()
@@ -4593,18 +4593,15 @@ def join_objects(objects: list[bpy.types.Object]) -> bpy.types.Object:
                 active.data.materials.append(mat)
 
     for ob in objects:
-        # map "old index in this object" -> "new index in master list"
         idx_map = np.asarray([mat_to_idx[m] for m in ob.data.materials])
         material_indices = np.empty(len(ob.data.polygons), dtype=np.int32)
         ob.data.polygons.foreach_get("material_index", material_indices)
         remap = idx_map[material_indices]
 
-        # give the object the master slot list so indices are valid
         ob.data.materials.clear()
         for mat in active.data.materials:
             ob.data.materials.append(mat)
             
-        # rewrite the per face material indices
         ob.data.polygons.foreach_set("material_index", remap)
 
     # Join everything together

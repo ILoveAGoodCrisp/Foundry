@@ -211,7 +211,25 @@ class InstanceDefinition:
                             utils.consolidate_face_layers(self.blender_collision.data)
                     elif self.collision_only_surface_indices:
                         collision_mesh = self.collision_info.to_object(mesh_only=True, surface_indices=self.collision_only_surface_indices)
-                        # utils.save_loop_normals_mesh(self.blender_render.data)
+                        
+                        mat_to_idx = {m: i for i, m in enumerate(collision_mesh.materials)}
+                        for mat in self.blender_render.data.materials:
+                            if mat not in mat_to_idx:
+                                mat_to_idx[mat] = len(collision_mesh.materials)
+                                collision_mesh.materials.append(mat)
+                                
+                        idx_map = np.asarray([mat_to_idx[m] for m in self.blender_render.data.materials])
+                        material_indices = np.empty(len(self.blender_render.data.polygons), dtype=np.int32)
+                        self.blender_render.data.polygons.foreach_get("material_index", material_indices)
+                        remap = idx_map[material_indices]
+
+                        self.blender_render.data.materials.clear()
+                        for mat in collision_mesh.materials:
+                            self.blender_render.data.materials.append(mat)
+                            
+                        self.blender_render.data.polygons.foreach_set("material_index", remap)
+                                
+                        utils.save_loop_normals_mesh(self.blender_render.data)
                         bm = bmesh.new()
                         bm.from_mesh(collision_mesh)
                         if self.collision_info.some_sphere_collision:
@@ -244,7 +262,7 @@ class InstanceDefinition:
                         bm.from_mesh(self.blender_render.data)
                         bm.to_mesh(self.blender_render.data)
                         bm.free()
-                        # utils.apply_loop_normals(self.blender_render.data)
+                        utils.apply_loop_normals(self.blender_render.data)
                     
                         utils.set_two_sided(self.blender_render.data, False) 
                         utils.loop_normal_magic(self.blender_render.data)
@@ -412,9 +430,10 @@ class Instance:
         
         # Check that object origin is not too far away from instance
         # This can cause the plane builder to fail
-        if self.world_bound_sphere_radius > 1000:
+        if self.world_bound_sphere_radius > 500:
             ob.data = ob.data.copy() # so we don't break any other instances
             utils.set_origin_to_centre(ob)
+            # utils.set_origin_to_floor(ob)
         
         
         return ob
@@ -1818,12 +1837,6 @@ class Mesh:
                             props[i.tri].append(breakable_layer)
                         
                 collision_face_indices.extend(t.tri for t in mapping.triangle_indices if t.section == section_index)
-                
-            if self.index == 359:
-                print("INDICES", len(indices))
-                print(indices)
-                print("COLLSION", len(collision_face_indices))
-                print(collision_face_indices)
                 
             render_only_indices = [i for i in indices if i not in set(collision_face_indices)]
             if render_only_indices:
