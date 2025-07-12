@@ -219,6 +219,7 @@ class ExportScene:
         self.suspension_animations = {}
         
         self.any_collision_proxies = False
+        self.has_frame_events = False
         
     def _get_export_tag_types(self):
         tag_types = set()
@@ -1643,7 +1644,10 @@ class ExportScene:
             event: NWO_Animation_ListItems
             props = {}
             event_type = event.event_type
-            if event_type.startswith('_connected_geometry_animation_event_type_ik') and event.ik_chain == 'none':
+            if event_type == '_connected_geometry_animation_event_type_frame':
+                self.has_frame_events = True
+                continue # Handling frame events via Managedblam now 12/07/2025
+            elif event_type.startswith('_connected_geometry_animation_event_type_ik') and event.ik_chain == 'none':
                 self.warnings.append(f"Animation event [{event.name}] has no ik chain defined. Skipping")
                 continue
             event_name = 'event_export_node_' + event_type[41:] + '_' + str(event.event_id)
@@ -2202,8 +2206,10 @@ class ExportScene:
                     with ObjectTag(path=expected_weapon_path) as weapon:
                         weapon.set_fp_weapon_render_model(render_path)
                     
-            if self.sidecar.reach_world_animations or self.sidecar.pose_overlays or self.defer_graph_process or self.suspension_animations:
                 with AnimationTag() as animation:
+                    if self.has_frame_events:
+                        self.print_post("--- Adding Frame Events")
+                    animation.events_from_blender() # outside of if so it clears events if there are none
                     if self.sidecar.reach_world_animations:
                         self.print_post(f"--- Setting up {len(self.sidecar.reach_world_animations)} world relative animation{'s' if len(self.sidecar.reach_world_animations) > 1 else ''}")
                         animation.set_world_animations(self.sidecar.reach_world_animations)

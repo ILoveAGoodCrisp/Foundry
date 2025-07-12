@@ -1051,6 +1051,7 @@ class AnimationTag(Tag):
                         blender_event.multi_frame = 'range'
                         blender_event.frame_range = event.end_frame
                     blender_event.frame_name = event.type
+                    blender_event.event_id = event.unique_id
                     
                     data_events = event.sound_events + event.effect_events + event.dialogue_events
                     data_events.sort(key=lambda x: x.frame_offset)

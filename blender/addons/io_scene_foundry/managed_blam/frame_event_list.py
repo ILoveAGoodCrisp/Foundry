@@ -2,6 +2,7 @@
 
 from collections import defaultdict
 from pathlib import Path
+import random
 from typing import cast
 import bpy
 
@@ -147,6 +148,7 @@ class AnimationEvent:
         self.type = "none"
         self.name = ""
         self.end_frame = 0
+        self.unique_id = random.randint(0, 2147483647)
         
     def from_element(self, element: TagFieldBlockElement, graph=False):
         if graph:
@@ -154,10 +156,14 @@ class AnimationEvent:
         else:
             self.frame = element.SelectField("ShortInteger:frame").Data + element.SelectField("ShortInteger:frame offset").Data
             self.name = element.SelectField("StringId:event name").GetStringData()
+            id = unique_id = element.SelectField("LongInteger:unique ID").Data
+            if id != 0:
+                self.unique_id = id
             
         self.end_frame = self.frame
         type_items = element.SelectField("ShortEnum:type").Items
         self.type = type_items[element.SelectField("ShortEnum:type").Value].DisplayName
+            
     
     def to_element(self, element: TagFieldBlockElement):
         pass
@@ -166,6 +172,7 @@ class AnimationEvent:
         self.frame = blender_animation_event.frame_frame - blender_animation.frame_start
         self.type = blender_animation_event.frame_name
         self.name = blender_animation_event.frame_name.replace(" ", "_")
+        self.unique_id = blender_animation_event.event_id
         if blender_animation_event.multi_frame == 'range':
             self.end_frame = blender_animation_event.frame_range - blender_animation.frame_start
         
@@ -220,16 +227,6 @@ class FrameEventListTag(Tag):
         self.block_frame_events.RemoveAllElements()
         self.block_sound_references.RemoveAllElements()
         self.block_effect_references.RemoveAllElements()
-            
-    def from_blender(self):
-        sorted_animations = sorted(list(self.context.scene.nwo.animations), key=lambda a: a.name)
-        
-        for animation in sorted_animations:
-            if not animation.animation_events:
-                continue
-            frame_event = self.block_frame_events.AddElement()
-            frame_event.SelectField("StringId:animation name").SetStringData(animation.name)
-            frame_event.SelectField("LongInteger:animation frame count").Data = animation.frame_end - animation.frame_start + 1
             
     def from_blender(self, animations: list):
         self.block_sound_references.RemoveAllElements()
@@ -324,6 +321,8 @@ class FrameEventListTag(Tag):
                         if item.DisplayName == animation_event.type:
                             event.Fields[4].Value = idx
                             break
+                        
+                    event.Fields[5].Data = animation_event.unique_id
                             
                 for sound in animation_event.sound_events:
                     sound_event = frame_event.Fields[3].AddElement()
@@ -354,14 +353,14 @@ class FrameEventListTag(Tag):
                 for dialogue in animation_event.dialogue_events:
                     dialogue_event = frame_event.Fields[5].AddElement()
                     if not data_only_event:
-                        dialogue_event.Fields[0].Value = dialogue.ElementIndex
+                        dialogue_event.Fields[0].Value = event.ElementIndex
                         dialogue_event.Fields[2].Data = dialogue.frame_offset
                     else:
-                        dialogue_event.Fields[2].Data = effect.frame_offset + animation_event.frame
+                        dialogue_event.Fields[2].Data = dialogue.frame_offset + animation_event.frame
                         
                     for idx, item in enumerate(dialogue_event.Fields[1].Items):
                         if item.DisplayName == dialogue.dialogue_type:
-                            event.Fields[1].Value = idx
+                            dialogue_event.Fields[1].Value = idx
                             break
 
         self.tag_has_changes = True
