@@ -19,7 +19,8 @@ import zipfile
 import bmesh
 import bpy
 import platform
-from mathutils import Euler, Matrix, Vector, Quaternion
+from mathutils import Euler, Matrix, Vector, Quaternion, geometry as geom
+from mathutils.kdtree import KDTree
 import os
 from subprocess import Popen, check_call
 import random
@@ -540,7 +541,9 @@ def run_tool_sidecar(tool_args: list, asset_path, event_level='WARNING'):
     if cull_warnings:
         for line in p.stderr:
             line = line.decode().rstrip("\n")
-            if is_error_line(line):
+            if failed and not error:
+                error = get_error_explanation(line)
+            elif not failed and is_error_line(line):
                 print_error(line)
                 failed = True
             elif cull_warnings:
@@ -603,7 +606,19 @@ def run_tool_sidecar(tool_args: list, asset_path, event_level='WARNING'):
 
 
 def is_error_line(line):
-    return line.startswith("IMPORT FAILED")
+    return line.startswith("IMPORT FAILED") or "### ASSERTION FAILED" in line
+
+def get_error_explanation(line):
+    if "plane3d_passes_through_point" in line:
+        pattern = r'\(structure_bsp[^)]*\bpoop\s+(\S+)'
+        match = re.search(pattern, line)
+        mesh_name = match.group(1) if match else None
+        if mesh_name is None:
+            return "Tool failed to process an object. Usually this happens with large geometry whose origin is far from the geometry itself. Try setting origin to object or otherwise adjusting the origin and geometry"
+        else:
+            return f"Tool failed to process the instanced geometry object [{mesh_name.strip(' )')}]. Usually this happens with large geometry whose origin is far from the geometry itself. Try setting origin to object or otherwise adjusting the origin and geometry"
+    
+    return ""
 
 def set_project_in_registry():
     """Sets the current project in the users registry"""
@@ -4335,76 +4350,36 @@ def flatten_dict(d, parent_keys=()):
         else:
             flat[new_keys] = v
     return flat
-
-def fix_vert_on_edge(ob: bpy.types.Object):
-    TOL = 1.0e-5
-    bm = bmesh.new()
-    bm.from_mesh(ob.data)
-
-    bm.verts.ensure_lookup_table()
-    bm.edges.ensure_lookup_table()
-
-    # Work lists we can mutate safely
-    verts = bm.verts[:]
-    edges = bm.edges[:]
-
-    for e in edges:
-        if not e.is_valid:
-            continue                              # deleted by a previous operation
-
-        v0, v1 = e.verts
-        vec = v1.co - v0.co
-        len_sq = vec.length_squared
-        if len_sq == 0.0:
-            continue                              # degenerate
-
-        for v in verts:
-            if not v.is_valid or v is v0 or v is v1:
-                continue
-
-            t = vec.dot(v.co - v0.co) / len_sq
-            if not (0.0 < t < 1.0):
-                continue                          # projection outside the segment
-
-            proj = v0.co + t * vec
-            if (v.co - proj).length > TOL:
-                continue                          # not close enough
-
-            # --- we have a hit -----------------------------------------------
-            new_edge, new_vert = bmesh.utils.edge_split(e, v0, t)
-            new_vert.co = proj
-
-            bmesh.ops.pointmerge(bm,
-                                verts=[v, new_vert],
-                                merge_co=proj)
-
-            # Update lookup tables because topology changed
-            bm.verts.ensure_lookup_table()
-            bm.edges.ensure_lookup_table()
-
-            break            # 'e' may have been deleted; move on to next edge
-
-    bm.to_mesh(ob.data)
-    bm.free()
     
-def delete_face_prop(mesh: bpy.types.Mesh, bm: bmesh.types.BMesh, idx: int):
+def delete_face_prop(mesh: bpy.types.Mesh, idx: int, bm: bmesh.types.BMesh = None):
+    has_no_bm = bm is None
+    if has_no_bm:
+        bm = bmesh.new()
+        bm.from_mesh(mesh)
     layer = bm.faces.layers.int.get(mesh.nwo.face_props[idx].layer_name)
     if layer is not None:
         bm.faces.layers.int.remove(layer)
         
     mesh.nwo.face_props.remove(idx)
     
+    if has_no_bm:
+        bm.to_mesh(mesh)
+        bm.free()
+    
 def consolidate_face_layers(mesh: bpy.types.Mesh):
     '''Consolidates face layers into the most minimal list. Also removes unused material slots'''
     used_material_indices = set()
     
     sphere_coll = None
+    lightmap_only = None
     face_props = defaultdict(list)
     layer_layers = defaultdict(list)
     face_prop_counts = {}
     layer_props = {}
     two_side_layer = None
     two_side_prop_idx = -1
+    render_only_layer = None
+    render_only_prop_idx = -1
     bm = bmesh.new()
     bm.from_mesh(mesh)
     to_remove_indexes = set()
@@ -4412,6 +4387,8 @@ def consolidate_face_layers(mesh: bpy.types.Mesh):
         layer = bm.faces.layers.int.get(prop.layer_name)
         if prop.name == "Two Sided":
             two_side_prop_idx = idx
+        elif prop.name == "Render Only":
+            render_only_prop_idx = idx
         if layer is None:
             to_remove_indexes.add(idx)
         else:
@@ -4425,6 +4402,10 @@ def consolidate_face_layers(mesh: bpy.types.Mesh):
             sphere_coll = layer
         elif k == "Two Sided":
             two_side_layer = layer
+        elif k == "Lightmap Only":
+            lightmap_only = layer
+        elif k == "Render Only":
+            render_only_layer = layer
         if len(v) > 1:
             for p in v[1:]:
                 layer_layers[layer].append(p[1])
@@ -4456,18 +4437,192 @@ def consolidate_face_layers(mesh: bpy.types.Mesh):
             to_remove_indexes.add(two_side_prop_idx)
         else:
             prop.face_count = two_side_face_count
+            
+    # clear un-needed render only
+    if render_only_layer is not None and lightmap_only is not None:
+        prop = layer_props[render_only_layer]
+        render_only_face_count = prop.face_count
+        for face in bm.faces:
+            if face[render_only_layer] and face[lightmap_only]:
+                face[render_only_layer] = 0
+                render_only_face_count -= 1
+                
+        if not render_only_face_count:
+            to_remove_indexes.add(render_only_prop_idx)
+        else:
+            prop.face_count = render_only_face_count
         
     for idx, prop in enumerate(mesh.nwo.face_props):
         if not prop.face_count:
             to_remove_indexes.add(idx)
    
     for i in sorted(to_remove_indexes, reverse=True):
-        delete_face_prop(mesh, bm, i)
+        delete_face_prop(mesh, i, bm)
         
-    unused_material_indices = {idx for idx, _ in enumerate(mesh.materials) if idx not in used_material_indices}
+    # unused_material_indices = {idx for idx, _ in enumerate(mesh.materials) if idx not in used_material_indices}
     
     # for i in sorted(unused_material_indices, reverse=True):
     #     mesh.materials.pop(index=i)
         
     bm.to_mesh(mesh)
     bm.free()
+
+
+def connect_verts_on_edge(mesh: bpy.types.Mesh):
+    """Split edges so that stray verts become connected – quick AABB version."""
+    bm = bmesh.new();  bm.from_mesh(mesh)
+    bm.verts.ensure_lookup_table(); bm.edges.ensure_lookup_table()
+
+    tol=0.005
+    
+    tol2 = tol * tol
+
+    for e in list(bm.edges):
+        a, b = e.verts
+        seg = b.co - a.co
+        if seg.length_squared == 0.0:
+            continue
+
+        # ~~~ pre-compute expanded AABB ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        bb_min = Vector((min(a.co.x, b.co.x) - tol,
+                         min(a.co.y, b.co.y) - tol,
+                         min(a.co.z, b.co.z) - tol))
+        bb_max = Vector((max(a.co.x, b.co.x) + tol,
+                         max(a.co.y, b.co.y) + tol,
+                         max(a.co.z, b.co.z) + tol))
+
+        stray = []
+        for v in bm.verts:
+            if v in e.verts:
+                continue
+
+            # --- ultra-cheap AABB reject ------------------------------------
+            c = v.co
+            if (c.x < bb_min.x or c.x > bb_max.x or
+                c.y < bb_min.y or c.y > bb_max.y or
+                c.z < bb_min.z or c.z > bb_max.z):
+                continue
+
+            # --- precise test, all C-side (very fast) -----------------------
+            closest, t = geom.intersect_point_line(c, a.co, b.co)
+            if (c - closest).length_squared > tol2:
+                continue
+            if tol < t < 1 - tol:
+                stray.append((t, v))
+
+        if not stray:
+            continue
+
+        stray.sort(key=lambda tv: tv[0])
+        cur_e   = e
+        cur_src = a
+
+        for _t, v in stray:
+            closest, t = geom.intersect_point_line(v.co,
+                                                   cur_src.co,
+                                                   cur_e.other_vert(cur_src).co)
+
+            _, helper = bmesh.utils.edge_split(cur_e, cur_src, t)
+            bmesh.ops.pointmerge(bm, verts=[v, helper], merge_co=v.co)
+            cur_src = v
+            cur_e   = next(ed for ed in v.link_edges if ed.other_vert(v) == b)
+
+    bm.to_mesh(mesh);  bm.free()
+
+def set_two_sided(mesh, is_io=False):
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    bm.faces.ensure_lookup_table()
+
+    face_dict = {}
+    for face in bm.faces:
+        vert_set = frozenset(v.co.to_tuple() for v in face.verts)
+        face_dict.setdefault(vert_set, []).append(face)
+
+    to_remove = set()
+    two_sided = set()
+    for faces in face_dict.values():
+        for i, f1 in enumerate(faces):
+            for f2 in faces[i+1:]:
+                if {v.co.to_tuple() for v in f1.verts} == {v.co.to_tuple() for v in reversed(f2.verts)}:
+                    to_remove.add(f2.index)
+                    two_sided.add(f1.index)
+                    break
+
+    if to_remove:
+        if len(bm.faces) == len(to_remove):
+            mesh.nwo.face_two_sided = True
+        elif is_io:
+            return bm.free()
+        else:
+            layer = add_face_layer(bm, mesh, "two_sided", True)
+            for face in bm.faces:
+                if face.index in two_sided:
+                    face[layer] = 1
+
+        bmesh.ops.delete(bm, geom=[bm.faces[i] for i in to_remove], context='FACES')
+        
+    bm.to_mesh(mesh)
+    bm.free()
+
+def join_objects(objects: list[bpy.types.Object]) -> bpy.types.Object:
+    """Joins an iterable of objects together, ensuring no material or face property conflicts. All objects are joined into the first object in the list"""
+    active = objects[0]
+    objects = objects[1:]
+    consolidate_face_layers(active.data)
+    mat_to_idx = {m: i for i, m in enumerate(active.data.materials)}
+    # Consolidate any dupe face layers and remove unused materials, and map all materials to material indices
+    for ob in objects:
+        consolidate_face_layers(ob.data)
+        
+        for layer in ob.data.nwo.face_props:
+            new_layer = active.data.nwo.face_props.add()
+            for k,v in layer.items():
+                new_layer.__setattr__(k, v)
+                
+        for mat in ob.data.materials:
+            if mat not in mat_to_idx:
+                mat_to_idx[mat] = len(active.data.materials)
+                active.data.materials.append(mat)
+
+    for ob in objects:
+        # map "old index in this object" -> "new index in master list"
+        idx_map = np.asarray([mat_to_idx[m] for m in ob.data.materials])
+        material_indices = np.empty(len(ob.data.polygons), dtype=np.int32)
+        ob.data.polygons.foreach_get("material_index", material_indices)
+        remap = idx_map[material_indices]
+
+        # give the object the master slot list so indices are valid
+        ob.data.materials.clear()
+        for mat in active.data.materials:
+            ob.data.materials.append(mat)
+            
+        # rewrite the per face material indices
+        ob.data.polygons.foreach_set("material_index", remap)
+
+    # Join everything together
+    bm = bmesh.new()
+    bm.from_mesh(active.data)
+    save_loop_normals(bm, active.data)
+    for ob in objects:
+        ob_bm = bmesh.new()
+        ob_bm.from_mesh(ob.data)
+        save_loop_normals(ob_bm, ob.data)
+        ob_bm.to_mesh(ob.data)
+        ob_bm.free()
+        bm.from_mesh(ob.data)
+        
+        
+        bpy.data.objects.remove(ob)
+    
+    bm.to_mesh(active.data)
+    bm.free()
+    apply_loop_normals(active.data)
+    set_two_sided(active.data)
+    loop_normal_magic(active.data)
+    consolidate_face_layers(active.data)
+    
+    return active
+            
+            
+    

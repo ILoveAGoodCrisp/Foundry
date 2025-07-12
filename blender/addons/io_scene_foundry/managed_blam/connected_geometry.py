@@ -193,14 +193,6 @@ class InstanceDefinition:
         render_valid = self.blender_render and self.blender_render.type == 'MESH'
             
         if not utils.is_corinth():
-                    
-            if self.has_cookie:
-                self.blender_cookie = self.cookie_info.to_object()
-                self.blender_cookie.name = f"{self.blender_render.name}_proxy_cookie_cutter"
-                self.blender_cookie.nwo.proxy_parent = self.blender_render.data
-                self.blender_cookie.nwo.proxy_type = "cookie_cutter"
-                self.blender_render.data.nwo.proxy_cookie_cutter = self.blender_cookie
-                
             if self.has_collision:
                 if render_valid:
                     if self.collision_is_proxy:
@@ -255,14 +247,14 @@ class InstanceDefinition:
                         bm.free()
                         # utils.apply_loop_normals(self.blender_render.data)
                     
-                        set_two_sided(self.blender_render.data, False) 
+                        utils.set_two_sided(self.blender_render.data, False) 
                         utils.loop_normal_magic(self.blender_render.data)
                         
                         # bm = bmesh.new()
                         # bm.from_mesh(self.blender_render.data)
                         # utils.save_loop_normals(bm, self.blender_render.data)
-                        # bmesh.ops.dissolve_degenerate(bm, dist=0.0008*(1 / 0.03048), edges=bm.edges)
-                        # bmesh.ops.dissolve_limit(bm, angle_limit=radians(0.1), verts=bm.verts, edges=bm.edges, delimit={'UV'})
+                        # # bmesh.ops.dissolve_degenerate(bm, dist=0.0008*(1 / 0.03048), edges=bm.edges)
+                        # bmesh.ops.dissolve_limit(bm, angle_limit=radians(0.01), verts=bm.verts, edges=bm.edges, delimit={'NORMAL'})
                         # bm.to_mesh(self.blender_render.data)
                         # bm.free()
                         # utils.apply_loop_normals(self.blender_render.data)
@@ -278,6 +270,10 @@ class InstanceDefinition:
                     self.blender_render.name = f"instance_definition:{self.index}"
                     if self.collision_info.sphere_collision_only:
                         self.blender_render.data.nwo.sphere_collision_only = True
+                        for idx, prop in enumerate(self.blender_render.data.nwo.face_props):
+                            if prop.name == "Two Sided":
+                                utils.delete_face_prop(self.blender_render.data, idx)
+                                break
                     else:
                         self.blender_render.data.nwo.collision_only = True
                     render_valid = True
@@ -302,10 +298,20 @@ class InstanceDefinition:
                     else:
                         utils.print_warning("Found physics but no render or collision!!!")
                     self.blender_physics.append(phys)
+                    
+            if self.has_cookie:
+                self.blender_cookie = self.cookie_info.to_object()
+                self.blender_cookie.name = f"{self.blender_render.name}_proxy_cookie_cutter"
+                self.blender_cookie.nwo.proxy_parent = self.blender_render.data
+                self.blender_cookie.nwo.proxy_type = "cookie_cutter"
+                self.blender_render.data.nwo.proxy_cookie_cutter = self.blender_cookie
 
         if self.blender_render:
+            if not self.blender_render.data.nwo.render_only:
+                utils.connect_verts_on_edge(self.blender_render.data)
             objects.append(self.blender_render)
         if self.blender_collision:
+            utils.connect_verts_on_edge(self.blender_collision.data)
             objects.append(self.blender_collision)
         if self.blender_cookie:
             objects.append(self.blender_cookie)
@@ -363,6 +369,8 @@ class Instance:
                 self.cinema_type = CinemaType._connected_geometry_poop_cinema_only
             elif flags.TestBit("exclude from cinema"):
                 self.cinema_type = CinemaType._connected_geometry_poop_cinema_exclude
+                
+        self.world_bound_sphere_radius = element.SelectField("Real:world bounding sphere radius").Data
         
         
     def create(self) -> list[bpy.types.Object]:
@@ -402,6 +410,13 @@ class Instance:
         nwo.poop_imposter_transition_distance_auto = self.imposter_transition <= 0
         
         nwo.poop_lightmap_resolution_scale = min(max(int(self.lightmap_res), 1), 7)
+        
+        # Check that object origin is not too far away from instance
+        # This can cause the plane builder to fail
+        if self.world_bound_sphere_radius > 1000:
+            ob.data = ob.data.copy() # so we don't break any other instances
+            utils.set_origin_to_centre(ob)
+        
         
         return ob
     
@@ -1026,10 +1041,7 @@ class BSP:
         
     def to_object(self, mesh_only=False, surface_indices=[], cookie_cutter=False) -> bpy.types.Object:
         def yield_indices():
-            if surface_indices:
-                surfaces = [i for idx, i in enumerate(self.surfaces) if idx in set(surface_indices)]
-            else:
-                surfaces = self.surfaces
+            surfaces = self.surfaces
             for surface in surfaces:
                 first_edge = self.edges[surface.first_edge]
                 edge = first_edge
@@ -1101,7 +1113,7 @@ class BSP:
         
         if self.uses_materials:
             if split_material:
-                for idx, mat in enumerate(set(map_material)):
+                for idx, mat in enumerate(sorted(materials_set, key=lambda x: x.name if x is not None else "+")):
                     if mat is None:
                         if isinstance(self, StructureCollision):
                             bmat = get_blender_material("+sky")
@@ -1150,13 +1162,13 @@ class BSP:
         else:
             mesh.nwo.sphere_collision_only = surface.invisible
         
-        to_remove = []
+        to_remove = set()
         if using_layers:
             if split_material and self.uses_materials:
                 material_indices = [blender_materials_map[mat] for mat in map_material]
             for idx, face in enumerate(bm.faces):
                 if map_invalid[idx]:
-                    to_remove.append(face)
+                    to_remove.add(face)
                     continue
                 # if map_invalid[idx] or map_negated[idx]:
                 #     to_remove.append(face)
@@ -1178,8 +1190,11 @@ class BSP:
                 if layer_invisible:
                     face[layer_invisible] = map_invisible[idx]
                     
+        if surface_indices:
+            to_remove.update({f for idx, f in enumerate(bm.faces) if idx not in surface_indices})
+                    
         if to_remove:
-            bmesh.ops.delete(bm, geom=to_remove, context='FACES')
+            bmesh.ops.delete(bm, geom=list(to_remove), context='FACES')
             bm.faces.ensure_lookup_table()
         
         # This deletes duplicate faces resulting from the two-sided prop
@@ -1210,9 +1225,10 @@ class BSP:
         # # bmesh.ops.planar_faces(bm, faces=bm.faces, iterations=200, factor=1)
         # bmesh.ops.dissolve_limit(bm, angle_limit=radians(5), edges=bm.edges, verts=bm.verts, delimit={"NORMAL"})
         # bmesh.ops.dissolve_degenerate(bm, dist=0.01, edges=bm.edges)
+        # bmesh.ops.dissolve_limit(bm, angle_limit=radians(0.001), verts=bm.verts, edges=bm.edges, delimit={'NORMAL'})
         # bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1)
-        if surface_indices:
-            bmesh.ops.delete(bm, geom=[vert for vert in bm.verts if vert.is_wire], context='VERTS')
+        # if surface_indices:
+        #     bmesh.ops.delete(bm, geom=[vert for vert in bm.verts if vert.is_wire], context='VERTS')
         bm.faces.ensure_lookup_table()
         # bmesh.ops.triangulate(bm, faces=bm.faces)
         # bmesh.ops.triangulate(bm, faces=bm.faces)
@@ -1816,7 +1832,7 @@ class Mesh:
             bm.free()
 
         if not self.is_pca:
-            set_two_sided(mesh, is_io) # NOTE no longer setting this. This both saves time and means we don't need to worry about per material two-sidedness
+            utils.set_two_sided(mesh, is_io) # NOTE no longer setting this. This both saves time and means we don't need to worry about per material two-sidedness
             utils.loop_normal_magic(mesh)
         
         if mesh.nwo.face_props:
@@ -2027,47 +2043,3 @@ def get_blender_material(name, shader_path=""):
             mat.nwo.shader_path = shader_path
         
     return mat
-
-def set_two_sided(mesh, is_io: bool):
-    bm = bmesh.new()
-    bm.from_mesh(mesh)
-    bm.faces.ensure_lookup_table()
-
-    face_dict = {}
-    for face in bm.faces:
-        vert_set = frozenset(v.co.to_tuple() for v in face.verts)
-        face_dict.setdefault(vert_set, []).append(face)
-        
-    # already_two_sided_face_props = [prop for prop in mesh.nwo.face_props if prop.name in ("Breakable", "Sphere Collision Only", "Two Sided")]
-    # already_two_sided_face_layers = []
-    
-    # for prop in already_two_sided_face_props:
-    #     layer = bm.faces.layers.int.get(prop.layer_name)
-    #     if layer is not None:
-    #         already_two_sided_face_layers.append(layer)
-
-    to_remove = set()
-    two_sided = set()
-    for faces in face_dict.values():
-        for i, f1 in enumerate(faces):
-            for f2 in faces[i+1:]:
-                if {v.co.to_tuple() for v in f1.verts} == {v.co.to_tuple() for v in reversed(f2.verts)} and f1.material_index == f2.material_index:
-                    to_remove.add(f2.index)
-                    two_sided.add(f1.index)
-                    break
-
-    if to_remove:
-        if len(bm.faces) == len(to_remove):
-            mesh.nwo.face_two_sided = True
-        elif is_io:
-            return bm.free()
-        else:
-            layer = utils.add_face_layer(bm, mesh, "two_sided", True)
-            for face in bm.faces:
-                if face.index in two_sided:
-                    face[layer] = 1
-
-        bmesh.ops.delete(bm, geom=[bm.faces[i] for i in to_remove], context='FACES')
-        
-    bm.to_mesh(mesh)
-    bm.free()

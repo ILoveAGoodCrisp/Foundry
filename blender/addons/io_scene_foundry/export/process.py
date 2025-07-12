@@ -2153,6 +2153,22 @@ class ExportScene:
         if self.asset_type == AssetType.ANIMATION:
             sidecar_importer.cull_unused_tags()
             
+        if sidecar_importer.import_failed:
+            print("")
+            utils.print_box("ERROR EXPLANATION")
+            print("")
+            if sidecar_importer.error:
+                print(sidecar_importer.error)
+                print("")
+                print("+" * len(sidecar_importer.error))
+            else:
+                dev_message = "Tool failed but the developer hasn't seen this error before. Please share it with him so it can be documented!"
+                print(dev_message)
+                print("")
+                print("+" * len(dev_message))
+            raise RuntimeError("Export failed due to Tool assertion. See above")
+            
+            
     def print_pre(self, txt):
         if not self.pre_title_printed:
             print("\n\nTags Pre-Process")
