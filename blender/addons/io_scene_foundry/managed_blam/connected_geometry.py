@@ -1620,6 +1620,13 @@ class Mesh:
         if block_node_map is not None and block_node_map.Elements.Count and self.index < block_node_map.Elements.Count:
             map_element = block_node_map.Elements[self.index]
             self.node_map = [e.Fields[0].Data for e in map_element.Fields[0].Elements]
+        
+        self.vertex_keys = []
+        self.mesh_keys = []
+        vertex_keys = element.SelectField("Block:vertex keys")
+        if vertex_keys is not None:
+            self.vertex_keys = [e.Fields[0].Data for e in vertex_keys.Elements]
+            self.mesh_keys = [e.Fields[1].Data for e in vertex_keys.Elements]
                 
             
     def _true_uvs(self, texcoords):
@@ -1871,7 +1878,16 @@ class Mesh:
             
         if self.uncompressed:
             mesh.nwo.uncompressed = True
-
+            
+        if self.mesh_keys:
+            bm = bmesh.new()
+            bm.from_mesh(mesh)
+            layer = bm.verts.layers.int.new("mesh_key")
+            for idx, vert in enumerate(bm.verts):
+                vert[layer] = self.mesh_keys[idx]
+            bm.to_mesh(mesh)
+            bm.free()
+                
         return ob
 
         

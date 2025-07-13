@@ -1,5 +1,7 @@
 
 
+from collections import defaultdict
+import bmesh
 from mathutils import Quaternion, Vector
 
 from .connected_geometry import CompressionBounds, InstancePlacement, MarkerGroup, Material, Mesh, Node, Region, RenderArmature
@@ -175,6 +177,8 @@ class RenderModelTag(Tag):
         
         if isinstance(allowed_region_permutations, str): # if str use all regions but only the given perm
             allowed_region_permutations = {(r.name, allowed_region_permutations) for r in self.regions}
+            
+        ob_region_perms = {}
         
         for region in self.regions:
             for permutation in region.permutations:
@@ -194,6 +198,43 @@ class RenderModelTag(Tag):
                         clone_meshes.append(mesh)
                     else:
                         obs = mesh.create(render_model, self.block_per_mesh_temporary, self.nodes, self.armature)
+                        if mesh.mesh_keys:
+                            shape_names = {e.Fields[0].Data: e.Fields[1].GetStringData() for e in self.tag.SelectField("Struct:render geometry[0]/Block:shapeNames").Elements}
+                            new_obs = []
+                            for ob in obs:
+                                face_groups = defaultdict(list)
+                                bm = bmesh.new()
+                                bm.from_mesh(ob.data)
+                                for face in bm.faces:
+                                    keys = [mesh.mesh_keys[v.index] for v in face.verts]
+                                    if all(k == keys[0] for k in keys):
+                                        key = keys[0]
+                                    face_groups[key].append(face.index)
+                                    
+                                for key, poly_indices in face_groups.items():
+                                    new_mesh = ob.data.copy()
+                                    new_ob = ob.copy()
+                                    new_ob.data = new_mesh
+                                    name = shape_names[key]
+                                    new_ob.name = name
+                                    new_mesh.name = name
+
+                                    bm = bmesh.new()
+                                    bm.from_mesh(new_mesh)
+                                    
+                                    to_delete_faces = [f for f in bm.faces if f.index not in poly_indices]
+                                    bmesh.ops.delete(bm, geom=to_delete_faces, context='FACES')
+                                    
+                                    bm.to_mesh(new_mesh)
+                                    bm.free()
+                                    new_obs.append(new_ob)
+                                    ob_region_perms[new_ob] = utils.dot_partition(ob.name).split(":")
+                                
+                            obs = new_obs
+                        else:
+                            for ob in obs:
+                                ob_region_perms[ob] = utils.dot_partition(ob.name).split(":")
+                            
                         original_meshes.append(mesh)
                         objects.extend(obs)
                         for ob in obs:
@@ -211,8 +252,8 @@ class RenderModelTag(Tag):
                     if element.ElementIndex in valid_instance_indexes:
                         self.instances.append(InstancePlacement(element, self.nodes))
 
-        for ob in objects:
-            region, permutation = utils.dot_partition(ob.name).split(":")
+        for ob, region_perm in ob_region_perms.items():
+            region, permutation = region_perm
             utils.set_region(ob, region)
             utils.set_permutation(ob, permutation)
             
@@ -257,7 +298,6 @@ class RenderModelTag(Tag):
                 if tmesh.permutation.name == cmesh.permutation.clone_name:
                     permutation = self.context.scene.nwo.permutations_table.get(tmesh.permutation.name)
                     if permutation is None:
-                        print("no find perm??????")
                         continue
                     clone = permutation.clones.get(cmesh.permutation.name)
                     if clone is None:

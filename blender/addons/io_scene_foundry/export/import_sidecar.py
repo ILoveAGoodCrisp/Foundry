@@ -112,7 +112,7 @@ class SidecarImport:
         if self.export_settings.import_skip_instances:
             flags.append("skip_instances")
         if self.corinth:
-            flags.append("preserve_namespaces")
+            # flags.append("preserve_namespaces")
             if self.export_settings.import_lighting:
                 flags.append("lighting")
             if self.export_settings.import_meta_only:

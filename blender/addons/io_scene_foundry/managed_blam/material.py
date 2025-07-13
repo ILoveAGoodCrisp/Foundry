@@ -25,6 +25,7 @@ class MaterialParameter:
         self.type = material_shader_parameter.type
         self.default = material_shader_parameter.default
         self.functions: list[Function] = []
+        self.default_bitmap = material_shader_parameter.default_bitmap
         
     def from_element(self, element: TagFieldBlockElement):
         match self.type:

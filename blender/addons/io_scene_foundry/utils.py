@@ -4470,11 +4470,11 @@ def consolidate_face_layers(mesh: bpy.types.Mesh):
 
 def connect_verts_on_edge(mesh: bpy.types.Mesh, do_degen_dissolve=True):
     """Split edges so that stray verts become connected – quick AABB version."""
+
     bm = bmesh.new()
     bm.from_mesh(mesh)
     bm.verts.ensure_lookup_table()
     bm.edges.ensure_lookup_table()
-    save_loop_normals(bm, mesh)
 
     tol=0.005
     
@@ -4534,7 +4534,6 @@ def connect_verts_on_edge(mesh: bpy.types.Mesh, do_degen_dissolve=True):
 
     bm.to_mesh(mesh)
     bm.free()
-    apply_loop_normals(mesh)
 
 def set_two_sided(mesh, is_io=False):
     bm = bmesh.new()
