@@ -4626,6 +4626,34 @@ def join_objects(objects: list[bpy.types.Object]) -> bpy.types.Object:
     consolidate_face_layers(active.data)
     
     return active
+
+def intersect_ray_plane(origin, direction, plane_co, plane_no):
+    denom = direction.dot(plane_no)
+    if abs(denom) < 1e-6:
+        return None
+    t = (plane_co - origin).dot(plane_no) / denom
+    if t < 0.0:
+        return None
+    return origin + direction * t
             
-            
+def matrix_from_mouse(mouse_x, mouse_y):
+    region, rv3d = bpy.context.region, bpy.context.space_data.region_3d
+    coord = (mouse_x, mouse_y)
+    origin_loc = view3d_utils.region_2d_to_origin_3d(region, rv3d, coord)
+    origin_vec = view3d_utils.region_2d_to_vector_3d(region, rv3d, coord)
+    hit, loc, normal, *_ = bpy.context.scene.ray_cast(bpy.context.view_layer.depsgraph, origin_loc, origin_vec)
+    
+    if hit:
+        matrix = normal.to_track_quat('Z', 'Y').to_matrix().to_4x4()
+        matrix.translation = loc
+    else:
+        # test against the grid floor
+        plane_co = Vector((0, 0, 0))
+        plane_normal = Vector((0, 0, 1))       # +Z
+        loc = intersect_ray_plane(origin_loc, origin_vec, plane_co, plane_normal)
+        matrix = Matrix.Identity(4)
+        if loc is not None:
+            matrix.translation = loc
+    
+    return matrix
     

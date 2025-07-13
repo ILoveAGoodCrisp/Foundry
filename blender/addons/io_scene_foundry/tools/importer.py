@@ -15,6 +15,8 @@ import bpy
 import bpy.props
 from mathutils import Color
 
+from bpy_extras import view3d_utils
+
 from ..managed_blam.frame_event_list import FrameEventListTag
 
 from ..managed_blam.globals import FPARMS, GlobalsTag
@@ -50,6 +52,7 @@ legacy_poop_prefixes = '%', '+', '-', '?', '!', '>', '*', '&', '^', '<', '|',
 legacy_frame_prefixes = "frame_", "frame ", "bip_", "bip ", "b_", "b "
 
 global variant_items
+last_used_variant = ""
 
 ammo_names = "primary_ammunition", "airstrike_launch_count", "secondary_ammunition"
 tether_name = "tether_distance"
@@ -533,12 +536,21 @@ class NWO_Import(bpy.types.Operator):
         options=set(),
     )
     
+    import_as_instanced_collection: bpy.props.BoolProperty(
+        name="Import as Game Marker",
+        description="Imports the object as a game marker with an instanced collection",
+        default=True
+    )
+    
+    place_at_mouse : bpy.props.BoolProperty(options={"HIDDEN", "SKIP_SAVE"})
+    mouse_x : bpy.props.FloatProperty(options={"HIDDEN", "SKIP_SAVE"})
+    mouse_y : bpy.props.FloatProperty(options={"HIDDEN", "SKIP_SAVE"})
+    
     def execute(self, context):
         failed = False
         filepaths = [self.directory + f.name for f in self.files]
         if self.filepath and self.filepath not in filepaths:
             filepaths.append(self.filepath)
-        corinth = utils.is_corinth(context)
         start = time.perf_counter()
         imported_objects = []
         imported_actions = []
@@ -549,6 +561,8 @@ class NWO_Import(bpy.types.Operator):
         self.nothing_imported = False
         self.user_cancelled = False
         utils.set_object_mode(context)
+        global last_used_variant
+        last_used_variant = self.tag_variant
         if self.tag_variant == "all_variants":
             self.tag_variant = ""
         if self.tag_zone_set == "all_zone_sets":
@@ -561,7 +575,7 @@ class NWO_Import(bpy.types.Operator):
             
         with utils.ExportManager():
             os.system("cls")
-            if context.scene.nwo_export.show_output:
+            if not self.place_at_mouse and context.scene.nwo_export.show_output:
                 bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
                 context.scene.nwo_export.show_output = False
             try:
@@ -571,6 +585,17 @@ class NWO_Import(bpy.types.Operator):
                 if self.scope:
                     scope_list = self.scope.split(',')
                 importer = NWOImporter(context, filepaths, scope_list)
+                
+                if self.place_at_mouse:
+                    tag_path = filepaths[0]
+                    marker = bpy.data.objects.new(name=Path(tag_path).with_suffix("").name, object_data=None)
+                    marker.nwo.marker_type = '_connected_geometry_marker_type_game_instance'
+                    marker.nwo.marker_game_instance_tag_name = utils.relative_path(tag_path)
+                    marker.nwo.marker_game_instance_tag_variant_name = self.tag_variant
+                    
+                    marker.matrix_world = utils.matrix_from_mouse(self.mouse_x, self.mouse_y)
+                
+                
                 if 'amf' in importer.extensions and self.amf_okay:
                     amf_module_name = utils.amf_addon_installed()
                     amf_addon_enabled = addon_utils.check(amf_module_name)[0]
@@ -684,43 +709,69 @@ class NWO_Import(bpy.types.Operator):
                     
                     
                 elif 'object' in importer.extensions:
-                    importer.tag_render = self.tag_render
-                    importer.tag_markers = self.tag_markers
-                    importer.tag_collision = self.tag_collision
-                    importer.tag_physics = self.tag_physics
-                    importer.tag_animation = self.tag_animation
-                    importer.tag_variant = self.tag_variant.lower()
-                    importer.tag_state = State[self.tag_state].value
-                    importer.tag_animation_filter = self.tag_animation_filter
-                    importer.graph_import_animations = self.graph_import_animations
-                    importer.graph_generate_renames = self.graph_generate_renames
-                    importer.graph_import_events = self.graph_import_events
-                    importer.graph_import_ik_chains = self.graph_import_ik_chains
-                    importer.import_variant_children = self.import_variant_children
-                    importer.setup_as_asset = self.setup_as_asset
-                    importer.import_fp_arms = FPARMS[self.import_fp_arms]
-                    object_files = importer.sorted_filepaths["object"]
-                    existing_armature = None
-                    if self.reuse_armature:
-                        existing_armature = utils.get_rig_prioritize_active(context)
-                        if existing_armature is not None:
-                            arm_pose = existing_armature.data.pose_position
-                            existing_armature.data.pose_position = 'REST'
-                            context.view_layer.update()
-                            if importer.needs_scaling:
-                                utils.transform_scene(context, (1 / importer.scale_factor), importer.to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[existing_armature], actions=[])
+                    if self.place_at_mouse:
+                        game_object_cache = {(c.nwo.game_object_path, c.nwo.game_object_variant): c for c in utils.get_foundry_storage_scene().collection.children if c.nwo.game_object_path}
+                        key = marker.nwo.marker_game_instance_tag_name, marker.nwo.marker_game_instance_tag_variant_name
+                        game_object_collection = game_object_cache.get(key)
+                        imported_object_objects = []
+                        if game_object_collection is None:
+                            game_object_collection = importer.import_object(marker, None)
+                            merge_collection(game_object_collection)
+                            imported_object_objects = game_object_collection.all_objects
+                            context.scene.collection.children.unlink(game_object_collection)
+                            utils.get_foundry_storage_scene().collection.children.link(game_object_collection)
+                            game_object_collection.nwo.game_object_path, game_object_collection.nwo.game_object_variant = key
                             
-                    imported_object_objects, imported_animations = importer.import_object(object_files, existing_armature)
-                    if importer.needs_scaling:
-                        utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_object_objects, actions=imported_animations)
+                        marker.instance_type = 'COLLECTION'
+                        marker.instance_collection = game_object_collection
+                        marker.nwo.marker_instance = True
+                        imported_objects.append(marker)
+                        context.collection.objects.link(marker)
                         
-                    if existing_armature is not None:
-                        existing_armature.data.pose_position = arm_pose
+                        if imported_object_objects and importer.needs_scaling:
+                            utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_object_objects, actions=[])
+                            
+                        marker.select_set(True)
+                        context.view_layer.objects.active = marker
                         
-                    imported_objects.extend(imported_object_objects)
-                    
-                    if imported_animations and set_animation_index:
-                        context.scene.nwo.active_animation_index = len(context.scene.nwo.animations) - 1
+                    else:
+                        importer.tag_render = self.tag_render
+                        importer.tag_markers = self.tag_markers
+                        importer.tag_collision = self.tag_collision
+                        importer.tag_physics = self.tag_physics
+                        importer.tag_animation = self.tag_animation
+                        importer.tag_variant = self.tag_variant.lower()
+                        importer.tag_state = State[self.tag_state].value
+                        importer.tag_animation_filter = self.tag_animation_filter
+                        importer.graph_import_animations = self.graph_import_animations
+                        importer.graph_generate_renames = self.graph_generate_renames
+                        importer.graph_import_events = self.graph_import_events
+                        importer.graph_import_ik_chains = self.graph_import_ik_chains
+                        importer.import_variant_children = self.import_variant_children
+                        importer.setup_as_asset = self.setup_as_asset
+                        importer.import_fp_arms = FPARMS[self.import_fp_arms]
+                        object_files = importer.sorted_filepaths["object"]
+                        existing_armature = None
+                        if self.reuse_armature:
+                            existing_armature = utils.get_rig_prioritize_active(context)
+                            if existing_armature is not None:
+                                arm_pose = existing_armature.data.pose_position
+                                existing_armature.data.pose_position = 'REST'
+                                context.view_layer.update()
+                                if importer.needs_scaling:
+                                    utils.transform_scene(context, (1 / importer.scale_factor), importer.to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[existing_armature], actions=[])
+                        
+                        imported_object_objects, imported_animations = importer.import_object(object_files, existing_armature)
+                        if importer.needs_scaling:
+                            utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_object_objects, actions=imported_animations)
+                            
+                        if existing_armature is not None:
+                            existing_armature.data.pose_position = arm_pose
+                            
+                        imported_objects.extend(imported_object_objects)
+                        
+                        if imported_animations and set_animation_index:
+                            context.scene.nwo.active_animation_index = len(context.scene.nwo.animations) - 1
                     
                 elif 'render_model' in importer.extensions:
                     importer.tag_render = self.tag_render
@@ -3094,7 +3145,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     bl_idname = "nwo.import_from_drop"
     bl_label = "Foundry Importer"
     bl_description = "Imports from drag n drop"
-    bl_options = {"UNDO"}
+    bl_options = {'REGISTER', 'UNDO'}
     
     filepath: bpy.props.StringProperty(subtype='FILE_PATH', options={'SKIP_SAVE'})
     # filename: bpy.props.StringProperty(options={'SKIP_SAVE'})
@@ -3170,12 +3221,19 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     )
     
     def items_tag_variant(self, context):
-        if context.scene.nwo.asset_type == "cinematic":
+        var_match = False
+        if context.scene.nwo.asset_type in {"cinematic", "scenario"}:
             items = []
         else:
             items = [("all_variants", "All Variants", "Includes the full model geometry")]
         for var in variant_items:
-            items.append((var, var, ""))
+            if var == last_used_variant:
+                var_match = True
+            else:
+                items.append((var, var, ""))
+                
+        if var_match:
+            items.insert(0, (last_used_variant, last_used_variant, ""))
             
         return items
         
@@ -3276,11 +3334,26 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     amf_okay : bpy.props.BoolProperty(options={"HIDDEN", "SKIP_SAVE"})
     legacy_okay : bpy.props.BoolProperty(options={"HIDDEN", "SKIP_SAVE"})
     
+    place_at_mouse : bpy.props.BoolProperty(options={"HIDDEN", "SKIP_SAVE"})
+    
+    import_as_instanced_collection: bpy.props.BoolProperty(
+        name="Import as Game Marker",
+        description="Imports the object as a game marker with an instanced collection",
+        default=True
+    )
+    
+    mouse_x : bpy.props.FloatProperty(options={"HIDDEN", "SKIP_SAVE"})
+    mouse_y : bpy.props.FloatProperty(options={"HIDDEN", "SKIP_SAVE"})
+    
     def execute(self, context):
         bpy.ops.nwo.foundry_import(**self.as_keywords())
         return {'FINISHED'}
     
     def invoke(self, context, event):
+        self.mouse_x = event.mouse_region_x
+        self.mouse_y = event.mouse_region_y
+        suffix = Path(self.filepath).suffix.lower()
+        self.place_at_mouse = context.scene.nwo.asset_type == 'scenario' and (suffix == '.prefab' or suffix in OBJECT_TAG_EXTS)
         self.has_variants = False
         self.has_zone_sets = False
         self.import_type = Path(self.filepath).suffix[1:].lower()
@@ -3321,7 +3394,10 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                         variant_items = object_tag.get_variants()
                 if variant_items:
                     self.has_variants = True
-            return context.window_manager.invoke_props_dialog(self)
+            if self.place_at_mouse:
+                return self.execute(context)
+            else:
+                return context.window_manager.invoke_props_dialog(self)
         else:
             return self.execute(context)
     
@@ -3337,21 +3413,22 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                         layout.prop(self, "tag_state")
                         if self.tag_markers:
                             layout.prop(self, "import_variant_children")
-                layout.prop(self, "reuse_armature")
-                layout.prop(self, "tag_render")
-                layout.prop(self, "tag_markers")
-                layout.prop(self, "tag_collision")
-                layout.prop(self, "tag_physics")
-                layout.prop(self, "tag_animation")
-                layout.prop(self, "setup_as_asset")
-                if self.import_type == "weapon":
-                    layout.prop(self, "import_fp_arms")
-                if self.tag_animation:
-                    layout.prop(self, "tag_animation_filter")
-                    layout.prop(self, "graph_import_animations")
-                    layout.prop(self, "graph_generate_renames")
-                    layout.prop(self, "graph_import_events")
-                    layout.prop(self, "graph_import_ik_chains")
+                if not self.place_at_mouse:
+                    layout.prop(self, "reuse_armature")
+                    layout.prop(self, "tag_render")
+                    layout.prop(self, "tag_markers")
+                    layout.prop(self, "tag_collision")
+                    layout.prop(self, "tag_physics")
+                    layout.prop(self, "tag_animation")
+                    layout.prop(self, "setup_as_asset")
+                    if self.import_type == "weapon":
+                        layout.prop(self, "import_fp_arms")
+                    if self.tag_animation:
+                        layout.prop(self, "tag_animation_filter")
+                        layout.prop(self, "graph_import_animations")
+                        layout.prop(self, "graph_generate_renames")
+                        layout.prop(self, "graph_import_events")
+                        layout.prop(self, "graph_import_ik_chains")
                 layout.prop(self, "build_blender_materials")
                 layout.prop(self, "always_extract_bitmaps")
             case "render_model":
