@@ -215,7 +215,7 @@ class NWO_TagExplore(bpy.types.Operator):
             nwo = context.object.data.nwo
         elif self.prop in cinematic_event_props:
             nwo = context.scene.nwo.cinematic_events[context.scene.nwo.active_cinematic_event_index]
-        elif self.list_type in event_data_props:
+        elif self.prop in event_data_props:
             animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
             event = animation.animation_events[animation.active_animation_event_index]
             nwo = event.event_data[event.active_event_data_index]
