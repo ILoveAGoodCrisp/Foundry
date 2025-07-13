@@ -199,7 +199,7 @@ class RenderModelTag(Tag):
                     else:
                         obs = mesh.create(render_model, self.block_per_mesh_temporary, self.nodes, self.armature)
                         if mesh.mesh_keys:
-                            shape_names = {e.Fields[0].Data: e.Fields[1].GetStringData() for e in self.tag.SelectField("Struct:render geometry[0]/Block:shapeNames").Elements}
+                            shape_names = {e.Fields[0].Data: utils.any_partition(e.Fields[1].GetStringData(), ":", True) for e in self.tag.SelectField("Struct:render geometry[0]/Block:shapeNames").Elements}
                             new_obs = []
                             for ob in obs:
                                 face_groups = defaultdict(list)

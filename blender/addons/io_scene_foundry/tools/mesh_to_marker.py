@@ -1,27 +1,9 @@
-
-
-from pathlib import Path
 import bpy
 from mathutils import Matrix
 
-from ..managed_blam.object import ObjectTag
 from ..icons import get_icon_id
 
 from .. import utils
-
-class ImportGameInstanceTag(bpy.types.Operator):
-    bl_idname = "nwo.import_game_instance_tag"
-    bl_label = "My Class Name"
-    bl_description = "Description that shows in blender tooltips"
-    bl_options = {"REGISTER"}
-
-    @classmethod
-    def poll(cls, context):
-        return True
-
-    def execute(self, context):
-        
-        return {"FINISHED"}
 
 class NWO_MeshToMarker(bpy.types.Operator):
     bl_idname = 'nwo.mesh_to_marker'

@@ -9,9 +9,9 @@ import re
 import time
 import traceback
 from uuid import uuid4
+import addon_utils
 import bmesh
 import bpy
-import addon_utils
 import bpy.props
 from mathutils import Color
 
@@ -39,7 +39,7 @@ from ..tools.clear_duplicate_materials import clear_duplicate_materials
 from ..tools.property_apply import apply_props_material
 from ..tools.shader_finder import find_shaders
 from ..tools.shader_reader import tag_to_nodes
-from ..constants import IDENTITY_MATRIX, VALID_MESHES
+from ..constants import IDENTITY_MATRIX, OBJECT_TAG_EXTS, VALID_MESHES
 from ..managed_blam.connected_material import GameFunctionType, game_functions
 from .. import utils
 
@@ -539,10 +539,6 @@ class NWO_Import(bpy.types.Operator):
         if self.filepath and self.filepath not in filepaths:
             filepaths.append(self.filepath)
         corinth = utils.is_corinth(context)
-        scale_factor = 0.03048 if context.scene.nwo.scale == 'blender' else 1
-        to_x_rot = utils.rotation_diff_from_forward(context.scene.nwo.forward_direction, 'x')
-        from_x_rot = utils.rotation_diff_from_forward('x', context.scene.nwo.forward_direction)
-        needs_scaling = scale_factor != 1 or to_x_rot
         start = time.perf_counter()
         imported_objects = []
         imported_actions = []
@@ -574,21 +570,21 @@ class NWO_Import(bpy.types.Operator):
                 scope_list = []
                 if self.scope:
                     scope_list = self.scope.split(',')
-                importer = NWOImporter(context, self.report, filepaths, scope_list)
+                importer = NWOImporter(context, filepaths, scope_list)
                 if 'amf' in importer.extensions and self.amf_okay:
                     amf_module_name = utils.amf_addon_installed()
                     amf_addon_enabled = addon_utils.check(amf_module_name)[0]
                     if not amf_addon_enabled:
                         addon_utils.enable(amf_module_name)
                     amf_files = importer.sorted_filepaths["amf"]
-                    imported_amf_objects = importer.import_amf_files(amf_files, scale_factor)
+                    imported_amf_objects = importer.import_amf_files(amf_files, importer.scale_factor)
                     if not amf_addon_enabled:
                         addon_utils.disable(amf_module_name)
                     if imported_amf_objects:
                         imported_objects.extend(imported_amf_objects)
                     
-                    if to_x_rot:
-                        utils.transform_scene(context, 1, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_amf_objects, actions=[])
+                    if importer.to_x_rot:
+                        utils.transform_scene(context, 1, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_amf_objects, actions=[])
                         
                 if self.legacy_okay and 'jms'  in importer.extensions:
                     toolset_addon_enabled = addon_utils.check('io_scene_halo')[0]
@@ -610,9 +606,9 @@ class NWO_Import(bpy.types.Operator):
                         utils.set_active_object(arm)
                         
                     # Transform Scene so it's ready for JMS files
-                    if needs_scaling:
+                    if importer.needs_scaling:
                         if arm is not None:
-                            utils.transform_scene(context, (1 / scale_factor), to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[arm], actions=[])
+                            utils.transform_scene(context, (1 / importer.scale_factor), importer.to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[arm], actions=[])
          
                     imported_jms_objects = importer.import_jms_files(jms_files, self.legacy_type)
 
@@ -621,11 +617,11 @@ class NWO_Import(bpy.types.Operator):
                     if not toolset_addon_enabled:
                         addon_utils.disable('io_scene_halo')
 
-                    if needs_scaling:
+                    if importer.needs_scaling:
                         if arm is None:
-                            utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_jms_objects, actions=[])
+                            utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_jms_objects, actions=[])
                         else:
-                            utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=[arm] + imported_jms_objects, actions=[])
+                            utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=[arm] + imported_jms_objects, actions=[])
                             
                 if 'jma' in importer.extensions:
                     jma_files = importer.sorted_filepaths["jma"]
@@ -635,14 +631,14 @@ class NWO_Import(bpy.types.Operator):
                     if arm is None:
                         utils.print_warning("No armature in scene, cannot import JMA files")
                     else:
-                        if needs_scaling:
-                            utils.transform_scene(context, (1 / scale_factor), to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[arm], actions=[])
+                        if importer.needs_scaling:
+                            utils.transform_scene(context, (1 / importer.scale_factor), importer.to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[arm], actions=[])
                         imported_jma_animations = importer.import_jma_files(jma_files, arm)
                         if imported_jma_animations:
                             imported_actions.extend(imported_jma_animations)
                             
-                        if needs_scaling:
-                            utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=[arm], actions=imported_jma_animations)
+                        if importer.needs_scaling:
+                            utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=[arm], actions=imported_jma_animations)
                             
                         if imported_jma_animations and set_animation_index:
                             context.scene.nwo.active_animation_index = len(context.scene.nwo.animations) - 1
@@ -670,13 +666,13 @@ class NWO_Import(bpy.types.Operator):
                             arm_pose = existing_armature.data.pose_position
                             existing_armature.data.pose_position = 'REST'
                             context.view_layer.update()
-                            if needs_scaling:
-                                utils.transform_scene(context, (1 / scale_factor), to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[existing_armature], actions=[])
+                            if importer.needs_scaling:
+                                utils.transform_scene(context, (1 / importer.scale_factor), importer.to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[existing_armature], actions=[])
                             
                     imported_model_objects, imported_animations = importer.import_models(model_files, existing_armature)
                     
-                    if needs_scaling:
-                        utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_model_objects, actions=imported_animations)
+                    if importer.needs_scaling:
+                        utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_model_objects, actions=imported_animations)
                         
                     if existing_armature is not None:
                         existing_armature.data.pose_position = arm_pose
@@ -711,12 +707,12 @@ class NWO_Import(bpy.types.Operator):
                             arm_pose = existing_armature.data.pose_position
                             existing_armature.data.pose_position = 'REST'
                             context.view_layer.update()
-                            if needs_scaling:
-                                utils.transform_scene(context, (1 / scale_factor), to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[existing_armature], actions=[])
+                            if importer.needs_scaling:
+                                utils.transform_scene(context, (1 / importer.scale_factor), importer.to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[existing_armature], actions=[])
                             
                     imported_object_objects, imported_animations = importer.import_object(object_files, existing_armature)
-                    if needs_scaling:
-                        utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_object_objects, actions=imported_animations)
+                    if importer.needs_scaling:
+                        utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_object_objects, actions=imported_animations)
                         
                     if existing_armature is not None:
                         existing_armature.data.pose_position = arm_pose
@@ -733,8 +729,8 @@ class NWO_Import(bpy.types.Operator):
                     existing_armature = None
                     if self.reuse_armature:
                         existing_armature = utils.get_rig_prioritize_active(context)
-                        if needs_scaling:
-                            utils.transform_scene(context, (1 / scale_factor), to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[existing_armature], actions=[])
+                        if importer.needs_scaling:
+                            utils.transform_scene(context, (1 / importer.scale_factor), importer.to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[existing_armature], actions=[])
                     
                     imported_render_objects = []
                     for file in render_model_files:
@@ -742,8 +738,8 @@ class NWO_Import(bpy.types.Operator):
                         render_model_objects, armature = importer.import_render_model(file, context.scene.collection, existing_armature, set(), skip_print=True)
                         imported_render_objects.extend(render_model_objects)
                         
-                    if needs_scaling:
-                        utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_render_objects, actions=[])
+                    if importer.needs_scaling:
+                        utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_render_objects, actions=[])
                         
                     imported_objects.extend(imported_render_objects)
                     
@@ -776,16 +772,16 @@ class NWO_Import(bpy.types.Operator):
                             good_to_go = False
                         
                         if good_to_go:
-                            if needs_scaling:
-                                utils.transform_scene(context, (1 / scale_factor), to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[existing_armature], actions=[])
+                            if importer.needs_scaling:
+                                utils.transform_scene(context, (1 / importer.scale_factor), importer.to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[existing_armature], actions=[])
                             
                             imported_animations = []
                             for file in animation_files:
                                 print(f'Importing Animation Graph Tag: {Path(file).with_suffix("").name} ')
                                 imported_animations.extend(importer.import_animation_graph(file, existing_armature, full_render_path))
                                 
-                            if needs_scaling:
-                                utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=[existing_armature], actions=imported_animations)
+                            if importer.needs_scaling:
+                                utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=[existing_armature], actions=imported_animations)
                             
                         if imported_animations and set_animation_index:
                             context.scene.nwo.active_animation_index = len(context.scene.nwo.animations) - 1
@@ -798,8 +794,8 @@ class NWO_Import(bpy.types.Operator):
                     importer.setup_as_asset = self.setup_as_asset
                     scenario_files = importer.sorted_filepaths["scenario"]
                     imported_scenario_objects = importer.import_scenarios(scenario_files)
-                    if needs_scaling:
-                        utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_scenario_objects, actions=[])
+                    if importer.needs_scaling:
+                        utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_scenario_objects, actions=[])
                         
                     imported_objects.extend(imported_scenario_objects)
                     
@@ -817,8 +813,8 @@ class NWO_Import(bpy.types.Operator):
                     for bsp in bsp_files:
                         bsp_objects, _ = importer.import_bsp(bsp)
                         imported_bsp_objects.extend(bsp_objects)
-                    if needs_scaling:
-                        utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_bsp_objects, actions=[])
+                    if importer.needs_scaling:
+                        utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_bsp_objects, actions=[])
                         
                     imported_objects.extend(imported_bsp_objects)
                     
@@ -831,92 +827,15 @@ class NWO_Import(bpy.types.Operator):
                     for file in particle_model_files:
                         particle_objects = importer.import_particle_model(file)
                         imported_particle_model_objects.extend(particle_objects)
-                    if needs_scaling:
-                        utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_particle_model_objects, actions=[])
+                    if importer.needs_scaling:
+                        utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_particle_model_objects, actions=[])
                         
                     imported_objects.extend(imported_particle_model_objects)
                     
                 # for ob in importer.to_cursor_objects:
                 #     ob.matrix_world = context.scene.cursor.matrix
-
-                new_materials = [mat for mat in bpy.data.materials if mat not in starting_materials]
-                # Clear duplicate materials
-                missing_some_shader_paths = False
-                if new_materials:
-                    new_materials = clear_duplicate_materials(True, new_materials)
-                    for m in new_materials:
-                        if not m.nwo.shader_path and utils.has_shader_path(m):
-                            missing_some_shader_paths = True
-                            break
                 
-                if missing_some_shader_paths:
-                    if utils.is_corinth(context):
-                        print('Updating material tag paths for imported objects')
-                    else:
-                        print('Updating shader tag paths for imported objects')
-                    imported_meshes: list[bpy.types.Mesh] = set([ob.data for ob in imported_objects if ob.type in VALID_MESHES])
-                    if imported_meshes:
-                        find_shaders(new_materials)
-                            
-                if self.build_blender_materials and new_materials:
-                    mat_function_map = {}
-                    validated_funcs = set()
-                    sequence_drivers = {}
-                    if utils.is_corinth(context):
-                        print('Building Blender materials from material tags')
-                    else:
-                        print('Building Blender materials from shader tags')
-                    # with utils.MutePrints():
-                    for mat in new_materials:
-                        if not mat.users:
-                            bpy.data.materials.remove(mat)
-                            continue
-                        shader_path = mat.nwo.shader_path
-                        if shader_path:
-                            result = tag_to_nodes(corinth, mat, shader_path, self.always_extract_bitmaps)
-                            if result is not None:
-                                sequence_drivers.update(result)
-
-                    for ob in imported_objects:
-                        for slot in ob.material_slots:
-                            if slot.material:
-                                functions = slot.material.nwo.game_functions.split(",") if slot.material.nwo.game_functions.strip(" ,") else []
-                                if slot.material.nwo.object_functions.strip(" ,"):
-                                    validated_funcs.update(slot.material.nwo.object_functions.split(","))
-                                if functions:
-                                    for func in functions:
-                                        bool_prop = add_function(context.scene, func, ob, ob.parent)
-                                        key = sequence_drivers.get(func)
-                                        if key is not None:
-                                            driver, sequence_length = key
-                                            driver: bpy.types.Driver
-                                            driver.variables[0].targets[0].id = ob
-                                            if not bool_prop:
-                                                ob.id_properties_ui(func).update(min=0, max=sequence_length - 1)
-                                            ammo = func.startswith(ammo_names)
-                                            tether = func.startswith(tether_name)
-                                            if ammo or tether:
-                                                result = ob.driver_add(f'["{func}"]')
-                                                driver = result.driver
-                                                driver.type = 'SCRIPTED'
-                                                var = driver.variables.new()
-                                                var.name = "var"
-                                                var.type = 'SINGLE_PROP'
-                                                var.targets[0].id = ob.parent
-                                                var.targets[0].data_path = '["Tether Distance"]' if tether else '["Ammo"]'
-                                                match func.rpartition("_")[2]:
-                                                    case "ones":
-                                                        driver.expression = f"({var.name} - floor({var.name} / 10) * 10) / {sequence_length}"
-                                                    case "tens":
-                                                        driver.expression = f"(floor({var.name} / 10) - floor({var.name} / 100) * 10) / {sequence_length}"
-                                                    case "hundreds":
-                                                        driver.expression = f"(floor({var.name} / 100) - floor({var.name} / 1000) * 10) / {sequence_length}"
-                                        
-                    for ob, func_dict in importer.obs_for_props.items():
-                        for export_name, funcs in func_dict.items():
-                            if export_name in validated_funcs:
-                                for func in funcs:
-                                    add_function(context.scene, func, ob, ob.parent)
+                setup_materials(context, importer, starting_materials, imported_objects, self.build_blender_materials, self.always_extract_bitmaps)
                         
                 if 'bitmap' in importer.extensions:
                     bitmap_files = importer.sorted_filepaths["bitmap"]
@@ -932,12 +851,11 @@ class NWO_Import(bpy.types.Operator):
                 if 'camera_track' in importer.extensions:
                     camera_track_files = importer.sorted_filepaths["camera_track"]
                     cameras, actions = importer.import_camera_tracks(camera_track_files, self.camera_track_animation_scale)
-                    if needs_scaling:
-                        utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=cameras, actions=actions)
+                    if importer.needs_scaling:
+                        utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=cameras, actions=actions)
                     
                     if context.scene.nwo.animations:
                         context.scene.nwo.active_animation_index = len(context.scene.nwo.animations) - 1
-                        
                         
             except KeyboardInterrupt:
                 utils.print_warning("\nIMPORT CANCELLED BY USER")
@@ -1325,10 +1243,9 @@ class JMSMaterialSlot:
 
 
 class NWOImporter:
-    def __init__(self, context, report, filepaths, scope, existing_scene=False):
+    def __init__(self, context, filepaths=[], scope=[], existing_scene=False):
         self.filepaths = filepaths
         self.context = context
-        self.report = report
         self.mesh_objects = []
         self.marker_objects = []
         self.extensions = set()
@@ -1362,8 +1279,11 @@ class NWOImporter:
             self.sorted_filepaths = self.group_filetypes(scope)
         else:
             self.sorted_filepaths = []
-            
-        self.game_object_cache: dict[tuple[str, str]: bpy.types.Collection] = {}
+        
+        self.scale_factor = 0.03048 if context.scene.nwo.scale == 'blender' else 1
+        self.to_x_rot = utils.rotation_diff_from_forward(context.scene.nwo.forward_direction, 'x')
+        self.from_x_rot = utils.rotation_diff_from_forward('x', context.scene.nwo.forward_direction)
+        self.needs_scaling = self.scale_factor != 1 or self.to_x_rot
     
     def group_filetypes(self, scope):
         if scope:
@@ -1661,44 +1581,45 @@ class NWOImporter:
 
                                         if ob.type == 'MESH':
                                             self.obs_for_props[ob] = functions
-                                            
-                                    if ob.type == 'ARMATURE':
-                                        # self.to_cursor_objects.add(ob)
-                                        ob.nwo.cinematic_object = obj.tag_path.RelativePathWithExtension
-                                        if temp_variant == self.tag_variant:
-                                            ob.nwo.cinematic_variant = temp_variant
-                                            
-                                        if has_ammo:
-                                           ob["Ammo"] = magazine_size
-                                           ob.id_properties_ui("Ammo").update(min=0, max=int('9' * len(str(magazine_size))))
-                                        if uses_tether:
-                                           ob["Tether Distance"] = 0
-                                           ob.id_properties_ui("Tether Distance").update(min=0, max=999)
-                                            
-                                    elif ob.type == 'MESH':
-                                        for prop in prop_names:
-                                            # Add driver
-                                            result = ob.driver_add(f'["{prop}"]')
-                                            if isinstance(result, list):
-                                                for idx, fcurve in enumerate(result):
-                                                    driver = fcurve.driver
+                                    
+                                    if not is_game_object:    
+                                        if ob.type == 'ARMATURE':
+                                            # self.to_cursor_objects.add(ob)
+                                            ob.nwo.cinematic_object = obj.tag_path.RelativePathWithExtension
+                                            if temp_variant == self.tag_variant:
+                                                ob.nwo.cinematic_variant = temp_variant
+                                                
+                                            if has_ammo:
+                                                ob["Ammo"] = magazine_size
+                                                ob.id_properties_ui("Ammo").update(min=0, max=int('9' * len(str(magazine_size))))
+                                            if uses_tether:
+                                                ob["Tether Distance"] = 0
+                                                ob.id_properties_ui("Tether Distance").update(min=0, max=999)
+                                                
+                                        elif ob.type == 'MESH':
+                                            for prop in prop_names:
+                                                # Add driver
+                                                result = ob.driver_add(f'["{prop}"]')
+                                                if isinstance(result, list):
+                                                    for idx, fcurve in enumerate(result):
+                                                        driver = fcurve.driver
+                                                        driver.type = 'SCRIPTED'
+                                                        # Add variable
+                                                        var = driver.variables.new()
+                                                        var.name = "var"
+                                                        var.type = 'SINGLE_PROP'
+                                                        var.targets[0].id = armature
+                                                        var.targets[0].data_path = f'["{prop}"][{idx}]'
+                                                        driver.expression = var.name
+                                                else:
+                                                    driver = result.driver
                                                     driver.type = 'SCRIPTED'
-                                                    # Add variable
                                                     var = driver.variables.new()
                                                     var.name = "var"
                                                     var.type = 'SINGLE_PROP'
                                                     var.targets[0].id = armature
-                                                    var.targets[0].data_path = f'["{prop}"][{idx}]'
+                                                    var.targets[0].data_path = f'["{prop}"]'
                                                     driver.expression = var.name
-                                            else:
-                                                driver = result.driver
-                                                driver.type = 'SCRIPTED'
-                                                var = driver.variables.new()
-                                                var.name = "var"
-                                                var.type = 'SINGLE_PROP'
-                                                var.targets[0].id = armature
-                                                var.targets[0].data_path = f'["{prop}"]'
-                                                driver.expression = var.name
                                                 
                                                                                 
                             if not is_game_object and collision and self.tag_collision:
@@ -1969,10 +1890,11 @@ class NWOImporter:
                 bsp_objects, game_objects = bsp.to_blend_objects(collection, scenario_collection is not None, self.tag_bsp_render_only)
                 if game_objects:
                     print("Importing Game Object Geometry")
+                    game_object_cache = {(c.nwo.game_object_path, c.nwo.game_object_variant): c for c in utils.get_foundry_storage_scene().collection.children if c.nwo.game_object_path}
                     for ob in game_objects:
                         
                         key = ob.nwo.marker_game_instance_tag_name, ob.nwo.marker_game_instance_tag_variant_name
-                        game_object_collection = self.game_object_cache.get(key)
+                        game_object_collection = game_object_cache.get(key)
                         
                         if game_object_collection is None:
                             game_object_collection = self.import_object(ob, None)
@@ -1980,7 +1902,8 @@ class NWOImporter:
                             bsp_objects.extend(game_object_collection.all_objects)
                             self.context.scene.collection.children.unlink(game_object_collection)
                             utils.get_foundry_storage_scene().collection.children.link(game_object_collection)
-                            self.game_object_cache[key] = game_object_collection
+                            game_object_collection.nwo.game_object_path, game_object_collection.nwo.game_object_variant = key
+                            game_object_cache[key] = game_object_collection
                             
                         ob.instance_type = 'COLLECTION'
                         ob.instance_collection = game_object_collection
@@ -3628,3 +3551,162 @@ def merge_collection(collection: bpy.types.Collection):
     
     for child in collection.children_recursive:
         bpy.data.collections.remove(child)
+        
+def setup_materials(context: bpy.types.Context, importer: NWOImporter, starting_materials: list[bpy.types.Material], imported_objects: list[bpy.types.Object], build_materials: bool, always_extract_bitmaps=False):
+    new_materials = [mat for mat in bpy.data.materials if mat not in starting_materials]
+    # Clear duplicate materials
+    missing_some_shader_paths = False
+    if new_materials:
+        new_materials = clear_duplicate_materials(True, new_materials)
+        for m in new_materials:
+            if not m.nwo.shader_path and utils.has_shader_path(m):
+                missing_some_shader_paths = True
+                break
+    
+    if missing_some_shader_paths:
+        if utils.is_corinth(context):
+            print('Updating material tag paths for imported objects')
+        else:
+            print('Updating shader tag paths for imported objects')
+        imported_meshes: list[bpy.types.Mesh] = set([ob.data for ob in imported_objects if ob.type in VALID_MESHES])
+        if imported_meshes:
+            find_shaders(new_materials)
+                
+    if build_materials and new_materials:
+        validated_funcs = set()
+        sequence_drivers = {}
+        if utils.is_corinth(context):
+            print('Building Blender materials from material tags')
+        else:
+            print('Building Blender materials from shader tags')
+
+        for mat in new_materials:
+            if not mat.users:
+                bpy.data.materials.remove(mat)
+                continue
+            shader_path = mat.nwo.shader_path
+            if shader_path:
+                result = tag_to_nodes(importer.corinth, mat, shader_path, always_extract_bitmaps)
+                if result is not None:
+                    sequence_drivers.update(result)
+
+        for ob in imported_objects:
+            for slot in ob.material_slots:
+                if slot.material:
+                    functions = slot.material.nwo.game_functions.split(",") if slot.material.nwo.game_functions.strip(" ,") else []
+                    if slot.material.nwo.object_functions.strip(" ,"):
+                        validated_funcs.update(slot.material.nwo.object_functions.split(","))
+                    if functions:
+                        for func in functions:
+                            bool_prop = add_function(context.scene, func, ob, ob.parent)
+                            key = sequence_drivers.get(func)
+                            if key is not None:
+                                driver, sequence_length = key
+                                driver: bpy.types.Driver
+                                driver.variables[0].targets[0].id = ob
+                                if not bool_prop:
+                                    ob.id_properties_ui(func).update(min=0, max=sequence_length - 1)
+                                ammo = func.startswith(ammo_names)
+                                tether = func.startswith(tether_name)
+                                if ammo or tether:
+                                    result = ob.driver_add(f'["{func}"]')
+                                    driver = result.driver
+                                    driver.type = 'SCRIPTED'
+                                    var = driver.variables.new()
+                                    var.name = "var"
+                                    var.type = 'SINGLE_PROP'
+                                    var.targets[0].id = ob.parent
+                                    var.targets[0].data_path = '["Tether Distance"]' if tether else '["Ammo"]'
+                                    match func.rpartition("_")[2]:
+                                        case "ones":
+                                            driver.expression = f"({var.name} - floor({var.name} / 10) * 10) / {sequence_length}"
+                                        case "tens":
+                                            driver.expression = f"(floor({var.name} / 10) - floor({var.name} / 100) * 10) / {sequence_length}"
+                                        case "hundreds":
+                                            driver.expression = f"(floor({var.name} / 100) - floor({var.name} / 1000) * 10) / {sequence_length}"
+                            
+        for ob, func_dict in importer.obs_for_props.items():
+            for export_name, funcs in func_dict.items():
+                if export_name in validated_funcs:
+                    for func in funcs:
+                        add_function(context.scene, func, ob, ob.parent)
+
+
+class NWO_ImportGameInstanceTag(bpy.types.Operator):
+    bl_idname = "nwo.import_game_instance_tag"
+    bl_label = "Import Game Tag"
+    bl_description = "Imports the tag referenced by this game instance marker and sets as the visual representation for the marker"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        ob = context.object
+        if ob is None or ob.type != 'EMPTY':
+            return False
+        
+        if not ob.nwo.marker_game_instance_tag_name.strip():
+            return False
+        
+        suffix = Path(ob.nwo.marker_game_instance_tag_name).suffix.lower()
+        
+        return suffix == ".prefab" or suffix in OBJECT_TAG_EXTS
+    
+    always_extract_bitmaps: bpy.props.BoolProperty(
+        name="Always Extract Bitmaps",
+        description="By default existing tiff files will be used for shaders. Checking this option means the bitmaps will always be re-extracted regardless if they exist or not",
+        options=set(),
+    )
+    
+    build_blender_materials: bpy.props.BoolProperty(
+        name="Generate Materials",
+        description="Builds Blender material nodes for materials based off their shader/material tags (if found)",
+        default=True,
+    )
+
+    def execute(self, context):
+        ob = context.object
+        tag_path = ob.nwo.marker_game_instance_tag_name
+        variant = ob.nwo.marker_game_instance_tag_variant_name.lower()
+        
+        tag_path_rel = utils.relative_path(tag_path)
+        tag_path_full = Path(utils.get_tags_path(), tag_path_rel)
+        
+        if not tag_path_full.exists():
+            self.report({'WARNING'}, f"Tag does not exist: {tag_path_full}")
+            return {'CANCELLED'}
+        
+        game_object_collections = {(c.nwo.game_object_path, c.nwo.game_object_variant): c for c in utils.get_foundry_storage_scene().collection.children if c.nwo.game_object_path}
+        
+        collection = game_object_collections.get((tag_path_rel, variant))
+        if collection is None:
+            importer = NWOImporter(context)
+            starting_materials = bpy.data.materials[:]
+            
+            if tag_path_full.suffix.lower() == ".prefab":
+                collection = importer.import_prefab(ob)
+            else:
+                collection = importer.import_object(ob, None)
+            if importer.needs_scaling:
+                utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=collection.all_objects, actions=[])
+                
+            merge_collection(collection)
+            context.scene.collection.children.unlink(collection)
+            utils.get_foundry_storage_scene().collection.children.link(collection)
+            collection.nwo.game_object_path = tag_path_rel
+            collection.nwo.game_object_variant = variant
+            
+            setup_materials(context, importer, starting_materials, collection.all_objects, self.build_blender_materials, self.always_extract_bitmaps)
+            
+        ob.instance_type = 'COLLECTION'
+        ob.instance_collection = collection
+        ob.nwo.marker_instance = True
+        
+        ob.select_set(True)
+        context.view_layer.objects.active = ob
+        
+        return {"FINISHED"}
+    
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "build_blender_materials")
+        layout.prop(self, "always_extract_bitmaps")

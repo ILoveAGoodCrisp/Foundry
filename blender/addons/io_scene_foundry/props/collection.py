@@ -28,3 +28,7 @@ class NWO_CollectionPropertiesGroup(bpy.types.PropertyGroup):
     permutation: bpy.props.StringProperty(
         name="Permutation",
     )
+    
+    game_object_path: bpy.props.StringProperty(options={'HIDDEN'})
+    game_object_variant: bpy.props.StringProperty(options={'HIDDEN'})
+    

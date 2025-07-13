@@ -19,7 +19,8 @@ class NWO_OT_ExportFrameEvents(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return utils.valid_nwo_asset(context) and Path(utils.get_asset_tag(".model_animation_graph", True)).exists()
+        tag_path = utils.get_asset_tag(".model_animation_graph", True)
+        return tag_path is not None and Path(tag_path).exists()
     
     def execute(self, context):
         graph_path = utils.get_asset_tag(".model_animation_graph")

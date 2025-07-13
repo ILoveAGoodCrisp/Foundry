@@ -32,7 +32,7 @@ class NWO_GetTagsList(bpy.types.Operator):
         tags = walk_tags_dir(tags_dir, ext_list)
         for t in tags:
             if type(self.list_type) == str:
-                display = f"{Path(Path(t).parent.name, Path(t).with_suffix('').name)}"
+                display = f"{Path(Path(t).parent.name, Path(t).name)}"
             else:
                 display = str(Path(t).name)
                 

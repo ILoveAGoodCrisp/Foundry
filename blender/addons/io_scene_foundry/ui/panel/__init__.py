@@ -1845,7 +1845,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 )
                 row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "marker_game_instance_tag_name"
                 row.operator("nwo.tag_explore", icon="FILE_FOLDER", text="").prop = 'marker_game_instance_tag_name'
-                if nwo.marker_game_instance_tag_name.strip() and Path(utils.get_tags_path(), utils.relative_path(nwo.marker_game_instance_tag_name)).exists():
+                tag_exists = nwo.marker_game_instance_tag_name.strip() and Path(utils.get_tags_path(), utils.relative_path(nwo.marker_game_instance_tag_name)).exists()
+                if tag_exists:
                     row.operator("nwo.open_foundation_tag", text="", icon_value=get_icon_id("foundation")).tag_path = nwo.marker_game_instance_tag_name
                 tag_name = Path(nwo.marker_game_instance_tag_name).suffix.lower()
                 if tag_name == ".decorator_set":
@@ -1899,6 +1900,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     col.prop(nwo, "prefab_remove_from_shadow_geometry")
                     col.prop(nwo, "prefab_disallow_lighting_samples")
                     col.prop(nwo, "prefab_excluded_from_lightprobe")
+                    
+                col.operator("nwo.import_game_instance_tag", icon='IMPORT')
                     
             if nwo.marker_type == "_connected_geometry_marker_type_hint":
                 col.operator("nwo.set_hint_name", icon='GREASEPENCIL')
