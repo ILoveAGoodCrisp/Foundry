@@ -61,8 +61,8 @@ class Reference:
         flags.SetBit("reverse only", self.reverse_only)
         flags.SetBit("fp no aged weapons", self.fp_no_aged_weapons)
         if corinth:
-            element.Fields[2].Path = tag_path_from_string(self.model_tag) if self.model_tag else None
-            element.Fields[3].SetStringData(self.variant)
+            element.Fields[3].Path = tag_path_from_string(self.model_tag) if self.model_tag else None
+            element.Fields[4].SetStringData(self.variant)
     
 class SoundEvent:
     def __init__(self):
@@ -182,7 +182,7 @@ class AnimationEvent:
                     sound = SoundEvent()
                     sound.frame_offset = data.frame_offset
                     if data.marker is not None:
-                        sound.marker_name = data.marker.nwo.model_marker_group
+                        sound.marker_name = data.marker.nwo.marker_model_group
                     sound.sound_reference = unique_sounds.get((data.event_sound_tag, data.flag_allow_on_player, data.flag_left_arm_only, data.flag_right_arm_only, data.flag_first_person_only, data.flag_third_person_only, data.flag_forward_only, data.flag_reverse_only, data.flag_fp_no_aged_weapons, data.event_model, data.variant))
                     if sound.sound_reference is not None:
                         self.sound_events.append(sound)
@@ -190,7 +190,7 @@ class AnimationEvent:
                     effect = EffectEvent()
                     effect.frame_offset = data.frame_offset
                     if effect.marker is not None:
-                        effect.marker_name = data.marker.nwo.model_marker_group
+                        effect.marker_name = data.marker.nwo.marker_model_group
                     effect.sound_reference = unique_effects.get((data.event_sound_tag, data.flag_allow_on_player, data.flag_left_arm_only, data.flag_right_arm_only, data.flag_first_person_only, data.flag_third_person_only, data.flag_forward_only, data.flag_reverse_only, data.flag_fp_no_aged_weapons, data.event_model, data.variant))
                     effect.damage_effect_reporting_type = data.damage_effect_reporting_type
                     if effect.effect_reference is not None:
@@ -311,6 +311,8 @@ class FrameEventListTag(Tag):
                 animation_event.from_blender(blender_animation, blender_event, unique_sounds, unique_effects)
                 
                 data_only_event = animation_event.type == "none"
+                
+                print()
                 
                 if not data_only_event:
                     event = frame_event.Fields[2].AddElement()
