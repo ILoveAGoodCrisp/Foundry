@@ -1320,128 +1320,128 @@ def toggle_active(context, option, bool_var):
             ob_nwo.emissive_active = bool_var
 
 
-class NWO_MT_MeshPropAddMenu(bpy.types.Menu):
-    bl_label = "Add Mesh Property"
-    bl_idname = "NWO_MT_MeshPropAdd"
+# class NWO_MT_MeshPropAddMenu(bpy.types.Menu):
+#     bl_label = "Add Mesh Property"
+#     bl_idname = "NWO_MT_MeshPropAdd"
     
-    @classmethod
-    def poll(cls, context):
-        return context.object and utils.is_mesh(context.object)
+#     @classmethod
+#     def poll(cls, context):
+#         return context.object and utils.is_mesh(context.object)
 
-    def draw(self, context):
-        layout = self.layout
-        nwo = context.object.nwo
-        if utils.poll_ui(("scenario", "prefab")):
-            # if nwo.mesh_type == "_connected_geometry_mesh_type_structure":
-            #     layout.operator(
-            #         "nwo.add_mesh_property", text="Sky"
-            #     ).options = "_connected_geometry_face_type_sky"
-            # if nwo.mesh_type in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure"):
-            #     layout.operator(
-            #         "nwo.add_mesh_property", text="Seam Sealer"
-            #     ).options = "_connected_geometry_face_type_seam_sealer"
-            if nwo.mesh_type in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure"):
-                layout.operator(
-                    "nwo.add_mesh_property", text="Emissive"
-                ).options = "emissive"
-                layout.operator_menu_enum(
-                    "nwo.add_mesh_property_lightmap",
-                    property="options",
-                    text="Lightmap",
-                )
+#     def draw(self, context):
+#         layout = self.layout
+#         nwo = context.object.nwo
+#         if utils.poll_ui(("scenario", "prefab")):
+#             # if nwo.mesh_type == "_connected_geometry_mesh_type_structure":
+#             #     layout.operator(
+#             #         "nwo.add_mesh_property", text="Sky"
+#             #     ).options = "_connected_geometry_face_type_sky"
+#             # if nwo.mesh_type in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure"):
+#             #     layout.operator(
+#             #         "nwo.add_mesh_property", text="Seam Sealer"
+#             #     ).options = "_connected_geometry_face_type_seam_sealer"
+#             if nwo.mesh_type in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure"):
+#                 layout.operator(
+#                     "nwo.add_mesh_property", text="Emissive"
+#                 ).options = "emissive"
+#                 layout.operator_menu_enum(
+#                     "nwo.add_mesh_property_lightmap",
+#                     property="options",
+#                     text="Lightmap",
+#                 )
 
-class NWO_OT_MeshPropAdd(bpy.types.Operator):
-    """Adds a face property that will override face properties set in the mesh"""
+# class NWO_OT_MeshPropAdd(bpy.types.Operator):
+#     """Adds a face property that will override face properties set in the mesh"""
 
-    bl_idname = "nwo.add_mesh_property"
-    bl_label = "Add"
-    bl_options = {"REGISTER", "UNDO"}
+#     bl_idname = "nwo.add_mesh_property"
+#     bl_label = "Add"
+#     bl_options = {"REGISTER", "UNDO"}
 
-    @classmethod
-    def poll(cls, context):
-        return context.object and utils.is_mesh(context.object) and bpy.ops.object.mode_set.poll()
+#     @classmethod
+#     def poll(cls, context):
+#         return context.object and utils.is_mesh(context.object) and bpy.ops.object.mode_set.poll()
 
-    options: bpy.props.EnumProperty(
-        items=[
-            ("emissive", "Emissive", ""),
-            ("_connected_geometry_face_type_sky", "Sky", ""),
-            ("_connected_geometry_face_type_seam_sealer", "Seam Sealer", ""),
-        ]
-    )
+#     options: bpy.props.EnumProperty(
+#         items=[
+#             ("emissive", "Emissive", ""),
+#             ("_connected_geometry_face_type_sky", "Sky", ""),
+#             ("_connected_geometry_face_type_seam_sealer", "Seam Sealer", ""),
+#         ]
+#     )
 
-    def execute(self, context):
-        toggle_active(context, self.options, True)
-        context.area.tag_redraw()
-        return {"FINISHED"}
+#     def execute(self, context):
+#         toggle_active(context, self.options, True)
+#         context.area.tag_redraw()
+#         return {"FINISHED"}
 
 
-class NWO_OT_MeshPropRemove(bpy.types.Operator):
-    """Removes a mesh property"""
+# class NWO_OT_MeshPropRemove(bpy.types.Operator):
+#     """Removes a mesh property"""
 
-    bl_idname = "nwo.remove_mesh_property"
-    bl_label = "Remove"
-    bl_options = {'UNDO'}
+#     bl_idname = "nwo.remove_mesh_property"
+#     bl_label = "Remove"
+#     bl_options = {'UNDO'}
     
-    @classmethod
-    def poll(cls, context):
-        return context.object
+#     @classmethod
+#     def poll(cls, context):
+#         return context.object
 
-    options: bpy.props.EnumProperty(
-        items=[
-            ("ladder", "Ladder", ""),
-            ("slip_surface", "Slip Surface", ""),
-            ("decal_offset", "Decal Offset", ""),
-            ("group_transparents_by_plane", "Group Transparents by Plane", ""),
-            ("no_shadow", "No Shadow", ""),
-            ("precise_position", "Precise Position", ""),
-            ("no_lightmap", "No Lightmap", ""),
-            ("lightmap_only", "Lightmap Only", ""),
-            ("no_pvs", "No PVS", ""),
-            ("lightmap_additive_transparency", "Transparency", ""),
-            ("lightmap_resolution_scale", "Resolution Scale", ""),
-            ("lightmap_type", "Lightmap Type", ""),
-            ("lightmap_translucency_tint_color", "Translucency Tint Color", ""),
-            ("lightmap_lighting_from_both_sides", "Lighting from Both Sides", ""),
-            ('lightmap_ignore_default_resolution_scale', 'Ignore Default Resolution Scale', ''),
-            ("lightmap_transparency_override", "Disable Lightmap Transparency", ""),
-            ("lightmap_analytical_bounce_modifier", "Analytical Bounce Modifier", ""),
-            ("lightmap_general_bounce_modifier", "General Bounce Modifier", ""),
-            ("emissive", "Emissive", ""),
-        ]
-    )
+#     options: bpy.props.EnumProperty(
+#         items=[
+#             ("ladder", "Ladder", ""),
+#             ("slip_surface", "Slip Surface", ""),
+#             ("decal_offset", "Decal Offset", ""),
+#             ("group_transparents_by_plane", "Group Transparents by Plane", ""),
+#             ("no_shadow", "No Shadow", ""),
+#             ("precise_position", "Precise Position", ""),
+#             ("no_lightmap", "No Lightmap", ""),
+#             ("lightmap_only", "Lightmap Only", ""),
+#             ("no_pvs", "No PVS", ""),
+#             ("lightmap_additive_transparency", "Transparency", ""),
+#             ("lightmap_resolution_scale", "Resolution Scale", ""),
+#             ("lightmap_type", "Lightmap Type", ""),
+#             ("lightmap_translucency_tint_color", "Translucency Tint Color", ""),
+#             ("lightmap_lighting_from_both_sides", "Lighting from Both Sides", ""),
+#             ('lightmap_ignore_default_resolution_scale', 'Ignore Default Resolution Scale', ''),
+#             ("lightmap_transparency_override", "Disable Lightmap Transparency", ""),
+#             ("lightmap_analytical_bounce_modifier", "Analytical Bounce Modifier", ""),
+#             ("lightmap_general_bounce_modifier", "General Bounce Modifier", ""),
+#             ("emissive", "Emissive", ""),
+#         ]
+#     )
 
-    def execute(self, context):
-        toggle_active(context, self.options, False)
-        context.area.tag_redraw()
-        return {"FINISHED"}
+#     def execute(self, context):
+#         toggle_active(context, self.options, False)
+#         context.area.tag_redraw()
+#         return {"FINISHED"}
 
 
-class NWO_OT_MeshPropAddLightmap(NWO_OT_MeshPropAdd):
-    bl_idname = "nwo.add_mesh_property_lightmap"
-    bl_label = "Add"
-    bl_description = "Add a Lightmap Property"
+# class NWO_OT_MeshPropAddLightmap(NWO_OT_MeshPropAdd):
+#     bl_idname = "nwo.add_mesh_property_lightmap"
+#     bl_label = "Add"
+#     bl_description = "Add a Lightmap Property"
 
-    options: bpy.props.EnumProperty(
-        items=[
-            ("lightmap_additive_transparency", "Transparency", ""),
-            ("lightmap_resolution_scale", "Resolution Scale", ""),
-            ("lightmap_type", "Lightmap Type", ""),
-            (
-                "lightmap_translucency_tint_color",
-                "Translucency Tint Color",
-                "",
-            ),
-            (
-                "lightmap_lighting_from_both_sides",
-                "Lighting from Both Sides",
-                "",
-            ),
-            ('lightmap_ignore_default_resolution_scale', 'Ignore Default Resolution Scale', ''),
-            ('lightmap_transparency_override', 'Disable Lightmap Transparency', ''),
-            ('lightmap_analytical_bounce_modifier', 'Analytical Bounce Modifier', ''),
-            ('lightmap_general_bounce_modifier', 'General Bounce Modifier', ''),
-        ]
-    )
+#     options: bpy.props.EnumProperty(
+#         items=[
+#             ("lightmap_additive_transparency", "Transparency", ""),
+#             ("lightmap_resolution_scale", "Resolution Scale", ""),
+#             ("lightmap_type", "Lightmap Type", ""),
+#             (
+#                 "lightmap_translucency_tint_color",
+#                 "Translucency Tint Color",
+#                 "",
+#             ),
+#             (
+#                 "lightmap_lighting_from_both_sides",
+#                 "Lighting from Both Sides",
+#                 "",
+#             ),
+#             ('lightmap_ignore_default_resolution_scale', 'Ignore Default Resolution Scale', ''),
+#             ('lightmap_transparency_override', 'Disable Lightmap Transparency', ''),
+#             ('lightmap_analytical_bounce_modifier', 'Analytical Bounce Modifier', ''),
+#             ('lightmap_general_bounce_modifier', 'General Bounce Modifier', ''),
+#         ]
+#     )
 
 # LIST SYSTEMS
 # ------------------------------------------------

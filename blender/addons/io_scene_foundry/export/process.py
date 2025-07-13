@@ -76,11 +76,11 @@ face_prop_defaults = {
     "bungie_lightmap_analytical_bounce_modifier": 1.0,
     "bungie_lightmap_general_bounce_modifier": 1.0,
     "bungie_lighting_emissive_power": 0.0,
-    "bungie_lighting_emissive_color": (255, 255, 255, 255),
+    "bungie_lighting_emissive_color": (0, 0, 0, 0),
     "bungie_lighting_emissive_per_unit": 0,
-    "bungie_lighting_emissive_quality": 0.0,
+    "bungie_lighting_emissive_quality": 1.0,
     "bungie_lighting_use_shader_gel": 0,
-    "bungie_lighting_bounce_ratio": 0.0,
+    "bungie_lighting_bounce_ratio": 1.0,
     "bungie_lighting_attenuation_enabled": 0,
     "bungie_lighting_attenuation_cutoff": 0.0,
     "bungie_lighting_attenuation_falloff": 0.0,
@@ -1287,92 +1287,58 @@ class ExportScene:
             else:
                 mesh_props["bungie_mesh_tessellation_density"] = data_nwo.mesh_tessellation_density
                 
-        if data_nwo.lightmap_ignore_default_resolution_scale_active:
-            if test_face_prop(face_props, "lightmap_ignore_default_resolution_scale_override"):
-                fp_defaults["bungie_lightmap_ignore_default_resolution_scale"] = 1
-            else:
-                mesh_props["bungie_lightmap_ignore_default_resolution_scale"] = 1
-                
-        if data_nwo.lightmap_additive_transparency_active:
-            if test_face_prop(face_props, "lightmap_additive_transparency_override"):
-                fp_defaults["bungie_lightmap_additive_transparency"] = utils.color_3p_int(data_nwo.lightmap_additive_transparency)
-            else:
-                mesh_props["bungie_lightmap_additive_transparency"] = utils.color_3p_int(data_nwo.lightmap_additive_transparency)
-                
-        if data_nwo.lightmap_resolution_scale_active:
-            if test_face_prop(face_props, "lightmap_resolution_scale_override"):
-                fp_defaults["bungie_lightmap_resolution_scale"] = data_nwo.lightmap_resolution_scale
-            else:
-                mesh_props["bungie_lightmap_resolution_scale"] = str(data_nwo.lightmap_resolution_scale)
-                
-        if data_nwo.lightmap_type_active:
-            if test_face_prop(face_props, "lightmap_resolution_scale_override"):
-                if data_nwo.lightmap_type == '_connected_geometry_lightmap_type_per_vertex':
-                    fp_defaults["bungie_lightmap_type"] = LightmapType.per_vertex.value
-                else:
-                    fp_defaults["bungie_lightmap_type"] = LightmapType.per_pixel.value
-            else:
-                mesh_props["bungie_lightmap_type"] = data_nwo.lightmap_type
-                
-        if data_nwo.lightmap_translucency_tint_color_active:
-            if test_face_prop(face_props, "lightmap_translucency_tint_color_override"):
-                fp_defaults["bungie_lightmap_translucency_tint_color"] = utils.color_3p_int(data_nwo.lightmap_translucency_tint_color)
-            else:
-                mesh_props["bungie_lightmap_translucency_tint_color"] = utils.color_3p_int(data_nwo.lightmap_translucency_tint_color)
-                
-        if data_nwo.lightmap_lighting_from_both_sides_active:
-            if test_face_prop(face_props, "lightmap_lighting_from_both_sides_override"):
-                fp_defaults["bungie_lightmap_lighting_from_both_sides"] = 1
-            else:
-                mesh_props["bungie_lightmap_lighting_from_both_sides"] = 1
-                
-        if data_nwo.lightmap_transparency_override_active:
-            if test_face_prop(face_props, "lightmap_transparency_override"):
-                fp_defaults["bungie_lightmap_transparency_override"] = 1
-            else:
-                mesh_props["bungie_lightmap_transparency_override"] = 1
-                
-        if data_nwo.lightmap_analytical_bounce_modifier_active:
-            if test_face_prop(face_props, "lightmap_analytical_bounce_modifier"):
-                fp_defaults["bungie_lightmap_analytical_bounce_modifier"] = data_nwo.lightmap_analytical_bounce_modifier
-            else:
-                mesh_props["bungie_lightmap_analytical_bounce_modifier"] = data_nwo.lightmap_analytical_bounce_modifier
-                
-        if data_nwo.lightmap_general_bounce_modifier_active:
-            if test_face_prop(face_props, "lightmap_general_bounce_modifier"):
-                fp_defaults["bungie_lightmap_general_bounce_modifier"] = data_nwo.lightmap_general_bounce_modifier
-            else:
-                mesh_props["bungie_lightmap_general_bounce_modifier"] = data_nwo.lightmap_general_bounce_modifier
-                
-        if data_nwo.emissive_active:
-            power = max(utils.calc_emissive_intensity(data_nwo.material_lighting_emissive_power, self.to_halo_scale ** 2), 0.0001)
-            if data_nwo.material_lighting_attenuation_cutoff > 0:
-                falloff = data_nwo.material_lighting_attenuation_falloff
-                cutoff = data_nwo.material_lighting_attenuation_cutoff
-            else:
-                falloff, cutoff = calc_attenutation(data_nwo.material_lighting_emissive_power * self.unit_factor ** 2)
-            if test_face_prop(face_props, "emissive_override"):
-                fp_defaults["bungie_lighting_emissive_power"] = power
-                fp_defaults["bungie_lighting_emissive_color"] = utils.color_4p_int(data_nwo.material_lighting_emissive_color)
-                fp_defaults["bungie_lighting_emissive_per_unit"] = int(data_nwo.material_lighting_emissive_per_unit)
-                fp_defaults["bungie_lighting_emissive_quality"] = data_nwo.material_lighting_emissive_quality
-                fp_defaults["bungie_lighting_use_shader_gel"] = int(data_nwo.material_lighting_use_shader_gel)
-                fp_defaults["bungie_lighting_bounce_ratio"] = data_nwo.material_lighting_bounce_ratio
-                fp_defaults["bungie_lighting_attenuation_enabled"] = 1
-                fp_defaults["bungie_lighting_attenuation_cutoff"] = cutoff * self.atten_scalar * WU_SCALAR
-                fp_defaults["bungie_lighting_attenuation_falloff"] = falloff * self.atten_scalar * WU_SCALAR
-                fp_defaults["bungie_lighting_emissive_focus"] = degrees(data_nwo.material_lighting_emissive_focus) / 180
-            else:
-                mesh_props["bungie_lighting_emissive_power"] = power
-                mesh_props["bungie_lighting_emissive_color"] = utils.color_4p_int(data_nwo.material_lighting_emissive_color)
-                mesh_props["bungie_lighting_emissive_per_unit"] = int(data_nwo.material_lighting_emissive_per_unit)
-                mesh_props["bungie_lighting_emissive_quality"] = data_nwo.material_lighting_emissive_quality
-                mesh_props["bungie_lighting_use_shader_gel"] = int(data_nwo.material_lighting_use_shader_gel)
-                mesh_props["bungie_lighting_bounce_ratio"] = data_nwo.material_lighting_bounce_ratio
-                mesh_props["bungie_lighting_attenuation_enabled"] = 1
-                mesh_props["bungie_lighting_attenuation_cutoff"] = cutoff * self.atten_scalar * WU_SCALAR
-                mesh_props["bungie_lighting_attenuation_falloff"] = falloff * self.atten_scalar * WU_SCALAR
-                mesh_props["bungie_lighting_emissive_focus"] = degrees(data_nwo.material_lighting_emissive_focus) / 180
+        # Material Props
+        # If there's just one material on a mesh, we can store the material properties on the mesh
+        if len(set(ob.data.materials)) == 1:
+            mat_nwo = ob.data.materials[0].nwo
+            if mat_nwo.has_lightmap_props:
+                if mat_nwo.lightmap_ignore_default_resolution_scale_active:
+                    mesh_props["bungie_lightmap_ignore_default_resolution_scale"] = 1
+                        
+                if mat_nwo.lightmap_additive_transparency_active:
+                    mesh_props["bungie_lightmap_additive_transparency"] = utils.color_3p_int(data_nwo.lightmap_additive_transparency)
+                        
+                if mat_nwo.lightmap_resolution_scale_active:
+                    mesh_props["bungie_lightmap_resolution_scale"] = data_nwo.lightmap_resolution_scale
+                        
+                if mat_nwo.lightmap_type_active:
+                    if data_nwo.lightmap_type == '_connected_geometry_lightmap_type_per_vertex':
+                        mesh_props["bungie_lightmap_type"] = LightmapType.per_vertex.value
+                    else:
+                        mesh_props["bungie_lightmap_type"] = LightmapType.per_pixel.value
+                        
+                if mat_nwo.lightmap_translucency_tint_color_active:
+                    mesh_props["bungie_lightmap_translucency_tint_color"] = utils.color_3p_int(data_nwo.lightmap_translucency_tint_color)
+                        
+                if mat_nwo.lightmap_lighting_from_both_sides_active:
+                    mesh_props["bungie_lightmap_lighting_from_both_sides"] = 1
+                        
+                if mat_nwo.lightmap_transparency_override_active:
+                    mesh_props["bungie_lightmap_transparency_override"] = 1
+                        
+                if mat_nwo.lightmap_analytical_bounce_modifier_active:
+                    mesh_props["bungie_lightmap_analytical_bounce_modifier"] = data_nwo.lightmap_analytical_bounce_modifier
+                        
+                if mat_nwo.lightmap_general_bounce_modifier_active:
+                    mesh_props["bungie_lightmap_general_bounce_modifier"] = data_nwo.lightmap_general_bounce_modifier
+                        
+                if mat_nwo.emissive_active and mat_nwo.material_lighting_emissive_power > 0:
+                    power = max(utils.calc_emissive_intensity(mat_nwo.material_lighting_emissive_power, self.to_halo_scale ** 2), 0.0001)
+                    if mat_nwo.material_lighting_attenuation_cutoff > 0:
+                        falloff = mat_nwo.material_lighting_attenuation_falloff
+                        cutoff = mat_nwo.material_lighting_attenuation_cutoff
+                    else:
+                        falloff, cutoff = calc_attenutation(mat_nwo.material_lighting_emissive_power * self.unit_factor ** 2)
+                        mesh_props["bungie_lighting_emissive_power"] = power
+                        mesh_props["bungie_lighting_emissive_color"] = utils.color_4p_int(mat_nwo.material_lighting_emissive_color)
+                        mesh_props["bungie_lighting_emissive_per_unit"] = int(mat_nwo.material_lighting_emissive_per_unit)
+                        mesh_props["bungie_lighting_emissive_quality"] = mat_nwo.material_lighting_emissive_quality
+                        mesh_props["bungie_lighting_use_shader_gel"] = int(mat_nwo.material_lighting_use_shader_gel)
+                        mesh_props["bungie_lighting_bounce_ratio"] = mat_nwo.material_lighting_bounce_ratio
+                        mesh_props["bungie_lighting_attenuation_enabled"] = 1
+                        mesh_props["bungie_lighting_attenuation_cutoff"] = cutoff * self.atten_scalar * WU_SCALAR
+                        mesh_props["bungie_lighting_attenuation_falloff"] = falloff * self.atten_scalar * WU_SCALAR
+                        mesh_props["bungie_lighting_emissive_focus"] = degrees(mat_nwo.material_lighting_emissive_focus) / 180
                 
         return fp_defaults
          

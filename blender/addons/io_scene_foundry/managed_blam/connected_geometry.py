@@ -24,6 +24,9 @@ from ..tools import materials as special_materials
 from .. import utils
 from .Tags import TagFieldBlock, TagFieldBlockElement, TagPath
 
+mat_props_cache = {}
+
+
 class BSPSeam:
     def __init__(self, element: TagFieldBlockElement):
         self.index = element.ElementIndex
@@ -1370,9 +1373,22 @@ class CompressionBounds:
         self.u1 = third[1]
         self.v0 = fourth[0]
         self.v1 = fourth[1]
+        
+class Emissive:
+    def __init__(self, element: TagFieldBlockElement):
+        self.power = element.Fields[0].Data
+        self.color = [n for n in element.Fields[1].Data]
+        self.quality = element.Fields[2].Data
+        self.focus = element.Fields[3].Data
+        flags = element.Fields[4]
+        self.power_per_unit_area = flags.TestBit("power per unit area")
+        self.use_shader_gel = flags.TestBit("use shader gel")
+        self.attenuation_falloff = element.Fields[5].Data
+        self.attenuation_cutoff = element.Fields[6].Data
+        self.bounce_ratio = element.Fields[7].Data
 
 class Material:
-    def __init__(self, element: TagFieldBlockElement):
+    def __init__(self, element: TagFieldBlockElement, emissives: list[Emissive], for_bsp=False):
         self.index = element.ElementIndex
         render_method_path = element.SelectField("render method").Path
         self.name = render_method_path.ShortName
@@ -1384,8 +1400,29 @@ class Material:
         self.lm_translucency = element.SelectField("lightmap traslucency tint color").Data
         flags = element.SelectField("lightmap flags")
         self.lm_both_sides = flags.TestBit("lighting from both sides")
+        self.lm_transparency_override = flags.TestBit("transparency override")
+        self.lm_ignore_default_res = flags.TestBit("ignore default resolution scale")
+        self.lm_chart_group_index = element.SelectField("ShortInteger:lightmap chart group index").Data
         self.breakable_surface_index = element.SelectField("breakable surface index").Data
-        self.blender_material = get_blender_material(self.name, self.shader_path)
+        
+        self.lm_analytical_absorb = element.SelectField("Real:lightmap analytical light absorb").Data
+        self.lm_normal_absorb = element.SelectField("Real:lightmap normal light absorb").Data
+        
+        # Emissive Properties
+        self.emissive: Emissive = None
+        if self.emissive_index > -1 and self.emissive_index < len(emissives):
+            emissive = emissives[self.emissive_index]
+            if emissive.power > 0:
+                self.emissive = emissive
+        
+        
+        if for_bsp:
+            self.blender_material = get_blender_material_with_props(self, self.shader_path)
+        else:
+            self.blender_material = get_blender_material(self.name, self.shader_path)
+        
+        
+            
     
 class IndexLayoutType(Enum):
     DEFAULT = 0
@@ -2080,3 +2117,57 @@ def get_blender_material(name, shader_path=""):
             mat.nwo.shader_path = shader_path
         
     return mat
+
+def get_blender_material_with_props(material: Material, shader_path=""):
+    global mat_props_cache
+    props = [
+        material.lm_res,
+        material.lm_transparency,
+        material.lm_translucency,
+        material.lm_both_sides,
+        material.lm_transparency_override,
+        material.lm_ignore_default_res,
+        material.lm_chart_group_index,
+        material.lm_analytical_absorb,
+        material.lm_normal_absorb,
+    ]
+    
+    if material.emissive is not None:  
+        e = (
+                material.emissive.power,
+                material.emissive.color,
+                material.emissive.attenuation_cutoff,
+                material.emissive.attenuation_falloff,
+                material.emissive.bounce_ratio,
+                material.emissive.focus,
+                material.emissive.power_per_unit_area,
+                material.emissive.use_shader_gel,
+                material.emissive.quality,
+            )
+        
+        props.extend(e)
+        
+    props = tuple(props)
+    
+    mat = bpy.data.materials.get(material.name)
+    if not mat:
+        if material.name == '+sky' or material.name == '+seamsealer' or material.name == "+seam":
+            add_special_materials('h4' if utils.is_corinth() else 'reach', 'scenario')
+            mat = bpy.data.materials.get(material.name)
+        else:
+            mat = bpy.data.materials.new(material.name)
+            mat.nwo.shader_path = shader_path
+        
+        mat_props_cache[props] = mat
+        return mat
+        
+    existing_mat = mat_props_cache.get(props)
+    if not existing_mat:
+        new_mat = mat.copy()
+        mat_props_cache[props] = new_mat
+        return new_mat
+        
+    return existing_mat
+
+def setup_material_with_props(mat: bpy.types.Material, props: tuple):
+    pass

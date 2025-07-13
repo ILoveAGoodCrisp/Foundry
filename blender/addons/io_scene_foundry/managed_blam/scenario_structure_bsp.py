@@ -1,11 +1,14 @@
 
 
+from pathlib import Path
 import bmesh
 import bpy
 
+from .scenario_structure_lighting_info import ScenarioStructureLightingInfoTag
+
 from ..tools.property_apply import apply_props_material
 
-from .connected_geometry import BSP, BSPCollisionMaterial, Cluster, CompressionBounds, EnvironmentObject, EnvironmentObjectReference, Instance, InstanceDefinition, Material, Portal, StructureCollision, StructureMarker, SurfaceMapping
+from .connected_geometry import BSP, BSPCollisionMaterial, Cluster, CompressionBounds, Emissive, EnvironmentObject, EnvironmentObjectReference, Instance, InstanceDefinition, Material, Portal, StructureCollision, StructureMarker, SurfaceMapping
 from ..utils import jstr
 from ..managed_blam import Tag
 from .. import utils
@@ -128,7 +131,7 @@ class ScenarioStructureBspTag(Tag):
             
         self.tag_has_changes = True
         
-    def to_blend_objects(self, collection: bpy.types.Collection, for_scenario: bool, for_cinematic: bool):
+    def to_blend_objects(self, collection: bpy.types.Collection, for_cinematic: bool, lighting_info_path: Path = None, structure_meta_path: Path = None):
         objects = []
         game_objects = []
         self.collection = collection
@@ -137,10 +140,25 @@ class ScenarioStructureBspTag(Tag):
         for element in self.tag.SelectField("Block:collision materials").Elements:
             collision_materials.append(BSPCollisionMaterial(element))
             
+        # Get all emissive data
+        emissives = []
+        
+        if self.corinth:
+            for element in self.tag.SelectField("Block:emissive materials").Elements:
+                emissives.append(Emissive(element))
+        else:
+            if not lighting_info_path:
+                lighting_info_path = Path(self.tag_path.Filename).with_suffix(".scenario_structure_lighting_info")
+                
+            if lighting_info_path.exists():
+                with ScenarioStructureLightingInfoTag(path=str(lighting_info_path)) as info:
+                    for element in info.tag.SelectField("Block:emissive materials").Elements:
+                        emissives.append(Emissive(element))
+            
         # Get all render materials
         render_materials = []
         for element in self.tag.SelectField("Block:materials").Elements:
-            render_materials.append(Material(element))
+            render_materials.append(Material(element, emissives, True))
             
         # Get all compression bounds
         bounds = []

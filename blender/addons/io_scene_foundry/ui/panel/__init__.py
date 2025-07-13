@@ -2505,158 +2505,158 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                                     icon="DOWNARROW_HLT",
                             )
 
-        if nwo.mesh_type in (
-            "_connected_geometry_mesh_type_structure",
-            # "_connected_geometry_mesh_type_collision",
-            "_connected_geometry_mesh_type_default",
-        ):
-            if utils.poll_ui(("scenario", "prefab")) and (not self.h4 or nwo.proxy_instance or nwo.mesh_type != "_connected_geometry_mesh_type_structure"):
+        # if nwo.mesh_type in (
+        #     "_connected_geometry_mesh_type_structure",
+        #     # "_connected_geometry_mesh_type_collision",
+        #     "_connected_geometry_mesh_type_default",
+        # ):
+        #     if utils.poll_ui(("scenario", "prefab")) and (not self.h4 or nwo.proxy_instance or nwo.mesh_type != "_connected_geometry_mesh_type_structure"):
                 # col.separator()
-                col_ob = box.column()
-                col_ob.use_property_split = True
-                # lightmap
-                if mesh_nwo.lightmap_additive_transparency_active:
-                    row = col_ob.row(align=True)
-                    row.prop(
-                        mesh_nwo,
-                        "lightmap_additive_transparency",
-                        text="Additive Transparency",
-                    )
-                    row.operator(
-                        "nwo.remove_mesh_property", text="", icon="X"
-                    ).options = "lightmap_additive_transparency"
-                if mesh_nwo.lightmap_resolution_scale_active:
-                    row = col_ob.row(align=True)
-                    row.prop(
-                        mesh_nwo,
-                        "lightmap_resolution_scale",
-                        text="Resolution Scale",
-                    )
-                    row.operator(
-                        "nwo.remove_mesh_property", text="", icon="X"
-                    ).options = "lightmap_resolution_scale"
-                if mesh_nwo.lightmap_type_active:
-                    row = col_ob.row(align=True)
-                    row.prop(mesh_nwo, "lightmap_type", text="Lightmap Type")
-                    row.operator(
-                        "nwo.remove_mesh_property", text="", icon="X"
-                    ).options = "lightmap_type"
-                if mesh_nwo.lightmap_translucency_tint_color_active:
-                    row = col_ob.row(align=True)
-                    row.prop(
-                        mesh_nwo,
-                        "lightmap_translucency_tint_color",
-                        text="Translucency Tint Color",
-                    )
-                    row.operator(
-                        "nwo.remove_mesh_property", text="", icon="X"
-                    ).options = "lightmap_translucency_tint_color"
-                if mesh_nwo.lightmap_lighting_from_both_sides_active:
-                    row = col_ob.row(align=True)
-                    row.prop(
-                        mesh_nwo,
-                        "lightmap_lighting_from_both_sides",
-                        text="Lighting From Both Sides",
-                    )
-                    row.operator(
-                        "nwo.remove_mesh_property", text="", icon="X"
-                    ).options = "lightmap_lighting_from_both_sides"
-                if mesh_nwo.lightmap_ignore_default_resolution_scale_active:
-                    row = col_ob.row(align=True)
-                    row.prop(
-                        mesh_nwo,
-                        "lightmap_ignore_default_resolution_scale",
-                        text="Ignore Default Resolution Scale",
-                    )
-                    row.operator(
-                        "nwo.remove_mesh_property", text="", icon="X"
-                    ).options = "lightmap_ignore_default_resolution_scale"
-                if mesh_nwo.lightmap_transparency_override_active:
-                    row = col_ob.row(align=True)
-                    row.prop(
-                        mesh_nwo,
-                        "lightmap_transparency_override",
-                    )
-                    row.operator(
-                        "nwo.remove_mesh_property", text="", icon="X"
-                    ).options = "lightmap_transparency_override"
-                if mesh_nwo.lightmap_analytical_bounce_modifier_active:
-                    row = col_ob.row(align=True)
-                    row.prop(
-                        mesh_nwo,
-                        "lightmap_analytical_bounce_modifier",
-                    )
-                    row.operator(
-                        "nwo.remove_mesh_property", text="", icon="X"
-                    ).options = "lightmap_analytical_bounce_modifier"
-                if mesh_nwo.lightmap_general_bounce_modifier_active:
-                    row = col_ob.row(align=True)
-                    row.prop(
-                        mesh_nwo,
-                        "lightmap_general_bounce_modifier",
-                    )
-                    row.operator(
-                        "nwo.remove_mesh_property", text="", icon="X"
-                    ).options = "lightmap_general_bounce_modifier"
-                if mesh_nwo.emissive_active:
-                    col_ob.separator()
-                    box_ob = col_ob.box()
-                    row = box_ob.row(align=True)
-                    row.label(text="Emissive Settings", icon='LIGHT_DATA')
-                    row.operator(
-                        "nwo.remove_mesh_property", text="", icon="X"
-                    ).options = "emissive"
-                    row = box_ob.row(align=True)
-                    row.prop(mesh_nwo, "material_lighting_emissive_color", text="Color")
-                    row = box_ob.row(align=True)
-                    row.prop(mesh_nwo, "material_lighting_emissive_power", text="Power")
-                    row = box_ob.row(align=True)
-                    row.prop(mesh_nwo, "light_intensity", text="Intensity")
-                    row = box_ob.row(align=True)
-                    row.prop(
-                        mesh_nwo,
-                        "material_lighting_emissive_quality",
-                        text="Quality",
-                    )
-                    row = box_ob.row(align=True)
-                    row.prop(mesh_nwo, "material_lighting_emissive_focus", text="Focus")
-                    row = box_ob.row(align=True)
-                    row.prop(
-                        mesh_nwo,
-                        "material_lighting_bounce_ratio",
-                        text="Bounce Ratio",
-                    )
-                    row = box_ob.row(align=True)
-                    row.prop(
-                        mesh_nwo,
-                        "material_lighting_attenuation_falloff",
-                        text="Light Falloff",
-                    )
-                    row = box_ob.row(align=True)
-                    row.prop(
-                        mesh_nwo,
-                        "material_lighting_attenuation_cutoff",
-                        text="Light Cutoff",
-                    )
-                    row = box_ob.row(align=True)
-                    row.prop(
-                        mesh_nwo,
-                        "material_lighting_use_shader_gel",
-                        text="Shader Gel",
-                    )
-                    row = box_ob.row(align=True)
-                    row.prop(
-                        mesh_nwo,
-                        "material_lighting_emissive_per_unit",
-                        text="Emissive Per Unit",
-                    )
+                # col_ob = box.column()
+                # col_ob.use_property_split = True
+                # # lightmap
+                # if mesh_nwo.lightmap_additive_transparency_active:
+                #     row = col_ob.row(align=True)
+                #     row.prop(
+                #         mesh_nwo,
+                #         "lightmap_additive_transparency",
+                #         text="Additive Transparency",
+                #     )
+                #     row.operator(
+                #         "nwo.remove_mesh_property", text="", icon="X"
+                #     ).options = "lightmap_additive_transparency"
+                # if mesh_nwo.lightmap_resolution_scale_active:
+                #     row = col_ob.row(align=True)
+                #     row.prop(
+                #         mesh_nwo,
+                #         "lightmap_resolution_scale",
+                #         text="Resolution Scale",
+                #     )
+                #     row.operator(
+                #         "nwo.remove_mesh_property", text="", icon="X"
+                #     ).options = "lightmap_resolution_scale"
+                # if mesh_nwo.lightmap_type_active:
+                #     row = col_ob.row(align=True)
+                #     row.prop(mesh_nwo, "lightmap_type", text="Lightmap Type")
+                #     row.operator(
+                #         "nwo.remove_mesh_property", text="", icon="X"
+                #     ).options = "lightmap_type"
+                # if mesh_nwo.lightmap_translucency_tint_color_active:
+                #     row = col_ob.row(align=True)
+                #     row.prop(
+                #         mesh_nwo,
+                #         "lightmap_translucency_tint_color",
+                #         text="Translucency Tint Color",
+                #     )
+                #     row.operator(
+                #         "nwo.remove_mesh_property", text="", icon="X"
+                #     ).options = "lightmap_translucency_tint_color"
+                # if mesh_nwo.lightmap_lighting_from_both_sides_active:
+                #     row = col_ob.row(align=True)
+                #     row.prop(
+                #         mesh_nwo,
+                #         "lightmap_lighting_from_both_sides",
+                #         text="Lighting From Both Sides",
+                #     )
+                #     row.operator(
+                #         "nwo.remove_mesh_property", text="", icon="X"
+                #     ).options = "lightmap_lighting_from_both_sides"
+                # if mesh_nwo.lightmap_ignore_default_resolution_scale_active:
+                #     row = col_ob.row(align=True)
+                #     row.prop(
+                #         mesh_nwo,
+                #         "lightmap_ignore_default_resolution_scale",
+                #         text="Ignore Default Resolution Scale",
+                #     )
+                #     row.operator(
+                #         "nwo.remove_mesh_property", text="", icon="X"
+                #     ).options = "lightmap_ignore_default_resolution_scale"
+                # if mesh_nwo.lightmap_transparency_override_active:
+                #     row = col_ob.row(align=True)
+                #     row.prop(
+                #         mesh_nwo,
+                #         "lightmap_transparency_override",
+                #     )
+                #     row.operator(
+                #         "nwo.remove_mesh_property", text="", icon="X"
+                #     ).options = "lightmap_transparency_override"
+                # if mesh_nwo.lightmap_analytical_bounce_modifier_active:
+                #     row = col_ob.row(align=True)
+                #     row.prop(
+                #         mesh_nwo,
+                #         "lightmap_analytical_bounce_modifier",
+                #     )
+                #     row.operator(
+                #         "nwo.remove_mesh_property", text="", icon="X"
+                #     ).options = "lightmap_analytical_bounce_modifier"
+                # if mesh_nwo.lightmap_general_bounce_modifier_active:
+                #     row = col_ob.row(align=True)
+                #     row.prop(
+                #         mesh_nwo,
+                #         "lightmap_general_bounce_modifier",
+                #     )
+                #     row.operator(
+                #         "nwo.remove_mesh_property", text="", icon="X"
+                #     ).options = "lightmap_general_bounce_modifier"
+                # if mesh_nwo.emissive_active:
+                #     col_ob.separator()
+                #     box_ob = col_ob.box()
+                #     row = box_ob.row(align=True)
+                #     row.label(text="Emissive Settings", icon='LIGHT_DATA')
+                #     row.operator(
+                #         "nwo.remove_mesh_property", text="", icon="X"
+                #     ).options = "emissive"
+                #     row = box_ob.row(align=True)
+                #     row.prop(mesh_nwo, "material_lighting_emissive_color", text="Color")
+                #     row = box_ob.row(align=True)
+                #     row.prop(mesh_nwo, "material_lighting_emissive_power", text="Power")
+                #     row = box_ob.row(align=True)
+                #     row.prop(mesh_nwo, "light_intensity", text="Intensity")
+                #     row = box_ob.row(align=True)
+                #     row.prop(
+                #         mesh_nwo,
+                #         "material_lighting_emissive_quality",
+                #         text="Quality",
+                #     )
+                #     row = box_ob.row(align=True)
+                #     row.prop(mesh_nwo, "material_lighting_emissive_focus", text="Focus")
+                #     row = box_ob.row(align=True)
+                #     row.prop(
+                #         mesh_nwo,
+                #         "material_lighting_bounce_ratio",
+                #         text="Bounce Ratio",
+                #     )
+                #     row = box_ob.row(align=True)
+                #     row.prop(
+                #         mesh_nwo,
+                #         "material_lighting_attenuation_falloff",
+                #         text="Light Falloff",
+                #     )
+                #     row = box_ob.row(align=True)
+                #     row.prop(
+                #         mesh_nwo,
+                #         "material_lighting_attenuation_cutoff",
+                #         text="Light Cutoff",
+                #     )
+                #     row = box_ob.row(align=True)
+                #     row.prop(
+                #         mesh_nwo,
+                #         "material_lighting_use_shader_gel",
+                #         text="Shader Gel",
+                #     )
+                #     row = box_ob.row(align=True)
+                #     row.prop(
+                #         mesh_nwo,
+                #         "material_lighting_emissive_per_unit",
+                #         text="Emissive Per Unit",
+                #     )
 
-                col_ob.separator()
-                row_add_prop = col_ob.row()
-                if not mesh_nwo.emissive_active:
-                    row_add_prop.operator("nwo.add_mesh_property", text="Emissive", icon='LIGHT_DATA').options = "emissive"
+                # col_ob.separator()
+                # row_add_prop = col_ob.row()
+                # if not mesh_nwo.emissive_active:
+                #     row_add_prop.operator("nwo.add_mesh_property", text="Emissive", icon='LIGHT_DATA').options = "emissive"
                 
-                row_add_prop.operator_menu_enum("nwo.add_mesh_property_lightmap", property="options", text="Lightmap Settings", icon='OUTLINER_DATA_LIGHTPROBE')
+                # row_add_prop.operator_menu_enum("nwo.add_mesh_property_lightmap", property="options", text="Lightmap Settings", icon='OUTLINER_DATA_LIGHTPROBE')
     
     def draw_instance_proxies(self, box, ob):
         nwo = ob.data.nwo
@@ -2792,6 +2792,155 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     if full_path.exists():
                         col.operator('nwo.shader_to_nodes', text=f"Convert {txt} to Blender Material", icon='NODE_MATERIAL').mat_name = mat.name
                     col.separator()
+                    col.label(text="Halo Material Properties")
+                    col = box.column()
+                    col.use_property_split = True
+                    # lightmap
+                    if nwo.lightmap_additive_transparency_active:
+                        row = col.row(align=True)
+                        row.prop(
+                            nwo,
+                            "lightmap_additive_transparency",
+                            text="Additive Transparency",
+                        )
+                        row.operator(
+                            "nwo.remove_material_property", text="", icon="X"
+                        ).options = "lightmap_additive_transparency"
+                    if nwo.lightmap_resolution_scale_active:
+                        row = col.row(align=True)
+                        row.prop(
+                            nwo,
+                            "lightmap_resolution_scale",
+                            text="Resolution Scale",
+                        )
+                        row.operator(
+                            "nwo.remove_material_property", text="", icon="X"
+                        ).options = "lightmap_resolution_scale"
+                    if nwo.lightmap_type_active:
+                        row = col.row(align=True)
+                        row.prop(nwo, "lightmap_type", text="Lightmap Type")
+                        row.operator(
+                            "nwo.remove_material_property", text="", icon="X"
+                        ).options = "lightmap_type"
+                    if nwo.lightmap_translucency_tint_color_active:
+                        row = col.row(align=True)
+                        row.prop(
+                            nwo,
+                            "lightmap_translucency_tint_color",
+                            text="Translucency Tint Color",
+                        )
+                        row.operator(
+                            "nwo.remove_material_property", text="", icon="X"
+                        ).options = "lightmap_translucency_tint_color"
+                    if nwo.lightmap_lighting_from_both_sides_active:
+                        row = col.row(align=True)
+                        row.prop(
+                            nwo,
+                            "lightmap_lighting_from_both_sides",
+                            text="Lighting From Both Sides",
+                        )
+                        row.operator(
+                            "nwo.remove_material_property", text="", icon="X"
+                        ).options = "lightmap_lighting_from_both_sides"
+                    if nwo.lightmap_ignore_default_resolution_scale_active:
+                        row = col.row(align=True)
+                        row.prop(
+                            nwo,
+                            "lightmap_ignore_default_resolution_scale",
+                            text="Ignore Default Resolution Scale",
+                        )
+                        row.operator(
+                            "nwo.remove_material_property", text="", icon="X"
+                        ).options = "lightmap_ignore_default_resolution_scale"
+                    if nwo.lightmap_transparency_override_active:
+                        row = col.row(align=True)
+                        row.prop(
+                            nwo,
+                            "lightmap_transparency_override",
+                        )
+                        row.operator(
+                            "nwo.remove_material_property", text="", icon="X"
+                        ).options = "lightmap_transparency_override"
+                    if nwo.lightmap_analytical_bounce_modifier_active:
+                        row = col.row(align=True)
+                        row.prop(
+                            nwo,
+                            "lightmap_analytical_bounce_modifier",
+                        )
+                        row.operator(
+                            "nwo.remove_material_property", text="", icon="X"
+                        ).options = "lightmap_analytical_bounce_modifier"
+                    if nwo.lightmap_general_bounce_modifier_active:
+                        row = col.row(align=True)
+                        row.prop(
+                            nwo,
+                            "lightmap_general_bounce_modifier",
+                        )
+                        row.operator(
+                            "nwo.remove_material_property", text="", icon="X"
+                        ).options = "lightmap_general_bounce_modifier"
+                    if nwo.emissive_active:
+                        col.separator()
+                        box_ob = col.box()
+                        row = box_ob.row(align=True)
+                        row.label(text="Emissive Settings", icon='LIGHT_DATA')
+                        row.operator(
+                            "nwo.remove_material_property", text="", icon="X"
+                        ).options = "emissive"
+                        row = box_ob.row(align=True)
+                        row.prop(nwo, "material_lighting_emissive_color", text="Color")
+                        row = box_ob.row(align=True)
+                        row.prop(nwo, "material_lighting_emissive_power", text="Power")
+                        row = box_ob.row(align=True)
+                        row.prop(nwo, "light_intensity", text="Intensity")
+                        row = box_ob.row(align=True)
+                        row.prop(
+                            nwo,
+                            "material_lighting_emissive_quality",
+                            text="Quality",
+                        )
+                        row = box_ob.row(align=True)
+                        row.prop(nwo, "material_lighting_emissive_focus", text="Focus")
+                        row = box_ob.row(align=True)
+                        row.prop(
+                            nwo,
+                            "material_lighting_bounce_ratio",
+                            text="Bounce Ratio",
+                        )
+                        row = box_ob.row(align=True)
+                        row.prop(
+                            nwo,
+                            "material_lighting_attenuation_falloff",
+                            text="Light Falloff",
+                        )
+                        row = box_ob.row(align=True)
+                        row.prop(
+                            nwo,
+                            "material_lighting_attenuation_cutoff",
+                            text="Light Cutoff",
+                        )
+                        row = box_ob.row(align=True)
+                        row.prop(
+                            nwo,
+                            "material_lighting_use_shader_gel",
+                            text="Shader Gel",
+                        )
+                        row = box_ob.row(align=True)
+                        row.prop(
+                            nwo,
+                            "material_lighting_emissive_per_unit",
+                            text="Emissive Per Unit",
+                        )
+
+                    col.separator()
+                    row_add_prop = col.row()
+                    if not nwo.emissive_active:
+                        row_add_prop.operator("nwo.add_emissive_property", text="Emissive", icon='LIGHT_DATA').options = "emissive"
+                    
+                    row_add_prop.operator_menu_enum("nwo.add_lightmap_property", property="options", text="Lightmap Settings", icon='OUTLINER_DATA_LIGHTPROBE')
+                    
+                    col.separator()
+                    col = box.column()
                     col.label(text=f'{txt} Export Tools')
                     col.operator("nwo.shader_duplicate", icon='DUPLICATE')
                     if utils.material_read_only(nwo.shader_path):
