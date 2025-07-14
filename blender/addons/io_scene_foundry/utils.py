@@ -4670,6 +4670,66 @@ def rgb_to_name(rgb, decimal_color=True):
     if decimal_color:
         rgb = [int(i * 255) for i in rgb]
     
-    # Find the color with the smallest squared distance
     nearest = min(CSS_COLORS, key=lambda name: euclidean(rgb, CSS_COLORS[name]))
     return nearest
+
+import bpy
+
+import bpy
+
+def copy_material_nodes(src_mat: bpy.types.Material, dst_mat: bpy.types.Material, clear_dst: bool = True):
+    # Ensure both materials use nodes
+    src_mat.use_nodes = True
+    dst_mat.use_nodes = True
+
+    dst_tree = dst_mat.node_tree
+    src_tree = src_mat.node_tree
+
+    if clear_dst:
+        dst_tree.nodes.clear()
+        dst_tree.links.clear()
+
+    node_map = {}
+
+    def duplicate_node(node, tree):
+        """Recursively duplicate a node (expands node-groups too)."""
+        new_node = tree.nodes.new(type=node.bl_idname)
+        node_map[node] = new_node
+
+        for attr in ("location", "label", "width", "height", "hide"):
+            setattr(new_node, attr, getattr(node, attr))
+
+        for prop in node.bl_rna.properties:
+            if (prop.is_readonly or            # skip read-only
+                prop.identifier in {'name',     # let Blender assign its own
+                                     'parent'}):
+                continue
+            try:
+                setattr(new_node, prop.identifier,
+                        getattr(node, prop.identifier))
+            except Exception:
+                pass  # some props reject assignment (e.g. sockets)
+
+        # If this is a node-group, recurse so the *internal* tree is copied too
+        if node.bl_idname == 'ShaderNodeGroup' and node.node_tree:
+            new_node.node_tree = node.node_tree.copy()
+
+        return new_node
+
+    for n in src_tree.nodes:
+        duplicate_node(n, dst_tree)
+
+    # ------------------------------------------------------------------
+    # 2.  Re-create links one-for-one
+    # ------------------------------------------------------------------
+    for link in src_tree.links:
+        new_from = node_map[link.from_node]
+        new_to   = node_map[link.to_node]
+
+        dst_tree.links.new(
+            new_from.outputs[link.from_socket.name],
+            new_to.inputs[link.to_socket.name]
+        )
+
+    return dst_mat
+

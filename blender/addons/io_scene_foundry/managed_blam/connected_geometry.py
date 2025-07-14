@@ -1397,7 +1397,7 @@ class Material:
         self.new = not bool(bpy.data.materials.get(self.name, 0))
         self.shader_path = render_method_path.RelativePathWithExtension
         self.emissive_index = element.SelectField("imported material index").Data
-        self.lm_res = element.SelectField("imported material index").Data
+        self.lm_res = int(element.SelectField("Real:lightmap resolution scale").Data)
         self.lm_transparency = element.SelectField("lightmap additive transparency color").Data
         self.lm_translucency = element.SelectField("lightmap traslucency tint color").Data
         flags = element.SelectField("lightmap flags")
@@ -1552,10 +1552,13 @@ class MeshSubpart:
         mesh = ob.data
         blend_material = self.part.material.blender_material
 
-        if blend_material.name not in mesh.materials:
+        for idx, mat in enumerate(mesh.materials):
+            if mat == blend_material:
+                blend_material_index = idx
+                break
+        else:
+            blend_material_index = len(mesh.materials)
             mesh.materials.append(blend_material)
-            
-        blend_material_index = ob.material_slots.find(blend_material.name)
 
         indices = {t.index for t in tris if t.subpart is self}
 
@@ -2122,6 +2125,7 @@ def get_blender_material(name, shader_path=""):
 
 def get_blender_material_with_props(material: Material, shader_path=""):
     global mat_props_cache
+
     list_props = [
         material.lm_res,
         material.lm_transparency,
@@ -2133,45 +2137,39 @@ def get_blender_material_with_props(material: Material, shader_path=""):
         material.lm_analytical_absorb,
         material.lm_normal_absorb,
     ]
-    
-    if material.emissive is not None:  
-        e = (
-                material.emissive.power,
-                material.emissive.color,
-                material.emissive.attenuation_cutoff,
-                material.emissive.attenuation_falloff,
-                material.emissive.bounce_ratio,
-                material.emissive.focus,
-                material.emissive.power_per_unit_area,
-                material.emissive.use_shader_gel,
-                material.emissive.quality,
-            )
-        
-        list_props.extend(e)
-        
-    props = tuple(list_props)
-    
+    if material.emissive is not None:
+        list_props.extend((
+            material.emissive.power,
+            material.emissive.color,
+            material.emissive.attenuation_cutoff,
+            material.emissive.attenuation_falloff,
+            material.emissive.bounce_ratio,
+            material.emissive.focus,
+            material.emissive.power_per_unit_area,
+            material.emissive.use_shader_gel,
+            material.emissive.quality,
+        ))
+
+    props_key = (material.name, shader_path, *list_props)
+
+    cached = mat_props_cache.get(props_key)
+    if cached:
+        return cached
+
     mat = bpy.data.materials.get(material.name)
     if not mat:
-        if material.name == '+sky' or material.name == '+seamsealer' or material.name == "+seam":
-            add_special_materials('h4' if utils.is_corinth() else 'reach', 'scenario')
+        if material.name in {"+sky", "+seamsealer", "+seam"}:
+            add_special_materials("h4" if utils.is_corinth() else "reach", "scenario")
             mat = bpy.data.materials.get(material.name)
         else:
             mat = bpy.data.materials.new(material.name)
             mat.nwo.shader_path = shader_path
-        
-        mat_props_cache[props] = mat
-        setup_material_with_props(mat, props)
-        return mat
-        
-    existing_mat = mat_props_cache.get(props)
-    if not existing_mat:
-        new_mat = mat.copy()
-        mat_props_cache[props] = new_mat
-        setup_material_with_props(new_mat, props)
-        return new_mat
-        
-    return existing_mat
+
+    new_mat = mat.copy()
+    setup_material_with_props(new_mat, tuple(list_props))
+    mat_props_cache[props_key] = new_mat
+    return new_mat
+
 
 def setup_material_with_props(mat: bpy.types.Material, t_props: tuple):
     nwo = mat.nwo
@@ -2201,7 +2199,7 @@ def setup_material_with_props(mat: bpy.types.Material, t_props: tuple):
     both_sides = next(props)
     if both_sides:
         nwo.lightmap_lighting_from_both_sides_active = True
-        nwo.nwo.lightmap_lighting_from_both_sides = True
+        nwo.lightmap_lighting_from_both_sides = True
         has_lm_prop = True
         
     override = next(props)

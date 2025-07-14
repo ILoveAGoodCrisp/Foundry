@@ -3657,16 +3657,25 @@ def setup_materials(context: bpy.types.Context, importer: NWOImporter, starting_
         else:
             print('Building Blender materials from shader tags')
 
+        processed_shader_paths = {}
+        
         for mat in new_materials:
             if not mat.users:
                 bpy.data.materials.remove(mat)
                 continue
             shader_path = mat.nwo.shader_path
             if shader_path:
-                result = tag_to_nodes(importer.corinth, mat, shader_path, always_extract_bitmaps)
-                if result is not None:
-                    sequence_drivers.update(result)
-
+                existing_mat = processed_shader_paths.get(shader_path)
+                if existing_mat is None:
+                    result = tag_to_nodes(importer.corinth, mat, shader_path, always_extract_bitmaps)
+                    processed_shader_paths[shader_path] = mat
+                    if result is not None:
+                        sequence_drivers.update(result)
+                else:
+                    utils.copy_material_nodes(existing_mat, mat)
+                    
+                # TODO Add emissive node
+                
         for ob in imported_objects:
             for slot in ob.material_slots:
                 if slot.material:
