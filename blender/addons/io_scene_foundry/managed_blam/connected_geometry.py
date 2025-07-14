@@ -1390,7 +1390,7 @@ class Emissive:
         self.bounce_ratio = element.Fields[7].Data
 
 class Material:
-    def __init__(self, element: TagFieldBlockElement, emissives: list[Emissive], for_bsp=False):
+    def __init__(self, element: TagFieldBlockElement, emissives: list[Emissive] = [], for_bsp=False):
         self.index = element.ElementIndex
         render_method_path = element.SelectField("render method").Path
         self.name = render_method_path.ShortName

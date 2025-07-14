@@ -2637,9 +2637,10 @@ class NWOImporter:
             nwo.breakable = jms_mat.breakable
             nwo.portal_ai_deafening = jms_mat.ai_deafening
             nwo.no_shadow = jms_mat.no_shadow
-            if jms_mat.shadow_only:
-                nwo.lightmap_transparency_override_active = True
-                nwo.lightmap_transparency_override = True
+            # NOTE TEMP
+            # if jms_mat.shadow_only:
+            #     nwo.lightmap_transparency_override_active = True
+            #     nwo.lightmap_transparency_override = True
                 
             nwo.lightmap_only = jms_mat.lightmap_only
             nwo.precise_position = jms_mat.precise
@@ -2653,23 +2654,24 @@ class NWOImporter:
             nwo.decal_offset = jms_mat.decal_offset
             nwo.slip_surface = jms_mat.slip_surface
             
-            if jms_mat.lightmap_additive_transparency:
-                nwo.lightmap_additive_transparency_active = True
-                nwo.lightmap_additive_transparency = jms_mat.lightmap_additive_transparency
-            if jms_mat.lightmap_translucency_tint_color:
-                nwo.lightmap_translucency_tint_color_active = True
-                nwo.lightmap_translucency_tint_color = jms_mat.lightmap_translucency_tint_color
-            # Emissive
-            if jms_mat.emissive_power:
-                nwo.emissive_active = True
-                nwo.light_intensity = jms_mat.emissive_power
-                nwo.material_lighting_emissive_color = jms_mat.emissive_color
-                nwo.material_lighting_emissive_quality = jms_mat.emissive_quality
-                nwo.material_lighting_emissive_per_unit = jms_mat.emissive_per_unit
-                nwo.material_lighting_use_shader_gel = jms_mat.emissive_shader_gel
-                nwo.material_lighting_emissive_focus = jms_mat.emissive_focus
-                nwo.material_lighting_attenuation_falloff = jms_mat.emissive_attenuation_falloff
-                nwo.material_lighting_attenuation_cutoff = jms_mat.emissive_attenuation_cutoff
+            # NOTE TEMP
+            # if jms_mat.lightmap_additive_transparency:
+            #     nwo.lightmap_additive_transparency_active = True
+            #     nwo.lightmap_additive_transparency = jms_mat.lightmap_additive_transparency
+            # if jms_mat.lightmap_translucency_tint_color:
+            #     nwo.lightmap_translucency_tint_color_active = True
+            #     nwo.lightmap_translucency_tint_color = jms_mat.lightmap_translucency_tint_color
+            # # Emissive
+            # if jms_mat.emissive_power:
+            #     nwo.emissive_active = True
+            #     nwo.light_intensity = jms_mat.emissive_power
+            #     nwo.material_lighting_emissive_color = jms_mat.emissive_color
+            #     nwo.material_lighting_emissive_quality = jms_mat.emissive_quality
+            #     nwo.material_lighting_emissive_per_unit = jms_mat.emissive_per_unit
+            #     nwo.material_lighting_use_shader_gel = jms_mat.emissive_shader_gel
+            #     nwo.material_lighting_emissive_focus = jms_mat.emissive_focus
+            #     nwo.material_lighting_attenuation_falloff = jms_mat.emissive_attenuation_falloff
+            #     nwo.material_lighting_attenuation_cutoff = jms_mat.emissive_attenuation_cutoff
         
         mesh_types = list(set([m.mesh_type for m in jms_materials if m.mesh_type]))
         if len(mesh_types) == 1:
@@ -2736,9 +2738,10 @@ class NWOImporter:
                     nwo.portal_ai_deafening = jms_mat.ai_deafening
                     nwo.no_shadow = jms_mat.no_shadow
                     nwo.lightmap_only = jms_mat.lightmap_only
-                    if jms_mat.shadow_only:
-                        nwo.lightmap_transparency_override_active = True
-                        nwo.lightmap_transparency_override = True
+                    # NOTE TEMP
+                    # if jms_mat.shadow_only:
+                    #     nwo.lightmap_transparency_override_active = True
+                    #     nwo.lightmap_transparency_override = True
                     nwo.precise_position = jms_mat.precise
                     if jms_mat.portal_one_way:
                         nwo.portal_type = '_connected_geometry_portal_type_one_way'
@@ -2749,27 +2752,28 @@ class NWOImporter:
                     nwo.portal_blocks_sounds = jms_mat.blocks_sound
                     nwo.decal_offset = jms_mat.decal_offset
                     nwo.slip_surface = jms_mat.slip_surface
-                    # Lightmap
-                    if jms_mat.lightmap_resolution_scale:
-                        nwo.lightmap_resolution_scale_active = True
-                        nwo.lightmap_resolution_scale = jms_mat.lightmap_resolution_scale
-                    if jms_mat.lightmap_additive_transparency:
-                        nwo.lightmap_additive_transparency_active = True
-                        nwo.lightmap_additive_transparency = jms_mat.lightmap_additive_transparency
-                    if jms_mat.lightmap_translucency_tint_color:
-                        nwo.lightmap_translucency_tint_color_active = True
-                        nwo.lightmap_translucency_tint_color = jms_mat.lightmap_translucency_tint_color
-                    # Emissive
-                    if jms_mat.emissive_power:
-                        nwo.emissive_active = True
-                        nwo.light_intensity = jms_mat.emissive_power
-                        nwo.material_lighting_emissive_color = jms_mat.emissive_color
-                        nwo.material_lighting_emissive_quality = jms_mat.emissive_quality
-                        nwo.material_lighting_emissive_per_unit = jms_mat.emissive_per_unit
-                        nwo.material_lighting_use_shader_gel = jms_mat.emissive_shader_gel
-                        nwo.material_lighting_emissive_focus = jms_mat.emissive_focus
-                        nwo.material_lighting_attenuation_falloff = jms_mat.emissive_attenuation_falloff
-                        nwo.material_lighting_attenuation_cutoff = jms_mat.emissive_attenuation_cutoff
+                    # NOTE TEMP
+                    # # Lightmap
+                    # if jms_mat.lightmap_resolution_scale:
+                    #     nwo.lightmap_resolution_scale_active = True
+                    #     nwo.lightmap_resolution_scale = jms_mat.lightmap_resolution_scale
+                    # if jms_mat.lightmap_additive_transparency:
+                    #     nwo.lightmap_additive_transparency_active = True
+                    #     nwo.lightmap_additive_transparency = jms_mat.lightmap_additive_transparency
+                    # if jms_mat.lightmap_translucency_tint_color:
+                    #     nwo.lightmap_translucency_tint_color_active = True
+                    #     nwo.lightmap_translucency_tint_color = jms_mat.lightmap_translucency_tint_color
+                    # # Emissive
+                    # if jms_mat.emissive_power:
+                    #     nwo.emissive_active = True
+                    #     nwo.light_intensity = jms_mat.emissive_power
+                    #     nwo.material_lighting_emissive_color = jms_mat.emissive_color
+                    #     nwo.material_lighting_emissive_quality = jms_mat.emissive_quality
+                    #     nwo.material_lighting_emissive_per_unit = jms_mat.emissive_per_unit
+                    #     nwo.material_lighting_use_shader_gel = jms_mat.emissive_shader_gel
+                    #     nwo.material_lighting_emissive_focus = jms_mat.emissive_focus
+                    #     nwo.material_lighting_attenuation_falloff = jms_mat.emissive_attenuation_falloff
+                    #     nwo.material_lighting_attenuation_cutoff = jms_mat.emissive_attenuation_cutoff
                     
             elif len(ob.data.materials) > 1:
                 bm = bmesh.new()

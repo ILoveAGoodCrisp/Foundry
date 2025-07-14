@@ -198,7 +198,8 @@ class RenderModelTag(Tag):
                         clone_meshes.append(mesh)
                     else:
                         obs = mesh.create(render_model, self.block_per_mesh_temporary, self.nodes, self.armature)
-                        if mesh.mesh_keys:
+                        # NOTE This code doesn't work correctly
+                        if False and mesh.mesh_keys:
                             shape_names = {e.Fields[0].Data: utils.any_partition(e.Fields[1].GetStringData(), ":", True) for e in self.tag.SelectField("Struct:render geometry[0]/Block:shapeNames").Elements}
                             new_obs = []
                             for ob in obs:
@@ -207,9 +208,14 @@ class RenderModelTag(Tag):
                                 bm.from_mesh(ob.data)
                                 for face in bm.faces:
                                     keys = [mesh.mesh_keys[v.index] for v in face.verts]
-                                    if all(k == keys[0] for k in keys):
-                                        key = keys[0]
-                                    face_groups[key].append(face.index)
+                                    uniq = set(keys)
+                                    if len(uniq) == 1:
+                                        face_groups[keys[0]].append(face.index)
+                                    else:
+                                        for k in uniq:
+                                            face_groups[k].append(face.index)
+                                            
+                                bm.free()
                                     
                                 for key, poly_indices in face_groups.items():
                                     new_mesh = ob.data.copy()
