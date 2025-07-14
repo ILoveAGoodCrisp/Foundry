@@ -152,7 +152,7 @@ class ScenarioStructureBspTag(Tag):
                 
             if lighting_info_path.exists():
                 with ScenarioStructureLightingInfoTag(path=str(lighting_info_path)) as info:
-                    for element in info.tag.SelectField("Block:emissive materials").Elements:
+                    for element in info.tag.SelectField("Block:material info").Elements:
                         emissives.append(Emissive(element))
             
         # Get all render materials

@@ -75,6 +75,7 @@ face_prop_defaults = {
     "bungie_lightmap_transparency_override": 0,
     "bungie_lightmap_analytical_bounce_modifier": 1.0,
     "bungie_lightmap_general_bounce_modifier": 1.0,
+    "bungie_lightmap_chart_group": 0,
     "bungie_lighting_emissive_power": 0.0,
     "bungie_lighting_emissive_color": (0, 0, 0, 0),
     "bungie_lighting_emissive_per_unit": 0,
@@ -856,6 +857,8 @@ class ExportScene:
         fp_defaults, tmp_mesh_props = self.processed_meshes.get(ob.data, (None, None))
         if tmp_mesh_props is None:
             fp_defaults = self._setup_mesh_level_props(ob, region, mesh_props, props["bungie_mesh_type"])
+            if fp_defaults is None:
+                return None
             self.processed_meshes[ob.data] = (fp_defaults, mesh_props)
         else:
             mesh_props.update(tmp_mesh_props)
@@ -1289,17 +1292,41 @@ class ExportScene:
                 
         # Material Props
         # If there's just one material on a mesh, we can store the material properties on the mesh
-        if len(set(ob.data.materials)) == 1:
-            mat_nwo = ob.data.materials[0].nwo
-            if mat_nwo.has_lightmap_props:
+        mats = [m for m in ob.data.materials if m is not None]
+        if len(set(mats)) == 1:
+            mat = mats[0]
+            mat_nwo = mat.nwo
+            if mat.name[0] == "+":
+                is_structure = ob.data.nwo.mesh_type == '_connected_geometry_mesh_type_structure'
+                if mat.name.lower().startswith('+seamsealer'):
+                    mesh_props["bungie_face_type"] = FaceType.seam_sealer.value
+                elif is_structure and mat.name.lower().startswith('+seam'):
+                    mesh_props["bungie_mesh_type"] = MeshType.seam.value
+                elif mat.name.lower().startswith('+'):
+                    if not is_structure and not self.corinth:
+                        return None
+                    
+                    enum_val = FaceType.sky.value if is_structure and self.asset_type == AssetType.SCENARIO else FaceType.seam_sealer.value
+                    mesh_props["bungie_face_type"] = enum_val
+                    
+                    if not self.corinth and enum_val == FaceType.sky.value:
+                        if len(mat.name) > 4 and mat.name[4].isdigit():
+                            if len(mat.name) > 5 and mat.name[5].isdigit():
+                                sky_index = int("".join(mat.name[4:5]))
+                            else:
+                                sky_index = int(mat.name[4])
+                            if sky_index > 0:
+                                mesh_props["bungie_sky_permutation_index"] = sky_index
+
+            elif mat_nwo.has_lightmap_props:
                 if mat_nwo.lightmap_ignore_default_resolution_scale_active:
                     mesh_props["bungie_lightmap_ignore_default_resolution_scale"] = 1
                         
                 if mat_nwo.lightmap_additive_transparency_active:
-                    mesh_props["bungie_lightmap_additive_transparency"] = utils.color_3p_int(data_nwo.lightmap_additive_transparency)
+                    mesh_props["bungie_lightmap_additive_transparency"] = utils.color_3p_int(mat_nwo.lightmap_additive_transparency)
                         
                 if mat_nwo.lightmap_resolution_scale_active:
-                    mesh_props["bungie_lightmap_resolution_scale"] = data_nwo.lightmap_resolution_scale
+                    mesh_props["bungie_lightmap_resolution_scale"] = mat_nwo.lightmap_resolution_scale
                         
                 if mat_nwo.lightmap_type_active:
                     if data_nwo.lightmap_type == '_connected_geometry_lightmap_type_per_vertex':
@@ -1308,7 +1335,7 @@ class ExportScene:
                         mesh_props["bungie_lightmap_type"] = LightmapType.per_pixel.value
                         
                 if mat_nwo.lightmap_translucency_tint_color_active:
-                    mesh_props["bungie_lightmap_translucency_tint_color"] = utils.color_3p_int(data_nwo.lightmap_translucency_tint_color)
+                    mesh_props["bungie_lightmap_translucency_tint_color"] = utils.color_3p_int(mat_nwo.lightmap_translucency_tint_color)
                         
                 if mat_nwo.lightmap_lighting_from_both_sides_active:
                     mesh_props["bungie_lightmap_lighting_from_both_sides"] = 1
@@ -1317,10 +1344,13 @@ class ExportScene:
                     mesh_props["bungie_lightmap_transparency_override"] = 1
                         
                 if mat_nwo.lightmap_analytical_bounce_modifier_active:
-                    mesh_props["bungie_lightmap_analytical_bounce_modifier"] = data_nwo.lightmap_analytical_bounce_modifier
+                    mesh_props["bungie_lightmap_analytical_bounce_modifier"] = mat_nwo.lightmap_analytical_bounce_modifier
                         
                 if mat_nwo.lightmap_general_bounce_modifier_active:
-                    mesh_props["bungie_lightmap_general_bounce_modifier"] = data_nwo.lightmap_general_bounce_modifier
+                    mesh_props["bungie_lightmap_general_bounce_modifier"] = mat_nwo.lightmap_general_bounce_modifier
+                    
+                if mat_nwo.lightmap_chart_group_active:
+                    mesh_props["bungie_lightmap_chart_group"] = mat_nwo.lightmap_chart_group
                         
                 if mat_nwo.emissive_active and mat_nwo.material_lighting_emissive_power > 0:
                     power = max(utils.calc_emissive_intensity(mat_nwo.material_lighting_emissive_power, self.to_halo_scale ** 2), 0.0001)

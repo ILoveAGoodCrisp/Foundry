@@ -27,7 +27,7 @@ import random
 import xml.etree.ElementTree as ET
 import numpy as np
 from ctypes import c_float, c_int
-from .constants import COLLISION_MESH_TYPES, OBJECT_TAG_EXTS, PROTECTED_MATERIALS, VALID_MESHES, WU_SCALAR
+from .constants import COLLISION_MESH_TYPES, CSS_COLORS, OBJECT_TAG_EXTS, PROTECTED_MATERIALS, VALID_MESHES, WU_SCALAR
 from .tools.materials import special_materials, convention_materials
 from .icons import get_icon_id, get_icon_id_in_directory
 import requests
@@ -2392,10 +2392,12 @@ class TransformObject:
 
 def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forward, new_forward, keep_marker_axis=None, objects=None, actions=None, apply_rotation=False, exclude_scale_models=False, skip_data=False):
     """Transform blender objects by the given scale factor and rotation. Optionally this can be scoped to a set of objects and animations rather than all"""
+    all_objects = False
     with TransformManager():
         # armatures = [ob for ob in bpy.data.objects if ob.type == 'ARMATURE']
         if objects is None:
             objects = bpy.data.objects
+            all_objects = True
             
         if exclude_scale_models:
             objects = [ob for ob in objects if not ob.nwo.scale_model]
@@ -2541,13 +2543,6 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
             
             for mesh in meshes:
                 mesh.transform(scale_matrix)
-                mesh.nwo.material_lighting_attenuation_falloff *= scale_factor
-                mesh.nwo.material_lighting_attenuation_cutoff *= scale_factor
-                mesh.nwo.material_lighting_emissive_power *= scale_factor ** 2
-                for prop in mesh.nwo.face_props:
-                    prop.material_lighting_attenuation_cutoff *= scale_factor
-                    prop.material_lighting_attenuation_falloff *= scale_factor
-                    prop.material_lighting_emissive_power *= scale_factor ** 2
                 
             for camera in cameras:
                 camera.display_size *= scale_factor
@@ -4656,4 +4651,25 @@ def matrix_from_mouse(mouse_x, mouse_y):
             matrix.translation = loc
     
     return matrix
+
+def argb32_to_rgb(value: int):
+    r = (value >> 16) & 0xFF
+    g = (value >> 8) & 0xFF
+    b = value & 0xFF
     
+    return r / 255, g / 255, b / 255
+
+def euclidean(p, q):
+    return sum((a - b) ** 2 for a, b in zip(p, q))
+
+def rgb_to_name(rgb, decimal_color=True):
+    """
+    Return the color name that best matches an RGB color
+    """
+    
+    if decimal_color:
+        rgb = [int(i * 255) for i in rgb]
+    
+    # Find the color with the smallest squared distance
+    nearest = min(CSS_COLORS, key=lambda name: euclidean(rgb, CSS_COLORS[name]))
+    return nearest

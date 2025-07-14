@@ -218,3 +218,47 @@ LIGHTMAP_IGNORE_DEFAULT_RESOLUTION_SCALE = False
 LIGHTMAP_TRANSPARENCY_OVERRIDE = False
 LIGHTMAP_LIGHTING_FROM_BOTH_SIDES = False
 LIGHTMAP_CHART_GROUP_INDEX = 0
+
+CSS_COLORS = {
+    # Grayscales
+    "black": (0, 0, 0), "dimgray": (105, 105, 105), "gray": (128, 128, 128),
+    "darkgray": (169, 169, 169), "silver": (192, 192, 192),
+    "lightgray": (211, 211, 211), "gainsboro": (220, 220, 220),
+    "whitesmoke": (245, 245, 245), "white": (255, 255, 255),
+
+    # Reds & pinks
+    "maroon": (128, 0, 0), "darkred": (139, 0, 0), "firebrick": (178, 34, 34),
+    "red": (255, 0, 0), "salmon": (250, 128, 114), "lightsalmon": (255, 160, 122),
+    "crimson": (220, 20, 60), "deeppink": (255, 20, 147), "hotpink": (255, 105, 180),
+    "pink": (255, 192, 203), "lightpink": (255, 182, 193),
+
+    # Oranges & browns
+    "darkorange": (255, 140, 0), "coral": (255, 127, 80), "tomato": (255, 99, 71),
+    "orange": (255, 165, 0), "lightsalmon": (255, 160, 122), "sienna": (160, 82, 45),
+    "saddlebrown": (139, 69, 19), "chocolate": (210, 105, 30), "peru": (205, 133, 63),
+    "sandybrown": (244, 164, 96), "burlywood": (222, 184, 135), "tan": (210, 180, 140),
+
+    # Yellows & golds
+    "gold": (255, 215, 0), "goldenrod": (218, 165, 32), "khaki": (240, 230, 140),
+    "darkkhaki": (189, 183, 107), "yellow": (255, 255, 0), "lightyellow": (255, 255, 224),
+
+    # Greens
+    "darkgreen": (0, 100, 0), "green": (0, 128, 0), "forestgreen": (34, 139, 34),
+    "lime": (0, 255, 0), "limegreen": (50, 205, 50), "springgreen": (0, 255, 127),
+    "mediumseagreen": (60, 179, 113), "seagreen": (46, 139, 87),
+
+    # Cyans & teals
+    "teal": (0, 128, 128), "darkcyan": (0, 139, 139), "cyan": (0, 255, 255),
+    "aqua": (0, 255, 255), "turquoise": (64, 224, 208), "mediumturquoise": (72, 209, 204),
+
+    # Blues
+    "navy": (0, 0, 128), "midnightblue": (25, 25, 112), "blue": (0, 0, 255),
+    "mediumblue": (0, 0, 205), "royalblue": (65, 105, 225), "dodgerblue": (30, 144, 255),
+    "deepskyblue": (0, 191, 255), "skyblue": (135, 206, 235), "lightskyblue": (135, 206, 250),
+
+    # Purples & magentas
+    "purple": (128, 0, 128), "indigo": (75, 0, 130), "darkviolet": (148, 0, 211),
+    "darkorchid": (153, 50, 204), "mediumorchid": (186, 85, 211),
+    "magenta": (255, 0, 255), "violet": (238, 130, 238), "plum": (221, 160, 221),
+    "orchid": (218, 112, 214), "thistle": (216, 191, 216),
+}

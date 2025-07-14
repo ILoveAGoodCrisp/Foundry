@@ -131,12 +131,26 @@ class NWO_MaterialPropertiesGroup(PropertyGroup):
             self.lightmap_general_bounce_modifier_active or
             self.lightmap_translucency_tint_color_active or
             self.lightmap_lighting_from_both_sides_active or
+            self.lightmap_chart_group_active or
             (self.emissive_active and self.material_lighting_emissive_power > 0)
         )
     
     has_lightmap_props: bpy.props.BoolProperty(
         options={'HIDDEN'},
         get=get_has_lightmap_props,
+    )
+    
+    def update_lightmap_chart_group(self, context):
+        self.lightmap_chart_group_active = True
+
+    lightmap_chart_group_active: bpy.props.BoolProperty()
+    lightmap_chart_group: bpy.props.IntProperty(
+        name="Lightmap Chart Group",
+        options=set(),
+        description="",
+        min=0,
+        max=31,
+        update=update_lightmap_chart_group,
     )
     
     def update_lightmap_additive_transparency(self, context):

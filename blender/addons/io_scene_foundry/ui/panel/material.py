@@ -96,6 +96,8 @@ def toggle_active(context, option, bool_var):
             nwo.lightmap_analytical_bounce_modifier_active = bool_var
         case "lightmap_general_bounce_modifier":
             nwo.lightmap_general_bounce_modifier_active = bool_var
+        case "lightmap_chart_group":
+            nwo.lightmap_chart_group_active = bool_var
         # material lighting
         case "emissive":
             nwo.emissive_active = bool_var
@@ -144,6 +146,7 @@ class NWO_OT_AddLightmapProperty(NWO_OT_AddEmissiveProperty):
             ('lightmap_transparency_override', 'Disable Lightmap Transparency', ''),
             ('lightmap_analytical_bounce_modifier', 'Analytical Bounce Modifier', ''),
             ('lightmap_general_bounce_modifier', 'General Bounce Modifier', ''),
+            ('lightmap_chart_group', 'Chart Group', ''),
         ]
     )
 
@@ -169,6 +172,7 @@ class NWO_OT_RemoveMaterialProperty(bpy.types.Operator):
             ("lightmap_transparency_override", "Disable Lightmap Transparency", ""),
             ("lightmap_analytical_bounce_modifier", "Analytical Bounce Modifier", ""),
             ("lightmap_general_bounce_modifier", "General Bounce Modifier", ""),
+            ("lightmap_chart_group", "Chart Group", ""),
             ("emissive", "Emissive", ""),
         ]
     )

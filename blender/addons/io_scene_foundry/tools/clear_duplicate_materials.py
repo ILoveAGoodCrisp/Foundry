@@ -78,6 +78,8 @@ def clear_duplicate_materials(strip_legacy_halo_naming: bool, materials_scope=No
     basenames = set()
     to_remove = set()
     for mat in materials:
+        if mat.nwo.has_lightmap_props:
+            continue
         if materials_scope is None or mat in materials_scope:
             base = base_material_name(mat.name, strip_legacy_halo_naming)
             basenames.add(base)
@@ -92,6 +94,8 @@ def clear_duplicate_materials(strip_legacy_halo_naming: bool, materials_scope=No
     # Loop all objects and replace duplicate materials
     for ob in bpy.data.objects:
         for slot in ob.material_slots:
+            if slot.material and slot.material.nwo.has_lightmap_props:
+                continue
             if slot.material and (materials_scope is None or slot.material in materials_scope) and slot.material.name not in basenames:
                 slot.material = materials.get(base_material_name(slot.material.name, strip_legacy_halo_naming))
     

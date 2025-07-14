@@ -2662,7 +2662,7 @@ class NWOImporter:
             # Emissive
             if jms_mat.emissive_power:
                 nwo.emissive_active = True
-                nwo.light_intensity = jms_mat.emissive_power * (1 / 0.03048)
+                nwo.light_intensity = jms_mat.emissive_power
                 nwo.material_lighting_emissive_color = jms_mat.emissive_color
                 nwo.material_lighting_emissive_quality = jms_mat.emissive_quality
                 nwo.material_lighting_emissive_per_unit = jms_mat.emissive_per_unit
@@ -2762,7 +2762,7 @@ class NWOImporter:
                     # Emissive
                     if jms_mat.emissive_power:
                         nwo.emissive_active = True
-                        nwo.light_intensity = jms_mat.emissive_power * (1 / 0.03048)
+                        nwo.light_intensity = jms_mat.emissive_power
                         nwo.material_lighting_emissive_color = jms_mat.emissive_color
                         nwo.material_lighting_emissive_quality = jms_mat.emissive_quality
                         nwo.material_lighting_emissive_per_unit = jms_mat.emissive_per_unit
@@ -2908,7 +2908,7 @@ class NWOImporter:
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
                                 emissive_props_dict = {
-                                    "light_intensity": jms_mat.emissive_power * (1 / 0.03048),
+                                    "light_intensity": jms_mat.emissive_power,
                                     "material_lighting_emissive_color": jms_mat.emissive_color,
                                     "material_lighting_emissive_quality": jms_mat.emissive_quality,
                                     "material_lighting_emissive_per_unit": jms_mat.emissive_per_unit,

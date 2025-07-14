@@ -13,6 +13,8 @@ import bpy
 from mathutils import Matrix, Quaternion, Vector, geometry
 import numpy as np
 
+from ..constants import WU_SCALAR
+
 from ..tools.append_foundry_materials import add_special_materials
 
 from ..tools.property_apply import apply_props_material
@@ -1377,7 +1379,7 @@ class CompressionBounds:
 class Emissive:
     def __init__(self, element: TagFieldBlockElement):
         self.power = element.Fields[0].Data
-        self.color = [n for n in element.Fields[1].Data]
+        self.color = tuple([n for n in element.Fields[1].Data])
         self.quality = element.Fields[2].Data
         self.focus = element.Fields[3].Data
         flags = element.Fields[4]
@@ -2120,7 +2122,7 @@ def get_blender_material(name, shader_path=""):
 
 def get_blender_material_with_props(material: Material, shader_path=""):
     global mat_props_cache
-    props = [
+    list_props = [
         material.lm_res,
         material.lm_transparency,
         material.lm_translucency,
@@ -2145,9 +2147,9 @@ def get_blender_material_with_props(material: Material, shader_path=""):
                 material.emissive.quality,
             )
         
-        props.extend(e)
+        list_props.extend(e)
         
-    props = tuple(props)
+    props = tuple(list_props)
     
     mat = bpy.data.materials.get(material.name)
     if not mat:
@@ -2159,15 +2161,103 @@ def get_blender_material_with_props(material: Material, shader_path=""):
             mat.nwo.shader_path = shader_path
         
         mat_props_cache[props] = mat
+        setup_material_with_props(mat, props)
         return mat
         
     existing_mat = mat_props_cache.get(props)
     if not existing_mat:
         new_mat = mat.copy()
         mat_props_cache[props] = new_mat
+        setup_material_with_props(new_mat, props)
         return new_mat
         
     return existing_mat
 
-def setup_material_with_props(mat: bpy.types.Material, props: tuple):
-    pass
+def setup_material_with_props(mat: bpy.types.Material, t_props: tuple):
+    nwo = mat.nwo
+    props = iter(t_props)
+    corinth = utils.is_corinth(bpy.context)
+    atten_factor = 1 if corinth else 0.01
+    lm_res = next(props)
+    has_lm_prop = False
+    
+    if lm_res != 3:
+        nwo.lightmap_resolution_scale = lm_res
+        nwo.lightmap_resolution_scale_active = True
+        has_lm_prop = True
+        
+    transparency = next(props)
+    if transparency > 0:
+        nwo.lightmap_additive_transparency_active = True
+        nwo.lightmap_additive_transparency = utils.argb32_to_rgb(transparency)
+        has_lm_prop = True
+        
+    translucency = next(props)
+    if translucency > 0:
+        nwo.lightmap_translucency_tint_color_active = True
+        nwo.lightmap_translucency_tint_color = utils.argb32_to_rgb(translucency)
+        has_lm_prop = True
+        
+    both_sides = next(props)
+    if both_sides:
+        nwo.lightmap_lighting_from_both_sides_active = True
+        nwo.nwo.lightmap_lighting_from_both_sides = True
+        has_lm_prop = True
+        
+    override = next(props)
+    if override:
+        nwo.lightmap_transparency_override_active = True
+        nwo.lightmap_transparency_override = True
+        has_lm_prop = True
+        
+    ignore = next(props)
+    if ignore:
+        nwo.lightmap_ignore_default_resolution_scale_active = True
+        nwo.lightmap_ignore_default_resolution_scale = True
+        has_lm_prop = True
+        
+    chart = next(props)
+    if chart > 0:
+        nwo.lightmap_chart_group_active = True
+        nwo.lightmap_chart_group = chart
+        has_lm_prop = True
+        
+    analytical = next(props)
+    if analytical != 9999:
+        nwo.lightmap_analytical_bounce_modifier_active = True
+        nwo.lightmap_analytical_bounce_modifier = analytical
+        has_lm_prop = True
+    
+    general = next(props)
+    if general != 9999:
+        nwo.lightmap_general_bounce_modifier_active = True
+        nwo.lightmap_general_bounce_modifier = general
+        has_lm_prop = True
+        
+    name_suffix = ""
+    
+    if has_lm_prop:
+        name_suffix += "lightmap"
+
+    power = next(props, 0)
+    if power > 0:
+        nwo.emissive_active = True
+        nwo.light_intensity = power
+        nwo.material_lighting_emissive_color = next(props)
+        nwo.material_lighting_attenuation_cutoff = next(props) * atten_factor * (1 / WU_SCALAR)
+        nwo.material_lighting_attenuation_falloff = next(props) * atten_factor * (1 / WU_SCALAR)
+        nwo.material_lighting_bounce_ratio = next(props)
+        nwo.material_lighting_emissive_focus = radians(next(props) * 180)
+        nwo.material_lighting_emissive_per_unit = next(props)
+        nwo.material_lighting_use_shader_gel = next(props)
+        nwo.material_lighting_emissive_quality = next(props)
+        
+        if has_lm_prop:
+            name_suffix += "_"
+        name_suffix += f"emissive_{utils.rgb_to_name(nwo.material_lighting_emissive_color)}"
+        
+    if name_suffix:
+        if "." in mat.name:
+            mat.name = utils.dot_partition(mat.name) + "." + name_suffix
+        else:
+            mat.name = mat.name + "." + name_suffix
