@@ -2320,7 +2320,6 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     object_visibility_expanded: bpy.props.BoolProperty(default=True, options=set())
 
     mesh_properties_expanded: bpy.props.BoolProperty(default=True, options=set())
-    face_properties_expanded: bpy.props.BoolProperty(default=True, options=set())
     instance_proxies_expanded: bpy.props.BoolProperty(default=True, options=set())
     
     image_properties_expanded: bpy.props.BoolProperty(default=True, options=set())

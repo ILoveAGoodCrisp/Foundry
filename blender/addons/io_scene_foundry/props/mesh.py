@@ -1,20 +1,31 @@
 """Mesh and face level properties"""
 
+from enum import Enum
 from math import radians
 import bpy
+
+from .. import utils
+from ..constants import face_prop_type_items, face_prop_descriptions
 
 from ..tools.property_apply import apply_props_material_data
 
 from ..icons import get_icon_id
 
-from .. import utils
+class LightmapResolution(Enum):
+    lowest = 1
+    very_low = 2
+    low = 3
+    medium = 4
+    high = 5
+    very_high = 6
+    higest = 7
 
 class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
-    layer_name: bpy.props.StringProperty()
-    face_count: bpy.props.IntProperty(
-        options=set(),
-    )
-    layer_color: bpy.props.FloatVectorProperty(
+    attribute_name: bpy.props.StringProperty(options={'HIDDEN'})
+    
+    face_count: bpy.props.IntProperty(options={'HIDDEN'})
+    
+    color: bpy.props.FloatVectorProperty(
         subtype="COLOR_GAMMA",
         size=3,
         default=(1.0, 1.0, 1.0),
@@ -22,62 +33,127 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
         max=1,
         options=set(),
     )
-    name: bpy.props.StringProperty()
-    face_two_sided_override: bpy.props.BoolProperty()
-    face_transparent_override: bpy.props.BoolProperty()
-    face_draw_distance_override: bpy.props.BoolProperty()
-    region_name_override: bpy.props.BoolProperty()
-    face_global_material_override: bpy.props.BoolProperty()
-    ladder_override: bpy.props.BoolProperty()
-    slip_surface_override: bpy.props.BoolProperty()
-    breakable_override: bpy.props.BoolProperty()
-    decal_offset_override: bpy.props.BoolProperty()
-    no_shadow_override: bpy.props.BoolProperty()
-    precise_position_override: bpy.props.BoolProperty()
-    no_lightmap_override: bpy.props.BoolProperty()
-    lightmap_only_override: bpy.props.BoolProperty()
-    no_pvs_override: bpy.props.BoolProperty()
-    mesh_tessellation_density_override: bpy.props.BoolProperty()
-    # lightmap
-    lightmap_additive_transparency_override: bpy.props.BoolProperty()
-    lightmap_resolution_scale_override: bpy.props.BoolProperty()
-    lightmap_type_override: bpy.props.BoolProperty()
-    lightmap_analytical_bounce_modifier_override: bpy.props.BoolProperty()
-    lightmap_general_bounce_modifier_override: bpy.props.BoolProperty()
-    lightmap_translucency_tint_color_override: bpy.props.BoolProperty()
-    lightmap_transparency_override_override: bpy.props.BoolProperty()
-    lightmap_lighting_from_both_sides_override: bpy.props.BoolProperty()
-    lightmap_ignore_default_resolution_scale_override: bpy.props.BoolProperty()
-    # material lighting
-    emissive_override: bpy.props.BoolProperty()
-    # Collision stuff
-    render_only_override: bpy.props.BoolProperty()
-    collision_only_override: bpy.props.BoolProperty()
-    sphere_collision_only_override: bpy.props.BoolProperty()
-    player_collision_only_override: bpy.props.BoolProperty()
-    bullet_collision_only_override: bpy.props.BoolProperty()
     
-    render_only: bpy.props.BoolProperty()
-    collision_only: bpy.props.BoolProperty()
-    sphere_collision_only: bpy.props.BoolProperty()
-    player_collision_only: bpy.props.BoolProperty()
-    bullet_collision_only: bpy.props.BoolProperty()
+    type: bpy.props.EnumProperty(
+        options={'HIDDEN'},
+        items=face_prop_type_items,
+    )
+    
+    def get_all_faces(self):
+        if not self.attribute_name:
+            return True
+        
+        attribute = self.id_data.attributes.get(self.attribute_name)
+        
+        return attribute is None
+    
+    def get_name(self):
+        match self.type:
+            case 'face_mode':
+                return f"{self.face_mode[30:].replace('_', ' ').title()}"
+            case 'collision_type':
+                return f"{self.collision_type[40:].replace('_', ' ').title()}"
+            case 'face_sides':
+                return "Two-Sided" if self.two_sided else "One-Sided"
+            case 'transparent':
+                return "Transparent" if self.transparent else "Opaque"
+            case 'region':
+                return f"region::{self.region}"
+            case 'draw_distance':
+                return f"Draw Distance {self.draw_distance[39:].replace('detail_', '').title()}"
+            case 'global_material':
+                return f"material::{self.global_material}"
+            case 'ladder':
+                return "Ladder" if self.ladder else "No Ladder"
+            case 'slip_surface':
+                return "Slip Surface" if self.slip_surface else "No Slip Surface"
+            case 'decal_offset':
+                return "Decal Offset" if self.decal_offset else "No Decal Offset"
+            case 'no_shadow':
+                return "No Shadow" if self.no_shadow else "Shadow"
+            case 'precise_position':
+                return "Precise" if self.precise_position else "Not Precise"
+            case 'uncompressed':
+                return "Uncompressed" if self.uncompressed else "Compressed"
+            case 'additional_compression':
+                return "Additional Compression On" if self.additional_compression == '_connected_geometry_mesh_additional_compression_force_on' else "Additional Compression Off"
+            case 'uncompressed':
+                return "Uncompressed" if self.uncompressed else "Compressed"
+            case 'no_lightmap':
+                return "Exclude From Lightmap" if self.no_lightmap else "Include In Lightmap"
+            case 'no_pvs':
+                return "No PVS" if self.no_pvs else "PVS"
+            case 'mesh_tessellation_density':
+                return f"{self.mesh_tessellation_density[46:]} Tessellation"
+            case 'lightmap_resolution_scale':
+                return f"Lightmap Resolution: {LightmapResolution(int(self.lightmap_resolution_scale)).name.replace('_', ' ').title()}"
+            case 'lightmap_ignore_default_resolution_scale':
+                return "Default Lightmap Rez Ignored" if  self.lightmap_ignore_default_resolution_scale else "Using Default Lightmap Rez"
+            case 'lightmap_chart_group':
+                return f"Lightmap Chart Group {self.lightmap_chart_group}"
+            case 'lightmap_type':
+                return f"Lightmap Type {self.lightmap_type[34:].replace('_', ' ').title()}"
+            case 'lightmap_additive_transparency':
+                return "Lightmap Transparency"
+            case 'lightmap_transparency_override':
+                return "Lightmap Transparency Overridden" if self.lightmap_transparency_override else "Lightmap Transparency Using Material"
+            case 'lightmap_analytical_bounce_modifier':
+                return f"Sunlight Bounce {round(self.lightmap_analytical_bounce_modifier, 2)}"
+            case 'lightmap_general_bounce_modifier':
+                return f"Light Bounce {round(self.lightmap_general_bounce_modifier, 2)}"
+            case 'lightmap_translucency_tint_color':
+                return "Lightmap Translucency Tint Color"
+            case 'lightmap_lighting_from_both_sides':
+                return "Lightmap Lighting Two-Sided" if self.lightmap_lighting_from_both_sides else "Lightmap Lighting One-Sided" 
+            case 'emissive':
+                return f"Emissive: Intensity {round(self.light_intensity, 2)}" 
+    
+    name: bpy.props.StringProperty(get=get_name)
+    
+    face_mode: bpy.props.EnumProperty(
+        name="Face Mode",
+        description=face_prop_descriptions['face_mode'],
+        options=set(),
+        items=[
+            ('_connected_geometry_face_mode_normal', "Render & Collision", "Mesh will be used to build both render geometry and collision"),
+            ('_connected_geometry_face_mode_render_only', "Render Only", "Mesh will be used to build both render geometry. The game will not build a collision representation of this mesh. It will not be collidable in game"),
+            ('_connected_geometry_face_mode_collision_only', "Collision Only", "Physics objects and projectiles will collide with this mesh but it will not be visible"),
+            ('_connected_geometry_face_mode_sphere_collision_only', "Sphere Collision Only", "Only physics objects collide with this mesh. Projectiles will pass through it"),
+            ('_connected_geometry_face_mode_shadow_only', "Shadow Only", "Mesh will be invisible and uncollidable. It will only be used for shadow casting"),
+            ('_connected_geometry_face_mode_lightmap_only', "Lightmap Only", "Mesh will be invisible and uncollidable. It will only be used by the lightmapping"),
+            ('_connected_geometry_face_mode_breakable', "Breakable", "Allows collision geometry to be destroyed. Mesh will be used to build both render geometry and collision. This type is non-functional in Halo 4+"),
+        ]
+    )
+    
+    collision_type: bpy.props.EnumProperty(
+        name="Collision Type",
+        options=set(),
+        description=face_prop_descriptions['collision_type'],
+        items=[
+            ("_connected_geometry_poop_collision_type_default", "Full", "Collision mesh that interacts with the physics objects and with projectiles"),
+            ("_connected_geometry_poop_collision_type_invisible_wall", "Invisible Wall Collision", "Collision mesh that interacts with the physics objects only"),
+            ("_connected_geometry_poop_collision_type_play_collision", "Player Collision", "Collision mesh that affects physics objects and physical projectiles, such as grenades"),
+            ("_connected_geometry_poop_collision_type_bullet_collision", "Bullet Collision", "Collision mesh that only interacts with simple projectiles, such as bullets")
+        ]
+    )
 
-    face_two_sided: bpy.props.BoolProperty(
+    two_sided: bpy.props.BoolProperty(
         name="Two Sided",
-        description="Render the backfacing normal of this mesh, or if this mesh is collision, prevent open edges being treated as such in game",
+        description=face_prop_descriptions['face_sides'],
         options=set(),
+        default=True,
     )
 
-    face_transparent: bpy.props.BoolProperty(
+    transparent: bpy.props.BoolProperty(
         name="Transparent",
-        description="Game treats this mesh as being transparent. If you're using a shader/material which has transparency, set this flag",
+        description=face_prop_descriptions['transparent'],
         options=set(),
+        default=True,
     )
 
-    face_two_sided_type: bpy.props.EnumProperty(
+    face_sides_type: bpy.props.EnumProperty(
         name="Two Sided Policy",
-        description="Set how the game should render the opposite side of mesh faces",
+        description="Set how the game should render the backfacing side of two-sided mesh faces",
         options=set(),
         items=[
             ("two_sided", "Default", "No special properties"),
@@ -85,97 +161,92 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
             ("keep", "Keep", "Keep the same normal on each face side"),
         ]
     )
-    
-    def update_region_name(self, context):
-        if self.name.startswith("region::"):
-            self.name = "region::" + self.region_name
 
-    region_name: bpy.props.StringProperty(
+    region: bpy.props.StringProperty(
         name="Region",
         default="default",
-        description="The name of the region these faces should be associated with",
-        update=update_region_name,
+        description=face_prop_descriptions['region'],
     )
     
-    def update_face_draw_distance(self, context):
-        if self.name.startswith("Draw Distance::"):
-            self.name = "Draw Distance::" + self.mesh_tessellation_density.rpartition("_")[2]
-    
-    face_draw_distance: bpy.props.EnumProperty(
+    draw_distance: bpy.props.EnumProperty(
         name="Draw Distance",
-        update=update_face_draw_distance,
         options=set(),
-        description="Controls the distance at which the assigned faces will stop rendering",
+        description=face_prop_descriptions['draw_distance'],
         items=[
-            ('_connected_geometry_face_draw_distance_normal', 'Default', ''),
+            # ('_connected_geometry_face_draw_distance_normal', 'Default', ''),
             ('_connected_geometry_face_draw_distance_detail_mid', 'Medium', ''),
             ('_connected_geometry_face_draw_distance_detail_close', 'Close', ''),
         ]
     )
-    
-    def update_face_global_material(self, context):
-        if self.name.startswith("material::"):
-            self.name = "material::" + self.face_global_material
 
-    face_global_material: bpy.props.StringProperty(
+    global_material: bpy.props.StringProperty(
         name="Collision Material",
         default="",
-        description="A material used for collision and physics meshes to control material responses to projectiles and physics objects, and separates a model for the purpose of damage regions. If the name matches a valid material defined in tags\globals\globals.globals then this mesh will automatically take the correct material response type, otherwise, the material override can be manually defined in the .model tag in materials tag block",
-        update=update_face_global_material,
+        description=face_prop_descriptions['global_material'],
     )
 
     ladder: bpy.props.BoolProperty(
         name="Ladder",
         options=set(),
-        description="Makes faces climbable",
+        description=face_prop_descriptions['ladder'],
         default=True,
     )
 
     slip_surface: bpy.props.BoolProperty(
         name="Slip Surface",
         options=set(),
-        description="Assigned faces will be non traversable by the player. Used to ensure the player can not climb a surface regardless of slope angle",
+        description=face_prop_descriptions['slip_surface'],
         default=True,
     )
 
     decal_offset: bpy.props.BoolProperty(
         name="Decal Offset",
         options=set(),
-        description="Provides a Z bias to the faces that will not be overridden by the plane build.  If placing a face coplanar against another surface, this flag will prevent Z fighting",
+        description=face_prop_descriptions['decal_offset'],
         default=True,
     )
     
     no_shadow: bpy.props.BoolProperty(
         name="No Shadow",
         options=set(),
-        description="Prevents faces from casting shadows",
+        description=face_prop_descriptions['no_shadow'],
         default=True,
     )
 
     precise_position: bpy.props.BoolProperty(
         name="Precise Position",
         options=set(),
-        description="Disables compression of vertices during export, resulting in more accurate (and expensive) meshes in game. Only use this when you need to",
+        description=face_prop_descriptions['precise_position'],
         default=True,
+    )
+    
+    uncompressed: bpy.props.BoolProperty(
+        name="Uncompressed",
+        options=set(),
+        description=face_prop_descriptions['uncompressed'],
+    )
+    
+    additional_compression: bpy.props.EnumProperty(
+        name="Additional Compression",
+        options=set(),
+        description=face_prop_descriptions['additional_compression'],
+        items=[
+            ('_connected_geometry_mesh_additional_compression_force_on', "Force On", ""),
+            ('_connected_geometry_mesh_additional_compression_force_off', "Force Off", ""),
+        ]
     )
 
     no_lightmap: bpy.props.BoolProperty(
         name="Exclude From Lightmap",
         options=set(),
-        description="",
+        description=face_prop_descriptions['no_lightmap'],
         default=True,
-    )
-    
-    lightmap_only: bpy.props.BoolProperty(
-        name="Lightmap Only",
-        options=set(),
-        description="Geometry is non-rendered and non-collidable. This mesh will still be used by the lightmapper for emissive materials",
     )
 
     no_pvs: bpy.props.BoolProperty(
         name="Invisible To PVS",
         options=set(),
-        description="",
+        description=face_prop_descriptions['no_pvs'],
         default=True,
     )
     
@@ -187,10 +258,8 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
         name="Mesh Tessellation Density",
         update=update_mesh_tessellation_density,
         options=set(),
-        description="Let's tesselate",
-        default="_connected_geometry_mesh_tessellation_density_none",
+        description=face_prop_descriptions['mesh_tessellation_density'],
         items=[
-            ("_connected_geometry_mesh_tessellation_density_none", "None", ""),
             (
                 "_connected_geometry_mesh_tessellation_density_4x",
                 "4x",
@@ -208,94 +277,74 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
             ),
         ],
     )
-    
-    # Face type
-    seam_sealer_override: bpy.props.BoolProperty(options={'HIDDEN'})
-    sky_override: bpy.props.BoolProperty(options={'HIDDEN'})
-    sky_permutation_index: bpy.props.IntProperty(options={'HIDDEN'})
-    
 
     #########
 
     # LIGHTMAP
 
-    lightmap_additive_transparency: bpy.props.FloatVectorProperty(
-        name="Additive Transparency",
+    lightmap_resolution_scale: bpy.props.EnumProperty(
+        name="Lightmap Resolution",
         options=set(),
-        description="Overrides the amount and color of light that will pass through the surface. Tint color will override the alpha blend settings in the shader.",
-        default=(1.0, 1.0, 1.0),
-        subtype="COLOR",
-        min=0.0,
-        max=1.0,
+        description=face_prop_descriptions['lightmap_resolution_scale'],
+        default='3',
+        items=[
+            ('1', "Lowest", "Default resolution = 1"),
+            ('2', "Very Low", "Default resolution = 4"),
+            ('3', "Low", "Default resolution = 16"),
+            ('4', "Medium", "Default resolution = 64"),
+            ('5', "High", "Default resolution = 128"),
+            ('6', "Very High", "Default resolution = 256"),
+            ('7', "Highest", "Default resolution = 512"),
+        ]
     )
     
     lightmap_ignore_default_resolution_scale: bpy.props.BoolProperty(
         name="Ignore Default Lightmap Resolution Scale",
         options=set(),
-        description="Different render mesh types can have different default lightmap resolutions. Enabling this prevents the default for a given type being used",
+        description=face_prop_descriptions['lightmap_ignore_default_resolution_scale'],
         default=True,
     )
-
-    lightmap_resolution_scale: bpy.props.IntProperty(
-        name="Resolution Scale",
+    
+    lightmap_chart_group: bpy.props.IntProperty(
+        name="Lightmap Chart Group",
         options=set(),
-        description="Determines how much texel space the faces will be given on the lightmap.  1 means less space for the faces, while 7 means more space for the faces. The relationships can be tweaked in the .scenario tag",
-        default=3,
+        description=face_prop_descriptions['lightmap_chart_group'],
         min=0,
-        max=7,
+        max=31,
     )
-
-    lightmap_photon_fidelity: bpy.props.EnumProperty(
-        name="Photon Fidelity",
-        options=set(),
-        description="",
-        default="_connected_material_lightmap_photon_fidelity_normal",
-        items=[
-            (
-                "_connected_material_lightmap_photon_fidelity_normal",
-                "Normal",
-                "",
-            ),
-            (
-                "_connected_material_lightmap_photon_fidelity_medium",
-                "Medium",
-                "",
-            ),
-            ("_connected_material_lightmap_photon_fidelity_high", "High", ""),
-            ("_connected_material_lightmap_photon_fidelity_none", "None", ""),
-        ],
-    )
-
-    # Lightmap_Chart_Group: bpy.props.IntProperty(
-    #     name="Lightmap Chart Group",
-    #     options=set(),
-    #     description="",
-    #     default=3,
-    #     min=1,
-    # )
 
     lightmap_type: bpy.props.EnumProperty(
         name="Lightmap Type",
         options=set(),
-        description="Sets how this should be lit while lightmapping",
+        description=face_prop_descriptions['lightmap_type'],
         default="_connected_material_lightmap_type_per_pixel",
         items=[
-            ("_connected_material_lightmap_type_per_pixel", "Per Pixel", ""),
-            ("_connected_material_lightmap_type_per_vertex", "Per Vetex", ""),
+            ("_connected_material_lightmap_type_per_pixel", "Per Pixel", "Per pixel provides good fidelity and lighting variation but it takes up resolution in the lightmap bitmap"),
+            ("_connected_material_lightmap_type_per_vertex", "Per Vertex", "Uses a separate and additional per-vertex lightmap budget. Cost is dependent purely on complexity/vert count of the mesh"),
         ],
     )
     
+    lightmap_additive_transparency: bpy.props.FloatVectorProperty(
+        name="lightmap Additive Transparency",
+        options=set(),
+        description=face_prop_descriptions['lightmap_additive_transparency'],
+        default=(1.0, 1.0, 1.0),
+        subtype="COLOR",
+        min=0.0,
+        max=1.0,
+    )
+
     lightmap_transparency_override: bpy.props.BoolProperty(
         name="Disable Lightmap Transparency",
         options=set(),
-        description="Disables the transparency of any mesh faces this property is applied for the purposes of lightmapping. For example on a mesh using an invisible shader/material, shadow will still be cast",
+        description=face_prop_descriptions['lightmap_transparency_override'],
         default=True,
     )
 
     lightmap_analytical_bounce_modifier: bpy.props.FloatProperty(
-        name="Lightmap Analytical Bounce Modifier",
+        name="Sunlight Bounce Modifier",
         options=set(),
-        description="For analytical lights such as the sun. 0 will bounce no energy. 1 will bounce full energy",
+        description=face_prop_descriptions['lightmap_analytical_bounce_modifier'],
         default=1,
         max=1,
         min=0,
@@ -303,9 +352,9 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
     )
 
     lightmap_general_bounce_modifier: bpy.props.FloatProperty(
-        name="Lightmap General Bounce Modifier",
+        name="Light Bounce Modifier",
         options=set(),
-        description="For analytical lights such as the sun. 0 will bounce no energy. 1 will bounce full energy",
+        description=face_prop_descriptions['lightmap_general_bounce_modifier'],
         default=1,
         max=1,
         min=0,
@@ -313,9 +362,9 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
     )
 
     lightmap_translucency_tint_color: bpy.props.FloatVectorProperty(
-        name="Translucency Tint Color",
+        name="Lightmap Translucency Tint Color",
         options=set(),
-        description="Overrides the color of the shadow and color of light after it passes through a surface",
+        description=face_prop_descriptions['lightmap_translucency_tint_color'],
         default=(1.0, 1.0, 1.0),
         subtype="COLOR",
         min=0.0,
@@ -323,14 +372,14 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
     )
 
     lightmap_lighting_from_both_sides: bpy.props.BoolProperty(
-        name="Lighting From Both Sides",
+        name="Lightmap Lighting From Both Sides",
         options=set(),
-        description="",
+        description=face_prop_descriptions['lightmap_lighting_from_both_sides'],
         default=True,
     )
 
-    # MATERIAL LIGHTING
-    
+    # MATERIAL LIGHTING PROPERTIES
+      
     def update_lighting_attenuation_falloff(self, context):
         if not context.scene.nwo.transforming:
             if self.material_lighting_attenuation_falloff > self.material_lighting_attenuation_cutoff:
@@ -340,9 +389,9 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
         if not context.scene.nwo.transforming:
             if self.material_lighting_attenuation_cutoff < self.material_lighting_attenuation_falloff:
                 self.material_lighting_attenuation_falloff = self.material_lighting_attenuation_cutoff
-
+    
     material_lighting_attenuation_cutoff: bpy.props.FloatProperty(
-        name="Light Cutoff",
+        name="Material Lighting Attenuation Cutoff",
         options=set(),
         description="Determines how far light travels before it stops. Leave this at 0 to for realistic light falloff/cutoff",
         min=0,
@@ -353,7 +402,7 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
     )
 
     material_lighting_attenuation_falloff: bpy.props.FloatProperty(
-        name="Light Falloff",
+        name="Material Lighting Attenuation Falloff",
         options=set(),
         description="Determines how far light travels before its power begins to falloff",
         min=0,
@@ -374,7 +423,7 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
     )
 
     material_lighting_emissive_color: bpy.props.FloatVectorProperty(
-        name="Emissive Color",
+        name="Material Lighting Emissive Color",
         options=set(),
         description="The RGB value of the emitted light",
         default=(1.0, 1.0, 1.0),
@@ -384,14 +433,14 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
     )
 
     material_lighting_emissive_per_unit: bpy.props.BoolProperty(
-        name="Emissive Per Unit",
+        name="Material Lighting Emissive Per Unit",
         options=set(),
         description="When an emissive surface is scaled, determines if the amount of emitted light should be spread out across the surface or increased/decreased to keep a regular amount of light emission per unit area",
         default=False,
     )
 
     material_lighting_emissive_power: bpy.props.FloatProperty(
-        name="Emissive Power",
+        name="Material Lighting Emissive Quality",
         options=set(),
         description="The power of the emissive surface",
         min=0,
@@ -417,12 +466,13 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
         set=set_light_intensity,
         update=update_light_intensity,
         min=0,
+        default=1,
     )
     
     light_intensity_value: bpy.props.FloatProperty(options={'HIDDEN'})
 
     material_lighting_emissive_quality: bpy.props.FloatProperty(
-        name="Emissive Quality",
+        name="Material Lighting Emissive Quality",
         options=set(),
         description="Controls the quality of the shadows cast by a complex occluder. For instance, a light casting shadows of tree branches on a wall would require a higher quality to get smooth shadows",
         default=1,
@@ -430,14 +480,14 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
     )
 
     material_lighting_use_shader_gel: bpy.props.BoolProperty(
-        name="Use Shader Gel",
+        name="Material Lighting Use Shader Gel",
         options=set(),
         description="",
         default=False,
     )
 
     material_lighting_bounce_ratio: bpy.props.FloatProperty(
-        name="Lighting Bounce Ratio",
+        name="Material Lighting Bounce Ratio",
         options=set(),
         description="0 will bounce no energy. 1 will bounce full energy. Any value greater than 1 will exaggerate the amount of bounced light. Affects 1st bounce only",
         default=1,
@@ -711,40 +761,11 @@ class NWO_MeshPropertiesGroup(bpy.types.PropertyGroup):
         min=0,
         options=set(),
     )
-    
-    face_draw_distance: bpy.props.EnumProperty(
-        name="Draw Distance",
-        options=set(),
-        description="Controls the distance at which faces will stop rendering",
-        items=[
-            ('_connected_geometry_face_draw_distance_normal', 'Default', ''),
-            ('_connected_geometry_face_draw_distance_detail_mid', 'Medium', ''),
-            ('_connected_geometry_face_draw_distance_detail_close', 'Close', ''),
-        ]
-    )
 
     highlight: bpy.props.BoolProperty(
         options=set(),
         name="Highlight",
     )
-    
-    face_global_material: bpy.props.StringProperty(
-        name="Collision Material",
-        default="",
-        description="A material used for collision and physics meshes to control material responses to projectiles and physics objects, and separates a model for the purpose of damage regions. If the name matches a valid material defined in tags\globals\globals.globals then this mesh will automatically take the correct material response type, otherwise, the material override can be manually defined in the .model tag in materials tag block",
-    )
-
-    mesh_face: bpy.props.EnumProperty(
-        name="Mesh | Face",
-        items=[
-            ("mesh", "MOP", "Mesh Object Properties"),
-            ("face", "FLOP", "Face Level Object Properties"),
-        ],
-        options=set(),
-    )
-
-    def update_face_type(self, context):
-        self.face_type_active = True
     
     def poop_collision_type_items(self, context):
         items = []
@@ -754,457 +775,3 @@ class NWO_MeshPropertiesGroup(bpy.types.PropertyGroup):
         items.append(("_connected_geometry_poop_collision_type_bullet_collision", "Bullet Collision", "Collision mesh that only interacts with simple projectiles, such as bullets"))
         
         return items
-    
-    # face_mode: bpy.props.EnumProperty(
-    #     name="Type",
-    #     description="Determines the kind of geometry the game will build from this mesh"
-    #     items=[
-    #         ('_connected_geometry_face_mode_normal', "Render & Collision", "Mesh will be used to build both render geometry and collision"),
-    #         ('_connected_geometry_face_mode_render_only', "Render Only", "Mesh will be used to build both render geometry. The game will not build a collision representation of this mesh. It will not be collidable in game"),
-    #         ('_connected_geometry_face_mode_collision_only', "Collision Only", "Physics objects and projectiles will collide with this mesh but it will not be visible"),
-    #         ('_connected_geometry_face_mode_sphere_collision_only', "Sphere Collision Only", "Only physics objects collide with this mesh. Projectiles will pass through it"),
-    #         ('_connected_geometry_face_mode_shadow_only', "Shadow Only", "Mesh will be invisible and uncollidable. It will only be used for shadow casting"),
-    #         ('_connected_geometry_face_mode_lightmap_only', "Lightmap Only", "Mesh will be invisible and uncollidable. It will only be used by the lightmapping"),
-    #         ('_connected_geometry_face_mode_breakable', "", "Allows collision geometry to be destroyed. Mesh will be used to build both render geometry and collision. This type is non-functional in Halo 4+"),
-    #     ]
-    # )
-        
-    poop_collision_type: bpy.props.EnumProperty(
-        name="Collision Type",
-        options=set(),
-        description="",
-        items=poop_collision_type_items,
-    )
-    
-    render_only: bpy.props.BoolProperty(
-        name="No Collision",
-        description="Game will not build a collision representation of this mesh. It will not be collidable in game",
-        options=set(),
-    )
-    
-    lightmap_only: bpy.props.BoolProperty(
-        name="Lightmap Only",
-        description="Geometry is non-rendered and non-collidable. This mesh will still be used by the lightmapper for emissive materials",
-        options=set(),
-    )
-    
-    def update_sphere_collision(self, context):
-        if self.sphere_collision_only and self.collision_only:
-            self['collision_only'] = False
-            
-    def update_collision(self, context):
-        if self.collision_only and self.sphere_collision_only:
-            self['sphere_collision_only'] = False
-    
-    sphere_collision_only: bpy.props.BoolProperty(
-        name="Sphere Collision Only",
-        description="Only physics objects collide with this mesh. Projectiles will pass through it",
-        options=set(),
-        update=update_sphere_collision,
-    )
-    
-    collision_only: bpy.props.BoolProperty(
-        name="Collision Only",
-        description="Physics objects and projectiles will collide with this but it will not be visible",
-        options=set(),
-        update=update_collision,
-    )
-    
-    breakable: bpy.props.BoolProperty(
-        name="Breakable",
-        description="Allows collision geometry to be destroyed",
-        options=set(),
-    )
-
-    face_two_sided: bpy.props.BoolProperty(
-        name="Two Sided",
-        description="Render the backfacing normal of this mesh if it has render geometry. Collision geometry will be two-sided and will not result in open edges, but will be more expensive",
-        options=set(),
-    )
-
-    face_transparent: bpy.props.BoolProperty(
-        name="Transparent",
-        description="Game treats this mesh as being see through. If you're using a shader/material which has transparency, set this flag. This does not affect visible transparency",
-        options=set(),
-    )
-
-    face_two_sided_type: bpy.props.EnumProperty(
-        name="Two Sided Policy",
-        description="Changes the apparance of back facing normals on a two-sided mesh",
-        options=set(),
-        items=[
-            ("two_sided", "Default", "No special properties"),
-            ("mirror", "Mirror", "Mirror backside normals from the frontside"),
-            ("keep", "Keep", "Keep the same normal on each face side"),
-        ]
-    )
-
-    ladder: bpy.props.BoolProperty(
-        name="Ladder",
-        options=set(),
-        description="Climbable collision geometry",
-    )
-
-    slip_surface: bpy.props.BoolProperty(
-        name="Slip Surface",
-        options=set(),
-        description="Units will slip off this if the incline is at least 35 degrees",
-    )
-
-
-    decal_offset: bpy.props.BoolProperty(
-        name="Decal Offset",
-        options=set(),
-        description="This gives the mesh a small offset from its game calculated position, so that it avoids z-fighting with another mesh",
-        default=False,
-    )
-    
-    no_shadow: bpy.props.BoolProperty(
-        name="No Shadow",
-        options=set(),
-        description="Prevents the mesh from casting shadows",
-    )
-
-    precise_position: bpy.props.BoolProperty(
-        name="Precise",
-        options=set(),
-        description="Lowers the degree of compression of vertices during export, resulting in more accurate (and expensive) meshes in game. Only use this when you need to",
-    )
-    
-    uncompressed: bpy.props.BoolProperty(
-        name="Uncompressed",
-        options=set(),
-        description="Mesh vertex data is stored in an uncompressed format",
-    )
-    
-    additional_compression: bpy.props.EnumProperty(
-        name="Additional Compression",
-        options=set(),
-        description="Additional level of compression to apply to this mesh",
-        items=[
-            ('default', "Default", ""),
-            ('_connected_geometry_mesh_additional_compression_force_on', "Force On", ""),
-            ('_connected_geometry_mesh_additional_compression_force_off', "Force Off", ""),
-        ]
-    )
-
-    no_lightmap: bpy.props.BoolProperty(
-        name="Exclude From Lightmap",
-        options=set(),
-        description="Exclude mesh from lightmapping",
-    )
-
-    no_pvs: bpy.props.BoolProperty(
-        name="Invisible To PVS",
-        options=set(),
-        description="Mesh is unaffected by Potential Visbility Sets - the games render culling system",
-    )
-    
-    mesh_tessellation_density: bpy.props.EnumProperty(
-        name="Mesh Tessellation Density",
-        options=set(),
-        description="Let's tesselate",
-        default="_connected_geometry_mesh_tessellation_density_none",
-        items=[
-            ("_connected_geometry_mesh_tessellation_density_none", "None", ""),
-            (
-                "_connected_geometry_mesh_tessellation_density_4x",
-                "4x",
-                "4 times",
-            ),
-            (
-                "_connected_geometry_mesh_tessellation_density_9x",
-                "9x",
-                "9 times",
-            ),
-            (
-                "_connected_geometry_mesh_tessellation_density_36x",
-                "36x",
-                "36 times",
-            ),
-        ],
-    )
-    
-    # def update_lightmap_additive_transparency(self, context):
-    #     self.lightmap_additive_transparency_active = True
-
-    # lightmap_additive_transparency_active: bpy.props.BoolProperty()
-    # lightmap_additive_transparency: bpy.props.FloatVectorProperty(
-    #     name="lightmap Additive Transparency",
-    #     options=set(),
-    #     description="Overrides the amount and color of light that will pass through the surface. Tint color will override the alpha blend settings in the shader",
-    #     default=(1.0, 1.0, 1.0),
-    #     subtype="COLOR",
-    #     min=0.0,
-    #     max=1.0,
-    #     update=update_lightmap_additive_transparency,
-    # )
-
-    # def update_lightmap_ignore_default_resolution_scale(self, context):
-    #     self.lightmap_ignore_default_resolution_scale_active = True
-
-    # lightmap_ignore_default_resolution_scale_active: bpy.props.BoolProperty()
-    # lightmap_ignore_default_resolution_scale: bpy.props.BoolProperty(
-    #     name="Ignore Default Lightmap Resolution Scale",
-    #     options=set(),
-    #     description="Different render mesh types can have different default lightmap resolutions. Enabling this prevents the default for a given type being used",
-    #     default=True,
-    #     update=update_lightmap_ignore_default_resolution_scale,
-    # )
-
-    # def update_lightmap_resolution_scale(self, context):
-    #     self.lightmap_resolution_scale_active = True
-
-    # lightmap_resolution_scale_active: bpy.props.BoolProperty()
-    # lightmap_resolution_scale: bpy.props.IntProperty(
-    #     name="Resolution Scale",
-    #     options=set(),
-    #     default=3,
-    #     min=1,
-    #     max=7,
-    #     description="Determines how much texel space the faces will be given on the lightmap. 1 means less space for the faces, while 7 means more space for the faces. The relationships can be tweaked in the .scenario tag under the bsp tag block",
-    #     update=update_lightmap_resolution_scale,
-    # )
-
-    # def update_lightmap_photon_fidelity(self, context):
-    #     self.lightmap_photon_fidelity_active = True
-
-    # # lightmap_photon_fidelity_active: bpy.props.BoolProperty()
-    # # lightmap_photon_fidelity: bpy.props.EnumProperty(
-    # #     name="Photon Fidelity",
-    # #     options=set(),
-    # #     update=update_lightmap_photon_fidelity,
-    # #     description="H4+ only",
-    # #     default="_connected_material_lightmap_photon_fidelity_normal",
-    # #     items=[
-    # #         (
-    # #             "_connected_material_lightmap_photon_fidelity_normal",
-    # #             "Normal",
-    # #             "",
-    # #         ),
-    # #         (
-    # #             "_connected_material_lightmap_photon_fidelity_medium",
-    # #             "Medium",
-    # #             "",
-    # #         ),
-    # #         ("_connected_material_lightmap_photon_fidelity_high", "High", ""),
-    # #         ("_connected_material_lightmap_photon_fidelity_none", "None", ""),
-    # #     ],
-    # # )
-
-    # def update_lightmap_type(self, context):
-    #     self.lightmap_type_active = True
-
-    # lightmap_type_active: bpy.props.BoolProperty()
-    # lightmap_type: bpy.props.EnumProperty(
-    #     name="Lightmap Type",
-    #     options=set(),
-    #     update=update_lightmap_type,
-    #     description="How this should be lit while lightmapping",
-    #     default="_connected_material_lightmap_type_per_pixel",
-    #     items=[
-    #         ("_connected_material_lightmap_type_per_pixel", "Per Pixel", "Per pixel provides good fidelity and lighting variation but it takes up resolution in the lightmap bitmap"),
-    #         ("_connected_material_lightmap_type_per_vertex", "Per Vertex", "Uses a separate and additional per-vertex lightmap budget. Cost is dependent purely on complexity/vert count of the mesh"),
-    #     ],
-    # )
-    
-    # def update_lightmap_transparency_override(self, context):
-    #     self.lightmap_transparency_override_active = True
-
-    # lightmap_transparency_override_active: bpy.props.BoolProperty()
-    # lightmap_transparency_override: bpy.props.BoolProperty(
-    #     name="Disable Lightmap Transparency",
-    #     options=set(),
-    #     description="Disables the transparency of any mesh faces this property is applied for the purposes of lightmapping. For example on a mesh using an invisible shader/material, shadow will still be cast",
-    #     default=True,
-    #     update=update_lightmap_transparency_override,
-    # )
-
-    # def update_lightmap_analytical_bounce_modifier(self, context):
-    #     self.lightmap_analytical_bounce_modifier_active = True
-
-    # lightmap_analytical_bounce_modifier_active: bpy.props.BoolProperty()
-    # lightmap_analytical_bounce_modifier: bpy.props.FloatProperty(
-    #     name="Lightmap Analytical Bounce Modifier",
-    #     options=set(),
-    #     description="For analytical lights such as the sun. 0 will bounce no energy. 1 will bounce full energy",
-    #     default=1,
-    #     max=1,
-    #     min=0,
-    #     subtype='FACTOR',
-    #     update=update_lightmap_analytical_bounce_modifier,
-    # )
-
-    # def update_lightmap_general_bounce_modifier(self, context):
-    #     self.lightmap_general_bounce_modifier_active = True
-
-    # lightmap_general_bounce_modifier_active: bpy.props.BoolProperty()
-    # lightmap_general_bounce_modifier: bpy.props.FloatProperty(
-    #     name="Lightmap General Bounce Modifier",
-    #     options=set(),
-    #     description="For general lights, such as placed spot lights. 0 will bounce no energy. 1 will bounce full energy",
-    #     default=1,
-    #     max=1,
-    #     min=0,
-    #     subtype='FACTOR',
-    #     update=update_lightmap_general_bounce_modifier,
-    # )
-
-    # def update_lightmap_translucency_tint_color(self, context):
-    #     self.lightmap_translucency_tint_color_active = True
-
-    # lightmap_translucency_tint_color_active: bpy.props.BoolProperty()
-    # lightmap_translucency_tint_color: bpy.props.FloatVectorProperty(
-    #     name="Lightmap Translucency Tint Color",
-    #     options=set(),
-    #     description="Overrides the color of the shadow and color of light after it passes through a surface",
-    #     default=(1.0, 1.0, 1.0),
-    #     subtype="COLOR",
-    #     min=0.0,
-    #     max=1.0,
-    #     update=update_lightmap_translucency_tint_color,
-    # )
-
-    # def update_lightmap_lighting_from_both_sides(self, context):
-    #     self.lightmap_lighting_from_both_sides_active = True
-
-    # lightmap_lighting_from_both_sides_active: bpy.props.BoolProperty()
-    # lightmap_lighting_from_both_sides: bpy.props.BoolProperty(
-    #     name="Lightmap Lighting From Both Sides",
-    #     options=set(),
-    #     description="",
-    #     default=True,
-    #     update=update_lightmap_lighting_from_both_sides,
-    # )
-
-    # # MATERIAL LIGHTING PROPERTIES
-
-    # emissive_active: bpy.props.BoolProperty()
-    # material_lighting_attenuation_active: bpy.props.BoolProperty()
-            
-    # def update_lighting_attenuation_falloff(self, context):
-    #     if not context.scene.nwo.transforming:
-    #         if self.material_lighting_attenuation_falloff > self.material_lighting_attenuation_cutoff:
-    #             self.material_lighting_attenuation_cutoff = self.material_lighting_attenuation_falloff
-            
-    # def update_lighting_attenuation_cutoff(self, context):
-    #     if not context.scene.nwo.transforming:
-    #         if self.material_lighting_attenuation_cutoff < self.material_lighting_attenuation_falloff:
-    #             self.material_lighting_attenuation_falloff = self.material_lighting_attenuation_cutoff
-    
-    # material_lighting_attenuation_cutoff: bpy.props.FloatProperty(
-    #     name="Material Lighting Attenuation Cutoff",
-    #     options=set(),
-    #     description="Determines how far light travels before it stops. Leave this at 0 to for realistic light falloff/cutoff",
-    #     min=0,
-    #     default=0,
-    #     update=update_lighting_attenuation_cutoff,
-    #     subtype='DISTANCE',
-    #     unit='LENGTH',
-    # )
-
-    # lighting_attenuation_enabled: bpy.props.BoolProperty(
-    #     name="Use Attenuation",
-    #     options=set(),
-    #     description="Enable / Disable use of attenuation",
-    #     default=True,
-    # )
-
-    # material_lighting_attenuation_falloff: bpy.props.FloatProperty(
-    #     name="Material Lighting Attenuation Falloff",
-    #     options=set(),
-    #     description="Determines how far light travels before its power begins to falloff",
-    #     min=0,
-    #     default=0,
-    #     update=update_lighting_attenuation_falloff,
-    #     subtype='DISTANCE',
-    #     unit='LENGTH',
-    # )
-
-    # material_lighting_emissive_focus_active: bpy.props.BoolProperty()
-    # material_lighting_emissive_focus: bpy.props.FloatProperty(
-    #     name="Material Lighting Emissive Focus",
-    #     options=set(),
-    #     description="Controls the spread of the light. 180 degrees will emit light in a hemisphere from each point, 0 degrees will emit light nearly perpendicular to the surface",
-    #     min=0,
-    #     default=radians(180), 
-    #     max=radians(180),
-    #     subtype="ANGLE",
-    # )
-
-    # material_lighting_emissive_color_active: bpy.props.BoolProperty()
-    # material_lighting_emissive_color: bpy.props.FloatVectorProperty(
-    #     name="Material Lighting Emissive Color",
-    #     options=set(),
-    #     description="The RGB value of the emitted light",
-    #     default=(1.0, 1.0, 1.0),
-    #     subtype="COLOR",
-    #     min=0.0,
-    #     max=1.0,
-    # )
-
-    # material_lighting_emissive_per_unit_active: bpy.props.BoolProperty()
-    # material_lighting_emissive_per_unit: bpy.props.BoolProperty(
-    #     name="Material Lighting Emissive Per Unit",
-    #     options=set(),
-    #     description="When an emissive surface is scaled, determines if the amount of emitted light should be spread out across the surface or increased/decreased to keep a regular amount of light emission per unit area",
-    #     default=False,
-    # )
-
-    # material_lighting_emissive_power_active: bpy.props.BoolProperty()
-    # material_lighting_emissive_power: bpy.props.FloatProperty(
-    #     name="Material Lighting Emissive Quality",
-    #     options=set(),
-    #     description="The power of the emissive surface",
-    #     min=0,
-    #     default=10,
-    #     subtype='POWER',
-    #     unit='POWER',
-    # )
-    
-    # def get_light_intensity(self):
-    #     return utils.calc_emissive_intensity(self.material_lighting_emissive_power, utils.get_export_scale(bpy.context) ** 2)
-    
-    # def set_light_intensity(self, value):
-    #     self['light_intensity_value'] = value
-        
-    # def update_light_intensity(self, context):
-    #     self.material_lighting_emissive_power = utils.calc_emissive_energy(self.material_lighting_emissive_power, utils.get_export_scale(context) ** -2 * self.light_intensity_value)
-
-    # light_intensity: bpy.props.FloatProperty(
-    #     name="Light Intensity",
-    #     options=set(),
-    #     description="The intensity of this light expressed in the units the game uses",
-    #     get=get_light_intensity,
-    #     set=set_light_intensity,
-    #     update=update_light_intensity,
-    #     min=0,
-    # )
-    
-    # light_intensity_value: bpy.props.FloatProperty(options={'HIDDEN'})
-
-    # material_lighting_emissive_quality_active: bpy.props.BoolProperty()
-    # material_lighting_emissive_quality: bpy.props.FloatProperty(
-    #     name="Material Lighting Emissive Quality",
-    #     options=set(),
-    #     description="Controls the quality of the shadows cast by a complex occluder. For instance, a light casting shadows of tree branches on a wall would require a higher quality to get smooth shadows",
-    #     default=1,
-    #     min=0,
-    # )
-
-    # material_lighting_use_shader_gel_active: bpy.props.BoolProperty()
-    # material_lighting_use_shader_gel: bpy.props.BoolProperty(
-    #     name="Material Lighting Use Shader Gel",
-    #     options=set(),
-    #     description="",
-    #     default=False,
-    # )
-
-    # material_lighting_bounce_ratio_active: bpy.props.BoolProperty()
-    # material_lighting_bounce_ratio: bpy.props.FloatProperty(
-    #     name="Material Lighting Bounce Ratio",
-    #     options=set(),
-    #     description="0 will bounce no energy. 1 will bounce full energy. Any value greater than 1 will exaggerate the amount of bounced light. Affects 1st bounce only",
-    #     default=1,
-    #     min=0,
-    # )

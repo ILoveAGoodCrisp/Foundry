@@ -69,115 +69,115 @@ class NWO_DuplicateMaterial(bpy.types.Operator):
         ob.active_material = new_mat
         return {'FINISHED'}
     
-def toggle_active(context, option, bool_var):
-    nwo = context.object.active_material.nwo
+# def toggle_active(context, option, bool_var):
+#     nwo = context.object.active_material.nwo
 
-    match option:
-        # lightmap
-        case "lightmap_additive_transparency":
-            nwo.lightmap_additive_transparency_active = bool_var
-        case "lightmap_resolution_scale":
-            nwo.lightmap_resolution_scale_active = bool_var
-        case "lightmap_type":
-            nwo.lightmap_type_active = bool_var
-        case "lightmap_analytical_bounce_modifier":
-            nwo.lightmap_analytical_bounce_modifier_active = bool_var
-        case "lightmap_general_bounce_modifier":
-            nwo.lightmap_general_bounce_modifier_active = bool_var
-        case "lightmap_translucency_tint_color":
-            nwo.lightmap_translucency_tint_color_active = bool_var
-        case "lightmap_lighting_from_both_sides":
-            nwo.lightmap_lighting_from_both_sides_active = bool_var
-        case "lightmap_ignore_default_resolution_scale":
-            nwo.lightmap_ignore_default_resolution_scale_active = bool_var
-        case "lightmap_transparency_override":
-            nwo.lightmap_transparency_override_active = bool_var
-        case "lightmap_analytical_bounce_modifier":
-            nwo.lightmap_analytical_bounce_modifier_active = bool_var
-        case "lightmap_general_bounce_modifier":
-            nwo.lightmap_general_bounce_modifier_active = bool_var
-        case "lightmap_chart_group":
-            nwo.lightmap_chart_group_active = bool_var
-        # material lighting
-        case "emissive":
-            nwo.emissive_active = bool_var
+#     match option:
+#         # lightmap
+#         case "lightmap_additive_transparency":
+#             nwo.lightmap_additive_transparency_active = bool_var
+#         case "lightmap_resolution_scale":
+#             nwo.lightmap_resolution_scale_active = bool_var
+#         case "lightmap_type":
+#             nwo.lightmap_type_active = bool_var
+#         case "lightmap_analytical_bounce_modifier":
+#             nwo.lightmap_analytical_bounce_modifier_active = bool_var
+#         case "lightmap_general_bounce_modifier":
+#             nwo.lightmap_general_bounce_modifier_active = bool_var
+#         case "lightmap_translucency_tint_color":
+#             nwo.lightmap_translucency_tint_color_active = bool_var
+#         case "lightmap_lighting_from_both_sides":
+#             nwo.lightmap_lighting_from_both_sides_active = bool_var
+#         case "lightmap_ignore_default_resolution_scale":
+#             nwo.lightmap_ignore_default_resolution_scale_active = bool_var
+#         case "lightmap_transparency_override":
+#             nwo.lightmap_transparency_override_active = bool_var
+#         case "lightmap_analytical_bounce_modifier":
+#             nwo.lightmap_analytical_bounce_modifier_active = bool_var
+#         case "lightmap_general_bounce_modifier":
+#             nwo.lightmap_general_bounce_modifier_active = bool_var
+#         case "lightmap_chart_group":
+#             nwo.lightmap_chart_group_active = bool_var
+#         # material lighting
+#         case "emissive":
+#             nwo.emissive_active = bool_var
 
-class NWO_OT_AddEmissiveProperty(bpy.types.Operator):
-    bl_idname = "nwo.add_emissive_property"
-    bl_label = "Add"
-    bl_options = {"UNDO"}
+# class NWO_OT_AddEmissiveProperty(bpy.types.Operator):
+#     bl_idname = "nwo.add_emissive_property"
+#     bl_label = "Add"
+#     bl_options = {"UNDO"}
 
-    @classmethod
-    def poll(cls, context):
-        return context.object and context.object.active_material
+#     @classmethod
+#     def poll(cls, context):
+#         return context.object and context.object.active_material
 
-    options: bpy.props.EnumProperty(
-        items=[
-            ("emissive", "Emissive", ""),
-        ]
-    )
+#     options: bpy.props.EnumProperty(
+#         items=[
+#             ("emissive", "Emissive", ""),
+#         ]
+#     )
 
-    def execute(self, context):
-        toggle_active(context, self.options, True)
-        context.area.tag_redraw()
-        return {"FINISHED"}
+#     def execute(self, context):
+#         toggle_active(context, self.options, True)
+#         context.area.tag_redraw()
+#         return {"FINISHED"}
     
-class NWO_OT_AddLightmapProperty(NWO_OT_AddEmissiveProperty):
-    bl_idname = "nwo.add_lightmap_property"
-    bl_label = "Add"
-    bl_description = "Add a Lightmap Property"
+# class NWO_OT_AddLightmapProperty(NWO_OT_AddEmissiveProperty):
+#     bl_idname = "nwo.add_lightmap_property"
+#     bl_label = "Add"
+#     bl_description = "Add a Lightmap Property"
 
-    options: bpy.props.EnumProperty(
-        items=[
-            ("lightmap_additive_transparency", "Transparency", ""),
-            ("lightmap_resolution_scale", "Resolution Scale", ""),
-            ("lightmap_type", "Lightmap Type", ""),
-            (
-                "lightmap_translucency_tint_color",
-                "Translucency Tint Color",
-                "",
-            ),
-            (
-                "lightmap_lighting_from_both_sides",
-                "Lighting from Both Sides",
-                "",
-            ),
-            ('lightmap_ignore_default_resolution_scale', 'Ignore Default Resolution Scale', ''),
-            ('lightmap_transparency_override', 'Disable Lightmap Transparency', ''),
-            ('lightmap_analytical_bounce_modifier', 'Analytical Bounce Modifier', ''),
-            ('lightmap_general_bounce_modifier', 'General Bounce Modifier', ''),
-            ('lightmap_chart_group', 'Chart Group', ''),
-        ]
-    )
+#     options: bpy.props.EnumProperty(
+#         items=[
+#             ("lightmap_additive_transparency", "Transparency", ""),
+#             ("lightmap_resolution_scale", "Resolution Scale", ""),
+#             ("lightmap_type", "Lightmap Type", ""),
+#             (
+#                 "lightmap_translucency_tint_color",
+#                 "Translucency Tint Color",
+#                 "",
+#             ),
+#             (
+#                 "lightmap_lighting_from_both_sides",
+#                 "Lighting from Both Sides",
+#                 "",
+#             ),
+#             ('lightmap_ignore_default_resolution_scale', 'Ignore Default Resolution Scale', ''),
+#             ('lightmap_transparency_override', 'Disable Lightmap Transparency', ''),
+#             ('lightmap_analytical_bounce_modifier', 'Analytical Bounce Modifier', ''),
+#             ('lightmap_general_bounce_modifier', 'General Bounce Modifier', ''),
+#             ('lightmap_chart_group', 'Chart Group', ''),
+#         ]
+#     )
 
-class NWO_OT_RemoveMaterialProperty(bpy.types.Operator):
-    """Removes a mesh property"""
+# class NWO_OT_RemoveMaterialProperty(bpy.types.Operator):
+#     """Removes a mesh property"""
 
-    bl_idname = "nwo.remove_material_property"
-    bl_label = "Remove"
-    bl_options = {'UNDO'}
+#     bl_idname = "nwo.remove_material_property"
+#     bl_label = "Remove"
+#     bl_options = {'UNDO'}
     
-    @classmethod
-    def poll(cls, context):
-        return context.object
+#     @classmethod
+#     def poll(cls, context):
+#         return context.object
 
-    options: bpy.props.EnumProperty(
-        items=[
-            ("lightmap_additive_transparency", "Transparency", ""),
-            ("lightmap_resolution_scale", "Resolution Scale", ""),
-            ("lightmap_type", "Lightmap Type", ""),
-            ("lightmap_translucency_tint_color", "Translucency Tint Color", ""),
-            ("lightmap_lighting_from_both_sides", "Lighting from Both Sides", ""),
-            ('lightmap_ignore_default_resolution_scale', 'Ignore Default Resolution Scale', ''),
-            ("lightmap_transparency_override", "Disable Lightmap Transparency", ""),
-            ("lightmap_analytical_bounce_modifier", "Analytical Bounce Modifier", ""),
-            ("lightmap_general_bounce_modifier", "General Bounce Modifier", ""),
-            ("lightmap_chart_group", "Chart Group", ""),
-            ("emissive", "Emissive", ""),
-        ]
-    )
+#     options: bpy.props.EnumProperty(
+#         items=[
+#             ("lightmap_additive_transparency", "Transparency", ""),
+#             ("lightmap_resolution_scale", "Resolution Scale", ""),
+#             ("lightmap_type", "Lightmap Type", ""),
+#             ("lightmap_translucency_tint_color", "Translucency Tint Color", ""),
+#             ("lightmap_lighting_from_both_sides", "Lighting from Both Sides", ""),
+#             ('lightmap_ignore_default_resolution_scale', 'Ignore Default Resolution Scale', ''),
+#             ("lightmap_transparency_override", "Disable Lightmap Transparency", ""),
+#             ("lightmap_analytical_bounce_modifier", "Analytical Bounce Modifier", ""),
+#             ("lightmap_general_bounce_modifier", "General Bounce Modifier", ""),
+#             ("lightmap_chart_group", "Chart Group", ""),
+#             ("emissive", "Emissive", ""),
+#         ]
+#     )
 
-    def execute(self, context):
-        toggle_active(context, self.options, False)
-        context.area.tag_redraw()
-        return {"FINISHED"}
+#     def execute(self, context):
+#         toggle_active(context, self.options, False)
+#         context.area.tag_redraw()
+#         return {"FINISHED"}

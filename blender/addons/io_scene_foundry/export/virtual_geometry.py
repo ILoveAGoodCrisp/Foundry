@@ -4,10 +4,8 @@ from collections import defaultdict
 import csv
 from ctypes import Array, Structure, c_char_p, c_float, c_int, POINTER, c_int16, c_ubyte, c_void_p, cast, create_string_buffer, memmove, pointer, sizeof
 import logging
-from math import degrees, radians
-import math
+from math import degrees
 from pathlib import Path
-import random
 import bmesh
 import bpy
 from mathutils import Euler, Matrix, Vector
@@ -1215,6 +1213,17 @@ class VirtualMesh:
         
         self.num_indices = len(self.indices)
         self.num_vertices = len(self.positions)
+        
+        # check if this mesh should be structure
+        # if not scene.corinth and props.get("bungie_mesh_type") == MeshType.poop.value and not props.get("bungie_face_mode") in (FaceMode.render_only, FaceMode.lightmap_only, FaceMode.shadow_only):
+        #     bm = bmesh.new()
+        #     bm.from_mesh(mesh)
+        #     vol = bm.calc_volume(signed=True)
+        #     bm.free()
+        #     if vol < 0:
+        #         scene.warnings.append("blah")
+        #         props["bungie_mesh_type"] = MeshType.default.value
+        
         if (ob.data.nwo.face_props or (valid_materials_count > 1 and (special_mats_dict or lightmap_mats_dict))) and props.get("bungie_mesh_type") in FACE_PROP_TYPES:
             self.face_properties = gather_face_props(ob.data.nwo, mesh, num_polygons, scene, sorted_order, special_mats_dict, lightmap_mats_dict, fp_defaults, props)
             

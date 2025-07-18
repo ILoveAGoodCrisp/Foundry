@@ -17,7 +17,7 @@ def msgbus_callback(context):
         if context.object:
             highlight = ob.data.nwo.highlight
             if highlight and context.mode == "EDIT_MESH":
-                bpy.ops.nwo.face_layer_color_all(enable_highlight=highlight)
+                bpy.ops.nwo.face_attribute_color_all(enable_highlight=highlight)
     except:
         pass
 
@@ -39,10 +39,37 @@ def load_set_output_state(dummy):
     
 @persistent
 def import_handler(import_context):
+    # Handles adding region / permutations to the scene and setting up instance proxies
+
     proxies = []
     for item in import_context.import_items:
-        if item.id_type == 'OBJECT' and item.id.type == 'MESH' and item.id.nwo.proxy_parent is not None:
-            proxies.append(item.id)
+        id = item.id
+        match id.id_type:
+            case 'OBJECT':
+                if id.nwo.region_name:
+                    utils.add_region(id.nwo.region_name)
+                if id.nwo.permutation_name:
+                    utils.add_permutation(id.nwo.permutation_name)
+                
+                if id.type == 'MESH':
+                    for prop in id.data.nwo.face_props:
+                        if prop.type == 'region':
+                            if prop.region_name:
+                                utils.add_region(prop.region_name)
+                                
+                    if id.nwo.proxy_parent is not None:
+                        proxies.append(item.id)
+                            
+                    
+            case 'COLLECTION':
+                match id.nwo.type:
+                    case 'region':
+                        if id.nwo.region:
+                            utils.add_region(id.nwo.region)
+                    case 'permutation':
+                        if id.nwo.permutation:
+                            utils.add_permutation(id.nwo.permutation)
+    
     
     if proxies:
         proxy_scene = utils.get_foundry_storage_scene()

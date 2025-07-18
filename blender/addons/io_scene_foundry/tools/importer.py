@@ -1938,7 +1938,7 @@ class NWOImporter:
             scenario_collection.children.link(collection)
         with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
             with ScenarioStructureBspTag(path=mover.tag_path) as bsp:
-                bsp_objects, game_objects = bsp.to_blend_objects(collection, scenario_collection is not None, self.tag_bsp_render_only)
+                bsp_objects, game_objects = bsp.to_blend_objects(collection, self.tag_bsp_render_only)
                 if game_objects:
                     print("Importing Game Object Geometry")
                     game_object_cache = {(c.nwo.game_object_path, c.nwo.game_object_variant): c for c in utils.get_foundry_storage_scene().collection.children if c.nwo.game_object_path}
@@ -2924,10 +2924,10 @@ class NWOImporter:
                                 layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "Emissive", "emissive_override", emissive_props_dict)))
                         
                 for face in bm.faces:
-                    for idx, face_layer_list in layers.items():
+                    for idx, face_attribute_list in layers.items():
                         if face.material_index == idx:
-                            for face_layer in face_layer_list:
-                                face[face_layer] = 1
+                            for face_attribute in face_attribute_list:
+                                face[face_attribute] = 1
                  
                 for layer in face_props:
                     layer.face_count = utils.layer_face_count(bm, bm.faces.layers.int.get(layer.layer_name))
@@ -2968,20 +2968,20 @@ class NWOImporter:
                 layer.face_global_material = slot.material.name
                 layer.face_global_material_override = True
                 material_index = slot.slot_index
-                layer.layer_name, layer.face_count = self.add_collision_face_layer(ob.data, material_index, layer.layer_name)
-                layer.layer_color = utils.random_color()
+                layer.layer_name, layer.face_count = self.add_collision_face_attribute(ob.data, material_index, layer.layer_name)
+                layer.color = utils.random_color()
                 
-    def add_collision_face_layer(self, mesh, material_index, prefix):
+    def add_collision_face_attribute(self, mesh, material_index, prefix):
         bm = bmesh.new()
         bm.from_mesh(mesh)
-        face_layer = bm.faces.layers.int.new(f"{prefix}_{str(uuid4())}")
+        face_attribute = bm.faces.layers.int.new(f"{prefix}_{str(uuid4())}")
         for face in bm.faces:
             if face.material_index == material_index:
-                face[face_layer] = 1
+                face[face_attribute] = 1
         
         bm.to_mesh(mesh)
                 
-        return face_layer.name, utils.layer_face_count(bm, face_layer)
+        return face_attribute.name, utils.layer_face_count(bm, face_attribute)
         
     def get_mesh_type(self, ob: bpy.types.Object, is_model):
         if ob.nwo.mesh_type_temp == 'skip':

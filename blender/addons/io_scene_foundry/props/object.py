@@ -178,9 +178,6 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         override={'LIBRARY_OVERRIDABLE'},
     )
     
-    
-    emissive_active: bpy.props.BoolProperty(options=set())
-    
     def get_ignore_for_export(self):
         if not self.export_this:
             return IgnoreReason.export_this.value

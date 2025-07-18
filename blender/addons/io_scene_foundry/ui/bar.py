@@ -592,6 +592,7 @@ class NWO_HaloExportSettingsFlags(bpy.types.Panel):
             align=False,
         )
         col = flow.column()
+        col.prop(scene_nwo_export, "auto_precise")
         if scenario or prefab:
             col.prop(scene_nwo_export, "force_imposter_policy_never")
         if model or animation:
@@ -945,7 +946,7 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
     def lightmap_quality_items(self, context: bpy.types.Context) -> list[bpy.types.EnumProperty]:
         items = []
         lightmapper_globals_tag_path = Path(utils.get_tags_path(), r"globals\lightmapper_globals.lightmapper_globals")
-        if not lightmapper_globals_tag_path.exists() or not managed_blam.mb_active:
+        if not lightmapper_globals_tag_path.exists():
             return [("direct_only", "Direct Only", ""),
                     ("draft", "Draft", ""),
                     ("low", "Low", ""),
@@ -1167,6 +1168,12 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
     disable_automatic_suspension_computation: bpy.props.BoolProperty(
         name="Disable Suspension Depth Calculation",
         description="Stops the export process from trying to automatically calcuate suspension extension/compression depth (and stops warnings about it)"
+    )
+    
+    auto_precise: bpy.props.BoolProperty(
+        name="Precise Meshes",
+        description="Adds the precise position face property to all meshes at export provided provided they don't already use the property",
+        default=True,
     )
 
     import_force: bpy.props.BoolProperty(

@@ -270,13 +270,14 @@ class ScenarioStructureBspTag(Tag):
                 # objects.append(ob)
                 # structure_mesh.nwo.render_only = True
                 if structure_mesh.nwo.face_props:
-                    bm = bmesh.new()
-                    bm.from_mesh(structure_mesh)
-                    for face_layer in structure_mesh.nwo.face_props:
-                        face_layer.face_count = utils.layer_face_count(bm, bm.faces.layers.int.get(face_layer.layer_name))
-                    bm.free()
+                    utils.consolidate_face_attributes(structure_mesh)
+                    # bm = bmesh.new()
+                    # bm.from_mesh(structure_mesh)
+                    # for face_attribute in structure_mesh.nwo.face_props:
+                    #     face_attribute.face_count = utils.layer_face_count(bm, bm.faces.layers.int.get(face_attribute.layer_name))
+                    # bm.free()
                     
-                # utils.consolidate_face_layers(ob.data)
+                # utils.consolidate_face_attributes(ob.data)
                 # utils.connect_verts_on_edge(ob.data)
             
         # Create Structure Collision
@@ -316,6 +317,11 @@ class ScenarioStructureBspTag(Tag):
             objects.append(structure_objects[0])
             utils.unlink(structure_objects[0])
             structure_collection.objects.link(structure_objects[0])
+        
+        print("Removing Duplicate Material Slots")
+        ob_meshes = {o.data for o in objects}
+        for me in ob_meshes:
+            utils.consolidate_materials(me)
                 
         # Create Portals
         if not for_cinematic:

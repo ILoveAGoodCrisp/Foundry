@@ -28,6 +28,13 @@ from .Tags import TagFieldBlock, TagFieldBlockElement, TagPath
 
 mat_props_cache = {}
 
+class PartType(Enum): # Thank you Halo 2!
+    not_drawn = 0
+    opaque_shadow_only = 1
+    opaque_shadow_casting = 2
+    opaque_non_shadowing = 3
+    transparent = 4
+    lightmap_only = 5
 
 class BSPSeam:
     def __init__(self, element: TagFieldBlockElement):
@@ -206,14 +213,7 @@ class InstanceDefinition:
                             self.blender_collision.nwo.proxy_parent = self.blender_render.data
                             self.blender_collision.nwo.proxy_type = "collision"
                             self.blender_render.data.nwo.proxy_collision = self.blender_collision
-                            # bm = bmesh.new()
-                            # bm.from_mesh(self.blender_collision.data)
-                            # utils.save_loop_normals(bm, self.blender_collision.data)
-                            # bmesh.ops.dissolve_degenerate(bm, dist=0.0005*(1 / 0.03048), edges=bm.edges)
-                            # bm.to_mesh(self.blender_collision.data)
-                            # bm.free()
-                            # utils.apply_loop_normals(self.blender_collision.data)
-                            utils.consolidate_face_layers(self.blender_collision.data)
+                            utils.consolidate_face_attributes(self.blender_collision.data)
                     elif self.collision_only_surface_indices:
                         collision_mesh = self.collision_info.to_object(mesh_only=True, surface_indices=self.collision_only_surface_indices)
                         
@@ -235,73 +235,50 @@ class InstanceDefinition:
                         self.blender_render.data.polygons.foreach_set("material_index", remap)
                                 
                         utils.save_loop_normals_mesh(self.blender_render.data)
-                        bm = bmesh.new()
-                        bm.from_mesh(collision_mesh)
                         if self.collision_info.some_sphere_collision:
                             sphere_coll_face_props = [prop for prop in collision_mesh.nwo.face_props if prop.name == "Sphere Collision Only"]
                             if sphere_coll_face_props:
                                 sphere_coll_face_prop = sphere_coll_face_props[0]
-                                sphere_coll_layer = bm.faces.layers.int.get(sphere_coll_face_prop.layer_name)
-                                collision_only_layer = utils.add_face_layer(bm, collision_mesh, "collision_only", True)
-                                coll_face_prop = collision_mesh.nwo.face_props[-1]
-                                coll_face_count = 0
-                                for face in bm.faces:
-                                    if not face[sphere_coll_layer]:
-                                        face[collision_only_layer] = 1
-                                        coll_face_count += 1
-                                        
-                                coll_face_prop.face_count = coll_face_count
+                                sphere_coll_attribute = collision_mesh.attributes.get(sphere_coll_face_prop.attribute_name)
+                                array = np.zeros(len(collision_mesh.polygons), dtype=np.int8)
+                                sphere_coll_attribute.data.foreach_get("value", array)
+                                coll_only_array = array ^ 1
+                                prop, _ = utils.add_face_prop(collision_mesh, "face_mode", coll_only_array)
+                                prop.face_mode = '_connected_geometry_face_mode_collision_only'
                             else:
-                                sphere_coll_layer = utils.add_face_layer(bm, collision_mesh, "sphere_collision_only", True)
-                                collision_mesh.nwo.face_props[-1].face_count = len(bm.faces)
-                                for face in bm.faces:
-                                    face[sphere_coll_layer] = 1
+                                prop, _ = utils.add_face_prop(collision_mesh, "face_mode")
+                                prop.face_mode = '_connected_geometry_face_mode_sphere_collision_only'
                             
                         elif not self.collision_info.sphere_collision_only:
-                            collision_only_layer = utils.add_face_layer(bm, collision_mesh, "collision_only", True)
-                            collision_mesh.nwo.face_props[-1].face_count = len(bm.faces)
-                            for face in bm.faces:
-                                face[collision_only_layer] = 1
+                            prop, _ = utils.add_face_prop(collision_mesh, "face_mode")
+                            prop.face_mode = '_connected_geometry_face_mode_collision_only'
                                 
-                                
-                        bm.from_mesh(self.blender_render.data)
-                        bm.to_mesh(self.blender_render.data)
-                        bm.free()
                         utils.apply_loop_normals(self.blender_render.data)
-                    
                         utils.set_two_sided(self.blender_render.data, False) 
                         utils.loop_normal_magic(self.blender_render.data)
                         
-                        # bm = bmesh.new()
-                        # bm.from_mesh(self.blender_render.data)
-                        # utils.save_loop_normals(bm, self.blender_render.data)
-                        # # bmesh.ops.dissolve_degenerate(bm, dist=0.0008*(1 / 0.03048), edges=bm.edges)
-                        # bmesh.ops.dissolve_limit(bm, angle_limit=radians(0.01), verts=bm.verts, edges=bm.edges, delimit={'NORMAL'})
-                        # bm.to_mesh(self.blender_render.data)
-                        # bm.free()
-                        # utils.apply_loop_normals(self.blender_render.data)
-                        
-                        for layer in collision_mesh.nwo.face_props:
-                            new_layer = self.blender_render.data.nwo.face_props.add()
-                            for k,v in layer.items():
-                                new_layer.__setattr__(k, v)
+                        for prop in collision_mesh.nwo.face_props:
+                            new_prop = self.blender_render.data.nwo.face_props.add()
+                            for k, v in prop.items():
+                                new_prop[k] = v
                                 
-                        utils.consolidate_face_layers(self.blender_render.data)
+                        utils.consolidate_face_attributes(self.blender_render.data)
                 else:
                     self.blender_render = self.collision_info.to_object()
                     self.blender_render.name = f"instance_definition:{self.index}"
                     if self.collision_info.sphere_collision_only:
-                        self.blender_render.data.nwo.sphere_collision_only = True
+                        # prop, _ = utils.add_face_prop(self.blender_render.data, "face_mode")
+                        # prop.face_mode = '_connected_geometry_face_mode_sphere_collision_only'
                         for idx, prop in enumerate(self.blender_render.data.nwo.face_props):
-                            if prop.name == "Two Sided":
-                                utils.delete_face_prop(self.blender_render.data, idx)
+                            if prop.name == "Two-Sided":
+                                utils.delete_face_attribute(self.blender_render.data, idx)
                                 break
                     else:
                         self.blender_render.data.nwo.collision_only = True
                     render_valid = True
                     
-            elif self.blender_render and self.blender_render.data:
-                self.blender_render.data.nwo.render_only = True
+            # elif self.blender_render and self.blender_render.data:
+            #     self.blender_render.data.nwo.render_only = True
                 
             if self.has_physics:
                 for idx, polyhedra in enumerate(self.physics_info.polyhedra):
@@ -329,7 +306,7 @@ class InstanceDefinition:
                 self.blender_render.data.nwo.proxy_cookie_cutter = self.blender_cookie
 
         if self.blender_render:
-            if not self.blender_render.data.nwo.render_only:
+            if not self.blender_render.nwo.poop_render_only:
                 utils.connect_verts_on_edge(self.blender_render.data)
             objects.append(self.blender_render)
         if self.blender_collision:
@@ -1089,7 +1066,7 @@ class BSP:
         # Create the bpy mesh
         mesh = bpy.data.meshes.new(self.name)
         mesh.from_pydata(vertices=[v.position for v in self.vertices], edges=[], faces=list(indices))
-        
+        any_ladder = any_breakable = any_slip = any_invisible = False
         # Check if we need to set any per face properties
         map_material, map_two_sided, map_ladder, map_breakable, map_slip, map_negated, map_invalid, map_invisible = [], [], [], [], [], [], [], []
         for surface in self.surfaces:
@@ -1101,6 +1078,15 @@ class BSP:
             negated = surface.negated
             invalid = surface.invalid
             invisible = surface.invisible
+            
+            if ladder:
+                any_ladder = True
+            if breakable:
+                any_breakable = True
+            if slip:
+                any_slip = True
+            if invisible:
+                any_invisible = True
             
             map_material.append(material)
             map_two_sided.append(two_sided)
@@ -1129,10 +1115,7 @@ class BSP:
         split_invisible = len(invisible_set) > 1
 
         blender_materials_map = {}
-        layer_materials, layer_two_sided, layer_ladder, layer_breakable, layer_slip, layer_invisible = {}, None, None, None, None, None
-        using_layers = split_material or split_two_sided or split_ladder or split_breakable or split_slip or split_negated or split_invisible
-        bm = bmesh.new()
-        bm.from_mesh(mesh)
+        layer_materials = {}
         
         if self.uses_materials:
             if split_material:
@@ -1158,119 +1141,49 @@ class BSP:
             if split_material:
                 for material in set(map_material):
                     if material and material.name != 'default':
-                        layer_materials[material] = utils.add_face_layer(bm, mesh, "face_global_material", material.name)
+                        layer_materials[material] = utils.add_face_attribute(bm, mesh, "face_global_material", material.name)
             else:
                 if surface.material and surface.material.name != "default":
                     mesh.nwo.face_global_material = surface.material.name
-                    
-                
-        # if split_two_sided:
-        #     layer_two_sided = utils.add_face_layer(bm, mesh, "two_sided", True)
-        # else:
-        #     mesh.nwo.face_two_sided = surface.two_sided
-            
-        if split_ladder:
-            layer_ladder = utils.add_face_layer(bm, mesh, "ladder", True)
-        else:
-            mesh.nwo.ladder = surface.ladder
-            
-        if split_breakable:
-            layer_breakable = utils.add_face_layer(bm, mesh, "breakable", True)
-        else:
-            mesh.nwo.breakable = surface.breakable
-            
-        if split_slip:
-            layer_slip = utils.add_face_layer(bm, mesh, "slip_surface", True)
-        else:
-            mesh.nwo.slip_surface = surface.slip_surface
-            
-        if split_invisible:
-            layer_invisible = utils.add_face_layer(bm, mesh, "sphere_collision_only", True)
-        else:
-            mesh.nwo.sphere_collision_only = surface.invisible
         
-        to_remove = set()
-        if using_layers:
-            if split_material and self.uses_materials:
+        if any_ladder:
+            utils.add_face_prop(mesh, "ladder", map_ladder if split_ladder else None)
+        if any_breakable:
+            prop, _ = utils.add_face_prop(mesh, "face_mode", map_breakable if split_breakable else None)
+            prop.face_mode = '_connected_geometry_face_mode_breakable'
+        if any_slip:
+            utils.add_face_prop(mesh, "slip_surface", map_slip if split_slip else None)
+        if any_invisible:
+            prop, _ = utils.add_face_prop(mesh, "face_mode", map_invisible if split_invisible else None)
+            prop.face_mode = '_connected_geometry_face_mode_sphere_collision_only'
+        
+        if self.uses_materials:
+            if split_material:
                 material_indices = [blender_materials_map[mat] for mat in map_material]
-            for idx, face in enumerate(bm.faces):
-                if map_invalid[idx]:
-                    to_remove.add(face)
-                    continue
-                # if map_invalid[idx] or map_negated[idx]:
-                #     to_remove.append(face)
-                #     continue
-                if split_material:
-                    if self.uses_materials:
-                        face.material_index = material_indices[idx]
-                    else:
-                        for mat, layer in layer_materials.items():
-                            face[layer] =  int(map_material[idx] == mat)
-                # if layer_two_sided:
-                #     face[layer_two_sided] = map_two_sided[idx]
-                if layer_ladder:
-                    face[layer_ladder] = map_ladder[idx]
-                if layer_breakable:
-                    face[layer_breakable] = map_breakable[idx]
-                if layer_slip:
-                    face[layer_slip] = map_slip[idx]
-                if layer_invisible:
-                    face[layer_invisible] = map_invisible[idx]
+                mesh.polygons.foreach_set("material_index", material_indices)
+        else:
+            utils.add_face_prop(mesh, "global_material", map_material if split_material else None)
+
+        bm = bmesh.new()
+        bm.from_mesh(mesh)
+        bm.faces.ensure_lookup_table()
+        # bmesh.ops.delete(bm, geom=[bm.faces[i] for i in invalid_indices], context='FACES')
+        
+        to_remove = set(np.nonzero(map_invalid)[0])
                     
         if surface_indices:
-            to_remove.update({f for idx, f in enumerate(bm.faces) if idx not in surface_indices})
+            to_remove.update({f for idx, f in enumerate(bm.faces) if idx not in set(surface_indices)})
                     
         if to_remove:
             bmesh.ops.delete(bm, geom=list(to_remove), context='FACES')
             bm.faces.ensure_lookup_table()
         
-        # This deletes duplicate faces resulting from the two-sided prop
-        # if mesh.nwo.face_two_sided or split_two_sided:
-        face_map = {}
-        duplicates = []
-        make_two_sided = []
-        for face in bm.faces:
-            key = tuple(sorted(v.index for v in face.verts))
-            if key in face_map:
-                duplicates.append(face.index)
-                make_two_sided.append(face_map[key].index)
-            else:
-                face_map[key] = face
-        
-        if make_two_sided:
-            if len(bm.faces) == len(make_two_sided):
-                mesh.nwo.face_two_sided = True
-            else:
-                bm.faces.ensure_lookup_table()
-                layer_two_sided = utils.add_face_layer(bm, mesh, "two_sided", True)
-                for idx in make_two_sided:
-                    bm.faces[idx][layer_two_sided] = 1
-        
-        if duplicates:
-            bmesh.ops.delete(bm, geom=[bm.faces[i] for i in  duplicates], context='FACES')
-        # Remove any degenerate faces
-        # # bmesh.ops.planar_faces(bm, faces=bm.faces, iterations=200, factor=1)
-        # bmesh.ops.dissolve_limit(bm, angle_limit=radians(5), edges=bm.edges, verts=bm.verts, delimit={"NORMAL"})
-        # bmesh.ops.dissolve_degenerate(bm, dist=0.01, edges=bm.edges)
-        # bmesh.ops.dissolve_limit(bm, angle_limit=radians(0.001), verts=bm.verts, edges=bm.edges, delimit={'NORMAL'})
-        # bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1)
-        # if surface_indices:
-        #     bmesh.ops.delete(bm, geom=[vert for vert in bm.verts if vert.is_wire], context='VERTS')
-        bm.faces.ensure_lookup_table()
-        # bmesh.ops.triangulate(bm, faces=bm.faces)
-        # bmesh.ops.triangulate(bm, faces=bm.faces)
-        # edges_to_dissolve = set()
-        # for edge in bm.edges:
-        #     edge: bmesh.types.BMEdge
-        #     if edge.calc_length() < 0.1:
-        #         edges_to_dissolve.add(edge)
-                
-        # bmesh.ops.dissolve_edges(bm, edges=list(edges_to_dissolve), use_face_split=True, use_verts=True)
-        for face_layer in mesh.nwo.face_props:
-            face_layer.face_count = utils.layer_face_count(bm, bm.faces.layers.int.get(face_layer.layer_name))
-        
         bm.to_mesh(mesh)
         bm.free()
+        
+        utils.set_two_sided(mesh)
+        
+        utils.calc_face_prop_counts(mesh)
         
         if mesh_only:
             return mesh
@@ -1417,14 +1330,7 @@ class Material:
             if emissive.power > 0:
                 self.emissive = emissive
         
-        
-        if for_bsp:
-            self.blender_material = get_blender_material_with_props(self, self.shader_path)
-        else:
-            self.blender_material = get_blender_material(self.name, self.shader_path)
-        
-        
-            
+        self.blender_material = get_blender_material(self.name, self.shader_path)
     
 class IndexLayoutType(Enum):
     DEFAULT = 0
@@ -1513,7 +1419,6 @@ class MeshPart:
     def __init__(self, element: TagFieldBlockElement, materials: list[Material]):
         self.index = element.ElementIndex
         self.material_index = element.SelectField("render method index").Value
-        self.transparent = element.SelectField("transparent sorting index").Value > -1
         self.index_start = element.SelectField("index start").Data
         self.index_count = element.SelectField("index count").Data
         
@@ -1528,14 +1433,7 @@ class MeshPart:
         if flags.TestBit("is water surface"):
             self.water_surface = True
             
-        self.no_shadow = False
-        self.lightmap_only = False
-        match element.SelectField("part type").Data:
-            case 3:
-                self.no_shadow = True
-            case 5:
-                self.lightmap_only = True
-            
+        self.part_type = PartType(element.SelectField("part type").Data)
         self.tessellation = Tessellation(element.SelectField("tessellation").Value)
         self.material = next(m for m in materials if m.index == self.material_index)
             
@@ -1548,7 +1446,7 @@ class MeshSubpart:
         self.part = next(p for p in parts if p.index == self.part_index)
         self.is_water_subpart = self.index_start in water_indices
         
-    def create(self, ob: bpy.types.Object, tris: Face, face_transparent: bool, face_draw_distance: bool, face_tesselation: bool, face_no_shadow: bool, face_lightmap_only: bool, water_surface_parts: list[MeshPart]):
+    def create(self, ob: bpy.types.Object, tris: Face, face_transparent: bool, face_draw_distance: bool, face_tesselation: bool, face_no_shadow: bool, face_shadow_only: bool, face_lightmap_only: bool, water_surface_parts: list[MeshPart]):
         mesh = ob.data
         blend_material = self.part.material.blender_material
 
@@ -1560,63 +1458,46 @@ class MeshSubpart:
             blend_material_index = len(mesh.materials)
             mesh.materials.append(blend_material)
 
-        indices = {t.index for t in tris if t.subpart is self}
-
+        indices = [t.index for t in tris if t.subpart is self]
+        all_indices = np.zeros(len(mesh.polygons), dtype=np.int8)
+        all_indices[indices] = True
+        
         for i in indices:
             mesh.polygons[i].material_index = blend_material_index
 
-        if not (face_transparent or face_draw_distance or face_tesselation or face_no_shadow or face_lightmap_only or water_surface_parts):
+        if not (face_transparent or face_draw_distance or face_tesselation or face_no_shadow or face_shadow_only or face_lightmap_only or water_surface_parts):
             return
 
-        bm = bmesh.new()
-        bm.from_mesh(mesh)
-        layer_map = {}
-        if face_transparent and self.part.transparent:
-            existing_layer = next((prop.layer_name for prop in mesh.nwo.face_props if prop.face_transparent_override), None)
-            if existing_layer is None:
-                layer_map["face_transparent"] = utils.add_face_layer(bm, mesh, "transparent", True)
-            else:
-                layer_map["face_transparent"] = bm.faces.layers.int.get(existing_layer)
-        if face_no_shadow and self.part.no_shadow:
-            existing_layer = next((prop.layer_name for prop in mesh.nwo.face_props if prop.no_shadow_override), None)
-            if existing_layer is None:
-                layer_map["face_no_shadow"] = utils.add_face_layer(bm, mesh, "no_shadow", True)
-            else:
-                layer_map["face_no_shadow"] = bm.faces.layers.int.get(existing_layer)
-        if face_lightmap_only and self.part.lightmap_only:
-            existing_layer = next((prop.layer_name for prop in mesh.nwo.face_props if prop.lightmap_only_override), None)
-            if existing_layer is None:
-                layer_map["face_lightmap_only"] = utils.add_face_layer(bm, mesh, "lightmap_only", True)
-            else:
-                layer_map["face_lightmap_only"] = bm.faces.layers.int.get(existing_layer)
+        if face_transparent and self.part.part_type == PartType.transparent:
+            utils.add_face_prop(mesh, "transparent", all_indices)
+        elif face_no_shadow and self.part.part_type == PartType.opaque_non_shadowing:
+            utils.add_face_prop(mesh, "no_shadow", all_indices)
+        elif face_shadow_only and self.part.part_type == PartType.opaque_shadow_only:
+            prop, _ = utils.add_face_prop(mesh, "face_mode", all_indices)
+            prop.face_mode = '_connected_geometry_face_mode_shadow_only'
+        elif face_lightmap_only and self.part.part_type == PartType.lightmap_only:
+            prop, _ = utils.add_face_prop(mesh, "face_mode", all_indices)
+            prop.face_mode = '_connected_geometry_face_mode_lightmap_only'
         if face_draw_distance and self.part.draw_distance.value > 0:
-            existing_layer = next((prop.layer_name for prop in mesh.nwo.face_props if prop.face_draw_distance_override), None)
-            if existing_layer is None:
-                layer_map["face_draw_distance"] = utils.add_face_layer(bm, mesh, "draw_distance", self.part.draw_distance.name)
-            else:
-                layer_map["face_draw_distance"] = bm.faces.layers.int.get(existing_layer)
+            prop, _ = utils.add_face_prop(mesh, "draw_distance", all_indices)
+            prop.draw_distance = self.part.draw_distance.name
         if face_tesselation and self.part.tessellation.value > 0:
-            existing_layer = next((prop.layer_name for prop in mesh.nwo.face_props if prop.mesh_tessellation_density_override), None)
-            if existing_layer is None:
-                layer_map["mesh_tessellation_density"] = utils.add_face_layer(bm, mesh, "tessellation", self.part.tessellation.name)
-            else:
-                layer_map["mesh_tessellation_density"] = bm.faces.layers.int.get(existing_layer)
+            prop, _ = utils.add_face_prop(mesh, "mesh_tessellation_densit", all_indices)
+            prop.draw_distance = self.part.tessellation.name
                 
         if self.part in water_surface_parts:
-            existing_layer = bm.faces.layers.int.get("water_surface", None)
-            if existing_layer is None:
-                layer_map["water_surface"] = bm.faces.layers.int.new("water_surface")
-            else:
-                layer_map["water_surface"] = existing_layer
+            bm = bmesh.new()
+            bm.from_mesh(mesh)
+            water_layer = bm.faces.layers.int.get("water_surface", None)
+            if water_layer is None:
+                water_layer = bm.faces.layers.int.new("water_surface")
 
-        bm.faces.ensure_lookup_table()
-        for i in indices:
-            for layer in layer_map.values():
-                bm.faces[i][layer] = 1
+            bm.faces.ensure_lookup_table()
+            for i in indices:
+                bm.faces[i][water_layer] = 1
 
-        bm.to_mesh(mesh)
-        bm.free()
-            
+            bm.to_mesh(mesh)
+            bm.free()
 
 class Mesh:
     '''All new Halo 3 render geometry definitions!'''
@@ -1640,11 +1521,12 @@ class Mesh:
         
         self.does_not_need_parts = does_not_need_parts
             
-        self.face_transparent = len({p.transparent for p in self.parts}) > 1
+        self.face_transparent = len({p.part_type == PartType.transparent for p in self.parts}) > 1
+        self.face_lightmap_only = len({p.part_type == PartType.lightmap_only for p in self.parts}) > 1
+        self.face_shadow_only = len({p.part_type == PartType.opaque_shadow_only for p in self.parts}) > 1
+        self.face_no_shadow = len({p.part_type == PartType.opaque_non_shadowing for p in self.parts}) > 1
         self.face_tesselation = len({p.tessellation for p in self.parts}) > 1
         self.face_draw_distance = len({p.draw_distance for p in self.parts}) > 1
-        self.face_no_shadow = len({p.no_shadow for p in self.parts}) > 1
-        self.face_lightmap_only = len({p.lightmap_only for p in self.parts}) > 1
         self.is_pca = False
         self.uncompressed = False
         if utils.is_corinth():
@@ -1731,6 +1613,9 @@ class Mesh:
                 name = f"{self.permutation.region.name}:{self.permutation.name}"
             objects.append(self._create_mesh(name, parent, nodes, None, surface_triangle_mapping=surface_triangle_mapping, section_index=section_index))
 
+        for ob in objects:
+            utils.consolidate_face_attributes(ob.data)
+        
         return objects
 
     def _create_mesh(self, name, parent, nodes, subpart: MeshSubpart | None, parent_bone=None, local_matrix=None, is_io=False, surface_triangle_mapping=[], section_index=0):
@@ -1802,13 +1687,9 @@ class Mesh:
             mesh.nwo.from_vert_normals = True
 
         if has_vertex_colors:
-            bm = bmesh.new()
-            bm.from_mesh(mesh)
-            layer = bm.verts.layers.float_color.new("Color")
-            for idx, v in enumerate(bm.verts):
-                v[layer] = vertex_colors[idx] + [1.0]
-            bm.to_mesh(mesh)
-            bm.free()
+            vcolor_attribute = mesh.color_attributes.new("Color", 'FLOAT_COLOR', 'POINT')
+            rgba = np.c_[vertex_colors, np.ones(len(mesh.vertices))]
+            vcolor_attribute.data.foreach_set("color", rgba.ravel())   
 
         if parent:
             ob.parent = parent
@@ -1831,16 +1712,22 @@ class Mesh:
                     ob.modifiers.new(name="Armature", type="ARMATURE").object = parent
 
         if not self.does_not_need_parts:
-            if not self.face_transparent:
-                mesh.nwo.face_transparent = self.parts[0].transparent
-            if not self.face_draw_distance:
-                mesh.nwo.face_draw_distance = self.parts[0].draw_distance.name
-            if not self.face_tesselation:
-                mesh.nwo.mesh_tessellation_density = self.parts[0].tessellation.name
-            if not self.face_no_shadow:
-                mesh.nwo.no_shadow = self.parts[0].no_shadow
-            if not self.face_lightmap_only:
-                mesh.nwo.lightmap_only = self.parts[0].lightmap_only
+            if not self.face_transparent and self.parts[0].part_type == PartType.transparent:
+                utils.add_face_prop(mesh, "transparent")
+            elif not self.face_shadow_only and self.parts[0].part_type == PartType.opaque_shadow_only:
+                prop, _ = utils.add_face_prop(mesh, "face_mode")
+                prop.face_mode = '_connected_geometry_face_mode_shadow_only'
+            elif not self.face_lightmap_only and self.parts[0].part_type == PartType.lightmap_only:
+                prop, _ = utils.add_face_prop(mesh, "face_mode")
+                prop.face_mode = '_connected_geometry_face_mode_lightmap_only'
+            elif not self.face_no_shadow and self.parts[0].part_type == PartType.opaque_non_shadowing:
+                utils.add_face_prop(mesh, "no_shadow")
+            if not self.face_draw_distance and self.parts[0].draw_distance.value > 0:
+                prop, _ = utils.add_face_prop(mesh, "draw_distance")
+                prop.draw_distance = self.parts[0].draw_distance.name
+            if not self.face_tesselation and self.parts[0].tessellation.value > 0:
+                prop, _ = utils.add_face_prop(mesh, "mesh_tessellation_density")
+                prop.mesh_tessellation_density = self.parts[0].tessellation.name
 
             water_surface_parts = {p for p in self.parts if p.water_surface}
 
@@ -1848,69 +1735,53 @@ class Mesh:
                 mesh.materials.append(subpart.part.material.blender_material)
             else:
                 for subpart in self.subparts:
-                    subpart.create(ob, self.tris, self.face_transparent, self.face_draw_distance, self.face_tesselation, self.face_no_shadow, self.face_lightmap_only, water_surface_parts)
+                    subpart.create(ob, self.tris, self.face_transparent, self.face_draw_distance, self.face_tesselation, self.face_no_shadow, self.face_shadow_only, self.face_lightmap_only, water_surface_parts)
             
         # for IG figure out what tris are render only
         if surface_triangle_mapping:
             indices = [t.index for t in self.tris]
-            props = [[] for _ in indices]
-            collision_face_indices = []
-            any_slip_surface = any([mapping.surface.slip_surface for mapping in surface_triangle_mapping])
-            any_ladder = any([mapping.surface.ladder for mapping in surface_triangle_mapping])
-            any_breakable = any([mapping.surface.breakable for mapping in surface_triangle_mapping])
-            bm = bmesh.new()
-            bm.from_mesh(mesh)
-            if any_slip_surface:
-                slip_surface_layer = utils.add_face_layer(bm, mesh, "slip_surface", True)
-            if any_ladder:
-                ladder_layer = utils.add_face_layer(bm, mesh, "ladder", True)
-            if any_breakable:
-                breakable_layer = utils.add_face_layer(bm, mesh, "breakable", True)
+            collision_face_indices = set()
+            face_count = len(mesh.polygons)
+            slip_mask = np.zeros(face_count, dtype=np.int8)
+            ladder_mask = np.zeros(face_count, dtype=np.int8)
+            breakable_mask = np.zeros(face_count, dtype=np.int8)
             
             for mapping in surface_triangle_mapping:
-                mapping: SurfaceMapping
-                
-                if any_slip_surface and mapping.surface.slip_surface:
-                    for i in mapping.triangle_indices:
-                        if i.section == section_index:
-                            props[i.tri].append(slip_surface_layer)
-                        
-                if any_ladder and mapping.surface.ladder:
-                    for i in mapping.triangle_indices:
-                        if i.section == section_index:
-                            props[i.tri].append(ladder_layer)
-                        
-                if any_breakable and mapping.surface.breakable:
-                    for i in mapping.triangle_indices:
-                        if i.section == section_index:
-                            props[i.tri].append(breakable_layer)
-                        
-                collision_face_indices.extend(t.tri for t in mapping.triangle_indices if t.section == section_index)
-                
-            render_only_indices = [i for i in indices if i not in set(collision_face_indices)]
-            if render_only_indices:
-                render_only_layer = utils.add_face_layer(bm, mesh, "render_only", True)
-                for i in render_only_indices:
-                    props[i].append(render_only_layer)
-                    
-            bm.faces.ensure_lookup_table()
-            for i in indices:
-                for layer in props[i]:
-                    bm.faces[i][layer] = 1
+                surf = mapping.surface
+                for t in mapping.triangle_indices:
+                    if t.section != section_index:
+                        continue
 
-            bm.to_mesh(mesh)
-            bm.free()
+                    idx = t.tri
+                    collision_face_indices.add(idx)
+
+                    if surf.slip_surface:
+                        slip_mask[idx] = 1
+                    if surf.ladder:
+                        ladder_mask[idx] = 1
+                    if surf.breakable:
+                        breakable_mask[idx] = 1
+                        
+            render_only_mask = np.zeros(face_count, dtype=np.int8)
+            for f in indices:
+                if f not in collision_face_indices:
+                    render_only_mask[f] = 1
+            
+            if slip_mask.any():
+                utils.add_face_prop(mesh, "slip_surface", None if slip_mask.all() else slip_mask)
+            if ladder_mask.any():
+                utils.add_face_prop(mesh, "ladder", None if ladder_mask.all() else ladder_mask)
+            if breakable_mask.any():
+                prop, _ = utils.add_face_prop(mesh, "face_mode", None if breakable_mask.all() else breakable_mask)
+                prop.face_mode = '_connected_geometry_face_mode_breakable'
+            if render_only_mask.any():
+                prop, _ = utils.add_face_prop(mesh, "face_mode", None if render_only_mask.all() else render_only_mask)
+                prop.face_mode = '_connected_geometry_face_mode_render_only'
 
         if not self.is_pca:
             utils.set_two_sided(mesh, is_io)
             utils.loop_normal_magic(mesh)
-        
-        if mesh.nwo.face_props:
-            bm = bmesh.new()
-            bm.from_mesh(mesh)
-            for face_layer in mesh.nwo.face_props:
-                face_layer.face_count = utils.layer_face_count(bm, bm.faces.layers.int.get(face_layer.layer_name))
-            bm.free()
+            utils.calc_face_prop_counts(mesh)
 
         if self.permutation is not None: # limits this to models
             mesh.nwo.precise_position = True # Always set precise since we're importing game processed geo anyway
@@ -1919,16 +1790,16 @@ class Mesh:
             mesh.color_attributes.new("tension", 'FLOAT_COLOR', 'POINT')
             
         if self.uncompressed:
-            mesh.nwo.uncompressed = True
+            utils.add_face_prop(mesh, "uncompressed")
             
-        if self.mesh_keys:
-            bm = bmesh.new()
-            bm.from_mesh(mesh)
-            layer = bm.verts.layers.int.new("mesh_key")
-            for idx, vert in enumerate(bm.verts):
-                vert[layer] = self.mesh_keys[idx]
-            bm.to_mesh(mesh)
-            bm.free()
+        # if self.mesh_keys:
+        #     bm = bmesh.new()
+        #     bm.from_mesh(mesh)
+        #     layer = bm.verts.layers.int.new("mesh_key")
+        #     for idx, vert in enumerate(bm.verts):
+        #         vert[layer] = self.mesh_keys[idx]
+        #     bm.to_mesh(mesh)
+        #     bm.free()
                 
         return ob
 
@@ -2122,140 +1993,3 @@ def get_blender_material(name, shader_path=""):
             mat.nwo.shader_path = shader_path
         
     return mat
-
-def get_blender_material_with_props(material: Material, shader_path=""):
-    global mat_props_cache
-
-    list_props = [
-        material.lm_res,
-        material.lm_transparency,
-        material.lm_translucency,
-        material.lm_both_sides,
-        material.lm_transparency_override,
-        material.lm_ignore_default_res,
-        material.lm_chart_group_index,
-        material.lm_analytical_absorb,
-        material.lm_normal_absorb,
-    ]
-    if material.emissive is not None:
-        list_props.extend((
-            material.emissive.power,
-            material.emissive.color,
-            material.emissive.attenuation_cutoff,
-            material.emissive.attenuation_falloff,
-            material.emissive.bounce_ratio,
-            material.emissive.focus,
-            material.emissive.power_per_unit_area,
-            material.emissive.use_shader_gel,
-            material.emissive.quality,
-        ))
-
-    props_key = (material.name, shader_path, *list_props)
-
-    cached = mat_props_cache.get(props_key)
-    if cached:
-        return cached
-
-    mat = bpy.data.materials.get(material.name)
-    if not mat:
-        if material.name in {"+sky", "+seamsealer", "+seam"}:
-            add_special_materials("h4" if utils.is_corinth() else "reach", "scenario")
-            mat = bpy.data.materials.get(material.name)
-        else:
-            mat = bpy.data.materials.new(material.name)
-            mat.nwo.shader_path = shader_path
-
-    new_mat = mat.copy()
-    setup_material_with_props(new_mat, tuple(list_props))
-    mat_props_cache[props_key] = new_mat
-    return new_mat
-
-
-def setup_material_with_props(mat: bpy.types.Material, t_props: tuple):
-    nwo = mat.nwo
-    props = iter(t_props)
-    corinth = utils.is_corinth(bpy.context)
-    atten_factor = 1 if corinth else 0.01
-    lm_res = next(props)
-    has_lm_prop = False
-    
-    if lm_res != 3:
-        nwo.lightmap_resolution_scale = lm_res
-        nwo.lightmap_resolution_scale_active = True
-        has_lm_prop = True
-        
-    transparency = next(props)
-    if transparency > 0:
-        nwo.lightmap_additive_transparency_active = True
-        nwo.lightmap_additive_transparency = utils.argb32_to_rgb(transparency)
-        has_lm_prop = True
-        
-    translucency = next(props)
-    if translucency > 0:
-        nwo.lightmap_translucency_tint_color_active = True
-        nwo.lightmap_translucency_tint_color = utils.argb32_to_rgb(translucency)
-        has_lm_prop = True
-        
-    both_sides = next(props)
-    if both_sides:
-        nwo.lightmap_lighting_from_both_sides_active = True
-        nwo.lightmap_lighting_from_both_sides = True
-        has_lm_prop = True
-        
-    override = next(props)
-    if override:
-        nwo.lightmap_transparency_override_active = True
-        nwo.lightmap_transparency_override = True
-        has_lm_prop = True
-        
-    ignore = next(props)
-    if ignore:
-        nwo.lightmap_ignore_default_resolution_scale_active = True
-        nwo.lightmap_ignore_default_resolution_scale = True
-        has_lm_prop = True
-        
-    chart = next(props)
-    if chart > 0:
-        nwo.lightmap_chart_group_active = True
-        nwo.lightmap_chart_group = chart
-        has_lm_prop = True
-        
-    analytical = next(props)
-    if analytical != 9999:
-        nwo.lightmap_analytical_bounce_modifier_active = True
-        nwo.lightmap_analytical_bounce_modifier = analytical
-        has_lm_prop = True
-    
-    general = next(props)
-    if general != 9999:
-        nwo.lightmap_general_bounce_modifier_active = True
-        nwo.lightmap_general_bounce_modifier = general
-        has_lm_prop = True
-        
-    name_suffix = ""
-    
-    if has_lm_prop:
-        name_suffix += "lightmap"
-
-    power = next(props, 0)
-    if power > 0:
-        nwo.emissive_active = True
-        nwo.light_intensity = power
-        nwo.material_lighting_emissive_color = next(props)
-        nwo.material_lighting_attenuation_cutoff = next(props) * atten_factor * (1 / WU_SCALAR)
-        nwo.material_lighting_attenuation_falloff = next(props) * atten_factor * (1 / WU_SCALAR)
-        nwo.material_lighting_bounce_ratio = next(props)
-        nwo.material_lighting_emissive_focus = radians(next(props) * 180)
-        nwo.material_lighting_emissive_per_unit = next(props)
-        nwo.material_lighting_use_shader_gel = next(props)
-        nwo.material_lighting_emissive_quality = next(props)
-        
-        if has_lm_prop:
-            name_suffix += "_"
-        name_suffix += f"emissive_{utils.rgb_to_name(nwo.material_lighting_emissive_color)}"
-        
-    if name_suffix:
-        if "." in mat.name:
-            mat.name = utils.dot_partition(mat.name) + "." + name_suffix
-        else:
-            mat.name = mat.name + "." + name_suffix

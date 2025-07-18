@@ -222,10 +222,10 @@ class NWO_ProxyInstanceNew(bpy.types.Operator):
             f.smooth = False
             f.select = False
 
-        face_layers = self.parent.data.nwo.face_props
+        face_attributes = self.parent.data.nwo.face_props
         layer_faces_dict = {
             layer: layer_faces(bm, bm.faces.layers.int.get(layer.layer_name))
-            for layer in face_layers
+            for layer in face_attributes
         }
         
         for layer, face_seq in layer_faces_dict.items():

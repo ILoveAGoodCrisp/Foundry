@@ -1162,6 +1162,12 @@ class ShaderTag(Tag):
                     
             elif e_self_illumination in {SelfIllumination.FROM_DIFFUSE, SelfIllumination.SELF_ILLUM_TIMES_DIFFUSE}:
                 tree.links.new(input=node_self_illumination.inputs[0], output=node_albedo.outputs[0])
+                
+            elif e_self_illumination in {SelfIllumination.CHANGE_COLOR, SelfIllumination.CHANGE_COLOR_DETAIL}:
+                node_cc_primary = nodes.new(type="ShaderNodeAttribute")
+                node_cc_primary.attribute_name = "Primary Color"
+                node_cc_primary.attribute_type = 'INSTANCER'
+                tree.links.new(input=node_self_illumination.inputs["primary_change_color"], output=node_cc_primary.outputs[0])
             
             if final_node is None:
                 final_node = node_self_illumination

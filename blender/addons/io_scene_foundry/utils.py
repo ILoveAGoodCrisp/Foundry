@@ -20,14 +20,13 @@ import bmesh
 import bpy
 import platform
 from mathutils import Euler, Matrix, Vector, Quaternion, geometry as geom
-from mathutils.kdtree import KDTree
 import os
 from subprocess import Popen, check_call
 import random
 import xml.etree.ElementTree as ET
 import numpy as np
 from ctypes import c_float, c_int
-from .constants import COLLISION_MESH_TYPES, CSS_COLORS, OBJECT_TAG_EXTS, PROTECTED_MATERIALS, VALID_MESHES, WU_SCALAR
+from .constants import COLLISION_MESH_TYPES, OBJECT_TAG_EXTS, PROTECTED_MATERIALS, VALID_MESHES, WU_SCALAR, css_colors
 from .tools.materials import special_materials, convention_materials
 from .icons import get_icon_id, get_icon_id_in_directory
 import requests
@@ -57,6 +56,8 @@ zero_vector = Vector.Fill(3, 0)
 foundry_output_state = True
 
 hit_target = False
+
+iter_css = iter(set(css_colors.values()))
 
 # Enums #
 
@@ -923,30 +924,34 @@ def object_median_point(ob):
     return ob.matrix_world @ sum(verts, Vector()) / len(verts)
 
 
-def layer_face_count(bm, face_layer) -> int:
+def attribute_face_count(mesh: bpy.types.Mesh, attribute: bpy.types.Attribute) -> int:
     """Returns the number of faces in a bmesh that have an face int custom_layer with a value greater than 0"""
-    if face_layer:
-        return len([face for face in bm.faces if face[face_layer]])
-    
-    return 0
+    array = np.zeros(len(mesh.polygons), dtype=np.int8)
+    attribute.data.foreach_get("value", array)
+    return len(np.nonzero(array)[0])
 
-def layer_faces(bm, face_layer):
+def layer_faces(bm, face_attribute):
     """Returns the faces in a bmesh that have an face int custom_layer with a value greater than 0"""
-    if face_layer:
-        return [face for face in bm.faces if face[face_layer]]
+    if face_attribute:
+        return [face for face in bm.faces if face[face_attribute]]
     
-def layer_face_indices(bm, face_layer):
+def layer_face_count(bm, face_attribute):
+    """Returns the faces in a bmesh that have an face int custom_layer with a value greater than 0"""
+    if face_attribute:
+        return len([face for face in bm.faces if face[face_attribute]])
+    
+def layer_face_indices(bm, face_attribute):
     """Returns the face indices in a bmesh that have an face int custom_layer with a value greater than 0"""
-    if face_layer:
-        return {face.index for face in bm.faces if face[face_layer]}
+    if face_attribute:
+        return {face.index for face in bm.faces if face[face_attribute]}
 
-
-def random_color(max_hue=True) -> list:
-    """Returns a random color. Selects one of R,G,B and sets maximum hue"""
-    rgb = [random.random() for i in range(3)]
-    if max_hue:
-        rand_idx = random.randint(0, 2)
-        rgb[rand_idx] = 1
+def random_color():
+    global iter_css
+    rgb = next(iter_css, None)
+    if rgb is None:
+        iter_css = iter(set(css_colors.values()))
+        return random_color()
+    
     return rgb
 
 
@@ -1095,22 +1100,14 @@ def has_mesh_props(ob) -> bool:
     )
 
 
+valid_mesh_types = (
+    "_connected_geometry_mesh_type_default",
+    "_connected_geometry_mesh_type_structure",
+    '_connected_geometry_mesh_type_collision',
+)
+
 def has_face_props(ob) -> bool:
-    valid_mesh_types = [
-        "_connected_geometry_mesh_type_default",
-        "_connected_geometry_mesh_type_structure",
-        '_connected_geometry_mesh_type_collision',
-    ]
-    # if poll_ui('model'):
-    #     valid_mesh_types.append('_connected_geometry_mesh_type_collision')
-    if is_corinth() and ob.nwo.mesh_type == '_connected_geometry_mesh_type_structure' and poll_ui('scenario') and not ob.nwo.proxy_instance:
-        return False
-    return (
-        ob
-        and ob.nwo.export_this
-        and ob.type == 'MESH'
-        and ob.nwo.mesh_type in valid_mesh_types
-    )
+    return ob.type in VALID_MESHES and ob.nwo.mesh_type in valid_mesh_types
 
 def has_shader_path(mat):
     """Returns whether the given material supports shader paths"""
@@ -3260,7 +3257,7 @@ def save_loop_normals_mesh(mesh: bpy.types.Mesh):
     save_loop_normals(bm, mesh)
     bm.free()
             
-def remove_face_layers(bm: bmesh.types.BMesh, layer_prefix="ln"):
+def remove_face_attributes(bm: bmesh.types.BMesh, layer_prefix="ln"):
     layers_to_remove = [layer for layer in bm.faces.layers.float_vector.keys() if layer.startswith(layer_prefix)]
     
     for layer_name in layers_to_remove:
@@ -3273,7 +3270,7 @@ def apply_loop_normals(mesh: bpy.types.Mesh):
         bm.from_mesh(mesh)
         if bm.faces:
             loop_normals = list(yield_loop_normals(bm))
-            remove_face_layers(bm)
+            remove_face_attributes(bm)
             bm.to_mesh(mesh)
             if len(mesh.loops) > len(loop_normals):
                 diff = len(mesh.loops) - len(loop_normals)
@@ -3291,7 +3288,7 @@ def loop_normal_magic(mesh: bpy.types.Mesh, distance=0.01):
         bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=distance)
         if bm.faces:
             loop_normals = list(yield_loop_normals(bm))
-            remove_face_layers(bm)
+            remove_face_attributes(bm)
             bm.to_mesh(mesh)
             if len(mesh.loops) > len(loop_normals):
                 diff = len(mesh.loops) - len(loop_normals)
@@ -3444,146 +3441,147 @@ def new_face_prop(data, layer_name, display_name, override_prop, other_props={})
     layer = face_props.add()
     layer.layer_name = layer_name
     layer.name = display_name
-    layer.layer_color = random_color()
+    layer.color = random_color()
     setattr(layer, override_prop, True)
     for prop, value in other_props.items():
         setattr(layer, prop, value)
         
     return layer_name
 
-def new_face_layer(bm, data, layer_name, display_name, override_prop, other_props={}):
+def new_face_attribute(bm, data, layer_name, display_name, override_prop, other_props={}):
     layer = bm.faces.layers.int.get(layer_name)
     if layer:
         return layer
     else:
         return bm.faces.layers.int.new(new_face_prop(data, layer_name, display_name, override_prop, other_props))
     
-def add_face_layer(bm: bmesh.types.BMesh, mesh: bpy.types.Mesh, prop: str, value: object) -> bmesh.types.BMLayerItem:
-    match prop:
-        case "region":
-            layer_name = f"region{str(uuid4())}"
-            display_name = f"region::{value}"
-            override_prop = "region_name_override"
-            other_props = {"region_name": value}
-        case "two_sided":
-            layer_name = f"face_two_sided{str(uuid4())}"
-            display_name = "Two Sided"
-            override_prop = "face_two_sided_override"
-            other_props = {"face_two_sided": value}
-        case "transparent":
-            layer_name = f"transparent{str(uuid4())}"
-            display_name = "Transparent"
-            override_prop = "face_transparent_override"
-            other_props = {"face_transparent": value}
-        case "draw_distance":
-            layer_name = f"{str(uuid4())}"
-            display_name = "Draw Distance"
-            override_prop = "face_draw_distance_override"
-            other_props = {"face_draw_distance": value}
-        case "render_only":
-            layer_name = f"render_only{str(uuid4())}"
-            display_name = "Render Only"
-            override_prop = "render_only_override"
-            other_props = {"render_only": value}
-        case "collision_only":
-            layer_name = f"{str(uuid4())}"
-            display_name = "Collision Only"
-            override_prop = "collision_only_override"
-            other_props = {"collision_only": value}
-        case "sphere_collision_only":
-            layer_name = f"sphere_collision_only{str(uuid4())}"
-            display_name = "Sphere Collision Only"
-            override_prop = "sphere_collision_only_override"
-            other_props = {"sphere_collision_only": value}
-        case "bullet_collision_only":
-            layer_name = f"bullet_collision_only{str(uuid4())}"
-            display_name = "Bullet Collision Only"
-            override_prop = "bullet_collision_only_override"
-            other_props = {"bullet_collision_only": value}
-        case "player_collision_only":
-            layer_name = f"player_collision_only{str(uuid4())}"
-            display_name = "Player Collision Only"
-            override_prop = "player_collision_only"
-            other_props = {"player_collision_only_override": value}
-        case "texcoord_usage":
-            layer_name = f"texcoord_usage{str(uuid4())}"
-            display_name = "Texcoord Usage"
-            override_prop = "texcoord_usage"
-            other_props = {"texcoord_usage_override": value}
-        case "face_global_material":
-            layer_name = f"face_global_material{str(uuid4())}"
-            display_name = f"material::{value}"
-            override_prop = "face_global_material_override"
-            other_props = {"face_global_material": value}
-        case "ladder":
-            layer_name = f"ladder{str(uuid4())}"
-            display_name = "Ladder"
-            override_prop = "ladder_override"
-            other_props = {"ladder": value}
-        case "slip_surface":
-            layer_name = f"slip_surface{str(uuid4())}"
-            display_name = "Slip Surface"
-            override_prop = "slip_surface_override"
-            other_props = {"slip_surface": value}
-        case "decal_offset":
-            layer_name = f"decal_offset{str(uuid4())}"
-            display_name = "Decal Override"
-            override_prop = "decal_offset_override"
-            other_props = {"decal_offset": value}
-        case "breakable":
-            layer_name = f"breakable{str(uuid4())}"
-            display_name = "Breakable"
-            override_prop = "breakable_override"
-            other_props = {"breakable": value}
-        case "no_shadow":
-            layer_name = f"no_shadow{str(uuid4())}"
-            display_name = "No Shadow"
-            override_prop = "no_shadow_override"
-            other_props = {"no_shadow": value}
-        case "precise_position":
-            layer_name = f"precise_position{str(uuid4())}"
-            display_name = "Precise"
-            override_prop = "precise_position_override"
-            other_props = {"precise_position": value}
-        case "no_lightmap":
-            layer_name = f"no_lightmap{str(uuid4())}"
-            display_name = "No Lightmap"
-            override_prop = "no_lightmap_override"
-            other_props = {"no_lightmap": value}
-        case "lightmap_only":
-            layer_name = f"lightmap_only{str(uuid4())}"
-            display_name = "Lightmap Only"
-            override_prop = "lightmap_only_override"
-            other_props = {"lightmap_only": value}
-        case "lightmap_transparency_override":
-            layer_name = f"lightmap_transparency_override{str(uuid4())}"
-            display_name = "Disable Lightmap Transparency"
-            override_prop = "lightmap_transparency_override_override"
-            other_props = {"lightmap_transparency_override": value}
-        case "no_pvs":
-            layer_name = f"no_pvs{str(uuid4())}"
-            display_name = "No PVS"
-            override_prop = "no_pvs_override"
-            other_props = {"no_pvs": value}
-        case "tessellation":
-            layer_name = f"tessellation{str(uuid4())}"
-            display_name = "Tessellation Density"
-            override_prop = "mesh_tessellation_density_override"
-            other_props = {"mesh_tessellation_density": value}
-        case "lightmap_additive_transparency":
-            layer_name = f"lightmap_additive_transparency{str(uuid4())}"
-            display_name = "Lightmap Additive Transparency"
-            override_prop = "lightmap_additive_transparency_override"
-            other_props = {"lightmap_additive_transparency": value}
-        case "":
-            layer_name = f"{str(uuid4())}"
-            display_name = ""
-            override_prop = ""
-            other_props = {"": value}
-        case _:
-            return
+def face_attribute_count(mesh: bpy.types.Mesh, prop) -> 0:
+    attribute = mesh.attributes.get(prop.attribute_name)
+    if attribute is None:
+        return 0
+    
+    array = np.zeros(len(mesh.polygons), dtype=np.int8)
+    attribute.data.foreach_get("value", array)
+    
+    return len(np.nonzero(array)[0])
+
+def face_attribute_count_edit_mode(mesh: bpy.types.Mesh, prop) -> 0:
+    bm = bmesh.from_edit_mesh(mesh)
+    attribute = bm.faces.layers.bool.get(prop.attribute_name)
+    if attribute is None:
+        return 0
+    
+    face_count = 0
+    for face in bm.faces:
+        if face[attribute]:
+            face_count += 1
             
-    return new_face_layer(bm, mesh, layer_name, display_name, override_prop, other_props)
+    return face_count
+
+def calc_face_prop_counts(mesh: bpy.types.Mesh):
+    for prop in mesh.nwo.face_props:
+        prop.face_count = face_attribute_count(mesh, prop)
+    
+def add_face_attribute(mesh: bpy.types.Mesh) -> bmesh.types.BMLayerItem:
+    attribute = mesh.attributes.new(f"foundry_attribute__{str(uuid4())}", 'BOOLEAN', 'FACE')
+    array = np.ones(len(mesh.polygons), dtype=np.int8)
+    attribute.data.foreach_set("value", array)
+    
+    return attribute
+
+def add_face_attribute_empty(mesh: bpy.types.Mesh) -> bmesh.types.BMLayerItem:
+    attribute = mesh.attributes.new(f"foundry_attribute__{str(uuid4())}", 'BOOLEAN', 'FACE')
+    return attribute
+
+def add_face_prop(mesh: bpy.types.Mesh, prop_type: str, values_map=None):
+    prop = mesh.nwo.face_props.add()
+    prop.type = prop_type
+    prop.color = random_color()
+    attribute = None
+    if hasattr(mesh, "polygons"):
+        has_any_values = values_map.any() if isinstance(values_map, np.ndarray) else bool(values_map)
+        
+        if has_any_values:
+            attribute = add_face_attribute_empty(mesh)
+            attribute.data.foreach_set("value", values_map)
+            prop.face_count = len(np.nonzero(values_map)[0])
+        else:
+            attribute = add_face_attribute(mesh)
+            prop.face_count = len(mesh.polygons)
+            
+        prop.attribute_name = attribute.name
+        
+    return prop, attribute
+
+def add_face_attribute_edit_mode(mesh: bpy.types.Mesh, assign_all=False) -> bmesh.types.BMLayerItem:
+    bm = bmesh.from_edit_mesh(mesh)
+    
+    attribute = bm.faces.layers.bool.new(f"foundry_attribute__{str(uuid4())}")
+    
+    if assign_all:
+        for face in bm.faces:
+            face[attribute] = True
+            
+    bmesh.update_edit_mesh(mesh)
+    
+    return attribute
+
+def assign_face_attribute(mesh: bpy.types.Mesh) -> tuple[bmesh.types.BMLayerItem, int]:
+    attribute = mesh.attributes.get(mesh.nwo.face_props[mesh.nwo.face_props_active_index].attribute_name)
+    face_count = len(mesh.polygons)
+    if attribute is None:
+        attribute = add_face_attribute(mesh)
+    else:
+        array = np.ones(face_count, dtype=np.int8)
+        attribute.data.foreach_set("value", array)
+        
+    return attribute, face_count
+
+def assign_face_attribute_edit_mode(mesh: bpy.types.Mesh) -> tuple[bmesh.types.BMLayerItem, int]:
+    bm = bmesh.from_edit_mesh(mesh)
+    attribute = bm.faces.layers.bool.get(mesh.nwo.face_props[mesh.nwo.face_props_active_index].attribute_name)
+    if attribute is None:
+        attribute = add_face_attribute_edit_mode(mesh)
+    
+    face_count = 0
+    for face in bm.faces:
+        if face.select:
+            face[attribute] = True
+            face_count += 1
+            
+    bmesh.update_edit_mesh(mesh)
+    
+    return attribute, face_count
+
+def remove_face_attribute_edit_mode(mesh: bpy.types.Mesh) -> int:
+    bm = bmesh.from_edit_mesh(mesh)
+    attribute = bm.faces.layers.bool.get(mesh.nwo.face_props[mesh.nwo.face_props_active_index].attribute_name)
+    if attribute is None:
+        attribute = add_face_attribute_edit_mode(mesh, True)
+    
+    face_count = 0
+    for face in bm.faces:
+        if face.select:
+            face[attribute] = False
+        elif face[attribute]:
+            face_count += 1
+            
+    bmesh.update_edit_mesh(mesh)
+    bm.free()
+    
+    return attribute, face_count
+
+def select_face_attribute_edit_mode(mesh: bpy.types.Mesh, select=True):
+    bm = bmesh.from_edit_mesh(mesh)
+    attribute = bm.faces.layers.bool.get(mesh.nwo.face_props[mesh.nwo.face_props_active_index].attribute_name)
+    if attribute is None:
+        return
+    
+    for face in bm.faces:
+        if face[attribute]:
+            face.select = select
+            
+    bmesh.update_edit_mesh(mesh)
     
 class EditArmature:
     ob: bpy.types.Object
@@ -4345,123 +4343,232 @@ def flatten_dict(d, parent_keys=()):
         else:
             flat[new_keys] = v
     return flat
+
+def delete_face_attribute(mesh: bpy.types.Mesh, face_prop_index: int, remove_face_prop=True):
+    attribute = mesh.attributes.get(mesh.nwo.face_props[face_prop_index].attribute_name)
+    if attribute is not None:
+        mesh.attributes.remove(attribute)
+    
+    if remove_face_prop:
+        mesh.nwo.face_props.remove(face_prop_index)
+        mesh.nwo.face_props_active_index = min(mesh.nwo.face_props_active_index, len(mesh.nwo.face_props) - 1)
+
+def delete_face_attribute_edit_mode(mesh: bpy.types.Mesh, face_prop_index: int, remove_face_prop=True):
+    bm = bmesh.from_edit_mesh(mesh)
+    attribute = bm.faces.layers.bool.get(mesh.nwo.face_props[face_prop_index].attribute_name)
+    if attribute is not None:
+        bm.faces.layers.bool.remove(attribute)
+    
+    if remove_face_prop:
+        mesh.nwo.face_props.remove(face_prop_index)
+        mesh.nwo.face_props_active_index = min(mesh.nwo.face_props_active_index, len(mesh.nwo.face_props) - 1)
+    
+    bmesh.update_edit_mesh(mesh)
+    bm.free()
     
 def delete_face_prop(mesh: bpy.types.Mesh, idx: int, bm: bmesh.types.BMesh = None):
     has_no_bm = bm is None
     if has_no_bm:
         bm = bmesh.new()
         bm.from_mesh(mesh)
-    layer = bm.faces.layers.int.get(mesh.nwo.face_props[idx].layer_name)
+    layer = bm.faces.layers.int.get(mesh.nwo.face_props[idx].attribute_name)
     if layer is not None:
         bm.faces.layers.int.remove(layer)
         
     mesh.nwo.face_props.remove(idx)
     
+    mesh.nwo.face_props_active_index = min(mesh.nwo.face_props_active_index, len(mesh.nwo.face_props) - 1)
+    
     if has_no_bm:
         bm.to_mesh(mesh)
         bm.free()
-    
-def consolidate_face_layers(mesh: bpy.types.Mesh):
-    '''Consolidates face layers into the most minimal list. Also removes unused material slots'''
-    used_material_indices = set()
-    
-    sphere_coll = None
-    lightmap_only = None
-    face_props = defaultdict(list)
-    layer_layers = defaultdict(list)
-    face_prop_counts = {}
-    layer_props = {}
-    two_side_layer = None
-    two_side_prop_idx = -1
-    render_only_layer = None
-    render_only_prop_idx = -1
-    bm = bmesh.new()
-    bm.from_mesh(mesh)
-    to_remove_indexes = set()
-    for idx, prop in enumerate(mesh.nwo.face_props):
-        layer = bm.faces.layers.int.get(prop.layer_name)
-        if prop.name == "Two Sided":
-            two_side_prop_idx = idx
-        elif prop.name == "Render Only":
-            render_only_prop_idx = idx
-        if layer is None:
-            to_remove_indexes.add(idx)
-        else:
-            face_props[prop.name].append((idx, layer))
-            face_prop_counts[layer] = 0
-            layer_props[layer] = prop
-    
-    for k, v in face_props.items():
-        idx, layer = v[0]
-        if k == "Sphere Collision Only":
-            sphere_coll = layer
-        elif k == "Two Sided":
-            two_side_layer = layer
-        elif k == "Lightmap Only":
-            lightmap_only = layer
-        elif k == "Render Only":
-            render_only_layer = layer
-        if len(v) > 1:
-            for p in v[1:]:
-                layer_layers[layer].append(p[1])
-                to_remove_indexes.add(p[0])
-    
-    for face in bm.faces:
-        used_material_indices.add(face.material_index)
-        for k, v in layer_layers.items():
-            for l in v:
-                if face[l]:
-                    face[k] = 1
-                    face_prop_counts[k] += 1
-                
-    for k, v in face_prop_counts.items():
-        if v:
-            prop = layer_props[k]
-            prop.face_count = v
-        
-    # clear un-needed two-sidedness
-    if two_side_layer is not None and sphere_coll is not None:
-        prop = layer_props[two_side_layer]
-        two_side_face_count = prop.face_count
-        for face in bm.faces:
-            if face[two_side_layer] and face[sphere_coll]:
-                face[two_side_layer] = 0
-                two_side_face_count -= 1
-                
-        if not two_side_face_count:
-            to_remove_indexes.add(two_side_prop_idx)
-        else:
-            prop.face_count = two_side_face_count
-            
-    # clear un-needed render only
-    if render_only_layer is not None and lightmap_only is not None:
-        prop = layer_props[render_only_layer]
-        render_only_face_count = prop.face_count
-        for face in bm.faces:
-            if face[render_only_layer] and face[lightmap_only]:
-                face[render_only_layer] = 0
-                render_only_face_count -= 1
-                
-        if not render_only_face_count:
-            to_remove_indexes.add(render_only_prop_idx)
-        else:
-            prop.face_count = render_only_face_count
-        
-    for idx, prop in enumerate(mesh.nwo.face_props):
-        if not prop.face_count:
-            to_remove_indexes.add(idx)
-   
-    for i in sorted(to_remove_indexes, reverse=True):
-        delete_face_prop(mesh, i, bm)
-        
-    # unused_material_indices = {idx for idx, _ in enumerate(mesh.materials) if idx not in used_material_indices}
-    
-    # for i in sorted(unused_material_indices, reverse=True):
-    #     mesh.materials.pop(index=i)
-        
-    bm.to_mesh(mesh)
-    bm.free()
 
+def consolidate_materials(mesh: bpy.types.Mesh):
+
+    face_count = len(mesh.polygons)
+    slot_count = len(mesh.materials)
+    if slot_count == 0:
+        return
+
+    if face_count:
+        idx_buf = np.empty(face_count, dtype=np.int32)
+        mesh.polygons.foreach_get("material_index", idx_buf)
+    else:
+        idx_buf = np.empty(0, dtype=np.int32)
+
+    mat_primary_slot = {}
+    dup_to_primary   = {}
+
+    for s, mat in enumerate(mesh.materials):
+        if mat is None:
+            continue
+        if mat not in mat_primary_slot:
+            mat_primary_slot[mat] = s
+        else:
+            dup_to_primary[s] = mat_primary_slot[mat]
+
+    if dup_to_primary and face_count:
+        for dup, prim in dup_to_primary.items():
+            idx_buf[idx_buf == dup] = prim
+
+    used_slots = set(idx_buf) if face_count else set()
+    used_slots.discard(-1)
+    if not used_slots:
+        mesh.materials.clear()
+        if face_count:
+            idx_buf.fill(-1)
+            mesh.polygons.foreach_set("material_index", idx_buf.tolist())
+            mesh.update()
+        return
+
+    kept_slots = sorted(used_slots)
+
+    old_to_new = np.full(slot_count, -1, dtype=np.int32)
+    for new, old in enumerate(kept_slots):
+        old_to_new[old] = new
+
+    if face_count:
+        idx_buf = old_to_new[idx_buf]
+
+    new_mats = [mesh.materials[i] for i in kept_slots]
+
+    mesh.materials.clear()
+    for mat in new_mats:
+        mesh.materials.append(mat)
+
+    if face_count:
+        mesh.polygons.foreach_set("material_index", idx_buf.tolist())
+    
+def consolidate_face_attributes(mesh: bpy.types.Mesh):
+    '''Consolidates face layers into the most minimal list'''
+    face_count = len(mesh.polygons)
+
+    face_props_by_name     = defaultdict(list)   # {prop.name : [(idx, attr_obj)]}
+    attr_prop_map          = {}                  # {attr.name : prop_obj}
+    attr_merge_map         = defaultdict(list)   # {primary_attr_name : [dupe_attr_names]}
+    face_prop_counts       = {}                  # {attr.name : int} – will be filled later
+    to_remove_prop_indices = set()
+
+    # “special” layers we treat later
+    sphere_coll_attr   = None
+    lightmap_only_attr = None
+    two_side_attr      = None
+    two_side_idx       = -1
+    render_only_attr   = None
+    render_only_idx    = -1
+
+    for idx, prop in enumerate(mesh.nwo.face_props):
+        attr = mesh.attributes.get(prop.attribute_name)
+        if attr is None:
+            to_remove_prop_indices.add(idx)
+            continue
+
+        name = attr.name
+        face_props_by_name[prop.name].append((idx, attr))
+        attr_prop_map[name] = prop
+        face_prop_counts[name] = 0
+
+        if prop.name == "Two-Sided":
+            two_side_attr, two_side_idx = name, idx
+        elif prop.name == "Render Only":
+            render_only_attr, render_only_idx = name, idx
+
+    for pname, lst in face_props_by_name.items():
+        primary_idx, primary_attr = lst[0]
+        p_name = primary_attr.name
+
+        if pname == "Sphere Collision Only":
+            sphere_coll_attr = p_name
+        elif pname == "Lightmap Only":
+            lightmap_only_attr = p_name
+        elif pname == "Two-Sided":
+            two_side_attr = p_name
+        elif pname == "Render Only":
+            render_only_attr = p_name
+
+        if len(lst) > 1:
+            for dup_idx, dup_attr in lst[1:]:
+                attr_merge_map[p_name].append(dup_attr.name)
+                to_remove_prop_indices.add(dup_idx)
+
+    needed = (
+        set(attr_prop_map.keys())
+        | {n for n in [sphere_coll_attr, lightmap_only_attr,
+                       two_side_attr,   render_only_attr] if n}
+    )
+    for dupes in attr_merge_map.values():
+        needed.update(dupes)
+
+    masks = {}
+    tmp = np.empty(face_count, dtype=np.int8)
+    for name in needed:
+        attr = mesh.attributes.get(name)
+        if attr is None:
+            masks[name] = np.zeros(face_count, dtype=bool)
+            continue
+        attr.data.foreach_get("value", tmp)
+        masks[name] = tmp.astype(bool)
+
+    for primary, dupes in attr_merge_map.items():
+        m = masks[primary]
+        for d in dupes:
+            m |= masks[d]
+        masks[primary] = m
+        face_prop_counts[primary] = int(m.sum())
+        
+
+    plus_faces = np.fromiter(
+        (
+            mesh.materials[p.material_index].name.startswith('+')
+            if 0 <= p.material_index < len(mesh.materials)
+            and mesh.materials[p.material_index] is not None
+            else False
+            for p in mesh.polygons
+        ),
+        dtype=bool,
+        count=face_count
+    )
+
+
+    if plus_faces.any():
+        for m in masks.values():
+            m[plus_faces] = False
+
+    if two_side_attr and sphere_coll_attr:
+        m_two = masks[two_side_attr]
+        m_two &= ~masks[sphere_coll_attr]
+        masks[two_side_attr] = m_two
+        cnt = int(m_two.sum())
+        attr_prop_map[two_side_attr].face_count = cnt
+        if cnt == 0 and two_side_idx >= 0:
+            to_remove_prop_indices.add(two_side_idx)
+
+    if render_only_attr and lightmap_only_attr:
+        m_ren = masks[render_only_attr]
+        m_ren &= ~masks[lightmap_only_attr]
+        masks[render_only_attr] = m_ren
+        cnt = int(m_ren.sum())
+        attr_prop_map[render_only_attr].face_count = cnt
+        if cnt == 0 and render_only_idx >= 0:
+            to_remove_prop_indices.add(render_only_idx)
+
+    for name, mask in masks.items():
+        attr = mesh.attributes.get(name)
+        if attr is None:
+            continue
+        attr.data.foreach_set("value", mask.astype(np.int8))
+
+        # refresh face_count for every prop that survived
+        prop = attr_prop_map.get(name)
+        if prop:
+            prop.face_count = int(mask.sum())
+
+    for i, p in enumerate(mesh.nwo.face_props):
+        if p.face_count == 0:
+            to_remove_prop_indices.add(i)
+
+    for i in sorted(to_remove_prop_indices, reverse=True):
+        delete_face_attribute(mesh, i)
 
 def connect_verts_on_edge(mesh: bpy.types.Mesh, do_degen_dissolve=True):
     """Split edges so that stray verts become connected – quick AABB version."""
@@ -4531,55 +4638,51 @@ def connect_verts_on_edge(mesh: bpy.types.Mesh, do_degen_dissolve=True):
     bm.free()
 
 def set_two_sided(mesh, is_io=False):
-    bm = bmesh.new()
-    bm.from_mesh(mesh)
-    bm.faces.ensure_lookup_table()
-
     face_dict = {}
-    for face in bm.faces:
-        vert_set = frozenset(v.co.to_tuple() for v in face.verts)
+    verts = mesh.vertices
+    for face in mesh.polygons:
+        vert_set = frozenset(verts[v].co.to_tuple() for v in face.vertices)
         face_dict.setdefault(vert_set, []).append(face)
 
     to_remove = set()
-    two_sided = set()
+    two_sided = np.zeros(len(mesh.polygons), dtype=np.int8)
     for faces in face_dict.values():
         for i, f1 in enumerate(faces):
             for f2 in faces[i+1:]:
-                if {v.co.to_tuple() for v in f1.verts} == {v.co.to_tuple() for v in reversed(f2.verts)}:
+                if {verts[v].co.to_tuple() for v in f1.vertices} == {verts[v].co.to_tuple() for v in reversed(f2.vertices)}:
                     to_remove.add(f2.index)
-                    two_sided.add(f1.index)
+                    two_sided[f1.index] = True
                     break
 
     if to_remove:
-        if len(bm.faces) == len(to_remove):
-            mesh.nwo.face_two_sided = True
+        if len(mesh.polygons) == len(to_remove):
+            add_face_prop(mesh, "face_sides")
         elif is_io:
-            return bm.free()
+            return
         else:
-            layer = add_face_layer(bm, mesh, "two_sided", True)
-            for face in bm.faces:
-                if face.index in two_sided:
-                    face[layer] = 1
-
-        bmesh.ops.delete(bm, geom=[bm.faces[i] for i in to_remove], context='FACES')
+            add_face_prop(mesh, "face_sides", two_sided)
         
-    bm.to_mesh(mesh)
-    bm.free()
+        bm = bmesh.new()
+        bm.from_mesh(mesh)
+        bm.faces.ensure_lookup_table()
+        bmesh.ops.delete(bm, geom=[bm.faces[i] for i in to_remove], context='FACES')
+        bm.to_mesh(mesh)
+        bm.free()
 
 def join_objects(objects: list[bpy.types.Object]) -> bpy.types.Object:
     """Joins an iterable of objects together, ensuring no material or face property conflicts. All objects are joined into the first object in the list"""
     active = objects[0]
     objects = objects[1:]
-    consolidate_face_layers(active.data)
+    # consolidate_face_attributes(active.data)
     mat_to_idx = {m: i for i, m in enumerate(active.data.materials)}
     # Consolidate any dupe face layers and remove unused materials, and map all materials to material indices
     for ob in objects:
-        consolidate_face_layers(ob.data)
+        # consolidate_face_attributes(ob.data)
         
         for layer in ob.data.nwo.face_props:
             new_layer = active.data.nwo.face_props.add()
             for k,v in layer.items():
-                new_layer.__setattr__(k, v)
+                new_layer[k] = v
                 
         for mat in ob.data.materials:
             if mat not in mat_to_idx:
@@ -4610,7 +4713,6 @@ def join_objects(objects: list[bpy.types.Object]) -> bpy.types.Object:
         ob_bm.free()
         bm.from_mesh(ob.data)
         
-        
         bpy.data.objects.remove(ob)
     
     bm.to_mesh(active.data)
@@ -4618,7 +4720,7 @@ def join_objects(objects: list[bpy.types.Object]) -> bpy.types.Object:
     apply_loop_normals(active.data)
     set_two_sided(active.data)
     loop_normal_magic(active.data)
-    consolidate_face_layers(active.data)
+    consolidate_face_attributes(active.data)
     
     return active
 
@@ -4659,77 +4761,6 @@ def argb32_to_rgb(value: int):
     
     return r / 255, g / 255, b / 255
 
-def euclidean(p, q):
-    return sum((a - b) ** 2 for a, b in zip(p, q))
-
-def rgb_to_name(rgb, decimal_color=True):
-    """
-    Return the color name that best matches an RGB color
-    """
-    
-    if decimal_color:
-        rgb = [int(i * 255) for i in rgb]
-    
-    nearest = min(CSS_COLORS, key=lambda name: euclidean(rgb, CSS_COLORS[name]))
-    return nearest
-
-import bpy
-
-import bpy
-
-def copy_material_nodes(src_mat: bpy.types.Material, dst_mat: bpy.types.Material, clear_dst: bool = True):
-    # Ensure both materials use nodes
-    src_mat.use_nodes = True
-    dst_mat.use_nodes = True
-
-    dst_tree = dst_mat.node_tree
-    src_tree = src_mat.node_tree
-
-    if clear_dst:
-        dst_tree.nodes.clear()
-        dst_tree.links.clear()
-
-    node_map = {}
-
-    def duplicate_node(node, tree):
-        """Recursively duplicate a node (expands node-groups too)."""
-        new_node = tree.nodes.new(type=node.bl_idname)
-        node_map[node] = new_node
-
-        for attr in ("location", "label", "width", "height", "hide"):
-            setattr(new_node, attr, getattr(node, attr))
-
-        for prop in node.bl_rna.properties:
-            if (prop.is_readonly or            # skip read-only
-                prop.identifier in {'name',     # let Blender assign its own
-                                     'parent'}):
-                continue
-            try:
-                setattr(new_node, prop.identifier,
-                        getattr(node, prop.identifier))
-            except Exception:
-                pass  # some props reject assignment (e.g. sockets)
-
-        # If this is a node-group, recurse so the *internal* tree is copied too
-        if node.bl_idname == 'ShaderNodeGroup' and node.node_tree:
-            new_node.node_tree = node.node_tree.copy()
-
-        return new_node
-
-    for n in src_tree.nodes:
-        duplicate_node(n, dst_tree)
-
-    # ------------------------------------------------------------------
-    # 2.  Re-create links one-for-one
-    # ------------------------------------------------------------------
-    for link in src_tree.links:
-        new_from = node_map[link.from_node]
-        new_to   = node_map[link.to_node]
-
-        dst_tree.links.new(
-            new_from.outputs[link.from_socket.name],
-            new_to.inputs[link.to_socket.name]
-        )
-
-    return dst_mat
-
+def human_number(num: int | float):
+    '''Converts an int or float to a string and adds commas'''
+    return f"{num:,}"

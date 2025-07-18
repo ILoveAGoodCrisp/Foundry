@@ -70,20 +70,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 box.label(text=f"Editing: {ob.name}")
                 box2 = box.box()
                 box2.label(text="Mesh Properties")
-                self.draw_mesh_properties(box2, ob)
-                # row.use_property_split = True
-                # row.prop(
-                #     ob.data.nwo,
-                #     "face_global_material",
-                #     text="Collision Material",
-                # )
-                # row.operator(
-                #     "nwo.global_material_globals",
-                #     text="",
-                #     icon="VIEWZOOM",
-                # )
-                # proxy face props
-                self.draw_expandable_box(box.box(), context.scene.nwo, "face_properties", ob=ob)
+                self.draw_expandable_box(box.box(), context.scene.nwo, "mesh_properties", ob=ob)
 
             row = box.row()
             row.scale_y = 2
@@ -2069,53 +2056,34 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         if not utils.has_mesh_props(ob) or (h4 and not nwo.proxy_instance and utils.poll_ui(('scenario',)) and nwo.mesh_type == "_connected_geometry_mesh_type_structure"):
             return
 
-        self.draw_expandable_box(self.box.box(), context.scene.nwo, "mesh_properties", ob=ob)
         if utils.has_face_props(ob):
-            self.draw_expandable_box(self.box.box(), context.scene.nwo, "face_properties", ob=ob)
+            self.draw_expandable_box(self.box.box(), context.scene.nwo, "mesh_properties", ob=ob)
   
         nwo = ob.data.nwo
         # Instance Proxy Operators
-        if ob.type != 'MESH' or ob.nwo.mesh_type != "_connected_geometry_mesh_type_default" or not utils.poll_ui(('scenario', 'prefab')) or mesh_nwo.render_only:
+        if ob.type != 'MESH' or ob.nwo.mesh_type != "_connected_geometry_mesh_type_default" or not utils.poll_ui(('scenario', 'prefab')):
             return
         
         col.separator()
         self.draw_expandable_box(self.box.box(), context.scene.nwo, "instance_proxies", ob=ob)
 
-    def draw_face_properties(self, box, ob):
+    def draw_mesh_properties(self, box, ob, for_material=False):
+        
+        op_prefix = "nwo.material" if for_material else "nwo.face"
+        nwo = ob.data.nwo if for_material else ob.data.nwo
+        props = nwo.material_props if for_material else nwo.face_props
+        active_prop_index = nwo.material_props_active_index if for_material else nwo.face_props_active_index
+        
         context = self.context
-        flow = box.grid_flow(
-            row_major=True,
-            columns=0,
-            even_columns=True,
-            even_rows=False,
-            align=False,
-        )
-
-        flow.use_property_split = True
-
-        nwo = ob.data.nwo
-
-        box.label(text="Face Properties", icon='FACE_MAPS')
-        if nwo.face_props:
-            box.operator('nwo.update_layers_face_count', text="Refresh Face Counts", icon='FILE_REFRESH')
-        if len(nwo.face_props) <= 0 and context.mode != "EDIT_MESH":
-            flow = box.grid_flow(
-                row_major=True,
-                columns=0,
-                even_columns=True,
-                even_rows=False,
-                align=False,
-            )
-            col = flow.column()
-            col.scale_y = 1.3
-            col.operator(
-                "nwo.edit_face_layers",
-                text="Add Face Properties",
-                icon="EDITMODE_HLT",
-            )
+        if ob.type == 'MESH':
+            box.label(text=f"Face Count: {utils.human_number(len(ob.data.polygons))}", icon='FACE_MAPS')
+            box.operator(f"{op_prefix}_attribute_count_refresh", text="Refresh Face Counts", icon='FILE_REFRESH')
+        
+        row = box.row()
+        
+        if for_material:
+            pass
         else:
-            rows = 5
-            row = box.row()
             row.template_list(
                 "NWO_UL_FacePropList",
                 "",
@@ -2123,541 +2091,89 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 "face_props",
                 nwo,
                 "face_props_active_index",
-                rows=rows,
             )
 
-            col = row.column(align=True)
-            edit_mode = context.mode == 'EDIT_MESH'
-            if edit_mode:
-                col.menu("NWO_MT_FacePropAdd", text="", icon="ADD")
-                
-            col.operator("nwo.face_layer_remove", icon="REMOVE", text="")
+        col = row.column(align=True)
+        edit_mode = context.mode == 'EDIT_MESH'
+        if for_material:
+            col.menu("NWO_MT_MaterialAttributeAddMenu", text="", icon="ADD")
+        else:
+            col.menu("NWO_MT_FaceAttributeAddMenu", text="", icon="ADD")
+            
+        col.operator(f"{op_prefix}_attribute_delete", icon="REMOVE", text="")
+        col.separator()
+        if not for_material:
+            col.operator("nwo.face_attribute_color_all", text="", icon="SHADING_RENDERED", depress=ob.data.nwo.highlight).enable_highlight = not ob.data.nwo.highlight
             col.separator()
+        col.operator(f"{op_prefix}_attribute_move", icon="TRIA_UP", text="").direction = "UP"
+        col.operator(f"{op_prefix}_attribute_move", icon="TRIA_DOWN", text="").direction = "DOWN"
+
+        row = box.row()
+
+        if not for_material:
             if edit_mode:
-                col.operator(
-                    "nwo.face_layer_color_all",
-                    text="",
-                    icon="SHADING_RENDERED",
-                    depress=nwo.highlight,
-                ).enable_highlight = not nwo.highlight
-                col.separator()
-            col.operator(
-                "nwo.face_layer_move", icon="TRIA_UP", text=""
-            ).direction = "UP"
-            col.operator(
-                "nwo.face_layer_move", icon="TRIA_DOWN", text=""
-            ).direction = "DOWN"
-
-            row = box.row()
-
-            if nwo.face_props and edit_mode:
                 sub = row.row(align=True)
-                sub.operator("nwo.face_layer_assign", text="Assign").assign = True
-                sub.operator("nwo.face_layer_assign", text="Remove").assign = False
+                sub.enabled = bool(props)
+                sub.operator("nwo.face_attribute_assign", text="Assign")
+                sub.operator("nwo.face_attribute_remove", text="Remove")
                 sub = row.row(align=True)
-                sub.operator("nwo.face_layer_select", text="Select").select = True
-                sub.operator(
-                    "nwo.face_layer_select", text="Deselect"
-                ).select = False
+                sub.enabled = bool(props)
+                sub.operator("nwo.face_attribute_select", text="Select").select = True
+                sub.operator("nwo.face_attribute_select", text="Deselect").select = False
 
             else:
-                box.operator(
-                    "nwo.edit_face_layers",
-                    text="Edit Mode",
-                    icon="EDITMODE_HLT",
-                )
+                sub = row.row(align=False)
+                sub.operator("nwo.face_attribute_assign", text="Assign To All Faces")
+                sub.operator("nwo.edit_face_attributes", text="Enter Edit Mode", icon="EDITMODE_HLT")
 
-            flow = box.grid_flow(
-                row_major=True,
-                columns=0,
-                even_columns=True,
-                even_rows=False,
-                align=False,
-            )
-            col = flow.column()
-            row = col.row()
-            col.use_property_split = True
-            if nwo.face_props:
-                item = nwo.face_props[nwo.face_props_active_index]
-
-                if item.region_name_override:
-                    box = col.box()
+        col = box.column()
+        col.use_property_split = True
+        if props:
+            item = props[active_prop_index]
+            col.separator()
+            match item.type:
+                case 'face_sides':
+                    col.prop(item, 'two_sided')
+                    if self.h4:
+                        col.prop(item, 'face_sides_type')
+                case 'region':
                     row = box.row()
                     row.label(text='Region')
                     row = box.row()
                     row.menu("NWO_MT_FaceRegions", text=item.region_name, icon_value=get_icon_id("region"))
-                    # row.operator(
-                    #     "nwo.face_prop_remove", text="", icon="X"
-                    # ).options = "region"
-                if item.face_two_sided_override:
-                    if utils.is_corinth(context):
-                        col.separator()
-                        box = col.box()
-                        row = box.row()
-                        row.label(text="Two Sided")
-                        row = box.row()
-                        row.prop(item, "face_two_sided_type", text="Backside Normals")
-                    else:
-                        row = col.row()
-                        row.label(text="Two Sided")
-                if item.lightmap_only_override:
-                    row = col.row()
-                    row.label(text='Lightmap Only')
-                if item.render_only_override:
-                    row = col.row()
-                    row.label(text='Render Only')
-                if item.collision_only_override:
-                    row = col.row()
-                    row.label(text='Collision Only')
-                    
-                if item.sphere_collision_only_override:
-                    row = col.row()
-                    row.label(text='Sphere Collision Only')
-                    
-                if item.player_collision_only_override:
-                    row = col.row()
-                    row.label(text='Player Collision Only')
-                    
-                if item.bullet_collision_only_override:
-                    row = col.row()
-                    row.label(text='Bullet Collision Only')
-
-                if item.face_transparent_override:
-                    row = col.row()
-                    row.label(text="Transparent Faces")
-                if item.face_draw_distance_override:
-                    row = col.row()
-                    row.prop(item, "face_draw_distance")
-                if item.mesh_tessellation_density_override:
-                    row = col.row()
-                    row.prop(item, "mesh_tessellation_density")
-                if item.face_global_material_override:
-                    row = col.row()
-                    row.prop(item, "face_global_material")
+                case 'global_material':
+                    row = box.row()
                     if utils.poll_ui(('scenario', 'prefab')):
-                        row.operator(
-                            "nwo.global_material_globals",
-                            text="",
-                            icon="VIEWZOOM",
-                        ).face_level = True
+                        row.operator("nwo.global_material_globals",text="", icon="VIEWZOOM").face_level = True
                     else:
-                        row.menu(
-                            "NWO_MT_AddGlobalMaterialFace",
-                            text="",
-                            icon="DOWNARROW_HLT",
-                        )
-                if item.precise_position_override:
-                    row = col.row()
-                    row.label(text='Precise')
-                if item.ladder_override:
-                    row = col.row()
-                    row.label(text='Ladder')
-                if item.slip_surface_override:
-                    row = col.row()
-                    row.label(text='Slip Surface')
-                if item.breakable_override:
-                    row = col.row()
-                    row.label(text='Breakable')
-                if item.decal_offset_override:
-                    row = col.row()
-                    row.label(text='Decal Offset')
-                if item.no_shadow_override:
-                    row = col.row()
-                    row.label(text='No Shadow')
-                if item.no_lightmap_override:
-                    row = col.row()
-                    row.label(text="No Lightmap")
-                if item.no_pvs_override:
-                    row = col.row()
-                    row.label(text="No Visibility Culling")
-                # lightmap
-                if item.lightmap_additive_transparency_override:
-                    row = col.row()
-                    row.prop(item, "lightmap_additive_transparency", text="Additive Transparency")
-                    # row.operator(
-                    #     "nwo.face_prop_remove", text="", icon="X"
-                    # ).options = "lightmap_additive_transparency"
-                if item.lightmap_resolution_scale_override:
-                    row = col.row()
-                    row.prop(item, "lightmap_resolution_scale")
-                    # row.operator(
-                    #     "nwo.face_prop_remove", text="", icon="X"
-                    # ).options = "lightmap_resolution_scale"
-                if item.lightmap_type_override:
-                    row = col.row()
-                    row.prop(item, "lightmap_type")
-                    # row.operator(
-                    #     "nwo.face_prop_remove", text="", icon="X"
-                    # ).options = "lightmap_type"
-                if item.lightmap_analytical_bounce_modifier_override:
-                    row = col.row()
-                    row.prop(item, "lightmap_analytical_bounce_modifier")
-                    # row.operator(
-                    #     "nwo.face_prop_remove", text="", icon="X"
-                    # ).options = "lightmap_analytical_bounce_modifier"
-                if item.lightmap_general_bounce_modifier_override:
-                    row = col.row()
-                    row.prop(item, "lightmap_general_bounce_modifier")
-                    # row.operator(
-                    #     "nwo.face_prop_remove", text="", icon="X"
-                    # ).options = "lightmap_general_bounce_modifier"
-                if item.lightmap_translucency_tint_color_override:
-                    row = col.row()
-                    row.prop(item, "lightmap_translucency_tint_color")
-                    # row.operator(
-                    #     "nwo.face_prop_remove", text="", icon="X"
-                    # ).options = "lightmap_translucency_tint_color"
-                if item.lightmap_lighting_from_both_sides_override:
-                    row = col.row()
-                    row.label(text="Lightmap Lighting From Both Sides")
-                if item.lightmap_ignore_default_resolution_scale_override:
-                    row = col.row()
-                    row.label(text="Ignore Default Resolution Scale")
-                if item.lightmap_transparency_override_override:
-                    row = col.row()
-                    row.label(text="Disable Lightmap Transparency")
-                # material lighting
-                if item.emissive_override:
-                    col.separator()
+                        row.menu("NWO_MT_AddGlobalMaterialFace", text="", icon="DOWNARROW_HLT")
+                case 'emissive':
                     box = col.box()
                     row = box.row()
                     row.label(text="Emissive Settings")
                     row = box.row()
-                    row.prop(
-                        item,
-                        "material_lighting_emissive_color",
-                        text="Color",
-                    )
+                    row.prop(item, "material_lighting_emissive_color", text="Color")
                     row = box.row()
-                    row.prop(
-                        item,
-                        "material_lighting_emissive_power",
-                        text="Power",
-                    )
+                    row.prop(item, "material_lighting_emissive_power", text="Power")
                     row = box.row(align=True)
                     row.prop(item, "light_intensity", text="Intensity")
                     row = box.row()
-                    row.prop(
-                        item,
-                        "material_lighting_emissive_quality",
-                        text="Quality",
-                    )
+                    row.prop(item, "material_lighting_emissive_quality", text="Quality",)
                     row = box.row()
-                    row.prop(
-                        item,
-                        "material_lighting_emissive_focus",
-                        text="Focus",
-                    )
+                    row.prop(item, "material_lighting_emissive_focus", text="Focus")
                     row = box.row()
-                    row.prop(
-                        item,
-                        "material_lighting_attenuation_falloff",
-                    )
+                    row.prop(item, "material_lighting_attenuation_falloff")
                     row = box.row()
-                    row.prop(
-                        item,
-                        "material_lighting_attenuation_cutoff",
-                    )
+                    row.prop(item, "material_lighting_attenuation_cutoff")
                     row = box.row()
-                    row.prop(
-                        item,
-                        "material_lighting_bounce_ratio",
-                        text="Bounce Ratio",
-                    )
+                    row.prop(item, "material_lighting_bounce_ratio", text="Bounce Ratio",)
                     row = box.row()
-                    row.prop(
-                        item,
-                        "material_lighting_use_shader_gel",
-                        text="Shader Gel",
-                    )
+                    row.prop(item, "material_lighting_use_shader_gel", text="Shader Gel")
                     row = box.row()
-                    row.prop(
-                        item,
-                        "material_lighting_emissive_per_unit",
-                        text="Emissive Per Unit",
-                    )
-                # if not (is_proxy or ob.nwo.mesh_type == "_connected_geometry_mesh_type_collision"):
-                #     col.separator()
-                #     col.menu(NWO_MT_FacePropAddMenu.bl_idname, text="Add Face Layer Property", icon="PLUS")
-
-    def draw_mesh_properties(self, box, ob):
-        nwo = ob.nwo
-        mesh = ob.data
-        mesh_nwo = mesh.nwo
-        has_collision = utils.has_collision_type(ob)
-        if utils.poll_ui(("model", "sky", "scenario", "prefab")) and nwo.mesh_type != '_connected_geometry_mesh_type_physics':
-            if self.h4 and (not nwo.proxy_instance and nwo.mesh_type == "_connected_geometry_mesh_type_structure" and utils.poll_ui(('scenario',))):
-                return
-            row = box.grid_flow(
-                row_major=True,
-                columns=0,
-                even_columns=True,
-                even_rows=True,
-                align=True,
-            )
-            row.scale_x = 0.8
-            if nwo.mesh_type in ("_connected_geometry_mesh_type_default", '_connected_geometry_mesh_type_object_instance'):
-                if self.h4:
-                    row.prop(mesh_nwo, "uncompressed")
-                row.prop(mesh_nwo, "precise_position", text="Precise")
-            if nwo.mesh_type in constants.TWO_SIDED_MESH_TYPES:
-                row.prop(mesh_nwo, "face_two_sided", text="Two Sided")
-                if nwo.mesh_type in constants.RENDER_MESH_TYPES:
-                    row.prop(mesh_nwo, "face_transparent", text="Transparent")
-                    # if h4 and utils.poll_ui(('model', 'sky')):
-                    #     row.prop(mesh_nwo, "uvmirror_across_entire_model_ui", text="Mirror UVs")
-            if nwo.mesh_type in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure", '_connected_geometry_mesh_type_object_instance'):
-                row.prop(mesh_nwo, "decal_offset", text="Decal Offset") 
-            if utils.poll_ui(("scenario", "prefab")):
-                if not self.h4:
-                    if nwo.mesh_type in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure"):
-                        row.prop(mesh_nwo, "no_shadow", text="No Shadow")
-                else:
-                    # row.prop(mesh_nwo, "group_transparents_by_plane_ui", text="Transparents by Plane")
-                    if nwo.mesh_type in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure"):
-                        row.prop(mesh_nwo, "no_shadow", text="No Shadow")
-                        if self.h4:
-                            row.prop(mesh_nwo, "no_lightmap", text="No Lightmap")
-                            row.prop(mesh_nwo, "no_pvs", text="No Visibility Culling")
-                            
-            if not self.h4 and utils.poll_ui(('scenario',)) and nwo.mesh_type in ('_connected_geometry_mesh_type_default', '_connected_geometry_mesh_type_structure'):
-                row.prop(mesh_nwo, 'lightmap_only')
-                if not mesh_nwo.lightmap_only:
-                    row.prop(mesh_nwo, 'render_only')
-                    if not mesh_nwo.render_only:
-                        row.prop(mesh_nwo, "ladder", text="Ladder")
-                        row.prop(mesh_nwo, "slip_surface", text="Slip Surface")
-                        row.prop(mesh_nwo, 'breakable', text='Breakable')
-                        if not mesh_nwo.breakable:
-                            row.prop(mesh_nwo, 'collision_only', text='Collision Only')
-                            row.prop(mesh_nwo, 'sphere_collision_only', text='Sphere Collision')
+                    row.prop(item, "material_lighting_emissive_per_unit",text="Emissive Per Unit")
+                case _:
+                    col.prop(item, item.type)
                 
-            elif not self.h4 and nwo.mesh_type == '_connected_geometry_mesh_type_collision':
-                if utils.poll_ui(('scenario', 'model')):
-                    row.prop(mesh_nwo, 'sphere_collision_only', text='Sphere Collision')
-                    row.prop(mesh_nwo, "ladder", text="Ladder")
-                    row.prop(mesh_nwo, "slip_surface", text="Slip Surface")
-                
-            elif self.h4 and has_collision and nwo.mesh_type != '_connected_geometry_mesh_type_collision':
-                row.prop(mesh_nwo, 'lightmap_only')
-                row.prop(mesh_nwo, 'render_only')
-                row.prop(mesh_nwo, 'collision_only', text='Collision Only')
-
-            if self.h4 and nwo.mesh_type in constants.RENDER_MESH_TYPES and mesh_nwo.face_two_sided:
-                row = box.row()
-                row.use_property_split = True
-                row.prop(mesh_nwo, "face_two_sided_type", text="Backside Normals")
-                
-        if nwo.mesh_type in constants.RENDER_MESH_TYPES:
-            row = box.row()
-            row.use_property_split = True
-            row.prop(mesh_nwo, "additional_compression")
-            row = box.row()
-            row.use_property_split = True
-            row.prop(mesh_nwo, "mesh_tessellation_density", text="Tessellation Density")
-            if not self.asset_type in ('scenario', 'prefab'):
-                row = box.row()
-                row.use_property_split = True
-                row.prop(mesh_nwo, "face_draw_distance")
-                
-        if utils.poll_ui(("model", "scenario", "prefab")):
-            if has_collision and utils.poll_ui(("scenario", "prefab")) and not (mesh_nwo.render_only and utils.is_instance_or_structure_proxy(ob)):
-                if self.h4:
-                    row = box.row()
-                    row.use_property_split = True
-                    row.prop(mesh_nwo, 'poop_collision_type', text='Collision Type')
-                        
-            if (self.h4 and (nwo.mesh_type in (
-                "_connected_geometry_mesh_type_collision",
-                "_connected_geometry_mesh_type_physics",
-                "_connected_geometry_mesh_type_structure",
-                "_connected_geometry_mesh_type_default",
-                )
-                and nwo.mesh_type != "_connected_geometry_mesh_type_structure")) or (not self.h4 and nwo.mesh_type in (
-                "_connected_geometry_mesh_type_collision",
-                "_connected_geometry_mesh_type_physics",
-                )):
-                    if not (nwo.mesh_type in ("_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_default") and mesh_nwo.render_only):
-                        if not (self.asset_type == 'model' and nwo.mesh_type == '_connected_geometry_mesh_type_default') and not (self.asset_type in ('scenario', 'prefab') and nwo.mesh_type == '_connected_geometry_mesh_type_collision'):
-                            row = box.row()
-                            row.use_property_split = True
-                            coll_mat_text = 'Collision Material'
-                            if ob.data.nwo.face_props and nwo.mesh_type in ('_connected_geometry_mesh_type_structure', '_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_default'):
-                                for prop in ob.data.nwo.face_props:
-                                    if prop.face_global_material_override:
-                                        coll_mat_text += '*'
-                                        break
-                            row.prop(
-                                mesh_nwo,
-                                "face_global_material",
-                                text=coll_mat_text,
-                            )
-                            if utils.poll_ui(('scenario', 'prefab')):
-                                row.operator(
-                                    "nwo.global_material_globals",
-                                    text="",
-                                    icon="VIEWZOOM",
-                                )
-                            else:
-                                row.menu(
-                                    "NWO_MT_AddGlobalMaterial",
-                                    text="",
-                                    icon="DOWNARROW_HLT",
-                            )
-
-        # if nwo.mesh_type in (
-        #     "_connected_geometry_mesh_type_structure",
-        #     # "_connected_geometry_mesh_type_collision",
-        #     "_connected_geometry_mesh_type_default",
-        # ):
-        #     if utils.poll_ui(("scenario", "prefab")) and (not self.h4 or nwo.proxy_instance or nwo.mesh_type != "_connected_geometry_mesh_type_structure"):
-                # col.separator()
-                # col_ob = box.column()
-                # col_ob.use_property_split = True
-                # # lightmap
-                # if mesh_nwo.lightmap_additive_transparency_active:
-                #     row = col_ob.row(align=True)
-                #     row.prop(
-                #         mesh_nwo,
-                #         "lightmap_additive_transparency",
-                #         text="Additive Transparency",
-                #     )
-                #     row.operator(
-                #         "nwo.remove_mesh_property", text="", icon="X"
-                #     ).options = "lightmap_additive_transparency"
-                # if mesh_nwo.lightmap_resolution_scale_active:
-                #     row = col_ob.row(align=True)
-                #     row.prop(
-                #         mesh_nwo,
-                #         "lightmap_resolution_scale",
-                #         text="Resolution Scale",
-                #     )
-                #     row.operator(
-                #         "nwo.remove_mesh_property", text="", icon="X"
-                #     ).options = "lightmap_resolution_scale"
-                # if mesh_nwo.lightmap_type_active:
-                #     row = col_ob.row(align=True)
-                #     row.prop(mesh_nwo, "lightmap_type", text="Lightmap Type")
-                #     row.operator(
-                #         "nwo.remove_mesh_property", text="", icon="X"
-                #     ).options = "lightmap_type"
-                # if mesh_nwo.lightmap_translucency_tint_color_active:
-                #     row = col_ob.row(align=True)
-                #     row.prop(
-                #         mesh_nwo,
-                #         "lightmap_translucency_tint_color",
-                #         text="Translucency Tint Color",
-                #     )
-                #     row.operator(
-                #         "nwo.remove_mesh_property", text="", icon="X"
-                #     ).options = "lightmap_translucency_tint_color"
-                # if mesh_nwo.lightmap_lighting_from_both_sides_active:
-                #     row = col_ob.row(align=True)
-                #     row.prop(
-                #         mesh_nwo,
-                #         "lightmap_lighting_from_both_sides",
-                #         text="Lighting From Both Sides",
-                #     )
-                #     row.operator(
-                #         "nwo.remove_mesh_property", text="", icon="X"
-                #     ).options = "lightmap_lighting_from_both_sides"
-                # if mesh_nwo.lightmap_ignore_default_resolution_scale_active:
-                #     row = col_ob.row(align=True)
-                #     row.prop(
-                #         mesh_nwo,
-                #         "lightmap_ignore_default_resolution_scale",
-                #         text="Ignore Default Resolution Scale",
-                #     )
-                #     row.operator(
-                #         "nwo.remove_mesh_property", text="", icon="X"
-                #     ).options = "lightmap_ignore_default_resolution_scale"
-                # if mesh_nwo.lightmap_transparency_override_active:
-                #     row = col_ob.row(align=True)
-                #     row.prop(
-                #         mesh_nwo,
-                #         "lightmap_transparency_override",
-                #     )
-                #     row.operator(
-                #         "nwo.remove_mesh_property", text="", icon="X"
-                #     ).options = "lightmap_transparency_override"
-                # if mesh_nwo.lightmap_analytical_bounce_modifier_active:
-                #     row = col_ob.row(align=True)
-                #     row.prop(
-                #         mesh_nwo,
-                #         "lightmap_analytical_bounce_modifier",
-                #     )
-                #     row.operator(
-                #         "nwo.remove_mesh_property", text="", icon="X"
-                #     ).options = "lightmap_analytical_bounce_modifier"
-                # if mesh_nwo.lightmap_general_bounce_modifier_active:
-                #     row = col_ob.row(align=True)
-                #     row.prop(
-                #         mesh_nwo,
-                #         "lightmap_general_bounce_modifier",
-                #     )
-                #     row.operator(
-                #         "nwo.remove_mesh_property", text="", icon="X"
-                #     ).options = "lightmap_general_bounce_modifier"
-                # if mesh_nwo.emissive_active:
-                #     col_ob.separator()
-                #     box_ob = col_ob.box()
-                #     row = box_ob.row(align=True)
-                #     row.label(text="Emissive Settings", icon='LIGHT_DATA')
-                #     row.operator(
-                #         "nwo.remove_mesh_property", text="", icon="X"
-                #     ).options = "emissive"
-                #     row = box_ob.row(align=True)
-                #     row.prop(mesh_nwo, "material_lighting_emissive_color", text="Color")
-                #     row = box_ob.row(align=True)
-                #     row.prop(mesh_nwo, "material_lighting_emissive_power", text="Power")
-                #     row = box_ob.row(align=True)
-                #     row.prop(mesh_nwo, "light_intensity", text="Intensity")
-                #     row = box_ob.row(align=True)
-                #     row.prop(
-                #         mesh_nwo,
-                #         "material_lighting_emissive_quality",
-                #         text="Quality",
-                #     )
-                #     row = box_ob.row(align=True)
-                #     row.prop(mesh_nwo, "material_lighting_emissive_focus", text="Focus")
-                #     row = box_ob.row(align=True)
-                #     row.prop(
-                #         mesh_nwo,
-                #         "material_lighting_bounce_ratio",
-                #         text="Bounce Ratio",
-                #     )
-                #     row = box_ob.row(align=True)
-                #     row.prop(
-                #         mesh_nwo,
-                #         "material_lighting_attenuation_falloff",
-                #         text="Light Falloff",
-                #     )
-                #     row = box_ob.row(align=True)
-                #     row.prop(
-                #         mesh_nwo,
-                #         "material_lighting_attenuation_cutoff",
-                #         text="Light Cutoff",
-                #     )
-                #     row = box_ob.row(align=True)
-                #     row.prop(
-                #         mesh_nwo,
-                #         "material_lighting_use_shader_gel",
-                #         text="Shader Gel",
-                #     )
-                #     row = box_ob.row(align=True)
-                #     row.prop(
-                #         mesh_nwo,
-                #         "material_lighting_emissive_per_unit",
-                #         text="Emissive Per Unit",
-                #     )
-
-                # col_ob.separator()
-                # row_add_prop = col_ob.row()
-                # if not mesh_nwo.emissive_active:
-                #     row_add_prop.operator("nwo.add_mesh_property", text="Emissive", icon='LIGHT_DATA').options = "emissive"
-                
-                # row_add_prop.operator_menu_enum("nwo.add_mesh_property_lightmap", property="options", text="Lightmap Settings", icon='OUTLINER_DATA_LIGHTPROBE')
-    
     def draw_instance_proxies(self, box, ob):
         nwo = ob.data.nwo
         collision = nwo.proxy_collision
@@ -2792,175 +2308,6 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     if full_path.exists():
                         col.operator('nwo.shader_to_nodes', text=f"Convert {txt} to Blender Material", icon='NODE_MATERIAL').mat_name = mat.name
                     col.separator()
-                    col.label(text="Halo Material Properties")
-                    col = box.column()
-                    col.use_property_split = True
-                    # lightmap
-                    if (nwo.lightmap_additive_transparency_active or
-                        nwo.lightmap_ignore_default_resolution_scale_active or
-                        nwo.lightmap_resolution_scale_active or
-                        nwo.lightmap_type_active or
-                        nwo.lightmap_transparency_override_active or
-                        nwo.lightmap_analytical_bounce_modifier_active or
-                        nwo.lightmap_general_bounce_modifier_active or
-                        nwo.lightmap_translucency_tint_color_active or
-                        nwo.lightmap_lighting_from_both_sides_active or
-                        nwo.lightmap_chart_group_active):
-                        box_lm = col.box()
-                        box_lm.label(text="Lightmap Properties")
-                        col = box_lm.column()
-                        if nwo.lightmap_additive_transparency_active:
-                            row = col.row(align=True)
-                            row.prop(
-                                nwo,
-                                "lightmap_additive_transparency",
-                                text="Additive Transparency",
-                            )
-                            row.operator(
-                                "nwo.remove_material_property", text="", icon="X"
-                            ).options = "lightmap_additive_transparency"
-                        if nwo.lightmap_resolution_scale_active:
-                            row = col.row(align=True)
-                            row.prop(
-                                nwo,
-                                "lightmap_resolution_scale",
-                                text="Resolution Scale",
-                            )
-                            row.operator(
-                                "nwo.remove_material_property", text="", icon="X"
-                            ).options = "lightmap_resolution_scale"
-                        if nwo.lightmap_type_active:
-                            row = col.row(align=True)
-                            row.prop(nwo, "lightmap_type", text="Lightmap Type")
-                            row.operator(
-                                "nwo.remove_material_property", text="", icon="X"
-                            ).options = "lightmap_type"
-                        if nwo.lightmap_translucency_tint_color_active:
-                            row = col.row(align=True)
-                            row.prop(
-                                nwo,
-                                "lightmap_translucency_tint_color",
-                                text="Translucency Tint Color",
-                            )
-                            row.operator(
-                                "nwo.remove_material_property", text="", icon="X"
-                            ).options = "lightmap_translucency_tint_color"
-                        if nwo.lightmap_lighting_from_both_sides_active:
-                            row = col.row(align=True)
-                            row.prop(
-                                nwo,
-                                "lightmap_lighting_from_both_sides",
-                                text="Lighting From Both Sides",
-                            )
-                            row.operator(
-                                "nwo.remove_material_property", text="", icon="X"
-                            ).options = "lightmap_lighting_from_both_sides"
-                        if nwo.lightmap_ignore_default_resolution_scale_active:
-                            row = col.row(align=True)
-                            row.prop(
-                                nwo,
-                                "lightmap_ignore_default_resolution_scale",
-                                text="Ignore Default Resolution Scale",
-                            )
-                            row.operator(
-                                "nwo.remove_material_property", text="", icon="X"
-                            ).options = "lightmap_ignore_default_resolution_scale"
-                        if nwo.lightmap_transparency_override_active:
-                            row = col.row(align=True)
-                            row.prop(
-                                nwo,
-                                "lightmap_transparency_override",
-                            )
-                            row.operator(
-                                "nwo.remove_material_property", text="", icon="X"
-                            ).options = "lightmap_transparency_override"
-                        if nwo.lightmap_analytical_bounce_modifier_active:
-                            row = col.row(align=True)
-                            row.prop(
-                                nwo,
-                                "lightmap_analytical_bounce_modifier",
-                            )
-                            row.operator(
-                                "nwo.remove_material_property", text="", icon="X"
-                            ).options = "lightmap_analytical_bounce_modifier"
-                        if nwo.lightmap_general_bounce_modifier_active:
-                            row = col.row(align=True)
-                            row.prop(
-                                nwo,
-                                "lightmap_general_bounce_modifier",
-                            )
-                            row.operator(
-                                "nwo.remove_material_property", text="", icon="X"
-                            ).options = "lightmap_general_bounce_modifier"
-                        if nwo.lightmap_chart_group_active:
-                            row = col.row(align=True)
-                            row.prop(
-                                nwo,
-                                "lightmap_chart_group",
-                                text="Chart Group",
-                            )
-                            row.operator(
-                                "nwo.remove_material_property", text="", icon="X"
-                            ).options = "lightmap_chart_group"
-                        if nwo.emissive_active:
-                            col.separator()
-                            box_ob = col.box()
-                            row = box_ob.row(align=True)
-                            row.label(text="Emissive Settings", icon='LIGHT_DATA')
-                            row.operator(
-                                "nwo.remove_material_property", text="", icon="X"
-                            ).options = "emissive"
-                            row = box_ob.row(align=True)
-                            row.prop(nwo, "material_lighting_emissive_color", text="Color")
-                            row = box_ob.row(align=True)
-                            row.prop(nwo, "material_lighting_emissive_power", text="Power")
-                            row = box_ob.row(align=True)
-                            row.prop(nwo, "light_intensity", text="Intensity")
-                            row = box_ob.row(align=True)
-                            row.prop(
-                                nwo,
-                                "material_lighting_emissive_quality",
-                                text="Quality",
-                            )
-                            row = box_ob.row(align=True)
-                            row.prop(nwo, "material_lighting_emissive_focus", text="Focus")
-                            row = box_ob.row(align=True)
-                            row.prop(
-                                nwo,
-                                "material_lighting_bounce_ratio",
-                                text="Bounce Ratio",
-                            )
-                            row = box_ob.row(align=True)
-                            row.prop(
-                                nwo,
-                                "material_lighting_attenuation_falloff",
-                                text="Light Falloff",
-                            )
-                            row = box_ob.row(align=True)
-                            row.prop(
-                                nwo,
-                                "material_lighting_attenuation_cutoff",
-                                text="Light Cutoff",
-                            )
-                            row = box_ob.row(align=True)
-                            row.prop(
-                                nwo,
-                                "material_lighting_use_shader_gel",
-                                text="Shader Gel",
-                            )
-                            row = box_ob.row(align=True)
-                            row.prop(
-                                nwo,
-                                "material_lighting_emissive_per_unit",
-                                text="Emissive Per Unit",
-                            )
-
-                    col.separator()
-                    row_add_prop = col.row()
-                    if not nwo.emissive_active:
-                        row_add_prop.operator("nwo.add_emissive_property", text="Emissive", icon='LIGHT_DATA').options = "emissive"
-                    
-                    row_add_prop.operator_menu_enum("nwo.add_lightmap_property", property="options", text="Lightmap Settings", icon='OUTLINER_DATA_LIGHTPROBE')
                     
                     col.separator()
                     col = box.column()
@@ -3770,7 +3117,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         elif utils.poll_ui(('model',)) and utils.is_mesh(ob):
             if ob.data.nwo.face_props and nwo.mesh_type in ('_connected_geometry_mesh_type_object_structure', '_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_default'):
                 for prop in ob.data.nwo.face_props:
-                    if prop.region_name_override:
+                    if prop.type == 'region':
                         region_name += '*'
                         break
 

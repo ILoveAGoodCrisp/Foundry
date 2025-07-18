@@ -414,9 +414,8 @@ class NWO_FaceRegionAdd(bpy.types.Operator):
         if self.set_object_prop:
             ob = context.object
             if ob and ob.type == 'MESH':
-                face_layer = ob.data.nwo.face_props[ob.data.nwo.face_props_active_index]
-                face_layer.region_name = name
-            
+                face_attribute = ob.data.nwo.face_props[ob.data.nwo.face_props_active_index]
+                face_attribute.region = name
 
         context.area.tag_redraw()
         return {'FINISHED'}
@@ -509,11 +508,11 @@ class NWO_FaceRegionAssignSingle(bpy.types.Operator):
         ob = context.object
         if not ob or ob.type != 'MESH':
             return {'CANCELLED'}
-        face_layer = ob.data.nwo.face_props[ob.data.nwo.face_props_active_index]
-        face_layer.region_name = self.name
-        lay_parts = face_layer.name.split('::')
+        face_attribute = ob.data.nwo.face_props[ob.data.nwo.face_props_active_index]
+        face_attribute.region = self.name
+        lay_parts = face_attribute.name.split('::')
         if lay_parts and len(lay_parts) == 2 and lay_parts[0] == 'region':
-            face_layer.name = 'region::' + self.name
+            face_attribute.name = 'region::' + self.name
         return {'FINISHED'}
     
 class NWO_RegionAssign(TableEntryAssign):

@@ -173,7 +173,6 @@ class ExportScene:
         self.granny_open = gr2_debug and export_settings.granny_open
         self.granny_animations_mesh = gr2_debug and export_settings.granny_animations_mesh
         
-        self.defer_graph_process = False
         self.node_usage_set = False
         
         self.armature_poses = {}
@@ -1277,7 +1276,7 @@ class ExportScene:
             if test_face_prop(face_props, "precise_position_override"):
                 fp_defaults["bungie_precise_position"] = 1
             else:
-                mesh_props["bungie_precise_position"] = 1
+                mesh_props["bungie_precise_position"] = int(self.asset_type == AssetType.MODEL and self.export_settings.auto_precise)
         if data_nwo.mesh_tessellation_density != "_connected_geometry_mesh_tessellation_density_none":
             if test_face_prop(face_props, "mesh_tessellation_density_override"):
                 match data_nwo.mesh_tessellation_density:
@@ -2064,8 +2063,7 @@ class ExportScene:
         # Skip pre processing the graph if this is a first time export and the user has specified a template animation graph
         # This is done to ensure the templating is not skipped
         # NOTE Always writing this animation data first now as it prevents a tool crash for invalid nodes usages
-        self.defer_graph_process =  False # not Path(self.asset_path, f"{self.asset_name}.model_animation_graph").exists() and self.scene_settings.template_model_animation_graph and Path(self.tags_dir, utils.relative_path(self.scene_settings.template_model_animation_graph)).exists()
-        if not self.defer_graph_process and (self.node_usage_set or self.scene_settings.ik_chains or self.has_animations):
+        if self.node_usage_set or self.scene_settings.ik_chains or self.has_animations:
             has_skeleton = self.virtual_scene.skeleton_model is not None and self.virtual_scene.skeleton_model.skeleton is not None
             with AnimationTag() as animation:
                 if self.scene_settings.parent_animation_graph:
@@ -2201,7 +2199,8 @@ class ExportScene:
                     self.print_post(f"--- Setting first person render model for weapon to {render_path}")
                     with ObjectTag(path=expected_weapon_path) as weapon:
                         weapon.set_fp_weapon_render_model(render_path)
-                    
+            
+            if self.has_frame_events or self.sidecar.reach_world_animations or self.sidecar.pose_overlays or self.suspension_animations:
                 with AnimationTag() as animation:
                     if self.has_frame_events:
                         self.print_post("--- Adding Frame Events")
@@ -2232,37 +2231,7 @@ class ExportScene:
                                     element.SelectField("destroyed full compression ground_depth").Data = virtual_animation.suspension_destroyed_compression_depth
                                 
                                 animation.tag_has_changes = True
-                        
-                    if self.defer_graph_process and (self.node_usage_set or self.scene_settings.ik_chains or self.has_animations):
-                        has_skeleton = self.virtual_scene.skeleton_model is not None and self.virtual_scene.skeleton_model.skeleton is not None
-                        with AnimationTag() as animation:
-                            if self.scene_settings.parent_animation_graph:
-                                self.print_post("--- Setting parent animation graph")
-                                animation.set_parent_graph(self.scene_settings.parent_animation_graph)
-                                # print("--- Set Parent Animation Graph")
-                            if self.virtual_scene.animations:
-                                self.print_post(f"--- Validating animation compression for {len(self.exported_animations)} animations: Default Compression = {self.scene_settings.default_animation_compression}")
-                                animation.validate_compression(self.exported_animations, self.scene_settings.default_animation_compression)
-                                # print("--- Validated Animation Compression")
-                            if self.node_usage_set and has_skeleton:
-                                self.print_post("--- Setting node usages")
-                                animation.set_node_usages(self.virtual_scene.skeleton_model.skeleton.animated_bones, True)
-                                #print("--- Updated Animation Node Usages")
-                            if self.scene_settings.ik_chains and has_skeleton:
-                                self.print_post("--- Writing IK chains")
-                                animation.write_ik_chains(self.scene_settings.ik_chains, self.virtual_scene.skeleton_model.skeleton.animated_bones, True)
-                                # print("--- Updated Animation IK Chains")
-                                
-                            if animation.tag_has_changes and (self.node_usage_set or self.scene_settings.ik_chains):
-                                # Graph should be data driven if ik chains or overlay groups in use.
-                                # Node usages are a sign the user intends to create overlays group
-                                animation.tag.SelectField("Struct:definitions[0]/ByteFlags:private flags").SetBit('uses data driven animation', True)
-                                
-                            
-                                
-                            # TODO check if frame event list ref set correctly after templating
-                                
-                # print("--- Setup World Animations")
+
             if self.asset_type == AssetType.SCENARIO:
                 if self.setup_scenario:
                     lm_value = 6 if self.corinth else 3
