@@ -233,9 +233,9 @@ class NWO_ProxyInstanceNew(bpy.types.Operator):
             if not face_count:
                 continue
             if layer.face_mode_override and layer.face_mode_ui in (
-                "_connected_geometry_face_mode_render_only",
-                "_connected_geometry_face_mode_lightmap_only",
-                "_connected_geometry_face_mode_shadow_only",
+                "render_only",
+                "lightmap_only",
+                "shadow_only",
             ):
                 for f in face_seq:
                     f.select = True

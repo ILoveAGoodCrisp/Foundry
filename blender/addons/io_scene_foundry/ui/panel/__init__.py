@@ -2075,9 +2075,11 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         active_prop_index = nwo.material_props_active_index if for_material else nwo.face_props_active_index
         
         context = self.context
-        if ob.type == 'MESH':
+        if not for_material and ob.type == 'MESH':
             box.label(text=f"Face Count: {utils.human_number(len(ob.data.polygons))}", icon='FACE_MAPS')
-            box.operator(f"{op_prefix}_attribute_count_refresh", text="Refresh Face Counts", icon='FILE_REFRESH')
+            row = box.row()
+            row.operator(f"nwo.face_attribute_count_refresh", text="Refresh Face Counts", icon='FILE_REFRESH')
+            row.operator(f"nwo.face_attribute_consolidate", icon='AREA_JOIN_DOWN')
         
         row = box.row()
         
@@ -2123,7 +2125,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
 
             else:
                 sub = row.row(align=False)
-                sub.operator("nwo.face_attribute_assign", text="Assign To All Faces")
+                sub.operator("nwo.face_attribute_assign", text="Assign To All Faces", icon='MESH_CUBE')
                 sub.operator("nwo.edit_face_attributes", text="Enter Edit Mode", icon="EDITMODE_HLT")
 
         col = box.column()
@@ -2158,13 +2160,13 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     row = box.row(align=True)
                     row.prop(item, "light_intensity", text="Intensity")
                     row = box.row()
-                    row.prop(item, "material_lighting_emissive_quality", text="Quality",)
+                    row.prop(item, "material_lighting_emissive_quality", text="Quality")
                     row = box.row()
                     row.prop(item, "material_lighting_emissive_focus", text="Focus")
                     row = box.row()
-                    row.prop(item, "material_lighting_attenuation_falloff")
+                    row.prop(item, "material_lighting_attenuation_falloff", text="Light Falloff")
                     row = box.row()
-                    row.prop(item, "material_lighting_attenuation_cutoff")
+                    row.prop(item, "material_lighting_attenuation_cutoff", text="Light Cutoff")
                     row = box.row()
                     row.prop(item, "material_lighting_bounce_ratio", text="Bounce Ratio",)
                     row = box.row()

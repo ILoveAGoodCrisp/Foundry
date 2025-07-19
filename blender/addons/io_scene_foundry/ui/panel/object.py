@@ -198,6 +198,21 @@ class NWO_UL_FacePropList(bpy.types.UIList):
                 row.label(text=utils.human_number(item.face_count))
         else:
             row.label(text=f"Unassigned")
+            
+class NWO_OT_FaceAttributeConsolidate(bpy.types.Operator):
+    bl_idname = "nwo.face_attribute_consolidate"
+    bl_label = "Merge Face Attributes"
+    bl_description = "Consolidates all face attributes into the minimum possible amount"
+    bl_options = {'UNDO'}
+    
+    
+    @classmethod
+    def poll(cls, context):
+        return context.object and context.object.type == 'MESH' and context.object.data.nwo.face_props
+    
+    def execute(self, context):
+        utils.consolidate_face_attributes(context.object.data)
+        return {"FINISHED"}
                 
 class NWO_OT_FaceAtributeCountRefresh(bpy.types.Operator):
     bl_idname = "nwo.face_attribute_count_refresh"
@@ -283,7 +298,11 @@ class NWO_OT_FaceAttributeAdd(bpy.types.Operator):
             attribute, face_count = utils.assign_face_attribute_edit_mode(mesh)
             item.face_count = face_count
             item.attribute_name = attribute.name
+        else:
+            attribute, face_count = utils.assign_face_attribute(mesh)
             item.face_count = face_count
+            item.attribute_name = attribute.name
+        
             
         item.color = utils.random_color()
         if nwo.highlight:

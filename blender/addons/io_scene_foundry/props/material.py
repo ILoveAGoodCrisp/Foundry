@@ -117,3 +117,5 @@ class NWO_MaterialPropertiesGroup(PropertyGroup):
         options={'HIDDEN', 'SKIP_SAVE'},
         get=get_render_material,
     )
+    
+    emits: BoolProperty(options={'HIDDEN'})

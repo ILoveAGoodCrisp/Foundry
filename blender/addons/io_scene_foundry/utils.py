@@ -4438,138 +4438,157 @@ def consolidate_materials(mesh: bpy.types.Mesh):
 
     if face_count:
         mesh.polygons.foreach_set("material_index", idx_buf.tolist())
+        
+def emissive_signature(prop):
+    """Tuple that uniquely identifies an Emissive prop by its lighting fields."""
+    return (
+        prop.material_lighting_attenuation_cutoff,
+        prop.material_lighting_attenuation_falloff,
+        prop.material_lighting_emissive_focus,
+        tuple(round(c, 6) for c in prop.material_lighting_emissive_color),  # round RGB to avoid tiny FP noise
+        prop.material_lighting_emissive_per_unit,
+        prop.material_lighting_emissive_power,
+        # prop.light_intensity,
+        prop.material_lighting_emissive_quality,
+    )
     
 def consolidate_face_attributes(mesh: bpy.types.Mesh):
     '''Consolidates face layers into the most minimal list'''
-    face_count = len(mesh.polygons)
+    face_cnt = len(mesh.polygons)
+    if face_cnt == 0:
+        return
 
-    face_props_by_name     = defaultdict(list)   # {prop.name : [(idx, attr_obj)]}
-    attr_prop_map          = {}                  # {attr.name : prop_obj}
-    attr_merge_map         = defaultdict(list)   # {primary_attr_name : [dupe_attr_names]}
-    face_prop_counts       = {}                  # {attr.name : int} – will be filled later
-    to_remove_prop_indices = set()
+    # ───────────────────────────── pass 1: catalogue props
+    face_props_by_name = defaultdict(list)            # {name: [(idx, attr, prop)]}
+    type_order         = defaultdict(list)            # {type: [attr_name]}
+    attr_prop_map      = {}                           # {attr.name: prop}
+    to_remove          = set()
 
-    # “special” layers we treat later
-    sphere_coll_attr   = None
-    lightmap_only_attr = None
-    two_side_attr      = None
-    two_side_idx       = -1
-    render_only_attr   = None
-    render_only_idx    = -1
+    sphere_coll_attr = lightmap_only_attr = shadow_only_attr = None
+    two_side_attr = render_only_attr = None
+    two_side_idx  = render_only_idx  = -1
 
-    for idx, prop in enumerate(mesh.nwo.face_props):
+    for i, prop in enumerate(mesh.nwo.face_props):
+
         attr = mesh.attributes.get(prop.attribute_name)
-        if attr is None:
-            to_remove_prop_indices.add(idx)
+        if not attr:
             continue
 
         name = attr.name
-        face_props_by_name[prop.name].append((idx, attr))
+        face_props_by_name[prop.name].append((i, attr, prop))
+        type_order[prop.type].append(name)
         attr_prop_map[name] = prop
-        face_prop_counts[name] = 0
 
-        if prop.name == "Two-Sided":
-            two_side_attr, two_side_idx = name, idx
-        elif prop.name == "Render Only":
-            render_only_attr, render_only_idx = name, idx
+        if   prop.name == "Sphere Collision Only": sphere_coll_attr   = name
+        elif prop.name == "Lightmap Only":         lightmap_only_attr = name
+        elif prop.name == "Shadow Only":           shadow_only_attr   = name
+        elif prop.name == "Two-Sided":             two_side_attr,  two_side_idx  = name, i
+        elif prop.name == "Render Only":           render_only_attr, render_only_idx = name, i
+
+    # ───────────────────────────── pass 2: duplicate‑merging rules
+    attr_merge = defaultdict(list)                   # {primary_attr: [dupes]}
 
     for pname, lst in face_props_by_name.items():
-        primary_idx, primary_attr = lst[0]
-        p_name = primary_attr.name
+        if len(lst) == 1:
+            continue
+        if pname.startswith("Emissive"):             # compare emissive settings
+            sig_primary = {}
+            for idx, attr, prop in lst:
+                sig = emissive_signature(prop)
+                if sig not in sig_primary:
+                    sig_primary[sig] = attr.name
+                else:
+                    attr_merge[sig_primary[sig]].append(attr.name)
+                    to_remove.add(idx)
+        else:                                        # merge everything
+            prim = lst[0][1].name
+            for idx, attr, _ in lst[1:]:
+                attr_merge[prim].append(attr.name)
+                to_remove.add(idx)
 
-        if pname == "Sphere Collision Only":
-            sphere_coll_attr = p_name
-        elif pname == "Lightmap Only":
-            lightmap_only_attr = p_name
-        elif pname == "Two-Sided":
-            two_side_attr = p_name
-        elif pname == "Render Only":
-            render_only_attr = p_name
+    # ───────────────────────────── pass 3: load all prop‑attribute masks
+    needed = set(attr_prop_map.keys())               # ← every prop’s attribute
+    for dupes in attr_merge.values(): needed.update(dupes)
+    needed.update(n for n in (
+        sphere_coll_attr, lightmap_only_attr,
+        shadow_only_attr, two_side_attr,
+        render_only_attr) if n)
 
-        if len(lst) > 1:
-            for dup_idx, dup_attr in lst[1:]:
-                attr_merge_map[p_name].append(dup_attr.name)
-                to_remove_prop_indices.add(dup_idx)
-
-    needed = (
-        set(attr_prop_map.keys())
-        | {n for n in [sphere_coll_attr, lightmap_only_attr,
-                       two_side_attr,   render_only_attr] if n}
-    )
-    for dupes in attr_merge_map.values():
-        needed.update(dupes)
-
-    masks = {}
-    tmp = np.empty(face_count, dtype=np.int8)
+    masks, buf = {}, np.empty(face_cnt, dtype=np.int8)
     for name in needed:
         attr = mesh.attributes.get(name)
-        if attr is None:
-            masks[name] = np.zeros(face_count, dtype=bool)
-            continue
-        attr.data.foreach_get("value", tmp)
-        masks[name] = tmp.astype(bool)
+        if attr:
+            attr.data.foreach_get("value", buf)
+            masks[name] = buf.astype(bool)
+        else:
+            masks[name] = np.zeros(face_cnt, dtype=bool)
 
-    for primary, dupes in attr_merge_map.items():
-        m = masks[primary]
+    # ───────────────────────────── merge dupes
+    for prim, dupes in attr_merge.items():
+        m = masks[prim]
         for d in dupes:
             m |= masks[d]
-        masks[primary] = m
-        face_prop_counts[primary] = int(m.sum())
-        
+        masks[prim] = m
 
-    plus_faces = np.fromiter(
-        (
-            mesh.materials[p.material_index].name.startswith('+')
-            if 0 <= p.material_index < len(mesh.materials)
-            and mesh.materials[p.material_index] is not None
-            else False
-            for p in mesh.polygons
-        ),
-        dtype=bool,
-        count=face_count
-    )
-
-
+    # ───────────────────────────── strip props on “+” materials
+    plus_faces = np.array([
+        mesh.materials[p.material_index].name.lstrip().startswith("+")
+        if 0 <= p.material_index < len(mesh.materials)
+           and mesh.materials[p.material_index] is not None
+        else False
+        for p in mesh.polygons
+    ], dtype=bool)
     if plus_faces.any():
         for m in masks.values():
             m[plus_faces] = False
 
+    # ───────────────────────────── special conflicts
     if two_side_attr and sphere_coll_attr:
-        m_two = masks[two_side_attr]
-        m_two &= ~masks[sphere_coll_attr]
-        masks[two_side_attr] = m_two
-        cnt = int(m_two.sum())
-        attr_prop_map[two_side_attr].face_count = cnt
-        if cnt == 0 and two_side_idx >= 0:
-            to_remove_prop_indices.add(two_side_idx)
+        masks[two_side_attr] &= ~masks[sphere_coll_attr]
 
-    if render_only_attr and lightmap_only_attr:
-        m_ren = masks[render_only_attr]
-        m_ren &= ~masks[lightmap_only_attr]
-        masks[render_only_attr] = m_ren
-        cnt = int(m_ren.sum())
-        attr_prop_map[render_only_attr].face_count = cnt
-        if cnt == 0 and render_only_idx >= 0:
-            to_remove_prop_indices.add(render_only_idx)
+    if render_only_attr:
+        wipe = np.zeros(face_cnt, dtype=bool)
+        if lightmap_only_attr: wipe |= masks[lightmap_only_attr]
+        if shadow_only_attr:   wipe |= masks[shadow_only_attr]
+        masks[render_only_attr] &= ~wipe
 
+    # ───────────────────────────── per‑type precedence
+    for attr_list in type_order.values():
+        if len(attr_list) < 2:
+            continue
+        taken = np.zeros(face_cnt, dtype=bool)
+        for attr_name in attr_list:                # slot order: first wins
+            m = masks[attr_name]
+            overlap = taken & m
+            if overlap.any():
+                m[overlap] = False
+            taken |= m
+
+    # ───────────────────────────── write back & update counts
     for name, mask in masks.items():
         attr = mesh.attributes.get(name)
-        if attr is None:
+        if not attr:
             continue
         attr.data.foreach_set("value", mask.astype(np.int8))
 
-        # refresh face_count for every prop that survived
+        cnt = int(mask.sum())
         prop = attr_prop_map.get(name)
         if prop:
-            prop.face_count = int(mask.sum())
+            prop.face_count = cnt
+            if cnt == 0:
+                j = mesh.nwo.face_props.find(prop.name)
+                if j != -1:
+                    to_remove.add(j)
 
-    for i, p in enumerate(mesh.nwo.face_props):
-        if p.face_count == 0:
-            to_remove_prop_indices.add(i)
+    mesh.update()
 
-    for i in sorted(to_remove_prop_indices, reverse=True):
-        delete_face_attribute(mesh, i)
-
+    # ───────────────────────────── delete empty / merged props
+    for j, prop in enumerate(mesh.nwo.face_props):
+        if prop.face_count == 0:
+            to_remove.add(j)
+    for j in sorted(to_remove, reverse=True):
+        delete_face_prop(mesh, j)                  # your existing helper
+        
 def connect_verts_on_edge(mesh: bpy.types.Mesh, do_degen_dissolve=True):
     """Split edges so that stray verts become connected – quick AABB version."""
 

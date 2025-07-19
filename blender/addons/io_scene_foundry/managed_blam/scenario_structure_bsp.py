@@ -223,62 +223,15 @@ class ScenarioStructureBspTag(Tag):
         
         for element in self.tag.SelectField("Block:clusters").Elements:
             structure = Cluster(element, meshes, render_materials)
-            ob = structure.create(render_model, temp_meshes, structure_surface_triangle_mapping, element.ElementIndex)
-            if ob is not None and ob.data and ob.data.polygons:
-                structure_objects.append(ob)
-                structure_collection.objects.link(ob)
-            
-        # Merge structure
-        utils.deselect_all_objects()
-        print("Separating Water Surfaces from Structure")
-        for ob in structure_objects:
-            structure_mesh = ob.data
-            bm = bmesh.new()
-            bm.from_mesh(structure_mesh)
-            water_layer = bm.faces.layers.int.get("water_surface")
-            if water_layer:
-                water_mesh = structure_mesh.copy()
-                water_mesh.name = "water_surface"
-                bmw = bm.copy()
-                bmw_water_layer = bmw.faces.layers.int.get("water_surface")
-                bmesh.ops.delete(bmw, geom=[f for f in bmw.faces if not f[bmw_water_layer]], context='FACES')
-                bmesh.ops.delete(bm, geom=[f for f in bm.faces if f[water_layer]], context='FACES')
-                bmw.faces.layers.int.remove(bmw_water_layer)
-                bm.faces.layers.int.remove(water_layer)
-                bm.to_mesh(structure_mesh)
-                bm.free()
-                bmw.to_mesh(water_mesh)
-                if water_mesh.polygons:
-                    water_ob = bpy.data.objects.new(water_mesh.name, water_mesh)
-                    structure_collection.objects.link(water_ob)
-                    utils.apply_loop_normals(water_mesh)
-                    water_mesh.nwo.mesh_type = "_connected_geometry_mesh_type_water_surface"
-                    water_ob.nwo.water_volume_depth = 0 # depth to be handled by structure design
-                    utils.loop_normal_magic(water_ob.data)
-                    water_ob.select_set(True)
-                    utils.set_active_object(water_ob)
-                    bpy.ops.object.editmode_toggle()
-                    bpy.ops.mesh.separate(type="LOOSE")
-                    bpy.ops.object.editmode_toggle()
-                    for loose_water_ob in bpy.context.selected_objects:
-                        objects.append(loose_water_ob)
-                    utils.deselect_all_objects()
-                
-            if structure_mesh.polygons:
-                structure_mesh.nwo.mesh_type = "_connected_geometry_mesh_type_structure"
-                ob.nwo.proxy_instance = True
-                # objects.append(ob)
-                # structure_mesh.nwo.render_only = True
-                if structure_mesh.nwo.face_props:
-                    utils.consolidate_face_attributes(structure_mesh)
-                    # bm = bmesh.new()
-                    # bm.from_mesh(structure_mesh)
-                    # for face_attribute in structure_mesh.nwo.face_props:
-                    #     face_attribute.face_count = utils.layer_face_count(bm, bm.faces.layers.int.get(face_attribute.layer_name))
-                    # bm.free()
-                    
-                # utils.consolidate_face_attributes(ob.data)
-                # utils.connect_verts_on_edge(ob.data)
+            structure_obs = structure.create(render_model, temp_meshes, structure_surface_triangle_mapping, element.ElementIndex)
+            for ob in structure_obs:
+                if ob is not None and ob.data and ob.data.polygons:
+                    structure_collection.objects.link(ob)
+
+                    if ob.data.nwo.mesh_type == '_connected_geometry_mesh_type_water_surface':
+                        objects.append(ob)
+                    else:
+                        structure_objects.append(ob)
             
         # Create Structure Collision
         self.structure_collision = None
@@ -301,22 +254,24 @@ class ScenarioStructureBspTag(Tag):
                 # objects.append(ob)
                         
         # Merge all structure objects
+        main_structure_ob = None
+        print("Merging Structure (Can take a while)")
         if len(structure_objects) > 1:
-            print("Merging Structure (Can take a while)")
             main_structure_ob, remaining_structure_obs = structure_objects[0], structure_objects[1:]
             main_structure_ob.name = f"{self.tag_path.ShortName}_structure"
             utils.join_objects([main_structure_ob] + remaining_structure_obs)
             # utils.set_two_sided(main_structure_ob.data)
-            utils.connect_verts_on_edge(main_structure_ob.data)
             
+        elif structure_objects:
+            main_structure_ob = structure_objects[0]
+        
+        if main_structure_ob is not None:
+            utils.connect_verts_on_edge(main_structure_ob.data)
             objects.append(main_structure_ob)
             utils.unlink(main_structure_ob)
             structure_collection.objects.link(main_structure_ob)
-            
-        elif structure_objects:
-            objects.append(structure_objects[0])
-            utils.unlink(structure_objects[0])
-            structure_collection.objects.link(structure_objects[0])
+            main_structure_ob.nwo.proxy_instance = True
+            main_structure_ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_structure'
         
         print("Removing Duplicate Material Slots")
         ob_meshes = {o.data for o in objects}

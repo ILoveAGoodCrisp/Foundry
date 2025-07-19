@@ -259,6 +259,12 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="Tells the game to generate a physics representation of this mesh without converting it to a convex hull",
     )
+    
+    physics_material: bpy.props.StringProperty(
+        name="Physics Material",
+        options=set(),
+        description="Applies the given global material to this physics object. This affects the sounds and effects that play when objects interact with this physics mesh"
+    )
 
     poop_lighting_items = [
         (
@@ -279,6 +285,13 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     ]
 
     # POOP PROPERTIES
+    
+    poop_global_material: bpy.props.StringProperty(
+        name="Collision Material Override",
+        description="Override the collision materials for this mesh (which will be derived from the materials) with the given global material",
+        options=set(),
+    )
+    
     poop_render_only: bpy.props.BoolProperty(
         name="Render Only",
         options=set(),
@@ -538,6 +551,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="How deep the water physics volume extends",
         default=utils.wu(20),
+        min=0,
         subtype='DISTANCE'
     )
     water_volume_flow_direction: bpy.props.FloatProperty(  # this something which can probably be automated?

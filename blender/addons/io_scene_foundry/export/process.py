@@ -32,7 +32,7 @@ from ..managed_blam.animation import AnimationTag
 from ..managed_blam.model import ModelTag
 from .import_sidecar import SidecarImport
 from .build_sidecar import Sidecar, get_cinematic_scenes
-from .export_info import BoundarySurfaceType, ExportInfo, FaceDrawDistance, FaceMode, FaceSides, FaceType, LightmapType, MeshObbVolumeType, PoopInstanceImposterPolicy, PoopLighting, PoopInstancePathfindingPolicy, MeshTessellationDensity, MeshType, ObjectType
+from .export_info import AdditionalCompression, BoundarySurfaceType, ExportInfo, FaceDrawDistance, FaceMode, FaceSides, FaceType, LightmapType, MeshObbVolumeType, PoopCollisionType, PoopInstanceImposterPolicy, PoopLighting, PoopInstancePathfindingPolicy, MeshTessellationDensity, MeshType, ObjectType
 from ..props.mesh import NWO_MeshPropertiesGroup
 from ..props.object import NWO_ObjectPropertiesGroup
 from .virtual_geometry import AnimatedBone, VectorEvent, VirtualAnimation, VirtualNode, VirtualScene
@@ -50,43 +50,6 @@ class ObjectCopy(Enum):
     INSTANCE = 2
     WATER_PHYSICS = 3
     PHYSICS = 4
-
-face_prop_defaults = {
-    "bungie_face_region": "default",
-    "bungie_face_global_material": "default",
-    "bungie_face_type": 0,
-    "bungie_face_mode": 0,
-    "bungie_face_sides": 0,
-    "bungie_face_draw_distance": 0,
-    "bungie_ladder": 0,
-    "bungie_slip_surface": 0,
-    "bungie_decal_offset": 0,
-    "bungie_no_shadow": 0,
-    "bungie_invisible_to_pvs": 0,
-    "bungie_no_lightmap": 0,
-    "bungie_precise_position": 0,
-    "bungie_mesh_tessellation_density": 0,
-    "bungie_lightmap_ignore_default_resolution_scale": 0,
-    "bungie_lightmap_additive_transparency": (0, 0, 0),
-    "bungie_lightmap_resolution_scale": 3,
-    "bungie_lightmap_type": 0,
-    "bungie_lightmap_translucency_tint_color": (255, 255, 255),
-    "bungie_lightmap_lighting_from_both_sides": 0,
-    "bungie_lightmap_transparency_override": 0,
-    "bungie_lightmap_analytical_bounce_modifier": 1.0,
-    "bungie_lightmap_general_bounce_modifier": 1.0,
-    "bungie_lightmap_chart_group": 0,
-    "bungie_lighting_emissive_power": 0.0,
-    "bungie_lighting_emissive_color": (0, 0, 0, 0),
-    "bungie_lighting_emissive_per_unit": 0,
-    "bungie_lighting_emissive_quality": 1.0,
-    "bungie_lighting_use_shader_gel": 0,
-    "bungie_lighting_bounce_ratio": 1.0,
-    "bungie_lighting_attenuation_enabled": 0,
-    "bungie_lighting_attenuation_cutoff": 0.0,
-    "bungie_lighting_attenuation_falloff": 0.0,
-    "bungie_lighting_emissive_focus": 0.0,
-}
 
 class ExportTagType(Enum):
     RENDER = 0
@@ -220,6 +183,8 @@ class ExportScene:
         
         self.any_collision_proxies = False
         self.has_frame_events = False
+        
+        self.poop_obs = defaultdict(set)
         
     def _get_export_tag_types(self):
         tag_types = set()
@@ -375,23 +340,21 @@ class ExportScene:
             coll_props["bungie_mesh_type"] = MeshType.poop_collision.value
             if self.corinth:
                 if has_phys:
-                    coll_props["bungie_mesh_poop_collision_type"] = "_connected_geometry_poop_collision_type_bullet_collision"
+                    coll_props["bungie_mesh_poop_collision_type"] = "bullet_collision"
                 else:
-                    coll_props["bungie_mesh_poop_collision_type"] = "_connected_geometry_poop_collision_type_default"
+                    coll_props["bungie_mesh_poop_collision_type"] = "default"
                     
-            fp_defaults, mesh_props = self.processed_meshes.get(proxy_collision.data, (None, None))
+            mesh_props = self.processed_meshes.get(proxy_collision.data)
             if mesh_props is None:
                 mesh_props = {}
-                fp_defaults = self._setup_mesh_level_props(proxy_collision, "default", mesh_props, coll_props["bungie_mesh_type"])
+                self._setup_mesh_level_props(proxy_collision, "default", mesh_props)
                 # Collision proxies must not be breakable, else tool will crash
                 if mesh_props.get("bungie_face_mode") == FaceMode.breakable.value:
                     mesh_props["bungie_face_mode"] = FaceMode.normal.value
-                if fp_defaults.get("bungie_face_mode") == FaceMode.breakable.value:
-                    fp_defaults["bungie_face_mode"] = FaceMode.normal.value
-                self.processed_meshes[proxy_collision.data] = (fp_defaults, mesh_props)
+                self.processed_meshes[proxy_collision.data] = mesh_props
             
             coll_props.update(mesh_props)
-            ob_halo_data[proxy_collision] = (coll_props, region, permutation, fp_defaults, tuple())
+            ob_halo_data[proxy_collision] = (coll_props, region, permutation, tuple())
             proxies.append(proxy_collision)
             self.any_collision_proxies = True
             
@@ -401,32 +364,32 @@ class ExportScene:
                 phys_props["bungie_object_type"] = ObjectType.mesh.value
                 if self.corinth:
                     phys_props["bungie_mesh_type"] = MeshType.poop_collision.value
-                    phys_props["bungie_mesh_poop_collision_type"] = "_connected_geometry_poop_collision_type_play_collision"
+                    phys_props["bungie_mesh_poop_collision_type"] = "play_collision"
                 else:
                     phys_props["bungie_mesh_type"] = MeshType.poop_physics.value
                         
-                fp_defaults, mesh_props = self.processed_meshes.get(proxy_physics.data, (None, None))
+                mesh_props = self.processed_meshes.get(proxy_physics.data)
                 if mesh_props is None:
                     mesh_props = {}
-                    fp_defaults, self._setup_mesh_level_props(proxy_physics, "default", mesh_props, phys_props["bungie_mesh_type"])
-                    self.processed_meshes[proxy_physics.data] = (fp_defaults, mesh_props)
+                    self._setup_mesh_level_props(proxy_physics, "default", mesh_props)
+                    self.processed_meshes[proxy_physics.data] = mesh_props
                 
                 phys_props.update(mesh_props)
-                ob_halo_data[proxy_physics] = (phys_props, region, permutation, fp_defaults, tuple())
+                ob_halo_data[proxy_physics] = (phys_props, region, permutation, tuple())
                 proxies.append(proxy_physics)
             
         if has_cookie:
             cookie_props = {}
             cookie_props["bungie_object_type"] = ObjectType.mesh.value
             cookie_props["bungie_mesh_type"] = MeshType.cookie_cutter.value
-            fp_defaults, mesh_props = self.processed_meshes.get(proxy_cookie_cutter.data, (None, None))
+            mesh_props = self.processed_meshes.get(proxy_cookie_cutter.data)
             if mesh_props is None:
                 mesh_props = {}
-                fp_defaults = self._setup_mesh_level_props(proxy_cookie_cutter, "default", mesh_props, cookie_props["bungie_mesh_type"])
-                self.processed_meshes[proxy_cookie_cutter.data] = (fp_defaults, mesh_props)
+                self._setup_mesh_level_props(proxy_cookie_cutter, "default", mesh_props)
+                self.processed_meshes[proxy_cookie_cutter.data] = mesh_props
             
             cookie_props.update(mesh_props)
-            ob_halo_data[proxy_cookie_cutter] = (cookie_props, region, permutation, fp_defaults, tuple())
+            ob_halo_data[proxy_cookie_cutter] = (cookie_props, region, permutation, tuple())
             proxies.append(proxy_cookie_cutter)
         
         return ob_halo_data, proxies, has_coll
@@ -478,7 +441,7 @@ class ExportScene:
                 result = self.get_halo_props(ob)
                 if result is None:
                     continue
-                props, region, permutation, fp_defaults, mesh_props, copy, is_pca = result
+                props, region, permutation, mesh_props, copy, is_pca = result
                 
                 is_armature = ob.type == 'ARMATURE'
                 
@@ -569,7 +532,7 @@ class ExportScene:
                             # copy_ob.name = f"{ob.name}_{name}"
                             copy_only = True
                     
-                    self.ob_halo_data[copy_ob] = [copy_props, copy_region, permutation, fp_defaults, proxies]
+                    self.ob_halo_data[copy_ob] = [copy_props, copy_region, permutation, proxies]
                     if not is_armature and (has_parent or (self.main_armature and not is_armature)) and copy_props["bungie_mesh_type"] != MeshType.poop.value:
                         if parent in support_armatures:
                             object_parent_dict[copy_ob] = self.main_armature
@@ -591,7 +554,7 @@ class ExportScene:
                             object_parent_dict[ob] = parent
                     else:
                         self.no_parent_objects.append(ob)
-                    self.ob_halo_data[ob] = [props, region, permutation, fp_defaults, proxies]
+                    self.ob_halo_data[ob] = [props, region, permutation, proxies]
                     
                 utils.update_job_count(process, "", idx, num_export_objects)
             utils.update_job_count(process, "", num_export_objects, num_export_objects)
@@ -640,7 +603,6 @@ class ExportScene:
         is_pca = False
         region = self.default_region
         permutation = self.default_permutation
-        fp_defaults = {}
         nwo = ob.nwo
         object_type = self._get_object_type(ob)
         # Frames go unused in non-model exports
@@ -721,10 +683,7 @@ class ExportScene:
             if not nwo.mesh_type:
                 nwo.mesh_type = '_connected_geometry_mesh_type_default'
             if utils.type_valid(nwo.mesh_type, self.asset_type.name.lower(), self.game_version):
-                mesh_result = self._setup_mesh_properties(ob, ob.nwo, self.asset_type.supports_bsp, props, region, mesh_props)
-                if mesh_result is None:
-                    return
-                fp_defaults, copy = mesh_result
+                copy = self._setup_mesh_properties(ob, ob.nwo, self.asset_type.supports_bsp, props, region, mesh_props)
                 if ob.data.shape_keys and self.asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.ANIMATION, AssetType.CINEMATIC}:
                     is_pca = True
                 
@@ -743,7 +702,7 @@ class ExportScene:
             else:
                 return
 
-        return props, region, permutation, fp_defaults, mesh_props, copy, is_pca
+        return props, region, permutation, mesh_props, copy, is_pca
     
     def _setup_mesh_properties(self, ob: bpy.types.Object, nwo: NWO_ObjectPropertiesGroup, supports_bsp: bool, props: dict, region: str, mesh_props: dict):
         mesh_type = ob.data.nwo.mesh_type
@@ -853,16 +812,14 @@ class ExportScene:
 
         props["bungie_mesh_type"] = MeshType[mesh_type[30:]].value
         
-        fp_defaults, tmp_mesh_props = self.processed_meshes.get(ob.data, (None, None))
+        tmp_mesh_props = self.processed_meshes.get(ob.data)
         if tmp_mesh_props is None:
-            fp_defaults = self._setup_mesh_level_props(ob, region, mesh_props, props["bungie_mesh_type"])
-            if fp_defaults is None:
-                return None
-            self.processed_meshes[ob.data] = (fp_defaults, mesh_props)
+            self._setup_mesh_level_props(ob, region, mesh_props)
+            self.processed_meshes[ob.data] = mesh_props
         else:
             mesh_props.update(tmp_mesh_props)
 
-        return fp_defaults, copy
+        return copy
     
     def _setup_water_physics_props(self, nwo: NWO_ObjectPropertiesGroup, props: dict):
         props["bungie_mesh_water_volume_depth"] = nwo.water_volume_depth
@@ -892,7 +849,6 @@ class ExportScene:
     def _setup_poop_props(self, ob: bpy.types.Object, nwo: NWO_ObjectPropertiesGroup, data_nwo: NWO_MeshPropertiesGroup, props: dict, mesh_props: dict):
         if self.corinth and not data_nwo.render_only and data_nwo.collision_only:
             props["bungie_mesh_type"] = MeshType.poop_collision.value
-            props["bungie_mesh_poop_collision_type"] = data_nwo.poop_collision_type
             props["bungie_mesh_poop_pathfinding"] = PoopInstancePathfindingPolicy[nwo.poop_pathfinding].value
         
         props["bungie_mesh_poop_lighting"] = PoopLighting[nwo.poop_lighting].value
@@ -910,23 +866,22 @@ class ExportScene:
                 if self.corinth:
                     props["bungie_mesh_poop_imposter_brightness"] = nwo.poop_imposter_brightness
 
+        self.poop_obs[ob.data].add(ob)
         if nwo.poop_render_only:
             if self.corinth:
                 props["bungie_mesh_poop_collision_type"] = '_connected_geometry_poop_collision_type_none'
             else:
                 props["bungie_mesh_poop_is_render_only"] = 1
                 
-        elif self.corinth:
-            props["bungie_mesh_poop_collision_type"] = data_nwo.poop_collision_type
         if nwo.poop_does_not_block_aoe:
             props["bungie_mesh_poop_does_not_block_aoe"] = 1
         if nwo.poop_excluded_from_lightprobe:
             props["bungie_mesh_poop_excluded_from_lightprobe"] = 1
             
-        if data_nwo.decal_offset:
+        if nwo.poop_decal_spacing:
             props["bungie_mesh_poop_decal_spacing"] = 1 
-        if data_nwo.precise_position:
-            props["bungie_mesh_poop_precise_geometry"] = 1
+        # if data_nwo.precise_position:
+        #     props["bungie_mesh_poop_precise_geometry"] = 1
 
         if self.corinth:
             props["bungie_mesh_poop_lightmap_resolution_scale"] = nwo.poop_lightmap_resolution_scale
@@ -937,6 +892,10 @@ class ExportScene:
                 props["bungie_mesh_poop_remove_from_shadow_geometry"] = 1
             if nwo.poop_disallow_lighting_samples:
                 props["bungie_mesh_poop_disallow_object_lighting_samples"] = 1
+            
+            if nwo.poop_global_material.strip():
+                props["bungie_mesh_global_material"] = nwo.poop_global_material
+                props["bungie_mesh_poop_collision_override_global_material"] = 1
         
     def _setup_marker_properties(self, ob: bpy.types.Object, nwo: NWO_ObjectPropertiesGroup, props: dict, region: str):
         marker_type = nwo.marker_type
@@ -1105,271 +1064,191 @@ class ExportScene:
                 props["bungie_marker_light_cone_intensity"] = nwo.marker_light_cone_intensity
                 props["bungie_marker_light_cone_curve"] = nwo.marker_light_cone_curve
     
-    def _setup_mesh_level_props(self, ob: bpy.types.Object, region: str, mesh_props: dict, mesh_type_index: int):
-        data_nwo: NWO_MeshPropertiesGroup = ob.data.nwo
+    def _setup_mesh_level_props(self, ob: bpy.types.Object, region: str, mesh_props: dict):
+        mesh = ob.data
+        data_nwo: NWO_MeshPropertiesGroup = mesh.nwo
         face_props = data_nwo.face_props
-        fp_defaults = face_prop_defaults.copy()
-        mesh_type = MeshType(mesh_type_index)
+        is_mesh = ob.type == 'MESH'
+        region_face_level = False
+        precise_face_level = False
+        precise_face_prop = False
+        precise = self.asset_type == AssetType.MODEL and self.export_settings.auto_precise
         
-        if self.corinth and data_nwo.uncompressed and mesh_type in {MeshType.default, MeshType.poop}:
-            mesh_props["bungie_mesh_use_uncompressed_verts"] = 1
-        if data_nwo.additional_compression != "default" and mesh_type in {MeshType.default, MeshType.decorator, MeshType.poop, MeshType.water_surface}:
-            mesh_props["bungie_mesh_additional_compression"] = data_nwo.additional_compression
-        
-        if self.asset_type.supports_global_materials:
-            global_material = ob.data.nwo.face_global_material.strip().replace(' ', "_")
-            if global_material:
-                if self.corinth and mesh_props.get("bungie_mesh_type") in {MeshType.poop.value, MeshType.poop_collision.value}:
-                    mesh_props["bungie_mesh_global_material"] = global_material
-                    mesh_props["bungie_mesh_poop_collision_override_global_material"] = 1
-                self.global_materials.add(global_material)
-                if test_face_prop(face_props, "face_global_material_override"):
-                    fp_defaults["bungie_face_global_material"] = global_material
-                else:
-                    mesh_props["bungie_face_global_material"] = global_material
-        
-        if self.asset_type.supports_regions:
-            if test_face_prop(face_props, "region_name_override"):
-                fp_defaults["bungie_face_region"] = region
-            else:
-                mesh_props["bungie_face_region"] = region
+        if face_props:
+            if is_mesh:
+                utils.consolidate_face_attributes(mesh) # makes things simpler and ensures face counts are correct
+                face_count = len(mesh.polygons)
             
-        for idx, face_prop in enumerate(data_nwo.face_props):
-            if face_prop.region_name_override:
-                region = face_prop.region_name
-                if region not in self.regions_set:
-                    self.warnings.append(f"Object [{ob.name}] has {self.reg_name} [{region}] on face property index {idx} which is not present in the {self.reg_name}s table. Setting {self.reg_name} to: {self.default_region}")
-            if self.asset_type.supports_global_materials and face_prop.face_global_material_override:
-                mat = face_prop.face_global_material.strip().replace(' ', "_")
-                if mat:
-                    self.global_materials.add(mat)
-        
-        two_sided, transparent = data_nwo.face_two_sided, data_nwo.face_transparent
-        
-        if two_sided or transparent:
-            face_two_sided = test_face_prop(face_props, "face_two_sided_override")
-            face_transparent = test_face_prop(face_props, "face_transparent_override")
-            if face_two_sided or face_transparent:
-                if two_sided and transparent:
-                    if self.corinth:
-                        match data_nwo.face_two_sided_type:
-                            case 'mirror':
-                                fp_defaults["bungie_face_sides"] = FaceSides.mirror_transparent.value
-                            case 'keep':
-                                fp_defaults["bungie_face_sides"] = FaceSides.keep_transparent.value
-                            case _:
-                                fp_defaults["bungie_face_sides"] = FaceSides.two_sided_transparent.value
-                    else:
-                        fp_defaults["bungie_face_sides"] = FaceSides.two_sided_transparent.value
-                    
-                elif two_sided:
-                    if self.corinth:
-                        match data_nwo.face_two_sided_type:
-                            case 'mirror':
-                                fp_defaults["bungie_face_sides"] = FaceSides.mirror.value
-                            case 'keep':
-                                fp_defaults["bungie_face_sides"] = FaceSides.keep.value
-                            case _:
-                                fp_defaults["bungie_face_sides"] = FaceSides.two_sided.value
-                    else:
-                        fp_defaults["bungie_face_sides"] = FaceSides.two_sided.value
-                        
-                else:
-                    fp_defaults["bungie_face_sides"] = FaceSides.one_sided_transparent.value
-                        
-            else:
-                if two_sided and transparent:
-                    if self.corinth:
-                        match data_nwo.face_two_sided_type:
-                            case 'mirror':
-                                mesh_props["bungie_face_sides"] = FaceSides.mirror_transparent.value
-                            case 'keep':
-                                mesh_props["bungie_face_sides"] = FaceSides.keep_transparent.value
-                            case _:
-                                mesh_props["bungie_face_sides"] = FaceSides.two_sided_transparent.value
-                    else:
-                        mesh_props["bungie_face_sides"] = FaceSides.two_sided_transparent.value
-                    
-                elif two_sided:
-                    if self.corinth:
-                        match data_nwo.face_two_sided_type:
-                            case 'mirror':
-                                mesh_props["bungie_face_sides"] = FaceSides.mirror.value
-                            case 'keep':
-                                mesh_props["bungie_face_sides"] = FaceSides.keep.value
-                            case _:
-                                mesh_props["bungie_face_sides"] = FaceSides.two_sided.value
-                    else:
-                        mesh_props["bungie_face_sides"] = FaceSides.two_sided.value
-                        
-                else:
-                    mesh_props["bungie_face_sides"] = FaceSides.one_sided_transparent.value
-                    
-        
-        if data_nwo.lightmap_only:
-            if test_face_prop(face_props, "lightmap_only_override"):
-                fp_defaults["bungie_face_mode"] = FaceMode.lightmap_only.value
-            else:
-                mesh_props["bungie_face_mode"] = FaceMode.lightmap_only.value
-        elif data_nwo.render_only:
-            if test_face_prop(face_props, "render_only_override"):
-                fp_defaults["bungie_face_mode"] = FaceMode.render_only.value
-            else:
-                mesh_props["bungie_face_mode"] = FaceMode.render_only.value
-        elif data_nwo.collision_only:
-            if test_face_prop(face_props, "collision_only_override"):
-                fp_defaults["bungie_face_mode"] = FaceMode.collision_only.value
-            else:
-                mesh_props["bungie_face_mode"] = FaceMode.collision_only.value
-        elif not self.corinth and data_nwo.sphere_collision_only:
-            if test_face_prop(face_props, "sphere_collision_only_override"):
-                fp_defaults["bungie_face_mode"] = FaceMode.sphere_collision_only.value
-            else:
-                mesh_props["bungie_face_mode"] = FaceMode.sphere_collision_only.value
-        elif not self.corinth and data_nwo.breakable:
-            if test_face_prop(face_props, "breakable_override"):
-                fp_defaults["bungie_face_mode"] = FaceMode.breakable.value
-            else:
-                mesh_props["bungie_face_mode"] = FaceMode.breakable.value
-                
-        if data_nwo.face_draw_distance != "_connected_geometry_face_draw_distance_normal":
-            if test_face_prop(face_props, "face_draw_distance_override"):
-                match data_nwo.face_draw_distance:
-                    case '_connected_geometry_face_draw_distance_detail_mid':
-                        fp_defaults["bungie_face_draw_distance"] = FaceDrawDistance.detail_mid.value
-                    case '_connected_geometry_face_draw_distance_detail_close':
-                        fp_defaults["bungie_face_draw_distance"] = FaceDrawDistance.detail_close.value
-            else:
-                mesh_props["bungie_face_draw_distance"] = data_nwo.face_draw_distance
+            face_sides_props = []
+            face_sides_props_full = []
             
-        if data_nwo.ladder:
-            if test_face_prop(face_props, "ladder_override"):
-                fp_defaults["bungie_ladder"] = 1
-            else:
-                mesh_props["bungie_ladder"] = 1
-        if data_nwo.slip_surface:
-            if test_face_prop(face_props, "slip_surface_override"):
-                fp_defaults["bungie_slip_surface"] = 1
-            else:
-                mesh_props["bungie_slip_surface"] = 1
-        if data_nwo.decal_offset:
-            if test_face_prop(face_props, "decal_offset_override"):
-                fp_defaults["bungie_decal_offset"] = 1
-            else:
-                mesh_props["bungie_decal_offset"] = 1
-        if data_nwo.no_shadow:
-            if test_face_prop(face_props, "no_shadow_override"):
-                fp_defaults["bungie_no_shadow"] = 1
-            else:
-                mesh_props["bungie_no_shadow"] = 1
-        if data_nwo.no_pvs:
-            if test_face_prop(face_props, "no_pvs_override"):
-                fp_defaults["bungie_invisible_to_pvs"] = 1
-            else:
-                mesh_props["bungie_invisible_to_pvs"] = 1
-        if data_nwo.no_lightmap:
-            if test_face_prop(face_props, "no_lightmap_override"):
-                fp_defaults["bungie_no_lightmap"] = 1
-            else:
-                mesh_props["bungie_no_lightmap"] = 1
-        if data_nwo.precise_position:
-            if test_face_prop(face_props, "precise_position_override"):
-                fp_defaults["bungie_precise_position"] = 1
-            else:
-                mesh_props["bungie_precise_position"] = int(self.asset_type == AssetType.MODEL and self.export_settings.auto_precise)
-        if data_nwo.mesh_tessellation_density != "_connected_geometry_mesh_tessellation_density_none":
-            if test_face_prop(face_props, "mesh_tessellation_density_override"):
-                match data_nwo.mesh_tessellation_density:
-                    case '_connected_geometry_mesh_tessellation_density_4x':
-                        fp_defaults["bungie_mesh_tessellation_density"] = MeshTessellationDensity._4x.value
-                    case '_connected_geometry_mesh_tessellation_density_9x':
-                        fp_defaults["bungie_mesh_tessellation_density"] = MeshTessellationDensity._9x.value
-                    case '_connected_geometry_mesh_tessellation_density_36x':
-                        fp_defaults["bungie_mesh_tessellation_density"] = MeshTessellationDensity._36x.value
-            else:
-                mesh_props["bungie_mesh_tessellation_density"] = data_nwo.mesh_tessellation_density
+            for idx, prop in enumerate(face_props):
+                if prop.type in ('face_sides', 'transparent'):
+                    face_sides_props.append(prop)
+                if is_mesh and prop.face_count != face_count:
+                    if prop.type == 'region' and prop.region != region:
+                        region_face_level = True
+                    elif prop.type == 'precise_position':
+                        precise_face_level = True
+                    continue
+                # If the face count matches the total faces on the mesh
                 
-        # Material Props
-        # If there's just one material on a mesh, we can store the material properties on the mesh
-        mats = [m for m in ob.data.materials if m is not None]
-        if len(set(mats)) == 1:
-            mat = mats[0]
-            mat_nwo = mat.nwo
-            if mat.name[0] == "+":
-                is_structure = ob.data.nwo.mesh_type == '_connected_geometry_mesh_type_structure'
-                if mat.name.lower().startswith('+seamsealer'):
-                    mesh_props["bungie_face_type"] = FaceType.seam_sealer.value
-                elif is_structure and mat.name.lower().startswith('+seam'):
-                    mesh_props["bungie_mesh_type"] = MeshType.seam.value
-                elif mat.name.lower().startswith('+'):
-                    if not is_structure and not self.corinth:
-                        return None
+                match prop.type:
+                    case 'face_mode':
+                        face_mode = FaceMode[prop.face_mode]
+                        
+                        if self.corinth and face_mode == FaceMode.breakable:
+                            face_mode = FaceMode.normal
+                        
+                        mesh_props["bungie_face_mode"] = face_mode.value
+                            
+                    case 'collision_type':
+                        mesh_props["bungie_mesh_poop_collision_type"] = PoopCollisionType[prop.collision_type].value
+                    case 'face_sides':
+                        face_sides_props_full.append(prop)
+                    case 'transparent':
+                        face_sides_props_full.append(prop)
+                    case 'region':
+                        region = prop.region
+                        if region not in self.regions_set:
+                            self.warnings.append(f"Object [{ob.name}] has {self.reg_name} [{region}] on face property index {idx} which is not present in the {self.reg_name}s table. Setting {self.reg_name} to: {self.default_region}")
+                            region = self.default_region
+                        
+                    case 'draw_distance':
+                        mesh_props["bungie_face_draw_distance"] = FaceDrawDistance[prop.draw_distance].value
+                        
+                    case 'global_material':
+                        if self.asset_type.supports_global_materials and prop.global_material.strip():
+                            mat = prop.face_global_material.strip().replace(' ', "_")
+                            if mat:
+                                self.global_materials.add(mat)
+                                mesh_props["bungie_face_global_material"] = mat
+                                
+                    case 'ladder':
+                        mesh_props["bungie_ladder"] = int(prop.ladder)
+                    case 'slip_surface':
+                        mesh_props["bungie_slip_surface"] = int(prop.slip_surface)
+                    case 'decal_offset':
+                        mesh_props["bungie_decal_offset"] = int(prop.decal_offset)
+                    case 'no_shadow':
+                        mesh_props["bungie_no_shadow"] = int(prop.no_shadow)
+                    case 'precise_position':
+                        precise_face_prop = True
+                        precise = prop.precise_position
                     
-                    enum_val = FaceType.sky.value if is_structure and self.asset_type == AssetType.SCENARIO else FaceType.seam_sealer.value
-                    mesh_props["bungie_face_type"] = enum_val
+                    case 'uncompressed':
+                        mesh_props["bungie_mesh_use_uncompressed_verts"] = int(prop.uncompressed)
+                    case 'additional_compression':
+                        mesh_props["bungie_mesh_additional_compression"] = AdditionalCompression[prop.additional_compression].value
+                        
+                    case 'no_lightmap':
+                        mesh_props["bungie_no_lightmap"] = int(prop.no_lightmap)
+                        
+                    case 'no_pvs':
+                        mesh_props["bungie_invisible_to_pvs"] = int(prop.no_pvs)
+                        
+                    case 'mesh_tessellation_density':
+                        mesh_props["bungie_mesh_tessellation_density"] = MeshTessellationDensity[prop.mesh_tessellation_density].value
                     
-                    if not self.corinth and enum_val == FaceType.sky.value:
-                        if len(mat.name) > 4 and mat.name[4].isdigit():
-                            if len(mat.name) > 5 and mat.name[5].isdigit():
-                                sky_index = int("".join(mat.name[4:5]))
+                    case 'lightmap_resolution_scale':
+                        mesh_props["bungie_lightmap_resolution_scale"] = int(prop.lightmap_resolution_scale)
+                    case 'lightmap_ignore_default_resolution_scale':
+                        mesh_props["bungie_lightmap_ignore_default_resolution_scale"] = int(prop.lightmap_ignore_default_resolution_scale)
+                    case 'lightmap_chart_group':
+                        mesh_props["bungie_lightmap_chart_group"] = prop.lightmap_chart_group
+                    case 'lightmap_type':
+                        mesh_props["bungie_lightmap_type"] = LightmapType[prop.lightmap_type].value
+                    case 'lightmap_additive_transparency':
+                        mesh_props["bungie_lightmap_additive_transparency"] = utils.color_3p_int(prop.lightmap_additive_transparency)
+                    case 'lightmap_transparency_override':
+                        mesh_props["bungie_lightmap_transparency_override"] = int(prop.lightmap_transparency_override)
+                    case 'lightmap_analytical_bounce_modifier':
+                        mesh_props["bungie_lightmap_analytical_bounce_modifier"] = prop.lightmap_analytical_bounce_modifier
+                    case 'lightmap_general_bounce_modifier':
+                        mesh_props["bungie_lightmap_general_bounce_modifier"] = prop.lightmap_general_bounce_modifier
+                    case 'lightmap_translucency_tint_color':
+                        mesh_props["bungie_lightmap_translucency_tint_color"] = utils.color_3p_int(prop.lightmap_translucency_tint_color)
+                    case 'lightmap_lighting_from_both_sides':
+                        mesh_props["bungie_lightmap_lighting_from_both_sides"] = int(prop.lightmap_lighting_from_both_sides)
+                    case 'emissive':
+                        if prop.material_lighting_emissive_power <= 0:
+                            mesh_props["bungie_lighting_emissive_power"] = 0.0
+                        else:
+                            power = max(prop.light_intensity, 0.0001)
+                            if prop.material_lighting_attenuation_cutoff > 0:
+                                falloff = prop.material_lighting_attenuation_falloff
+                                cutoff = prop.material_lighting_attenuation_cutoff
+                            else:
+                                falloff, cutoff = calc_attenutation(prop.material_lighting_emissive_power * self.unit_factor ** 2)
+                            mesh_props["bungie_lighting_emissive_power"] = power
+                            mesh_props["bungie_lighting_emissive_color"] = utils.color_4p_int(prop.material_lighting_emissive_color)
+                            mesh_props["bungie_lighting_emissive_per_unit"] = int(prop.material_lighting_emissive_per_unit)
+                            mesh_props["bungie_lighting_emissive_quality"] = prop.material_lighting_emissive_quality
+                            mesh_props["bungie_lighting_use_shader_gel"] = int(prop.material_lighting_use_shader_gel)
+                            mesh_props["bungie_lighting_bounce_ratio"] = prop.material_lighting_bounce_ratio
+                            mesh_props["bungie_lighting_attenuation_enabled"] = 1
+                            mesh_props["bungie_lighting_attenuation_cutoff"] = cutoff * self.atten_scalar * WU_SCALAR
+                            mesh_props["bungie_lighting_attenuation_falloff"] = falloff * self.atten_scalar * WU_SCALAR
+                            mesh_props["bungie_lighting_emissive_focus"] = degrees(prop.material_lighting_emissive_focus) / 180
+            
+            if face_sides_props_full and len(face_sides_props) == len(face_sides_props_full):
+                side_value = "one_sided"
+                transparent_value = ""
+                
+                for prop in face_sides_props_full:
+                    if prop.type == 'face_sides':
+                        if prop.two_sided:
+                            if self.corinth:
+                                side_value = prop.face_sides_type
+                            else:
+                                side_value = "two_sided"
+                    elif prop.transparent:
+                        transparent_value = "_transparent"
+                        
+                        
+                mesh_props["bungie_face_sides"] = FaceSides[f"{side_value}{transparent_value}"].value
+        
+        if mesh.materials:
+            sky_materials = []
+            sky_indices = set()
+            seamsealer_materials = []
+            seam_materials = []
+            materials_count = len(mesh.materials)
+            for material in mesh.materials:
+                if material is not None:
+                    if material.name.startswith("+sky"):
+                        sky_materials.append(material)
+                        if len(material.name) > 4 and material.name[4].isdigit():
+                            if len(material.name) > 5 and material.name[5].isdigit():
+                                sky_index = int("".join(material.name[4:5]))
                             else:
                                 sky_index = int(mat.name[4])
-                            if sky_index > 0:
-                                mesh_props["bungie_sky_permutation_index"] = sky_index
-
-            elif mat_nwo.has_lightmap_props:
-                if mat_nwo.lightmap_ignore_default_resolution_scale_active:
-                    mesh_props["bungie_lightmap_ignore_default_resolution_scale"] = 1
-                        
-                if mat_nwo.lightmap_additive_transparency_active:
-                    mesh_props["bungie_lightmap_additive_transparency"] = utils.color_3p_int(mat_nwo.lightmap_additive_transparency)
-                        
-                if mat_nwo.lightmap_resolution_scale_active:
-                    mesh_props["bungie_lightmap_resolution_scale"] = mat_nwo.lightmap_resolution_scale
-                        
-                if mat_nwo.lightmap_type_active:
-                    if data_nwo.lightmap_type == '_connected_geometry_lightmap_type_per_vertex':
-                        mesh_props["bungie_lightmap_type"] = LightmapType.per_vertex.value
-                    else:
-                        mesh_props["bungie_lightmap_type"] = LightmapType.per_pixel.value
-                        
-                if mat_nwo.lightmap_translucency_tint_color_active:
-                    mesh_props["bungie_lightmap_translucency_tint_color"] = utils.color_3p_int(mat_nwo.lightmap_translucency_tint_color)
-                        
-                if mat_nwo.lightmap_lighting_from_both_sides_active:
-                    mesh_props["bungie_lightmap_lighting_from_both_sides"] = 1
-                        
-                if mat_nwo.lightmap_transparency_override_active:
-                    mesh_props["bungie_lightmap_transparency_override"] = 1
-                        
-                if mat_nwo.lightmap_analytical_bounce_modifier_active:
-                    mesh_props["bungie_lightmap_analytical_bounce_modifier"] = mat_nwo.lightmap_analytical_bounce_modifier
-                        
-                if mat_nwo.lightmap_general_bounce_modifier_active:
-                    mesh_props["bungie_lightmap_general_bounce_modifier"] = mat_nwo.lightmap_general_bounce_modifier
+                            sky_indices.add(sky_index)
+                    elif material.name.startswith("+seamsealer"):
+                        seamsealer_materials.append(material)
+                    elif material.name.startswith("+seam"):
+                        seam_materials.append(material)
                     
-                if mat_nwo.lightmap_chart_group_active:
-                    mesh_props["bungie_lightmap_chart_group"] = mat_nwo.lightmap_chart_group
-                        
-                if mat_nwo.emissive_active and mat_nwo.material_lighting_emissive_power > 0:
-                    power = max(utils.calc_emissive_intensity(mat_nwo.material_lighting_emissive_power, self.to_halo_scale ** 2), 0.0001)
-                    if mat_nwo.material_lighting_attenuation_cutoff > 0:
-                        falloff = mat_nwo.material_lighting_attenuation_falloff
-                        cutoff = mat_nwo.material_lighting_attenuation_cutoff
+            if materials_count == len(sky_materials):
+                mesh_props["bungie_face_type"] = FaceType.sky.value
+                if len(sky_indices) < 2:
+                    if sky_indices:
+                        mesh_props["bungie_sky_permutation_index"] = sky_indices[0]
                     else:
-                        falloff, cutoff = calc_attenutation(mat_nwo.material_lighting_emissive_power * self.unit_factor ** 2)
-                        mesh_props["bungie_lighting_emissive_power"] = power
-                        mesh_props["bungie_lighting_emissive_color"] = utils.color_4p_int(mat_nwo.material_lighting_emissive_color)
-                        mesh_props["bungie_lighting_emissive_per_unit"] = int(mat_nwo.material_lighting_emissive_per_unit)
-                        mesh_props["bungie_lighting_emissive_quality"] = mat_nwo.material_lighting_emissive_quality
-                        mesh_props["bungie_lighting_use_shader_gel"] = int(mat_nwo.material_lighting_use_shader_gel)
-                        mesh_props["bungie_lighting_bounce_ratio"] = mat_nwo.material_lighting_bounce_ratio
-                        mesh_props["bungie_lighting_attenuation_enabled"] = 1
-                        mesh_props["bungie_lighting_attenuation_cutoff"] = cutoff * self.atten_scalar * WU_SCALAR
-                        mesh_props["bungie_lighting_attenuation_falloff"] = falloff * self.atten_scalar * WU_SCALAR
-                        mesh_props["bungie_lighting_emissive_focus"] = degrees(mat_nwo.material_lighting_emissive_focus) / 180
-                
-        return fp_defaults
+                        mesh_props["bungie_sky_permutation_index"] = 0
+                    
+            elif materials_count == len(seamsealer_materials):
+                mesh_props["bungie_face_type"] = FaceType.seam_sealer.value
+            elif materials_count == len(seam_materials):
+                mesh_props["bungie_mesh_type"] = MeshType.seam.value
+ 
+                        
+        if self.asset_type.supports_regions and not region_face_level:
+            mesh_props["bungie_face_region"] = region
+            
+        if not precise_face_level:
+            if precise or precise_face_prop:
+                mesh_props["bungie_precise_position"] = int(precise)
          
     def set_template_node_order(self):
         nodes = []

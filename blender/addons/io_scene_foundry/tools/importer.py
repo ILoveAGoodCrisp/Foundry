@@ -2496,10 +2496,10 @@ class NWOImporter:
                 mesh_type, material = self.mesh_and_material(mesh_type_legacy, is_model)
                 ob.data.nwo.mesh_type = mesh_type
                 if ob.data.nwo.sphere_collision_only:
-                    ob.data.nwo.poop_collision_type = '_connected_geometry_poop_collision_type_invisible_wall'
+                    ob.data.nwo.poop_collision_type = 'invisible_wall'
                         
                 elif ob.data.nwo.collision_only:
-                    ob.data.nwo.poop_collision_type = '_connected_geometry_poop_collision_type_bullet_collision'
+                    ob.data.nwo.poop_collision_type = 'bullet_collision'
                         
                 if self.corinth and ob.data.nwo.render_only:
                     ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_default'

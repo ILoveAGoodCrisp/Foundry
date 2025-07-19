@@ -18,7 +18,7 @@ class LightmapResolution(Enum):
     medium = 4
     high = 5
     very_high = 6
-    higest = 7
+    highest = 7
 
 class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
     attribute_name: bpy.props.StringProperty(options={'HIDDEN'})
@@ -50,9 +50,9 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
     def get_name(self):
         match self.type:
             case 'face_mode':
-                return f"{self.face_mode[30:].replace('_', ' ').title()}"
+                return f"{self.face_mode.replace('_', ' ').title()}"
             case 'collision_type':
-                return f"{self.collision_type[40:].replace('_', ' ').title()}"
+                return f"{self.collision_type.replace('_', ' ').title()}"
             case 'face_sides':
                 return "Two-Sided" if self.two_sided else "One-Sided"
             case 'transparent':
@@ -60,7 +60,7 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
             case 'region':
                 return f"region::{self.region}"
             case 'draw_distance':
-                return f"Draw Distance {self.draw_distance[39:].replace('detail_', '').title()}"
+                return f"Draw Distance {self.draw_distance.replace('detail_', '').title()}"
             case 'global_material':
                 return f"material::{self.global_material}"
             case 'ladder':
@@ -76,7 +76,7 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
             case 'uncompressed':
                 return "Uncompressed" if self.uncompressed else "Compressed"
             case 'additional_compression':
-                return "Additional Compression On" if self.additional_compression == '_connected_geometry_mesh_additional_compression_force_on' else "Additional Compression Off"
+                return "Additional Compression On" if self.additional_compression == 'force_on' else "Additional Compression Off"
             case 'uncompressed':
                 return "Uncompressed" if self.uncompressed else "Compressed"
             case 'no_lightmap':
@@ -84,7 +84,7 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
             case 'no_pvs':
                 return "No PVS" if self.no_pvs else "PVS"
             case 'mesh_tessellation_density':
-                return f"{self.mesh_tessellation_density[46:]} Tessellation"
+                return f"{self.mesh_tessellation_density} Tessellation"
             case 'lightmap_resolution_scale':
                 return f"Lightmap Resolution: {LightmapResolution(int(self.lightmap_resolution_scale)).name.replace('_', ' ').title()}"
             case 'lightmap_ignore_default_resolution_scale':
@@ -92,7 +92,7 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
             case 'lightmap_chart_group':
                 return f"Lightmap Chart Group {self.lightmap_chart_group}"
             case 'lightmap_type':
-                return f"Lightmap Type {self.lightmap_type[34:].replace('_', ' ').title()}"
+                return f"Lightmap Type {self.lightmap_type.replace('_', ' ').title()}"
             case 'lightmap_additive_transparency':
                 return "Lightmap Transparency"
             case 'lightmap_transparency_override':
@@ -115,13 +115,13 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
         description=face_prop_descriptions['face_mode'],
         options=set(),
         items=[
-            ('_connected_geometry_face_mode_normal', "Render & Collision", "Mesh will be used to build both render geometry and collision"),
-            ('_connected_geometry_face_mode_render_only', "Render Only", "Mesh will be used to build both render geometry. The game will not build a collision representation of this mesh. It will not be collidable in game"),
-            ('_connected_geometry_face_mode_collision_only', "Collision Only", "Physics objects and projectiles will collide with this mesh but it will not be visible"),
-            ('_connected_geometry_face_mode_sphere_collision_only', "Sphere Collision Only", "Only physics objects collide with this mesh. Projectiles will pass through it"),
-            ('_connected_geometry_face_mode_shadow_only', "Shadow Only", "Mesh will be invisible and uncollidable. It will only be used for shadow casting"),
-            ('_connected_geometry_face_mode_lightmap_only', "Lightmap Only", "Mesh will be invisible and uncollidable. It will only be used by the lightmapping"),
-            ('_connected_geometry_face_mode_breakable', "Breakable", "Allows collision geometry to be destroyed. Mesh will be used to build both render geometry and collision. This type is non-functional in Halo 4+"),
+            ('normal', "Render & Collision", "Mesh will be used to build both render geometry and collision"),
+            ('render_only', "Render Only", "Mesh will be used to build both render geometry. The game will not build a collision representation of this mesh. It will not be collidable in game"),
+            ('collision_only', "Collision Only", "Physics objects and projectiles will collide with this mesh but it will not be visible"),
+            ('sphere_collision_only', "Sphere Collision Only", "Only physics objects collide with this mesh. Projectiles will pass through it"),
+            ('shadow_only', "Shadow Only", "Mesh will be invisible and uncollidable. It will only be used for shadow casting"),
+            ('lightmap_only', "Lightmap Only", "Mesh will be invisible and uncollidable. It will only be used by the lightmapping"),
+            ('breakable', "Breakable", "Allows collision geometry to be destroyed. Mesh will be used to build both render geometry and collision. This type is non-functional in Halo 4 and Halo 2AMP"),
         ]
     )
     
@@ -130,10 +130,10 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
         options=set(),
         description=face_prop_descriptions['collision_type'],
         items=[
-            ("_connected_geometry_poop_collision_type_default", "Full", "Collision mesh that interacts with the physics objects and with projectiles"),
-            ("_connected_geometry_poop_collision_type_invisible_wall", "Invisible Wall Collision", "Collision mesh that interacts with the physics objects only"),
-            ("_connected_geometry_poop_collision_type_play_collision", "Player Collision", "Collision mesh that affects physics objects and physical projectiles, such as grenades"),
-            ("_connected_geometry_poop_collision_type_bullet_collision", "Bullet Collision", "Collision mesh that only interacts with simple projectiles, such as bullets")
+            # ("default", "Full", "Collision mesh that interacts with the physics objects and with projectiles"),
+            ("invisible_wall", "Invisible Wall Collision", "Collision mesh that interacts with the physics objects only"),
+            ("play_collision", "Player Collision", "Collision mesh that affects physics objects and physical projectiles, such as grenades"),
+            ("bullet_collision", "Bullet Collision", "Collision mesh that only interacts with simple projectiles, such as bullets")
         ]
     )
 
@@ -231,8 +231,8 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
         options=set(),
         description=face_prop_descriptions['additional_compression'],
         items=[
-            ('_connected_geometry_mesh_additional_compression_force_on', "Force On", ""),
-            ('_connected_geometry_mesh_additional_compression_force_off', "Force Off", ""),
+            ('force_on', "Force On", ""),
+            ('force_off', "Force Off", ""),
         ]
     )
 
@@ -261,17 +261,17 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
         description=face_prop_descriptions['mesh_tessellation_density'],
         items=[
             (
-                "_connected_geometry_mesh_tessellation_density_4x",
+                "_4x",
                 "4x",
                 "4 times",
             ),
             (
-                "_connected_geometry_mesh_tessellation_density_9x",
+                "_9x",
                 "9x",
                 "9 times",
             ),
             (
-                "_connected_geometry_mesh_tessellation_density_36x",
+                "_36x",
                 "36x",
                 "36 times",
             ),
@@ -317,10 +317,10 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
         name="Lightmap Type",
         options=set(),
         description=face_prop_descriptions['lightmap_type'],
-        default="_connected_material_lightmap_type_per_pixel",
+        default="per_vertex",
         items=[
-            ("_connected_material_lightmap_type_per_pixel", "Per Pixel", "Per pixel provides good fidelity and lighting variation but it takes up resolution in the lightmap bitmap"),
-            ("_connected_material_lightmap_type_per_vertex", "Per Vertex", "Uses a separate and additional per-vertex lightmap budget. Cost is dependent purely on complexity/vert count of the mesh"),
+            ("per_pixel", "Per Pixel", "Per pixel provides good fidelity and lighting variation but it takes up resolution in the lightmap bitmap"),
+            ("per_vertex", "Per Vertex", "Uses a separate and additional per-vertex lightmap budget. Cost is dependent purely on complexity/vert count of the mesh"),
         ],
     )
     
@@ -769,9 +769,9 @@ class NWO_MeshPropertiesGroup(bpy.types.PropertyGroup):
     
     def poop_collision_type_items(self, context):
         items = []
-        items.append(("_connected_geometry_poop_collision_type_default", "Full", "Collision mesh that interacts with the physics objects and with projectiles"))
-        items.append(("_connected_geometry_poop_collision_type_invisible_wall", "Sphere Collision", "Collision mesh that interacts with the physics objects only"))
-        items.append(("_connected_geometry_poop_collision_type_play_collision", "Player Collision", "Collision mesh that affects physics objects and physical projectiles, such as grenades"))
-        items.append(("_connected_geometry_poop_collision_type_bullet_collision", "Bullet Collision", "Collision mesh that only interacts with simple projectiles, such as bullets"))
+        items.append(("default", "Full", "Collision mesh that interacts with the physics objects and with projectiles"))
+        items.append(("invisible_wall", "Sphere Collision", "Collision mesh that interacts with the physics objects only"))
+        items.append(("play_collision", "Player Collision", "Collision mesh that affects physics objects and physical projectiles, such as grenades"))
+        items.append(("bullet_collision", "Bullet Collision", "Collision mesh that only interacts with simple projectiles, such as bullets"))
         
         return items

@@ -85,6 +85,7 @@ classes = [
     object.NWO_MT_FaceAttributeAddMenu,
     # object.NWO_MT_FacePropAddMenu,
     object.NWO_UL_FacePropList,
+    object.NWO_OT_FaceAttributeConsolidate,
     object.NWO_OT_FaceAtributeCountRefresh,
     object.NWO_OT_EditMode,
     object.NWO_OT_FaceAttributeDelete,

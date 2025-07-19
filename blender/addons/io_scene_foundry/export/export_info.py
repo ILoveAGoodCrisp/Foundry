@@ -105,6 +105,11 @@ class BoundarySurfaceType(BungieEnum):
     soft_kill = 1
     slip_surface = 2
     
+class AdditionalCompression(BungieEnum):
+    default = 0
+    force_on = 1
+    force_off = 2
+    
 class MeshObbVolumeType(BungieEnum):
     streamingvolume = 0
     lightmapexclusionvolume = 1
@@ -129,6 +134,12 @@ class PoopInstanceImposterPolicy(BungieEnumPoop):
     none = 4
     never = 5
     
+class PoopCollisionType(BungieEnumPoop):
+    default = 0
+    invisible_wall = 1
+    play_collision = 2
+    bullet_collision = 3
+    
 class ExportInfo:
     def __init__(self, regions, global_materials):
         self.export_user = getuser()[:19] # Limited because a string longer than 19 chars will cause a Tool assert
@@ -151,6 +162,7 @@ class ExportInfo:
         self.poop_lighting = PoopLighting
         self.poop_instance_pathfinding_policy = PoopInstancePathfindingPolicy
         self.poop_instance_imposter_policy = PoopInstanceImposterPolicy
+        self.poop_collision_type = PoopCollisionType
         if regions:
             self.regions = regions
         if global_materials:
