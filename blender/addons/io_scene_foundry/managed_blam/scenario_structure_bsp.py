@@ -245,13 +245,9 @@ class ScenarioStructureBspTag(Tag):
             if collision_only_indices:
                 ob = collision.to_object(surface_indices=collision_only_indices)
                 ob.data.nwo.mesh_type = "_connected_geometry_mesh_type_structure"
-                # ob.data.nwo.collision_only = True
                 structure_collection.objects.link(ob)
-                # ob.hide_set(True)
-                # ob.data.nwo.collision_only = True
                 self.structure_collision = ob
                 structure_objects.append(ob)
-                # objects.append(ob)
                         
         # Merge all structure objects
         main_structure_ob = None
@@ -260,7 +256,6 @@ class ScenarioStructureBspTag(Tag):
             main_structure_ob, remaining_structure_obs = structure_objects[0], structure_objects[1:]
             main_structure_ob.name = f"{self.tag_path.ShortName}_structure"
             utils.join_objects([main_structure_ob] + remaining_structure_obs)
-            # utils.set_two_sided(main_structure_ob.data)
             
         elif structure_objects:
             main_structure_ob = structure_objects[0]

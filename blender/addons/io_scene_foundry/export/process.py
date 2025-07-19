@@ -847,7 +847,8 @@ class ExportScene:
                     props["bungie_marker_include_in_permutations"] = m_perm_json_value
     
     def _setup_poop_props(self, ob: bpy.types.Object, nwo: NWO_ObjectPropertiesGroup, data_nwo: NWO_MeshPropertiesGroup, props: dict, mesh_props: dict):
-        if self.corinth and not data_nwo.render_only and data_nwo.collision_only:
+        mesh = ob.data
+        if self.corinth and not utils.test_face_prop_any(mesh, 'Render Only') and utils.test_face_prop_all(mesh, 'Collision Only'):
             props["bungie_mesh_type"] = MeshType.poop_collision.value
             props["bungie_mesh_poop_pathfinding"] = PoopInstancePathfindingPolicy[nwo.poop_pathfinding].value
         

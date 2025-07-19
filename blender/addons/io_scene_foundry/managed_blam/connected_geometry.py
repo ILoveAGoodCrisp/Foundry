@@ -240,15 +240,12 @@ class InstanceDefinition:
                                 array = np.zeros(len(collision_mesh.polygons), dtype=np.int8)
                                 sphere_coll_attribute.data.foreach_get("value", array)
                                 coll_only_array = array ^ 1
-                                prop, _ = utils.add_face_prop(collision_mesh, "face_mode", coll_only_array)
-                                prop.face_mode = 'collision_only'
+                                utils.add_face_prop(collision_mesh, "face_mode", coll_only_array).face_mode = 'collision_only'
                             else:
-                                prop, _ = utils.add_face_prop(collision_mesh, "face_mode")
-                                prop.face_mode = 'sphere_collision_only'
+                                utils.add_face_prop(collision_mesh, "face_mode").face_mode = 'sphere_collision_only'
                             
                         elif not self.collision_info.sphere_collision_only:
-                            prop, _ = utils.add_face_prop(collision_mesh, "face_mode")
-                            prop.face_mode = 'collision_only'
+                            utils.add_face_prop(collision_mesh, "face_mode").face_mode = 'collision_only'
                             
                         utils.save_loop_normals_mesh(self.blender_render.data)
                         bm = bmesh.new()
@@ -271,19 +268,13 @@ class InstanceDefinition:
                     self.blender_render = self.collision_info.to_object()
                     self.blender_render.name = f"instance_definition:{self.index}"
                     if self.collision_info.sphere_collision_only:
-                        # prop, _ = utils.add_face_prop(self.blender_render.data, "face_mode")
-                        # prop.face_mode = 'sphere_collision_only'
-                        for idx, prop in enumerate(self.blender_render.data.nwo.face_props):
-                            if prop.name == "Two-Sided":
-                                utils.delete_face_attribute(self.blender_render.data, idx)
-                                break
+                        utils.add_face_prop(self.blender_render.data, "face_mode").face_mode = 'sphere_collision_only'
                     else:
-                        self.blender_render.data.nwo.collision_only = True
+                        utils.add_face_prop(self.blender_render.data, "face_mode").face_mode = 'collision_only'
                     render_valid = True
                     
             elif self.blender_render and self.blender_render.data:
-                prop, _ = utils.add_face_prop(self.blender_render.data, "face_mode")
-                prop.face_mode = 'render_only'
+                utils.add_face_prop(self.blender_render.data, "face_mode").face_mode = 'render_only'
                 
             if self.has_physics:
                 for idx, polyhedra in enumerate(self.physics_info.polyhedra):
@@ -294,7 +285,8 @@ class InstanceDefinition:
                         phys.nwo.proxy_parent = self.blender_render.data
                         phys.nwo.proxy_type = "physics"
                         setattr(self.blender_render.data.nwo, f"proxy_physics{idx}", phys)
-                    elif self.blender_collision and (self.blender_collision.data.nwo.collision_only or self.blender_collision.data.sphere_collision_only):
+                        
+                    elif self.blender_collision and (utils.test_face_prop_all(self.blender_collision.data, "Collision Only") or utils.test_face_prop_all(self.blender_collision.data, "Sphere Collision Only")):
                         phys.name = f"{self.blender_collision.name}_proxy_physics{idx}"
                         phys.nwo.proxy_parent = self.blender_collision.data
                         phys.nwo.proxy_type = "physics"
@@ -1154,13 +1146,11 @@ class BSP:
         if any_ladder:
             utils.add_face_prop(mesh, "ladder", map_ladder if split_ladder else None)
         if any_breakable:
-            prop, _ = utils.add_face_prop(mesh, "face_mode", map_breakable if split_breakable else None)
-            prop.face_mode = 'breakable'
+            utils.add_face_prop(mesh, "face_mode", map_breakable if split_breakable else None).face_mode = 'breakable'
         if any_slip:
             utils.add_face_prop(mesh, "slip_surface", map_slip if split_slip else None)
         if any_invisible:
-            prop, _ = utils.add_face_prop(mesh, "face_mode", map_invisible if split_invisible else None)
-            prop.face_mode = 'sphere_collision_only'
+            utils.add_face_prop(mesh, "face_mode", map_invisible if split_invisible else None).face_mode = 'sphere_collision_only'
         
         if self.uses_materials:
             if split_material:
@@ -1490,60 +1480,47 @@ class MeshSubpart:
         elif self.part.part_type == PartType.opaque_non_shadowing:
             utils.add_face_prop(mesh, "no_shadow", all_indices)
         elif self.part.part_type == PartType.opaque_shadow_only:
-            prop, _ = utils.add_face_prop(mesh, "face_mode", all_indices)
-            prop.face_mode = 'shadow_only'
+            utils.add_face_prop(mesh, "face_mode", all_indices).face_mode = 'shadow_only'
         elif self.part.part_type == PartType.lightmap_only:
-            prop, _ = utils.add_face_prop(mesh, "face_mode", all_indices)
-            prop.face_mode = 'lightmap_only'
+            utils.add_face_prop(mesh, "face_mode", all_indices).face_mode = 'lightmap_only'
         if self.part.draw_distance.value > 0:
-            prop, _ = utils.add_face_prop(mesh, "draw_distance", all_indices)
-            prop.draw_distance = self.part.draw_distance.name
+            utils.add_face_prop(mesh, "draw_distance", all_indices).draw_distance = self.part.draw_distance.name
         if self.part.tessellation.value > 0:
-            prop, _ = utils.add_face_prop(mesh, "mesh_tessellation_density", all_indices)
-            prop.draw_distance = self.part.tessellation.name
+            utils.add_face_prop(mesh, "mesh_tessellation_density", all_indices).draw_distance = self.part.tessellation.name
         
         if self.part.lm_type_per_vertex:
             utils.add_face_prop(mesh, "lightmap_type", all_indices)
             
         # Material Props
         if material.lm_res != LIGHTMAP_RESOLUTION_SCALE:
-            prop, _ = utils.add_face_prop(mesh, "lightmap_resolution_scale", all_indices)
-            prop.lightmap_resolution_scale = str(material.lm_res)
+            utils.add_face_prop(mesh, "lightmap_resolution_scale", all_indices).lightmap_resolution_scale = str(material.lm_res)
             
         if material.lm_ignore_default_res != LIGHTMAP_IGNORE_DEFAULT_RESOLUTION_SCALE:
-            prop, _ = utils.add_face_prop(mesh, "lightmap_ignore_default_resolution_scale", all_indices)
-            prop.lightmap_ignore_default_resolution_scale = material.lm_ignore_default_res
+            utils.add_face_prop(mesh, "lightmap_ignore_default_resolution_scale", all_indices).lightmap_ignore_default_resolution_scale = material.lm_ignore_default_res
             
         if material.lm_chart_group_index != LIGHTMAP_CHART_GROUP_INDEX:
-            prop, _ = utils.add_face_prop(mesh, "lightmap_chart_group", all_indices)
-            prop.lightmap_chart_group = material.lm_chart_group_index
+            utils.add_face_prop(mesh, "lightmap_chart_group", all_indices).lightmap_chart_group = material.lm_chart_group_index
             
         if material.lm_transparency != LIGHTMAP_ADDITIVE_TRANSPARENCY_COLOR:
-            prop, _ = utils.add_face_prop(mesh, "lightmap_additive_transparency", all_indices)
-            prop.lightmap_additive_transparency = utils.argb32_to_rgb(material.lm_transparency)
+            utils.add_face_prop(mesh, "lightmap_additive_transparency", all_indices).lightmap_additive_transparency = utils.argb32_to_rgb(material.lm_transparency)
             
         if material.lm_transparency_override != LIGHTMAP_TRANSPARENCY_OVERRIDE:
-            prop, _ = utils.add_face_prop(mesh, "lightmap_transparency_override", all_indices)
-            prop.lightmap_transparency_override = material.lm_transparency_override
+            utils.add_face_prop(mesh, "lightmap_transparency_override", all_indices).lightmap_transparency_override = material.lm_transparency_override
             
         if material.lm_analytical_absorb != LIGHTMAP_ANALYTICAL_LIGHT_ABSORB:
-            prop, _ = utils.add_face_prop(mesh, "lightmap_analytical_bounce_modifier", all_indices)
-            prop.lightmap_analytical_bounce_modifier = material.lm_analytical_absorb
+            utils.add_face_prop(mesh, "lightmap_analytical_bounce_modifier", all_indices).lightmap_analytical_bounce_modifier = material.lm_analytical_absorb
             
         if material.lm_normal_absorb != LIGHTMAP_NORMAL_LIGHT_ABSORD:
-            prop, _ = utils.add_face_prop(mesh, "lightmap_general_bounce_modifier", all_indices)
-            prop.lightmap_general_bounce_modifier = material.lm_normal_absorb
+            utils.add_face_prop(mesh, "lightmap_general_bounce_modifier", all_indices).lightmap_general_bounce_modifier = material.lm_normal_absorb
             
         if material.lm_translucency != LIGHTMAP_TRANSLUCENCY_TINT_COLOR:
-            prop, _ = utils.add_face_prop(mesh, "lightmap_translucency_tint_color", all_indices)
-            prop.lightmap_translucency_tint_color = utils.argb32_to_rgb(material.lm_translucency)
+            utils.add_face_prop(mesh, "lightmap_translucency_tint_color", all_indices).lightmap_translucency_tint_color = utils.argb32_to_rgb(material.lm_translucency)
             
         if material.lm_both_sides != LIGHTMAP_LIGHTING_FROM_BOTH_SIDES:
-            prop, _ = utils.add_face_prop(mesh, "lightmap_lighting_from_both_sides", all_indices)
-            prop.lightmap_lighting_from_both_sides = material.lm_both_sides
+            utils.add_face_prop(mesh, "lightmap_lighting_from_both_sides", all_indices).lightmap_lighting_from_both_sides = material.lm_both_sides
             
         if material.emissive is not None:
-            prop, _ = utils.add_face_prop(mesh, "emissive", all_indices)
+            prop = utils.add_face_prop(mesh, "emissive", all_indices)
             atten_factor = 1 if utils.is_corinth(bpy.context) else 0.01
             e = material.emissive
             prop.material_lighting_attenuation_cutoff = e.attenuation_cutoff * atten_factor * (1 / WU_SCALAR)
@@ -1822,11 +1799,9 @@ class Mesh:
             if ladder_mask.any():
                 utils.add_face_prop(mesh, "ladder", None if ladder_mask.all() else ladder_mask)
             if breakable_mask.any():
-                prop, _ = utils.add_face_prop(mesh, "face_mode", None if breakable_mask.all() else breakable_mask)
-                prop.face_mode = 'breakable'
+                utils.add_face_prop(mesh, "face_mode", None if breakable_mask.all() else breakable_mask).face_mode = 'breakable'
             if render_only_mask.any():
-                prop, _ = utils.add_face_prop(mesh, "face_mode", None if render_only_mask.all() else render_only_mask)
-                prop.face_mode = 'render_only'
+                utils.add_face_prop(mesh, "face_mode", None if render_only_mask.all() else render_only_mask).face_mode = 'render_only'
 
 
         for subpart in water_subparts:

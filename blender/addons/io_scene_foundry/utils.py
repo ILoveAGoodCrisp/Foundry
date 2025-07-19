@@ -3493,12 +3493,35 @@ def add_face_attribute_empty(mesh: bpy.types.Mesh) -> bmesh.types.BMLayerItem:
     attribute = mesh.attributes.new(f"foundry_attribute__{str(uuid4())}", 'BOOLEAN', 'FACE')
     return attribute
 
+def test_face_prop_any(mesh: bpy.types.Mesh, prop_name: str):
+    '''Tests if a mesh has a face prop with the given name assigned to ANY face'''
+    for prop in mesh.nwo.face_props:
+        if prop.name == prop_name:
+            if isinstance(mesh, bpy.types.Mesh):
+                return bool(face_attribute_count(mesh, prop))
+            else:
+                return True
+    
+    return False
+
+def test_face_prop_all(mesh: bpy.types.Mesh, prop_name: str):
+    '''Tests if a mesh has a face prop with the given name assigned to ALL faces.'''
+    face_count = len(mesh.polygons)
+    for prop in mesh.nwo.face_props:
+        if prop.name == prop_name:
+            if isinstance(mesh, bpy.types.Mesh):
+                return face_attribute_count(mesh, prop) == face_count
+            else:
+                return True
+            
+    return False
+
 def add_face_prop(mesh: bpy.types.Mesh, prop_type: str, values_map=None):
     prop = mesh.nwo.face_props.add()
     prop.type = prop_type
     prop.color = random_color()
     attribute = None
-    if hasattr(mesh, "polygons"):
+    if isinstance(mesh, bpy.types.Mesh):
         has_any_values = values_map.any() if isinstance(values_map, np.ndarray) else bool(values_map)
         
         if has_any_values:
@@ -3511,7 +3534,7 @@ def add_face_prop(mesh: bpy.types.Mesh, prop_type: str, values_map=None):
             
         prop.attribute_name = attribute.name
         
-    return prop, attribute
+    return prop
 
 def add_face_attribute_edit_mode(mesh: bpy.types.Mesh, assign_all=False) -> bmesh.types.BMLayerItem:
     bm = bmesh.from_edit_mesh(mesh)

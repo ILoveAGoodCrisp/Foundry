@@ -16,6 +16,7 @@ import bpy.props
 from mathutils import Color
 
 from bpy_extras import view3d_utils
+import numpy as np
 
 from ..managed_blam.frame_event_list import FrameEventListTag
 
@@ -524,7 +525,7 @@ class NWO_Import(bpy.types.Operator):
         name="JMS/ASS Type",
         description="Whether the importer should try to import a JMS/ASS file as a model, or bsp. Auto will determine this based on current asset type and contents of the JMS/ASS file",
         items=[
-            ("auto", "Automatic", ""),
+            ("auto", "Auto", ""),
             ("model", "Model", ""),
             ("bsp", "BSP", ""),
         ]
@@ -2488,6 +2489,7 @@ class NWOImporter:
     def setup_jms_mesh(self, original_ob, is_model):
         new_objects = self.convert_material_props(original_ob)
         for ob in new_objects:
+            mesh = ob.data
             mesh_type_legacy = self.get_mesh_type(ob, is_model)
             ob.nwo.mesh_type_temp = ''
             if ob.name.startswith('%'):
@@ -2495,37 +2497,16 @@ class NWOImporter:
             if mesh_type_legacy:
                 mesh_type, material = self.mesh_and_material(mesh_type_legacy, is_model)
                 ob.data.nwo.mesh_type = mesh_type
-                if ob.data.nwo.sphere_collision_only:
-                    ob.data.nwo.poop_collision_type = 'invisible_wall'
                         
-                elif ob.data.nwo.collision_only:
-                    ob.data.nwo.poop_collision_type = 'bullet_collision'
-                        
-                if self.corinth and ob.data.nwo.render_only:
+                if self.corinth and utils.test_face_prop_all(mesh, 'Render Only'):
                     ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_default'
                     
-                if self.corinth and ob.data.nwo.mesh_type == '_connected_geometry_mesh_type_structure' and ob.data.nwo.slip_surface:
+                if self.corinth and ob.data.nwo.mesh_type == '_connected_geometry_mesh_type_structure' and utils.test_face_prop_all(mesh, 'Slip Surface'):
                     ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_default'
                     ob.nwo.export_this = False
                     
-                if self.corinth and ob.data.nwo.mesh_type == '_connected_geometry_mesh_type_structure':
-                    for prop in ob.data.nwo.face_props:
-                        if prop.face_two_sided_override:
-                            ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_default'
-                            
-                # if ob.data.nwo.lightmap_only:
-                #     for prop in ob.data.nwo.face_props:
-                #         if prop.emissive_override:
-                #             ob.data.nwo.emissive_active = True
-                #             ob.data.nwo.material_lighting_attenuation_cutoff = prop.material_lighting_attenuation_cutoff
-                #             ob.data.nwo.material_lighting_attenuation_falloff = prop.material_lighting_attenuation_falloff
-                #             ob.data.nwo.material_lighting_emissive_focus = prop.material_lighting_emissive_focus
-                #             ob.data.nwo.material_lighting_emissive_color = prop.material_lighting_emissive_color
-                #             ob.data.nwo.material_lighting_emissive_per_unit = prop.material_lighting_emissive_per_unit
-                #             ob.data.nwo.light_intensity = prop.light_intensity
-                #             ob.data.nwo.material_lighting_emissive_quality = prop.material_lighting_emissive_quality
-                #             ob.data.nwo.material_lighting_use_shader_gel = prop.material_lighting_use_shader_gel
-                #             ob.data.nwo.material_lighting_bounce_ratio = prop.material_lighting_bounce_ratio
+                if self.corinth and ob.data.nwo.mesh_type == '_connected_geometry_mesh_type_structure' and utils.test_face_prop_any(mesh, "Two-Sided"):
+                    ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_default'
                             
 
                 if mesh_type_legacy in ('collision', 'physics') and is_model:
@@ -2546,21 +2527,12 @@ class NWOImporter:
                     ob.nwo.proxy_parent = ob.parent.data
                     ob.nwo.proxy_type = "collision"
                     ob.parent.data.nwo.proxy_collision = ob
-                    ob.parent.data.nwo.render_only = False
                     utils.unlink(ob)
                     
                 if self.apply_materials:
                     apply_props_material(ob, material)
                 
             if is_model:
-                # NOTE Getting region perm directly from toolset props now
-                # if ':' not in ob.name:
-                #     self.set_region(ob, utils.dot_partition(ob.name).strip('@$~%'))
-                # else:
-                #     region, permutation = utils.dot_partition(ob.name).strip('@$~%').split(':')
-                #     self.set_region(ob, region)
-                #     self.set_permutation(ob, permutation)
-                
                 if ob.region_list:
                     reg_perm = ob.region_list[0].name
                     parts = reg_perm.split()
@@ -2580,6 +2552,8 @@ class NWOImporter:
             elif ob.nwo.mesh_type == '_connected_geometry_mesh_type_seam':
                 ob.nwo.seam_back_manual = True
             
+            utils.consolidate_face_attributes(ob.data)
+            
             self.jms_mesh_objects.append(ob)
             
     def set_poop_policies(self, ob):
@@ -2596,15 +2570,15 @@ class NWOImporter:
                 case '>':
                     ob.nwo.poop_lighting = 'single_probe'
                 case '*':
-                    ob.data.nwo.render_only = True
-                case '&':
-                    ob.nwo.poop_chops_portals = True
+                    ob.nwo.poop_render_only = True
+                # case '&':
+                #     ob.nwo.poop_chops_portals = True
                 case '^':
                     ob.nwo.poop_does_not_block_aoe = True
                 case '<':
                     ob.nwo.poop_excluded_from_lightprobe = True
                 case '|':
-                    ob.data.nwo.decal_offset = True
+                    ob.nwo.bungie_mesh_poop_decal_spacing = True
                 case _:
                     return
         
@@ -2628,51 +2602,69 @@ class NWOImporter:
             jms_mat = jms_materials[0]
             ob.nwo.mesh_type_temp = jms_mat.mesh_type
             nwo = ob.data.nwo
-            nwo.face_two_sided = jms_mat.two_sided or jms_mat.transparent_two_sided
-            nwo.face_transparent = jms_mat.transparent_one_sided or jms_mat.transparent_two_sided
-            nwo.render_only = jms_mat.render_only and not ob.data.nwo.proxy_collision
-            nwo.collision_only = jms_mat.collision_only
-            nwo.sphere_collision_only = jms_mat.sphere_collision_only
-            nwo.ladder = jms_mat.ladder
-            nwo.breakable = jms_mat.breakable
-            nwo.portal_ai_deafening = jms_mat.ai_deafening
-            nwo.no_shadow = jms_mat.no_shadow
-            # NOTE TEMP
-            # if jms_mat.shadow_only:
-            #     nwo.lightmap_transparency_override_active = True
-            #     nwo.lightmap_transparency_override = True
+            mesh = ob.data
+            if jms_mat.two_sided or jms_mat.transparent_two_sided:
+                utils.add_face_prop(mesh, "face_sides")
+            
+            if jms_mat.transparent_one_sided or jms_mat.transparent_two_sided:
+                utils.add_face_prop(mesh, "transparent")
+            if jms_mat.render_only and not ob.data.nwo.proxy_collision:
+                utils.add_face_prop(mesh, "face_mode").face_mode = 'render_only'
+            if jms_mat.collision_only:
+                utils.add_face_prop(mesh, "face_mode").face_mode = 'collision_only'
+            if jms_mat.sphere_collision_only:
+                utils.add_face_prop(mesh, "face_mode").face_mode = 'sphere_collision_only'
+            
+            if jms_mat.ladder:
+                utils.add_face_prop(mesh, "ladder")
+            if jms_mat.breakable:
+                utils.add_face_prop(mesh, "face_mode").face_mode = 'breakable'
                 
-            nwo.lightmap_only = jms_mat.lightmap_only
-            nwo.precise_position = jms_mat.precise
+            nwo.portal_ai_deafening = jms_mat.ai_deafening
+            
+            if jms_mat.no_shadow:
+                utils.add_face_prop(mesh, "no_shadow")
+                
+            if jms_mat.lightmap_only:
+                utils.add_face_prop(mesh, "face_mode").face_mode = 'lightmap_only'
+            if jms_mat.shadow_only:
+                utils.add_face_prop(mesh, "face_mode").face_mode = 'shadow_only'
+            if jms_mat.precise:
+                utils.add_face_prop(mesh, "precise_position")
+
             if jms_mat.portal_one_way:
                 nwo.portal_type = '_connected_geometry_portal_type_one_way'
             nwo.portal_is_door = jms_mat.portal_door
             if jms_mat.portal_vis_blocker:
                 nwo.portal_type = '_connected_geometry_portal_type_no_way'
-            nwo.no_lightmap = jms_mat.ignored_by_lightmaps
+            if jms_mat.ignored_by_lightmaps:
+                utils.add_face_prop(mesh, "no_lightmap")
             nwo.portal_blocks_sounds = jms_mat.blocks_sound
-            nwo.decal_offset = jms_mat.decal_offset
-            nwo.slip_surface = jms_mat.slip_surface
             
-            # NOTE TEMP
-            # if jms_mat.lightmap_additive_transparency:
-            #     nwo.lightmap_additive_transparency_active = True
-            #     nwo.lightmap_additive_transparency = jms_mat.lightmap_additive_transparency
-            # if jms_mat.lightmap_translucency_tint_color:
-            #     nwo.lightmap_translucency_tint_color_active = True
-            #     nwo.lightmap_translucency_tint_color = jms_mat.lightmap_translucency_tint_color
-            # # Emissive
-            # if jms_mat.emissive_power:
-            #     nwo.emissive_active = True
-            #     nwo.light_intensity = jms_mat.emissive_power
-            #     nwo.material_lighting_emissive_color = jms_mat.emissive_color
-            #     nwo.material_lighting_emissive_quality = jms_mat.emissive_quality
-            #     nwo.material_lighting_emissive_per_unit = jms_mat.emissive_per_unit
-            #     nwo.material_lighting_use_shader_gel = jms_mat.emissive_shader_gel
-            #     nwo.material_lighting_emissive_focus = jms_mat.emissive_focus
-            #     nwo.material_lighting_attenuation_falloff = jms_mat.emissive_attenuation_falloff
-            #     nwo.material_lighting_attenuation_cutoff = jms_mat.emissive_attenuation_cutoff
-        
+            if jms_mat.decal_offset:
+                utils.add_face_prop(mesh, "decal_offset")
+            
+            if jms_mat.slip_surface:
+                utils.add_face_prop(mesh, "slip_surface")
+            # Lightmap
+            if jms_mat.lightmap_resolution_scale:
+                utils.add_face_prop(mesh, "lightmap_resolution_scale").lightmap_resolution_scale = str(jms_mat.lightmap_resolution_scale)
+            if jms_mat.lightmap_additive_transparency:
+                utils.add_face_prop(mesh, "lightmap_additive_transparency").lightmap_additive_transparency = jms_mat.lightmap_additive_transparency
+            if jms_mat.lightmap_translucency_tint_color:
+                utils.add_face_prop(mesh, "lightmap_translucency_tint_color").lightmap_translucency_tint_color = jms_mat.lightmap_translucency_tint_color
+            # Emissive
+            if jms_mat.emissive_power:
+                prop = utils.add_face_prop(mesh, "emissive")
+                prop.light_intensity = jms_mat.emissive_power
+                prop.material_lighting_emissive_color = jms_mat.emissive_color
+                prop.material_lighting_emissive_quality = jms_mat.emissive_quality
+                prop.material_lighting_emissive_per_unit = jms_mat.emissive_per_unit
+                prop.material_lighting_use_shader_gel = jms_mat.emissive_shader_gel
+                prop.material_lighting_emissive_focus = jms_mat.emissive_focus
+                prop.material_lighting_attenuation_falloff = jms_mat.emissive_attenuation_falloff
+                prop.material_lighting_attenuation_cutoff = jms_mat.emissive_attenuation_cutoff
+
         mesh_types = list(set([m.mesh_type for m in jms_materials if m.mesh_type]))
         if len(mesh_types) == 1:
             ob.nwo.mesh_type_temp = mesh_types[0]
@@ -2722,218 +2714,139 @@ class NWOImporter:
                 utils.clean_materials(ob)
             
         for ob in objects_to_setup:
+            mesh = ob.data
+            nwo = ob.nwo
             if len(ob.data.materials) == 1 or self.matching_material_properties(ob.data.materials, jms_materials):
                 jms_mats = [mat for mat in jms_materials if mat.name == ob.data.materials[0].name]
                 if jms_mats:
                     jms_mat = jms_mats[0]
                     ob.nwo.mesh_type_temp = jms_mat.mesh_type
-                    nwo = ob.data.nwo
-                    nwo.face_two_sided = jms_mat.two_sided or jms_mat.transparent_two_sided
-                    nwo.face_transparent = jms_mat.transparent_one_sided or jms_mat.transparent_two_sided
-                    nwo.render_only = jms_mat.render_only and not ob.data.nwo.proxy_collision
-                    nwo.collision_only = jms_mat.collision_only
-                    nwo.sphere_collision_only = jms_mat.sphere_collision_only
-                    nwo.ladder = jms_mat.ladder
-                    nwo.breakable = jms_mat.breakable
+                    if jms_mat.two_sided or jms_mat.transparent_two_sided:
+                        utils.add_face_prop(mesh, "face_sides")
+                    
+                    if jms_mat.transparent_one_sided or jms_mat.transparent_two_sided:
+                        utils.add_face_prop(mesh, "transparent")
+                    if jms_mat.render_only and not ob.data.nwo.proxy_collision:
+                        utils.add_face_prop(mesh, "face_mode").face_mode = 'render_only'
+                    if jms_mat.collision_only:
+                        utils.add_face_prop(mesh, "face_mode").face_mode = 'collision_only'
+                    if jms_mat.sphere_collision_only:
+                        utils.add_face_prop(mesh, "face_mode").face_mode = 'sphere_collision_only'
+                    
+                    if jms_mat.ladder:
+                        utils.add_face_prop(mesh, "ladder")
+                    if jms_mat.breakable:
+                        utils.add_face_prop(mesh, "face_mode").face_mode = 'breakable'
+                        
                     nwo.portal_ai_deafening = jms_mat.ai_deafening
-                    nwo.no_shadow = jms_mat.no_shadow
-                    nwo.lightmap_only = jms_mat.lightmap_only
-                    # NOTE TEMP
-                    # if jms_mat.shadow_only:
-                    #     nwo.lightmap_transparency_override_active = True
-                    #     nwo.lightmap_transparency_override = True
-                    nwo.precise_position = jms_mat.precise
+                    
+                    if jms_mat.no_shadow:
+                        utils.add_face_prop(mesh, "no_shadow")
+                        
+                    if jms_mat.lightmap_only:
+                        utils.add_face_prop(mesh, "face_mode").face_mode = 'lightmap_only'
+                    if jms_mat.shadow_only:
+                        utils.add_face_prop(mesh, "face_mode").face_mode = 'shadow_only'
+                    if jms_mat.precise:
+                        utils.add_face_prop(mesh, "precise_position")
+
                     if jms_mat.portal_one_way:
                         nwo.portal_type = '_connected_geometry_portal_type_one_way'
                     nwo.portal_is_door = jms_mat.portal_door
                     if jms_mat.portal_vis_blocker:
                         nwo.portal_type = '_connected_geometry_portal_type_no_way'
-                    nwo.no_lightmap = jms_mat.ignored_by_lightmaps
+                    if jms_mat.ignored_by_lightmaps:
+                        utils.add_face_prop(mesh, "no_lightmap")
                     nwo.portal_blocks_sounds = jms_mat.blocks_sound
-                    nwo.decal_offset = jms_mat.decal_offset
-                    nwo.slip_surface = jms_mat.slip_surface
-                    # NOTE TEMP
-                    # # Lightmap
-                    # if jms_mat.lightmap_resolution_scale:
-                    #     nwo.lightmap_resolution_scale_active = True
-                    #     nwo.lightmap_resolution_scale = jms_mat.lightmap_resolution_scale
-                    # if jms_mat.lightmap_additive_transparency:
-                    #     nwo.lightmap_additive_transparency_active = True
-                    #     nwo.lightmap_additive_transparency = jms_mat.lightmap_additive_transparency
-                    # if jms_mat.lightmap_translucency_tint_color:
-                    #     nwo.lightmap_translucency_tint_color_active = True
-                    #     nwo.lightmap_translucency_tint_color = jms_mat.lightmap_translucency_tint_color
-                    # # Emissive
-                    # if jms_mat.emissive_power:
-                    #     nwo.emissive_active = True
-                    #     nwo.light_intensity = jms_mat.emissive_power
-                    #     nwo.material_lighting_emissive_color = jms_mat.emissive_color
-                    #     nwo.material_lighting_emissive_quality = jms_mat.emissive_quality
-                    #     nwo.material_lighting_emissive_per_unit = jms_mat.emissive_per_unit
-                    #     nwo.material_lighting_use_shader_gel = jms_mat.emissive_shader_gel
-                    #     nwo.material_lighting_emissive_focus = jms_mat.emissive_focus
-                    #     nwo.material_lighting_attenuation_falloff = jms_mat.emissive_attenuation_falloff
-                    #     nwo.material_lighting_attenuation_cutoff = jms_mat.emissive_attenuation_cutoff
+                    
+                    if jms_mat.decal_offset:
+                        utils.add_face_prop(mesh, "decal_offset")
+                    
+                    if jms_mat.slip_surface:
+                        utils.add_face_prop(mesh, "slip_surface")
+                    # Lightmap
+                    if jms_mat.lightmap_resolution_scale:
+                        utils.add_face_prop(mesh, "lightmap_resolution_scale").lightmap_resolution_scale = str(jms_mat.lightmap_resolution_scale)
+                    if jms_mat.lightmap_additive_transparency:
+                        utils.add_face_prop(mesh, "lightmap_additive_transparency").lightmap_additive_transparency = jms_mat.lightmap_additive_transparency
+                    if jms_mat.lightmap_translucency_tint_color:
+                        utils.add_face_prop(mesh, "lightmap_translucency_tint_color").lightmap_translucency_tint_color = jms_mat.lightmap_translucency_tint_color
+                    # Emissive
+                    if jms_mat.emissive_power:
+                        prop = utils.add_face_prop(mesh, "emissive")
+                        prop.light_intensity = jms_mat.emissive_power
+                        prop.material_lighting_emissive_color = jms_mat.emissive_color
+                        prop.material_lighting_emissive_quality = jms_mat.emissive_quality
+                        prop.material_lighting_emissive_per_unit = jms_mat.emissive_per_unit
+                        prop.material_lighting_use_shader_gel = jms_mat.emissive_shader_gel
+                        prop.material_lighting_emissive_focus = jms_mat.emissive_focus
+                        prop.material_lighting_attenuation_falloff = jms_mat.emissive_attenuation_falloff
+                        prop.material_lighting_attenuation_cutoff = jms_mat.emissive_attenuation_cutoff
                     
             elif len(ob.data.materials) > 1:
-                bm = bmesh.new()
-                bm.from_mesh(ob.data)
-                layers = {}
-                face_props = ob.data.nwo.face_props
+                material_face_indices = np.empty(len(mesh.polygons), dtype=np.int32)
+                mesh.polygons.foreach_get("material_index", material_face_indices)
                 for idx, material in enumerate(ob.data.materials):
-                    layers[idx] = []
                     jms_mats = [mat for mat in jms_materials if mat.name == material.name]
                     if jms_mats:
                         jms_mat = jms_mats[0]
+                        
+                        indices = material_face_indices == idx
+                        
                         if jms_mat.two_sided or jms_mat.transparent_two_sided:
-                            l_name = 'two_sided'
-                            if bm.faces.layers.int.get(l_name):
-                                layers[idx].append(bm.faces.layers.int.get(l_name))
-                            else:
-                                layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "Two Sided", "face_two_sided_override")))
+                            utils.add_face_prop(mesh, 'face_sides', indices)
                                 
                         if jms_mat.transparent_one_sided or jms_mat.transparent_two_sided:
-                            l_name = 'transparent'
-                            if bm.faces.layers.int.get(l_name):
-                                layers[idx].append(bm.faces.layers.int.get(l_name))
-                            else:
-                                layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "Transparent", "face_transparent_override")))
+                            utils.add_face_prop(mesh, 'transparent', indices)
                                 
                         if jms_mat.render_only:
-                            l_name = 'render_only'
-                            if bm.faces.layers.int.get(l_name):
-                                layers[idx].append(bm.faces.layers.int.get(l_name))
-                            else:
-                                layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "Render Only", "render_only_override")))
-                                
+                            utils.add_face_prop(mesh, "face_mode", indices).face_mode = 'render_only'
                         if jms_mat.collision_only:
-                            l_name = 'collision_only'
-                            if bm.faces.layers.int.get(l_name):
-                                layers[idx].append(bm.faces.layers.int.get(l_name))
-                            else:
-                                layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "Collision Only", "collision_only_override")))
-                                
+                            utils.add_face_prop(mesh, "face_mode", indices).face_mode = 'collision_only'
                         if jms_mat.sphere_collision_only:
-                            l_name = 'sphere_collision_only'
-                            if bm.faces.layers.int.get(l_name):
-                                layers[idx].append(bm.faces.layers.int.get(l_name))
-                            else:
-                                layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "Sphere Collision Only", "sphere_collision_only_override")))
-                                
-                        if jms_mat.ladder:
-                            l_name = 'ladder'
-                            if bm.faces.layers.int.get(l_name):
-                                layers[idx].append(bm.faces.layers.int.get(l_name))
-                            else:
-                                layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "Ladder", "ladder_override")))
-                                
-                        if jms_mat.breakable:
-                            l_name = 'breakable'
-                            if bm.faces.layers.int.get(l_name):
-                                layers[idx].append(bm.faces.layers.int.get(l_name))
-                            else:
-                                layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "Breakable", "breakable_override")))
-                                
-                        if jms_mat.no_shadow:
-                            l_name = 'no_shadow'
-                            if bm.faces.layers.int.get(l_name):
-                                layers[idx].append(bm.faces.layers.int.get(l_name))
-                            else:
-                                layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "No Shadow", "no_shadow_override")))
-                                
-                        if jms_mat.lightmap_only:
-                            l_name = 'lightmap_only'
-                            if bm.faces.layers.int.get(l_name):
-                                layers[idx].append(bm.faces.layers.int.get(l_name))
-                            else:
-                                layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "Lightmap Only", "lightmap_only_override")))
-                                
-                        if jms_mat.shadow_only:
-                            l_name = 'lightmap_transparency_override'
-                            if bm.faces.layers.int.get(l_name):
-                                layers[idx].append(bm.faces.layers.int.get(l_name))
-                            else:
-                                layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "Disable Lightmap Transparency", "lightmap_transparency_override_override")))
-                                
-                        if jms_mat.precise:
-                            l_name = 'precise'
-                            if bm.faces.layers.int.get(l_name):
-                                layers[idx].append(bm.faces.layers.int.get(l_name))
-                            else:
-                                layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "Precise", "precise_position_override")))
-                                
-                        if jms_mat.ignored_by_lightmaps:
-                            l_name = 'no_lightmap'
-                            if bm.faces.layers.int.get(l_name):
-                                layers[idx].append(bm.faces.layers.int.get(l_name))
-                            else:
-                                layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "No Lightmap", "no_lightmap_override")))
-                                
-                        if jms_mat.decal_offset:
-                            l_name = 'decal_offset'
-                            if bm.faces.layers.int.get(l_name):
-                                layers[idx].append(bm.faces.layers.int.get(l_name))
-                            else:
-                                layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "Decal Offset", "decal_offset_override")))
-                                
-                        if jms_mat.slip_surface:
-                            l_name = 'slip_surface'
-                            if bm.faces.layers.int.get(l_name):
-                                layers[idx].append(bm.faces.layers.int.get(l_name))
-                            else:
-                                layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "Slip Surface", "slip_surface_override")))
+                            utils.add_face_prop(mesh, "face_mode", indices).face_mode = 'sphere_collision_only'
                         
+                        if jms_mat.ladder:
+                            utils.add_face_prop(mesh, "ladder", indices)
+                        if jms_mat.breakable:
+                            utils.add_face_prop(mesh, "face_mode, indices").face_mode = 'breakable'
+                        
+                        if jms_mat.no_shadow:
+                            utils.add_face_prop(mesh, "no_shadow", indices)
+                            
+                        if jms_mat.lightmap_only:
+                            utils.add_face_prop(mesh, "face_mode", indices).face_mode = 'lightmap_only'
+                        if jms_mat.shadow_only:
+                            utils.add_face_prop(mesh, "face_mode", indices).face_mode = 'shadow_only'
+                        if jms_mat.precise:
+                            utils.add_face_prop(mesh, "precise_position", indices)
+
+                        if jms_mat.ignored_by_lightmaps:
+                            utils.add_face_prop(mesh, "no_lightmap", indices)
+                        
+                        if jms_mat.decal_offset:
+                            utils.add_face_prop(mesh, "decal_offset", indices)
+                        
+                        if jms_mat.slip_surface:
+                            utils.add_face_prop(mesh, "slip_surface", indices)
                         # Lightmap
                         if jms_mat.lightmap_resolution_scale:
-                            l_name = 'lightmap_resolution_scale'
-                            if bm.faces.layers.int.get(l_name):
-                                layers[idx].append(bm.faces.layers.int.get(l_name))
-                            else:
-                                layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "Lightmap Resolution Scale", "lightmap_resolution_scale_override", {"lightmap_resolution_scale": jms_mat.lightmap_resolution_scale})))
-                        
-                        if jms_mat.lightmap_translucency_tint_color:
-                            l_name = 'lightmap_translucency_tint_color'
-                            if bm.faces.layers.int.get(l_name):
-                                layers[idx].append(bm.faces.layers.int.get(l_name))
-                            else:
-                                layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "Lightmap Translucency Tint Color", "lightmap_translucency_tint_color_override", {"lightmap_translucency_tint_color": jms_mat.lightmap_translucency_tint_color})))
-                        
+                            utils.add_face_prop(mesh, "lightmap_resolution_scale", indices).lightmap_resolution_scale = str(jms_mat.lightmap_resolution_scale)
                         if jms_mat.lightmap_additive_transparency:
-                            l_name = 'lightmap_additive_transparency'
-                            if bm.faces.layers.int.get(l_name):
-                                layers[idx].append(bm.faces.layers.int.get(l_name))
-                            else:
-                                layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "Lightmap Additive Transparency", "lightmap_additive_transparency_override", {"lightmap_additive_transparency": jms_mat.lightmap_additive_transparency})))
-                        
+                            utils.add_face_prop(mesh, "lightmap_additive_transparency", indices).lightmap_additive_transparency = jms_mat.lightmap_additive_transparency
+                        if jms_mat.lightmap_translucency_tint_color:
+                            utils.add_face_prop(mesh, "lightmap_translucency_tint_color", indices).lightmap_translucency_tint_color = jms_mat.lightmap_translucency_tint_color
                         # Emissive
                         if jms_mat.emissive_power:
-                            l_name = f'emissive{utils.jstr(jms_mat.emissive_power).replace(".", "")}_{utils.color_3p_str(jms_mat.emissive_color).replace(".", "").replace(" ", "")}'
-                            if bm.faces.layers.int.get(l_name):
-                                layers[idx].append(bm.faces.layers.int.get(l_name))
-                            else:
-                                emissive_props_dict = {
-                                    "light_intensity": jms_mat.emissive_power,
-                                    "material_lighting_emissive_color": jms_mat.emissive_color,
-                                    "material_lighting_emissive_quality": jms_mat.emissive_quality,
-                                    "material_lighting_emissive_per_unit": jms_mat.emissive_per_unit,
-                                    "material_lighting_use_shader_gel": jms_mat.emissive_shader_gel,
-                                    "material_lighting_emissive_focus": jms_mat.emissive_focus,
-                                    "material_lighting_attenuation_falloff": jms_mat.emissive_attenuation_falloff,
-                                    "material_lighting_attenuation_cutoff": jms_mat.emissive_attenuation_cutoff,
-                                }
-                                layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "Emissive", "emissive_override", emissive_props_dict)))
-                        
-                for face in bm.faces:
-                    for idx, face_attribute_list in layers.items():
-                        if face.material_index == idx:
-                            for face_attribute in face_attribute_list:
-                                face[face_attribute] = 1
-                 
-                for layer in face_props:
-                    layer.face_count = utils.layer_face_count(bm, bm.faces.layers.int.get(layer.layer_name))
-                                
-                bm.to_mesh(ob.data)
-                bm.free()
+                            prop = utils.add_face_prop(mesh, "emissive", indices)
+                            prop.light_intensity = jms_mat.emissive_power
+                            prop.material_lighting_emissive_color = jms_mat.emissive_color
+                            prop.material_lighting_emissive_quality = jms_mat.emissive_quality
+                            prop.material_lighting_emissive_per_unit = jms_mat.emissive_per_unit
+                            prop.material_lighting_use_shader_gel = jms_mat.emissive_shader_gel
+                            prop.material_lighting_emissive_focus = jms_mat.emissive_focus
+                            prop.material_lighting_attenuation_falloff = jms_mat.emissive_attenuation_falloff
+                            prop.material_lighting_attenuation_cutoff = jms_mat.emissive_attenuation_cutoff
         
         return objects_to_setup
     
@@ -3093,7 +3006,6 @@ class NWOImporter:
             
             return self.actions
             
-        
     def import_legacy_animation(self, path, arm):
         path = Path(path)
         # existing_animations = bpy.data.actions[:]
@@ -3316,7 +3228,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         name="JMS/ASS Type",
         description="Whether the importer should try to import a JMS/ASS file as a model, or bsp. Auto will determine this based on current asset type and contents of the JMS/ASS file",
         items=[
-            ("auto", "Automatic", ""),
+            ("auto", "Auto", ""),
             ("model", "Model", ""),
             ("bsp", "BSP", ""),
         ]
@@ -3462,7 +3374,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 layout.prop(self, "camera_track_animation_scale")
                 layout.prop(self, "setup_as_asset")
             case "ass" | "jms":
-                layout.prop(self, "legacy_type")
+                layout.prop(self, "legacy_type", expand=True)
             
 
 class NWO_FH_Import(bpy.types.FileHandler):
