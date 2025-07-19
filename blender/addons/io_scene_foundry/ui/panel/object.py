@@ -438,7 +438,7 @@ class NWO_OT_FaceAttributeMove(bpy.types.Operator):
     bl_idname = "nwo.face_attribute_move"
     bl_label = "Move"
     bl_options = {'UNDO'}
-
+    
     direction: bpy.props.EnumProperty(
         name="Direction",
         items=(("UP", "UP", "UP"), ("DOWN", "DOWN", "DOWN")),
@@ -465,8 +465,62 @@ class NWO_OT_FaceAttributeMove(bpy.types.Operator):
         nwo.face_props_active_index = to_index
 
         return {"FINISHED"}
+    
+class NWO_OT_AddEmissiveNode(bpy.types.Operator):
+    bl_idname = "nwo.add_emissive_node"
+    bl_label = "Add Emissive Node"
+    bl_description = "Adds/updates an emissive node to show light emission from faces"
+    bl_options = {'UNDO'}
+    
+    @classmethod
+    def poll(self, context):
+        return context.object and context.object.type == 'MESH' and context.object.data.nwo.face_props
+    
+    def execute(self, context):
+        ob = context.object
+        mesh = ob.data
+        nwo = mesh.nwo
+        
+        face_count = len(mesh.polygons)
+        
+        color_off  = np.array((0.0, 0.0, 0.0, 1.0), dtype=np.float32)
+        color_data = np.tile(color_off, (face_count, 1))
+        power_data = np.zeros(face_count, dtype=np.float32)
 
+        for prop in nwo.face_props:
+            attribute = mesh.attributes.get(prop.attribute_name)
+            if attribute is None:
+                self.report({'WARNING'}, f"Face property '{prop.name}' has no mesh attribute; skipped.")
+                continue
 
+            mask_buffer = np.empty(face_count, dtype=np.float32)
+            attribute.data.foreach_get("value", mask_buffer)
+            mask = mask_buffer.astype(bool)
+
+            if not mask.any():
+                continue
+
+            color_on = np.array((*prop.material_lighting_emissive_color, 1.0), dtype=np.float32)
+
+            color_data[mask] = color_on
+            power_data[mask] = prop.light_intensity
+
+        # ------------------------------------------------------------------ #
+        # 3.  Make sure the destination attributes exist
+        # ------------------------------------------------------------------ #
+        color_attribute = mesh.attributes.get("foundry_color")
+        if color_attribute is None:
+            color_attribute = mesh.attributes.new("foundry_color", 'FLOAT_COLOR', 'FACE')
+
+        power_attribute = mesh.attributes.get("foundry_power")
+        if power_attribute is None:
+            power_attribute = mesh.attributes.new("foundry_power", 'FLOAT', 'FACE')
+
+        color_attribute.data.foreach_set("color", color_data.ravel())
+        power_attribute.data.foreach_set("value", power_data)
+
+        return {"FINISHED"}
+        
 def draw(op):
     if not op.batch:
         return
@@ -681,7 +735,6 @@ class NWO_OT_GlobalMaterialRegionListFace(NWO_OT_RegionListFace):
         nwo = context.object.data.nwo
         nwo.face_props[nwo.face_props_active_index].global_material = self.region
         return {"FINISHED"}
-
 
 class NWO_OT_GlobalMaterialMenuFace(bpy.types.Menu):
     bl_label = "Add Collision Material"

@@ -99,6 +99,7 @@ classes = [
     object.NWO_OT_FaceAttributeAssign,
     object.NWO_OT_FaceAttributeSelect,
     object.NWO_OT_FaceAttributeMove,
+    object.NWO_OT_AddEmissiveNode,
     # object.NWO_OT_FaceAttributeAddFaceMode,
     # object.NWO_OT_FaceAttributeAddLightmap,
     object.NWO_OT_FaceAttributeAdd,

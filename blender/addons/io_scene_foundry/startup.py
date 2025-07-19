@@ -44,7 +44,7 @@ def import_handler(import_context):
     proxies = []
     for item in import_context.import_items:
         id = item.id
-        if id.id_type is None:
+        if id is None or id.id_type is None:
             continue
         match id.id_type:
             case 'OBJECT':
