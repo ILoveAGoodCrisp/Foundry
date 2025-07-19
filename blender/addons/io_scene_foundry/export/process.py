@@ -337,17 +337,17 @@ class ExportScene:
         if has_coll:
             coll_props = {}
             coll_props["bungie_object_type"] = ObjectType.mesh.value
-            coll_props["bungie_mesh_type"] = MeshType.poop_collision.value
-            if self.corinth:
-                if has_phys:
-                    coll_props["bungie_mesh_poop_collision_type"] = "bullet_collision"
-                else:
-                    coll_props["bungie_mesh_poop_collision_type"] = "default"
+
                     
             mesh_props = self.processed_meshes.get(proxy_collision.data)
+            if self.corinth:
+                if has_phys:
+                    mesh_props["bungie_mesh_poop_collision_type"] = PoopCollisionType.bullet_collision.value
+                else:
+                    mesh_props["bungie_mesh_poop_collision_type"] = PoopCollisionType.default.value
             if mesh_props is None:
                 mesh_props = {}
-                self._setup_mesh_level_props(proxy_collision, "default", mesh_props)
+                self._setup_mesh_level_props(proxy_collision, "default", mesh_props, MeshType.poop_collision.value)
                 # Collision proxies must not be breakable, else tool will crash
                 if mesh_props.get("bungie_face_mode") == FaceMode.breakable.value:
                     mesh_props["bungie_face_mode"] = FaceMode.normal.value
@@ -362,16 +362,14 @@ class ExportScene:
             for proxy_physics in proxy_physics_list:
                 phys_props = {}
                 phys_props["bungie_object_type"] = ObjectType.mesh.value
-                if self.corinth:
-                    phys_props["bungie_mesh_type"] = MeshType.poop_collision.value
-                    phys_props["bungie_mesh_poop_collision_type"] = "play_collision"
-                else:
-                    phys_props["bungie_mesh_type"] = MeshType.poop_physics.value
+
                         
                 mesh_props = self.processed_meshes.get(proxy_physics.data)
+                if self.corinth:
+                    mesh_props["bungie_mesh_poop_collision_type"] = PoopCollisionType.play_collision.value
                 if mesh_props is None:
                     mesh_props = {}
-                    self._setup_mesh_level_props(proxy_physics, "default", mesh_props)
+                    self._setup_mesh_level_props(proxy_physics, "default", mesh_props, MeshType.poop_physics.value if self.corinth else MeshType.poop_collision.value)
                     self.processed_meshes[proxy_physics.data] = mesh_props
                 
                 phys_props.update(mesh_props)
@@ -381,11 +379,10 @@ class ExportScene:
         if has_cookie:
             cookie_props = {}
             cookie_props["bungie_object_type"] = ObjectType.mesh.value
-            cookie_props["bungie_mesh_type"] = MeshType.cookie_cutter.value
             mesh_props = self.processed_meshes.get(proxy_cookie_cutter.data)
             if mesh_props is None:
                 mesh_props = {}
-                self._setup_mesh_level_props(proxy_cookie_cutter, "default", mesh_props)
+                self._setup_mesh_level_props(proxy_cookie_cutter, "default", mesh_props, MeshType.cookie_cutter.value)
                 self.processed_meshes[proxy_cookie_cutter.data] = mesh_props
             
             cookie_props.update(mesh_props)
@@ -809,12 +806,10 @@ class ExportScene:
 
         if mesh_type == '_connected_geometry_mesh_type_structure':
             mesh_type = '_connected_geometry_mesh_type_default'
-
-        props["bungie_mesh_type"] = MeshType[mesh_type[30:]].value
         
         tmp_mesh_props = self.processed_meshes.get(ob.data)
         if tmp_mesh_props is None:
-            self._setup_mesh_level_props(ob, region, mesh_props)
+            self._setup_mesh_level_props(ob, region, mesh_props, MeshType[mesh_type[30:]].value)
             self.processed_meshes[ob.data] = mesh_props
         else:
             mesh_props.update(tmp_mesh_props)
@@ -850,7 +845,6 @@ class ExportScene:
         mesh = ob.data
         if self.corinth and not utils.test_face_prop_any(mesh, 'Render Only') and utils.test_face_prop_all(mesh, 'Collision Only'):
             props["bungie_mesh_type"] = MeshType.poop_collision.value
-            props["bungie_mesh_poop_pathfinding"] = PoopInstancePathfindingPolicy[nwo.poop_pathfinding].value
         
         props["bungie_mesh_poop_lighting"] = PoopLighting[nwo.poop_lighting].value
         props["bungie_mesh_poop_pathfinding"] = PoopInstancePathfindingPolicy[nwo.poop_pathfinding].value
@@ -885,7 +879,7 @@ class ExportScene:
         #     props["bungie_mesh_poop_precise_geometry"] = 1
 
         if self.corinth:
-            props["bungie_mesh_poop_lightmap_resolution_scale"] = nwo.poop_lightmap_resolution_scale
+            props["bungie_mesh_poop_lightmap_resolution_scale"] = int(nwo.poop_lightmap_resolution_scale)
             props["bungie_mesh_poop_streamingpriority"] = nwo.poop_streaming_priority
             props["bungie_mesh_poop_cinema_only"] = int(nwo.poop_cinematic_properties == '_connected_geometry_poop_cinema_only')
             props["bungie_mesh_poop_exclude_from_cinema"] = int(nwo.poop_cinematic_properties == '_connected_geometry_poop_cinema_exclude')
@@ -998,8 +992,8 @@ class ExportScene:
                     props["bungie_marker_type"] = "_connected_geometry_marker_type_prefab"
                     if nwo.prefab_pathfinding != "no_override":
                         props["bungie_mesh_poop_pathfinding"] = nwo.prefab_pathfinding
-                    if nwo.prefab_lightmap_res > 0:
-                        props["bungie_mesh_poop_lightmap_resolution_scale"] = nwo.prefab_lightmap_res
+                    if int(nwo.prefab_lightmap_res) > 0:
+                        props["bungie_mesh_poop_lightmap_resolution_scale"] = int(nwo.prefab_lightmap_res)
                     if nwo.prefab_lighting != "no_override":
                         props["bungie_mesh_poop_lighting"] = nwo.prefab_lighting
                     if nwo.prefab_imposter_policy != "no_override":
@@ -1065,7 +1059,7 @@ class ExportScene:
                 props["bungie_marker_light_cone_intensity"] = nwo.marker_light_cone_intensity
                 props["bungie_marker_light_cone_curve"] = nwo.marker_light_cone_curve
     
-    def _setup_mesh_level_props(self, ob: bpy.types.Object, region: str, mesh_props: dict):
+    def _setup_mesh_level_props(self, ob: bpy.types.Object, region: str, mesh_props: dict, mesh_type_value: int):
         mesh = ob.data
         data_nwo: NWO_MeshPropertiesGroup = mesh.nwo
         face_props = data_nwo.face_props
@@ -1074,6 +1068,13 @@ class ExportScene:
         precise_face_level = False
         precise_face_prop = False
         precise = self.asset_type == AssetType.MODEL and self.export_settings.auto_precise
+        skip_face_mode = False
+        
+        if self.corinth and mesh_type_value == MeshType.poop.value:
+            if utils.test_face_prop_all(mesh, 'Collision Only') or utils.test_face_prop_all(mesh, 'Sphere Collision Only'):
+                mesh_type_value = MeshType.poop_collision.value        
+        
+        mesh_props["bungie_mesh_type"] = mesh_type_value
         
         if face_props:
             if is_mesh:
@@ -1098,8 +1099,12 @@ class ExportScene:
                     case 'face_mode':
                         face_mode = FaceMode[prop.face_mode]
                         
-                        if self.corinth and face_mode == FaceMode.breakable:
-                            face_mode = FaceMode.normal
+                        if self.corinth:
+                            if face_mode == FaceMode.breakable:
+                                face_mode = FaceMode.normal
+                            elif mesh.nwo.mesh_type == '_connected_geometry_mesh_type_default' and utils.test_face_prop_all(mesh, 'Collision Only'):
+                                mesh_type_value = MeshType.poop_collision.value
+                                
                         
                         mesh_props["bungie_face_mode"] = face_mode.value
                             
@@ -1521,7 +1526,8 @@ class ExportScene:
             event_type = event.event_type
             if event_type == '_connected_geometry_animation_event_type_frame':
                 self.has_frame_events = True
-                continue # Handling frame events via Managedblam now 12/07/2025
+                # continue # Handling frame events via Managedblam now 12/07/2025
+                # 19/07/2025 Add these so tool doesn't throw warnings about orphaned frame events
             elif event_type.startswith('_connected_geometry_animation_event_type_ik') and event.ik_chain == 'none':
                 self.warnings.append(f"Animation event [{event.name}] has no ik chain defined. Skipping")
                 continue
@@ -2346,13 +2352,6 @@ def recursive_parent_mapper(collection: bpy.types.Collection, collection_map: di
             
     for child in collection.children:
         recursive_parent_mapper(child, collection_map, export_collection)
-
-def test_face_prop(face_props: NWO_MeshPropertiesGroup, attribute: str):
-    for item in face_props:
-        if getattr(item, attribute):
-            return True
-        
-    return False
 
 def make_default_render():
     mesh = bpy.data.meshes.new("default_render")

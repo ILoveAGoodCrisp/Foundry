@@ -4,7 +4,7 @@ import random
 import uuid
 import bpy
 
-from ..constants import VALID_OBJECTS
+from ..constants import VALID_OBJECTS, face_prop_descriptions
 
 from .. import utils
 
@@ -312,13 +312,20 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         description="Per vertex lighting gets ambient occlusion only",
     )
 
-    poop_lightmap_resolution_scale: bpy.props.IntProperty(
+    poop_lightmap_resolution_scale: bpy.props.EnumProperty(
         name="Lightmap Resolution",
         options=set(),
-        description="Determines how much texel space the faces will be given on the lightmap. 1 means less space for the faces, while 7 means more space for the faces. The relationships can be tweaked in the .scenario tag under the bsp tag block",
-        default=3,
-        min=1,
-        max=7,
+        description=face_prop_descriptions['lightmap_resolution_scale'],
+        default='3',
+        items=[
+            ('1', "Lowest", "Default resolution = 1"),
+            ('2', "Very Low", "Default resolution = 4"),
+            ('3', "Low", "Default resolution = 16"),
+            ('4', "Medium", "Default resolution = 64"),
+            ('5', "High", "Default resolution = 128"),
+            ('6', "Very High", "Default resolution = 256"),
+            ('7', "Highest", "Default resolution = 512"),
+        ]
     )
     
     def poop_pathfinding_items(self, context):
@@ -656,12 +663,20 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     
     # Prefab marker specific props
     
-    prefab_lightmap_res: bpy.props.IntProperty(
+    prefab_lightmap_res: bpy.props.EnumProperty(
         name="Lightmap Resolution",
-        description="Override the lightmap resolution of this prefab instance. 0 for no override. The default lightmap resolution meshes used is 3. Determines how much texel space the faces will be given on the lightmap. 1 means less space for the faces, while 7 means more space for the faces. The relationships can be tweaked in the .scenario tag under the bsp tag block",
-        min=0,
-        max=7,
+        description=face_prop_descriptions['lightmap_resolution_scale'],
         options=set(),
+        items=[
+            ('0', "No Override", "Prefab will use its default lightmap resolution"),
+            ('1', "Lowest", "Default resolution = 1"),
+            ('2', "Very Low", "Default resolution = 4"),
+            ('3', "Low", "Default resolution = 16"),
+            ('4', "Medium", "Default resolution = 64"),
+            ('5', "High", "Default resolution = 128"),
+            ('6', "Very High", "Default resolution = 256"),
+            ('7', "Highest", "Default resolution = 512"),
+        ]
     )
     
     prefab_render_only: bpy.props.BoolProperty(

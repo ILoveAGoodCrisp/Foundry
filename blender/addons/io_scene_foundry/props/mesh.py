@@ -115,7 +115,7 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
         description=face_prop_descriptions['face_mode'],
         options=set(),
         items=[
-            ('normal', "Render & Collision", "Mesh will be used to build both render geometry and collision"),
+            # ('normal', "Render & Collision", "Mesh will be used to build both render geometry and collision"),
             ('render_only', "Render Only", "Mesh will be used to build both render geometry. The game will not build a collision representation of this mesh. It will not be collidable in game"),
             ('collision_only', "Collision Only", "Physics objects and projectiles will collide with this mesh but it will not be visible"),
             ('sphere_collision_only', "Sphere Collision Only", "Only physics objects collide with this mesh. Projectiles will pass through it"),

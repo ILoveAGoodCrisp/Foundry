@@ -134,7 +134,7 @@ class PoopInstanceImposterPolicy(BungieEnumPoop):
     none = 4
     never = 5
     
-class PoopCollisionType(BungieEnumPoop):
+class PoopCollisionType(BungieEnum):
     default = 0
     invisible_wall = 1
     play_collision = 2
