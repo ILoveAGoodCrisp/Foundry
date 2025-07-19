@@ -649,8 +649,6 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         frame_events_tag_path = utils.get_asset_tag(".frame_events_list")
         if frame_events_tag_path:
             col.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text="Open Frame Events List Tag").tag_path = frame_events_tag_path
-        self.draw_expandable_box(box.box(), nwo, 'rig_usages', 'Node Usages')
-        self.draw_expandable_box(box.box(), nwo, 'ik_chains', panel_display_name='IK Chains')
         self.draw_expandable_box(box.box(), nwo, 'animation_copies')
         if self.h4:
             self.draw_expandable_box(box.box(), nwo, 'animation_composites')
@@ -1003,6 +1001,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         box = self.box.box()
         if self.draw_expandable_box(box, nwo, 'model_rig') and nwo.main_armature:
             self.draw_expandable_box(box.box(), nwo, 'rig_controls', 'Bone Controls')
+            self.draw_expandable_box(box.box(), nwo, 'rig_usages', 'Node Usages')
+            self.draw_expandable_box(box.box(), nwo, 'ik_chains', panel_display_name='IK Chains')
 
     def draw_sets_manager(self):
         self.box.operator('nwo.update_sets', icon='FILE_REFRESH')
