@@ -505,9 +505,6 @@ class NWO_OT_AddEmissiveNode(bpy.types.Operator):
             color_data[mask] = color_on
             power_data[mask] = prop.light_intensity
 
-        # ------------------------------------------------------------------ #
-        # 3.  Make sure the destination attributes exist
-        # ------------------------------------------------------------------ #
         color_attribute = mesh.attributes.get("foundry_color")
         if color_attribute is None:
             color_attribute = mesh.attributes.new("foundry_color", 'FLOAT_COLOR', 'FACE')
