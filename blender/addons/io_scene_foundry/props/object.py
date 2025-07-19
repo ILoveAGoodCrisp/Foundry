@@ -260,10 +260,10 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         description="Tells the game to generate a physics representation of this mesh without converting it to a convex hull",
     )
     
-    physics_material: bpy.props.StringProperty(
-        name="Physics Material",
+    global_material: bpy.props.StringProperty(
+        name="Global Material",
         options=set(),
-        description="Applies the given global material to this physics object. This affects the sounds and effects that play when objects interact with this physics mesh"
+        description="Applies the given global material to this object. This affects the sounds and effects that play when objects interact with this mesh"
     )
 
     poop_lighting_items = [

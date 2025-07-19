@@ -1136,7 +1136,7 @@ class JMSMaterialSlot:
         self.breakable = self.material.ass_jms.breakable or self.breakable
         self.ai_deafening = self.material.ass_jms.ai_deafening or self.ai_deafening
         self.no_shadow = self.material.ass_jms.no_shadow or self.no_shadow
-        self.shadow_only = self.material.ass_jms.shadow_only or self.material.ass_jms.override_lightmap_transparency or self.shadow_only
+        self.shadow_only = self.material.ass_jms.shadow_only or self.shadow_only
         self.lightmap_only = self.material.ass_jms.lightmap_only or self.lightmap_only
         self.precise = self.material.ass_jms.precise or self.precise
         self.portal_one_way = self.material.ass_jms.portal_1_way or self.portal_one_way
@@ -1154,6 +1154,8 @@ class JMSMaterialSlot:
             self.lightmap_additive_transparency = self.material.ass_jms.additive_transparency
         if self.material.ass_jms.two_sided_transparent_tint != Color((0.0, 0.0, 0.0)):
             self.lightmap_translucency_tint_color = self.material.ass_jms.additive_transparency
+            
+        self.lightmap_transparency_override = self.material.ass_jms.override_lightmap_transparency
             
         # Emissive
         self.emissive_power = None
@@ -1213,6 +1215,7 @@ class JMSMaterialSlot:
         self.lightmap_resolution_scale = None
         self.lightmap_translucency_tint_color = None
         self.lightmap_additive_transparency = None
+        self.lightmap_transparency_override = None
         
         parts = name.split()
         if len(parts) > 1 and (parts[0].startswith(utils.legacy_lightmap_prefixes) or parts[-1].startswith(utils.legacy_lightmap_prefixes)):
@@ -1277,6 +1280,7 @@ class JMSMaterialSlot:
         if self.lightmap_resolution_scale != __value.lightmap_resolution_scale: return False
         if self.lightmap_translucency_tint_color != __value.lightmap_translucency_tint_color: return False
         if self.lightmap_additive_transparency != __value.lightmap_additive_transparency: return False
+        if self.lightmap_transparency_override != __value.lightmap_transparency_override: return False
         
         if self.emissive_power != __value.emissive_power: return False
         if self.emissive_color != __value.emissive_color: return False
@@ -2653,6 +2657,8 @@ class NWOImporter:
                 utils.add_face_prop(mesh, "lightmap_additive_transparency").lightmap_additive_transparency = jms_mat.lightmap_additive_transparency
             if jms_mat.lightmap_translucency_tint_color:
                 utils.add_face_prop(mesh, "lightmap_translucency_tint_color").lightmap_translucency_tint_color = jms_mat.lightmap_translucency_tint_color
+            if jms_mat.lightmap_transparency_override:
+                utils.add_face_prop(mesh, "lightmap_transparency_override")
             # Emissive
             if jms_mat.emissive_power:
                 prop = utils.add_face_prop(mesh, "emissive")
@@ -2771,6 +2777,8 @@ class NWOImporter:
                         utils.add_face_prop(mesh, "lightmap_additive_transparency").lightmap_additive_transparency = jms_mat.lightmap_additive_transparency
                     if jms_mat.lightmap_translucency_tint_color:
                         utils.add_face_prop(mesh, "lightmap_translucency_tint_color").lightmap_translucency_tint_color = jms_mat.lightmap_translucency_tint_color
+                    if jms_mat.lightmap_transparency_override:
+                        utils.add_face_prop(mesh, "lightmap_transparency_override")
                     # Emissive
                     if jms_mat.emissive_power:
                         prop = utils.add_face_prop(mesh, "emissive")
@@ -2836,6 +2844,8 @@ class NWOImporter:
                             utils.add_face_prop(mesh, "lightmap_additive_transparency", indices).lightmap_additive_transparency = jms_mat.lightmap_additive_transparency
                         if jms_mat.lightmap_translucency_tint_color:
                             utils.add_face_prop(mesh, "lightmap_translucency_tint_color", indices).lightmap_translucency_tint_color = jms_mat.lightmap_translucency_tint_color
+                        if jms_mat.lightmap_transparency_override:
+                            utils.add_face_prop(mesh, "lightmap_transparency_override", indices)
                         # Emissive
                         if jms_mat.emissive_power:
                             prop = utils.add_face_prop(mesh, "emissive", indices)

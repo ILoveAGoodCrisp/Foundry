@@ -982,7 +982,7 @@ class VirtualMesh:
     def _setup(self, ob: bpy.types.Object, scene: 'VirtualScene', render_mesh: bool, props: dict, bones: list[str]):
         old_shape_key_index = 0
         shape_key_unmutes = []
-        has_shape_keys = bool(ob.data.shape_keys)
+        has_shape_keys = ob.type == 'MESH' and ob.data.shape_keys
         if has_shape_keys:
             old_shape_key_index = ob.active_shape_key_index
             ob.active_shape_key_index = 0
@@ -992,6 +992,8 @@ class VirtualMesh:
                     key_block.mute = True
                 
         eval_ob = ob.evaluated_get(scene.depsgraph)
+        
+        true_mesh = ob.type == 'MESH'
         
         def add_triangle_mod(ob: bpy.types.Object) -> bpy.types.Modifier:
             mods = ob.modifiers
@@ -1003,12 +1005,14 @@ class VirtualMesh:
             tri_mod.ngon_method = scene.ngon_method
             tri_mod.keep_custom_normals = True
         
-        add_triangle_mod(eval_ob)
+        if true_mesh:
+            add_triangle_mod(eval_ob)
 
         mesh = eval_ob.to_mesh(preserve_all_data_layers=True, depsgraph=scene.depsgraph)
         self.name = mesh.name
         if not mesh.polygons:
-            scene.warnings.append(f"Mesh data [{self.name}] of object [{ob.name}] has no faces. {ob.name} removed from geometry tree")
+            if true_mesh:
+                scene.warnings.append(f"Mesh data [{self.name}] of object [{ob.name}] has no faces. {ob.name} removed from geometry tree")
             self.invalid = True
             return
         
@@ -1017,7 +1021,7 @@ class VirtualMesh:
         unique_indices = np.unique(indices)
         
         if len(unique_indices) > 1 or unique_indices[0] != 3:
-            # if for whatever reason to_mesh() failed to triangulate the mesh
+            # Only if we couldn't triangulate the mesh earlier
             bm = bmesh.new()
             bm.from_mesh(mesh)
             bmesh.ops.triangulate(bm, faces=bm.faces, quad_method=utils.tri_mod_to_bmesh_tri(scene.quad_method), ngon_method=utils.tri_mod_to_bmesh_tri(scene.ngon_method))
@@ -1025,7 +1029,8 @@ class VirtualMesh:
             bm.free()
             
         if not mesh.polygons:
-            scene.warnings.append(f"Mesh data [{self.name}] of object [{ob.name}] has no faces. {ob.name} removed from geometry tree")
+            if true_mesh:
+                scene.warnings.append(f"Mesh data [{self.name}] of object [{ob.name}] has no faces. {ob.name} removed from geometry tree")
             self.invalid = True
             return
             
@@ -1176,7 +1181,11 @@ class VirtualMesh:
 
         loop_data = np.hstack(data)
 
-        result_data, new_indices, face_indices = np.unique(loop_data, axis=0, return_index=True, return_inverse=True)
+        # if props.get("bungie_mesh_type") == MeshType.lightmap_region.value:
+        #     new_indices  = np.arange(loop_data.shape[0], dtype=np.intp)
+        #     face_indices = new_indices 
+        # else:
+        _, new_indices, face_indices = np.unique(loop_data, axis=0, return_index=True, return_inverse=True)
         
         if scene.corinth:
             # Extract the start index and number of loops for each face
@@ -2125,9 +2134,13 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
             case 'global_material':
                 if props.get("bungie_face_global_material") is None:
                     gmv = scene.global_materials.get(face_prop_defaults["bungie_face_global_material"], 0)
-                    face_gmv = scene.global_materials.get(prop.face_global_material.strip().replace(' ', "_"))
+                    face_gmv = scene.global_materials.get(prop.global_material.strip().replace(' ', "_"))
                     if face_gmv is not None:
-                        face_properties.setdefault("bungie_face_region", FaceSet(np.full(num_faces, gmv, dtype=np.int32))).update(mesh, prop, face_gmv)
+                        if scene.corinth and props.get("bungie_mesh_type") in {MeshType.poop.value or MeshType.poop_collision.value}:
+                            face_properties.setdefault("bungie_mesh_global_material", FaceSet(np.full(num_faces, gmv, dtype=np.int32))).update(mesh, prop, face_gmv)
+                            face_properties.setdefault("bungie_mesh_poop_collision_override_global_material", FaceSet(np.full(num_faces, 0, dtype=np.int32))).update(mesh, prop, 1)
+                        else:
+                            face_properties.setdefault("bungie_face_global_material", FaceSet(np.full(num_faces, gmv, dtype=np.int32))).update(mesh, prop, face_gmv)
             case 'ladder':
                 if props.get("bungie_ladder") is None and prop.ladder:
                     face_properties.setdefault("bungie_ladder", FaceSet(np.full(num_faces, face_prop_defaults["bungie_ladder"], dtype=np.int32))).update(mesh, prop, 1)
@@ -2209,13 +2222,18 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
                     
     for material, material_indices in special_mats_dict.items():
         if material.name.lower().startswith('+seamsealer') and props.get("bungie_face_type") is None:
-            face_properties.setdefault("bungie_face_type", FaceSet(np.full(num_faces, face_prop_defaults["bungie_face_type"], dtype=np.int32))).update_from_material(mesh, material_indices, FaceType.seam_sealer.value)
+            if scene.corinth:
+                face_properties.setdefault("bungie_face_mode", FaceSet(np.full(num_faces, face_prop_defaults["bungie_face_mode"], dtype=np.int32))).update_from_material(mesh, material_indices, FaceMode.collision_only.value)
+                face_properties.setdefault("bungie_mesh_poop_collision_type", FaceSet(np.full(num_faces, face_prop_defaults["bungie_mesh_poop_collision_type"], dtype=np.int32))).update_from_material(mesh, material_indices, PoopCollisionType.invisible_wall.value)
+            else:
+                face_properties.setdefault("bungie_face_type", FaceSet(np.full(num_faces, face_prop_defaults["bungie_face_type"], dtype=np.int32))).update_from_material(mesh, material_indices, FaceType.seam_sealer.value)
         elif is_structure and material.name.lower().startswith('+seam') and props.get("bungie_mesh_type") != MeshType.seam.value:
             props.pop("bungie_mesh_type")
             face_properties.setdefault("bungie_mesh_type", FaceSet(np.full(num_faces, face_prop_defaults["bungie_mesh_type"], dtype=np.int32))).update_from_material(mesh, material_indices, MeshType.seam.value)
         elif material.name.lower().startswith('+'):
             if not is_structure and scene.corinth:
-                face_properties.setdefault("bungie_mesh_type", FaceSet(np.full(num_faces, face_prop_defaults["bungie_mesh_type"], dtype=np.int32))).update_from_material(mesh, material_indices, MeshType.none.value)
+                face_properties.setdefault("bungie_face_mode", FaceSet(np.full(num_faces, face_prop_defaults["bungie_face_mode"], dtype=np.int32))).update_from_material(mesh, material_indices, FaceMode.collision_only.value)
+                face_properties.setdefault("bungie_mesh_poop_collision_type", FaceSet(np.full(num_faces, face_prop_defaults["bungie_mesh_poop_collision_type"], dtype=np.int32))).update_from_material(mesh, material_indices, PoopCollisionType.invisible_wall.value)
                 # bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.material_index in material_indices], context='FACES')
                 continue
             

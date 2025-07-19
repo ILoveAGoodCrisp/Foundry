@@ -1559,6 +1559,9 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 self.draw_table_menus(col, nwo, ob)
 
             if nwo.mesh_type == "_connected_geometry_mesh_type_physics":
+                row = col.row(align=True)
+                row.prop(nwo, "global_material", text="Physics Material")
+                row.menu("NWO_MT_AddGlobalMaterial", text="", icon='DOWNARROW_HLT')
                 col.prop(nwo, "mesh_primitive_type", text="Primitive Type")
                 if self.h4:
                     col.prop(nwo, "mopp_physics")
@@ -2079,7 +2082,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             box.label(text=f"Face Count: {utils.human_number(len(ob.data.polygons))}", icon='FACE_MAPS')
             row = box.row()
             row.operator(f"nwo.face_attribute_count_refresh", text="Refresh Face Counts", icon='FILE_REFRESH')
-            row.operator(f"nwo.face_attribute_consolidate", icon='AREA_JOIN_DOWN')
+            row.operator(f"nwo.face_attribute_consolidate", icon='AREA_JOIN_UP')
         
         row = box.row()
         
@@ -2113,20 +2116,21 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         row = box.row()
 
         if not for_material:
-            if edit_mode:
-                sub = row.row(align=True)
-                sub.enabled = bool(props)
-                sub.operator("nwo.face_attribute_assign", text="Assign")
-                sub.operator("nwo.face_attribute_remove", text="Remove")
-                sub = row.row(align=True)
-                sub.enabled = bool(props)
-                sub.operator("nwo.face_attribute_select", text="Select").select = True
-                sub.operator("nwo.face_attribute_select", text="Deselect").select = False
+            if ob.type == 'MESH':
+                if edit_mode:
+                    sub = row.row(align=True)
+                    sub.enabled = bool(props)
+                    sub.operator("nwo.face_attribute_assign", text="Assign")
+                    sub.operator("nwo.face_attribute_remove", text="Remove")
+                    sub = row.row(align=True)
+                    sub.enabled = bool(props)
+                    sub.operator("nwo.face_attribute_select", text="Select").select = True
+                    sub.operator("nwo.face_attribute_select", text="Deselect").select = False
 
-            else:
-                sub = row.row(align=False)
-                sub.operator("nwo.face_attribute_assign", text="Assign To All Faces", icon='MESH_CUBE')
-                sub.operator("nwo.edit_face_attributes", text="Enter Edit Mode", icon="EDITMODE_HLT")
+                else:
+                    sub = row.row(align=False)
+                    sub.operator("nwo.face_attribute_assign", text="Assign To All Faces", icon='MESH_CUBE')
+                    sub.operator("nwo.edit_face_attributes", text="Enter Edit Mode", icon="EDITMODE_HLT")
 
         col = box.column()
         col.use_property_split = True
@@ -2144,7 +2148,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     row = box.row()
                     row.menu("NWO_MT_FaceRegions", text=item.region_name, icon_value=get_icon_id("region"))
                 case 'global_material':
-                    row = box.row()
+                    row = box.row(align=True)
+                    row.prop(item, "global_material")
                     if utils.poll_ui(('scenario', 'prefab')):
                         row.operator("nwo.global_material_globals",text="", icon="VIEWZOOM").face_level = True
                     else:

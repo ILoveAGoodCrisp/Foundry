@@ -146,16 +146,21 @@ class NWO_MT_FaceAttributeAddMenu(bpy.types.Menu):
             games, asset_types = mask.split(":")
             games = games.split(",")
             asset_types = asset_types.split(",")
-            if corinth and "corinth" not in games:
-                continue
-            elif not corinth and "reach" not in games:
-                continue
-            elif asset_type == "resource" or asset_type not in asset_types:
-                continue
-            elif name == "global_material" and not corinth and asset_type not in ('model', 'resource'):
-                continue
-            elif name == "region" and context.mode != 'EDIT_MESH':
-                continue
+            if asset_type != 'resource':
+                if corinth and "corinth" not in games:
+                    continue
+                elif not corinth and "reach" not in games:
+                    continue
+                elif asset_type not in asset_types:
+                    continue
+                elif name == "region" and context.mode != 'EDIT_MESH':
+                    continue
+                elif name != 'global_material' and asset_type == "model" and context.object.data.nwo.mesh_type == '_connected_geometry_mesh_type_collision':
+                    continue
+                elif name == 'global_material' and asset_type == "model" and context.object.data.nwo.mesh_type != '_connected_geometry_mesh_type_collision':
+                    continue
+                elif name == 'global_material' and asset_type != "model" and not corinth:
+                    continue
             layout.operator("nwo.face_attribute_add", text=display_name).options = name
 
 
@@ -174,7 +179,7 @@ class NWO_UL_FacePropList(bpy.types.UIList):
         is_mesh = context.object.type == 'MESH'
         face_count = len(data.id_data.polygons) if is_mesh else 0
         row = layout.row()
-        row.scale_x = 0.25 if item.type in ('emissive', 'lightmap_additive_transparency', 'lightmap_translucency_tint_color') else 0.2
+        row.scale_x = 0.22
         match item.type:
             case 'emissive':
                 row.prop(item, "material_lighting_emissive_color", text="")
@@ -205,10 +210,9 @@ class NWO_OT_FaceAttributeConsolidate(bpy.types.Operator):
     bl_description = "Consolidates all face attributes into the minimum possible amount"
     bl_options = {'UNDO'}
     
-    
     @classmethod
     def poll(cls, context):
-        return context.object and context.object.type == 'MESH' and context.object.data.nwo.face_props
+        return context.object and context.object.type == 'MESH' and context.object.data.nwo.face_props and context.mode != 'EDIT_MESH'
     
     def execute(self, context):
         utils.consolidate_face_attributes(context.object.data)
@@ -294,14 +298,15 @@ class NWO_OT_FaceAttributeAdd(bpy.types.Operator):
         
         item.type = self.options
         
-        if context.mode == 'EDIT_MESH':
-            attribute, face_count = utils.assign_face_attribute_edit_mode(mesh)
-            item.face_count = face_count
-            item.attribute_name = attribute.name
-        else:
-            attribute, face_count = utils.assign_face_attribute(mesh)
-            item.face_count = face_count
-            item.attribute_name = attribute.name
+        if ob.type == 'MESH':
+            if context.mode == 'EDIT_MESH':
+                attribute, face_count = utils.assign_face_attribute_edit_mode(mesh)
+                item.face_count = face_count
+                item.attribute_name = attribute.name
+            else:
+                attribute, face_count = utils.assign_face_attribute(mesh)
+                item.face_count = face_count
+                item.attribute_name = attribute.name
         
             
         item.color = utils.random_color()
@@ -331,10 +336,14 @@ class NWO_OT_FaceAttributeDelete(bpy.types.Operator):
         mesh = ob.data
         nwo = mesh.nwo
         
-        if context.mode == 'EDIT_MESH':
-            utils.delete_face_attribute_edit_mode(mesh, nwo.face_props_active_index)
+        if ob.type == 'MESH':
+            if context.mode == 'EDIT_MESH':
+                utils.delete_face_attribute_edit_mode(mesh, nwo.face_props_active_index)
+            else:
+                utils.delete_face_attribute(mesh, nwo.face_props_active_index)
         else:
-            utils.delete_face_attribute(mesh, nwo.face_props_active_index)
+            mesh.nwo.face_props.remove(mesh.nwo.face_props_active_index)
+            mesh.nwo.face_props_active_index = min(mesh.nwo.face_props_active_index, len(mesh.nwo.face_props) - 1)
         
         if nwo.highlight:
             bpy.ops.nwo.face_attribute_color_all(enable_highlight=nwo.highlight)
@@ -350,7 +359,7 @@ class NWO_OT_FaceAttributeAssign(bpy.types.Operator):
     
     @classmethod
     def poll(self, context):
-        return context.object and context.object.type in VALID_MESHES and context.object.data.nwo.face_props
+        return context.object and context.object.type in VALID_MESHES and context.object.data.nwo.face_props and context.object.type == 'MESH'
 
     def execute(self, context):
         mesh = context.object.data
@@ -674,7 +683,7 @@ class NWO_OT_GlobalMaterialRegionListFace(NWO_OT_RegionListFace):
 
     def execute(self, context):
         nwo = context.object.data.nwo
-        nwo.face_props[nwo.face_props_active_index].face_global_material = self.region
+        nwo.face_props[nwo.face_props_active_index].global_material = self.region
         return {"FINISHED"}
 
 
@@ -864,21 +873,6 @@ class NWO_MT_MarkerTypes(bpy.types.Menu):
                 layout.operator('nwo.apply_type_marker_single', text='Airprobe', icon_value=get_icon_id('airprobe')).m_type = 'airprobe'
                 layout.operator('nwo.apply_type_marker_single', text='Light Cone', icon_value=get_icon_id('light_cone')).m_type = 'lightcone'
 
-# FACE LEVEL FACE PROPS
-
-class NWO_UL_FaceMapProps(bpy.types.UIList):
-    def draw_item(
-        self, context, layout, data, item, icon, active_data, active_propname
-    ):
-        if self.layout_type in {"DEFAULT", "COMPACT"}:
-            if item:
-                layout.prop(item, "name", text="", emboss=False, icon_value=495)
-            else:
-                layout.label(text="", translate=False, icon_value=icon)
-        elif self.layout_type == "GRID":
-            layout.alignment = "CENTER"
-            layout.label(text="", icon_value=icon)
-
 class NWO_OT_FaceDefaultsToggle(bpy.types.Operator):
     bl_idname = "nwo.toggle_defaults"
     bl_label = "Toggle Defaults"
@@ -945,11 +939,11 @@ class NWO_OT_RegionList(bpy.types.Operator):
 
 class NWO_OT_GlobalMaterialRegionList(NWO_OT_RegionList):
     bl_idname = "nwo.global_material_regions_list"
-    bl_label = "Collision Material List"
+    bl_label = "Physics Material List"
     bl_description = "Applies a global material to the selected object"
 
     def execute(self, context):
-        context.object.data.nwo.face_global_material = self.region
+        context.object.nwo.global_material = self.region
         return {"FINISHED"}
     
 class NWO_OT_GlobalMaterialGlobals(NWO_OT_RegionList):
@@ -979,11 +973,11 @@ class NWO_OT_GlobalMaterialGlobals(NWO_OT_RegionList):
     )
 
     def execute(self, context):
-        nwo = context.object.data.nwo
+        ob = context.object
         if self.face_level:
-            nwo.face_props[nwo.face_props_active_index].face_global_material = self.material
+            ob.data.nwo.face_props[ob.data.nwo.face_props_active_index].global_material = self.material
         else:
-            nwo.face_global_material = self.material
+            ob.nwo.global_material = self.material
         context.area.tag_redraw()
         return {"FINISHED"}
     
@@ -994,12 +988,12 @@ class NWO_OT_GlobalMaterialGlobals(NWO_OT_RegionList):
 
     def draw(self, context):
         layout = self.layout
-        layout.prop(self, 'material', text="Collision Material")
+        layout.prop(self, 'material', text="Global Material")
 
 class NWO_OT_GlobalMaterialList(bpy.types.Operator):
     bl_idname = "nwo.global_material_list"
-    bl_label = "Collision Material List"
-    bl_description = "Applies a Collision Material to the selected object"
+    bl_label = "Global Material List"
+    bl_description = "Applies a Global Material to the selected object"
     bl_options = {'REGISTER', 'UNDO'}
 
     def global_material_items(self, context):

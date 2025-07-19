@@ -58,6 +58,7 @@ class MeshType(BungieEnum):
     cookie_cutter = 16
     water_surface = 17
     water_physics_volume = 18
+    lightmap_region = 19
     
 class MarkerType(BungieEnum): ...
 

@@ -111,7 +111,7 @@ classes = [
     object.NWO_MT_MarkerPermutationsMenu,
     object.NWO_MT_MeshTypes,
     object.NWO_MT_MarkerTypes,
-    object.NWO_UL_FaceMapProps,
+    # object.NWO_UL_FaceMapProps,
     object.NWO_OT_FaceDefaultsToggle,
     # object.NWO_MT_MeshPropAddMenu,
     # object.NWO_OT_MeshPropRemove,

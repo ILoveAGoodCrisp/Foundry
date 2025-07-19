@@ -607,7 +607,7 @@ def run_tool_sidecar(tool_args: list, asset_path, event_level='WARNING'):
 
 
 def is_error_line(line):
-    return line.startswith("IMPORT FAILED") or "### ASSERTION FAILED" in line
+    return line.startswith("IMPORT FAILED") or "### ASSERTION FAILED" in line or "FATAL ERROR!" in line
 
 def get_error_explanation(line):
     if "plane3d_passes_through_point" in line:
