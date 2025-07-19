@@ -35,6 +35,14 @@ class NWO_MaterialPropertiesGroup(PropertyGroup):
         name="Index for Material Property",
         options=set(),
     )
+    
+    def get_material_props_allowed(self):
+        return not self.SpecialMaterial and not self.ConventionMaterial
+    
+    material_props_allowed: bpy.props.BoolProperty(
+        options={'HIDDEN'},
+        get=get_material_props_allowed,
+    )
 
     def recursive_image_search_object(self, tree_owner, object):
         nodes = tree_owner.node_tree.nodes

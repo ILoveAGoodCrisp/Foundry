@@ -3141,19 +3141,19 @@ def area_light_to_emissive(light_ob: bpy.types.Object):
     plane_ob.matrix_world = light_ob.matrix_world
     plane_nwo = plane_data.nwo
     plane_nwo.mesh_type = "_connected_geometry_mesh_type_default"
-    plane_nwo.lightmap_only = True
     plane_ob.nwo.region_name = true_region(light_ob.nwo)
     plane_ob.nwo.permutation_name = true_permutation(light_ob.nwo)
-    plane_nwo.emissive_active = True
-    plane_nwo.material_lighting_attenuation_cutoff = light_nwo.light_far_attenuation_end
-    plane_nwo.material_lighting_attenuation_falloff = light_nwo.light_far_attenuation_start
-    plane_nwo.material_lighting_emissive_focus = light_nwo.light_focus
-    plane_nwo.material_lighting_emissive_color = light.color
-    plane_nwo.material_lighting_emissive_per_unit = light_nwo.light_per_unit
-    plane_nwo.material_lighting_emissive_power = light.energy
-    plane_nwo.material_lighting_emissive_quality = light_nwo.light_quality
-    plane_nwo.material_lighting_use_shader_gel = light_nwo.light_use_shader_gel
-    plane_nwo.material_lighting_bounce_ratio = light_nwo.light_bounce_ratio
+    add_face_prop(plane_data, 'face_mode').face_mode = 'lightmap_only'
+    prop = add_face_prop(plane_data, 'emissive')
+    prop.material_lighting_attenuation_cutoff = light_nwo.light_far_attenuation_end
+    prop.material_lighting_attenuation_falloff = light_nwo.light_far_attenuation_start
+    prop.material_lighting_emissive_focus = light_nwo.light_focus
+    prop.material_lighting_emissive_color = light.color
+    prop.material_lighting_emissive_per_unit = light_nwo.light_per_unit
+    prop.material_lighting_emissive_power = light.energy
+    prop.material_lighting_emissive_quality = light_nwo.light_quality
+    prop.material_lighting_use_shader_gel = light_nwo.light_use_shader_gel
+    prop.material_lighting_bounce_ratio = light_nwo.light_bounce_ratio
     
     return plane_ob
 
