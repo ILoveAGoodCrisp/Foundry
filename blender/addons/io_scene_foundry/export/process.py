@@ -1210,7 +1210,6 @@ class ExportScene:
                         mesh_props["bungie_lighting_attenuation_falloff"] = falloff * self.atten_scalar * WU_SCALAR
                         mesh_props["bungie_lighting_emissive_focus"] = degrees(prop.material_lighting_emissive_focus) / 180
         
-        print(face_sides_props_full, len(face_sides_props), len(face_sides_props_full))
         if face_sides_props_full and len(face_sides_props) == len(face_sides_props_full):
             side_value = "one_sided"
             transparent_value = ""
