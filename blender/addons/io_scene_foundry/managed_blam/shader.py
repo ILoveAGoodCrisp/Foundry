@@ -544,6 +544,7 @@ class ShaderTag(Tag):
                 
             if Path(image_path).exists():    
                 image = bpy.data.images.load(filepath=image_path, check_existing=True)
+                image.nwo.filepath = utils.relative_path(image_path)
                 if is_non_color:
                     image.colorspace_settings.name = 'Non-Color'
                 else:

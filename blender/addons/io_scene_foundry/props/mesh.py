@@ -173,9 +173,9 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
         options=set(),
         description=face_prop_descriptions['draw_distance'],
         items=[
-            # ('_connected_geometry_face_draw_distance_normal', 'Default', ''),
-            ('_connected_geometry_face_draw_distance_detail_mid', 'Medium', ''),
-            ('_connected_geometry_face_draw_distance_detail_close', 'Close', ''),
+            # ('normal', 'Default', ''),
+            ('detail_mid', 'Medium', ''),
+            ('detail_close', 'Close', ''),
         ]
     )
 
@@ -757,8 +757,6 @@ class NWO_MeshPropertiesGroup(bpy.types.PropertyGroup):
 
     face_props_active_index: bpy.props.IntProperty(
         name="Index for Face Property",
-        default=0,
-        min=0,
         options=set(),
     )
 

@@ -318,8 +318,6 @@ class BitmapTag(Tag):
 
         return faces[face].GetPixel(u, v)
 
-# ----------------------------------------------------------------------
-
     def cubemap_to_equirectangular(self, bitmap: Bitmap, mode: str = "bilinear") -> Bitmap:
         from System import Array, Byte # type: ignore
         from System.Runtime.InteropServices import Marshal # type: ignore
@@ -392,7 +390,7 @@ class BitmapTag(Tag):
         game_bitmap = self._GameBitmap(frame_index=frame_index)
         bitmap = game_bitmap.GetBitmap()
         game_bitmap.Dispose()
-        is_linear = self.is_linear()
+        # is_linear = self.is_linear()
         
         if bitmap.PixelFormat == PixelFormat.Format32bppArgb and blue_channel_fix:
             bitmap_data = bitmap.LockBits(Rectangle(0, 0, bitmap.Width, bitmap.Height), ImageLockMode.ReadWrite, bitmap.PixelFormat)
@@ -469,7 +467,7 @@ class BitmapTag(Tag):
             self.block_bitmaps.Elements[0].SelectField("CharEnum:curve").Value = 5
         bitmap_elements = self.block_bitmaps.Elements
         if bitmap_elements.Count > 1:
-            array_length = bitmap_elements.Count
+            # array_length = bitmap_elements.Count
             for element in bitmap_elements:
                 temp_path = self._save_single(blue_channel_fix, format, element.ElementIndex, f"_{element.ElementIndex + 1:05}")
                 if element.ElementIndex == 0:

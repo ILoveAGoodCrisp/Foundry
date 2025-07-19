@@ -2069,17 +2069,22 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         
         col.separator()
         self.draw_expandable_box(self.box.box(), context.scene.nwo, "instance_proxies", ob=ob)
-
-    def draw_mesh_properties(self, box, ob, for_material=False):
         
+    def draw_mesh_properties(self, box, ob):
+        self.draw_face_material_properties(box, ob, False)
+        
+    def draw_material_attributes(self, box, ob):
+        self.draw_face_material_properties(box, ob, True)
+
+    def draw_face_material_properties(self, box, id, for_material):
         op_prefix = "nwo.material" if for_material else "nwo.face"
-        nwo = ob.data.nwo if for_material else ob.data.nwo
+        nwo = id.nwo if for_material  else id.data.nwo
         props = nwo.material_props if for_material else nwo.face_props
         active_prop_index = nwo.material_props_active_index if for_material else nwo.face_props_active_index
         
         context = self.context
-        if not for_material and ob.type == 'MESH':
-            box.label(text=f"Face Count: {utils.human_number(len(ob.data.polygons))}", icon='FACE_MAPS')
+        if not for_material and id.type == 'MESH':
+            box.label(text=f"Face Count: {utils.human_number(len(id.data.polygons))}", icon='FACE_MAPS')
             row = box.row()
             row.operator(f"nwo.face_attribute_count_refresh", text="Refresh Face Counts", icon='FILE_REFRESH')
             row.operator(f"nwo.face_attribute_consolidate", icon='AREA_JOIN_UP')
@@ -2087,7 +2092,14 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         row = box.row()
         
         if for_material:
-            pass
+            row.template_list(
+                "NWO_UL_MaterialPropList",
+                "",
+                nwo,
+                "material_props",
+                nwo,
+                "material_props_active_index",
+            )
         else:
             row.template_list(
                 "NWO_UL_FacePropList",
@@ -2108,7 +2120,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         col.operator(f"{op_prefix}_attribute_delete", icon="REMOVE", text="")
         col.separator()
         if not for_material:
-            col.operator("nwo.face_attribute_color_all", text="", icon="SHADING_RENDERED", depress=ob.data.nwo.highlight).enable_highlight = not ob.data.nwo.highlight
+            col.operator("nwo.face_attribute_color_all", text="", icon="SHADING_RENDERED", depress=id.data.nwo.highlight).enable_highlight = not id.data.nwo.highlight
             col.separator()
         col.operator(f"{op_prefix}_attribute_move", icon="TRIA_UP", text="").direction = "UP"
         col.operator(f"{op_prefix}_attribute_move", icon="TRIA_DOWN", text="").direction = "DOWN"
@@ -2116,7 +2128,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         row = box.row()
 
         if not for_material:
-            if ob.type == 'MESH':
+            if id.type == 'MESH':
                 if edit_mode:
                     sub = row.row(align=True)
                     sub.enabled = bool(props)
@@ -2355,12 +2367,11 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
 
             # TEXTURE PROPS
             # First validate if Material has images
-            if not mat.node_tree:
-                return
-            if not utils.recursive_image_search(mat):
-                return
+            if mat.node_tree:
+                if utils.recursive_image_search(mat):
+                    self.draw_expandable_box(self.box.box(), context.scene.nwo, "image_properties", material=mat)
             
-            self.draw_expandable_box(self.box.box(), context.scene.nwo, "image_properties", material=mat)
+            self.draw_expandable_box(self.box.box(), context.scene.nwo, "material_attributes", material=mat)
 
                 
     def draw_image_properties(self, box, mat):
@@ -2395,7 +2406,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
 
         tags_dir = utils.get_tags_path()
         data_dir = utils.get_data_path()
-        bitmap_path = utils.dot_partition(bitmap.filepath) + '.bitmap'
+        bitmap_path = str(Path(bitmap.filepath).with_suffix(".bitmap"))
         if not Path(tags_dir, bitmap_path).exists():
             bitmap_path = utils.dot_partition(image.filepath_from_user().lower().replace(data_dir, "")) + '.bitmap'
         if not Path(tags_dir, bitmap_path).exists():

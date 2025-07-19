@@ -219,7 +219,7 @@ LIGHTMAP_LIGHTING_FROM_BOTH_SIDES = False
 LIGHTMAP_CHART_GROUP_INDEX = 0
 
 face_prop_type_items = [
-            ('face_mode', "Face Type", "reach,corinth:model,sky,scenario,prefab"), 
+            ('face_mode', "Face Mode", "reach,corinth:model,sky,scenario,prefab"), 
             ('collision_type', "Collision Type", "corinth:scenario,prefab"), 
             ('face_sides', "Two-Sided", "reach,corinth:model,scenario,prefab,sky"), # face_two_sided & face_two_sided_type
             ('transparent', "Transparent", "reach,corinth:model,scenario,prefab,sky"),

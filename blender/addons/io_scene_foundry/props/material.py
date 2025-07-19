@@ -1,8 +1,9 @@
-from math import radians
 from pathlib import Path
 import bpy
 from bpy.types import PropertyGroup
 from bpy.props import StringProperty, BoolProperty
+
+from .mesh import NWO_FaceProperties_ListItems
 from .. import utils
 from ..tools.materials import special_materials, convention_materials
 
@@ -25,6 +26,15 @@ class NWO_MaterialPropertiesGroup(PropertyGroup):
     )
     
     prev_shader_path: StringProperty(options={'HIDDEN'})
+    
+    material_props: bpy.props.CollectionProperty(
+        type=NWO_FaceProperties_ListItems, override={"USE_INSERTION"}
+    )
+    
+    material_props_active_index: bpy.props.IntProperty(
+        name="Index for Material Property",
+        options=set(),
+    )
 
     def recursive_image_search_object(self, tree_owner, object):
         nodes = tree_owner.node_tree.nodes

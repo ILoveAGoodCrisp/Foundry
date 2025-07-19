@@ -39,7 +39,7 @@ def append_grid_materials():
         if os.path.exists(filepath):
             setup_grid_material(filepath)
         else:
-            print("Images not found")
+            print(f"{filepath} not found")
 
 def setup_grid_material(filepath):
     material_name = Path(filepath).with_suffix("").name
@@ -56,6 +56,7 @@ def setup_grid_material(filepath):
     tex_node = nodes.new(type="ShaderNodeTexImage")
     tex_node.location = Vector((-300, 0))
     image = bpy.data.images.load(filepath=filepath, check_existing=True)
+    image.nwo.filepath = str(Path(r"shaders\foundry\bitmaps", Path(filepath).name))
     tex_node.image = image
     tree.links.new(input=bsdf.inputs[0], output=tex_node.outputs[0])
     

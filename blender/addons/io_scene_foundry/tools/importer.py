@@ -2027,6 +2027,7 @@ class NWOImporter:
                 image = bpy.data.images.load(filepath=path, check_existing=True)
                 images.append(image)
                 image.use_fake_user = fake_user
+                image.nwo.filepath = utils.relative_path(path)
                 if is_non_color:
                     image.colorspace_settings.name = 'Non-Color'
                 else:

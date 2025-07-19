@@ -59,28 +59,31 @@ class NWO_ImagePropertiesGroup(bpy.types.PropertyGroup):
 
     bitmap_type: bpy.props.EnumProperty(
         name="Type",
+        options=set(),
         items=bitmap_type_items,
     )
     append_type: bpy.props.BoolProperty(
         name="Append Type",
+        options=set(),
         description="Appends the type of this bitmap to its exported name",
     )
-
-    bitmap_path : bpy.props.StringProperty()
 
     export : bpy.props.BoolProperty(
         name="Export",
         description="Toggles whether this image should be exported as a bitmap",
         default=True,
+        options=set(),
     )
 
     use_image_path : bpy.props.BoolProperty(
         name="Use Image Path",
         description="Toggles whether this image should be exported as a bitmap",
+        options=set(),
     )
 
     reexport_tiff : bpy.props.BoolProperty(
         name="Re-Export Image",
+        options=set(),
         description="Forces this bitmap's source file to be re-exported from Blender. By default the Bitmap exporter will skip exporting a new file provided the following conditions are met: a TIFF file already exists, is not packed data in this blend, and is located within the project data directory",
     )
 

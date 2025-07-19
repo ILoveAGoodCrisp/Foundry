@@ -263,7 +263,7 @@ class NWO_OT_EditMode(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.object and context.object.type == "MESH" and bpy.ops.object.mode_set.poll()
+        return context.object and context.object.type == "MESH" and context.mode != 'EDIT_MESH' and bpy.ops.object.mode_set.poll()
 
     def execute(self, context):
         bpy.ops.object.editmode_toggle()
@@ -447,11 +447,7 @@ class NWO_OT_FaceAttributeMove(bpy.types.Operator):
 
     @classmethod
     def poll(self, context):
-        ob = context.object
-        if ob and ob.type == "MESH":
-            nwo = ob.data.nwo
-            return nwo.face_props
-        return False
+        return context.object and context.object.type in VALID_MESHES and len(context.object.data.nwo.face_props) > 1
 
     def execute(self, context):
         ob = context.object

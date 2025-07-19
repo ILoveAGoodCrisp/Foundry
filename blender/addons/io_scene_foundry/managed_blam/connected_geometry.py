@@ -1403,15 +1403,15 @@ class IndexBuffer:
                 yield indices[pos+1]
                 
 class Tessellation(Enum):
-    _connected_geometry_mesh_tessellation_density_none = 0
+    none = 0
     _4x = 1
     _9x = 2
     _36x = 3
     
 class DrawDistance(Enum):
-    _connected_geometry_face_draw_distance_normal = 0
-    _connected_geometry_face_draw_distance_detail_mid = 1
-    _connected_geometry_face_draw_distance_detail_close = 2
+    normal = 0
+    detail_mid = 1
+    detail_close = 2
 
 class MeshPart:    
     def __init__(self, element: TagFieldBlockElement, materials: list[Material]):
@@ -1420,12 +1420,12 @@ class MeshPart:
         self.index_start = element.SelectField("index start").Data
         self.index_count = element.SelectField("index count").Data
         
-        self.draw_distance = DrawDistance._connected_geometry_face_draw_distance_normal
+        self.draw_distance = DrawDistance.normal
         flags = element.SelectField("part flags")
         if flags.TestBit("draw cull distance close"):
-            self.draw_distance = DrawDistance._connected_geometry_face_draw_distance_detail_close
+            self.draw_distance = DrawDistance.detail_close
         elif flags.TestBit("draw cull distance medium"):
-            self.draw_distance = DrawDistance._connected_geometry_face_draw_distance_detail_mid
+            self.draw_distance = DrawDistance.detail_mid
             
         self.lm_type_per_vertex = flags.TestBit("per vertex lightmap part")
         
@@ -1571,7 +1571,7 @@ class Mesh:
         self.node_map = []
         if block_node_map is not None and block_node_map.Elements.Count and self.index < block_node_map.Elements.Count:
             map_element = block_node_map.Elements[self.index]
-            self.node_map = [e.Fields[0].Data for e in map_element.Fields[0].Elements]
+            self.node_map = [utils.unsigned_int8(e.Fields[0].Data) for e in map_element.Fields[0].Elements]
         
         self.vertex_keys = []
         self.mesh_keys = []

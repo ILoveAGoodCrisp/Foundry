@@ -3,6 +3,7 @@
 from pathlib import Path
 import bpy
 from ... import utils
+from ...constants import face_prop_type_items, face_prop_descriptions
 
 class NWO_OT_MaterialOpenTag(bpy.types.Operator):
     bl_idname = "nwo.open_halo_material"
@@ -69,115 +70,144 @@ class NWO_DuplicateMaterial(bpy.types.Operator):
         ob.active_material = new_mat
         return {'FINISHED'}
     
-# def toggle_active(context, option, bool_var):
-#     nwo = context.object.active_material.nwo
+class NWO_UL_MaterialPropList(bpy.types.UIList):
+    def draw_item(
+        self,
+        context,
+        layout,
+        data,
+        item,
+        icon,
+        active_data,
+        active_propname,
+        index,
+    ):
+        row = layout.row()
+        row.scale_x = 0.22
+        match item.type:
+            case 'emissive':
+                row.prop(item, "material_lighting_emissive_color", text="")
+            case 'lightmap_additive_transparency':
+                row.prop(item, "lightmap_additive_transparency", text="")
+            case 'lightmap_translucency_tint_color':
+                row.prop(item, "lightmap_translucency_tint_color", text="")
+            case _:
+                row.prop(item, "color", text="")
+        
+        row = layout.row()      
+        row.label(text=item.name, icon_value=icon)
+        
+class NWO_MT_MaterialAttributeAddMenu(bpy.types.Menu):
+    bl_label = "Add Material Property"
+    bl_idname = "NWO_MT_MaterialAttributeAddMenu"
 
-#     match option:
-#         # lightmap
-#         case "lightmap_additive_transparency":
-#             nwo.lightmap_additive_transparency_active = bool_var
-#         case "lightmap_resolution_scale":
-#             nwo.lightmap_resolution_scale_active = bool_var
-#         case "lightmap_type":
-#             nwo.lightmap_type_active = bool_var
-#         case "lightmap_analytical_bounce_modifier":
-#             nwo.lightmap_analytical_bounce_modifier_active = bool_var
-#         case "lightmap_general_bounce_modifier":
-#             nwo.lightmap_general_bounce_modifier_active = bool_var
-#         case "lightmap_translucency_tint_color":
-#             nwo.lightmap_translucency_tint_color_active = bool_var
-#         case "lightmap_lighting_from_both_sides":
-#             nwo.lightmap_lighting_from_both_sides_active = bool_var
-#         case "lightmap_ignore_default_resolution_scale":
-#             nwo.lightmap_ignore_default_resolution_scale_active = bool_var
-#         case "lightmap_transparency_override":
-#             nwo.lightmap_transparency_override_active = bool_var
-#         case "lightmap_analytical_bounce_modifier":
-#             nwo.lightmap_analytical_bounce_modifier_active = bool_var
-#         case "lightmap_general_bounce_modifier":
-#             nwo.lightmap_general_bounce_modifier_active = bool_var
-#         case "lightmap_chart_group":
-#             nwo.lightmap_chart_group_active = bool_var
-#         # material lighting
-#         case "emissive":
-#             nwo.emissive_active = bool_var
+    def draw(self, context):
+        layout = self.layout
+        corinth = utils.is_corinth(context)
+        asset_type = context.scene.nwo.asset_type
+        
+        for name, display_name, mask in sorted(face_prop_type_items, key=lambda x: x[1]):
+            games, asset_types = mask.split(":")
+            games = games.split(",")
+            asset_types = asset_types.split(",")
+            if asset_type != 'resource':
+                if corinth and "corinth" not in games:
+                    continue
+                elif not corinth and "reach" not in games:
+                    continue
+                elif asset_type not in asset_types:
+                    continue
+                elif name == "region":
+                    continue
+                elif name == 'global_material' and asset_type != "model" and not corinth:
+                    continue
+            layout.operator("nwo.material_attribute_add", text=display_name).options = name
+            
+class NWO_OT_MaterialAttributeAdd(bpy.types.Operator):
+    bl_idname = "nwo.material_attribute_add"
+    bl_label = "Add Material Attribute"
+    bl_options = {'REGISTER', 'UNDO'}
+    bl_description = "Add a new material attribute"
 
-# class NWO_OT_AddEmissiveProperty(bpy.types.Operator):
-#     bl_idname = "nwo.add_emissive_property"
-#     bl_label = "Add"
-#     bl_options = {"UNDO"}
-
-#     @classmethod
-#     def poll(cls, context):
-#         return context.object and context.object.active_material
-
-#     options: bpy.props.EnumProperty(
-#         items=[
-#             ("emissive", "Emissive", ""),
-#         ]
-#     )
-
-#     def execute(self, context):
-#         toggle_active(context, self.options, True)
-#         context.area.tag_redraw()
-#         return {"FINISHED"}
+    @classmethod
+    def poll(cls, context):
+        return context and context.object and context.object.active_material
     
-# class NWO_OT_AddLightmapProperty(NWO_OT_AddEmissiveProperty):
-#     bl_idname = "nwo.add_lightmap_property"
-#     bl_label = "Add"
-#     bl_description = "Add a Lightmap Property"
+    @classmethod
+    def description(cls, context, properties):
+        return face_prop_descriptions[properties.options]
 
-#     options: bpy.props.EnumProperty(
-#         items=[
-#             ("lightmap_additive_transparency", "Transparency", ""),
-#             ("lightmap_resolution_scale", "Resolution Scale", ""),
-#             ("lightmap_type", "Lightmap Type", ""),
-#             (
-#                 "lightmap_translucency_tint_color",
-#                 "Translucency Tint Color",
-#                 "",
-#             ),
-#             (
-#                 "lightmap_lighting_from_both_sides",
-#                 "Lighting from Both Sides",
-#                 "",
-#             ),
-#             ('lightmap_ignore_default_resolution_scale', 'Ignore Default Resolution Scale', ''),
-#             ('lightmap_transparency_override', 'Disable Lightmap Transparency', ''),
-#             ('lightmap_analytical_bounce_modifier', 'Analytical Bounce Modifier', ''),
-#             ('lightmap_general_bounce_modifier', 'General Bounce Modifier', ''),
-#             ('lightmap_chart_group', 'Chart Group', ''),
-#         ]
-#     )
+    options: bpy.props.EnumProperty(
+        items=face_prop_type_items,
+    )
 
-# class NWO_OT_RemoveMaterialProperty(bpy.types.Operator):
-#     """Removes a mesh property"""
+    def execute(self, context):
+        ob = context.object
+        nwo = ob.active_material.nwo
+        
+        item = nwo.material_props.add()
+        nwo.material_props_active_index = len(nwo.material_props) - 1
+        
+        item.type = self.options
 
-#     bl_idname = "nwo.remove_material_property"
-#     bl_label = "Remove"
-#     bl_options = {'UNDO'}
-    
-#     @classmethod
-#     def poll(cls, context):
-#         return context.object
+        # item.color = utils.random_color()
 
-#     options: bpy.props.EnumProperty(
-#         items=[
-#             ("lightmap_additive_transparency", "Transparency", ""),
-#             ("lightmap_resolution_scale", "Resolution Scale", ""),
-#             ("lightmap_type", "Lightmap Type", ""),
-#             ("lightmap_translucency_tint_color", "Translucency Tint Color", ""),
-#             ("lightmap_lighting_from_both_sides", "Lighting from Both Sides", ""),
-#             ('lightmap_ignore_default_resolution_scale', 'Ignore Default Resolution Scale', ''),
-#             ("lightmap_transparency_override", "Disable Lightmap Transparency", ""),
-#             ("lightmap_analytical_bounce_modifier", "Analytical Bounce Modifier", ""),
-#             ("lightmap_general_bounce_modifier", "General Bounce Modifier", ""),
-#             ("lightmap_chart_group", "Chart Group", ""),
-#             ("emissive", "Emissive", ""),
-#         ]
-#     )
+        if self.options == "region":
+            region = context.scene.nwo.regions_table[0].name
+            item.region = region
+        elif self.options == "global_material":
+            item.global_material = "default"
+            
+        context.area.tag_redraw()
+        return {"FINISHED"}
 
-#     def execute(self, context):
-#         toggle_active(context, self.options, False)
-#         context.area.tag_redraw()
-#         return {"FINISHED"}
+class NWO_OT_MaterialAttributeDelete(bpy.types.Operator):
+    bl_idname = "nwo.material_attribute_delete"
+    bl_label = "Delete"
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        return context and context.object and context.object.active_material and context.object.active_material.nwo.material_props
+
+    def execute(self, context):
+        ob = context.object
+        nwo = ob.active_material.nwo
+        
+        nwo.material_props.remove(nwo.material_props_active_index)
+        nwo.material_props_active_index = min(nwo.material_props_active_index, len(nwo.material_props) - 1)
+
+        context.area.tag_redraw()
+        return {"FINISHED"}
+
+class NWO_OT_MaterialAttributeMove(bpy.types.Operator):
+    bl_idname = "nwo.material_attribute_move"
+    bl_label = "Move"
+    bl_options = {'UNDO'}
+
+    direction: bpy.props.EnumProperty(
+        name="Direction",
+        items=(("UP", "UP", "UP"), ("DOWN", "DOWN", "DOWN")),
+        default="UP",
+    )
+
+    @classmethod
+    def poll(cls, context):
+        return context and context.object and context.object.active_material and len(context.object.active_material.nwo.material_props) > 1
+
+    def execute(self, context):
+        ob = context.object
+        nwo = ob.active_material.nwo
+        material_attributes = nwo.material_props
+        active_index = nwo.material_props_active_index
+        delta = {
+            "DOWN": 1,
+            "UP": -1,
+        }[self.direction]
+
+        to_index = (active_index + delta) % len(material_attributes)
+
+        material_attributes.move(active_index, to_index)
+        nwo.material_props_active_index = to_index
+
+        return {"FINISHED"}

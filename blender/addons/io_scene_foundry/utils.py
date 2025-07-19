@@ -3952,6 +3952,11 @@ def unsigned_int16(n: int) -> int:
         return 65536 + n
     return n
 
+def unsigned_int8(n: int) -> int:
+    if n < 0:
+        return 256 + n
+    return n
+
 class BoundsDisplay(Enum):
     BOX = auto()
     PILL = auto()
