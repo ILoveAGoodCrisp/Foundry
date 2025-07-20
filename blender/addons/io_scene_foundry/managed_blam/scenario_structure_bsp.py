@@ -261,16 +261,42 @@ class ScenarioStructureBspTag(Tag):
             main_structure_ob = structure_objects[0]
         
         if main_structure_ob is not None:
-            utils.connect_verts_on_edge(main_structure_ob.data)
+            if not for_cinematic:
+                utils.connect_verts_on_edge(main_structure_ob.data)
             objects.append(main_structure_ob)
             utils.unlink(main_structure_ob)
             structure_collection.objects.link(main_structure_ob)
             main_structure_ob.nwo.proxy_instance = True
             main_structure_ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_structure'
+            
+            # separate out the seams
+            seam_material_indices = {idx for idx, m in enumerate(main_structure_ob.data.materials) if m.name == "+seam"}
+            if seam_material_indices:
+                seam_ob = main_structure_ob.copy()
+                seam_ob.data = main_structure_ob.data.copy()
+                
+                bm = bmesh.new()
+                bm.from_mesh(main_structure_ob.data)
+                bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.material_index in seam_material_indices], context='FACES')
+                bm.to_mesh(main_structure_ob.data)
+                bm.free()
+                
+                bm = bmesh.new()
+                bm.from_mesh(seam_ob.data)
+                bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.material_index not in seam_material_indices], context='FACES')
+                bm.to_mesh(seam_ob.data)
+                bm.free()
+                
+                seam_ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_seam'
+                seam_ob.nwo.seam_back_manual = True
+                seam_ob.name = f"{self.tag_path.ShortName}_seams"
+                objects.append(seam_ob)
+                structure_collection.objects.link(seam_ob)
         
         print("Removing Duplicate Material Slots")
         ob_meshes = {o.data for o in objects}
         for me in ob_meshes:
+            utils.consolidate_face_attributes(me)
             utils.consolidate_materials(me)
                 
         # Create Portals

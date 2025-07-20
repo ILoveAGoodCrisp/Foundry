@@ -211,7 +211,6 @@ class InstanceDefinition:
                             self.blender_collision.nwo.proxy_parent = self.blender_render.data
                             self.blender_collision.nwo.proxy_type = "collision"
                             self.blender_render.data.nwo.proxy_collision = self.blender_collision
-                            utils.consolidate_face_attributes(self.blender_collision.data)
                     elif self.collision_only_surface_indices:
                         collision_mesh = self.collision_info.to_object(mesh_only=True, surface_indices=self.collision_only_surface_indices)
                         
@@ -262,8 +261,6 @@ class InstanceDefinition:
                             new_prop = self.blender_render.data.nwo.face_props.add()
                             for k, v in prop.items():
                                 new_prop[k] = v
-                                
-                        utils.consolidate_face_attributes(self.blender_render.data)
                 else:
                     self.blender_render = self.collision_info.to_object()
                     self.blender_render.name = f"instance_definition:{self.index}"
@@ -409,7 +406,7 @@ class Instance:
         
         # Check that object origin is not too far away from instance
         # This can cause the plane builder to fail
-        if self.world_bound_sphere_radius > 500:
+        if False and self.world_bound_sphere_radius > 500:
             ob.data = ob.data.copy() # so we don't break any other instances
             utils.set_origin_to_centre(ob)
             # utils.set_origin_to_floor(ob)
@@ -1688,9 +1685,6 @@ class Mesh:
                     ob.name = "water_surface"
                 
                 objects.append(ob_water)
-
-        for ob in objects:
-            utils.consolidate_face_attributes(ob.data)
         
         return objects
 

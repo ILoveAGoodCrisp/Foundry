@@ -116,11 +116,11 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
         options=set(),
         items=[
             # ('normal', "Render & Collision", "Mesh will be used to build both render geometry and collision"),
-            ('render_only', "Render Only", "Mesh will be used to build both render geometry. The game will not build a collision representation of this mesh. It will not be collidable in game"),
-            ('collision_only', "Collision Only", "Physics objects and projectiles will collide with this mesh but it will not be visible"),
-            ('sphere_collision_only', "Sphere Collision Only", "Only physics objects collide with this mesh. Projectiles will pass through it"),
-            ('shadow_only', "Shadow Only", "Mesh will be invisible and uncollidable. It will only be used for shadow casting"),
-            ('lightmap_only', "Lightmap Only", "Mesh will be invisible and uncollidable. It will only be used by the lightmapping"),
+            ('render_only', "Render Only", "Mesh will be visible but the game will not build a collision representation of this mesh. It will not be collidable to either objects or projectiles"),
+            ('collision_only', "Collision Only", "Objects and projectiles will collide with this mesh but it will not be visible"),
+            ('sphere_collision_only', "Sphere Collision Only", "Only physics objects collide with this mesh. Projectiles will pass through it. Invisible"),
+            ('shadow_only', "Shadow Only", "Model only, invisible except to cast shadows"),
+            ('lightmap_only', "Lightmap Only", "Mesh will be invisible and uncollidable. It will only be used by the lightmapper"),
             ('breakable', "Breakable", "Allows collision geometry to be destroyed. Mesh will be used to build both render geometry and collision. This type is non-functional in Halo 4 and Halo 2AMP"),
         ]
     )

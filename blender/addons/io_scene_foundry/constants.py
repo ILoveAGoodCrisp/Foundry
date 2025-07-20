@@ -266,6 +266,12 @@ face_prop_type_items = [
 
 face_prop_descriptions = {
     'face_mode': "By default the game will build multiple versions of this geometry for different uses, such as building the visible mesh and the collision mesh. You can use this to specify a specific type of geometry only to be built",
+    'render_only': "",
+    'collision_only': "",
+    'sphere_collision_only': "",
+    'shadow_only': "",
+    'breakable': "",
+    'lightmap_only': "",
     'collision_type': "The type of havok collision to generate from this mesh",
     'face_sides': "Render the backfacing normal of this mesh if it has render geometry. Collision geometry will be two-sided and will not result in open edges, but will be more expensive",
     'transparent': "Game treats this mesh as being transparent. If you're using a shader/material which has transparency, set this flag. Transparency is used in lightmapping and for allowing AI to see through a mesh",

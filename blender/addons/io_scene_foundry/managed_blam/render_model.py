@@ -110,6 +110,10 @@ class RenderModelTag(Tag):
         if markers:
             print("Creating Markers")
             objects.extend(self._create_markers(allowed_region_permutations))
+            
+        meshes = {ob.data for ob in objects if ob.data is not None}
+        for me in meshes:
+            utils.consolidate_face_attributes(me)
         
         return objects, self.armature
     

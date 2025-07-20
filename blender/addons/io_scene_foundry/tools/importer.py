@@ -302,7 +302,7 @@ class NWO_OT_ConvertScene(bpy.types.Operator):
             try:
                 export_title = f"►►► FOUNDRY CONVERTER ◄◄◄"
                 print(export_title, '\n')
-                converter = NWOImporter(context, self.report, [], [], existing_scene=True)
+                converter = NWOImporter(context, [], [], existing_scene=True)
                 match self.convert_type:
                     case "amf":
                         converter.amf_marker_objects = []
@@ -580,7 +580,7 @@ class NWO_Import(bpy.types.Operator):
         set_animation_index = context.scene.nwo.asset_type in {'model', 'animation'}
             
         with utils.ExportManager():
-            os.system("cls")
+            # os.system("cls")
             if not self.place_at_mouse and context.scene.nwo_export.show_output:
                 bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
                 context.scene.nwo_export.show_output = False
@@ -3442,7 +3442,7 @@ class NWO_OT_ImportBitmap(bpy.types.Operator):
             return {'CANCELLED'}
         
         clear_path_cache()
-        importer = NWOImporter(context, self.report, [self.filepath], ['bitmap'])
+        importer = NWOImporter(context, [self.filepath], ['bitmap'])
         extracted_bitmaps = importer.extract_bitmaps([self.filepath], 'tiff')
         images = importer.load_bitmaps(extracted_bitmaps, False)
         if images:
