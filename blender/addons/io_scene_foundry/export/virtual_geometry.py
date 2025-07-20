@@ -23,7 +23,7 @@ from ..granny import Granny
 
 from .export_info import AdditionalCompression, ExportInfo, FaceDrawDistance, FaceMode, FaceSides, FaceType, LightmapType, MeshTessellationDensity, MeshType, ObjectType, PoopCollisionType
 
-from ..props.mesh import NWO_FaceProperties_ListItems, NWO_MeshPropertiesGroup
+from ..props.mesh import NWO_MeshPropertiesGroup
 
 from .. import utils
 
@@ -616,7 +616,14 @@ class VirtualMaterial:
                 return self.set_default_shader(scene)
         
             self.shader_path = str(path.with_suffix(""))
-            self.shader_type = path.suffix[1:]
+            
+            if scene.corinth:
+                self.shader_type = "material"
+            else:
+                self.shader_type = path.suffix[1:]
+                if not self.shader_type.startswith("shader"):
+                    self.shader_type = "shader"
+            
         
         self.to_granny_data(scene)
         if scene.uses_textures:

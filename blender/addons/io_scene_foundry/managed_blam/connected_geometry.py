@@ -405,7 +405,7 @@ class Instance:
         nwo.poop_imposter_transition_distance = self.imposter_transition
         nwo.poop_imposter_transition_distance_auto = self.imposter_transition <= 0
         
-        nwo.poop_lightmap_resolution_scale = min(max(int(self.lightmap_res), 1), 7)
+        nwo.poop_lightmap_resolution_scale = self.lightmap_res
         
         # Check that object origin is not too far away from instance
         # This can cause the plane builder to fail

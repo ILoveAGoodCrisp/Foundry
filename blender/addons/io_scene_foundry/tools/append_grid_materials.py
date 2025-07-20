@@ -61,7 +61,7 @@ def setup_grid_material(filepath):
     tree.links.new(input=bsdf.inputs[0], output=tex_node.outputs[0])
     
     if utils.is_corinth():
-        shader_path = str(Path("shaders", "foundry", "materials", material_name + ".material"))
+        shader_path = str(Path("shaders", "foundry", "shaders", material_name + ".material"))
     else:
         shader_path = str(Path("shaders", "foundry", "shaders", material_name + ".shader"))
         
@@ -73,7 +73,7 @@ def setup_grid_material(filepath):
 def copy_grid_shader(name):
     if utils.is_corinth():
         source_shader_path = Path(addon_dir, "resources", "textures", "materials", name + ".material")
-        dest_shader_path = Path(utils.get_tags_path(), "shaders", "foundry", "materials", name + ".material")
+        dest_shader_path = Path(utils.get_tags_path(), "shaders", "foundry", "shaders", name + ".material")
     else:
         source_shader_path = Path(addon_dir, "resources", "textures", "shaders", name + ".shader")
         dest_shader_path = Path(utils.get_tags_path(), "shaders", "foundry", "shaders", name + ".shader")
@@ -87,7 +87,7 @@ def copy_grid_shader(name):
     elif resources_zip.exists():
         os.chdir(addon_dir)
         if utils.is_corinth():
-            file_relative = f"textures/materials/{name}.material"
+            file_relative = f"textures/shaders/{name}.material"
         else:
             file_relative = f"textures/shaders/{name}.shader"
         with zipfile.ZipFile(resources_zip, "r") as zip:

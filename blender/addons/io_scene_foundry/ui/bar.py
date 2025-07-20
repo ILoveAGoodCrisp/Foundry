@@ -592,11 +592,12 @@ class NWO_HaloExportSettingsFlags(bpy.types.Panel):
             align=False,
         )
         col = flow.column()
-        col.prop(scene_nwo_export, "auto_precise")
         if scenario or prefab:
             col.prop(scene_nwo_export, "force_imposter_policy_never")
         if model or animation:
             col.prop(scene_nwo_export, "disable_automatic_suspension_computation")
+            if model:
+                col.prop(scene_nwo_export, "auto_precise")
         col.prop(scene_nwo_export, "import_force", text="Force full export")
         if h4:
             if scenario or prefab:

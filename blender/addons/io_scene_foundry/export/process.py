@@ -875,7 +875,7 @@ class ExportScene:
         #     props["bungie_mesh_poop_precise_geometry"] = 1
 
         if self.corinth:
-            props["bungie_mesh_poop_lightmap_resolution_scale"] = int(nwo.poop_lightmap_resolution_scale)
+            props["bungie_mesh_poop_lightmap_resolution_scale"] = nwo.poop_lightmap_resolution_scale
             props["bungie_mesh_poop_streamingpriority"] = nwo.poop_streaming_priority
             props["bungie_mesh_poop_cinema_only"] = int(nwo.poop_cinematic_properties == '_connected_geometry_poop_cinema_only')
             props["bungie_mesh_poop_exclude_from_cinema"] = int(nwo.poop_cinematic_properties == '_connected_geometry_poop_cinema_exclude')
@@ -985,7 +985,7 @@ class ExportScene:
                     if nwo.prefab_pathfinding != "no_override":
                         props["bungie_mesh_poop_pathfinding"] = nwo.prefab_pathfinding
                     if int(nwo.prefab_lightmap_res) > 0:
-                        props["bungie_mesh_poop_lightmap_resolution_scale"] = int(nwo.prefab_lightmap_res)
+                        props["bungie_mesh_poop_lightmap_resolution_scale"] = nwo.prefab_lightmap_res
                     if nwo.prefab_lighting != "no_override":
                         props["bungie_mesh_poop_lighting"] = nwo.prefab_lighting
                     if nwo.prefab_imposter_policy != "no_override":

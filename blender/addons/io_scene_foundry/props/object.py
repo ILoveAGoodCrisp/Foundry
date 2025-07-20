@@ -312,20 +312,12 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         description="Per vertex lighting gets ambient occlusion only",
     )
 
-    poop_lightmap_resolution_scale: bpy.props.EnumProperty(
+    poop_lightmap_resolution_scale: bpy.props.FloatProperty(
         name="Lightmap Resolution",
         options=set(),
-        description=face_prop_descriptions['lightmap_resolution_scale'],
-        default='3',
-        items=[
-            ('1', "Lowest", "Default resolution = 1"),
-            ('2', "Very Low", "Default resolution = 4"),
-            ('3', "Low", "Default resolution = 16"),
-            ('4', "Medium", "Default resolution = 64"),
-            ('5', "High", "Default resolution = 128"),
-            ('6', "Very High", "Default resolution = 256"),
-            ('7', "Highest", "Default resolution = 512"),
-        ]
+        description="Determines how much texel space this instance (if per pixel) will be given on the lightmap bitmap. Higher values do not automatically increase light resolution, instead the resolution is taken away from other instances. This value acts like a weight, deciding how the lightmap bitmap resolution gets divided up between instances",
+        default=1,
+        min=0,
     )
     
     def poop_pathfinding_items(self, context):
@@ -663,20 +655,12 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     
     # Prefab marker specific props
     
-    prefab_lightmap_res: bpy.props.EnumProperty(
+    prefab_lightmap_res: bpy.props.FloatProperty(
         name="Lightmap Resolution",
-        description=face_prop_descriptions['lightmap_resolution_scale'],
         options=set(),
-        items=[
-            ('0', "No Override", "Prefab will use its default lightmap resolution"),
-            ('1', "Lowest", "Default resolution = 1"),
-            ('2', "Very Low", "Default resolution = 4"),
-            ('3', "Low", "Default resolution = 16"),
-            ('4', "Medium", "Default resolution = 64"),
-            ('5', "High", "Default resolution = 128"),
-            ('6', "Very High", "Default resolution = 256"),
-            ('7', "Highest", "Default resolution = 512"),
-        ]
+        description="0 means override and the default resolution will be used. Determines how much texel space this prefab (if per pixel) will be given on the lightmap. Higher values do not automatically increase light resolution, instead the resolution is taken away from other prefabs. This value acts like a weight, deciding how the lightmap bitmap resolution gets divided up between prefabs",
+        default=0,
+        min=0,
     )
     
     prefab_render_only: bpy.props.BoolProperty(

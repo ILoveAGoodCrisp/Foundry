@@ -1343,7 +1343,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 col.prop(nwo, "light_per_unit")
                 return
 
-            if data.type == 'SPOT' and h4:
+            if data.type == 'SPOT':
                 col.separator()
                 col.prop(data, "spot_size", text="Cone Size")
                 col.prop(data, "spot_blend", text="Cone Blend", slider=True)
