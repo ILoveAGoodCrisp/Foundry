@@ -8,7 +8,7 @@ import gpu
 from gpu_extras.batch import batch_for_shader
 import numpy as np
 
-from ...constants import VALID_MESHES, face_prop_type_items, face_prop_descriptions
+from ...constants import VALID_MESHES, face_prop_type_items, face_prop_descriptions, face_mode_items
 
 from ...icons import get_icon_id
 from ... import utils
@@ -296,7 +296,11 @@ class NWO_OT_FaceAttributeAdd(bpy.types.Operator):
         item = nwo.face_props.add()
         nwo.face_props_active_index = len(nwo.face_props) - 1
         
-        item.type = self.options
+        if self.options in face_mode_items:
+            item.type = 'face_mode'
+            item.face_mode = self.options
+        else:
+            item.type = self.options
         
         if ob.type == 'MESH':
             if context.mode == 'EDIT_MESH':

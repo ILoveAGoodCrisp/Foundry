@@ -218,8 +218,23 @@ LIGHTMAP_TRANSPARENCY_OVERRIDE = False
 LIGHTMAP_LIGHTING_FROM_BOTH_SIDES = False
 LIGHTMAP_CHART_GROUP_INDEX = 0
 
+face_mode_items = (
+    'render_only',
+    'collision_only',
+    'sphere_collision_only',
+    'shadow_only',
+    'breakable',
+    'lightmap_only',
+)
+
 face_prop_type_items = [
-            ('face_mode', "Face Mode", "reach,corinth:model,sky,scenario,prefab"), 
+            ('face_mode', "Face Mode", ":"),
+            ('render_only', "Render Only", "reach,corinth:scenario,prefab"), 
+            ('collision_only', "Collision Only", "reach,corinth:scenario,prefab"), 
+            ('sphere_collision_only', "Sphere Collision Only", "reach,corinth:scenario,prefab"), 
+            ('shadow_only', "Shadow Only", "reach,corinth:model,sky"), 
+            ('breakable', "Breakable", "reach:scenario"), 
+            ('lightmap_only', "Lightmap Only", "reach,corinth:model,sky,scenario,prefab"), 
             ('collision_type', "Collision Type", "corinth:scenario,prefab"), 
             ('face_sides', "Two-Sided", "reach,corinth:model,scenario,prefab,sky"), # face_two_sided & face_two_sided_type
             ('transparent', "Transparent", "reach,corinth:model,scenario,prefab,sky"),
