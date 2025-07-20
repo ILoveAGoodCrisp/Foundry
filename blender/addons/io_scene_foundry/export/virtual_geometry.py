@@ -94,6 +94,13 @@ FACE_PROP_TYPES = {
     MeshType.poop_collision.value,
 }
 
+COLLISION_FACE_MODES = (
+    FaceMode.normal.value,
+    FaceMode.collision_only.value,
+    FaceMode.sphere_collision_only.value,
+    FaceMode.breakable.value,
+)
+
 def read_frame_id_list() -> list:
     filepath = Path(utils.addon_root(), "export", "frameidlist.csv")
     frame_ids = []
@@ -1280,8 +1287,15 @@ class VirtualMesh:
         #         scene.warnings.append("blah")
         #         props["bungie_mesh_type"] = MeshType.default.value
         
-        if (ob.data.nwo.face_props or (valid_materials_count > 1 and (special_mats_dict or prop_mats_dict))) and props.get("bungie_mesh_type") in FACE_PROP_TYPES:
-            self.face_properties = gather_face_props(ob.data.nwo, mesh, num_polygons, scene, sorted_order, special_mats_dict, prop_mats_dict, props)
+        force_render_only = False
+        mesh_type_value = props.get("bungie_mesh_type")
+        if not scene.corinth and mesh_type_value == MeshType.poop.value:
+            mask = np.asarray(scene.poop_obs[ob.data])
+            if mask.all(): # Checks if all instances of a mesh use the poop_render_only flag, in which case it sets render only at face level
+                force_render_only = True
+        
+        if (force_render_only or ob.data.nwo.face_props or (valid_materials_count > 1 and (special_mats_dict or prop_mats_dict))) and mesh_type_value in FACE_PROP_TYPES:
+            self.face_properties = gather_face_props(ob.data.nwo, mesh, num_polygons, scene, sorted_order, special_mats_dict, prop_mats_dict, props, force_render_only)
             
         eval_ob.to_mesh_clear()
         
@@ -1844,6 +1858,7 @@ class VirtualScene:
         self.cinematic_scope = 'BOTH'
         
         self.vector_tracks = []
+        self.poop_obs = {}
         
         spath = "shaders\invalid"
         stype = "material" if corinth else "shader"
@@ -2105,7 +2120,7 @@ class FaceSet:
         self.annotation_type = cast(type_info_array, POINTER(GrannyDataTypeDefinition))
             
 
-def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh, num_faces: int, scene: VirtualScene, sorted_order, special_mats_dict: dict, prop_mats_dict: dict, props: dict) -> dict:
+def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh, num_faces: int, scene: VirtualScene, sorted_order, special_mats_dict: dict, prop_mats_dict: dict, props: dict, force_render_only: bool) -> dict:
     is_structure = props.get("bungie_mesh_type") == MeshType.default.value
     face_properties = {}
     deferred_transparencies = []
@@ -2401,7 +2416,17 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
                         sky_index = int(material.name[4])
                     if sky_index > 0 and props.get("bungie_sky_permutation_index") is None:
                         face_properties.setdefault("bungie_sky_permutation_index", FaceSet(np.zeros(num_faces, dtype=np.int32))).update_from_material(mesh, material_indices, sky_index)
-    
+                        
+                        
+    if force_render_only:
+        existing_face_face_mode = face_properties.get("bungie_face_mode")
+        if existing_face_face_mode is None:
+            existing_mesh_face_mode = props.get("bungie_face_mode")
+            if existing_mesh_face_mode is None or existing_mesh_face_mode in COLLISION_FACE_MODES:
+                face_properties["bungie_face_mode"] = FaceSet(np.full(num_faces, FaceMode.render_only.value, np.int32))
+        else:
+            existing_face_face_mode.array = np.where(np.isin(existing_face_face_mode.array, COLLISION_FACE_MODES), FaceMode.render_only.value, existing_face_face_mode.array)
+
     if sorted_order is not None:
         for v in face_properties.values():
             v.array = v.array[sorted_order]

@@ -7,6 +7,7 @@ import random
 import bmesh
 import bpy
 from mathutils import Matrix, Vector
+import numpy as np
 
 from ..managed_blam.scenario_structure_bsp import ScenarioStructureBspTag
 
@@ -184,7 +185,7 @@ class ExportScene:
         self.any_collision_proxies = False
         self.has_frame_events = False
         
-        self.poop_obs = defaultdict(set)
+        self.poop_obs = defaultdict(list)
         
     def _get_export_tag_types(self):
         tag_types = set()
@@ -578,6 +579,7 @@ class ExportScene:
         self.virtual_scene.selected_cinematic_objects_only = self.export_settings.selected_cinematic_objects_only
         self.virtual_scene.selected_actors = self.selected_actors
         self.virtual_scene.cinematic_scope = self.export_settings.cinematic_scope
+        self.virtual_scene.poop_obs = self.poop_obs
         self.context.view_layer.update()
 
     def _get_object_type(self, ob) -> ObjectType:
@@ -857,12 +859,16 @@ class ExportScene:
                 if self.corinth:
                     props["bungie_mesh_poop_imposter_brightness"] = nwo.poop_imposter_brightness
 
-        self.poop_obs[ob.data].add(ob)
+        poop_render_only = False
         if nwo.poop_render_only:
             if self.corinth:
                 props["bungie_mesh_poop_collision_type"] = '_connected_geometry_poop_collision_type_none'
             else:
+                poop_render_only = True
                 props["bungie_mesh_poop_is_render_only"] = 1
+                
+        if not self.corinth:
+            self.poop_obs[ob.data].append(poop_render_only)
                 
         if nwo.poop_does_not_block_aoe:
             props["bungie_mesh_poop_does_not_block_aoe"] = 1
@@ -1101,7 +1107,6 @@ class ExportScene:
                 continue
             # If the face count matches the total faces on the mesh
             # material props complicate things, skip 
-            
             
             match prop.type:
                 case 'face_mode':
