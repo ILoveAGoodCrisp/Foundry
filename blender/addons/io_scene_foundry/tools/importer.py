@@ -55,6 +55,8 @@ legacy_frame_prefixes = "frame_", "frame ", "bip_", "bip ", "b_", "b "
 global variant_items
 last_used_variant = ""
 
+zone_set_items = {"blah": "blah"}
+
 ammo_names = "primary_ammunition", "airstrike_launch_count", "secondary_ammunition"
 tether_name = "tether_distance"
 
@@ -580,7 +582,7 @@ class NWO_Import(bpy.types.Operator):
         set_animation_index = context.scene.nwo.asset_type in {'model', 'animation'}
             
         with utils.ExportManager():
-            # os.system("cls")
+            os.system("cls")
             if not self.place_at_mouse and context.scene.nwo_export.show_output:
                 bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
                 context.scene.nwo_export.show_output = False
