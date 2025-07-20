@@ -1474,6 +1474,20 @@ class MeshSubpart:
         
         for i in indices:
             mesh.polygons[i].material_index = blend_material_index
+            
+        if self.is_water_subpart:
+            bm = bmesh.new()
+            bm.from_mesh(mesh)
+            water_layer = bm.faces.layers.bool.get('foundry_water')
+            if water_layer is None:
+                water_layer = bm.faces.layers.bool.new('foundry_water')
+            
+            bm.faces.ensure_lookup_table()
+            for i in indices:
+                bm.faces[i][water_layer] = True
+                
+            bm.to_mesh(mesh)
+            bm.free()
 
         if self.part.part_type == PartType.transparent:
             utils.add_face_prop(mesh, "transparent", all_indices)
@@ -1640,11 +1654,40 @@ class Mesh:
         else:
             if self.permutation:
                 name = f"{self.permutation.region.name}:{self.permutation.name}"
-            objects.append(self._create_mesh(name, parent, nodes, None, surface_triangle_mapping=surface_triangle_mapping, section_index=section_index))
+                
+            ob = self._create_mesh(name, parent, nodes, None, surface_triangle_mapping=surface_triangle_mapping, section_index=section_index)
+            objects.append(ob)
             
-            for subpart in self.subparts:
-                if subpart.is_water_subpart:
-                    objects.append(self._create_mesh(name, parent, nodes, subpart))
+            if ob.data.attributes.get('foundry_water'):
+                ob_water = ob.copy()
+                ob_water.data = ob.data.copy()
+
+                bm = bmesh.new()
+                bm.from_mesh(ob.data)
+                layer = bm.faces.layers.bool.get('foundry_water')
+                bmesh.ops.delete(bm, geom=[f for f in bm.faces if f[layer]], context='FACES')
+                bm.faces.layers.bool.remove(layer)
+                bm.to_mesh(ob.data)
+                bm.free()
+                
+                bm = bmesh.new()
+                bm.from_mesh(ob_water.data)
+                layer = bm.faces.layers.bool.get('foundry_water')
+                bmesh.ops.delete(bm, geom=[f for f in bm.faces if not f[layer]], context='FACES')
+                bm.faces.layers.bool.remove(layer)
+                bm.to_mesh(ob_water.data)
+                bm.free()
+                
+                ob_water.data.nwo.mesh_type = '_connected_geometry_mesh_type_water_surface'
+                ob_water.nwo.water_volume_depth = 0
+                
+                if ob_water.data.materials:
+                    utils.consolidate_materials(ob_water.data)
+                    ob_water.name = ob.data.materials[0].name
+                else:
+                    ob.name = "water_surface"
+                
+                objects.append(ob_water)
 
         for ob in objects:
             utils.consolidate_face_attributes(ob.data)
@@ -1744,26 +1787,23 @@ class Mesh:
                                 group.add([idx], w, 'REPLACE')
                     ob.modifiers.new(name="Armature", type="ARMATURE").object = parent
 
-        water_subparts = []
+        # water_subparts = []
         
         if not self.does_not_need_parts:
             if subpart:
-                if subpart.is_water_subpart:
-                    subpart.create(ob, self.tris)
-                    ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_water_surface'
-                    ob.nwo.water_volume_depth = 0
-                    if ob.data.materials:
-                        ob.name = ob.data.materials[0].name
-                    else:
-                        ob.name = "water_surface"
-                else:
-                    mesh.materials.append(subpart.part.material.blender_material)
+                # if subpart.is_water_subpart:
+                #     subpart.create(ob, self.tris)
+                #     ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_water_surface'
+                #     ob.nwo.water_volume_depth = 0
+                #     if ob.data.materials:
+                #         ob.name = ob.data.materials[0].name
+                #     else:
+                #         ob.name = "water_surface"
+                # else:
+                mesh.materials.append(subpart.part.material.blender_material)
             else:
                 for subpart in self.subparts:
-                    if subpart.is_water_subpart:
-                        water_subparts.append(subpart)
-                    else:
-                        subpart.create(ob, self.tris)
+                    subpart.create(ob, self.tris)
             
         # for IG figure out what tris are render only
         if surface_triangle_mapping:
@@ -1805,8 +1845,8 @@ class Mesh:
                 utils.add_face_prop(mesh, "face_mode", None if render_only_mask.all() else render_only_mask).face_mode = 'render_only'
 
 
-        for subpart in water_subparts:
-            subpart.remove(ob, self.tris)
+        # for subpart in water_subparts:
+        #     subpart.remove(ob, self.tris)
 
         if not mesh.nwo.from_vert_normals:
             utils.set_two_sided(mesh, is_io)
