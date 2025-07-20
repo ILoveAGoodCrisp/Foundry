@@ -2122,8 +2122,11 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         if not for_material:
             col.operator("nwo.face_attribute_color_all", text="", icon="SHADING_RENDERED", depress=id.data.nwo.highlight).enable_highlight = not id.data.nwo.highlight
             col.separator()
-        col.operator(f"{op_prefix}_attribute_move", icon="TRIA_UP", text="").direction = "UP"
-        col.operator(f"{op_prefix}_attribute_move", icon="TRIA_DOWN", text="").direction = "DOWN"
+        # col.operator(f"{op_prefix}_attribute_move", icon="TRIA_UP", text="").direction = "UP"
+        # col.operator(f"{op_prefix}_attribute_move", icon="TRIA_DOWN", text="").direction = "DOWN"
+        if not for_material:
+            col.separator()
+            col.menu("NWO_MT_FacePropOperatorsMenu", text="", icon='DOWNARROW_HLT')
 
         row = box.row()
 

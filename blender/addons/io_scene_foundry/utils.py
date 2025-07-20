@@ -3074,7 +3074,7 @@ def human_time(time: float | int, decimal_seconds=False) -> str:
         
     return final_str
 
-def area_light_to_emissive(light_ob: bpy.types.Object):
+def area_light_to_emissive(light_ob: bpy.types.Object, corinth: bool):
     """Converts the given area light to a lightmap only emissive plane"""
     light = light_ob.data
     light_nwo = light_ob.data.nwo
@@ -3140,7 +3140,10 @@ def area_light_to_emissive(light_ob: bpy.types.Object):
     plane_ob = bpy.data.objects.new(new_name, plane_data)
     plane_ob.matrix_world = light_ob.matrix_world
     plane_nwo = plane_data.nwo
-    plane_nwo.mesh_type = "_connected_geometry_mesh_type_default"
+    if corinth:
+        plane_nwo.mesh_type = "_connected_geometry_mesh_type_default"
+    else:
+        plane_nwo.mesh_type = "_connected_geometry_mesh_type_structure" # saves on the instance budget
     plane_ob.nwo.region_name = true_region(light_ob.nwo)
     plane_ob.nwo.permutation_name = true_permutation(light_ob.nwo)
     add_face_prop(plane_data, 'face_mode').face_mode = 'lightmap_only'
@@ -3516,6 +3519,35 @@ def test_face_prop_all(mesh: bpy.types.Mesh, prop_name: str):
             
     return False
 
+def copy_face_prop(mesh: bpy.types.Mesh, prop, copy_mesh: bpy.types.Mesh):
+    copy_prop = copy_mesh.nwo.face_props.add()
+    for k, v in prop.items():
+        copy_prop[k] = v
+        
+    if not isinstance(mesh, bpy.types.Mesh) or not isinstance(copy_mesh, bpy.types.Mesh):
+        copy_prop.attribute_name = ""
+        return
+    
+    attribute = mesh.attributes.get(prop.attribute_name)
+    
+    if attribute is None:
+        return
+    
+    face_count = len(mesh.polygons)
+    if face_count == face_attribute_count(mesh, prop):
+        copy_attribute = add_face_attribute(copy_mesh)
+        copy_prop.face_count = len(copy_mesh.polygons)
+    else:
+        copy_attribute = add_face_attribute_empty(copy_mesh)
+        indices = np.zeros(face_count, dtype=np.int8)
+        attribute.data.foreach_get("value", indices)
+        copy_indices = np.zeros(len(copy_mesh.polygons), dtype=np.int8)
+        min_size = min(indices.size, copy_indices.size)
+        copy_indices[:min_size] = indices[:min_size]
+        copy_attribute.data.foreach_set("value", copy_indices)
+        
+    copy_prop.attribute_name = copy_attribute.name
+
 def add_face_prop(mesh: bpy.types.Mesh, prop_type: str, values_map=None):
     prop = mesh.nwo.face_props.add()
     prop.type = prop_type
@@ -3570,6 +3602,9 @@ def assign_face_attribute_edit_mode(mesh: bpy.types.Mesh) -> tuple[bmesh.types.B
     for face in bm.faces:
         if face.select:
             face[attribute] = True
+            face_count += 1
+        
+        elif face[attribute]:
             face_count += 1
             
     bmesh.update_edit_mesh(mesh)
@@ -4473,7 +4508,7 @@ def emissive_signature(prop):
         prop.material_lighting_attenuation_cutoff,
         prop.material_lighting_attenuation_falloff,
         prop.material_lighting_emissive_focus,
-        tuple(round(c, 6) for c in prop.material_lighting_emissive_color),  # round RGB to avoid tiny FP noise
+        tuple(round(c, 6) for c in prop.material_lighting_emissive_color),
         prop.material_lighting_emissive_per_unit,
         prop.material_lighting_emissive_power,
         # prop.light_intensity,

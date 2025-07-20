@@ -179,7 +179,7 @@ class NWO_UL_FacePropList(bpy.types.UIList):
         is_mesh = context.object.type == 'MESH'
         face_count = len(data.id_data.polygons) if is_mesh else 0
         row = layout.row()
-        row.scale_x = 0.22
+        row.scale_x = 0.24
         match item.type:
             case 'emissive':
                 row.prop(item, "material_lighting_emissive_color", text="")
@@ -470,9 +470,71 @@ class NWO_OT_FaceAttributeMove(bpy.types.Operator):
 
         return {"FINISHED"}
     
+class NWO_MT_FacePropOperatorsMenu(bpy.types.Menu):
+    bl_label = "Face Property Operators"
+    bl_idname = "NWO_MT_FacePropOperatorsMenu"
+    
+    @classmethod
+    def poll(self, context):
+        return context.object and context.object.type in VALID_MESHES and context.object.data.nwo.face_props and context.mode != 'EDIT_MESH'
+
+    def draw(self, context):
+        layout = self.layout
+        layout.operator("nwo.face_prop_copy_to_selected", icon='COPYDOWN')
+        layout.operator("nwo.face_props_copy_to_selected", icon='COPYDOWN')
+        layout.operator("nwo.add_emissive_node", icon='MATERIAL')
+        
+class NWO_OT_FacePropCopyToSelected(bpy.types.Operator):
+    bl_idname = "nwo.face_prop_copy_to_selected"
+    bl_label = "Copy Face Property to Selected"
+    bl_description = "Copies the active face property to all selected objects. Where a face property is assigned to all objects, it will be assigned to faces on slected objects, otherwise matching face indices will be used to assign properties"
+    bl_options = {'UNDO'}
+    
+    @classmethod
+    def poll(self, context):
+        return context.object and context.object.type in VALID_MESHES and context.object.data.nwo.face_props and len(context.selected_objects) > 1
+    
+    def execute(self, context):
+        active = context.object
+        mesh = active.data
+        nwo = mesh.nwo
+        
+        prop = nwo.face_props[nwo.face_props_active_index]
+        
+        meshes = {ob.data for ob in context.selected_objects if ob != active and ob.type in VALID_MESHES}
+        
+        for me in meshes:
+            utils.copy_face_prop(mesh, prop, me)
+        
+        self.report({'INFO'}, f"Copied {prop.name} to {len(meshes)} meshes")
+        return {"FINISHED"}
+            
+class NWO_OT_FacePropsCopyToSelected(bpy.types.Operator):
+    bl_idname = "nwo.face_props_copy_to_selected"
+    bl_label = "Copy All Face Properties to Selected"
+    bl_description = "Copies the all face properties to all selected objects. Where a face property is assigned to all objects, it will be assigned to faces on slected objects, otherwise matching face indices will be used to assign properties"
+    bl_options = {'UNDO'}
+    
+    @classmethod
+    def poll(self, context):
+        return context.object and context.object.type in VALID_MESHES and context.object.data.nwo.face_props and len(context.selected_objects) > 1
+    
+    def execute(self, context):
+        active = context.object
+        mesh = active.data
+        nwo = mesh.nwo
+        meshes = {ob.data for ob in context.selected_objects if ob != active and ob.type in VALID_MESHES}
+        
+        for prop in nwo.face_props:
+            for me in meshes:
+                utils.copy_face_prop(mesh, prop, me)
+        
+        self.report({'INFO'}, f"Copied {len(nwo.face_props)} to {len(meshes)} meshes")
+        return {"FINISHED"}
+    
 class NWO_OT_AddEmissiveNode(bpy.types.Operator):
     bl_idname = "nwo.add_emissive_node"
-    bl_label = "Add Emissive Node"
+    bl_label = "Update Material for Emissives"
     bl_description = "Adds/updates an emissive node to show light emission from faces"
     bl_options = {'UNDO'}
     
@@ -581,9 +643,6 @@ class NWO_OT_FaceAttributeColor(bpy.types.Operator):
     attribute_index: bpy.props.IntProperty()
     highlight:       bpy.props.IntProperty()
 
-    # --------------------------------------------------------------
-    #  Utilities
-    # --------------------------------------------------------------
     @staticmethod
     def calc_loops(bm):
         """Return loop triangles list (re‑computed each time)."""
@@ -596,29 +655,20 @@ class NWO_OT_FaceAttributeColor(bpy.types.Operator):
                 if area.type == 'VIEW_3D':
                     area.tag_redraw()
 
-    # --------------------------------------------------------------
-    #  Shader prep / shell mesh build
-    # --------------------------------------------------------------
     def shader_prep(self, context):
         self.shader = gpu.shader.from_builtin("UNIFORM_COLOR")
 
         bm = bmesh.from_edit_mesh(self.me)
         self.volume = bm.calc_volume()
 
-        # ----------------------------------------------------------
-        #  Build a *shell* mesh where each vertex is displaced once
-        # ----------------------------------------------------------
         cm = bm.copy()
-        cm.normal_update()                       # ensure vertex normals
-        offset = 0.001 if context.scene.nwo.scale == 'max' else 0.0001
+        cm.normal_update()
+        offset = 0.005 if context.scene.nwo.scale == 'max' else 0.0005
         for v in cm.verts:
-            v.co += v.normal * offset            # displaced exactly once
+            v.co += v.normal * offset
             
         bmesh.ops.transform(cm, matrix=context.object.matrix_world, verts=cm.verts)
 
-        # ----------------------------------------------------------
-        #  Extract vertices of faces that own the target attribute
-        # ----------------------------------------------------------
         self.attribute = cm.faces.layers.bool.get(self.attribute_name)
         if self.attribute is None:
             self.report({'WARNING'},
@@ -640,9 +690,6 @@ class NWO_OT_FaceAttributeColor(bpy.types.Operator):
         cm.free()
         return True
 
-    # --------------------------------------------------------------
-    #  Modal logic
-    # --------------------------------------------------------------
     def modal(self, context, event):
         edit_mode = context.mode == "EDIT_MESH"
 
@@ -652,7 +699,6 @@ class NWO_OT_FaceAttributeColor(bpy.types.Operator):
         else:
             bm_volume = self.volume
 
-        # fade‑out while transform tools are active
         if event.type in {"G", "S", "R", "E", "K", "B", "I", "V"} \
            or event.value == "CLICK_DRAG":
             self.alpha = 0

@@ -426,7 +426,7 @@ class ExportScene:
                             continue
                 if ob.type == 'LIGHT':
                     if ob.data.type == 'AREA':
-                        ob = utils.area_light_to_emissive(ob)
+                        ob = utils.area_light_to_emissive(ob, self.corinth)
                         self.temp_objects.add(ob)
                         self.temp_meshes.add(ob.data)
                     else:
@@ -2316,20 +2316,6 @@ class ExportScene:
             props['sun_color'] = utils.color_3p(sun.data.color)
             
         return props
-    
-    def convert_area_lights(self):
-        ''''
-        Converts Area lights to emissive planes
-        '''
-        area_lights = {ob for ob in self.context.view_layer.objects if ob.type == 'LIGHT' and ob.data.type == 'AREA'}
-        for light_ob in area_lights:
-            collections = light_ob.users_collection
-            plane_ob = utils.area_light_to_emissive(light_ob)
-            for collection in collections:
-                collection.objects.link(plane_ob)
-            utils.unlink(light_ob)
-        
-        utils.update_view_layer(self.context)
 
 def decorator_int(ob):
     match ob.nwo.decorator_lod:
