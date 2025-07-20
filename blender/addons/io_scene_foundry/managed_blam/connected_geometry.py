@@ -1167,10 +1167,10 @@ class BSP:
         to_remove = set(np.nonzero(map_invalid)[0])
                     
         if surface_indices:
-            to_remove.update({f for idx, f in enumerate(bm.faces) if idx not in set(surface_indices)})
+            to_remove.update({idx for idx in range(len(bm.faces)) if idx not in set(surface_indices)})
                     
         if to_remove:
-            bmesh.ops.delete(bm, geom=list(to_remove), context='FACES')
+            bmesh.ops.delete(bm, geom=[bm.faces[i] for i in to_remove], context='FACES')
             bm.faces.ensure_lookup_table()
         
         bm.to_mesh(mesh)

@@ -325,7 +325,7 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
     )
     
     lightmap_additive_transparency: bpy.props.FloatVectorProperty(
-        name="lightmap Additive Transparency",
+        name="Lightmap Additive Transparency",
         options=set(),
         description=face_prop_descriptions['lightmap_additive_transparency'],
         default=(1.0, 1.0, 1.0),
