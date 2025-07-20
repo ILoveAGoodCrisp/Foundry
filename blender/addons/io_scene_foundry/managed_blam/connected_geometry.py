@@ -1472,6 +1472,8 @@ class MeshSubpart:
         for i in indices:
             mesh.polygons[i].material_index = blend_material_index
             
+        corinth = utils.is_corinth(bpy.context)
+            
         if self.is_water_subpart:
             bm = bmesh.new()
             bm.from_mesh(mesh)
@@ -1503,7 +1505,7 @@ class MeshSubpart:
             utils.add_face_prop(mesh, "lightmap_type", all_indices)
             
         # Material Props
-        if material.lm_res != LIGHTMAP_RESOLUTION_SCALE:
+        if not corinth and material.lm_res != LIGHTMAP_RESOLUTION_SCALE:
             utils.add_face_prop(mesh, "lightmap_resolution_scale", all_indices).lightmap_resolution_scale = str(material.lm_res)
             
         if material.lm_ignore_default_res != LIGHTMAP_IGNORE_DEFAULT_RESOLUTION_SCALE:
@@ -1518,10 +1520,10 @@ class MeshSubpart:
         if material.lm_transparency_override != LIGHTMAP_TRANSPARENCY_OVERRIDE:
             utils.add_face_prop(mesh, "lightmap_transparency_override", all_indices).lightmap_transparency_override = material.lm_transparency_override
             
-        if material.lm_analytical_absorb != LIGHTMAP_ANALYTICAL_LIGHT_ABSORB:
+        if material.lm_analytical_absorb != LIGHTMAP_ANALYTICAL_LIGHT_ABSORB and material.lm_analytical_absorb != 1.0:
             utils.add_face_prop(mesh, "lightmap_analytical_bounce_modifier", all_indices).lightmap_analytical_bounce_modifier = material.lm_analytical_absorb
             
-        if material.lm_normal_absorb != LIGHTMAP_NORMAL_LIGHT_ABSORD:
+        if material.lm_normal_absorb != LIGHTMAP_NORMAL_LIGHT_ABSORD and material.lm_normal_absorb != 1.0:
             utils.add_face_prop(mesh, "lightmap_general_bounce_modifier", all_indices).lightmap_general_bounce_modifier = material.lm_normal_absorb
             
         if material.lm_translucency != LIGHTMAP_TRANSLUCENCY_TINT_COLOR:

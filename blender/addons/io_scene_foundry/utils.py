@@ -4519,19 +4519,20 @@ def emissive_signature(prop):
     
 def consolidate_face_attributes(mesh: bpy.types.Mesh):
     '''Consolidates face layers into the most minimal list'''
-    face_cnt = len(mesh.polygons)
-    if face_cnt == 0:
+    if not isinstance(mesh, bpy.types.Mesh):
+        return
+    
+    face_count = len(mesh.polygons)
+    if face_count == 0:
         return
 
-    # ───────────────────────────── pass 1: catalogue props
-    face_props_by_name = defaultdict(list)            # {name: [(idx, attr, prop)]}
-    type_order         = defaultdict(list)            # {type: [attr_name]}
-    attr_prop_map      = {}                           # {attr.name: prop}
-    to_remove          = set()
+    face_props_by_name = defaultdict(list)
+    type_order = defaultdict(list)
+    attr_prop_map = {}
+    to_remove = set()
 
     sphere_coll_attr = lightmap_only_attr = shadow_only_attr = None
     two_side_attr = render_only_attr = None
-    two_side_idx  = render_only_idx  = -1
 
     for i, prop in enumerate(mesh.nwo.face_props):
 
@@ -4544,19 +4545,23 @@ def consolidate_face_attributes(mesh: bpy.types.Mesh):
         type_order[prop.type].append(name)
         attr_prop_map[name] = prop
 
-        if   prop.name == "Sphere Collision Only": sphere_coll_attr   = name
-        elif prop.name == "Lightmap Only":         lightmap_only_attr = name
-        elif prop.name == "Shadow Only":           shadow_only_attr   = name
-        elif prop.name == "Two-Sided":             two_side_attr,  two_side_idx  = name, i
-        elif prop.name == "Render Only":           render_only_attr, render_only_idx = name, i
+        if prop.name == "Sphere Collision Only":
+            sphere_coll_attr = name
+        elif prop.name == "Lightmap Only":
+            lightmap_only_attr = name
+        elif prop.name == "Shadow Only":
+            shadow_only_attr = name
+        elif prop.name == "Two-Sided":
+            two_side_attr  = name
+        elif prop.name == "Render Only":
+            render_only_attr = name
 
-    # ───────────────────────────── pass 2: duplicate‑merging rules
-    attr_merge = defaultdict(list)                   # {primary_attr: [dupes]}
+    attr_merge = defaultdict(list)
 
     for pname, lst in face_props_by_name.items():
         if len(lst) == 1:
             continue
-        if pname.startswith("Emissive"):             # compare emissive settings
+        if pname.startswith("Emissive"):
             sig_primary = {}
             for idx, attr, prop in lst:
                 sig = emissive_signature(prop)
@@ -4565,37 +4570,34 @@ def consolidate_face_attributes(mesh: bpy.types.Mesh):
                 else:
                     attr_merge[sig_primary[sig]].append(attr.name)
                     to_remove.add(idx)
-        else:                                        # merge everything
+        else:
             prim = lst[0][1].name
             for idx, attr, _ in lst[1:]:
                 attr_merge[prim].append(attr.name)
                 to_remove.add(idx)
 
-    # ───────────────────────────── pass 3: load all prop‑attribute masks
-    needed = set(attr_prop_map.keys())               # ← every prop’s attribute
+    needed = set(attr_prop_map.keys())
     for dupes in attr_merge.values(): needed.update(dupes)
     needed.update(n for n in (
         sphere_coll_attr, lightmap_only_attr,
         shadow_only_attr, two_side_attr,
         render_only_attr) if n)
 
-    masks, buf = {}, np.empty(face_cnt, dtype=np.int8)
+    masks, buf = {}, np.empty(face_count, dtype=np.int8)
     for name in needed:
         attr = mesh.attributes.get(name)
         if attr:
             attr.data.foreach_get("value", buf)
             masks[name] = buf.astype(bool)
         else:
-            masks[name] = np.zeros(face_cnt, dtype=bool)
+            masks[name] = np.zeros(face_count, dtype=bool)
 
-    # ───────────────────────────── merge dupes
     for prim, dupes in attr_merge.items():
         m = masks[prim]
         for d in dupes:
             m |= masks[d]
         masks[prim] = m
-
-    # ───────────────────────────── strip props on “+” materials
+        
     plus_faces = np.array([
         mesh.materials[p.material_index].name.lstrip().startswith("+")
         if 0 <= p.material_index < len(mesh.materials)
@@ -4607,29 +4609,27 @@ def consolidate_face_attributes(mesh: bpy.types.Mesh):
         for m in masks.values():
             m[plus_faces] = False
 
-    # ───────────────────────────── special conflicts
+
     if two_side_attr and sphere_coll_attr:
         masks[two_side_attr] &= ~masks[sphere_coll_attr]
 
     if render_only_attr:
-        wipe = np.zeros(face_cnt, dtype=bool)
+        wipe = np.zeros(face_count, dtype=bool)
         if lightmap_only_attr: wipe |= masks[lightmap_only_attr]
         if shadow_only_attr:   wipe |= masks[shadow_only_attr]
         masks[render_only_attr] &= ~wipe
 
-    # ───────────────────────────── per‑type precedence
     for attr_list in type_order.values():
         if len(attr_list) < 2:
             continue
-        taken = np.zeros(face_cnt, dtype=bool)
-        for attr_name in attr_list:                # slot order: first wins
+        taken = np.zeros(face_count, dtype=bool)
+        for attr_name in attr_list:
             m = masks[attr_name]
             overlap = taken & m
             if overlap.any():
                 m[overlap] = False
             taken |= m
 
-    # ───────────────────────────── write back & update counts
     for name, mask in masks.items():
         attr = mesh.attributes.get(name)
         if not attr:
@@ -4645,17 +4645,15 @@ def consolidate_face_attributes(mesh: bpy.types.Mesh):
                 if j != -1:
                     to_remove.add(j)
 
-    mesh.update()
-
-    # ───────────────────────────── delete empty / merged props
     for j, prop in enumerate(mesh.nwo.face_props):
         if prop.face_count == 0:
             to_remove.add(j)
+            
     for j in sorted(to_remove, reverse=True):
-        delete_face_prop(mesh, j)                  # your existing helper
+        delete_face_prop(mesh, j)
         
 def connect_verts_on_edge(mesh: bpy.types.Mesh, do_degen_dissolve=True):
-    """Split edges so that stray verts become connected – quick AABB version."""
+    """Split edges so that stray verts become connected"""
 
     bm = bmesh.new()
     bm.from_mesh(mesh)

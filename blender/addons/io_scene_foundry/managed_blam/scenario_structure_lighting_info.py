@@ -188,3 +188,13 @@ class ScenarioStructureLightingInfoTag(Tag):
                 element.SelectField("gel reference").Path = self._TagPath_from_string(light.gel)
             if light.lens_flare:
                 element.SelectField("lens flare reference").Path = self._TagPath_from_string(light.lens_flare)
+                
+                
+    def to_blender(self):
+        pass
+    
+    def _from_reach_light_instances(self):
+        pass
+    
+    def _from_reach_light_definitions(self):
+        pass
