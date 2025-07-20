@@ -370,7 +370,7 @@ class ExportScene:
                     mesh_props["bungie_mesh_poop_collision_type"] = PoopCollisionType.play_collision.value
                 if mesh_props is None:
                     mesh_props = {}
-                    self._setup_mesh_level_props(proxy_physics, "default", mesh_props, MeshType.poop_physics.value if self.corinth else MeshType.poop_collision.value, phys_props)
+                    self._setup_mesh_level_props(proxy_physics, "default", mesh_props, MeshType.poop_collision.value if self.corinth else MeshType.poop_physics.value, phys_props)
                     self.processed_meshes[proxy_physics.data] = mesh_props
                 
                 phys_props.update(mesh_props)
@@ -457,7 +457,7 @@ class ExportScene:
                 parent = ob.parent
                 has_parent = parent is not None
                 proxies = tuple()
-                mesh_type = props.get("bungie_mesh_type")
+                mesh_type = mesh_props.get("bungie_mesh_type")
                     
                 if self.supports_bsp and mesh_type == MeshType.poop.value and ob.data not in self.processed_poop_meshes:
                     self.ob_halo_data, proxies, has_collision_proxy = self.create_instance_proxies(ob, self.ob_halo_data, region, permutation)
@@ -1118,9 +1118,9 @@ class ExportScene:
                         elif mesh.nwo.mesh_type == '_connected_geometry_mesh_type_default' and utils.test_face_prop_all(mesh, 'Collision Only'):
                             mesh_type_value = MeshType.poop_collision.value
                             
-                    if mesh_type_value == MeshType.poop.value:
-                        if face_mode == FaceMode.collision_only or face_mode == FaceMode.sphere_collision_only:
-                            mesh_type_value = MeshType.poop_collision.value      
+                        if mesh_type_value == MeshType.poop.value:
+                            if face_mode == FaceMode.collision_only or face_mode == FaceMode.sphere_collision_only:
+                                mesh_type_value = MeshType.poop_collision.value      
                             
                     mesh_props["bungie_face_mode"] = face_mode.value
                         
@@ -1275,7 +1275,7 @@ class ExportScene:
                 mesh_props["bungie_precise_position"] = int(precise)
                 
                 
-        props["bungie_mesh_type"] = mesh_type_value
+        mesh_props["bungie_mesh_type"] = mesh_type_value
          
     def set_template_node_order(self):
         nodes = []

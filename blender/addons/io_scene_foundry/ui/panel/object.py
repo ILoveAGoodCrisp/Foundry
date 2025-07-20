@@ -153,8 +153,8 @@ class NWO_MT_FaceAttributeAddMenu(bpy.types.Menu):
                     continue
                 elif asset_type not in asset_types:
                     continue
-                elif name == "region" and context.mode != 'EDIT_MESH':
-                    continue
+                # elif name == "region" and context.mode != 'EDIT_MESH':
+                #     continue
                 elif name != 'global_material' and asset_type == "model" and context.object.data.nwo.mesh_type == '_connected_geometry_mesh_type_collision':
                     continue
                 elif name == 'global_material' and asset_type == "model" and context.object.data.nwo.mesh_type != '_connected_geometry_mesh_type_collision':
@@ -535,7 +535,7 @@ class NWO_OT_FacePropsCopyToSelected(bpy.types.Operator):
 class NWO_OT_AddEmissiveNode(bpy.types.Operator):
     bl_idname = "nwo.add_emissive_node"
     bl_label = "Update Material for Emissives"
-    bl_description = "Adds/updates an emissive node to show light emission from faces"
+    bl_description = "Adds/updates an emissive node to show light emission from faces with the emissive property set"
     bl_options = {'UNDO'}
     
     @classmethod
@@ -543,45 +543,7 @@ class NWO_OT_AddEmissiveNode(bpy.types.Operator):
         return context.object and context.object.type == 'MESH' and context.object.data.nwo.face_props
     
     def execute(self, context):
-        ob = context.object
-        mesh = ob.data
-        nwo = mesh.nwo
-        
-        face_count = len(mesh.polygons)
-        
-        color_off  = np.array((0.0, 0.0, 0.0, 1.0), dtype=np.float32)
-        color_data = np.tile(color_off, (face_count, 1))
-        power_data = np.zeros(face_count, dtype=np.float32)
-
-        for prop in nwo.face_props:
-            attribute = mesh.attributes.get(prop.attribute_name)
-            if attribute is None:
-                self.report({'WARNING'}, f"Face property '{prop.name}' has no mesh attribute; skipped.")
-                continue
-
-            mask_buffer = np.empty(face_count, dtype=np.float32)
-            attribute.data.foreach_get("value", mask_buffer)
-            mask = mask_buffer.astype(bool)
-
-            if not mask.any():
-                continue
-
-            color_on = np.array((*prop.material_lighting_emissive_color, 1.0), dtype=np.float32)
-
-            color_data[mask] = color_on
-            power_data[mask] = prop.light_intensity
-
-        color_attribute = mesh.attributes.get("foundry_color")
-        if color_attribute is None:
-            color_attribute = mesh.attributes.new("foundry_color", 'FLOAT_COLOR', 'FACE')
-
-        power_attribute = mesh.attributes.get("foundry_power")
-        if power_attribute is None:
-            power_attribute = mesh.attributes.new("foundry_power", 'FLOAT', 'FACE')
-
-        color_attribute.data.foreach_set("color", color_data.ravel())
-        power_attribute.data.foreach_set("value", power_data)
-
+        utils.setup_emissive_attributes(context.object.data)
         return {"FINISHED"}
         
 def draw(op):
@@ -721,9 +683,6 @@ class NWO_OT_FaceAttributeColor(bpy.types.Operator):
 
         return {'PASS_THROUGH'}
 
-    # --------------------------------------------------------------
-    #  Operator entry point
-    # --------------------------------------------------------------
     def execute(self, context):
         self.ob = context.object
         self.me = self.ob.data
@@ -777,10 +736,16 @@ class NWO_OT_GlobalMaterialRegionListFace(NWO_OT_RegionListFace):
     bl_idname = "nwo.face_global_material_regions_list"
     bl_label = "Collision Material List"
     bl_description = "Applies a global material to the selected face layer"
+    
+    type: bpy.props.StringProperty()
 
     def execute(self, context):
-        nwo = context.object.data.nwo
-        nwo.face_props[nwo.face_props_active_index].global_material = self.region
+        ob = context.object
+        material = ob.active_material
+        if self.type == 'FACE':
+            ob.data.nwo.face_props[ob.data.nwo.face_props_active_index].global_material = self.region
+        else:
+            material.nwo.material_props[material.nwo.material_props_active_index].global_material = self.region
         return {"FINISHED"}
 
 class NWO_OT_GlobalMaterialMenuFace(bpy.types.Menu):
@@ -794,14 +759,34 @@ class NWO_OT_GlobalMaterialMenuFace(bpy.types.Menu):
                 "nwo.face_global_material_regions_list",
                 property="region",
                 text="From Region",
-            )
+            ).type = 'FACE'
 
         if utils.poll_ui(("scenario", "prefab", "model")):
             layout.operator(
                 "nwo.global_material_globals",
                 text="From Globals",
                 icon="VIEWZOOM",
-            ).face_level = True
+            ).face_level = 'FACE'
+            
+class NWO_OT_GlobalMaterialMenuMaterial(bpy.types.Menu):
+    bl_label = "Add Collision Material"
+    bl_idname = "NWO_MT_AddGlobalMaterialMaterial"
+
+    def draw(self, context):
+        layout = self.layout
+        if utils.poll_ui(("model", "sky")):
+            layout.operator_menu_enum(
+                "nwo.face_global_material_regions_list",
+                property="region",
+                text="From Region",
+            ).type = 'MATERIAL'
+
+        if utils.poll_ui(("scenario", "prefab", "model")):
+            layout.operator(
+                "nwo.global_material_globals",
+                text="From Globals",
+                icon="VIEWZOOM",
+            ).type = 'MATERIAL'
             
 global_mats_items = []
 
@@ -850,6 +835,22 @@ class NWO_MT_FaceRegionsMenu(bpy.types.Menu):
             layout.operator("nwo.face_region_assign_single", text=r_name).name = r_name
 
         layout.operator("nwo.face_region_add", text="New Region", icon='ADD').set_object_prop = 1
+        
+class NWO_MT_MaterialRegionsMenu(bpy.types.Menu):
+    bl_label = "Regions"
+    bl_idname = "NWO_MT_MaterialRegions"
+
+    @classmethod
+    def poll(self, context):
+        return context.object and context.object.active_material
+
+    def draw(self, context):
+        layout = self.layout
+        region_names = [region.name for region in context.scene.nwo.regions_table]
+        for r_name in region_names:
+            layout.operator("nwo.material_region_assign_single", text=r_name).name = r_name
+
+        layout.operator("nwo.material_region_add", text="New Region", icon='ADD').set_object_prop = 1
 
 class NWO_MT_SeamBackfaceMenu(NWO_MT_RegionsMenu):
     bl_idname = "NWO_MT_SeamBackface"
@@ -1048,7 +1049,7 @@ class NWO_OT_GlobalMaterialGlobals(NWO_OT_RegionList):
     bl_description = "Applies a global material to the selected object"
     bl_property = "material"
     
-    face_level: bpy.props.BoolProperty()
+    type: bpy.props.StringProperty()
 
     def get_materials(self, context):
         global global_mats_items
@@ -1070,10 +1071,14 @@ class NWO_OT_GlobalMaterialGlobals(NWO_OT_RegionList):
 
     def execute(self, context):
         ob = context.object
-        if self.face_level:
-            ob.data.nwo.face_props[ob.data.nwo.face_props_active_index].global_material = self.material
-        else:
-            ob.nwo.global_material = self.material
+        material = ob.active_material
+        match self.type:
+            case 'FACE':
+                ob.data.nwo.face_props[ob.data.nwo.face_props_active_index].global_material = self.material
+            case 'MATERIAL':
+                material.nwo.material_props[material.nwo.material_props_active_index].global_material = self.material
+            case _:
+                ob.nwo.global_material = self.material
         context.area.tag_redraw()
         return {"FINISHED"}
     

@@ -894,7 +894,7 @@ class NWO_Import(bpy.types.Operator):
                 # for ob in importer.to_cursor_objects:
                 #     ob.matrix_world = context.scene.cursor.matrix
                 
-                setup_materials(context, importer, starting_materials, imported_objects, self.build_blender_materials, self.always_extract_bitmaps)
+                setup_materials(context, importer, starting_materials, imported_objects, self.build_blender_materials, self.always_extract_bitmaps, importer.emissive_meshes)
                         
                 if 'bitmap' in importer.extensions:
                     bitmap_files = importer.sorted_filepaths["bitmap"]
@@ -1349,6 +1349,8 @@ class NWOImporter:
         self.from_x_rot = utils.rotation_diff_from_forward('x', context.scene.nwo.forward_direction)
         self.needs_scaling = self.scale_factor != 1 or self.to_x_rot
         self.from_vert_normals = False
+        
+        self.emissive_meshes = set()
     
     def group_filetypes(self, scope):
         if scope:
@@ -1953,6 +1955,10 @@ class NWOImporter:
         with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
             with ScenarioStructureBspTag(path=mover.tag_path) as bsp:
                 bsp_objects, game_objects = bsp.to_blend_objects(collection, self.tag_bsp_render_only)
+                
+                meshes = {ob.data for ob in bsp_objects if ob.data is not None}
+                self.emissive_meshes.update({me for me in meshes if any(p.type == 'emissive' for p in me.nwo.face_props)})
+                
                 if game_objects:
                     print("Importing Game Object Geometry")
                     game_object_cache = {(c.nwo.game_object_path, c.nwo.game_object_variant): c for c in utils.get_foundry_storage_scene().collection.children if c.nwo.game_object_path}
@@ -3572,7 +3578,7 @@ def merge_collection(collection: bpy.types.Collection):
     for child in collection.children_recursive:
         bpy.data.collections.remove(child)
         
-def setup_materials(context: bpy.types.Context, importer: NWOImporter, starting_materials: list[bpy.types.Material], imported_objects: list[bpy.types.Object], build_materials: bool, always_extract_bitmaps=False):
+def setup_materials(context: bpy.types.Context, importer: NWOImporter, starting_materials: list[bpy.types.Material], imported_objects: list[bpy.types.Object], build_materials: bool, always_extract_bitmaps=False, emissive_meshes=set()):
     new_materials = [mat for mat in bpy.data.materials if mat not in starting_materials]
     # Clear duplicate materials
     missing_some_shader_paths = False
@@ -3659,6 +3665,13 @@ def setup_materials(context: bpy.types.Context, importer: NWOImporter, starting_
                 if export_name in validated_funcs:
                     for func in funcs:
                         add_function(context.scene, func, ob, ob.parent)
+                        
+                        
+        # Apply emissives
+        if emissive_meshes:
+            print("Setting up emissive materials")
+            for mesh in emissive_meshes:
+                utils.setup_emissive_attributes(mesh)
 
 
 class NWO_ImportGameInstanceTag(bpy.types.Operator):

@@ -19,13 +19,15 @@ import zipfile
 import bmesh
 import bpy
 import platform
-from mathutils import Euler, Matrix, Vector, Quaternion, geometry as geom
+from mathutils import Color, Euler, Matrix, Vector, Quaternion, geometry as geom
 import os
 from subprocess import Popen, check_call
 import random
 import xml.etree.ElementTree as ET
 import numpy as np
 from ctypes import c_float, c_int
+
+from .tools.node_tree_arrange import arrange
 from .constants import COLLISION_MESH_TYPES, OBJECT_TAG_EXTS, PROTECTED_MATERIALS, VALID_MESHES, WU_SCALAR, css_colors
 from .tools.materials import special_materials, convention_materials
 from .icons import get_icon_id, get_icon_id_in_directory
@@ -4847,41 +4849,152 @@ def human_number(num: int | float):
     '''Converts an int or float to a string and adds commas'''
     return f"{num:,}"
 
-def material_add_emissive():
-    pass
+def material_add_emissive(material: bpy.types.Material):
+    if not material.use_nodes:
+        material.use_nodes = True
+        
+    node_tree = material.node_tree
+    
+    if any(n.type == 'GROUP' and n.node_tree and n.node_tree.name == "Halo Emissive" for n in node_tree.nodes):
+        return
+
+    output_node = next((n for n in node_tree.nodes if n.type == 'OUTPUT_MATERIAL'), None)
+    if output_node is None:
+        output_node = node_tree.nodes.new('ShaderNodeOutputMaterial')
+        # output_node.location = (400, 0)
+
+    surf_in = output_node.inputs[0]
+    old_link = surf_in.links[0] if surf_in and surf_in.is_linked else None
+    from_socket = old_link.from_socket if old_link else None
+
+    emissive_node = node_tree.nodes.new('ShaderNodeGroup')
+    emissive_node.node_tree = add_node_from_resources("shared_nodes", 'Halo Emissive')
+    # emissive_node.location = (output_node.location.x - 200, output_node.location.y)
+    
+    color_attribute_node = node_tree.nodes.new('ShaderNodeAttribute')
+    color_attribute_node.attribute_name = "foundry_color"
+    
+    power_attribute_node = node_tree.nodes.new('ShaderNodeAttribute')
+    power_attribute_node.attribute_name = "foundry_power"
+    
+    node_tree.links.new(input=emissive_node.inputs[1], output=color_attribute_node.outputs[0]) # color
+    node_tree.links.new(input=emissive_node.inputs[2], output=power_attribute_node.outputs[2]) # power
+
+    def first_socket(sockets, kind):
+        for s in sockets:
+            if s.type == kind:
+                return s
+        return sockets[0] if sockets else None
+
+    new_in  = first_socket(emissive_node.inputs,  from_socket.type if from_socket else 'SHADER')
+    new_out = (emissive_node.outputs.get('Shader') or
+               first_socket(emissive_node.outputs, surf_in.type))
+
+    if old_link:
+        node_tree.links.remove(old_link)
+    if from_socket and new_in:
+        node_tree.links.new(from_socket, new_in)
+
+    if surf_in and new_out:
+        node_tree.links.new(new_out, surf_in)
+        
+    arrange(node_tree)
+
 
 def mesh_add_emissive_attributes(mesh: bpy.types.Mesh):
     nwo = mesh.nwo
+    
+    if not isinstance(mesh, bpy.types.Mesh):
+        return
+    
     face_count = len(mesh.polygons)
     
-    color_off  = np.array((0.0, 0.0, 0.0, 1.0), dtype=np.float32)
+    if not face_count:
+        return
+    
+    used_materials = {m for m in mesh.materials if m is not None}
+    
+    if not used_materials:
+        return
+    
+    color_off  = np.array((1.0, 1.0, 1.0), dtype=np.single)
     color_data = np.tile(color_off, (face_count, 1))
-    power_data = np.zeros(face_count, dtype=np.float32)
+    power_data = np.zeros(face_count, dtype=np.single)
+    
+    if mesh.materials:
+        material_indices = np.empty(face_count, dtype=np.int32)
+        mesh.polygons.foreach_get("material_index", material_indices)
+        
+        for idx, mat in enumerate(mesh.materials):
+            if mat is None:
+                continue
+            for m_prop in mat.nwo.material_props:
+                if m_prop.type != 'emissive':
+                    continue
+                mask_buffer = material_indices == idx
+                mask = mask_buffer.astype(bool)
+
+                if not mask.any():
+                    continue
+
+                color_on = np.array(m_prop.material_lighting_emissive_color[:], dtype=np.single)
+
+                color_data[mask] = color_on
+                power_data[mask] = m_prop.light_intensity
 
     for prop in nwo.face_props:
+        if prop.type != 'emissive':
+            continue
         attribute = mesh.attributes.get(prop.attribute_name)
         if attribute is None:
             continue
 
-        mask_buffer = np.empty(face_count, dtype=np.float32)
+        mask_buffer = np.empty(face_count, dtype=np.int32)
         attribute.data.foreach_get("value", mask_buffer)
         mask = mask_buffer.astype(bool)
 
         if not mask.any():
             continue
-
-        color_on = np.array((*prop.material_lighting_emissive_color, 1.0), dtype=np.float32)
-
+        
+        color_on = np.array(prop.material_lighting_emissive_color[:], dtype=np.single)
+        
         color_data[mask] = color_on
         power_data[mask] = prop.light_intensity
+        
+    on_mask = power_data.astype(bool)
 
-    color_attribute = mesh.attributes.get("foundry_color")
-    if color_attribute is None:
-        color_attribute = mesh.attributes.new("foundry_color", 'FLOAT_COLOR', 'FACE')
+    if on_mask.any():
+        color_attribute = mesh.attributes.get("foundry_color")
+        if color_attribute is None:
+            color_attribute = mesh.attributes.new("foundry_color", 'FLOAT_VECTOR', 'FACE')
 
-    power_attribute = mesh.attributes.get("foundry_power")
-    if power_attribute is None:
-        power_attribute = mesh.attributes.new("foundry_power", 'FLOAT', 'FACE')
+        power_attribute = mesh.attributes.get("foundry_power")
+        if power_attribute is None:
+            power_attribute = mesh.attributes.new("foundry_power", 'FLOAT', 'FACE')
+        
+        bm = bmesh.new()
+        bm.from_mesh(mesh)
+        layer = bm.faces.layers.float_vector.get("foundry_color")
+        layer_power = bm.faces.layers.float.get("foundry_power")
+        for idx, face in enumerate(bm.faces):
+            face[layer] = color_data[idx]
+            face[layer_power] = power_data[idx]
+        bm.to_mesh(mesh)
+        bm.free()
+        
+        # Can't get this working with foreach_set... Had to use bmesh :(
+        # color_attribute.data.foreach_set("vector", color_data.ravel())
+        # power_attribute.data.foreach_set("value", power_data)
+        
+        return on_mask
 
-    color_attribute.data.foreach_set("color", color_data.ravel())
-    power_attribute.data.foreach_set("value", power_data)
+def setup_emissive_attributes(mesh: bpy.types.Mesh):
+    on_mask = mesh_add_emissive_attributes(mesh)
+    if on_mask is None:
+        return
+    
+    material_indices = np.empty(len(mesh.polygons), dtype=np.int32)
+    mesh.polygons.foreach_get("material_index", material_indices)
+    used_material_indices = np.unique(material_indices[on_mask])
+    for idx in used_material_indices:
+        material_add_emissive(mesh.materials[idx])

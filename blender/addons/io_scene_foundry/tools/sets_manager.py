@@ -3,6 +3,8 @@
 '''Handles bpy operators and functions for the Sets Manager panel'''
 
 import bpy
+
+from ..constants import VALID_MESHES
 from ..icons import get_icon_id
 from ..managed_blam.scenario import ScenarioTag
 from ..tools.collection_manager import get_full_name
@@ -498,21 +500,41 @@ class NWO_FaceRegionAssignSingle(bpy.types.Operator):
     bl_options = {'UNDO'}
     bl_label = ''
     bl_idname = 'nwo.face_region_assign_single'
-    bl_description = "Assigns the active Region to the active face layer"
+    bl_description = "Assigns the active Region to the active face property"
     
     name: bpy.props.StringProperty(
         name="Name",
     )
     
+    @classmethod
+    def poll(cls, context):
+        return context.object and context.object.type in VALID_MESHES
+    
     def execute(self, context):
-        ob = context.object
-        if not ob or ob.type != 'MESH':
-            return {'CANCELLED'}
-        face_attribute = ob.data.nwo.face_props[ob.data.nwo.face_props_active_index]
+        mesh = context.object.data
+        face_attribute = mesh.nwo.face_props[mesh.nwo.face_props_active_index]
         face_attribute.region = self.name
-        lay_parts = face_attribute.name.split('::')
-        if lay_parts and len(lay_parts) == 2 and lay_parts[0] == 'region':
-            face_attribute.name = 'region::' + self.name
+        return {'FINISHED'}
+    
+class NWO_MaterialRegionAssignSingle(bpy.types.Operator):
+    bl_options = {'UNDO'}
+    bl_label = ''
+    bl_idname = 'nwo.material_region_assign_single'
+    bl_description = "Assigns the active Region to the active material"
+    
+    name: bpy.props.StringProperty(
+        name="Name",
+    )
+    
+    @classmethod
+    def poll(cls, context):
+        return context.object and context.object.type in VALID_MESHES
+    
+    
+    def execute(self, context):
+        mat = context.object.active_material
+        material_attribute = mat.nwo.material_props[mat.nwo.material_props_active_index]
+        material_attribute.region = self.name
         return {'FINISHED'}
     
 class NWO_RegionAssign(TableEntryAssign):

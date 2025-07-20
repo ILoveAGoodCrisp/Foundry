@@ -2161,14 +2161,23 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     row = box.row()
                     row.label(text='Region')
                     row = box.row()
-                    row.menu("NWO_MT_FaceRegions", text=item.region_name, icon_value=get_icon_id("region"))
+                    if for_material:
+                        row.menu("NWO_MT_MaterialRegions", text=item.region, icon_value=get_icon_id("region"))
+                    else:
+                        row.menu("NWO_MT_FaceRegions", text=item.region, icon_value=get_icon_id("region"))
                 case 'global_material':
                     row = box.row(align=True)
                     row.prop(item, "global_material")
                     if utils.poll_ui(('scenario', 'prefab')):
-                        row.operator("nwo.global_material_globals",text="", icon="VIEWZOOM").face_level = True
+                        if for_material:
+                            row.operator("nwo.global_material_globals",text="", icon="VIEWZOOM").type = 'MATERIAL'
+                        else:
+                            row.operator("nwo.global_material_globals",text="", icon="VIEWZOOM").type = 'FACE'
                     else:
-                        row.menu("NWO_MT_AddGlobalMaterialFace", text="", icon="DOWNARROW_HLT")
+                        if for_material:
+                            row.menu("NWO_MT_AddGlobalMaterialMaterial", text="", icon="DOWNARROW_HLT")
+                        else:
+                            row.menu("NWO_MT_AddGlobalMaterialFace", text="", icon="DOWNARROW_HLT")
                 case 'emissive':
                     box = col.box()
                     row = box.row()

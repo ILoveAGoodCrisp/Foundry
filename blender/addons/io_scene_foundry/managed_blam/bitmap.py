@@ -533,6 +533,10 @@ class BitmapTag(Tag):
                 return 2.2
         
         return 1.0
+    
+    def get_shader_type(self):
+        items = [i.DisplayName for i in self.longenum_usage.Items]
+        return items[self.longenum_usage.Value]
             
 def lerp(p1: float, p2: float, fraction: float) -> float:
     return (p1 * (1 - fraction)) + (p2 * fraction)

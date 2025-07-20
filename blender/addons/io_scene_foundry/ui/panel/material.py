@@ -117,8 +117,8 @@ class NWO_MT_MaterialAttributeAddMenu(bpy.types.Menu):
                     continue
                 elif asset_type not in asset_types:
                     continue
-                elif name == "region":
-                    continue
+                # elif name == "region":
+                #     continue
                 elif name == 'global_material' and asset_type != "model" and not corinth:
                     continue
             layout.operator("nwo.material_attribute_add", text=display_name).options = name

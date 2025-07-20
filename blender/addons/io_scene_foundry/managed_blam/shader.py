@@ -545,6 +545,7 @@ class ShaderTag(Tag):
             if Path(image_path).exists():    
                 image = bpy.data.images.load(filepath=image_path, check_existing=True)
                 image.nwo.filepath = utils.relative_path(image_path)
+                image.nwo.shader_type = bitmap.get_shader_type()
                 if is_non_color:
                     image.colorspace_settings.name = 'Non-Color'
                 else:
@@ -682,6 +683,8 @@ class ShaderTag(Tag):
                         image_path = str(tifs[0])
                 
             image = bpy.data.images.load(filepath=image_path, check_existing=True)
+            image.nwo.filepath = utils.relative_path(image_path)
+            image.nwo.shader_type = bitmap.get_shader_type()
 
             if for_normal or bitmap.tag_path.RelativePathWithExtension == r"shaders\default_bitmaps\bitmaps\default_detail.bitmap":
                 image.colorspace_settings.name = 'Non-Color'
