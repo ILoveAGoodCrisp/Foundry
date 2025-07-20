@@ -92,6 +92,8 @@ FACE_PROP_TYPES = {
     MeshType.poop.value,
     MeshType.collision.value,
     MeshType.poop_collision.value,
+    MeshType.object_instance.value,
+    MeshType.water_surface.value,
 }
 
 COLLISION_FACE_MODES = (
@@ -996,6 +998,7 @@ class VirtualMesh:
     def _setup(self, ob: bpy.types.Object, scene: 'VirtualScene', render_mesh: bool, props: dict, bones: list[str]):
         old_shape_key_index = 0
         shape_key_unmutes = []
+        mesh_type_value = props.get("bungie_mesh_type")
         has_shape_keys = ob.type == 'MESH' and ob.data.shape_keys
         if has_shape_keys:
             old_shape_key_index = ob.active_shape_key_index
@@ -1047,7 +1050,9 @@ class VirtualMesh:
                 scene.warnings.append(f"Mesh data [{self.name}] of object [{ob.name}] has no faces. {ob.name} removed from geometry tree")
             self.invalid = True
             return
-            
+        
+        is_object_instance = mesh_type_value == MeshType.object_instance.value
+                    
         num_loops = len(mesh.loops)
         num_vertices = len(mesh.vertices)
         num_polygons = len(mesh.polygons)
@@ -1079,7 +1084,7 @@ class VirtualMesh:
             return vgroup_remap.get(i, 0)
         # TODO ensure collision is not skinned
         if self.vertex_weighted:
-            collision = props.get("bungie_mesh_type") == MeshType.collision.value
+            # collision = props.get("bungie_mesh_type") == MeshType.collision.value
             unique_bone_indices = set()
             vgroup_bone_names = {}
             for idx, vg in enumerate(ob.vertex_groups):
@@ -1250,7 +1255,7 @@ class VirtualMesh:
         if self.vertex_ids is not None:
             self.vertex_ids = self.vertex_ids[new_indices, :]
         
-        if num_materials > 1 and scene.supports_multiple_materials(ob, props):
+        if num_materials > 1 and scene.supports_multiple_materials(ob, props, mesh_type_value):
             material_indices = np.empty(num_polygons, dtype=np.int32)
             mesh.polygons.foreach_get("material_index", material_indices)
             sorted_order = np.argsort(material_indices)
@@ -1288,7 +1293,6 @@ class VirtualMesh:
         #         props["bungie_mesh_type"] = MeshType.default.value
         
         force_render_only = False
-        mesh_type_value = props.get("bungie_mesh_type")
         if not scene.corinth and mesh_type_value == MeshType.poop.value:
             mask = np.asarray(scene.poop_obs[ob.data])
             if mask.all(): # Checks if all instances of a mesh use the poop_render_only flag, in which case it sets render only at face level
@@ -1296,6 +1300,16 @@ class VirtualMesh:
         
         if (force_render_only or ob.data.nwo.face_props or (valid_materials_count > 1 and (special_mats_dict or prop_mats_dict))) and mesh_type_value in FACE_PROP_TYPES:
             self.face_properties = gather_face_props(ob.data.nwo, mesh, num_polygons, scene, sorted_order, special_mats_dict, prop_mats_dict, props, force_render_only)
+            
+            if is_object_instance:
+                for prop_name, face_set in self.face_properties.items():
+                    new_array = face_set.array.copy()
+                    values, counts = np.unique(new_array, return_counts=True)
+                    mode = values[counts.argmax()]
+                    new_array[...] = mode
+                    if not np.array_equal(face_set.array, new_array):
+                        scene.warnings.append(f"Object '{ob.name}' has different mesh properties per face, this is not allowed for instanced objects. Forcing {prop_name} to {face_set.array[0]}")
+                        face_set.array = new_array
             
         eval_ob.to_mesh_clear()
         
@@ -2033,8 +2047,7 @@ class VirtualScene:
             ob, props = wrap_bounding_box([node for node in self.nodes.values() if node.region == bsp], 0 if self.corinth else 1 * scalar)
             self.models[ob] = VirtualModel(ob, self, props, bsp, default_permutation)
 
-    def supports_multiple_materials(self, ob: bpy.types.Object, props: dict) -> bool:
-        mesh_type = props.get("bungie_mesh_type")
+    def supports_multiple_materials(self, ob: bpy.types.Object, props: dict, mesh_type: int) -> bool:
         if mesh_type in {
             MeshType.default.value,
             MeshType.poop.value,
@@ -2044,8 +2057,8 @@ class VirtualScene:
         }:
             return True
         
-        if mesh_type == "_connected_geometry_mesh_type_object_instance":
-            self.warnings.append(f"{ob.name}] has more than one material. Instanced Objects only support a single material. Ignoring materials after {ob.data.materials[0].name}")
+        if mesh_type == MeshType.object_instance.value:
+            self.warnings.append(f"'{ob.name}' has more than one material. Instanced Objects only support a single material. Ignoring materials after {ob.data.materials[0].name}")
 
         return False
     

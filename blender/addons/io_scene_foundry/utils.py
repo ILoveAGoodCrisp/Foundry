@@ -1106,6 +1106,7 @@ valid_mesh_types = (
     "_connected_geometry_mesh_type_default",
     "_connected_geometry_mesh_type_structure",
     '_connected_geometry_mesh_type_collision',
+    '_connected_geometry_mesh_type_object_instance',
 )
 
 def has_face_props(ob) -> bool:
