@@ -543,6 +543,11 @@ class NWO_Import(bpy.types.Operator):
         default=True
     )
     
+    from_vert_normals: bpy.props.BoolProperty(
+        name="Store Model Vertex Normals",
+        description="Stores a models vertex normals so that it can be reimported in game with the exact same vertex order. This is done automatically for PCA meshes, this option just applies the same to everything. Any edits to meshes with this setting will probably break normals on export"
+    )
+    
     place_at_mouse : bpy.props.BoolProperty(options={"HIDDEN", "SKIP_SAVE"})
     mouse_x : bpy.props.FloatProperty(options={"HIDDEN", "SKIP_SAVE"})
     mouse_y : bpy.props.FloatProperty(options={"HIDDEN", "SKIP_SAVE"})
@@ -751,6 +756,7 @@ class NWO_Import(bpy.types.Operator):
                         importer.import_variant_children = self.import_variant_children
                         importer.setup_as_asset = self.setup_as_asset
                         importer.import_fp_arms = FPARMS[self.import_fp_arms]
+                        importer.from_vert_normals = self.from_vert_normals
                         object_files = importer.sorted_filepaths["object"]
                         existing_armature = None
                         if self.reuse_armature:
@@ -777,6 +783,7 @@ class NWO_Import(bpy.types.Operator):
                 elif 'render_model' in importer.extensions:
                     importer.tag_render = self.tag_render
                     importer.tag_markers = self.tag_markers
+                    importer.from_vert_normals = self.from_vert_normals
                     render_model_files = importer.sorted_filepaths["render_model"]
                     existing_armature = None
                     if self.reuse_armature:
@@ -1052,6 +1059,7 @@ class NWO_Import(bpy.types.Operator):
                 box.prop(self, "import_variant_children")
                 
             box.prop(self, "setup_as_asset")
+            box.prop(self, "from_vert_normals")
             box.prop(self, "import_fp_arms", text="FP Arms (Weapon Only)")
             
             if self.tag_animation:
@@ -1340,6 +1348,7 @@ class NWOImporter:
         self.to_x_rot = utils.rotation_diff_from_forward(context.scene.nwo.forward_direction, 'x')
         self.from_x_rot = utils.rotation_diff_from_forward('x', context.scene.nwo.forward_direction)
         self.needs_scaling = self.scale_factor != 1 or self.to_x_rot
+        self.from_vert_normals = False
     
     def group_filetypes(self, scope):
         if scope:
@@ -1848,7 +1857,7 @@ class NWOImporter:
         model_collection.children.link(collection)
         with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
             with RenderModelTag(path=mover.tag_path) as render_model:
-                render_model_objects, armature = render_model.to_blend_objects(collection, self.tag_render, self.tag_markers, model_collection, existing_armature, allowed_region_permutations)
+                render_model_objects, armature = render_model.to_blend_objects(collection, self.tag_render, self.tag_markers, model_collection, existing_armature, allowed_region_permutations, self.from_vert_normals)
             
         return render_model_objects, armature
     
@@ -3269,6 +3278,11 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         default=True
     )
     
+    from_vert_normals: bpy.props.BoolProperty(
+        name="Store Model Vertex Normals",
+        description="Stores a models vertex normals so that it can be reimported in game with the exact same vertex order. This is done automatically for PCA meshes, this option just applies the same to everything. Any edits to meshes with this setting will probably break normals on export"
+    )
+    
     mouse_x : bpy.props.FloatProperty(options={"HIDDEN", "SKIP_SAVE"})
     mouse_y : bpy.props.FloatProperty(options={"HIDDEN", "SKIP_SAVE"})
     
@@ -3348,6 +3362,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                     layout.prop(self, "tag_physics")
                     layout.prop(self, "tag_animation")
                     layout.prop(self, "setup_as_asset")
+                    layout.prop(self, "from_vert_normals")
                     if self.import_type == "weapon":
                         layout.prop(self, "import_fp_arms")
                     if self.tag_animation:
@@ -3362,6 +3377,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 if self.has_variants:
                     layout.prop(self, "tag_variant")
                 layout.prop(self, "tag_markers")
+                layout.prop(self, "from_vert_normals")
                 layout.prop(self, "build_blender_materials")
                 layout.prop(self, "always_extract_bitmaps")
             case "scenario":

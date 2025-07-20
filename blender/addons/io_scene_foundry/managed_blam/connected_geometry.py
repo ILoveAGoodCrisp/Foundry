@@ -1535,7 +1535,7 @@ class MeshSubpart:
 
 class Mesh:
     '''All new Halo 3 render geometry definitions!'''
-    def __init__(self, element: TagFieldBlockElement, bounds: CompressionBounds = None, permutation=None, materials=[], block_node_map=None, does_not_need_parts=False):
+    def __init__(self, element: TagFieldBlockElement, bounds: CompressionBounds = None, permutation=None, materials=[], block_node_map=None, does_not_need_parts=False, from_vert_normals=False):
         self.index = element.ElementIndex
         self.permutation = permutation
         self.rigid_node_index = element.SelectField("rigid node index").Data
@@ -1543,6 +1543,7 @@ class Mesh:
         self.bounds = bounds
         self.parts = []
         self.subparts = []
+        self.from_vert_normals = from_vert_normals
         
         water_indices = [e.Fields[0].Data for e in element.SelectField("Block:water indices start").Elements]
         
@@ -1715,7 +1716,7 @@ class Mesh:
 
         # normalised_normals = [Vector(n).normalized() for n in normals]
         mesh.normals_split_custom_set_from_vertices(normals)
-        if self.is_pca: # ensures mesh reimports as closely to the original as possible, necessary for re-using PCA animation
+        if self.is_pca or self.from_vert_normals: # ensures mesh reimports as closely to the original as possible, necessary for re-using PCA animation
             mesh.nwo.from_vert_normals = True
 
         if has_vertex_colors:
@@ -1807,10 +1808,11 @@ class Mesh:
         for subpart in water_subparts:
             subpart.remove(ob, self.tris)
 
-        if not self.is_pca:
+        if not mesh.nwo.from_vert_normals:
             utils.set_two_sided(mesh, is_io)
             utils.loop_normal_magic(mesh)
-            utils.calc_face_prop_counts(mesh)
+            
+        utils.calc_face_prop_counts(mesh)
             
         if self.is_pca:
             mesh.color_attributes.new("tension", 'FLOAT_COLOR', 'POINT')

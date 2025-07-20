@@ -4846,3 +4846,42 @@ def argb32_to_rgb(value: int):
 def human_number(num: int | float):
     '''Converts an int or float to a string and adds commas'''
     return f"{num:,}"
+
+def material_add_emissive():
+    pass
+
+def mesh_add_emissive_attributes(mesh: bpy.types.Mesh):
+    nwo = mesh.nwo
+    face_count = len(mesh.polygons)
+    
+    color_off  = np.array((0.0, 0.0, 0.0, 1.0), dtype=np.float32)
+    color_data = np.tile(color_off, (face_count, 1))
+    power_data = np.zeros(face_count, dtype=np.float32)
+
+    for prop in nwo.face_props:
+        attribute = mesh.attributes.get(prop.attribute_name)
+        if attribute is None:
+            continue
+
+        mask_buffer = np.empty(face_count, dtype=np.float32)
+        attribute.data.foreach_get("value", mask_buffer)
+        mask = mask_buffer.astype(bool)
+
+        if not mask.any():
+            continue
+
+        color_on = np.array((*prop.material_lighting_emissive_color, 1.0), dtype=np.float32)
+
+        color_data[mask] = color_on
+        power_data[mask] = prop.light_intensity
+
+    color_attribute = mesh.attributes.get("foundry_color")
+    if color_attribute is None:
+        color_attribute = mesh.attributes.new("foundry_color", 'FLOAT_COLOR', 'FACE')
+
+    power_attribute = mesh.attributes.get("foundry_power")
+    if power_attribute is None:
+        power_attribute = mesh.attributes.new("foundry_power", 'FLOAT', 'FACE')
+
+    color_attribute.data.foreach_set("color", color_data.ravel())
+    power_attribute.data.foreach_set("value", power_data)

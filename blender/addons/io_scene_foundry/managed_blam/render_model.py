@@ -89,7 +89,7 @@ class RenderModelTag(Tag):
         print("#"*50 + '\n')
         print([i for i in tex_coords])
         
-    def to_blend_objects(self, collection, render: bool, markers: bool, model_collection: bpy.types.Collection, existing_armature=None, allowed_region_permutations=set()):
+    def to_blend_objects(self, collection, render: bool, markers: bool, model_collection: bpy.types.Collection, existing_armature=None, allowed_region_permutations=set(), from_vert_normals=False):
         self.collection = collection
         self.model_collection = model_collection
         objects = []
@@ -102,7 +102,7 @@ class RenderModelTag(Tag):
         
         if render:
             print("Creating Render Geometry")
-            result = self._create_render_geometry(allowed_region_permutations)
+            result = self._create_render_geometry(allowed_region_permutations, from_vert_normals)
             if result:
                 objects.extend(result)
             else:
@@ -158,7 +158,7 @@ class RenderModelTag(Tag):
         return arm.ob
         
 
-    def _create_render_geometry(self, allowed_region_permutations: set | str):
+    def _create_render_geometry(self, allowed_region_permutations: set | str, from_vert_normals=False):
         objects = []
         if not self.block_compression_info.Elements.Count:
             utils.print_warning("Render Model has no compression info. Cannot import render model mesh")
@@ -190,7 +190,7 @@ class RenderModelTag(Tag):
                     
                 if permutation.mesh_index < 0: continue
                 for i in range(permutation.mesh_count):
-                    mesh = Mesh(self.block_meshes.Elements[permutation.mesh_index + i], self.bounds, permutation, materials, mesh_node_map)
+                    mesh = Mesh(self.block_meshes.Elements[permutation.mesh_index + i], self.bounds, permutation, materials, mesh_node_map, from_vert_normals=from_vert_normals)
                     for part in mesh.parts:
                         part.material = materials[part.material_index]
                     
@@ -264,7 +264,7 @@ class RenderModelTag(Tag):
             utils.set_permutation(ob, permutation)
             
         if self.instances:
-            instance_mesh = Mesh(self.block_meshes.Elements[self.instance_mesh_index], self.bounds, None, materials, mesh_node_map)
+            instance_mesh = Mesh(self.block_meshes.Elements[self.instance_mesh_index], self.bounds, None, materials, mesh_node_map, from_vert_normals=from_vert_normals)
             ios = instance_mesh.create(render_model, self.block_per_mesh_temporary, self.nodes, self.armature, self.instances, is_io=True)
             for ob in ios:
                 ob.data.nwo.mesh_type = "_connected_geometry_mesh_type_object_instance"
