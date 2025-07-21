@@ -4396,7 +4396,7 @@ def ultimate_armature_parent(ob: bpy.types.Object):
     return ob
 
 def time_step() -> float:
-    return bpy.context.scene.render.fps_base / bpy.context.scene.render.fps
+    return bpy.context.scene.render.fps_base / int(bpy.context.scene.render.fps)
 
 def tokenise(name: str) -> tuple:
     '''Tokenises an animation name'''

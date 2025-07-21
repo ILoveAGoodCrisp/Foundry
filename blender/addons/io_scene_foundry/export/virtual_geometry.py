@@ -4,7 +4,7 @@ from collections import defaultdict
 import csv
 from ctypes import Array, Structure, c_char_p, c_float, c_int, POINTER, c_int16, c_ubyte, c_void_p, cast, create_string_buffer, memmove, pointer, sizeof
 import logging
-from math import degrees
+from math import degrees, inf, nextafter
 from pathlib import Path
 import bmesh
 import bpy
@@ -271,7 +271,7 @@ class VirtualShot:
                 granny_animation = GrannyAnimation()
                 animation_name = f"{shot_actor.name}_{self.index + 1}"
                 granny_animation.name = animation_name.encode()
-                granny_animation.duration = scene.time_step * frame_total
+                granny_animation.duration = scene.time_step * frame_total + 0.00001
                 granny_animation.time_step = scene.time_step
                 granny_animation.oversampling = 1
                 granny_animation.track_group_count = 1
@@ -594,7 +594,7 @@ class VirtualAnimation:
         frame_total = self.frame_count - 1
         granny_animation = GrannyAnimation()
         granny_animation.name = self.name.encode()
-        granny_animation.duration = scene.time_step * frame_total
+        granny_animation.duration = scene.time_step * frame_total + 0.00001
         granny_animation.time_step = scene.time_step
         granny_animation.oversampling = 1
         all_track_groups = [self.granny_track_group] + self.granny_event_track_groups

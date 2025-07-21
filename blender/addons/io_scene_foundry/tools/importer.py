@@ -2209,15 +2209,21 @@ class NWOImporter:
             return []
         self.jms_marker_objects = []
         self.jms_mesh_objects = []
-        self.jms_other_objects = []
+        self.jms_frame_objects = []
+        self.jms_light_objects = []
         for path in jms_files:
             self.import_jms_file(path, legacy_type)
             
-        return self.jms_marker_objects + self.jms_mesh_objects + self.jms_other_objects
+        meshes = {ob.data for ob in self.jms_mesh_objects}
+        
+        for me in meshes:
+            utils.consolidate_face_attributes(me)
+
+        return self.jms_marker_objects + self.jms_mesh_objects + self.jms_frame_objects + self.jms_light_objects
     
     def import_jms_file(self, path, legacy_type):
         # get all objects that exist prior to import
-        pre_import_objects = bpy.data.objects[:]
+        pre_import_objects = set(bpy.data.objects)
         path = Path(path)
         file_name = path.with_suffix("").name
         ext = path.suffix.strip('.').upper()
@@ -2231,8 +2237,11 @@ class NWOImporter:
         new_objects = [ob for ob in bpy.data.objects if ob not in pre_import_objects]
         if self.arm and self.arm not in new_objects:
             new_objects.append(self.arm)
+            
         self.jms_file_marker_objects = []
         self.jms_file_mesh_objects = []
+        self.jms_file_frame_objects = []
+        self.jms_file_light_objects = []
         
         match legacy_type:
             case "auto":
@@ -2246,6 +2255,8 @@ class NWOImporter:
         
         self.jms_marker_objects.extend(self.jms_file_marker_objects)
         self.jms_mesh_objects.extend(self.jms_file_mesh_objects)
+        self.jms_frame_objects.extend(self.jms_file_frame_objects)
+        self.jms_light_objects.extend(self.jms_file_light_objects)
         
     def process_jms_objects(self, objects: list[bpy.types.Object], file_name, is_model):
         self.light_data = set()
@@ -2271,61 +2282,6 @@ class NWOImporter:
             new_coll.nwo.region = possible_bsp
         
         print("Setting object properties")
-        # if is_model: NOTE No longer splitting meshes as the Toolset imports JMS models split now
-        #     objects_with_halo_regions = [ob for ob in objects if ob.region_list]
-        #     for ob in objects_with_halo_regions:
-        #         ob.nwo.
-        #         prefix = ob.name[0] if ob.name[0] in ('$', '@', '%', '~') else ''
-        #         if prefix: continue
-        #         if len(ob.region_list) == 1:
-        #             parts = ob.region_list[0].name.split(' ')
-        #             if len(parts) == 1:
-        #                 region = parts[0]
-        #                 ob.name = f'{region}'
-        #             elif len(parts) == 2:
-        #                 perm = parts[0]
-        #                 region = parts[1]
-        #                 ob.name = f'{region}:{perm}'
-        #             elif len(parts) > 2:
-        #                 perm = parts[-2]
-        #                 region = parts[-1]
-        #                 ob.name = f'{region}:{perm}'
-        #         else:
-        #             bm = bmesh.new()
-        #             bm.from_mesh(ob.data)
-        #             utils.save_loop_normals(bm, ob.data)
-        #             for idx, perm_region in enumerate(ob.region_list):
-        #                 bm_tmp = bm.copy()
-        #                 parts = perm_region.name.split(' ')
-        #                 if len(parts) == 1:
-        #                     region = parts[0]
-        #                     new_name = f'{prefix}{region}'
-        #                 elif len(parts) == 2:
-        #                     perm = parts[0]
-        #                     region = parts[1]
-        #                     new_name = f'{prefix}{region}:{perm}'
-        #                 elif len(parts) > 2:
-        #                     perm = parts[-2]
-        #                     region = parts[-1]
-        #                     new_name = f'{prefix}{region}:{perm}'
-
-        #                 new_ob = ob.copy()
-        #                 new_ob.name = new_name
-        #                 new_ob.data = ob.data.copy()
-        #                 if self.existing_scene:
-        #                     for coll in ob.users_collection: coll.objects.link(new_ob)
-        #                 region_layer = bm_tmp.faces.layers.int.get("Region Assignment")
-        #                 bmesh.ops.delete(bm_tmp, geom=[f for f in bm_tmp.faces if f[region_layer] != idx + 1], context='FACES')
-        #                 bm_tmp.to_mesh(new_ob.data)
-        #                 bm_tmp.free()
-        #                 utils.apply_loop_normals(new_ob.data)
-        #                 utils.loop_normal_magic(new_ob.data)
-        #                 utils.clean_materials(new_ob)
-        #                 objects.append(new_ob)
-
-        #             bm.free()
-        #             objects.remove(ob)
-        #             bpy.data.objects.remove(ob)
         
         self.processed_meshes = []
         if file_name:
@@ -2343,7 +2299,7 @@ class NWOImporter:
                 ob = convert_to_marker(ob, maintain_mesh=True)
                 self.setup_jms_marker(ob, is_model, xref)
                 
-            elif ob.name.lower().startswith(legacy_frame_prefixes) or ob.type == 'ARMATURE':
+            elif ob.name.lower().startswith(legacy_frame_prefixes) or utils.is_frame(ob):
                 self.setup_jms_frame(ob)
             elif ob.name.startswith('#') or (is_model and ob.type =='EMPTY' and ob.name.startswith('$')):
                 self.setup_jms_marker(ob, is_model)
@@ -2351,11 +2307,13 @@ class NWOImporter:
                 self.setup_jms_mesh(ob, is_model)
             elif ob.type == 'LIGHT':
                 self.light_data.add(ob.data)
-                self.jms_other_objects.append(ob)
+                self.jms_file_light_objects.append(ob)
         
         if not self.existing_scene:
             utils.add_to_collection(self.jms_file_marker_objects, True, new_coll, name="markers")
             utils.add_to_collection(self.jms_file_mesh_objects, True, new_coll, name="meshes")
+            utils.add_to_collection(self.jms_file_frame_objects, True, new_coll, name="frames")
+            utils.add_to_collection(self.jms_file_light_objects, True, new_coll, name="lights")
             
         for data in self.light_data:
             data.nwo.light_intensity = data.energy * (1 / 0.03048)
@@ -2383,9 +2341,9 @@ class NWOImporter:
             if self.existing_scene:
                 for coll in ob.users_collection: coll.objects.link(marker)
             bpy.data.objects.remove(ob)
-            self.jms_other_objects.append(marker)
+            self.jms_file_frame_objects.append(marker)
         else:
-            self.jms_other_objects.append(ob)
+            self.jms_file_frame_objects.append(ob)
             
     def setup_jms_marker(self, ob, is_model, xref: XREF = None):
         perm, region = None, None
@@ -2505,7 +2463,7 @@ class NWOImporter:
         elif name.startswith('hint'):
             marker.nwo.marker_type = '_connected_geometry_marker_type_hint'
                 
-        self.jms_marker_objects.append(marker)
+        self.jms_file_marker_objects.append(marker)
         
     def setup_jms_mesh(self, original_ob, is_model):
         new_objects = self.convert_material_props(original_ob)
@@ -2528,7 +2486,6 @@ class NWOImporter:
                     
                 if self.corinth and ob.data.nwo.mesh_type == '_connected_geometry_mesh_type_structure' and utils.test_face_prop_any(mesh, "Two-Sided"):
                     ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_default'
-                            
 
                 if mesh_type_legacy in ('collision', 'physics') and is_model:
                     self.setup_collision_materials(ob, mesh_type_legacy)
@@ -2548,7 +2505,9 @@ class NWOImporter:
                     ob.nwo.proxy_parent = ob.parent.data
                     ob.nwo.proxy_type = "collision"
                     ob.parent.data.nwo.proxy_collision = ob
-                    utils.unlink(ob)
+                    utils.get_foundry_storage_scene().objects.link(ob)
+                    self.jms_other_objects.append(ob)
+                    return
                     
                 if self.apply_materials:
                     apply_props_material(ob, material)
@@ -2573,9 +2532,7 @@ class NWOImporter:
             elif ob.nwo.mesh_type == '_connected_geometry_mesh_type_seam':
                 ob.nwo.seam_back_manual = True
             
-            utils.consolidate_face_attributes(ob.data)
-            
-            self.jms_mesh_objects.append(ob)
+            self.jms_file_mesh_objects.append(ob)
             
     def set_poop_policies(self, ob):
         for char in ob.name[1:]:
@@ -2599,7 +2556,7 @@ class NWOImporter:
                 case '<':
                     ob.nwo.poop_excluded_from_lightprobe = True
                 case '|':
-                    ob.nwo.bungie_mesh_poop_decal_spacing = True
+                    ob.nwo.poop_decal_spacing = True
                 case _:
                     return
         
