@@ -1205,3 +1205,142 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     # MARKER PERMS
     marker_exclude_permutations : bpy.props.StringProperty()
     marker_include_permutations : bpy.props.StringProperty()
+    
+    # LIGHT OBJECT LEVEL PROPS
+    
+    # Reach
+    
+    light_game_type: bpy.props.EnumProperty(
+        name="Light Type",
+        options=set(),
+        description="Determines how this light renders and whether it is dynamic (i.e. casts light without lightmapping) or static",
+        default="_connected_geometry_bungie_light_type_default",
+        items=[
+            ("_connected_geometry_bungie_light_type_default", "Default", "Lightmap light. Requires lightmapping to complete for this light appear"),
+            ("_connected_geometry_bungie_light_type_inlined", "Inlined", "For large lights"),
+            ("_connected_geometry_bungie_light_type_rerender", "Rerender", "High quality shadowing light"),
+            (
+                "_connected_geometry_bungie_light_type_screen_space",
+                "Screen Space",
+                "Cheap low quality dynamic light",
+            ),
+            ("_connected_geometry_bungie_light_type_uber", "Uber", "High quality light"),
+        ],
+    )
+    
+    light_screenspace_has_specular: bpy.props.BoolProperty(
+        name="Screenspace Light Has Specular",
+        options=set(),
+        description="",
+        default=False,
+    )
+    
+    light_bounce_ratio: bpy.props.FloatProperty(
+        name="Light Bounce Ratio",
+        options=set(),
+        description="",
+        default=1,
+        min=0.0,
+    )
+    
+    light_volume_distance: bpy.props.FloatProperty(
+        name="Light Volume Distance",
+        options=set(),
+        description="",
+    )
+
+    light_volume_intensity: bpy.props.FloatProperty(
+        name="Light Volume Intensity",
+        options=set(),
+        description="",
+        default=1.0,
+        min=0.0,
+        soft_max=10.0,
+        subtype="FACTOR",
+    )
+
+    light_fade_start_distance: bpy.props.FloatProperty(
+        name="Light Fade Out Start",
+        options=set(),
+        description="The light starts to fade out when the camera is x units away",
+        default=utils.wu(100),
+        subtype='DISTANCE',
+        unit='LENGTH',
+    )
+
+    light_fade_end_distance: bpy.props.FloatProperty(
+        name="Light Fade Out End",
+        options=set(),
+        description="The light completely fades out when the camera is x units away",
+        default=utils.wu(150),
+        subtype='DISTANCE',
+        unit='LENGTH',
+    )
+    
+    def light_tag_clean_tag_path(self, context):
+        self["light_tag_override"] = utils.clean_tag_path(self["light_tag_override"]).strip(
+            '"'
+        )
+
+    light_tag_override: bpy.props.StringProperty(
+        name="Light Tag Override",
+        options=set(),
+        description="",
+        update=light_tag_clean_tag_path,
+    )
+
+    def light_shader_clean_tag_path(self, context):
+        self["light_shader_reference"] = utils.clean_tag_path(
+            self["light_shader_reference"]
+        ).strip('"')
+
+    light_shader_reference: bpy.props.StringProperty(
+        name="Light Shader Reference",
+        options=set(),
+        description="",
+        update=light_shader_clean_tag_path,
+    )
+
+    def light_gel_clean_tag_path(self, context):
+        self["light_gel_reference"] = utils.clean_tag_path(self["light_gel_reference"]).strip(
+            '"'
+        )
+
+    light_gel_reference: bpy.props.StringProperty(
+        name="Light Gel Reference",
+        options=set(),
+        description="",
+        update=light_gel_clean_tag_path,
+    )
+
+    def light_lens_flare_clean_tag_path(self, context):
+        self["light_lens_flare_reference"] = utils.clean_tag_path(
+            self["light_lens_flare_reference"]
+        ).strip('"')
+
+    light_lens_flare_reference: bpy.props.StringProperty(
+        name="Light Lens Flare Reference",
+        options=set(),
+        description="",
+        update=light_lens_flare_clean_tag_path,
+    )
+    
+    light_mode: bpy.props.EnumProperty(
+        name="Light Mode",
+        options=set(),
+        description="Type of light to export. Static and Analytic must be lightmapped to be visible, dynamic is always visible",
+        default="_connected_geometry_light_mode_static",
+        items=[
+            (
+                "_connected_geometry_light_mode_static",
+                "Static",
+                "Lights used in lightmapping",
+            ),
+            (
+                "_connected_geometry_light_mode_dynamic",
+                "Dynamic",
+                "Lights that appear regardless of whether the map has been lightmapped",
+            ),
+            ("_connected_geometry_light_mode_analytic", "Analytic", "Similar to static lights but provides better results, however only one analytic light should ever light an object at a time"),
+        ],
+    )

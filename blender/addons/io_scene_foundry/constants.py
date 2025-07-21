@@ -193,7 +193,8 @@ object_game_validation = {
     '_connected_geometry_marker_type_lightCone': ('corinth',),
     }
 
-WU_SCALAR = 0.328084
+WU_SCALAR = 0.3280839895013123 # converts a meter to a world unit
+HALO_FACTOR = (1 / 0.03048) # Converts a meter to halo units
 
 class GameVersion(Enum):
     REACH = 0

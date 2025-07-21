@@ -266,6 +266,14 @@ class Tag():
         """Returns a new TagPath instance"""
         return Tags.TagPath()
     
+    def get_path_str(self, path: TagPath, full_path=False) -> str:
+        """Returns a string from a TagPath, returning an empty string if the TagPath is None. Returns the full path instead of relative if the second arg is true"""
+        if path is None:
+            return ""
+        
+        return path.Filename if full_path else path.RelativePathWithExtension
+        
+    
     def _AnimationExporter(self) -> AnimationExporter:
         return Animation.AnimationExporter()
     

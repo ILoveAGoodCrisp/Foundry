@@ -1301,16 +1301,13 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col = box.column()
             col.use_property_split = True
             self.draw_table_menus(col, nwo, ob)
-            flow = col.grid_flow(
-                row_major=True,
-                columns=0,
-                even_columns=True,
-                even_rows=False,
-                align=False,
-            )
+            box_def = box.box()
+            box_def.use_property_split = True
+            box_def.label(text="Light Definition Properties")
 
             nwo = data.nwo
-            col = flow.column()
+            ob_nwo = ob.nwo
+            col = box_def.column()
             col.prop(data, "color")
             col.prop(data, "energy")
             if data.type != 'SUN':
@@ -1350,9 +1347,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 col.prop(data, "show_cone")
 
             col.separator()
-            if utils.is_corinth(context):
+            if self.h4:
                 row = col.row()
-                row.prop(nwo, "light_mode", expand=True)
                 if data.type == "SPOT":
                     col.separator()
                     row = col.row()
@@ -1366,7 +1362,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 
                 col.separator()
 
-                if nwo.light_mode == "_connected_geometry_light_mode_dynamic":
+                if ob_nwo.light_mode == "_connected_geometry_light_mode_dynamic":
                     row = col.row()
                     row.prop(nwo, "light_cinema", expand=True)
                     col.separator()
@@ -1403,11 +1399,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     col.prop(nwo, "light_indirect_only")
                     col.prop(nwo, "light_static_analytic")
 
-                
-
             else:
-
-                col.prop(nwo, "light_game_type", text="Light Type")
                 col.prop(nwo, "light_shape", text="Shape")
 
                 col.separator()
@@ -1417,71 +1409,81 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
 
                 col.separator()
 
-                # col.prop(nwo, "light_frustum_width", text="Frustum Width")
-                # col.prop(nwo, "light_frustum_height", text="Frustum Height")
+                # col_box.prop(nwo, "light_frustum_width", text="Frustum Width")
+                # col_box.prop(nwo, "light_frustum_height", text="Frustum Height")
 
-                # col.separator()
+                # col_box.separator()
 
-                col.prop(nwo, "light_volume_distance", text="Light Volume Distance")
-                col.prop(nwo, "light_volume_intensity", text="Light Volume Intensity")
-
-                col.separator()
-
-                col.prop(nwo, "light_bounce_ratio", text="Light Bounce Ratio")
+                # col.prop(nwo, "light_volume_distance", text="Light Volume Distance")
+                # col.prop(nwo, "light_volume_intensity", text="Light Volume Intensity")
 
                 col.separator()
+                
+                col.prop(data, "shadow_soft_size")
 
-                col = col.column(heading="Flags")
-                sub = col.column(align=True)
-
-                col = flow.column()
-
-                col.prop(
-                    nwo,
-                    "light_near_attenuation_start",
-                    text="Light Activation Start",
-                )
-                col.prop(
-                    nwo,
-                    "light_near_attenuation_end",
-                    text="Light Activation End",
-                )
+                # col_box.prop(
+                #     nwo,
+                #     "light_near_attenuation_start",
+                #     text="Light Activation Start",
+                # )
+                # col_box.prop(
+                #     nwo,
+                #     "light_near_attenuation_end",
+                #     text="Light Activation End",
+                # )
 
                 col.separator()
 
                 col.prop(nwo, "light_far_attenuation_start", text="Light Falloff")
                 col.prop(nwo, "light_far_attenuation_end", text="Light Cutoff")
 
+            col.separator()   
+            box_ins = box.box()
+            box_ins.use_property_split = True
+            box_ins.label(text="Light Instance Properties")
+            col = box_ins.column()
+            if self.h4:
+                col.prop(ob_nwo, "light_mode", expand=True)
+            else:
+                col.prop(ob_nwo, "light_game_type", text="Light Type")
+                col.prop(ob_nwo, "light_screenspace_has_specular")
+                col.prop(ob_nwo, "light_bounce_ratio", text="Light Bounce Ratio")
+                col.separator()
+                col.prop(ob_nwo, "light_volume_distance")
+                col.prop(ob_nwo, "light_volume_intensity")
+                col.separator()
+                col.prop(ob_nwo, "light_fade_start_distance")
+                col.prop(ob_nwo, "light_fade_end_distance")
                 col.separator()
                 row = col.row()
-                row.prop(nwo, "light_tag_override", text="Light Tag Override", icon_value=get_icon_id("tags"))
+                row.prop(ob_nwo, "light_tag_override", text="Light Tag Override", icon_value=get_icon_id("tags"))
                 row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "light_tag_override"
                 row.operator("nwo.tag_explore", text="", icon='FILE_FOLDER').prop = 'light_tag_override'
-                if nwo.light_tag_override.strip() and Path(utils.get_tags_path(), utils.relative_path(nwo.light_tag_override)).exists():
-                    row.operator("nwo.open_foundation_tag", text="", icon_value=get_icon_id("foundation")).tag_path = nwo.light_tag_override
+                if ob_nwo.light_tag_override.strip() and Path(utils.get_tags_path(), utils.relative_path(ob_nwo.light_tag_override)).exists():
+                    row.operator("nwo.open_foundation_tag", text="", icon_value=get_icon_id("foundation")).tag_path = ob_nwo.light_tag_override
                 row = col.row()
-                row.prop(nwo, "light_shader_reference", text="Shader Tag Reference", icon_value=get_icon_id("tags"))
+                row.prop(ob_nwo, "light_shader_reference", text="Shader Tag Reference", icon_value=get_icon_id("tags"))
                 row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "light_shader_reference"
                 row.operator("nwo.tag_explore", text="", icon='FILE_FOLDER').prop = 'light_shader_reference'
-                if nwo.light_shader_reference.strip() and Path(utils.get_tags_path(), utils.relative_path(nwo.light_shader_reference)).exists():
-                    row.operator("nwo.open_foundation_tag", text="", icon_value=get_icon_id("foundation")).tag_path = nwo.light_shader_reference
+                if ob_nwo.light_shader_reference.strip() and Path(utils.get_tags_path(), utils.relative_path(ob_nwo.light_shader_reference)).exists():
+                    row.operator("nwo.open_foundation_tag", text="", icon_value=get_icon_id("foundation")).tag_path = ob_nwo.light_shader_reference
                 row = col.row()
-                row.prop(nwo, "light_gel_reference", text="Gel Tag Reference", icon_value=get_icon_id("tags"))
+                row.prop(ob_nwo, "light_gel_reference", text="Gel Tag Reference", icon_value=get_icon_id("tags"))
                 row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "light_gel_reference"
                 row.operator("nwo.tag_explore", text="", icon='FILE_FOLDER').prop = 'light_gel_reference'
-                if nwo.light_gel_reference.strip() and Path(utils.get_tags_path(), utils.relative_path(nwo.light_gel_reference)).exists():
-                    row.operator("nwo.open_foundation_tag", text="", icon_value=get_icon_id("foundation")).tag_path = nwo.light_gel_reference
+                if ob_nwo.light_gel_reference.strip() and Path(utils.get_tags_path(), utils.relative_path(ob_nwo.light_gel_reference)).exists():
+                    row.operator("nwo.open_foundation_tag", text="", icon_value=get_icon_id("foundation")).tag_path = ob_nwo.light_gel_reference
                 row = col.row()
                 row.prop(
-                    nwo,
+                    ob_nwo,
                     "light_lens_flare_reference",
                     text="Lens Flare Tag Reference",
                     icon_value=get_icon_id("tags")
                 )
                 row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "light_lens_flare_reference"
                 row.operator("nwo.tag_explore", text="", icon='FILE_FOLDER').prop = 'light_lens_flare_reference'
-                if nwo.light_lens_flare_reference.strip() and Path(utils.get_tags_path(), utils.relative_path(nwo.light_lens_flare_reference)).exists():
-                    row.operator("nwo.open_foundation_tag", text="", icon_value=get_icon_id("foundation")).tag_path = nwo.light_lens_flare_reference
+                if ob_nwo.light_lens_flare_reference.strip() and Path(utils.get_tags_path(), utils.relative_path(ob_nwo.light_lens_flare_reference)).exists():
+                    row.operator("nwo.open_foundation_tag", text="", icon_value=get_icon_id("foundation")).tag_path = ob_nwo.light_lens_flare_reference
 
                 # col.separator() # commenting out light clipping for now.
 

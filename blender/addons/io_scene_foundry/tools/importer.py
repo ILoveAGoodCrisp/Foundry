@@ -1958,7 +1958,7 @@ class NWOImporter:
             with ScenarioStructureBspTag(path=mover.tag_path) as bsp:
                 bsp_objects, game_objects = bsp.to_blend_objects(collection, self.tag_bsp_render_only)
                 
-                meshes = {ob.data for ob in bsp_objects if ob.data is not None}
+                meshes = {ob.data for ob in bsp_objects if ob.type == 'MESH'}
                 self.emissive_meshes.update({me for me in meshes if any(p.type == 'emissive' for p in me.nwo.face_props)})
                 
                 if game_objects:

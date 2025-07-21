@@ -1,8 +1,18 @@
 
 
+from math import radians
+from typing import cast
+
+from mathutils import Color, Matrix, Vector
+
+from ..constants import HALO_FACTOR, WU_SCALAR
+
+from ..props.object import NWO_ObjectPropertiesGroup
+from ..props.light import NWO_LightPropertiesGroup
 from ..managed_blam.Tags import TagFieldBlockElement
 from ..managed_blam import Tag
 from .. import utils
+import bpy
 
 class ScenarioStructureLightingInfoTag(Tag):
     tag_ext = 'scenario_structure_lighting_info'
@@ -79,11 +89,11 @@ class ScenarioStructureLightingInfoTag(Tag):
         atten_mapping.Value.ClampRangeMin = light.far_attenuation_end
         
         if light.type == 1: # Spot
-            parameters.SelectField("Inner Cone Angle").Data = light.hotspot_cutoff
+            parameters.SelectField("Inner Cone Angle").Data = light.hotspot_size
             hotpot_struct = parameters.SelectField("Outer Cone End")
             hotspot = hotpot_struct.Elements[0]
             hotspot_mapping = hotspot.SelectField("Custom:Mapping")
-            hotspot_mapping.Value.ClampRangeMin = light.hotspot_size
+            hotspot_mapping.Value.ClampRangeMin = light.hotspot_cutoff
             parameters.SelectField("Cone Projection Shape").Value = light.cone_shape
             
         if light.type == 2: # Sun
@@ -190,11 +200,116 @@ class ScenarioStructureLightingInfoTag(Tag):
                 element.SelectField("lens flare reference").Path = self._TagPath_from_string(light.lens_flare)
                 
                 
-    def to_blender(self):
-        pass
+    def to_blender(self, parent_collection: bpy.types.Collection = None):
+        definitions = self._from_reach_light_definitions()
+        objects = self._from_reach_light_instances(definitions)
+        
+        if objects:
+            collection = cast(bpy.types.Collection, bpy.data.collections.new(f"{self.tag_path.ShortName}_lights"))
+            for ob in objects:
+                collection.objects.link(ob)
+                
+            if parent_collection is None:
+                bpy.context.scene.collection.children.link(collection)
+            else:
+                parent_collection.children.link(collection)
+        
+        print([ob.name for ob in objects])
+        
+        return objects
     
-    def _from_reach_light_instances(self):
-        pass
+    def _from_reach_light_instances(self, definitions: dict[int: bpy.types.Light]):
+        objects = []
+        for element in self.block_generic_light_instances.Elements:
+            blender_light = definitions.get(element.SelectField("definition index").Data)
+            if blender_light is None:
+                continue
+            
+            ob = cast(bpy.types.Object, bpy.data.objects.new(f"light_instance:{element.ElementIndex}", blender_light))
+            nwo = cast(NWO_ObjectPropertiesGroup, ob.nwo)
+            
+            origin = Vector(*(element.SelectField("origin").Data,))
+            forward = Vector((*element.SelectField("forward").Data,))
+            up = Vector((*element.SelectField("up").Data,))
+            
+            # forward.normalize()
+            # up.normalize()
+            
+            # right = forward.cross(up).normalized()
+            
+            # up = right.cross(forward)
+            
+            # matrix = Matrix((right, up, forward)).transposed()
+            # matrix = matrix.to_4x4()
+            # matrix.translation = origin * 100
+            
+            matrix_3x3 = Matrix.Identity(4).to_3x3()
+            matrix_3x3.col[1] = forward
+            matrix_3x3.col[2] = up
+            matrix = matrix_3x3.to_4x4()
+            matrix.translation = origin * 100
+            
+            ob.matrix_world = matrix
+            ob.scale *= (1 / 0.03048)
+            
+            match element.SelectField("bungie light type").Value:
+                case 0:
+                    nwo.light_game_type = '_connected_geometry_bungie_light_type_default'
+                case 1:
+                    nwo.light_game_type = '_connected_geometry_bungie_light_type_uber'
+                case 2:
+                    nwo.light_game_type = '_connected_geometry_bungie_light_type_inlined'
+                case 3:
+                    nwo.light_game_type = '_connected_geometry_bungie_light_type_screen_space'
+                case 4:
+                    nwo.light_game_type = '_connected_geometry_bungie_light_type_rerender'
+            
+            nwo.light_screenspace_has_specular = element.SelectField("screen space specular").TestBit("screen space light has specular")
+            nwo.light_bounce_ratio = element.SelectField("bounce light control").Data
+            nwo.light_volume_distance = element.SelectField("light volume distance").Data
+            nwo.light_volume_intensity = element.SelectField("light volume intensity scalar").Data
+            nwo.light_fade_end_distance = element.SelectField("fade out distance").Data
+            nwo.light_fade_start_distance = element.SelectField("fade start distance").Data
+            nwo.light_tag_override = self.get_path_str(element.SelectField("user control").Path)
+            nwo.light_shader_reference = self.get_path_str(element.SelectField("shader reference").Path)
+            nwo.light_gel_reference = self.get_path_str(element.SelectField("gel reference").Path)
+            nwo.light_lens_flare_reference = self.get_path_str(element.SelectField("lens flare reference").Path)
+            
+            objects.append(ob)
+            
+        return objects
     
     def _from_reach_light_definitions(self):
-        pass
+        definitions: dict[int: bpy.types.Light] = {}
+        for element in self.block_generic_light_definitions.Elements:
+            match element.SelectField("type").Value:
+                case 0:
+                    blender_light = cast(bpy.types.Light, bpy.data.lights.new(f"light_definition:{element.ElementIndex}", 'POINT'))
+                case 1:
+                    blender_light = cast(bpy.types.Light, bpy.data.lights.new(f"light_definition:{element.ElementIndex}", 'SPOT'))
+                    hotspot_cutoff_size = element.SelectField("hotspot cutoff size").Data
+                    blender_light.spot_size = radians(hotspot_cutoff_size)
+                    if hotspot_cutoff_size > 0.0:
+                        blender_light.spot_blend = element.SelectField("hotspot size").Data / hotspot_cutoff_size
+                case 2:
+                    blender_light = cast(bpy.types.Light, bpy.data.lights.new(f"light_definition:{element.ElementIndex}", 'SUN'))
+                    
+            nwo = cast(NWO_LightPropertiesGroup, blender_light.nwo)
+                    
+            nwo.light_shape = '_connected_geometry_light_shape_circle' if element.SelectField("shape").Value == 1 else '_connected_geometry_light_shape_rectangle'
+            color = Color((*element.SelectField("color").Data,))
+            blender_light.color = color.from_srgb_to_scene_linear()
+            nwo.light_intensity = element.SelectField("intensity").Data
+            
+            blender_light.shadow_soft_size = max((*element.SelectField("near attenuation bounds").Data,)) * WU_SCALAR
+            nwo.light_far_attenuation_start, nwo.light_far_attenuation_end = [a * WU_SCALAR for a in element.SelectField("far attenuation bounds").Data]
+            nwo.light_aspect = element.SelectField("aspect").Data
+            
+            blender_light.shadow_soft_size = nwo.light_near_attenuation_end
+            
+            definitions[element.ElementIndex] = blender_light
+            
+        return definitions
+            
+            
+            

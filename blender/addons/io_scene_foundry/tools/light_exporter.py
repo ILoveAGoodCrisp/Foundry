@@ -21,7 +21,6 @@ class BlamLightInstance:
     def __init__(self, ob, bsp=None, scale=None, rotation=None) -> None:
         # self.data = ob.data
         data = ob.data
-        nwo = data.nwo
         self.data_name = ob.data.name
         self.bsp = bsp
         matrix = utils.halo_transforms(ob, scale, rotation)
@@ -29,9 +28,9 @@ class BlamLightInstance:
         matrix_3x3 = matrix.to_3x3().normalized()
         self.forward = matrix_3x3.col[1]
         self.up = matrix_3x3.col[2]
-        
+        ob_nwo = ob.nwo
         self.game_type = 0
-        match nwo.light_game_type:
+        match ob_nwo.light_game_type:
             case '_connected_geometry_bungie_light_type_uber':
                 self.game_type = 1
             case '_connected_geometry_bungie_light_type_inlined':
@@ -41,21 +40,21 @@ class BlamLightInstance:
             case '_connected_geometry_bungie_light_type_rerender':
                 self.game_type = 4
         
-        self.volume_distance = nwo.light_volume_distance
-        self.volume_intensity = nwo.light_volume_intensity
+        self.volume_distance = ob_nwo.light_volume_distance
+        self.volume_intensity = ob_nwo.light_volume_intensity
         
-        self.bounce_ratio = nwo.light_bounce_ratio
-        self.screen_space_specular = nwo.light_screenspace_has_specular
+        self.bounce_ratio = ob_nwo.light_bounce_ratio
+        self.screen_space_specular = ob_nwo.light_screenspace_has_specular
         
-        self.light_tag = nwo.light_tag_override
-        self.shader = nwo.light_shader_reference
-        self.gel = nwo.light_gel_reference
-        self.lens_flare = nwo.light_lens_flare_reference
+        self.light_tag = ob_nwo.light_tag_override
+        self.shader = ob_nwo.light_shader_reference
+        self.gel = ob_nwo.light_gel_reference
+        self.lens_flare = ob_nwo.light_lens_flare_reference
         
         self.light_mode = 0
-        if nwo.light_mode == '_connected_geometry_light_mode_static':
+        if ob_nwo.light_mode == '_connected_geometry_light_mode_static':
             self.light_mode = 1
-        elif nwo.light_mode == '_connected_geometry_light_mode_analytic':
+        elif ob_nwo.light_mode == '_connected_geometry_light_mode_analytic':
             self.light_mode = 2
         
 class BlamLightDefinition:
@@ -85,13 +84,13 @@ class BlamLightDefinition:
         self.hotspot_size = 0
         self.hotspot_cutoff = 0
         if data.type == 'SPOT':
-            self.hotspot_size = min(degrees(data.spot_size), 160)
-            self.hotspot_cutoff = self.hotspot_size * abs(1 - data.spot_blend)
+            self.hotspot_cutoff = min(degrees(data.spot_size), 160)
+            self.hotspot_size = self.hotspot_cutoff * data.spot_blend
             
         self.hotspot_falloff = nwo.light_falloff_shape
         
-        self.near_attenuation_start = nwo.light_near_attenuation_start * atten_scalar * WU_SCALAR * unit_factor
-        self.near_attenuation_end = nwo.light_near_attenuation_end * atten_scalar * WU_SCALAR * unit_factor
+        self.near_attenuation_start = data.shadow_soft_size * atten_scalar * WU_SCALAR * unit_factor
+        self.near_attenuation_end = self.near_attenuation_start
         if nwo.light_far_attenuation_end:
             self.far_attenuation_start = nwo.light_far_attenuation_start * atten_scalar * WU_SCALAR * unit_factor
             self.far_attenuation_end = nwo.light_far_attenuation_end * atten_scalar * WU_SCALAR * unit_factor

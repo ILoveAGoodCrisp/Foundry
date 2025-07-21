@@ -2530,13 +2530,13 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                     curve.use_radius = False
                     
                 curve.transform(scale_matrix)
-                curve.nwo.material_lighting_attenuation_falloff *= scale_factor
-                curve.nwo.material_lighting_attenuation_cutoff *= scale_factor
+                # curve.nwo.material_lighting_attenuation_falloff *= scale_factor
+                # curve.nwo.material_lighting_attenuation_cutoff *= scale_factor
                 
             for metaball in metaballs:
                 metaball.transform(scale_matrix)
-                metaball.nwo.material_lighting_attenuation_falloff *= scale_factor
-                metaball.nwo.material_lighting_attenuation_cutoff *= scale_factor
+                # metaball.nwo.material_lighting_attenuation_falloff *= scale_factor
+                # metaball.nwo.material_lighting_attenuation_cutoff *= scale_factor
                 
             # for lattice in lattices:
             #     lattice.transform(scale_matrix)
@@ -2544,18 +2544,20 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
             for mesh in meshes:
                 mesh.transform(scale_matrix)
                 
+                
             for camera in cameras:
                 camera.display_size *= scale_factor
                 
             for light in lights:
-                if light.type != 'SUN':
-                    light.energy *= scale_factor ** 2
+                # if light.type != 'SUN':
+                #     light.energy *= scale_factor ** 2
                 light.nwo.light_far_attenuation_start *= scale_factor
                 light.nwo.light_far_attenuation_end *= scale_factor
                 light.nwo.light_near_attenuation_start *= scale_factor
                 light.nwo.light_near_attenuation_end *= scale_factor
-                light.nwo.light_fade_start_distance *= scale_factor
-                light.nwo.light_fade_end_distance *= scale_factor
+                light.shadow_soft_size *= scale_factor
+                # light.nwo.light_fade_start_distance *= scale_factor
+                # light.nwo.light_fade_end_distance *= scale_factor
         
         arm_datas = set()
         
@@ -4450,6 +4452,9 @@ def delete_face_prop(mesh: bpy.types.Mesh, idx: int, bm: bmesh.types.BMesh = Non
         bm.free()
 
 def consolidate_materials(mesh: bpy.types.Mesh):
+    
+    if not isinstance(mesh, bpy.types.Mesh):
+        return
 
     face_count = len(mesh.polygons)
     slot_count = len(mesh.materials)

@@ -154,7 +154,13 @@ class ScenarioStructureBspTag(Tag):
                 with ScenarioStructureLightingInfoTag(path=str(lighting_info_path)) as info:
                     for element in info.tag.SelectField("Block:material info").Elements:
                         emissives.append(Emissive(element))
-            
+                    
+                    if not self.corinth:
+                        light_objects = info.to_blender(collection)
+                        if light_objects:
+                            print(f"Imported {len(light_objects)} lights from {info.tag_path.RelativePathWithExtension}")
+                            objects.extend(light_objects)
+                    
         # Get all render materials
         render_materials = []
         for element in self.tag.SelectField("Block:materials").Elements:
@@ -294,8 +300,11 @@ class ScenarioStructureBspTag(Tag):
                 structure_collection.objects.link(seam_ob)
         
         print("Removing Duplicate Material Slots")
-        ob_meshes = {o.data for o in objects if ob.data is not None and ob.type == 'MESH'}
+        for ob in objects:
+            print(ob)
+        ob_meshes = {o.data for o in objects if ob.type == 'MESH'}
         for me in ob_meshes:
+            print(me)
             utils.consolidate_face_attributes(me)
             utils.consolidate_materials(me)
                 
