@@ -1419,7 +1419,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
 
                 col.separator()
                 
-                col.prop(data, "shadow_soft_size")
+                col.prop(data, "shadow_soft_size", text="Radius")
 
                 # col_box.prop(
                 #     nwo,

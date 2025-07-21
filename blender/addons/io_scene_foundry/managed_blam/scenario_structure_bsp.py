@@ -300,11 +300,8 @@ class ScenarioStructureBspTag(Tag):
                 structure_collection.objects.link(seam_ob)
         
         print("Removing Duplicate Material Slots")
-        for ob in objects:
-            print(ob)
         ob_meshes = {o.data for o in objects if ob.type == 'MESH'}
         for me in ob_meshes:
-            print(me)
             utils.consolidate_face_attributes(me)
             utils.consolidate_materials(me)
                 

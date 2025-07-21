@@ -2436,6 +2436,10 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                     transform_objects.append(TransformObject(ob, scale=scale_factor)) # scale loc but otherwise retain matrix
                 case 'LATTICE' | 'LIGHT':
                     transform_objects.append(TransformObject(ob, transform_matrix)) # update loc, rot, sca
+                    if ob.type == 'LIGHT':
+                        ob.nwo.light_fade_start_distance *= scale_factor
+                        ob.nwo.light_fade_end_distance *= scale_factor
+                        ob.nwo.light_volume_distance *= scale_factor
                 case 'EMPTY':
                     ob.empty_display_size *= scale_factor
                     if keep_marker_axis and not is_frame(ob):
@@ -2553,11 +2557,9 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                 #     light.energy *= scale_factor ** 2
                 light.nwo.light_far_attenuation_start *= scale_factor
                 light.nwo.light_far_attenuation_end *= scale_factor
-                light.nwo.light_near_attenuation_start *= scale_factor
-                light.nwo.light_near_attenuation_end *= scale_factor
+                # light.nwo.light_near_attenuation_start *= scale_factor
+                # light.nwo.light_near_attenuation_end *= scale_factor
                 light.shadow_soft_size *= scale_factor
-                # light.nwo.light_fade_start_distance *= scale_factor
-                # light.nwo.light_fade_end_distance *= scale_factor
         
         arm_datas = set()
         

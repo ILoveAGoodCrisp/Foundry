@@ -214,8 +214,6 @@ class ScenarioStructureLightingInfoTag(Tag):
             else:
                 parent_collection.children.link(collection)
         
-        print([ob.name for ob in objects])
-        
         return objects
     
     def _from_reach_light_instances(self, definitions: dict[int: bpy.types.Light]):
@@ -266,10 +264,10 @@ class ScenarioStructureLightingInfoTag(Tag):
             
             nwo.light_screenspace_has_specular = element.SelectField("screen space specular").TestBit("screen space light has specular")
             nwo.light_bounce_ratio = element.SelectField("bounce light control").Data
-            nwo.light_volume_distance = element.SelectField("light volume distance").Data
+            nwo.light_volume_distance = element.SelectField("light volume distance").Data * WU_SCALAR
             nwo.light_volume_intensity = element.SelectField("light volume intensity scalar").Data
-            nwo.light_fade_end_distance = element.SelectField("fade out distance").Data
-            nwo.light_fade_start_distance = element.SelectField("fade start distance").Data
+            nwo.light_fade_end_distance = element.SelectField("fade out distance").Data * WU_SCALAR
+            nwo.light_fade_start_distance = element.SelectField("fade start distance").Data * WU_SCALAR
             nwo.light_tag_override = self.get_path_str(element.SelectField("user control").Path)
             nwo.light_shader_reference = self.get_path_str(element.SelectField("shader reference").Path)
             nwo.light_gel_reference = self.get_path_str(element.SelectField("gel reference").Path)
@@ -304,8 +302,6 @@ class ScenarioStructureLightingInfoTag(Tag):
             blender_light.shadow_soft_size = max((*element.SelectField("near attenuation bounds").Data,)) * WU_SCALAR
             nwo.light_far_attenuation_start, nwo.light_far_attenuation_end = [a * WU_SCALAR for a in element.SelectField("far attenuation bounds").Data]
             nwo.light_aspect = element.SelectField("aspect").Data
-            
-            blender_light.shadow_soft_size = nwo.light_near_attenuation_end
             
             definitions[element.ElementIndex] = blender_light
             
