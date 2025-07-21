@@ -68,6 +68,14 @@ def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str, always_e
             case 'shader_glass':
                 with ShaderGlassTag(path=tag_path) as shader:
                     shader.to_nodes(mat, always_extract_bitmaps)
+            case 'shader_water':
+                mat.use_nodes = True
+                mat.node_tree.nodes.clear()
+                output = mat.node_tree.nodes.new("ShaderNodeOutputMaterial")
+                group = mat.node_tree.nodes.new("ShaderNodeGroup")
+                group.node_tree = utils.add_node_from_resources("shared_nodes", "Basic Water")
+                group.location.x -= 300
+                mat.node_tree.links.new(input=output.inputs[0], output=group.outputs[0])
     
     if shader is not None:
         mat.nwo.game_functions = ",".join(shader.game_functions)

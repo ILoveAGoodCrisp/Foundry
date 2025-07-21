@@ -872,7 +872,7 @@ class NWO_Import(bpy.types.Operator):
                     bsp_files = importer.sorted_filepaths["scenario_structure_bsp"]
                     imported_bsp_objects = []
                     for bsp in bsp_files:
-                        bsp_objects, _ = importer.import_bsp(bsp)
+                        bsp_objects = importer.import_bsp(bsp)
                         imported_bsp_objects.extend(bsp_objects)
                     if importer.needs_scaling:
                         utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_bsp_objects, actions=[])
@@ -1917,7 +1917,6 @@ class NWOImporter:
         for file in paths:
             start_mb_for_import(file)
             print(f'Importing Scenario Tag: {Path(file).with_suffix("").name} ')
-            structure_collision = []
             with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
                 with ScenarioTag(path=mover.tag_path, raise_on_error=False) as scenario:
                     if not scenario.valid: continue
@@ -1926,7 +1925,7 @@ class NWOImporter:
                     scenario_collection = bpy.data.collections.new(scenario_name)
                     self.context.scene.collection.children.link(scenario_collection)
                     for bsp in bsps:
-                        bsp_objects, collision = self.import_bsp(bsp, scenario_collection)
+                        bsp_objects = self.import_bsp(bsp, scenario_collection)
                         imported_objects.extend(bsp_objects)
                     
                     # if seams:
@@ -1988,7 +1987,7 @@ class NWOImporter:
         collection.nwo.type = "region"
         collection.nwo.region = bsp_name
         
-        return bsp_objects, bsp.structure_collision
+        return bsp_objects
     
     def import_particle_model(self, file):
         start_mb_for_import(file)

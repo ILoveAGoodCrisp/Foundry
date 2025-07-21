@@ -232,15 +232,16 @@ class ScenarioStructureBspTag(Tag):
             structure_obs = structure.create(render_model, temp_meshes, structure_surface_triangle_mapping, element.ElementIndex)
             for ob in structure_obs:
                 if ob is not None and ob.data and ob.data.polygons:
-                    structure_collection.objects.link(ob)
+                    # structure_collection.objects.link(ob)
 
                     if ob.data.nwo.mesh_type == '_connected_geometry_mesh_type_water_surface':
                         objects.append(ob)
+                        structure_collection.objects.link(ob)
                     else:
                         structure_objects.append(ob)
             
         # Create Structure Collision
-        self.structure_collision = None
+        # self.structure_collision = None
         if collision is not None:
             if self.corinth:
                 print("Creating Structure Sky")
@@ -250,9 +251,9 @@ class ScenarioStructureBspTag(Tag):
             collision_only_indices = [idx for idx, mapping in enumerate(structure_surface_triangle_mapping) if mapping.collision_only]
             if collision_only_indices:
                 ob = collision.to_object(surface_indices=collision_only_indices)
-                ob.data.nwo.mesh_type = "_connected_geometry_mesh_type_structure"
-                structure_collection.objects.link(ob)
-                self.structure_collision = ob
+                # ob.data.nwo.mesh_type = "_connected_geometry_mesh_type_structure"
+                # structure_collection.objects.link(ob)
+                # self.structure_collision = ob
                 structure_objects.append(ob)
                         
         # Merge all structure objects
@@ -270,7 +271,7 @@ class ScenarioStructureBspTag(Tag):
             if not for_cinematic:
                 utils.connect_verts_on_edge(main_structure_ob.data)
             objects.append(main_structure_ob)
-            utils.unlink(main_structure_ob)
+            # utils.unlink(main_structure_ob)
             structure_collection.objects.link(main_structure_ob)
             main_structure_ob.nwo.proxy_instance = True
             main_structure_ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_structure'
@@ -300,7 +301,7 @@ class ScenarioStructureBspTag(Tag):
                 structure_collection.objects.link(seam_ob)
         
         print("Removing Duplicate Material Slots")
-        ob_meshes = {o.data for o in objects if ob.type == 'MESH'}
+        ob_meshes = {o.data for o in objects if o.type == 'MESH'}
         for me in ob_meshes:
             utils.consolidate_face_attributes(me)
             utils.consolidate_materials(me)
