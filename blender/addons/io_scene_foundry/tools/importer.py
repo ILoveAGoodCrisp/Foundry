@@ -2300,7 +2300,9 @@ class NWOImporter:
                 self.setup_jms_marker(ob, is_model, xref)
                 
             elif ob.name.lower().startswith(legacy_frame_prefixes) or utils.is_frame(ob):
-                self.setup_jms_frame(ob)
+                ob = self.setup_jms_frame(ob)
+                if not ob.parent and ob.type == 'EMPTY' and not ob.name.lower().startswith(legacy_frame_prefixes):
+                    ob.nwo.export_this = False
             elif ob.name.startswith('#') or (is_model and ob.type =='EMPTY' and ob.name.startswith('$')):
                 self.setup_jms_marker(ob, is_model)
             elif ob.type == 'MESH':
@@ -2342,8 +2344,10 @@ class NWOImporter:
                 for coll in ob.users_collection: coll.objects.link(marker)
             bpy.data.objects.remove(ob)
             self.jms_file_frame_objects.append(marker)
+            return marker
         else:
             self.jms_file_frame_objects.append(ob)
+            return ob
             
     def setup_jms_marker(self, ob, is_model, xref: XREF = None):
         perm, region = None, None
