@@ -1762,6 +1762,13 @@ def get_project(project_name):
         
         return projects[0]
     
+def get_project_from_path(path: str):
+    projects = get_prefs().projects
+    if projects:
+        for p in projects:
+            if p.project_path == path:
+                return p
+    
 def material_read_only(path):
     """Returns true if a material is read only aka in the project's protected list"""
     # Return false immediately if user has disabled material protection

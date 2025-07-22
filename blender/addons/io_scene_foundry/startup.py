@@ -145,7 +145,12 @@ def load_handler(dummy):
         mb_path = managed_blam.mb_path
         if mb_path:
             if not str(mb_path).startswith(str(utils.get_project_path())):
-                utils.restart_blender()
+                if context.scene.nwo.sidecar_path:
+                    utils.restart_blender()
+                else:
+                    possible_project = utils.get_project_from_path(str(Path(mb_path).parent.parent))
+                    if possible_project is not None:
+                        context.scene.nwo.scene_project = possible_project.name
 
         # like and subscribe
         subscription_owner = object()

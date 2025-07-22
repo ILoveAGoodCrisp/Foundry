@@ -304,7 +304,6 @@ class RenderModelTag(Tag):
             
         for cmesh in clone_meshes:
             for tmesh in original_meshes:
-                print(tmesh.permutation.name)
                 if tmesh.permutation.name == cmesh.permutation.clone_name:
                     permutation = self.context.scene.nwo.permutations_table.get(tmesh.permutation.name)
                     if permutation is None:
