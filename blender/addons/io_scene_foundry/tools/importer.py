@@ -2242,6 +2242,7 @@ class NWOImporter:
         self.jms_file_mesh_objects = []
         self.jms_file_frame_objects = []
         self.jms_file_light_objects = []
+        self.jms_file_proxy_objects = []
         
         match legacy_type:
             case "auto":
@@ -2255,6 +2256,7 @@ class NWOImporter:
         
         self.jms_marker_objects.extend(self.jms_file_marker_objects)
         self.jms_mesh_objects.extend(self.jms_file_mesh_objects)
+        self.jms_mesh_objects.extend(self.jms_file_proxy_objects)
         self.jms_frame_objects.extend(self.jms_file_frame_objects)
         self.jms_light_objects.extend(self.jms_file_light_objects)
         
@@ -2509,8 +2511,9 @@ class NWOImporter:
                     ob.nwo.proxy_parent = ob.parent.data
                     ob.nwo.proxy_type = "collision"
                     ob.parent.data.nwo.proxy_collision = ob
-                    utils.get_foundry_storage_scene().objects.link(ob)
-                    self.jms_other_objects.append(ob)
+                    utils.unlink(ob)
+                    utils.get_foundry_storage_scene().collection.objects.link(ob)
+                    self.jms_file_proxy_objects.append(ob)
                     return
                     
                 if self.apply_materials:
