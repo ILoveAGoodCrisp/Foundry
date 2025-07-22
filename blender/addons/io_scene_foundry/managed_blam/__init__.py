@@ -365,9 +365,9 @@ def switch_project_from_filepath(context, path: Path):
             print(f"Project was changed to {project.name} in order to read file: {path}")
             return
         
-def start_mb_for_import(tag_path: str | Path):
+def start_mb_for_import(path: str | Path):
     if mb_active: return
-    mb_init(tag_path)
+    mb_init(path)
 
 def mb_init(tag_path=None):
     context = bpy.context

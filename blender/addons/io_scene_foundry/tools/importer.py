@@ -559,6 +559,11 @@ class NWO_Import(bpy.types.Operator):
         filepaths = [self.directory + f.name for f in self.files]
         if self.filepath and self.filepath not in filepaths:
             filepaths.append(self.filepath)
+            
+        if not filepaths:
+            self.report({"WARNING"}, "No files to import")
+            return {'CANCELLED'}
+        
         start = time.perf_counter()
         imported_objects = []
         imported_actions = []
@@ -583,12 +588,19 @@ class NWO_Import(bpy.types.Operator):
             
         with utils.ExportManager():
             os.system("cls")
+            
             if not self.place_at_mouse and context.scene.nwo_export.show_output:
                 bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
                 context.scene.nwo_export.show_output = False
             try:
                 export_title = f"►►► FOUNDRY IMPORTER ◄◄◄"
                 print(export_title, '\n')
+                
+                # Start MB if the file is a tag and switch project as needed.
+                # Only checking the last file for speed (last file is always self.filepath if there was one).
+                # If another file is a tag, too bad, we won't try to switch project for it
+                start_mb_for_import(filepaths[-1])
+                
                 scope_list = []
                 if self.scope:
                     scope_list = self.scope.split(',')
@@ -1450,7 +1462,6 @@ class NWOImporter:
         return cameras, actions
             
     def import_camera_track(self, file, animation_scale):
-        start_mb_for_import(file)
         with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
             with CameraTrackTag(path=mover.tag_path) as camera_track:
                 camera, action = camera_track.to_blender_animation(self.context, animation_scale)
@@ -1464,7 +1475,6 @@ class NWOImporter:
         imported_animations = []
         for file in paths:
             print(f'Importing Model Tag: {Path(file).with_suffix("").name} ')
-            start_mb_for_import(file)
             with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
                 with ModelTag(path=mover.tag_path, raise_on_error=False) as model:
                     if not model.valid: continue
@@ -1508,7 +1518,6 @@ class NWOImporter:
             if is_game_object:
                 game_object = file
                 file = str(Path(utils.get_tags_path(), game_object.nwo.marker_game_instance_tag_name))
-            start_mb_for_import(file)
             print(f'Importing Object Tag: {Path(file).name} ')
             with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
                 with ObjectTag(path=mover.tag_path, raise_on_error=False) as obj:
@@ -1852,7 +1861,6 @@ class NWOImporter:
         return imported_objects
             
     def import_render_model(self, file, model_collection, existing_armature, allowed_region_permutations, skip_print=False):
-        start_mb_for_import(file)
         if not skip_print:
             print("Importing Render Model")
         render_model_objects = []
@@ -1866,7 +1874,6 @@ class NWOImporter:
         return render_model_objects, armature
     
     def import_collision_model(self, file, armature, model_collection,allowed_region_permutations):
-        start_mb_for_import(file)
         print("Importing Collision Model")
         collision_model_objects = []
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_collision")
@@ -1878,7 +1885,6 @@ class NWOImporter:
         return collision_model_objects
     
     def import_physics_model(self, file, armature, model_collection, allowed_region_permutations):
-        start_mb_for_import(file)
         print("Importing Physics Model")
         physics_model_objects = []
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_physics")
@@ -1890,7 +1896,6 @@ class NWOImporter:
         return physics_model_objects
     
     def import_animation_graph(self, file, armature, render):
-        start_mb_for_import(file)
         actions = []
         filter = self.tag_animation_filter.replace(" ", ":")
         with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
@@ -1915,7 +1920,6 @@ class NWOImporter:
     def import_scenarios(self, paths):
         imported_objects = []
         for file in paths:
-            start_mb_for_import(file)
             print(f'Importing Scenario Tag: {Path(file).with_suffix("").name} ')
             with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
                 with ScenarioTag(path=mover.tag_path, raise_on_error=False) as scenario:
@@ -1990,7 +1994,6 @@ class NWOImporter:
         return bsp_objects
     
     def import_particle_model(self, file):
-        start_mb_for_import(file)
         filename = Path(file).with_suffix("").name
         print(f"Importing Particle Model: {filename}")
         particle_model_objects = []
@@ -2012,7 +2015,6 @@ class NWOImporter:
         job = "Progress"
         bitmap_count = len(bitmap_files)
         for idx, fp in enumerate(bitmap_files):
-            start_mb_for_import(fp)
             utils.update_progress(job, idx / bitmap_count)
             bitmap_name = utils.dot_partition(os.path.basename(fp))
             if 'lp_array' in bitmap_name or 'global_render_texture' in bitmap_name: continue # Filter out the bitmaps that crash ManagedBlam
