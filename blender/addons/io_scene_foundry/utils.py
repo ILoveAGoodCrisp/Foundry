@@ -5011,3 +5011,9 @@ def setup_emissive_attributes(mesh: bpy.types.Mesh):
     used_material_indices = np.unique(material_indices[on_mask])
     for idx in used_material_indices:
         material_add_emissive(mesh.materials[idx])
+        
+def can_export_check_parent(ob: bpy.types.Object):
+    if ob.parent:
+        return can_export_check_parent(ob.parent)
+    
+    return ob.nwo.export_this

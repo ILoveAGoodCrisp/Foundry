@@ -310,15 +310,15 @@ class ExportScene:
         self.depsgraph = self.context.evaluated_depsgraph_get()
         
         if self.asset_type == AssetType.ANIMATION and not self.granny_animations_mesh:
-            self.export_objects = [ob for ob in self.context.view_layer.objects if ob.nwo.export_this and (ob.type == "ARMATURE" and ob not in self.support_armatures) and ob not in self.skip_obs]
+            self.export_objects = [ob for ob in self.context.view_layer.objects if ob.nwo.export_this and (ob.type == "ARMATURE" and ob not in self.support_armatures) and ob not in self.skip_obs and utils.can_export_check_parent(ob)]
             null_ob = make_default_render()
             self.temp_objects.add(null_ob)
             self.temp_meshes.add(null_ob.data)
             self.export_objects.append(null_ob)
         elif self.asset_type == AssetType.CINEMATIC:
-            self.export_objects = [ob for ob in self.context.view_layer.objects if ob.nwo.export_this and ob.type == "ARMATURE" and ob not in self.skip_obs]
+            self.export_objects = [ob for ob in self.context.view_layer.objects if ob.nwo.export_this and ob.type == "ARMATURE" and ob not in self.skip_obs and utils.can_export_check_parent(ob)]
         else:    
-            self.export_objects = [ob for ob in self.context.view_layer.objects if ob.nwo.export_this and ob.type in VALID_OBJECTS and ob not in self.support_armatures and ob not in self.skip_obs]
+            self.export_objects = [ob for ob in self.context.view_layer.objects if ob.nwo.export_this and ob.type in VALID_OBJECTS and ob not in self.support_armatures and ob not in self.skip_obs and utils.can_export_check_parent(ob)]
         
         self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir, self.granny, self.export_settings, utils.time_step(), self.scene_settings.default_animation_compression, utils.blender_halo_rotation_diff(self.forward), self.scene_settings.maintain_marker_axis, self.granny_textures, utils.get_project(self.context.scene.nwo.scene_project), self.to_halo_scale, self.unit_factor, self.atten_scalar, self.context)
         
@@ -531,7 +531,7 @@ class ExportScene:
                             copy_only = True
                     
                     self.ob_halo_data[copy_ob] = [copy_props, copy_region, permutation, proxies]
-                    if not is_armature and (has_parent or (self.main_armature and not is_armature)) and copy_props["bungie_mesh_type"] != MeshType.poop.value:
+                    if self.is_model and (not is_armature and (has_parent or (self.main_armature and not is_armature))):
                         if parent in support_armatures:
                             object_parent_dict[copy_ob] = self.main_armature
                         elif not has_parent:
@@ -543,7 +543,7 @@ class ExportScene:
                 
                 if not copy_only:
                     # Write object as if it has no parent if it is a poop. This solves an issue where instancing fails in Reach
-                    if not is_armature and (has_parent or (self.main_armature and not is_armature)) and mesh_type != MeshType.poop.value:
+                    if self.is_model and (not is_armature and (has_parent or (self.main_armature and not is_armature))):
                         if parent in support_armatures:
                             object_parent_dict[ob] = self.main_armature
                         elif not has_parent:
@@ -607,7 +607,6 @@ class ExportScene:
         # Frames go unused in non-model exports
         if object_type == ObjectType.none:
             return 
-        
         props["bungie_object_type"] = object_type.value
         is_mesh = object_type == ObjectType.mesh
         is_marker = object_type == ObjectType.marker

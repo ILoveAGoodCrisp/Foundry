@@ -115,7 +115,7 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
         description=face_prop_descriptions['face_mode'],
         options=set(),
         items=[
-            # ('normal', "Render & Collision", "Mesh will be used to build both render geometry and collision"),
+            ('normal', "Render & Collision", "Mesh will be used to build both render geometry and collision"),
             ('render_only', "Render Only", "Mesh will be visible but the game will not build a collision representation of this mesh. It will not be collidable to either objects or projectiles"),
             ('collision_only', "Collision Only", "Objects and projectiles will collide with this mesh but it will not be visible"),
             ('sphere_collision_only', "Sphere Collision Only", "Only physics objects collide with this mesh. Projectiles will pass through it. Invisible"),
@@ -130,7 +130,7 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
         options=set(),
         description=face_prop_descriptions['collision_type'],
         items=[
-            # ("default", "Full", "Collision mesh that interacts with the physics objects and with projectiles"),
+            ("default", "Full", "Collision mesh that interacts with the physics objects and with projectiles"),
             ("invisible_wall", "Invisible Wall Collision", "Collision mesh that interacts with the physics objects only"),
             ("play_collision", "Player Collision", "Collision mesh that affects physics objects and physical projectiles, such as grenades"),
             ("bullet_collision", "Bullet Collision", "Collision mesh that only interacts with simple projectiles, such as bullets")
@@ -173,7 +173,7 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
         options=set(),
         description=face_prop_descriptions['draw_distance'],
         items=[
-            # ('normal', 'Default', ''),
+            ('normal', 'Default', ''),
             ('detail_mid', 'Medium', ''),
             ('detail_close', 'Close', ''),
         ]
