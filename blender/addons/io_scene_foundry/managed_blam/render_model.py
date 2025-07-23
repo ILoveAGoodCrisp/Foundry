@@ -183,6 +183,12 @@ class RenderModelTag(Tag):
             allowed_region_permutations = {(r.name, allowed_region_permutations) for r in self.regions}
             
         ob_region_perms = {}
+        region_perm_raw_mesh: dict[tuple[str, str, int]: int] = {}
+        if self.corinth and allowed_region_permutations: # need to create real raw mesh indices for clones
+            for r in self.regions:
+                for p in r.permutations:
+                    for i in range(p.mesh_count):
+                        region_perm_raw_mesh[tuple((r.name, p.name, i))] = p.mesh_index
         
         for region in self.regions:
             for permutation in region.permutations:
@@ -194,61 +200,66 @@ class RenderModelTag(Tag):
                     
                 if permutation.mesh_index < 0: continue
                 for i in range(permutation.mesh_count):
+                    real_mesh_idx = None
                     mesh = Mesh(self.block_meshes.Elements[permutation.mesh_index + i], self.bounds, permutation, materials, mesh_node_map, from_vert_normals=from_vert_normals)
                     for part in mesh.parts:
                         part.material = materials[part.material_index]
                     
                     if mesh.permutation.clone_name:
-                        clone_meshes.append(mesh)
-                    else:
-                        obs = mesh.create(render_model, self.block_per_mesh_temporary, self.nodes, self.armature)
-                        # NOTE This code doesn't work correctly
-                        if False and mesh.mesh_keys:
-                            shape_names = {e.Fields[0].Data: utils.any_partition(e.Fields[1].GetStringData(), ":", True) for e in self.tag.SelectField("Struct:render geometry[0]/Block:shapeNames").Elements}
-                            new_obs = []
-                            for ob in obs:
-                                face_groups = defaultdict(list)
-                                bm = bmesh.new()
-                                bm.from_mesh(ob.data)
-                                for face in bm.faces:
-                                    keys = [mesh.mesh_keys[v.index] for v in face.verts]
-                                    uniq = set(keys)
-                                    if len(uniq) == 1:
-                                        face_groups[keys[0]].append(face.index)
-                                    else:
-                                        for k in uniq:
-                                            face_groups[k].append(face.index)
-                                            
-                                bm.free()
-                                    
-                                for key, poly_indices in face_groups.items():
-                                    new_mesh = ob.data.copy()
-                                    new_ob = ob.copy()
-                                    new_ob.data = new_mesh
-                                    name = shape_names[key]
-                                    new_ob.name = name
-                                    new_mesh.name = name
+                        if not allowed_region_permutations or tuple((region.name, mesh.permutation.clone_name)) in allowed_region_permutations:
+                            clone_meshes.append(mesh)
+                            continue
+                        
+                        real_mesh_idx = region_perm_raw_mesh[tuple((region.name, mesh.permutation.clone_name, i))]
 
-                                    bm = bmesh.new()
-                                    bm.from_mesh(new_mesh)
-                                    
-                                    to_delete_faces = [f for f in bm.faces if f.index not in poly_indices]
-                                    bmesh.ops.delete(bm, geom=to_delete_faces, context='FACES')
-                                    
-                                    bm.to_mesh(new_mesh)
-                                    bm.free()
-                                    new_obs.append(new_ob)
-                                    ob_region_perms[new_ob] = utils.dot_partition(ob.name).split(":")
-                                
-                            obs = new_obs
-                        else:
-                            for ob in obs:
-                                ob_region_perms[ob] = utils.dot_partition(ob.name).split(":")
-                            
-                        original_meshes.append(mesh)
-                        objects.extend(obs)
+                    obs = mesh.create(render_model, self.block_per_mesh_temporary, self.nodes, self.armature, real_mesh_index=real_mesh_idx)
+                    # NOTE This code doesn't work correctly
+                    if False and mesh.mesh_keys:
+                        shape_names = {e.Fields[0].Data: utils.any_partition(e.Fields[1].GetStringData(), ":", True) for e in self.tag.SelectField("Struct:render geometry[0]/Block:shapeNames").Elements}
+                        new_obs = []
                         for ob in obs:
-                            self.collection.objects.link(ob)
+                            face_groups = defaultdict(list)
+                            bm = bmesh.new()
+                            bm.from_mesh(ob.data)
+                            for face in bm.faces:
+                                keys = [mesh.mesh_keys[v.index] for v in face.verts]
+                                uniq = set(keys)
+                                if len(uniq) == 1:
+                                    face_groups[keys[0]].append(face.index)
+                                else:
+                                    for k in uniq:
+                                        face_groups[k].append(face.index)
+                                        
+                            bm.free()
+                                
+                            for key, poly_indices in face_groups.items():
+                                new_mesh = ob.data.copy()
+                                new_ob = ob.copy()
+                                new_ob.data = new_mesh
+                                name = shape_names[key]
+                                new_ob.name = name
+                                new_mesh.name = name
+
+                                bm = bmesh.new()
+                                bm.from_mesh(new_mesh)
+                                
+                                to_delete_faces = [f for f in bm.faces if f.index not in poly_indices]
+                                bmesh.ops.delete(bm, geom=to_delete_faces, context='FACES')
+                                
+                                bm.to_mesh(new_mesh)
+                                bm.free()
+                                new_obs.append(new_ob)
+                                ob_region_perms[new_ob] = utils.dot_partition(ob.name).split(":")
+                            
+                        obs = new_obs
+                    else:
+                        for ob in obs:
+                            ob_region_perms[ob] = utils.dot_partition(ob.name).split(":")
+                        
+                    original_meshes.append(mesh)
+                    objects.extend(obs)
+                    for ob in obs:
+                        self.collection.objects.link(ob)
                 
         # Instances
         self.instances = []

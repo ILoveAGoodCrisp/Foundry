@@ -448,25 +448,32 @@ class MaterialTag(ShaderTag):
             
             
     def populate_chiefster_node(self, tree: bpy.types.NodeTree, node: bpy.types.Node, material_parameters: dict[MaterialParameter], material_parameters_true: dict[MaterialParameter]):
-        node.inputs[0].default_value = self.alpha_blend_mode.Value
-        for input in cast(list[bpy.types.NodeSocket], node.inputs[3:]): # ignore the first 3 inputs
-            parameter_name_ui = input.name.lower() if "." not in input.name else input.name.partition(".")[0].lower()
-            if "gamma curve" in parameter_name_ui:
-                # if any(srgb_name in parameter_name_ui for srgb_name in srgb_names):
-                #     input.default_value = 2.2
-                # else:
-                input.default_value = 1
-            # parameter_type = self._parameter_type_from_name(parameter_name)
-            parameter = material_parameters.get(parameter_name_ui)
-            if parameter is None:
-                parameter = material_parameters_true.get(parameter_name_ui)
-                if parameter is None:
-                    continue
-            parameter_type = ParameterType(parameter.type)
-            match parameter_type:
-                case ParameterType.COLOR:
-                    self._setup_input_with_function(input, self._value_from_parameter(parameter, AnimatedParameterType.COLOR), color_no_alpha=True)
-                case ParameterType.REAL | ParameterType.INT | ParameterType.BOOL:
-                    self._setup_input_with_function(input, self._value_from_parameter(parameter, AnimatedParameterType.VALUE), for_alpha=True)
+        for input in cast(list[bpy.types.NodeSocket], node.inputs):
+            match input.name:
+                case 'blend mode':
+                    node.inputs[0].default_value = self.alpha_blend_mode.Value
+                case 'cull shadows':
+                    pass
+                case 'material is two-sided':
+                    pass
                 case _:
-                    self.group_set_image(tree, node, parameter, ChannelType.DEFAULT, specified_input=parameter_name_ui)
+                    parameter_name_ui = input.name.lower() if "." not in input.name else input.name.partition(".")[0].lower()
+                    if "gamma curve" in parameter_name_ui:
+                        # if any(srgb_name in parameter_name_ui for srgb_name in srgb_names):
+                        #     input.default_value = 2.2
+                        # else:
+                        input.default_value = 1
+                    # parameter_type = self._parameter_type_from_name(parameter_name)
+                    parameter = material_parameters.get(parameter_name_ui)
+                    if parameter is None:
+                        parameter = material_parameters_true.get(parameter_name_ui)
+                        if parameter is None:
+                            continue
+                    parameter_type = ParameterType(parameter.type)
+                    match parameter_type:
+                        case ParameterType.COLOR:
+                            self._setup_input_with_function(input, self._value_from_parameter(parameter, AnimatedParameterType.COLOR), color_no_alpha=True)
+                        case ParameterType.REAL | ParameterType.INT | ParameterType.BOOL:
+                            self._setup_input_with_function(input, self._value_from_parameter(parameter, AnimatedParameterType.VALUE), for_alpha=True)
+                        case _:
+                            self.group_set_image(tree, node, parameter, ChannelType.DEFAULT, specified_input=parameter_name_ui)

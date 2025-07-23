@@ -1604,27 +1604,29 @@ class Mesh:
         
         return Vector((u, 1-v)) # 1-v to correct UV for Blender
     
-    def create(self, render_model, temp_meshes: TagFieldBlock, nodes=[], parent: bpy.types.Object | None = None, instances: list['InstancePlacement'] = [], name="blam", is_io=False, surface_triangle_mapping=[], section_index=0):
+    def create(self, render_model, temp_meshes: TagFieldBlock, nodes=[], parent: bpy.types.Object | None = None, instances: list['InstancePlacement'] = [], name="blam", is_io=False, surface_triangle_mapping=[], section_index=0, real_mesh_index=None):
         if not self.valid:
             return []
-
-        temp_mesh = temp_meshes.Elements[self.index]
+        
+        raw_mesh_index = self.index if real_mesh_index is None else real_mesh_index
+        temp_mesh = temp_meshes.Elements[raw_mesh_index]
+            
         raw_vertices = temp_mesh.SelectField("raw vertices")
         raw_indices = temp_mesh.SelectField("raw indices")
         if raw_indices.Elements.Count == 0:
             raw_indices = temp_mesh.SelectField("raw indices32")
 
-        self.raw_positions = list(render_model.GetPositionsFromMesh(temp_meshes, self.index))
-        self.raw_texcoords = list(render_model.GetTexCoordsFromMesh(temp_meshes, self.index))
-        self.raw_normals = list(render_model.GetNormalsFromMesh(temp_meshes, self.index))
+        self.raw_positions = list(render_model.GetPositionsFromMesh(temp_meshes, raw_mesh_index))
+        self.raw_texcoords = list(render_model.GetTexCoordsFromMesh(temp_meshes, raw_mesh_index))
+        self.raw_normals = list(render_model.GetNormalsFromMesh(temp_meshes, raw_mesh_index))
         self.raw_lightmap_texcoords = [e.Fields[5].Data for e in raw_vertices.Elements]
         self.raw_vertex_colors = [e.Fields[8].Data for e in raw_vertices.Elements]
         self.raw_texcoords1 = [e.Fields[9].Data for e in raw_vertices.Elements] if utils.is_corinth() else []
         self.raw_water_texcoords = []
 
         if not instances and self.rigid_node_index == -1:
-            self.raw_node_indices = list(render_model.GetNodeIndiciesFromMesh(temp_meshes, self.index))
-            self.raw_node_weights = list(render_model.GetNodeWeightsFromMesh(temp_meshes, self.index))
+            self.raw_node_indices = list(render_model.GetNodeIndiciesFromMesh(temp_meshes, raw_mesh_index))
+            self.raw_node_weights = list(render_model.GetNodeWeightsFromMesh(temp_meshes, raw_mesh_index))
 
         indices = [utils.unsigned_int16(element.Fields[0].Data) for element in raw_indices.Elements]
         buffer = IndexBuffer(self.index_buffer_type, indices)
