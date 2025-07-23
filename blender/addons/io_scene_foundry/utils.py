@@ -3166,11 +3166,11 @@ def area_light_to_emissive(light_ob: bpy.types.Object, corinth: bool):
     prop.material_lighting_attenuation_falloff = light_nwo.light_far_attenuation_start
     prop.material_lighting_emissive_focus = light_nwo.light_focus
     prop.material_lighting_emissive_color = light.color
-    prop.material_lighting_emissive_per_unit = light_nwo.light_per_unit
+    prop.material_lighting_emissive_per_unit = not light.normalize
     prop.material_lighting_emissive_power = light.energy
     prop.material_lighting_emissive_quality = light_nwo.light_quality
     prop.material_lighting_use_shader_gel = light_nwo.light_use_shader_gel
-    prop.material_lighting_bounce_ratio = light_nwo.light_bounce_ratio
+    prop.material_lighting_bounce_ratio = plane_ob.nwo.light_bounce_ratio
     
     return plane_ob
 

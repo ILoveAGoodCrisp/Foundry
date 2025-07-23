@@ -1331,13 +1331,13 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 col.separator()
                 col.prop(nwo, "light_quality")
                 col.prop(nwo, "light_focus")
-                col.prop(nwo, "light_bounce_ratio")
+                col.prop(ob.nwo, "light_bounce_ratio")
                 col.separator()
                 col.prop(nwo, "light_far_attenuation_start", text="Light Falloff")
                 col.prop(nwo, "light_far_attenuation_end", text="Light Cutoff")
                 col.separator()
                 col.prop(nwo, "light_use_shader_gel")
-                col.prop(nwo, "light_per_unit")
+                col.prop(data, "normalize")
                 return
 
             if data.type == 'SPOT':
@@ -2203,7 +2203,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     row = box.row()
                     row.prop(item, "material_lighting_use_shader_gel", text="Shader Gel")
                     row = box.row()
-                    row.prop(item, "material_lighting_emissive_per_unit",text="Emissive Per Unit")
+                    row.prop(item, "material_lighting_emissive_per_unit")
                 case _:
                     col.prop(item, item.type)
                 

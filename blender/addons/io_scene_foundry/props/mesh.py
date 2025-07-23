@@ -433,7 +433,7 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
     )
 
     material_lighting_emissive_per_unit: bpy.props.BoolProperty(
-        name="Material Lighting Emissive Per Unit",
+        name="Normalize",
         options=set(),
         description="When an emissive surface is scaled, determines if the amount of emitted light should be spread out across the surface or increased/decreased to keep a regular amount of light emission per unit area",
         default=False,
