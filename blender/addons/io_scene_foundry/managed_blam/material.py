@@ -1,5 +1,6 @@
 
 
+from enum import Enum
 import os
 from pathlib import Path
 from typing import cast
@@ -10,13 +11,21 @@ from .Tags import TagFieldBlockElement, TagPath
 
 from .bitmap import BitmapTag
 from .material_shader import MaterialShaderParameter, MaterialShaderTag, convert_argb
-from .shader import BSDFParameter, ChannelType, ParameterType, ShaderTag
+from .shader import BSDFParameter, ChannelType, ShaderTag
 from .. import utils
 import bpy
 
 from ..constants import MATERIAL_SHADERS_DIR
 
 srgb_names = "color map", "control map", "self illum"
+
+class ParameterType(Enum):
+    NONE = -1
+    BITMAP = 0
+    REAL = 1
+    INT = 2
+    BOOL = 3
+    COLOR = 4
 
 class MaterialParameter:
     def __init__(self, material_shader_parameter: MaterialShaderParameter):
@@ -418,16 +427,18 @@ class MaterialTag(ShaderTag):
         group_node.node_tree = node_tree
         
         material_parameters = {}
+        material_parameters_true = {}
         
         for element in self.block_parameters.Elements:
             shader_parameter = material_shader_parameters.get(element.Fields[0].GetStringData())
             if shader_parameter is None:
                 continue
-            
-            mat_par = MaterialParameter(shader_parameter)
-            material_parameters[mat_par.ui_name.lower()] = mat_par
 
-        self.populate_chiefster_node(tree, group_node, material_parameters)
+            mat_par = MaterialParameter(shader_parameter)
+            material_parameters[mat_par.ui_name.lower().replace(" ", "_")] = mat_par
+            material_parameters_true[mat_par.name] = mat_par
+
+        self.populate_chiefster_node(tree, group_node, material_parameters, material_parameters_true)
         
         # Make the Output
         node_output = nodes.new(type='ShaderNodeOutputMaterial')
@@ -436,15 +447,8 @@ class MaterialTag(ShaderTag):
         tree.links.new(input=node_output.inputs[0], output=group_node.outputs[0])
             
             
-    def populate_chiefster_node(self, tree: bpy.types.NodeTree, node: bpy.types.Node, material_parameters: dict[MaterialParameter]):
-        match self.alpha_blend_mode.Value:
-            case 0:
-                node.inputs[0].default_value = 0.0
-            case 3:
-                node.inputs[0].default_value = 1.0
-            case _:
-                node.inputs[0].default_value = 0.5
-        
+    def populate_chiefster_node(self, tree: bpy.types.NodeTree, node: bpy.types.Node, material_parameters: dict[MaterialParameter], material_parameters_true: dict[MaterialParameter]):
+        node.inputs[0].default_value = self.alpha_blend_mode.Value
         for input in cast(list[bpy.types.NodeSocket], node.inputs[3:]): # ignore the first 3 inputs
             parameter_name_ui = input.name.lower() if "." not in input.name else input.name.partition(".")[0].lower()
             if "gamma curve" in parameter_name_ui:
@@ -455,12 +459,14 @@ class MaterialTag(ShaderTag):
             # parameter_type = self._parameter_type_from_name(parameter_name)
             parameter = material_parameters.get(parameter_name_ui)
             if parameter is None:
-                continue
+                parameter = material_parameters_true.get(parameter_name_ui)
+                if parameter is None:
+                    continue
             parameter_type = ParameterType(parameter.type)
             match parameter_type:
-                case ParameterType.COLOR | ParameterType.ARGB_COLOR:
-                    self._setup_input_with_function(input, self._value_from_parameter(parameter, AnimatedParameterType.COLOR))
+                case ParameterType.COLOR:
+                    self._setup_input_with_function(input, self._value_from_parameter(parameter, AnimatedParameterType.COLOR), color_no_alpha=True)
                 case ParameterType.REAL | ParameterType.INT | ParameterType.BOOL:
-                    self._setup_input_with_function(input, self._value_from_parameter(parameter, AnimatedParameterType.VALUE))
+                    self._setup_input_with_function(input, self._value_from_parameter(parameter, AnimatedParameterType.VALUE), for_alpha=True)
                 case _:
-                    self.group_set_image(tree, node, parameter, ChannelType.DEFAULT)
+                    self.group_set_image(tree, node, parameter, ChannelType.DEFAULT, specified_input=parameter_name_ui)

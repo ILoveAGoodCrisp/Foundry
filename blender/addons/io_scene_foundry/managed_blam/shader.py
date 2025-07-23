@@ -727,6 +727,7 @@ class ShaderTag(Tag):
                 
     def _value_from_parameter(self, parameter: OptionParameter, value_type: AnimatedParameterType):
         for element in self.block_parameters.Elements:
+            # print(element.Fields[0].GetStringData(), parameter.name)
             if element.Fields[0].GetStringData() == parameter.name:
                 break
         else:
@@ -957,23 +958,25 @@ class ShaderTag(Tag):
                 driver.type = 'SCRIPTED'
                 driver.expression = f"-{sequence_length - 1}"
         
+        input_map = {i.name.lower(): i for i in node.inputs}
+        
         if specified_input is None:
             match channel_type:
                 case ChannelType.DEFAULT:
-                    tree.links.new(input=node.inputs[parameter.ui_name], output=data_node.outputs[0])
+                    tree.links.new(input=input_map[parameter.ui_name], output=data_node.outputs[0])
                 case ChannelType.RGB:
-                    tree.links.new(input=node.inputs[f"{parameter.ui_name}.rgb"], output=data_node.outputs[0])
+                    tree.links.new(input=input_map[f"{parameter.ui_name}.rgb"], output=data_node.outputs[0])
                 case ChannelType.ALPHA:
-                    tree.links.new(input=node.inputs[f"{parameter.ui_name}.a"], output=data_node.outputs[1])
+                    tree.links.new(input=input_map[f"{parameter.ui_name}.a"], output=data_node.outputs[1])
                 case ChannelType.RGB_ALPHA:
-                    tree.links.new(input=node.inputs[f"{parameter.ui_name}.rgb"], output=data_node.outputs[0])
-                    tree.links.new(input=node.inputs[f"{parameter.ui_name}.a"], output=data_node.outputs[1])
+                    tree.links.new(input=input_map[f"{parameter.ui_name}.rgb"], output=data_node.outputs[0])
+                    tree.links.new(input=input_map[f"{parameter.ui_name}.a"], output=data_node.outputs[1])
         else:
             match channel_type:
                 case ChannelType.DEFAULT | ChannelType.RGB:
-                    tree.links.new(input=node.inputs[specified_input], output=data_node.outputs[0])
+                    tree.links.new(input=input_map[specified_input], output=data_node.outputs[0])
                 case ChannelType.ALPHA:
-                    tree.links.new(input=node.inputs[specified_input], output=data_node.outputs[1])
+                    tree.links.new(input=input_map[specified_input], output=data_node.outputs[1])
         
         tiling_node = self._tiling_from_animated_parameters(tree, parameter)
         if tiling_node is not None:
@@ -1215,6 +1218,8 @@ class ShaderTag(Tag):
         tree: bpy.types.NodeTree = end_input.id_data
         if not isinstance(data, Function):
             if isinstance(data, tuple):
+                print(end_input.name)
+                print(color_no_alpha)
                 if color_no_alpha:
                     end_input.default_value = data
                 else:
