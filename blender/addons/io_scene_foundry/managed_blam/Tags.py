@@ -700,7 +700,7 @@ class TagField(ITagFieldSerializable, _GetParent, _HashEquals, _ToString):
     SupportsFastIndividualFieldPreview: bool
     Units: str
     Visible: bool
-    def CalculateFiledChecksum(self) -> int:
+    def CalculateFieldChecksum(self) -> int:
         """"""
     def GetRawData(self) -> bytes:
         """"""

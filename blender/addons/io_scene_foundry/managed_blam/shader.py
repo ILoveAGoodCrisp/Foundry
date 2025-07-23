@@ -974,9 +974,9 @@ class ShaderTag(Tag):
         else:
             match channel_type:
                 case ChannelType.DEFAULT | ChannelType.RGB:
-                    tree.links.new(input=input_map[specified_input], output=data_node.outputs[0])
+                    tree.links.new(input=node.inputs[specified_input] if isinstance(specified_input, int) else input_map[specified_input], output=data_node.outputs[0])
                 case ChannelType.ALPHA:
-                    tree.links.new(input=input_map[specified_input], output=data_node.outputs[1])
+                    tree.links.new(input=node.inputs[specified_input] if isinstance(specified_input, int) else input_map[specified_input], output=data_node.outputs[1])
         
         tiling_node = self._tiling_from_animated_parameters(tree, parameter)
         if tiling_node is not None:
@@ -1218,8 +1218,6 @@ class ShaderTag(Tag):
         tree: bpy.types.NodeTree = end_input.id_data
         if not isinstance(data, Function):
             if isinstance(data, tuple):
-                print(end_input.name)
-                print(color_no_alpha)
                 if color_no_alpha:
                     end_input.default_value = data
                 else:

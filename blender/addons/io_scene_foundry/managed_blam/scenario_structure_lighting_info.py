@@ -45,9 +45,20 @@ class ScenarioStructureLightingInfoTag(Tag):
             self._write_corinth_light_definitions(light_definitions)
             self._write_corinth_light_instances(light_instances, light_definitions)
         else:
+            self.block_generic_light_definitions.RemoveAllElements()
+            for _ in range(len(light_definitions)):
+                self.block_generic_light_definitions.AddElement()
+            
+            # Save and load the tag again to get around some post process BS the reach tag does
+            self.tag.Save()
+            self.tag.Dispose()
+            self.tag, self.tag_path = self._get_tag_and_path(False)
+            self.tag.Load(self.tag_path)
+            self._read_fields()
+            
             self._write_reach_light_definitions(light_definitions)
             self._write_reach_light_instances(light_instances, light_definitions)
-            
+        
         self.tag_has_changes = True
             
     def _write_corinth_light_definitions(self, light_definitions):
@@ -136,22 +147,23 @@ class ScenarioStructureLightingInfoTag(Tag):
             element.SelectField("up").Data = light.up
             
     def _write_reach_light_definitions(self, light_definitions):
-        self.block_generic_light_definitions.RemoveAllElements()
-        for light in light_definitions:
-            element = self.block_generic_light_definitions.AddElement()
+        # self.block_generic_light_definitions.RemoveAllElements()
+        for idx, light in enumerate(light_definitions):
+            element = self.block_generic_light_definitions.Elements[idx]
             light.index = element.ElementIndex
             element.SelectField("type").Value = light.type
             element.SelectField("shape").Value = light.shape
             element.SelectField("color").Data = light.color
             intensity_divisor = 1
             # Reach seems to fudge our intensity numbers based on whether the light is a point or spot light, fight back!
-            match light.type:
-                case 0:
-                    intensity_divisor = 0.37735857955
-                case 1:
-                    intensity_divisor = 3.14465382959
-                case 2:
-                    intensity_divisor = 0.6289308
+            # NOTE 23/07/2025 no longer need to do this with the tag post-process workaround
+            # match light.type:
+            #     case 0:
+            #         intensity_divisor = 0.37735857955
+            #     case 1:
+            #         intensity_divisor = 3.14465382959
+            #     case 2:
+            #         intensity_divisor = 0.6289308
                     
             element.SelectField("intensity").Data = light.intensity / intensity_divisor
             

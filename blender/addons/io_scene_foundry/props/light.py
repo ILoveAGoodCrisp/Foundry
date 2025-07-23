@@ -73,8 +73,8 @@ class NWO_LightPropertiesGroup(bpy.types.PropertyGroup):
         if not context.scene.nwo.transforming:
             if self.light_far_attenuation_start > self.light_far_attenuation_end:
                 self.light_far_attenuation_end = self.light_far_attenuation_start
-            elif self.light_far_attenuation_start < self.light_near_attenuation_end:
-                self.light_near_attenuation_end = self.light_far_attenuation_start
+            # elif self.light_far_attenuation_start < self.light_near_attenuation_end:
+            #     self.light_near_attenuation_end = self.light_far_attenuation_start
 
     light_far_attenuation_start: bpy.props.FloatProperty(
         name="Light Falloff Start",
