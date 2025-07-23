@@ -13,7 +13,7 @@ website = "https://c20.reclaimers.net/general/community-tools/foundry/"
 
 tags = ["Import-Export", "Pipeline"]
 
-blender_version_min = "4.4.0"
+blender_version_min = "4.5.0"
 
 license = ["SPDX:GPL-3.0-or-later"]
 
