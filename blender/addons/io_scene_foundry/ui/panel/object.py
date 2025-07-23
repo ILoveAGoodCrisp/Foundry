@@ -157,7 +157,7 @@ class NWO_MT_FaceAttributeAddMenu(bpy.types.Menu):
                 #     continue
                 elif name != 'global_material' and asset_type == "model" and context.object.data.nwo.mesh_type == '_connected_geometry_mesh_type_collision':
                     continue
-                elif name == 'global_material' and asset_type == "model" and context.object.data.nwo.mesh_type != '_connected_geometry_mesh_type_collision':
+                elif name in {'global_material', 'slip_surface', 'ladder'} and asset_type == "model" and context.object.data.nwo.mesh_type != '_connected_geometry_mesh_type_collision':
                     continue
                 elif name == 'global_material' and asset_type != "model" and not corinth:
                     continue

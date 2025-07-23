@@ -84,7 +84,7 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
             case 'no_pvs':
                 return "No PVS" if self.no_pvs else "PVS"
             case 'mesh_tessellation_density':
-                return f"{self.mesh_tessellation_density} Tessellation"
+                return f"{self.mesh_tessellation_density[1:]} Tessellation"
             case 'lightmap_resolution_scale':
                 return f"Lightmap Resolution: {LightmapResolution(int(self.lightmap_resolution_scale)).name.replace('_', ' ').title()}"
             case 'lightmap_ignore_default_resolution_scale':
