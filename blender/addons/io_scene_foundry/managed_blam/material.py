@@ -456,6 +456,14 @@ class MaterialTag(ShaderTag):
                     pass
                 case 'material is two-sided':
                     pass
+                case 'Primary Change Color':
+                    link_change_color(tree, input, "Primary Color")
+                case 'Secondary Change Color':
+                    link_change_color(tree, input, "Secondary Color")
+                case 'Tertiary Change Color':
+                    link_change_color(tree, input, "Tertiary Color")
+                case 'Quaternary Color':
+                    link_change_color(tree, input, "Quaternary Color")
                 case _:
                     parameter_name_ui = input.name.lower() if "." not in input.name else input.name.partition(".")[0].lower()
                     if "gamma curve" in parameter_name_ui:
@@ -477,3 +485,10 @@ class MaterialTag(ShaderTag):
                             self._setup_input_with_function(input, self._value_from_parameter(parameter, AnimatedParameterType.VALUE), for_alpha=True)
                         case _:
                             self.group_set_image(tree, node, parameter, ChannelType.DEFAULT, specified_input=parameter_name_ui)
+                            
+
+def link_change_color(tree: bpy.types.NodeTree, input: bpy.types.NodeGroupInput, attribute: str):
+    node_cc = tree.nodes.new(type="ShaderNodeAttribute")
+    node_cc.attribute_name = attribute
+    node_cc.attribute_type = 'INSTANCER'
+    tree.links.new(input=input, output=node_cc.outputs[0])
