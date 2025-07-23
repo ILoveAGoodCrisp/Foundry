@@ -1,8 +1,11 @@
 
 
 from collections import defaultdict
+import math
 import bmesh
-from mathutils import Quaternion, Vector
+from mathutils import Color, Euler, Matrix, Quaternion, Vector
+
+from ..constants import HALO_FACTOR
 
 from .connected_geometry import CompressionBounds, InstancePlacement, MarkerGroup, Material, Mesh, Node, Region, RenderArmature
 from .Tags import *
@@ -353,3 +356,98 @@ class RenderModelTag(Tag):
             objects.extend(marker_group.to_blender(self.armature, markers_collection, marker_size_factor, allowed_region_permutations))
             
         return objects
+    
+    
+    def skylights_to_blender(self, parent_collection: bpy.types.Collection = None) -> list:
+        objects = []
+        if self.corinth:
+            return [] # H4+ no longer uses skylights, instead using a model scenario_structure_lighting_info tag
+        
+        flags = self.tag.SelectField("WordFlags:flags")
+        
+        if not flags.TestBit("this is supposed to be a sky"):
+            return []
+        
+        block_sky_lights = self.tag.SelectField("Block:sky lights")
+        sun_index = block_sky_lights.Elements.Count - 1
+        
+        if sun_index < 0:
+            return []
+        
+        sun_as_vmf_light = flags.TestBit("sun as vmf light")
+        
+        collection = bpy.data.collections.new(f"{self.tag_path.ShortName}_skylights")
+        
+        if parent_collection is None:
+            self.context.scene.collection.children.link(collection)
+        else:
+            parent_collection.children.link(collection)
+            
+        def scale_by_direction(obj: bpy.types.Object, dir: Vector, scale=100):
+            radius = scale * HALO_FACTOR
+            rot = dir.to_track_quat('Z', 'Y')
+            loc = dir * radius
+            sca = Vector.Fill(3, HALO_FACTOR)
+            
+            obj.matrix_world = Matrix.LocRotScale(loc, rot, sca)
+            
+        for element in block_sky_lights.Elements:
+            direction = Vector((*element.Fields[0].Data,)).normalized()
+            color = Color((*element.Fields[1].Data,)) # intensity
+            power = element.Fields[2].Data # solid angle
+            
+            if not sun_as_vmf_light and element.ElementIndex == sun_index:
+                two_pi = 2.0 * math.pi
+                cos_theta = 1.0 - (power / two_pi)
+                cos_theta = max(-1.0, min(1.0, cos_theta))
+                half_angle_radians = math.acos(cos_theta)
+                self.context.scene.nwo.sun_size = 2.0 * half_angle_radians * 180.0 / math.pi
+            
+            data = bpy.data.lights.new(f"skylight:{element.ElementIndex}", 'SUN')
+                
+            ob = bpy.data.objects.new(data.name, data)
+            
+            scale_by_direction(ob, direction)
+            
+            data.energy = power
+            data.color = color
+            
+            collection.objects.link(ob)
+            objects.append(ob)
+        
+        if not sun_as_vmf_light:
+            sun_array = self.tag.SelectField("Array:sun")
+            # direction
+            sun_dx = sun_array.Elements[0].Fields[0].Data
+            sun_dy = sun_array.Elements[1].Fields[0].Data
+            sun_dz = sun_array.Elements[2].Fields[0].Data
+            # RGB intensity
+            sun_ir = sun_array.Elements[3].Fields[0].Data
+            sun_ib = sun_array.Elements[4].Fields[0].Data
+            sun_ig = sun_array.Elements[5].Fields[0].Data
+            
+            data = bpy.data.lights.new("Sun", 'SUN')
+            ob = bpy.data.objects.new(data.name, data)
+            
+            direction = Vector((sun_dx, sun_dy, sun_dz))
+            scale_by_direction(ob, direction, 150)
+            
+            normalized_color = Vector((sun_ir, sun_ib, sun_ig)).normalized()
+            
+            data.color = normalized_color
+            data.energy = sun_ir / normalized_color[0]
+            
+            collection.objects.link(ob)
+            objects.append(ob)
+            
+        # sunlight_mutliplier = self.tag.SelectField("Real:direct sun light multiplier").Data
+        # skylight_multiplier = self.tag.SelectField("Real:sky dome and all bounce light multiplier").Data
+        self.context.scene.nwo.sun_bounce_scale = self.tag.SelectField("Real:sun 1st bounce scaler").Data
+        self.context.scene.nwo.skylight_bounce_scale = self.tag.SelectField("Real:sky light 1st bounce scaler").Data
+        self.context.scene.nwo.sun_as_vmf_light = sun_as_vmf_light
+        
+        return objects
+            
+            
+            
+            

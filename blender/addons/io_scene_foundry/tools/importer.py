@@ -99,12 +99,12 @@ object_tag_types = (
 
 tag_files_cache = set()
 
-def set_asset(tag_ext: str, ob: bpy.types.Object=None, sky=False):
+def set_asset(tag_ext: str, ob: bpy.types.Object=None, is_sky=False):
     scene_nwo = bpy.context.scene.nwo
-    
-    if tag_ext in object_tag_types:
+    is_model = tag_ext == ".model"
+    if is_model or tag_ext in object_tag_types:
         tags_dir = utils.get_tags_path()
-        scene_nwo.asset_type = 'sky' if sky else 'model'
+        scene_nwo.asset_type = 'sky' if is_sky else 'model'
         if ob.type != 'ARMATURE':
             return utils.print_warning(f"Tried to setup {ob.name} as an asset but it is not an armature")
         render_path = ob.nwo.node_order_source
@@ -114,7 +114,7 @@ def set_asset(tag_ext: str, ob: bpy.types.Object=None, sky=False):
         path = Path(render_path).with_suffix("")
     
         scene_nwo.main_armature = ob
-        if not sky:
+        if not is_sky and not is_model:
             def enable_output_tag(tag_type: str):
                 if Path(tags_dir, path).with_suffix(tag_type).exists():
                     tag_type_no_period = tag_type[1:]
@@ -1500,7 +1500,7 @@ class NWOImporter:
                         imported_animations.extend(self.import_animation_graph(animation, armature, render))
                         
                     if self.setup_as_asset:
-                        set_asset(Path(file).suffix, armature)
+                        set_asset(Path(file).suffix, armature, model.is_sky())
         
         return imported_objects, imported_animations
     
@@ -1722,7 +1722,7 @@ class NWOImporter:
                                     self.context.view_layer.update()
                                     
                             if not is_game_object and self.setup_as_asset:
-                                set_asset(Path(file).suffix, armature)
+                                set_asset(Path(file).suffix, armature, model.is_sky())
 
         if is_game_object:
             return model_collection
@@ -1870,6 +1870,7 @@ class NWOImporter:
         with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
             with RenderModelTag(path=mover.tag_path) as render_model:
                 render_model_objects, armature = render_model.to_blend_objects(collection, self.tag_render, self.tag_markers, model_collection, existing_armature, allowed_region_permutations, self.from_vert_normals)
+                render_model_objects.extend(render_model.skylights_to_blender(collection))
             
         return render_model_objects, armature
     

@@ -121,6 +121,17 @@ class ModelTag(Tag):
             info_field.Path = info_tag_path
             self.tag_has_changes = True
             
+    def is_sky(self):
+        if self.corinth:
+            return False
+        
+        render_model_path = self.get_path_str(self.reference_render_model.Path, True)
+        if Path(render_model_path).exists():
+            with RenderModelTag(path=render_model_path)as render:
+                return render.tag.SelectField("WordFlags:flags").TestBit("this is supposed to be a sky")
+
+        return False
+            
     def get_variant_children(self, variant: str) -> list[ChildObject]:
         objects = []
         if not variant:

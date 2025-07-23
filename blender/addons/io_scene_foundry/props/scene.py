@@ -2853,3 +2853,30 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         name="Debug Composites",
         description="Does not overwrite existing composite files with the information set in Blender"
     )
+    
+    sun_size: bpy.props.FloatProperty(
+        name="Sun Size",
+        default=1.0,
+        min=0.0,
+        options=set(),
+    )
+    
+    sun_as_vmf_light: bpy.props.BoolProperty(
+        name="Sun as VMF Light",
+        description="When true, the sun acts like another skylight and will not provide pre-lightmapping ambient map lighting",
+        options=set(),
+    )
+    
+    sun_bounce_scale: bpy.props.FloatProperty(
+        name="Sunlight Bounce Scale",
+        default=1.0,
+        min=0,
+        options=set(),
+    )
+    
+    skylight_bounce_scale: bpy.props.FloatProperty(
+        name="Skylight Bounce Scale",
+        default=1.0,
+        min=0,
+        options=set(),
+    )

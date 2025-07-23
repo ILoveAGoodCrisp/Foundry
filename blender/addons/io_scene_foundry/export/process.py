@@ -6,7 +6,7 @@ from pathlib import Path
 import random
 import bmesh
 import bpy
-from mathutils import Matrix, Vector
+from mathutils import Color, Matrix, Vector
 import numpy as np
 
 from ..managed_blam.scenario_structure_bsp import ScenarioStructureBspTag
@@ -126,6 +126,7 @@ class ExportScene:
         self.temp_objects = set()
         self.temp_meshes = set()
         self.sky_lights = []
+        self.sun = None
         
         self.is_model = self.asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.ANIMATION}
         self.export_tag_types = self._get_export_tag_types()
@@ -431,6 +432,8 @@ class ExportScene:
                         self.temp_meshes.add(ob.data)
                     else:
                         if not self.corinth and self.asset_type == AssetType.SKY:
+                            if ob.name.lower() == "sun":
+                                self.sun = ob
                             self.sky_lights.append(ob)
                         else:
                             self.lights.append(ob)
@@ -2286,34 +2289,31 @@ class ExportScene:
         return name
     
     def _setup_skylights(self, props):
-        if not self.sky_lights: return
-        light_scale = 1
-        sun_scale = 1
-        sun = None
+        if not self.sky_lights: return props
         lightGen_colors = []
         lightGen_directions = []
         lightGen_solid_angles = []
         for ob in self.sky_lights:
-            if (ob.data.energy * light_scale) < 0.01:
-                sun = ob
-            down = Vector((0, 0, -1))
-            down.rotate(ob.rotation_euler)
-            lightGen_colors.extend(utils.color_3p(ob.data.color))
+            down = Vector((0, 0, 1))
+            mat = utils.halo_transforms(ob)
+            down.rotate(mat.to_quaternion())
+            lightGen_colors.extend(ob.data.color[:])
             lightGen_directions.extend(down.to_tuple())
-            lightGen_solid_angles.append(ob.data.energy * light_scale)
-        
+            lightGen_solid_angles.append(ob.data.energy)
+            
         props['lightGen_colors'] = " ".join(map(utils.jstr, lightGen_colors))
         props['lightGen_directions'] = " ".join(map(utils.jstr, lightGen_directions))
         props['lightGen_solid_angles'] = " ".join(map(utils.jstr, lightGen_solid_angles))
         props['lightGen_samples'] = len(self.sky_lights) - 1
         
-        if sun is not None:
-            if sun.data.color.v > 1:
-                sun.data.color.v = 1
-            props['sun_size'] = max(sun.scale.x, sun.scale.y, sun.scale.z) * sun_scale
-            props['sun_intensity'] = sun.data.energy * 10000 * light_scale
-            props['sun_color'] = utils.color_3p(sun.data.color)
+        props['sun_size'] = self.scene_settings.sun_size
+        props['sun_intensity'] = self.sun.data.energy
+        props['sun_color'] = self.sun.data.color[:]
             
+        props['uber_light_sun'] = self.scene_settings.sun_as_vmf_light
+        props['sun_bounce_ratio'] = self.scene_settings.sun_bounce_scale
+        props['sky_light_bounce_ratio'] = self.scene_settings.skylight_bounce_scale
+        
         return props
 
 def decorator_int(ob):

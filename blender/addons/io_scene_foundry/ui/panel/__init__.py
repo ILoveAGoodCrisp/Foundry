@@ -206,6 +206,16 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 # self.draw_expandable_box(self.box.box(), nwo, 'model_overrides')
                 self.draw_rig_ui(self.context, nwo)
                 
+            elif nwo.asset_type == 'sky':
+                box = self.box.box()
+                col = box.column()
+                col.use_property_split = True
+                col.prop(nwo, "sun_size")
+                col.prop(nwo, "sun_as_vmf_light")
+                col.separator()
+                col.prop(nwo, "sun_bounce_scale")
+                col.prop(nwo, "skylight_bounce_scale")
+                
             if self.h4 and nwo.asset_type in ('model', 'sky'):
                 self.draw_expandable_box(self.box.box(), nwo, 'lighting')
             

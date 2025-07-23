@@ -1499,7 +1499,7 @@ class MeshSubpart:
         if self.part.draw_distance.value > 0:
             utils.add_face_prop(mesh, "draw_distance", all_indices).draw_distance = self.part.draw_distance.name
         if self.part.tessellation.value > 0:
-            utils.add_face_prop(mesh, "mesh_tessellation_density", all_indices).draw_distance = self.part.tessellation.name
+            utils.add_face_prop(mesh, "mesh_tessellation_density", all_indices).mesh_tessellation_density = self.part.tessellation.name
         
         if self.part.lm_type_per_vertex:
             utils.add_face_prop(mesh, "lightmap_type", all_indices)
