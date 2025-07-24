@@ -1844,8 +1844,10 @@ class Mesh:
         #     subpart.remove(ob, self.tris)
 
         if not mesh.nwo.from_vert_normals:
+            utils.save_loop_normals_mesh(mesh)
             utils.set_two_sided(mesh, is_io)
-            utils.loop_normal_magic(mesh)
+            utils.apply_loop_normals(mesh)
+            # utils.loop_normal_magic(mesh)
             
         utils.calc_face_prop_counts(mesh)
             
