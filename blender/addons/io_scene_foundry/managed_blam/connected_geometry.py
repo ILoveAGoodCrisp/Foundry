@@ -1109,7 +1109,6 @@ class BSP:
         split_invisible = len(invisible_set) > 1
 
         blender_materials_map = {}
-        layer_materials = {}
         
         if self.uses_materials:
             if split_material:
@@ -1131,14 +1130,6 @@ class BSP:
                         blender_materials_map[mat] = idx
             elif surface.material:
                 mesh.materials.append(surface.material.blender_material)
-        elif not cookie_cutter:
-            if split_material:
-                for material in set(map_material):
-                    if material and material.name != 'default':
-                        layer_materials[material] = utils.add_face_attribute(bm, mesh, "face_global_material", material.name)
-            else:
-                if surface.material and surface.material.name != "default":
-                    mesh.nwo.face_global_material = surface.material.name
         
         if any_ladder:
             utils.add_face_prop(mesh, "ladder", map_ladder if split_ladder else None)
@@ -1154,7 +1145,13 @@ class BSP:
                 material_indices = [blender_materials_map[mat] for mat in map_material]
                 mesh.polygons.foreach_set("material_index", material_indices)
         else:
-            utils.add_face_prop(mesh, "global_material", map_material if split_material else None)
+            if split_material:
+                indices = np.asarray([s.material.index for s in self.surfaces])
+                for mat in materials_set:
+                    material_indices = indices == mat.index
+                    utils.add_face_prop(mesh, "global_material", material_indices).global_material = mat.name
+            elif materials_set:
+                utils.add_face_prop(mesh, "global_material").global_material = surface.material.name
 
         bm = bmesh.new()
         bm.from_mesh(mesh)
