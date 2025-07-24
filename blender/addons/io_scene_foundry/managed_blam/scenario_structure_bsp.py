@@ -350,21 +350,24 @@ class ScenarioStructureBspTag(Tag):
                     markers_collection.objects.link(ob)
             
         # Now do environment objects
-        if self.tag.SelectField("Block:environment objects").Elements.Count > 0:
-            print("Creating Game Object Markers")
-            layer = utils.add_permutation("objects")
-            env_objects_collection = bpy.data.collections.new(name=f"layer::{self.tag_path.ShortName}_markers")
-            env_objects_collection.nwo.type = "permutation"
-            env_objects_collection.nwo.permutation = layer
-            self.collection.children.link(env_objects_collection)
-            env_objects_palette = [EnvironmentObjectReference(element) for element in self.tag.SelectField("Block:environment object palette").Elements]
-            for element in self.tag.SelectField("Block:environment objects").Elements:
-                env_object = EnvironmentObject(element, env_objects_palette)
-                ob = env_object.to_object()
-                if ob is not None:
-                    env_objects_collection.objects.link(ob)
-                    objects.append(ob)
-                    game_objects.append(ob)
+        if self.corinth:
+            pass # TODO implement structure meta importing
+        else:
+            if self.tag.SelectField("Block:environment objects").Elements.Count > 0:
+                print("Creating Game Object Markers")
+                layer = utils.add_permutation("objects")
+                env_objects_collection = bpy.data.collections.new(name=f"layer::{self.tag_path.ShortName}_markers")
+                env_objects_collection.nwo.type = "permutation"
+                env_objects_collection.nwo.permutation = layer
+                self.collection.children.link(env_objects_collection)
+                env_objects_palette = [EnvironmentObjectReference(element) for element in self.tag.SelectField("Block:environment object palette").Elements]
+                for element in self.tag.SelectField("Block:environment objects").Elements:
+                    env_object = EnvironmentObject(element, env_objects_palette)
+                    ob = env_object.to_object()
+                    if ob is not None:
+                        env_objects_collection.objects.link(ob)
+                        objects.append(ob)
+                        game_objects.append(ob)
             
         return objects, game_objects
     
