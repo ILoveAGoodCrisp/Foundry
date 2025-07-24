@@ -643,7 +643,7 @@ class ShaderTag(Tag):
         if not os.path.exists(bitmap_path.Filename):
             return
         
-        rel_path = f"{bitmap_path.RelativePath}_equirectangular" if "cubemap" in bitmap_path.ShortName else bitmap_path.RelativePath
+        rel_path = bitmap_path.RelativePath
         
         system_tiff_path = Path(self.data_dir, rel_path).with_suffix('.tiff')
         alt_system_tiff_path = system_tiff_path.with_suffix(".tif")
@@ -928,9 +928,15 @@ class ShaderTag(Tag):
         if data is None:
             return
         
-        data_node = tree.nodes.new("ShaderNodeTexImage")
+        is_equirectangular = "equirectangular" in data.name
+        
+        if is_equirectangular:
+            data_node = tree.nodes.new('ShaderNodeTexEnvironment')
+        else:
+            data_node = tree.nodes.new('ShaderNodeTexImage')
+            data_node.extension = wrap_mode
+            
         data_node.image = data
-        data_node.extension = wrap_mode
         
         if sequence_length > 1:
             value = self._value_from_parameter(parameter, AnimatedParameterType.FRAME_INDEX)
@@ -975,6 +981,14 @@ class ShaderTag(Tag):
             match channel_type:
                 case ChannelType.DEFAULT | ChannelType.RGB:
                     tree.links.new(input=node.inputs[specified_input] if isinstance(specified_input, int) else input_map[specified_input], output=data_node.outputs[0])
+                    alpha_input = node.inputs.get(f"{node.inputs[specified_input].name}_alpha")
+                    if alpha_input is not None:
+                        if is_equirectangular:
+                            data_node = tree.nodes.new('ShaderNodeTexImage')
+                            data_node.image = data
+                            
+                        tree.links.new(input=alpha_input, output=data_node.outputs[1])
+                            
                 case ChannelType.ALPHA:
                     tree.links.new(input=node.inputs[specified_input] if isinstance(specified_input, int) else input_map[specified_input], output=data_node.outputs[1])
         
@@ -1280,7 +1294,13 @@ class ShaderTag(Tag):
                 alpha_input = node.inputs.get(f"{parameter_name_ui}.a")
                 if alpha_input is None:
                     alpha_input = node.inputs[f"{parameter_name_ui}.a/specular_mask.a"]
-                tree.links.new(input=alpha_input, output=last_input_node.outputs[1])
+                    
+                if alpha_input is not None:
+                    if last_input_node.type == 'TEX_ENVIRONMENT':
+                        data_node = tree.nodes.new('ShaderNodeTexImage')
+                        data_node.image = last_input_node.image
+                        last_input_node = data_node
+                    tree.links.new(input=alpha_input, output=last_input_node.outputs[1])
             elif parameter_name_ui == f"{last_parameter_name}_alpha":
                 self._setup_input_with_function(input, self._value_from_parameter(self.true_parameters.get(last_parameter_name), AnimatedParameterType.ALPHA), True)
             else:

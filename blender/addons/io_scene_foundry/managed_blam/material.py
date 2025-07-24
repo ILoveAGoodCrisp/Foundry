@@ -440,6 +440,11 @@ class MaterialTag(ShaderTag):
 
         self.populate_chiefster_node(tree, group_node, material_parameters, material_parameters_true)
         
+        # Handle special case group nodes
+        match material_shader_name:
+            case '__srf_pbr_covenant':
+                rainbow_node_tree = utils.add_node_from_resources("h4_nodes", name='srf_pbr_covenant_rainbow_map_vector')
+        
         # Make the Output
         node_output = nodes.new(type='ShaderNodeOutputMaterial')
 
@@ -466,7 +471,7 @@ class MaterialTag(ShaderTag):
                     link_change_color(tree, input, "Quaternary Color")
                 case _:
                     parameter_name_ui = input.name.lower() if "." not in input.name else input.name.partition(".")[0].lower()
-                    if "gamma curve" in parameter_name_ui:
+                    if "gamma curve" in parameter_name_ui or "gamma_curve" in parameter_name_ui:
                         # if any(srgb_name in parameter_name_ui for srgb_name in srgb_names):
                         #     input.default_value = 2.2
                         # else:
