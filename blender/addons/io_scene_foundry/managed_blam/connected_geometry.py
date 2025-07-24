@@ -1144,7 +1144,7 @@ class BSP:
             if split_material:
                 material_indices = [blender_materials_map[mat] for mat in map_material]
                 mesh.polygons.foreach_set("material_index", material_indices)
-        else:
+        elif not cookie_cutter:
             if split_material:
                 indices = np.asarray([s.material.index for s in self.surfaces])
                 for mat in materials_set:
@@ -1848,6 +1848,9 @@ class Mesh:
             utils.set_two_sided(mesh, is_io)
             utils.apply_loop_normals(mesh)
             # utils.loop_normal_magic(mesh)
+            
+            if surface_triangle_mapping:
+                utils.loop_normal_magic(mesh)
             
         utils.calc_face_prop_counts(mesh)
             
