@@ -1527,6 +1527,8 @@ def get_mesh_display(mesh_type):
             return 'Pathfinding Cutout Volume', get_icon_id('cookie_cutter')
         case '_connected_geometry_mesh_type_planar_fog_volume':
             return 'Fog Sheet', get_icon_id('fog')
+        case '_connected_geometry_mesh_type_lightmap_region':
+            return 'Lightmap Region', get_icon_id('lightmap')
         case _:
             if poll_ui(('scenario', 'prefab')):
                 return 'Instanced Geometry', get_icon_id('instance')
@@ -4167,6 +4169,9 @@ def mesh_and_material(m_type, context):
         case "fog":
             mesh_type = "_connected_geometry_mesh_type_planar_fog_volume"
             material = "Fog"
+        case "lightmap_region":
+            mesh_type = "_connected_geometry_mesh_type_lightmap_region"
+            material = "LightmapRegion"
         case "boundary_surface":
             mesh_type = "_connected_geometry_mesh_type_boundary_surface"
             material = "SoftCeiling"

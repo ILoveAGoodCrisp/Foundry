@@ -213,8 +213,12 @@ class ScenarioStructureLightingInfoTag(Tag):
                 
                 
     def to_blender(self, parent_collection: bpy.types.Collection = None):
-        definitions = self._from_reach_light_definitions()
-        objects = self._from_reach_light_instances(definitions)
+        if self.corinth:
+            definitions = []
+            objects = []
+        else:
+            definitions = self._from_reach_light_definitions()
+            objects = self._from_reach_light_instances(definitions)
         
         if objects:
             collection = cast(bpy.types.Collection, bpy.data.collections.new(f"{self.tag_path.ShortName}_lights"))

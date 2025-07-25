@@ -152,14 +152,17 @@ class ScenarioStructureBspTag(Tag):
                 
             if lighting_info_path.exists():
                 with ScenarioStructureLightingInfoTag(path=str(lighting_info_path)) as info:
-                    for element in info.tag.SelectField("Block:material info").Elements:
-                        emissives.append(Emissive(element))
-                    
                     if not self.corinth:
-                        light_objects = info.to_blender(collection)
-                        if light_objects:
-                            print(f"Imported {len(light_objects)} lights from {info.tag_path.RelativePathWithExtension}")
-                            objects.extend(light_objects)
+                        for element in info.tag.SelectField("Block:material info").Elements:
+                            emissives.append(Emissive(element))
+                            
+                        if not for_cinematic:
+                            lightmap_regions = []
+                    
+                    light_objects = info.to_blender(collection)
+                    if light_objects:
+                        print(f"Imported {len(light_objects)} lights from {info.tag_path.RelativePathWithExtension}")
+                        objects.extend(light_objects)
                     
         # Get all render materials
         render_materials = []

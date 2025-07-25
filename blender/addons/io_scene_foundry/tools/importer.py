@@ -2948,6 +2948,9 @@ class NWOImporter:
             case "fog":
                 mesh_type = "_connected_geometry_mesh_type_planar_fog_volume"
                 material = "Fog"
+            case "lightmap_region":
+                mesh_type = "_connected_geometry_mesh_type_lightmap_region"
+                material = "LightmapRegion"
             case "soft_ceiling":
                 mesh_type = "_connected_geometry_mesh_type_boundary_surface"
                 material = "SoftCeiling"

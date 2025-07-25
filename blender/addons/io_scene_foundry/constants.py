@@ -70,6 +70,7 @@ PROTECTED_MATERIALS = (
     "SoftCeiling",
     "SoftKill",
     "InvisibleMesh",
+    "LightmapRegion",
 )
 
 MAT_SEAMSEALER = '+seamsealer'
@@ -144,6 +145,7 @@ object_asset_validation = {
     '_connected_geometry_mesh_type_water_surface': ('scenario', 'resource'),
     '_connected_geometry_mesh_type_poop_vertical_rain_sheet': ('scenario', 'resource'),
     '_connected_geometry_mesh_type_planar_fog_volume': ('scenario', 'resource'),
+    '_connected_geometry_mesh_type_lightmap_region': ('scenario', 'resource'),
     '_connected_geometry_mesh_type_boundary_surface': ('scenario', 'resource'),
     '_connected_geometry_mesh_type_obb_volume': ('scenario', 'resource'),
     '_connected_geometry_mesh_type_cookie_cutter': ('scenario', 'resource'),
@@ -175,6 +177,7 @@ object_game_validation = {
     '_connected_geometry_mesh_type_water_surface': ('reach', 'corinth'),
     '_connected_geometry_mesh_type_poop_vertical_rain_sheet': ('reach',),
     '_connected_geometry_mesh_type_planar_fog_volume': ('reach',),
+    '_connected_geometry_mesh_type_lightmap_region': ('reach', 'corinth'),
     '_connected_geometry_mesh_type_boundary_surface': ('reach', 'corinth'),
     '_connected_geometry_mesh_type_obb_volume': ('corinth',),
     '_connected_geometry_mesh_type_cookie_cutter': ('reach',),

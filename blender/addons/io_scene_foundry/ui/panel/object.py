@@ -931,6 +931,7 @@ class NWO_MT_MeshTypes(bpy.types.Menu):
             layout.operator('nwo.apply_type_mesh_single', text='Portal', icon_value=get_icon_id('portal')).m_type = 'portal'
             layout.operator('nwo.apply_type_mesh_single', text='Water Surface', icon_value=get_icon_id('water')).m_type = 'water_surface'
             layout.operator('nwo.apply_type_mesh_single', text='Boundary Surface', icon_value=get_icon_id('soft_ceiling')).m_type = 'boundary_surface'
+            layout.operator('nwo.apply_type_mesh_single', text='Lightmap Region', icon_value=get_icon_id('lightmap')).m_type = 'lightmap_region'
             if h4:
                 layout.operator('nwo.apply_type_mesh_single', text='Bounding Box', icon_value=get_icon_id('volume')).m_type = 'obb_volume'
             else:

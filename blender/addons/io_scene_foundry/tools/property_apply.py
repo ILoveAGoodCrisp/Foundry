@@ -15,7 +15,7 @@ water_surface = {'full': 'water_surface:', 'legacy': ''}
 soft_ceiling = {'full': 'soft_ceiling:', 'legacy': ''}
 soft_kill = {'full': 'soft_kill:', 'legacy': ''}
 slip_surface = {'full': 'slip_surface:', 'legacy': ''}
-lightmap_only = {'full': 'lightmap_only:', 'legacy': ''}
+lightmap_region = {'full': 'lightmap_region:', 'legacy': ''}
 water_physics = {'full': 'water_physics:', 'legacy': ''}
 rain_blocker = {'full': 'rain_blocker:', 'legacy': ''}
 rain_sheet = {'full': 'rain_sheet:', 'legacy': ''}
@@ -65,6 +65,7 @@ special_materials = (
     "Volume",
     "Fog",
     "SoftCeiling",
+    "LightmapRegion",
     "SoftKill",
     "SlipSurface",
 )

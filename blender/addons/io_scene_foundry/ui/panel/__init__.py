@@ -1050,6 +1050,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             grid.prop(nwo, "connected_geometry_mesh_type_portal_visible", text="", icon_value=get_icon_id("portal") if nwo.connected_geometry_mesh_type_portal_visible else get_icon_id("portal_off"), emboss=False)
             grid.prop(nwo, "connected_geometry_mesh_type_water_surface_visible", text="", icon_value=get_icon_id("water") if nwo.connected_geometry_mesh_type_water_surface_visible else get_icon_id("water_off"), emboss=False)
             grid.prop(nwo, "connected_geometry_mesh_type_planar_fog_volume_visible", text="", icon_value=get_icon_id("fog") if nwo.connected_geometry_mesh_type_planar_fog_volume_visible else get_icon_id("fog_off"), emboss=False)
+            grid.prop(nwo, "connected_geometry_mesh_type_lightmap_region_visible", text="", icon_value=get_icon_id("lightmap") if nwo.connected_geometry_mesh_type_lightmap_region_visible else get_icon_id("lightmap_off"), emboss=False)
             grid.prop(nwo, "connected_geometry_mesh_type_boundary_surface_visible", text="", icon_value=get_icon_id("soft_ceiling") if nwo.connected_geometry_mesh_type_boundary_surface_visible else get_icon_id("soft_ceiling_off"), emboss=False)
             if self.h4:
                 grid.prop(nwo, "connected_geometry_mesh_type_obb_volume_visible", text="", icon_value=get_icon_id("streaming") if nwo.connected_geometry_mesh_type_obb_volume_visible else get_icon_id("streaming_off"), emboss=False)
@@ -1624,6 +1625,11 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     text="Fog Volume Depth",
                 )
                 
+            elif (
+                nwo.mesh_type
+                == "_connected_geometry_mesh_type_lightmap_region"
+            ):
+                return
             elif (
                 nwo.mesh_type
                 == "_connected_geometry_mesh_type_boundary_surface"

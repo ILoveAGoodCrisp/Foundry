@@ -39,6 +39,7 @@ SoftKill = ConventionMaterial('SoftKill', [0.5, 0.0, 0.1, 0.9])
 SlipSurface = ConventionMaterial('SlipSurface', [0.3, 0.5, 0.2, 0.9])
 StreamingVolume = ConventionMaterial('StreamingVolume', [1, 1, 1, 0.3])
 LightmapExcludeVolume = ConventionMaterial('LightmapExcludeVolume', [0, 1, 1, 0.3])
+LightmapRegion = ConventionMaterial('LightmapRegion', [1, 1, 1, 0.2])
         
 convention_materials = (InvisibleSky, Physics, Seam, Portal, Collision, PlayCollision, WallCollision, BulletCollision, 
-                        CookieCutter, Fog, WaterVolume, Structure, SoftCeiling, SoftKill, SlipSurface, StreamingVolume, LightmapExcludeVolume)
+                        CookieCutter, Fog, WaterVolume, Structure, SoftCeiling, SoftKill, SlipSurface, StreamingVolume, LightmapExcludeVolume, LightmapRegion)

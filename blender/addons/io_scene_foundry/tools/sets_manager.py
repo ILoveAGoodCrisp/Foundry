@@ -46,6 +46,7 @@ class NWO_UpdateSets(bpy.types.Operator):
         bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_water_surface')
         bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_poop_vertical_rain_sheet')
         bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_planar_fog_volume')
+        bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_lightmap_region')
         bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_boundary_surface')
         bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_obb_volume')
         bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_cookie_cutter')

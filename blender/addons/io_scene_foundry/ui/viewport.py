@@ -163,6 +163,16 @@ class NWO_OT_ApplyTypeMesh(bpy.types.Operator):
                     index,
                 )
             )
+            index += 1
+            items.append(
+                utils.nwo_enum(
+                    "lightmap_region",
+                    "Lightmap Region",
+                    "Defines a volume that restricts the area that is lit by the lightmapper",
+                    "soft_ceiling",
+                    index,
+                )
+            )
             if h4:
                 # stream_des = """Defines the region in a zone set that should be used when generating a streamingzoneset tag. By default the full space inside a zone set will be used when generating the streaming zone set tag. This tag tells the game to only generate the tag within the bounds of this volume.\nThis is useful for performance if you have textures in areas of the map the player will not get close to"""
                 index += 1

@@ -766,6 +766,9 @@ class ExportScene:
                         props["bungie_mesh_fog_appearance_tag"] = utils.relative_path(nwo.fog_appearance_tag)
                         props["bungie_mesh_fog_volume_depth"] = nwo.fog_volume_depth
                         
+                    case "_connected_geometry_mesh_type_lightmap_region": # Never written to granny
+                        return
+                        
                     case "_connected_geometry_mesh_type_boundary_surface":
                         match data_nwo.boundary_surface_type:
                             case 'SOFT_CEILING':
@@ -1084,9 +1087,6 @@ class ExportScene:
                     face_sides_props_full.append(p)
         elif materials_with_props:
             skip_mesh_face_props = True
-                
-        # if mesh_type_value == MeshType.planar_fog_volume.value:
-        #     mesh_type_value = MeshType.lightmap_region.value
         
         if is_mesh and mesh.nwo.face_props:
             utils.consolidate_face_attributes(mesh) # makes things simpler and ensures face counts are correct
