@@ -281,13 +281,12 @@ class CacheBuilder:
         export = self.context.scene.nwo_export
         run_lightmapper(
             self.game_engine != "HaloReach",
-            [],
             str(self.scenario),
             export.lightmap_quality,
             export.lightmap_quality_h4,
             export.lightmap_all_bsps,
             export.lightmap_specific_bsp,
-            export.lightmap_region,
+            export.lightmap_region.name if utils.pointer_ob_valid(export.lightmap_region) else "",
             False,
             export.lightmap_threads,
             self.bsps)

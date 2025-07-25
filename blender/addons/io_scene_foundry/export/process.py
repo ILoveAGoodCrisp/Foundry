@@ -507,13 +507,13 @@ class ExportScene:
                             copy_props["bungie_mesh_seam_associated_bsp"] = copy_region
                             
                         case ObjectCopy.INSTANCE:
-                            copy_props["bungie_mesh_type"] = MeshType.poop.value
-                            if copy_props.get("bungie_face_type") == FaceType.sky.value:
-                                copy_props.pop("bungie_face_type")
+                            copy_ob.data = copy_ob.data.copy()
                             copy_mesh_props = mesh_props.copy()
                             self._setup_poop_props(copy_ob, ob.nwo, ob.data.nwo, copy_props, copy_mesh_props)
                             copy_props.update(copy_mesh_props)
-                            copy_ob.data = copy_ob.data.copy()
+                            copy_props["bungie_mesh_type"] = MeshType.poop.value
+                            if copy_props.get("bungie_face_type") == FaceType.sky.value:
+                                copy_props.pop("bungie_face_type")
                             self.temp_meshes.add(copy_ob.data)
                             
                         case ObjectCopy.WATER_PHYSICS:
@@ -524,7 +524,7 @@ class ExportScene:
                         case ObjectCopy.PHYSICS:
                             copy_ob.data = ob.data.copy()
                             self.temp_meshes.add(copy_ob.data)
-                            name = self._set_primitive_props(copy_ob, copy_ob.nwo.mesh_primitive_type, copy_props)
+                            self._set_primitive_props(copy_ob, copy_ob.nwo.mesh_primitive_type, copy_props)
                             copy_ob.nwo.export_name = ob.name
                             loc, rot, sca = copy_ob.matrix_world.decompose()
                             scale = list(sca)
@@ -787,7 +787,7 @@ class ExportScene:
                         props["bungie_mesh_boundary_surface_name"] = utils.dot_partition(ob.name)
                         
                     case "_connected_geometry_mesh_type_obb_volume":
-                        match data_nwo.obb_volume.type:
+                        match data_nwo.obb_volume_type:
                             case 'LIGHTMAP_EXCLUSION':
                                 props["bungie_mesh_obb_type"] = MeshObbVolumeType.lightmapexclusionvolume.value
                             case 'STREAMING_VOLUME':
@@ -797,7 +797,7 @@ class ExportScene:
                             
                     case "_connected_geometry_mesh_type_default":
                         if self.corinth:
-                            props["bungie_face_type"] = FaceType.sky.value
+                            mesh_props["bungie_face_type"] = FaceType.sky.value
                             if nwo.proxy_instance:
                                 copy = ObjectCopy.INSTANCE
 
@@ -2248,13 +2248,12 @@ class ExportScene:
             
             run_lightmapper(
                 self.corinth,
-                [],
                 str(Path(self.asset_path_relative, self.asset_name)),
                 self.export_settings.lightmap_quality,
                 self.export_settings.lightmap_quality_h4,
                 self.export_settings.lightmap_all_bsps,
                 self.export_settings.lightmap_specific_bsp,
-                self.export_settings.lightmap_region,
+                self.export_settings.lightmap_region.name if utils.pointer_ob_valid(self.export_settings.lightmap_region) else "",
                 self.is_model and self.corinth,
                 self.export_settings.lightmap_threads,
                 bsps)

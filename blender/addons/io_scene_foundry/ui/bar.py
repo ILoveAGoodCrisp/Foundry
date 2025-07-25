@@ -3,6 +3,8 @@ from pathlib import Path
 import tempfile
 import bpy
 
+from ..constants import VALID_MESHES
+
 from ..tools.halo_export import export_quick, export
 
 from .. import managed_blam
@@ -498,6 +500,8 @@ class NWO_HaloExportSettings(bpy.types.Panel):
                         col.prop(scene_nwo_export, "lightmap_quality_h4")
                     else:
                         col.prop(scene_nwo_export, "lightmap_quality")
+                    if not h4 or scene_nwo_export.lightmap_quality_h4 in {'__custom__', '__asset__'}:
+                        col.prop(scene_nwo_export, "lightmap_region")
                     if not scene_nwo_export.lightmap_all_bsps:
                         col.prop(scene_nwo_export, "lightmap_specific_bsp")
                     col.prop(scene_nwo_export, "lightmap_all_bsps")
@@ -937,10 +941,15 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
         items=item_lightmap_quality_h4,
         description="The Lightmap quality you wish to use",
     )
+    
+    def poll_lightmap_region(self, object: bpy.types.Object):
+        return object.type in VALID_MESHES and object.data.nwo.mesh_type == '_connected_geometry_mesh_type_lightmap_region'
 
-    lightmap_region: bpy.props.StringProperty(
+    lightmap_region: bpy.props.PointerProperty(
         name="Region",
-        description="Lightmap region to use for lightmapping",
+        type=bpy.types.Object,
+        poll=poll_lightmap_region,
+        description="Restricts the area used by the lightmapper to that contained within the volume of the given lightmap region (or within its bounding box if Halo 4 or Halo 2AMP)",
         options=set(),
     )
     

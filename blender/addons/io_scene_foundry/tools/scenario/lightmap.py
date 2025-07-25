@@ -2,6 +2,10 @@ import datetime
 from pathlib import Path
 import bpy
 
+from ...managed_blam.lightmapper_globals import LightmapperGlobalsTag
+
+from ...managed_blam import Tag
+
 from ...managed_blam.scenario import ScenarioTag
 from ... import utils
 import os
@@ -57,16 +61,15 @@ class NWO_OT_Lightmap(bpy.types.Operator):
                 utils.print_error(f"Cancelling Lightmap. Specified BSP [{scene_nwo_export.lightmap_specific_bsp}] does not exist in the scenario tag: {scenario.tag_path.RelativePathWithExtension}")
                 self.report({'WARNING'}, f"Specified BSP [{scene_nwo_export.lightmap_specific_bsp}] does not exist in the scenario tag: {scenario.tag_path.RelativePathWithExtension}")
                 return {'CANCELLED'}
-                
+            
         run_lightmapper(
             is_corinth,
-            [],
             scenario_path,
             scene_nwo_export.lightmap_quality,
             scene_nwo_export.lightmap_quality_h4,
             scene_nwo_export.lightmap_all_bsps,
             scene_nwo_export.lightmap_specific_bsp,
-            scene_nwo_export.lightmap_region,
+            scene_nwo_export.lightmap_region.name if utils.pointer_ob_valid(scene_nwo_export.lightmap_region) else "",
             asset_type in ("model", "sky") and is_corinth,
             scene_nwo_export.lightmap_threads,
             bsps)
@@ -74,20 +77,18 @@ class NWO_OT_Lightmap(bpy.types.Operator):
     
 def run_lightmapper(
     not_bungie_game,
-    misc_halo_objects,
     scenario_path,
     lightmap_quality="direct_only",
     lightmap_quality_h4="__custom__",
     lightmap_all_bsps=True,
     lightmap_specific_bsp="default",
-    lightmap_region="all",
+    lightmap_region="",
     model_lightmap=False,
     cpu_threads=1,
     structure_bsps=[],
 ):
     lightmap = LightMapper(
         not_bungie_game,
-        misc_halo_objects,
         lightmap_quality,
         lightmap_quality_h4,
         lightmap_all_bsps,
@@ -98,6 +99,7 @@ def run_lightmapper(
         cpu_threads,
         structure_bsps,
     )
+    
     if not_bungie_game:
         lightmap_results = lightmap.lightmap_h4()
     else:
@@ -110,7 +112,6 @@ class LightMapper:
     def __init__(
         self,
         not_bungie_game,
-        misc_halo_objects,
         lightmap_quality,
         lightmap_quality_h4,
         lightmap_all_bsps,
@@ -127,23 +128,9 @@ class LightMapper:
         self.scenario = scenario_path
         self.bsp = self.bsp_to_lightmap(lightmap_all_bsps, lightmap_specific_bsp)
         self.quality = lightmap_quality_h4 if not_bungie_game else lightmap_quality
-        self.light_group = self.get_light_group(lightmap_region, misc_halo_objects, not_bungie_game)
+        self.light_group = lightmap_region
         self.thread_count = cpu_threads
         self.bsps = structure_bsps
-
-    # HELPERS --------------------------
-    def get_light_group(self, lightmap_region, misc_halo_objects, not_bungie_game):
-        return "all" # NOTE temp until lightmap regions are figured out
-        if not not_bungie_game and lightmap_region != "" and lightmap_region != "all":
-            for ob in misc_halo_objects:
-                if ob.name == lightmap_region:
-                    return lightmap_region
-            else:
-                print_warning(
-                    f"Lightmap region specified but no lightmap region named {lightmap_region} exists in scene"
-                )
-
-        return "all"
 
     def bsp_to_lightmap(self, lightmap_all_bsps, lightmap_specific_bsp):
         bsp = "all"
@@ -281,15 +268,47 @@ class LightMapper:
 
     def lightmap_h4(self):
         self.force_reatlas = "false"
-        using_asset_settings = (self.quality == "__custom__" or self.quality == "__asset__")
+        custom = self.quality == "__custom__"
+        using_asset_settings = (custom or self.quality == "__asset__")
         self.suppress_dialog = (
-            "false" if self.quality == "__custom__" or self.quality == "" else "true"
+            "false" if custom or self.quality == "" else "true"
         )
         self.settings = str(Path("globals", "lightmapper_settings", self.quality))
         print("\n\nRunning Lightmapper")
         print(
             "-------------------------------------------------------------------------\n"
         )
+        if using_asset_settings:
+            asset_path = utils.get_asset_path_full(True)
+            asset_name = Path(asset_path).name
+            bsps = [r.name for r in bpy.context.scene.nwo.regions_table if r.name.lower() != 'shared']
+            lightmapper_globals_paths = [str(Path(asset_path, f'{asset_name}_{b}.lightmapper_globals')) for b in bsps]
+            if self.light_group:
+                ob = bpy.context.scene.objects.get(self.light_group)
+                if ob is not None:
+                    print("Writing Lightmapper Bounding Box")
+                    for lg_path in lightmapper_globals_paths:
+                        min_co, max_co = utils.to_aabb(ob)
+                        with LightmapperGlobalsTag(path=lg_path) as lm_globals:
+                            lm_globals.aabb_min.Data = min_co
+                            lm_globals.aabb_max.Data = max_co
+                            lm_globals.global_flags.SetBit("Restrict lightmap samples to Maya regions", True)
+                            # Force AO and one bounce - this is necessary for the H4 lightmap region to work
+                            no_bounce = lm_globals.mode.Value < 1
+                            if not lm_globals.local_flags.TestBit("Enable AO") or no_bounce:
+                                print("Enabling AO to ensure lightmap region functionality")
+                                lm_globals.local_flags.SetBit("Enable AO", True)
+                                if no_bounce:
+                                    print("Setting light mode to one bounce to ensure lightmap region functionality")
+                                    lm_globals.mode.Value = 1
+                            
+                            lm_globals.tag_has_changes = True
+            else:
+                for lg_path in lightmapper_globals_paths:
+                    with LightmapperGlobalsTag(path=lg_path) as lm_globals:
+                        lm_globals.global_flags.SetBit("Restrict lightmap samples to Maya regions", False)
+                        lm_globals.tag_has_changes = True
+                
         try:
             if self.model_lightmap:
                 utils.run_tool(
@@ -348,7 +367,6 @@ class LightMapper:
                             ]
                         )
         except:
-            utils.print_error("Failed to run lightmapper")
+            utils.print_warning("Lightmapper did not run")
 
         return self
-

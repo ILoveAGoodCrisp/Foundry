@@ -4,6 +4,7 @@ from math import degrees
 import math
 from pathlib import Path
 import bpy
+
 from ..managed_blam.model import ModelTag
 from ..managed_blam.scenario_structure_lighting_info import ScenarioStructureLightingInfoTag
 from ..constants import VALID_MESHES, WU_SCALAR
@@ -229,16 +230,15 @@ def export_lights(asset_path, asset_name, light_objects = None, bsps = None, lig
                 print(info_path)
                 with ScenarioStructureLightingInfoTag(path=info_path) as tag:tag.build_tag(light_instances, light_definitions)
                 
-        if not corinth:
             if lightmap_regions is None:
                 lightmap_regions = gather_lightmap_regions(context)
-                
-            for idx, info_path in enumerate(lighting_info_paths):
-                b = bsps[idx]
-                regions_list = [region for region in lightmap_regions if utils.true_region(region.nwo) == b]
-                with ScenarioStructureLightingInfoTag(path=info_path) as tag:
-                    tag.lightmap_regions_from_blender(regions_list)
-                
+            
+            if not corinth:
+                for idx, info_path in enumerate(lighting_info_paths):
+                    b = bsps[idx]
+                    regions_list = [region for region in lightmap_regions if utils.true_region(region.nwo) == b]
+                    with ScenarioStructureLightingInfoTag(path=info_path) as tag:
+                        tag.lightmap_regions_from_blender(regions_list)
 
     elif corinth and asset_type in ('model', 'sky', 'prefab'):
         info_path = str(Path(asset_path, f'{asset_name}.scenario_structure_lighting_info'))

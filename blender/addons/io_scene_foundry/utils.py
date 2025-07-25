@@ -5022,3 +5022,27 @@ def can_export_check_parent(ob: bpy.types.Object):
         return can_export_check_parent(ob.parent)
     
     return ob.nwo.export_this
+
+def pointer_ob_valid(ob: bpy.types.Object) -> bool:
+    if ob is None or not ob.name:
+        return False
+    
+    return bpy.context.scene.objects.get(ob.name) is not None
+
+def to_aabb(ob: bpy.types.Object):
+    matrix = halo_transforms(ob)
+    world_corners = [matrix @ Vector(corner) for corner in ob.bound_box]
+    
+    min_co = Vector((
+        min(c.x for c in world_corners),
+        min(c.y for c in world_corners),
+        min(c.z for c in world_corners),
+    ))
+
+    max_co = Vector((
+        max(c.x for c in world_corners),
+        max(c.y for c in world_corners),
+        max(c.z for c in world_corners),
+    ))
+    
+    return min_co, max_co

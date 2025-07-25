@@ -1200,11 +1200,7 @@ class VirtualMesh:
 
         loop_data = np.hstack(data)
 
-        if props.get("bungie_mesh_type") == MeshType.lightmap_region.value:
-            new_indices  = np.arange(loop_data.shape[0], dtype=np.intp)
-            face_indices = new_indices 
-        else:
-            _, new_indices, face_indices = np.unique(loop_data, axis=0, return_index=True, return_inverse=True)
+        _, new_indices, face_indices = np.unique(loop_data, axis=0, return_index=True, return_inverse=True)
         
         if scene.corinth:
             # Extract the start index and number of loops for each face
@@ -2414,21 +2410,19 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
             if not is_structure and scene.corinth:
                 face_properties.setdefault("bungie_face_mode", FaceSet(np.full(num_faces, face_prop_defaults["bungie_face_mode"], dtype=np.int32))).update_from_material(mesh, material_indices, FaceMode.collision_only.value)
                 face_properties.setdefault("bungie_mesh_poop_collision_type", FaceSet(np.full(num_faces, face_prop_defaults["bungie_mesh_poop_collision_type"], dtype=np.int32))).update_from_material(mesh, material_indices, PoopCollisionType.invisible_wall.value)
-                # bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.material_index in material_indices], context='FACES')
-                continue
-            
-            enum_val = FaceType.sky.value if is_structure and scene.asset_type == AssetType.SCENARIO else FaceType.seam_sealer.value
-            if props.get("bungie_face_type") is None:
-                face_properties.setdefault("bungie_face_type", FaceSet(np.full(num_faces, face_prop_defaults["bungie_face_type"], dtype=np.int32))).update_from_material(mesh, material_indices, enum_val)
-            
-            if not scene.corinth and enum_val == FaceType.sky.value:
-                if len(material.name) > 4 and material.name[4].isdigit():
-                    if len(material.name) > 5 and material.name[5].isdigit():
-                        sky_index = int("".join(material.name[4:5]))
-                    else:
-                        sky_index = int(material.name[4])
-                    if sky_index > 0 and props.get("bungie_sky_permutation_index") is None:
-                        face_properties.setdefault("bungie_sky_permutation_index", FaceSet(np.zeros(num_faces, dtype=np.int32))).update_from_material(mesh, material_indices, sky_index)
+            else:
+                enum_val = FaceType.sky.value if (is_structure and scene.asset_type == AssetType.SCENARIO) else FaceType.seam_sealer.value
+                if props.get("bungie_face_type") is None:
+                    face_properties.setdefault("bungie_face_type", FaceSet(np.full(num_faces, face_prop_defaults["bungie_face_type"], dtype=np.int32))).update_from_material(mesh, material_indices, enum_val)
+                
+                if not scene.corinth and enum_val == FaceType.sky.value:
+                    if len(material.name) > 4 and material.name[4].isdigit():
+                        if len(material.name) > 5 and material.name[5].isdigit():
+                            sky_index = int("".join(material.name[4:5]))
+                        else:
+                            sky_index = int(material.name[4])
+                        if sky_index > 0 and props.get("bungie_sky_permutation_index") is None:
+                            face_properties.setdefault("bungie_sky_permutation_index", FaceSet(np.zeros(num_faces, dtype=np.int32))).update_from_material(mesh, material_indices, sky_index)
                         
                         
     if force_render_only:

@@ -168,8 +168,8 @@ class NWO_OT_ApplyTypeMesh(bpy.types.Operator):
                 utils.nwo_enum(
                     "lightmap_region",
                     "Lightmap Region",
-                    "Defines a volume that restricts the area that is lit by the lightmapper. In Halo 4 and Halo 2AMP only bounding box shapes are supported",
-                    "soft_ceiling",
+                    "Defines a volume that restricts the area that is lit by the lightmapper. In Halo 4 and Halo 2AMP only bounding box of the region will be used",
+                    "lightmap",
                     index,
                 )
             )

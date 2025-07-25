@@ -59,6 +59,7 @@ class MeshType(BungieEnum):
     water_surface = 17
     water_physics_volume = 18
     lightmap_region = 19
+    obb_volume = 20
     
 class MarkerType(BungieEnum): ...
 

@@ -255,6 +255,7 @@ class ScenarioStructureLightingInfoTag(Tag):
             return
         
         regions = self.tag.SelectField("Block:regions")
+        print("MAX REGIONS COUNT= ", regions.MaximumElementCount)
         start_count = regions.Elements.Count
         if start_count > 0:
             regions.RemoveAllElements()
@@ -265,9 +266,13 @@ class ScenarioStructureLightingInfoTag(Tag):
             mesh.transform(matrix)
             mesh.calc_loop_triangles()
             
+            if not mesh.polygons:
+                continue
+            
             region = regions.AddElement()
             region.Fields[0].SetStringData(ob.name)
             triangles = region.Fields[1]
+            print("MAX TRI COUNT= ", triangles.MaximumElementCount)
             
             for tri in mesh.loop_triangles:
                 element = triangles.AddElement()
