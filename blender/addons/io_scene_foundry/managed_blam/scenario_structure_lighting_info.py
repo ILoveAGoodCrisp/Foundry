@@ -255,7 +255,6 @@ class ScenarioStructureLightingInfoTag(Tag):
             return
         
         regions = self.tag.SelectField("Block:regions")
-        print("MAX REGIONS COUNT= ", regions.MaximumElementCount)
         start_count = regions.Elements.Count
         if start_count > 0:
             regions.RemoveAllElements()

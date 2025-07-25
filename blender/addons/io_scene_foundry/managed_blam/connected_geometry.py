@@ -414,19 +414,21 @@ class Instance:
         
         return ob
     
-    def get_collection(self, ig_collection) -> bpy.types.Collection:
+    def get_collection(self, ig_collection, permitted_collections) -> bpy.types.Collection:
         if "(" in self.name and ")" in self.name.rpartition("(")[2]:
             collection_part = re.findall(r'\((.*?)\)', self.name)[0]
             if ":" in collection_part:
                 sub_collection_name, _, main_collection_name_main = collection_part.rpartition(":")
+                main_collection_name_main = main_collection_name_main.strip("_")
+                sub_collection_name = sub_collection_name.strip("_")
             else:
                 sub_collection_name = None
                 main_collection_name_main = collection_part
-                
+            
             main_collection_name = f"layer::{main_collection_name_main}"
                 
             main_collection = bpy.data.collections.get(main_collection_name)
-            if main_collection is None:
+            if main_collection is None or main_collection not in permitted_collections:
                 main_collection = bpy.data.collections.new(name=main_collection_name)
                 ig_collection.children.link(main_collection)
                 utils.add_permutation(main_collection_name_main)
@@ -435,7 +437,7 @@ class Instance:
                 
             if sub_collection_name is not None:
                 sub_collection = bpy.data.collections.get(sub_collection_name)
-                if sub_collection is None:
+                if sub_collection is None or sub_collection not in permitted_collections:
                     sub_collection = bpy.data.collections.new(name=sub_collection_name)
                     main_collection.children.link(sub_collection)
                     

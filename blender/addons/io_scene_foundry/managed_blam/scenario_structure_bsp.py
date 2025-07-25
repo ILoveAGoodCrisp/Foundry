@@ -198,10 +198,15 @@ class ScenarioStructureBspTag(Tag):
             print("Creating Instanced Objects")
             ig_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_instances")
             self.collection.children.link(ig_collection)
+            # Keeping track of the collections we add in this bsp import
+            # This avoids putting objects in collections that already existed prior to export
+            # and therefore prevents incorrect bsp assignment
+            permitted_collections = set()
             for element in self.block_instances.Elements:
                 io = Instance(element, instance_definitions)
                 if io.definition.blender_render or io.definition.blender_collision:
-                    io_collection = io.get_collection(ig_collection)
+                    io_collection = io.get_collection(ig_collection, permitted_collections)
+                    permitted_collections.add(io_collection)
                     ob = io.create()
                     objects.append(ob)
                     io_collection.objects.link(ob)
