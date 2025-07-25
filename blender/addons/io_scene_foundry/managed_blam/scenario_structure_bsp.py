@@ -157,7 +157,10 @@ class ScenarioStructureBspTag(Tag):
                             emissives.append(Emissive(element))
                             
                         if not for_cinematic:
-                            lightmap_regions = []
+                            lightmap_regions = info.lightmap_regions_to_blender()
+                            if lightmap_regions:
+                                print(f"Imported {len(lightmap_regions)} lightmap regions from {info.tag_path.RelativePathWithExtension}")
+                                objects.extend(lightmap_regions)
                     
                     light_objects = info.to_blender(collection)
                     if light_objects:

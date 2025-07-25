@@ -187,6 +187,7 @@ class ExportScene:
         self.has_frame_events = False
         
         self.poop_obs = defaultdict(list)
+        self.lightmap_regions = []
         
     def _get_export_tag_types(self):
         tag_types = set()
@@ -685,6 +686,8 @@ class ExportScene:
                 nwo.mesh_type = '_connected_geometry_mesh_type_default'
             if utils.type_valid(nwo.mesh_type, self.asset_type.name.lower(), self.game_version):
                 copy = self._setup_mesh_properties(ob, ob.nwo, self.asset_type.supports_bsp, props, region, mesh_props)
+                if copy is not None and not copy:
+                    return # lightmap region
                 if ob.type == 'MESH' and ob.data.shape_keys and self.asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.ANIMATION, AssetType.CINEMATIC}:
                     is_pca = True
                 
@@ -767,7 +770,8 @@ class ExportScene:
                         props["bungie_mesh_fog_volume_depth"] = nwo.fog_volume_depth
                         
                     case "_connected_geometry_mesh_type_lightmap_region": # Never written to granny
-                        return
+                        self.lightmap_regions.append(ob)
+                        return False
                         
                     case "_connected_geometry_mesh_type_boundary_surface":
                         match data_nwo.boundary_surface_type:
@@ -2172,17 +2176,17 @@ class ExportScene:
                     bsps = [bsp for bsp in self.selected_bsps if bsp.lower() != "shared"]
                 else:
                     bsps = [bsp for bsp in self.regions if bsp.lower() != "shared"]
-                if self.lights:
+                if self.lights or (not self.corinth and self.lightmap_regions):
                     self.print_post(f"--- Writing lighting data from {len(self.lights)} light{'s' if len(self.lights) > 1 else ''}")
                     if self.is_child_asset:
-                        export_lights(str(self.parent_asset_path_relative), self.parent_asset_name, self.lights, bsps)
+                        export_lights(str(self.parent_asset_path_relative), self.parent_asset_name, self.lights, bsps, self.lightmap_regions)
                     else:
-                        export_lights(self.asset_path_relative, self.asset_name, self.lights, bsps)
+                        export_lights(self.asset_path_relative, self.asset_name, self.lights, bsps, self.lightmap_regions)
                 else:
                     if self.is_child_asset:
-                        export_lights(str(self.parent_asset_path_relative), self.parent_asset_name, [], bsps) # this will clear the lighting info tag
+                        export_lights(str(self.parent_asset_path_relative), self.parent_asset_name, [], bsps, self.lightmap_regions) # this will clear the lighting info tag
                     else:
-                        export_lights(self.asset_path_relative, self.asset_name, [], bsps)
+                        export_lights(self.asset_path_relative, self.asset_name, [], bsps, self.lightmap_regions)
                     
         if self.asset_type == AssetType.CINEMATIC:
             self.print_post(f"--- Writing cinematic scene: {self.cinematic_scene.name}")

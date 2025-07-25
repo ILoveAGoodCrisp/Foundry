@@ -5,7 +5,9 @@ from typing import cast
 
 from mathutils import Color, Matrix, Vector
 
-from ..constants import HALO_FACTOR, WU_SCALAR
+from ..tools.property_apply import apply_props_material
+
+from ..constants import WU_SCALAR
 
 from ..props.object import NWO_ObjectPropertiesGroup
 from ..props.light import NWO_LightPropertiesGroup
@@ -210,7 +212,73 @@ class ScenarioStructureLightingInfoTag(Tag):
                 element.SelectField("gel reference").Path = self._TagPath_from_string(light.gel)
             if light.lens_flare:
                 element.SelectField("lens flare reference").Path = self._TagPath_from_string(light.lens_flare)
+    
+    def lightmap_regions_to_blender(self, parent_collection: bpy.types.Collection = None):
+        if self.corinth:
+            return []
+        
+        objects = []
+        for region in self.tag.SelectField("Block:regions").Elements:
+            triangles = region.Fields[1]
+            tri_count = triangles.Elements.Count
+            if tri_count == 0:
+                continue
+            
+            name = region.Fields[0].GetStringData()
+            data = cast(bpy.types.Mesh, bpy.data.meshes.new(name))
+            
+            vertices = [Vector(tri.Fields[i].Data) * 100 for tri in triangles.Elements for i in range(3)]
+            faces = [list(range(i, i + 3)) for i in range(0, tri_count * 3, 3)]
+            
+            data.from_pydata(vertices=vertices, edges=[], faces=faces)
+            data.nwo.mesh_type = '_connected_geometry_mesh_type_lightmap_region'
+            
+            ob = bpy.data.objects.new(name, data)
+            apply_props_material(ob, 'LightmapRegion')
+            objects.append(ob)
+        
+        if objects:
+            collection = cast(bpy.types.Collection, bpy.data.collections.new(f"{self.tag_path.ShortName}_lightmap_regions"))
+            for ob in objects:
+                collection.objects.link(ob)
                 
+            if parent_collection is None:
+                bpy.context.scene.collection.children.link(collection)
+            else:
+                parent_collection.children.link(collection)
+                
+        return objects
+            
+    
+    def lightmap_regions_from_blender(self, region_objects: list[bpy.types.Object]):
+        if self.corinth:
+            return
+        
+        regions = self.tag.SelectField("Block:regions")
+        start_count = regions.Elements.Count
+        if start_count > 0:
+            regions.RemoveAllElements()
+        
+        for ob in region_objects:
+            matrix = utils.halo_transforms(ob)
+            mesh = ob.to_mesh()
+            mesh.transform(matrix)
+            mesh.calc_loop_triangles()
+            
+            region = regions.AddElement()
+            region.Fields[0].SetStringData(ob.name)
+            triangles = region.Fields[1]
+            
+            for tri in mesh.loop_triangles:
+                element = triangles.AddElement()
+                for idx, i in enumerate(tri.loops):
+                    vert = mesh.vertices[mesh.loops[i].vertex_index]
+                    element.Fields[idx].Data = vert.co
+            
+            ob.to_mesh_clear()
+            
+        self.tag_has_changes = start_count > 0 or region_objects
+
                 
     def to_blender(self, parent_collection: bpy.types.Collection = None):
         if self.corinth:

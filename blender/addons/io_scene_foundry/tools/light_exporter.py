@@ -6,7 +6,7 @@ from pathlib import Path
 import bpy
 from ..managed_blam.model import ModelTag
 from ..managed_blam.scenario_structure_lighting_info import ScenarioStructureLightingInfoTag
-from ..constants import WU_SCALAR
+from ..constants import VALID_MESHES, WU_SCALAR
 from .. import utils
 
 def calc_attenutation(power: float, intensity_threshold=0.5, cutoff_intensity=0.1) -> tuple[float, float]:
@@ -172,7 +172,7 @@ class BlamLightDefinition:
 class NWO_OT_ExportLights(bpy.types.Operator):
     bl_idname = "nwo.export_lights"
     bl_label = "Export Lights"
-    bl_description = "Exports all blender lights to their respective lighting info tags"
+    bl_description = "Exports all blender lights (and lightmap regions if Reach) to their respective lighting info tags"
     bl_options = {"UNDO"}
 
     @classmethod
@@ -200,12 +200,17 @@ class NWO_OT_ExportLights(bpy.types.Operator):
 def gather_lights(context):
     return [ob for ob in context.scene.objects if ob.type == 'LIGHT' and ob.data.type != 'AREA' and not ob.nwo.ignore_for_export]
 
-def export_lights(asset_path, asset_name, light_objects = None, bsps = None):
+def gather_lightmap_regions(context):
+    return [ob for ob in context.scene.objects if ob.type in VALID_MESHES and ob.data.nwo.mesh_type == '_connected_geometry_mesh_type_lightmap_region' and not ob.nwo.ignore_for_export]
+
+def export_lights(asset_path, asset_name, light_objects = None, bsps = None, lightmap_regions=None):
     tags_dir = utils.get_tags_path()
     context = bpy.context
+    corinth = utils.is_corinth(bpy.context)
     asset_type = context.scene.nwo.asset_type
     if light_objects is None:
         light_objects = gather_lights(context)
+                
     lights = [BlamLightInstance(ob, utils.true_region(ob.nwo)) for ob in light_objects]
     if asset_type == 'scenario':
         if bsps is None:
@@ -222,9 +227,20 @@ def export_lights(asset_path, asset_name, light_objects = None, bsps = None):
                 light_data = {bpy.data.lights.get(light.data_name) for light in lights_list}
                 light_definitions = [BlamLightDefinition(data) for data in light_data]
                 print(info_path)
-                with ScenarioStructureLightingInfoTag(path=info_path) as tag: tag.build_tag(light_instances, light_definitions)
-    
-    elif utils.is_corinth(context) and asset_type in ('model', 'sky', 'prefab'):
+                with ScenarioStructureLightingInfoTag(path=info_path) as tag:tag.build_tag(light_instances, light_definitions)
+                
+        if not corinth:
+            if lightmap_regions is None:
+                lightmap_regions = gather_lightmap_regions(context)
+                
+            for idx, info_path in enumerate(lighting_info_paths):
+                b = bsps[idx]
+                regions_list = [region for region in lightmap_regions if utils.true_region(region.nwo) == b]
+                with ScenarioStructureLightingInfoTag(path=info_path) as tag:
+                    tag.lightmap_regions_from_blender(regions_list)
+                
+
+    elif corinth and asset_type in ('model', 'sky', 'prefab'):
         info_path = str(Path(asset_path, f'{asset_name}.scenario_structure_lighting_info'))
         if not lights:
             if Path(tags_dir, utils.relative_path(info_path)).exists():

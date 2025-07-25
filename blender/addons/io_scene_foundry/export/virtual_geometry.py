@@ -1200,11 +1200,11 @@ class VirtualMesh:
 
         loop_data = np.hstack(data)
 
-        # if props.get("bungie_mesh_type") == MeshType.lightmap_region.value:
-        #     new_indices  = np.arange(loop_data.shape[0], dtype=np.intp)
-        #     face_indices = new_indices 
-        # else:
-        _, new_indices, face_indices = np.unique(loop_data, axis=0, return_index=True, return_inverse=True)
+        if props.get("bungie_mesh_type") == MeshType.lightmap_region.value:
+            new_indices  = np.arange(loop_data.shape[0], dtype=np.intp)
+            face_indices = new_indices 
+        else:
+            _, new_indices, face_indices = np.unique(loop_data, axis=0, return_index=True, return_inverse=True)
         
         if scene.corinth:
             # Extract the start index and number of loops for each face
