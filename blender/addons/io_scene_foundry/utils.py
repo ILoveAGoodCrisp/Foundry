@@ -4887,16 +4887,6 @@ def material_add_emissive(material: bpy.types.Material):
 
     emissive_node = node_tree.nodes.new('ShaderNodeGroup')
     emissive_node.node_tree = add_node_from_resources("shared_nodes", 'Halo Emissive')
-    # emissive_node.location = (output_node.location.x - 200, output_node.location.y)
-    
-    color_attribute_node = node_tree.nodes.new('ShaderNodeAttribute')
-    color_attribute_node.attribute_name = "foundry_color"
-    
-    power_attribute_node = node_tree.nodes.new('ShaderNodeAttribute')
-    power_attribute_node.attribute_name = "foundry_power"
-    
-    node_tree.links.new(input=emissive_node.inputs[1], output=color_attribute_node.outputs[0]) # color
-    node_tree.links.new(input=emissive_node.inputs[2], output=power_attribute_node.outputs[2]) # power
 
     def first_socket(sockets, kind):
         for s in sockets:
