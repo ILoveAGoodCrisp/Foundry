@@ -1026,19 +1026,17 @@ class NWO_OT_AddActionTrack(bpy.types.Operator):
         
         animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
         
-        current_track_objects = {track.object for track in animation.action_tracks}
-        
         for ob in context.selected_objects:
-            if ob not in current_track_objects:
-                self.add_track(animation, ob)
-            elif ob.animation_data and ob.animation_data.action:
-                self.report({'WARNING'}, f"Action '{ob.animation_data.action.name}' for object '{ob.name}' already set as track")
+            self.add_track(animation, ob)
             
         context.area.tag_redraw()
         return {"FINISHED"}
 
     def add_track(self, animation, ob):
         if ob.animation_data is not None and ob.animation_data.action is not None:
+            for track in animation.action_tracks:
+                if track.action == ob.animation_data.action:
+                    return
             group = animation.action_tracks.add()
             group.object = ob
             group.action = ob.animation_data.action
@@ -1047,6 +1045,9 @@ class NWO_OT_AddActionTrack(bpy.types.Operator):
             #     group.object.animation_data.nla_tracks.active
             animation.active_action_group_index = len(animation.action_tracks) - 1
         if ob.type == 'MESH' and ob.data.shape_keys and ob.data.shape_keys.animation_data and ob.data.shape_keys.animation_data.action:
+            for track in animation.action_tracks:
+                if track.action == ob.data.shape_keys.animation_data.action:
+                    return
             group = animation.action_tracks.add()
             group.object = ob
             group.action = ob.data.shape_keys.animation_data.action

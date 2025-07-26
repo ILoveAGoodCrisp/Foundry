@@ -128,7 +128,7 @@ class LightMapper:
         self.scenario = scenario_path
         self.bsp = self.bsp_to_lightmap(lightmap_all_bsps, lightmap_specific_bsp)
         self.quality = lightmap_quality_h4 if not_bungie_game else lightmap_quality
-        self.light_group = lightmap_region
+        self.light_group = lightmap_region.lower()
         self.thread_count = cpu_threads
         self.bsps = structure_bsps
 

@@ -269,7 +269,7 @@ class ScenarioStructureLightingInfoTag(Tag):
                 continue
             
             region = regions.AddElement()
-            region.Fields[0].SetStringData(ob.name)
+            region.Fields[0].SetStringData(ob.name.lower())
             triangles = region.Fields[1]
             print("MAX TRI COUNT= ", triangles.MaximumElementCount)
             
@@ -314,26 +314,17 @@ class ScenarioStructureLightingInfoTag(Tag):
             ob = cast(bpy.types.Object, bpy.data.objects.new(f"light_instance:{element.ElementIndex}", blender_light))
             nwo = cast(NWO_ObjectPropertiesGroup, ob.nwo)
             
-            origin = Vector(*(element.SelectField("origin").Data,))
-            forward = Vector((*element.SelectField("forward").Data,))
-            up = Vector((*element.SelectField("up").Data,))
+            origin = Vector(*(element.SelectField("origin").Data,)) * 100
+            forward = Vector((*element.SelectField("forward").Data,)).normalized()
+            up = Vector((*element.SelectField("up").Data,)).normalized()
+            left = up.cross(forward).normalized()
             
-            # forward.normalize()
-            # up.normalize()
-            
-            # right = forward.cross(up).normalized()
-            
-            # up = right.cross(forward)
-            
-            # matrix = Matrix((right, up, forward)).transposed()
-            # matrix = matrix.to_4x4()
-            # matrix.translation = origin * 100
-            
-            matrix_3x3 = Matrix.Identity(4).to_3x3()
-            matrix_3x3.col[1] = forward
-            matrix_3x3.col[2] = up
-            matrix = matrix_3x3.to_4x4()
-            matrix.translation = origin * 100
+            matrix = Matrix((
+                (forward[0], left[0], up[0], origin[0]),
+                (forward[1], left[1], up[1], origin[1]),
+                (forward[2], left[2], up[2], origin[2]),
+                (0, 0, 0, 1),
+            ))
             
             ob.matrix_world = matrix
             ob.scale *= (1 / 0.03048)

@@ -77,8 +77,6 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
                 return "Uncompressed" if self.uncompressed else "Compressed"
             case 'additional_compression':
                 return "Additional Compression On" if self.additional_compression == 'force_on' else "Additional Compression Off"
-            case 'uncompressed':
-                return "Uncompressed" if self.uncompressed else "Compressed"
             case 'no_lightmap':
                 return "Exclude From Lightmap" if self.no_lightmap else "Include In Lightmap"
             case 'no_pvs':
@@ -223,6 +221,7 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
     uncompressed: bpy.props.BoolProperty(
         name="Uncompressed",
         options=set(),
+        default=True,
         description=face_prop_descriptions['uncompressed'],
     )
     

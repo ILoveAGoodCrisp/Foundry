@@ -39,11 +39,12 @@ class Tag():
     # Stuff that other classes may change while executing
     tag_has_changes = False # This needs to be marked false when changes are made, so that the tag can be saved
     
-    def __init__(self, path="", hide_prints=False, tag_must_exist=False, raise_on_error=True):
+    def __init__(self, path="", hide_prints=False, tag_must_exist=False, raise_on_error=True, always_save=False):
         self.tag_must_exist = tag_must_exist
         self.valid = False
         self.tag = None
         self.always_extract_bitmaps = False # for shaders
+        self.always_save = always_save
         if self.needs_explicit_path and not path:
             raise ValueError("Class needs explicit path declared but none given")
         self.hide_prints = hide_prints
@@ -108,7 +109,7 @@ class Tag():
         
     def __exit__(self, exc_type, exc_value, traceback):
         if self.tag:
-            if self.tag_has_changes:
+            if self.tag_has_changes or self.always_save:
                 try:
                     self.tag.Save()
                 except:
