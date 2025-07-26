@@ -15,14 +15,11 @@ import bpy
 import bpy.props
 from mathutils import Color
 
-from bpy_extras import view3d_utils
 import numpy as np
-
-from ..managed_blam.frame_event_list import FrameEventListTag
 
 from ..managed_blam.globals import FPARMS, GlobalsTag
 
-from ..managed_blam import start_mb_for_import
+from ..managed_blam import Tag, start_mb_for_import
 
 from ..legacy.jma import JMA
 
@@ -70,7 +67,7 @@ tether_name = "tether_distance"
 # 6. Add an if with conditions for handling this import under NWO_Import.execute
 # 7. Update scope variable to importer calls in other python files where appropriate
 
-formats = "amf", "jms", "jma", "bitmap", "camera_track", "model", "render_model", "scenario", "scenario_structure_bsp", "particle_model", "object", "animation"
+formats = "amf", "jms", "jma", "bitmap", "camera_track", "model", "render_model", "scenario", "scenario_structure_bsp", "particle_model", "object", "animation", "prefab"
 
 xref_tag_types = (
     ".crate",
@@ -881,6 +878,7 @@ class NWO_Import(bpy.types.Operator):
                     
                 elif 'scenario_structure_bsp' in importer.extensions:
                     importer.tag_bsp_render_only = self.tag_bsp_render_only
+                    importer.setup_as_asset = self.setup_as_asset
                     bsp_files = importer.sorted_filepaths["scenario_structure_bsp"]
                     imported_bsp_objects = []
                     for bsp in bsp_files:
@@ -893,6 +891,42 @@ class NWO_Import(bpy.types.Operator):
                     
                     if for_cinematic:
                         self.link_anchor(context, imported_bsp_objects)
+                        
+                elif 'prefab' in importer.extensions:
+                    importer.setup_as_asset = self.setup_as_asset
+                    if self.place_at_mouse:
+                        game_object_cache = {c.nwo.game_object_path: c for c in utils.get_foundry_storage_scene().collection.children if c.nwo.game_object_path}
+                        key = marker.nwo.marker_game_instance_tag_name
+                        game_object_collection = game_object_cache.get(key)
+                        imported_object_objects = []
+                        if game_object_collection is None:
+                            game_object_collection = importer.import_prefab(marker)
+                            merge_collection(game_object_collection)
+                            imported_object_objects = game_object_collection.all_objects
+                            context.scene.collection.children.unlink(game_object_collection)
+                            utils.get_foundry_storage_scene().collection.children.link(game_object_collection)
+                            game_object_collection.nwo.game_object_path = key
+                            
+                        marker.instance_type = 'COLLECTION'
+                        marker.instance_collection = game_object_collection
+                        marker.nwo.marker_instance = True
+                        imported_objects.append(marker)
+                        context.collection.objects.link(marker)
+                        
+                        if imported_object_objects and importer.needs_scaling:
+                            utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_object_objects, actions=[])
+                            
+                        marker.select_set(True)
+                        context.view_layer.objects.active = marker
+                    else:
+                        imported_prefab_objects = []
+                        prefab_files = importer.sorted_filepaths["prefab"]
+                        for file in prefab_files:
+                            imported_prefab_objects.extend(importer.import_prefab(file))
+                        if importer.needs_scaling:
+                            utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_prefab_objects, actions=[])
+                            
+                        imported_objects.extend(imported_prefab_objects)
                     
                 if 'particle_model' in importer.extensions:
                     particle_model_files = importer.sorted_filepaths["particle_model"]
@@ -1029,6 +1063,8 @@ class NWO_Import(bpy.types.Operator):
                 self.filter_glob += '*.biped;*.crate;*.creature;*.d*_control;*.d*_dispenser;*.e*_scenery;*.equipment;*.giant;*.d*_machine;*.projectile;*.scenery;*.spawner;*.sound_scenery;*.d*_terminal;*.vehicle;*.weapon;'
             if 'animation' in self.scope:
                 self.filter_glob += '*.mod*_*_graph;'
+            if 'prefab' in self.scope:
+                self.filter_glob += '*.prefab;'
                     
             if utils.amf_addon_installed() and 'amf' in self.scope:
                 self.amf_okay = True
@@ -1417,6 +1453,9 @@ class NWOImporter:
             elif 'animation' in valid_exts and path.lower().endswith(".model_animation_graph"):
                 self.extensions.add('animation')
                 filetype_dict["animation"][path] = None
+            elif 'prefab' in valid_exts and path.lower().endswith(".prefab"):
+                self.extensions.add('prefab')
+                filetype_dict["prefab"][path] = None
             
         # First stored as dict then converted to list. Avoids duplicate files
         for k, v in filetype_dict.items():
@@ -1993,6 +2032,43 @@ class NWOImporter:
         collection.nwo.region = bsp_name
         
         return bsp_objects
+    
+    def import_prefab(self, file, bsp_collection=None):
+        imported_objects = []
+        is_game_object = isinstance(file, bpy.types.Object)
+        
+        if is_game_object:
+            game_object = file
+            file = str(Path(utils.get_tags_path(), game_object.nwo.marker_game_instance_tag_name))
+            
+        prefab_name = Path(file).with_suffix("").name
+        print(f"Importing Prefab {prefab_name}")
+        
+        collection = bpy.data.collections.new(prefab_name)
+        if bsp_collection is None:
+            self.context.scene.collection.children.link(collection)
+        else:
+            bsp_collection.children.link(collection)
+            
+        with Tag(path=file) as prefab:
+            bsp_ref = prefab.get_path_str(prefab.tag.Fields[0].Path, True)
+            if not bsp_ref or not Path(bsp_ref).exists():
+                return
+            
+        with ScenarioStructureBspTag(path=bsp_ref) as bsp:
+            bsp_objects, _ = bsp.to_blend_objects(collection, self.tag_bsp_render_only)
+            imported_objects.extend(bsp_objects)
+            meshes = {ob.data for ob in bsp_objects if ob.type == 'MESH'}
+            self.emissive_meshes.update({me for me in meshes if any(p.type == 'emissive' for p in me.nwo.face_props)})
+
+        if is_game_object:
+            return collection
+        else:
+            if self.setup_as_asset:
+                set_asset(Path(file).suffix)
+            return imported_objects
+
+                
     
     def import_particle_model(self, file):
         filename = Path(file).with_suffix("").name
@@ -3295,7 +3371,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 self.report({'WARNING'}, "Blender Toolset not installed, cannot import JMS/ASS/JMA")
                 return {'CANCELLED'}
             
-        if self.import_type in {"camera_track", "jms", "ass", "model", "render_model", "scenario", "scenario_structure_bsp", "model_animation_graph", "biped", "crate", "creature", "device_control", "device_dispenser", "effect_scenery", "equipment", "giant", "device_machine", "projectile", "scenery", "spawner", "sound_scenery", "device_terminal", "vehicle", "weapon"}:
+        if self.import_type in {"camera_track", "jms", "ass", "model", "render_model", "scenario", "scenario_structure_bsp", "model_animation_graph", "biped", "crate", "creature", "device_control", "device_dispenser", "effect_scenery", "equipment", "giant", "device_machine", "projectile", "scenery", "spawner", "sound_scenery", "device_terminal", "vehicle", "weapon", "prefab"}:
             if self.import_type == "scenario":
                 global zone_set_items
                 with ScenarioTag(path=self.filepath) as scenario:
@@ -3363,7 +3439,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 layout.prop(self, "setup_as_asset")
                 layout.prop(self, "build_blender_materials")
                 layout.prop(self, "always_extract_bitmaps")
-            case "scenario_structure_bsp":
+            case "scenario_structure_bsp" | "prefab":
                 layout.prop(self, "tag_bsp_render_only")
                 layout.prop(self, "setup_as_asset")
                 layout.prop(self, "build_blender_materials")
@@ -3385,7 +3461,7 @@ class NWO_FH_Import(bpy.types.FileHandler):
     bl_idname = "NWO_FH_Import"
     bl_label = "File handler Foundry Importer"
     bl_import_operator = "nwo.import_from_drop"
-    bl_file_extensions = ".jms;.amf;.ass;.bitmap;.model;.render_model;.scenario;.scenario_structure_bsp;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track;.particle_model;.biped;.crate;.creature;.device_control;.device_dispenser;.effect_scenery;.equipment;.giant;.device_machine;.projectile;.scenery;.spawner;.sound_scenery;.device_terminal;.vehicle;.weapon;.model_animation_graph"
+    bl_file_extensions = ".jms;.amf;.ass;.bitmap;.model;.render_model;.scenario;.scenario_structure_bsp;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track;.particle_model;.biped;.crate;.creature;.device_control;.device_dispenser;.effect_scenery;.equipment;.giant;.device_machine;.projectile;.scenery;.spawner;.sound_scenery;.device_terminal;.vehicle;.weapon;.model_animation_graph;.prefab"
 
     @classmethod
     def poll_drop(cls, context):
