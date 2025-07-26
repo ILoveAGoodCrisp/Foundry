@@ -442,8 +442,20 @@ class MaterialTag(ShaderTag):
         
         # Handle special case group nodes
         match material_shader_name:
-            case '__srf_pbr_covenant':
-                rainbow_node_tree = utils.add_node_from_resources("h4_nodes", name='srf_pbr_covenant_rainbow_map_vector')
+            case 'srf_pbr_covenant':
+                rainbow_node = tree.nodes.new('ShaderNodeGroup')
+                rainbow_node.node_tree = utils.add_node_from_resources("h4_nodes", name='srf_pbr_covenant rainbow_map_vector')
+                self.populate_chiefster_node(tree, rainbow_node, material_parameters, material_parameters_true)
+                
+                rainbow_map_node = group_node.inputs['rainbow_map'].links[0].from_node
+                tree.links.new(input=rainbow_map_node.inputs[0], output=rainbow_node.outputs[0])
+                
+                reflection_node = tree.nodes.new('ShaderNodeGroup')
+                reflection_node.node_tree = utils.add_node_from_resources("h4_nodes", name='srf_pbr_covenant reflection_map_vector')
+                self.populate_chiefster_node(tree, reflection_node, material_parameters, material_parameters_true)
+                
+                reflection_map_node = rainbow_node.inputs['reflection_map'].links[0].from_node
+                tree.links.new(input=reflection_map_node.inputs[0], output=reflection_node.outputs[0])
         
         # Make the Output
         node_output = nodes.new(type='ShaderNodeOutputMaterial')
