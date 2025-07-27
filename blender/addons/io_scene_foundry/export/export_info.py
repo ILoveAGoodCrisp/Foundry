@@ -20,6 +20,12 @@ class BungieEnum(Enum):
         text = str(list(map(lambda c: c.value, cls)))
         return f"#({text.strip('[]')})".encode()
     
+class BungieEnumMaterial(BungieEnum):
+    @classmethod
+    def names(cls):
+        text = str(list(map(lambda c: f"_connected_material_{snake(cls.__name__)}_{c.name.strip('_')}", cls)))
+        return f"#({text.strip('[]')})".encode()
+    
 class BungieEnumPoop(BungieEnum):
     @classmethod
     def names(cls):
@@ -92,7 +98,7 @@ class FaceDrawDistance(BungieEnum):
     detail_mid = 1
     detail_close = 2
 
-class LightmapType(BungieEnum):
+class LightmapType(BungieEnumMaterial):
     per_pixel = 0
     per_vertex = 1
     
@@ -180,6 +186,11 @@ class ExportInfo:
                 values_key = f"connected_geometry_{key}_table_enum_values"
                 info[names_key] = f"#({str(value).strip('[]')})".encode()
                 info[values_key] = f"#({str(list(range(len(value)))).strip('[]')})".encode()
+            elif key == 'lightmap_type':
+                names_key = f"e_connected_material_{snake(key)}_enum_names"
+                values_key = f"e_connected_material_{snake(key)}_enum_values"
+                info[names_key] = value.names()
+                info[values_key] = value.values()
             elif key in {'poop_instance_pathfinding_policy', 'poop_instance_imposter_policy'}:
                 names_key = f"e_connected_{snake(key)}_enum_names"
                 values_key = f"e_connected_{snake(key)}_enum_values"
