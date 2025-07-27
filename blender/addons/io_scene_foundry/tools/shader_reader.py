@@ -80,5 +80,6 @@ def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str, always_e
     if shader is not None:
         mat.nwo.game_functions = ",".join(shader.game_functions)
         mat.nwo.object_functions = ",".join(shader.object_functions)
-        arrange(mat.node_tree)
+        if mat.node_tree is not None:
+            arrange(mat.node_tree)
         return shader.sequence_drivers
