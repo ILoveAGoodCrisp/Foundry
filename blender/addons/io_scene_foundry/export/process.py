@@ -253,9 +253,10 @@ class ExportScene:
                 temp_ob = source_ob.copy()
                 coll_nwo = ob.instance_collection.nwo
                 if coll_nwo.type == 'region' and coll_nwo.region:
+                    utils.set_region(temp_ob, coll_nwo.region)
                     temp_ob.nwo.region_name = coll_nwo.region
                 elif coll_nwo.type == 'permutation' and coll_nwo.permutation:
-                    temp_ob.nwo.permutation_name = coll_nwo.permutation
+                    utils.set_permutation(temp_ob, coll_nwo.permutation)
                 lookup_dict[source_ob] = temp_ob
                 for collection in users_collection:
                     collection.objects.link(temp_ob)
@@ -1065,9 +1066,9 @@ class ExportScene:
             elif marker_type == "_connected_geometry_marker_type_lightCone":
                 props["bungie_marker_light_tag"] = nwo.marker_light_cone_tag
                 props["bungie_marker_light_color"] = utils.color_3p(nwo.marker_light_cone_color)
-                props["bungie_marker_light_cone_width"] = nwo.marker_light_cone_alpha
-                props["bungie_marker_light_cone_length"] = nwo.marker_light_cone_width
-                props["bungie_marker_light_color_alpha"] = nwo.marker_light_cone_length
+                props["bungie_marker_light_cone_width"] = nwo.marker_light_cone_width
+                props["bungie_marker_light_cone_length"] = nwo.marker_light_cone_length
+                props["bungie_marker_light_color_alpha"] = nwo.marker_light_cone_color.a
                 props["bungie_marker_light_cone_intensity"] = nwo.marker_light_cone_intensity
                 props["bungie_marker_light_cone_curve"] = nwo.marker_light_cone_curve
     

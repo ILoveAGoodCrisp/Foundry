@@ -1039,6 +1039,8 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="",
         subtype="COLOR",
+        default=(1, 1, 1, 1),
+        size=4,
         min=0.0,
         max=1.0,
     )

@@ -4,13 +4,15 @@ from pathlib import Path
 import bmesh
 import bpy
 
+from .structure_meta import StructureMetaTag
+
 from .scenario_structure_lighting_info import ScenarioStructureLightingInfoTag
 
 from ..tools.property_apply import apply_props_material
 
 from .connected_geometry import BSP, BSPCollisionMaterial, Cluster, CompressionBounds, Emissive, EnvironmentObject, EnvironmentObjectReference, Instance, InstanceDefinition, Material, Portal, StructureCollision, StructureMarker, SurfaceMapping
 from ..utils import jstr
-from ..managed_blam import Tag
+from . import Tag
 from .. import utils
 
 class ScenarioStructureBspTag(Tag):
@@ -362,12 +364,23 @@ class ScenarioStructureBspTag(Tag):
             
         # Now do environment objects
         if self.corinth:
-            pass # TODO implement structure meta importing
+            if not structure_meta_path:
+                structure_meta_path = Path(self.tag_path.Filename).with_suffix(".scenario_structure_lighting_info")
+            if structure_meta_path.exists():
+                meta_collection = bpy.data.collections.new(name=f"layer::{self.tag_path.ShortName}_meta")
+                meta_collection.nwo.type = "permutation"
+                meta_collection.nwo.permutation = layer
+                self.collection.children.link(meta_collection)
+                with StructureMetaTag(path=structure_meta_path) as meta:
+                    meta_objects, meta_game_objects = meta.to_blender(meta_collection)
+                    objects.extend(meta_objects)
+                    objects.extend(meta_game_objects)
+                    game_objects.extend(meta_game_objects)
         else:
             if self.tag.SelectField("Block:environment objects").Elements.Count > 0:
                 print("Creating Game Object Markers")
                 layer = utils.add_permutation("objects")
-                env_objects_collection = bpy.data.collections.new(name=f"layer::{self.tag_path.ShortName}_markers")
+                env_objects_collection = bpy.data.collections.new(name=f"layer::{self.tag_path.ShortName}_objects")
                 env_objects_collection.nwo.type = "permutation"
                 env_objects_collection.nwo.permutation = layer
                 self.collection.children.link(env_objects_collection)
