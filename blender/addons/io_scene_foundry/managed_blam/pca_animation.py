@@ -18,12 +18,13 @@ class PCAAnimationTag(Tag):
         return np.asarray([v[:] for v in verts], dtype=np.single)
 
     # ------------------------------------------------------------ #
-    def import_animation(self,ob: bpy.types.Object, mesh_data_index: int, offset=0, count=1, shape_count = 16, percentile=100, fudge=0.75):
+    def import_animation(self,ob: bpy.types.Object, mesh_data_index: int, offset=0, count=1, shape_count= 16, shape_offset=0, percentile=100, fudge=0.75):
         mesh_data = self.block_mesh_data.Elements[mesh_data_index]
         vertices_per_shape = int(mesh_data.Fields[1].Data)
 
         vetices_array = self._raw_verts(mesh_data)
-        shape_vertices = vetices_array.reshape(-1, vertices_per_shape, 3)[:shape_count]
+        all_shape_vertices = vetices_array.reshape(-1, vertices_per_shape, 3)
+        shape_vertices = all_shape_vertices[shape_offset : shape_offset + shape_count]
         K = shape_vertices.shape[0]
 
         rows = []

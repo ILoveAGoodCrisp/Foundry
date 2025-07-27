@@ -105,6 +105,7 @@ classes = [
     object.NWO_MT_FacePropOperatorsMenu,
     # object.NWO_OT_FaceAttributeAddFaceMode,
     # object.NWO_OT_FaceAttributeAddLightmap,
+    object.NWO_OT_ChangeAttribute,
     object.NWO_OT_FaceAttributeAdd,
     object.NWO_OT_FaceAttributeColor,
     object.NWO_OT_FaceAttributeColorAll,

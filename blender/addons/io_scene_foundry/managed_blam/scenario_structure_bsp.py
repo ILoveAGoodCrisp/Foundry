@@ -367,15 +367,20 @@ class ScenarioStructureBspTag(Tag):
             if not structure_meta_path:
                 structure_meta_path = Path(self.tag_path.Filename).with_suffix(".scenario_structure_lighting_info")
             if structure_meta_path.exists():
+                print("Importing Structure Meta")
                 meta_collection = bpy.data.collections.new(name=f"layer::{self.tag_path.ShortName}_meta")
                 meta_collection.nwo.type = "permutation"
                 meta_collection.nwo.permutation = layer
                 self.collection.children.link(meta_collection)
                 with StructureMetaTag(path=structure_meta_path) as meta:
-                    meta_objects, meta_game_objects = meta.to_blender(meta_collection)
+                    meta_objects, meta_game_objects = meta.to_blender(meta_collection, for_cinematic)
                     objects.extend(meta_objects)
                     objects.extend(meta_game_objects)
                     game_objects.extend(meta_game_objects)
+            
+            # Prefabs
+            # game_objects.extend(self._import_prefabs())
+                
         else:
             if self.tag.SelectField("Block:environment objects").Elements.Count > 0:
                 print("Creating Game Object Markers")
@@ -394,6 +399,14 @@ class ScenarioStructureBspTag(Tag):
                         game_objects.append(ob)
             
         return objects, game_objects
+    
+    def _import_prefabs(self):
+        objects = []
+        block_prefabs = self.tag.SelectField("Block:external references")
+        if block_prefabs.Elements.Count == 0:
+            return objects
+        
+        print("Importing Prefabs")
     
     # def get_seams(self, name, existing_seams: list[BSPSeam]=[]):
     #     seams = []

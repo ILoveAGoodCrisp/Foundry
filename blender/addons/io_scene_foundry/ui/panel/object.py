@@ -1,6 +1,7 @@
 """Classes for Object Panel UI"""
 
 from pathlib import Path
+from typing import cast
 import bpy
 import bmesh
 from uuid import uuid4
@@ -268,6 +269,71 @@ class NWO_OT_EditMode(bpy.types.Operator):
     def execute(self, context):
         bpy.ops.object.editmode_toggle()
         return {"FINISHED"}
+    
+attributes_list = []
+    
+class NWO_OT_ChangeAttribute(bpy.types.Operator):
+    bl_idname = "nwo.change_attribute"
+    bl_label = "Change Mesh Attribute"
+    bl_options = {'REGISTER', 'UNDO'}
+    bl_description = "Lets you change the mesh attribute pointed to by this face property (and optionally rename it). Only single value (bool, integer, float) face attributes are supported. For Foundry, a face either has a property or it doesn't so while you can use integers or floats, they will just be true if they are a value other than 0"
+    
+    @classmethod
+    def poll(self, context):
+        return context.object and context.object.type in VALID_MESHES and context.object.data.nwo.face_props
+    
+    def new_attribute_items(self, context):
+        global attributes_list
+        return [(attr.name, attr.name, "") for attr in attributes_list]
+        
+    
+    new_attribute: bpy.props.EnumProperty(
+        name="New Attribute",
+        description="The new attribute to associate with this face property. Available items come from mesh attributes and must be a single value (bool, integer, float) face attribute",
+        items=new_attribute_items,
+        options={'SKIP_SAVE'}
+    )
+    
+    name_override: bpy.props.StringProperty(
+        name="Name Override",
+        description="Changes the name of the new attribute above. Leave blank for no change",
+        options={'SKIP_SAVE'}
+    )
+    
+    def execute(self, context):
+        mesh = cast(bpy.types.Mesh, context.object.data)
+        prop = mesh.nwo.face_props[mesh.nwo.face_props_active_index]
+        attribute = mesh.attributes.get(self.new_attribute)
+        if attribute is None:
+            self.report({'WARNING'}, f"Failed to find attribute {self.new_attribute}")
+            return {'CANCELLED'}
+            
+        if self.name_override.strip():
+            attribute.name = self.name_override.strip()
+            
+        prop.attribute_name = attribute.name
+        self.report({'INFO'}, f"Updated face property attribute to: {prop.attribute_name}")
+        return {'FINISHED'}
+            
+    def invoke(self, context: bpy.types.Context, _):
+        mesh = cast(bpy.types.Mesh, context.object.data)
+        prop = mesh.nwo.face_props[mesh.nwo.face_props_active_index]
+        current_attribute_name = prop.attribute_name
+        current_attribute = mesh.attributes.get(current_attribute_name)
+        global attributes_list
+        if current_attribute is None:
+            attributes_list = [attr for attr in mesh.attributes if attr.domain == 'FACE' and attr.data_type in {'FLOAT', 'INT', 'BOOLEAN'}]
+        else:
+            attributes_list = [current_attribute]
+            attributes_list.extend([attr for attr in mesh.attributes if attr.domain == 'FACE' and attr.data_type in {'FLOAT', 'INT', 'BOOLEAN'} and attr != current_attribute])
+
+        return context.window_manager.invoke_props_dialog(self, width=500)
+        
+    def draw(self, context):
+        layout = cast(bpy.types.UILayout, self.layout)
+        layout.use_property_split = True
+        layout.prop(self, "new_attribute")
+        layout.prop(self, "name_override")
 
 
 class NWO_OT_FaceAttributeAdd(bpy.types.Operator):

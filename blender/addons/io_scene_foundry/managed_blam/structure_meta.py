@@ -165,10 +165,11 @@ class StructureMetaTag(Tag):
             
         return objects
         
-    def to_blender(self, parent_collection: bpy.types.Collection = None) -> tuple[list[bpy.types.Object], list[bpy.types.Object]]:
+    def to_blender(self, parent_collection: bpy.types.Collection = None, objects_only=False) -> tuple[list[bpy.types.Object], list[bpy.types.Object]]:
         objects = []
-        objects.extend(self._import_effects(parent_collection))
-        objects.extend(self._import_airprobes(parent_collection))
-        objects.extend(self._import_light_cones(parent_collection))
-        
+        if not objects_only:
+            objects.extend(self._import_effects(parent_collection))
+            objects.extend(self._import_airprobes(parent_collection))
+            objects.extend(self._import_light_cones(parent_collection))
+            
         return objects, self._import_objects(parent_collection)

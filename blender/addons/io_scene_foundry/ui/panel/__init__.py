@@ -2222,6 +2222,11 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     row.prop(item, "material_lighting_emissive_per_unit")
                 case _:
                     col.prop(item, item.type)
+            
+            if not for_material:
+                col: bpy.types.UILayout
+                col.separator()
+                col.operator("nwo.change_attribute", icon='MESH_DATA')
                 
     def draw_instance_proxies(self, box, ob):
         nwo = ob.data.nwo

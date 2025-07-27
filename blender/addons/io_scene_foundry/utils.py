@@ -3502,14 +3502,14 @@ def calc_face_prop_counts(mesh: bpy.types.Mesh):
         prop.face_count = face_attribute_count(mesh, prop)
     
 def add_face_attribute(mesh: bpy.types.Mesh) -> bmesh.types.BMLayerItem:
-    attribute = mesh.attributes.new(f"foundry_attribute__{str(uuid4())}", 'BOOLEAN', 'FACE')
+    attribute = mesh.attributes.new(f"foundry_attribute__{str(uuid4())[:8]}", 'BOOLEAN', 'FACE')
     array = np.ones(len(mesh.polygons), dtype=np.int8)
     attribute.data.foreach_set("value", array)
     
     return attribute
 
 def add_face_attribute_empty(mesh: bpy.types.Mesh) -> bmesh.types.BMLayerItem:
-    attribute = mesh.attributes.new(f"foundry_attribute__{str(uuid4())}", 'BOOLEAN', 'FACE')
+    attribute = mesh.attributes.new(f"foundry_attribute__{str(uuid4())[:8]}", 'BOOLEAN', 'FACE')
     return attribute
 
 def test_face_prop_any(mesh: bpy.types.Mesh, prop_name: str):
@@ -3587,7 +3587,7 @@ def add_face_prop(mesh: bpy.types.Mesh, prop_type: str, values_map=None):
 def add_face_attribute_edit_mode(mesh: bpy.types.Mesh, assign_all=False) -> bmesh.types.BMLayerItem:
     bm = bmesh.from_edit_mesh(mesh)
     
-    attribute = bm.faces.layers.bool.new(f"foundry_attribute__{str(uuid4())}")
+    attribute = bm.faces.layers.bool.new(f"foundry_attribute__{str(uuid4())[:8]}")
     
     if assign_all:
         for face in bm.faces:
