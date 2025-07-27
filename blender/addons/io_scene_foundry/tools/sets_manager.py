@@ -155,13 +155,15 @@ class TableEntryRemove(bpy.types.Operator):
                     ob.nwo.marker_permutations_index = 0
                     
         for coll in bpy.data.collections:
+            if coll.library:
+                continue
             if self.ob_prop_str == 'region_name':
                 if coll.nwo.type == 'region' and coll.nwo.region == old_entry_name:
                     coll.nwo.region = new_entry_name
                     coll.name = get_full_name(coll.nwo.type, new_entry_name)
             elif self.ob_prop_str == 'permutation_name':
                 if coll.nwo.type == 'permutation' and coll.nwo.permutation == old_entry_name:
-                    coll.nwo.permutation = new_entry_name
+                    coll.nwo.permutation = new_entry_name 
                     coll.name = get_full_name(coll.nwo.type, new_entry_name)
                     
         if active_zs_bsps is not None:

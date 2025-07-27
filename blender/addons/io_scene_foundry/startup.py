@@ -72,7 +72,6 @@ def import_handler(import_context):
                         if id.nwo.permutation:
                             utils.add_permutation(id.nwo.permutation)
     
-    
     if proxies:
         proxy_scene = utils.get_foundry_storage_scene()
         for ob in proxies:

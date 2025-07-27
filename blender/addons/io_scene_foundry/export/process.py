@@ -251,10 +251,15 @@ class ExportScene:
                     child_instancers.append(source_ob)
                     continue
                 temp_ob = source_ob.copy()
+                coll_nwo = ob.instance_collection.nwo
+                if coll_nwo.type == 'region' and coll_nwo.region:
+                    temp_ob.nwo.region_name = coll_nwo.region
+                elif coll_nwo.type == 'permutation' and coll_nwo.permutation:
+                    temp_ob.nwo.permutation_name = coll_nwo.permutation
                 lookup_dict[source_ob] = temp_ob
                 for collection in users_collection:
                     collection.objects.link(temp_ob)
-                    
+                
                 self.temp_objects.add(temp_ob)
 
             if parent_matrix is None:
