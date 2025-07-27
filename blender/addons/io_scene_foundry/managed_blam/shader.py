@@ -980,8 +980,9 @@ class ShaderTag(Tag):
         else:
             match channel_type:
                 case ChannelType.DEFAULT | ChannelType.RGB:
-                    tree.links.new(input=node.inputs[specified_input] if isinstance(specified_input, int) else input_map[specified_input], output=data_node.outputs[0])
-                    alpha_input = node.inputs.get(f"{node.inputs[specified_input].name}_alpha")
+                    main_input = node.inputs[specified_input] if isinstance(specified_input, int) else input_map[specified_input]
+                    tree.links.new(input=main_input, output=data_node.outputs[0])
+                    alpha_input = node.inputs.get(f"{main_input.name}_alpha")
                     if alpha_input is not None:
                         if is_equirectangular:
                             data_node = tree.nodes.new('ShaderNodeTexImage')

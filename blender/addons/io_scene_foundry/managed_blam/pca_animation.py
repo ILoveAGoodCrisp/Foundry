@@ -1,62 +1,68 @@
-
-
-from collections import defaultdict
-from enum import Enum
-from math import radians
-from pathlib import Path
-from typing import cast
-import bpy
-from mathutils import Euler, Matrix, Quaternion, Vector
 import numpy as np
-
-from ..constants import WU_SCALAR
-from ..managed_blam import Tag
+import bpy
 import struct
-        
+from typing    import cast
+from mathutils import Vector
+from ..managed_blam import Tag
 
 class PCAAnimationTag(Tag):
-    tag_ext = 'pca_animation'
+    tag_ext = "pca_animation"
 
     def _read_fields(self):
-        self.block_mesh_data = self.tag.SelectField("Block:mesh data")
+        self.block_mesh_data  = self.tag.SelectField("Block:mesh data")
         self.block_frame_data = self.tag.SelectField("Block:frame data")
-        
-    def import_animation(self, ob: bpy.types.Object, mesh_data_index: int):
-        mesh_data = self.block_mesh_data.Elements[mesh_data_index]
-        vertices_per_shape = int(mesh_data.Fields[1].Data)
 
-        # Step 1: Load blendshape vectors
-        verts = self._get_blendshape_verts(mesh_data)  # shape: (num_components * num_verts, 3)
-        components = verts.reshape(-1, vertices_per_shape, 3)  # shape: (num_components, num_verts, 3)
+    def _raw_verts(self, mesh_data):
+        blk   = mesh_data.SelectField("Block:raw blendshape verts")
+        verts = [Vector((*e.Fields[0].Data,)) for e in blk.Elements]
+        return np.asarray([v[:] for v in verts], dtype=np.single)
 
-        # Step 2: Load per-frame coefficients
-        coeffs_all = []
-        for element in self.block_frame_data.Elements:
-            coeff_bytes = bytes(element.Fields[0].GetData())
-            coeffs = struct.unpack('<' + 'f' * (len(coeff_bytes) // 4), coeff_bytes)
-            coeffs_all.append(coeffs)
-        coeffs_all = np.array(coeffs_all, dtype=np.float32)
+    # ------------------------------------------------------------ #
+    def import_animation(self,ob: bpy.types.Object, mesh_data_index : int, offset=0,count=1, shape_count = 16, percentile=100, fudge=0.75,):
+        md        = self.block_mesh_data.Elements[mesh_data_index]
+        verts_per = int(md.Fields[1].Data)
 
-        num_components = components.shape[0]
-        mesh = cast(bpy.types.Mesh, ob.data)
+        comp_raw = self._raw_verts(md)
+        comps    = comp_raw.reshape(-1, verts_per, 3)[:shape_count]
+        K, V     = comps.shape[0], verts_per
 
-        if not mesh.shape_keys:
+        rows = []
+        for elem in self.block_frame_data.Elements:
+            buf = bytes(elem.Fields[0].GetData())
+            rows.append(struct.unpack('<'+'f'*(len(buf)//4), buf))
+
+        F = len(rows)
+        coeff = np.zeros((F, K), np.float32)
+        for i, r in enumerate(rows):
+            coeff[i, :min(K, len(r))] = r[:K]
+
+        if count is None:
+            count = F - offset
+        coeff = coeff[offset:offset+count]
+
+        span = np.percentile(np.abs(coeff), percentile, axis=0) * fudge
+        span[span < 1e-6] = 1.0
+
+        me = cast(bpy.types.Mesh, ob.data)
+        if not me.shape_keys:
             ob.shape_key_add(name="Basis", from_mix=False)
 
-        for frame_idx, coeffs in enumerate(coeffs_all):
-            min_components = min(num_components, len(coeffs))
-            shape = np.tensordot(coeffs[:min_components], components[:min_components], axes=(0, 0))
+        basis = np.empty(len(me.vertices)*3, np.single)
+        me.vertices.foreach_get("co", basis)
+        basis = basis.reshape(-1, 3)
+        scale = basis.ptp(0) / np.maximum(comps.reshape(-1,3).ptp(0), 1e-8)
 
-            # Transform to object space
-            flat = np.array(shape, dtype=np.single).ravel()
+        keys = []
+        for k in range(K):
+            kb = ob.shape_key_add(name=f"PC_{k+1}", from_mix=False)
+            mesh_delta = comps[k] * scale * span[k]
+            kb.data.foreach_set("co",
+                (basis + mesh_delta).astype(np.single).ravel())
+            kb.slider_min, kb.slider_max = -1.0, 1.0
+            kb.value = 0.0
+            keys.append(kb)
 
-            key = ob.shape_key_add(name=f"frame_{frame_idx}", from_mix=False)
-            key.data.foreach_set("co", flat)
-
-
-    def _get_blendshape_verts(self, mesh_data, matrix):
-        block_verts = mesh_data.SelectField("Block:raw blendshape verts")
-        verts = [Vector((*e.Fields[0].Data,)) * 100 for e in block_verts.Elements]
-        return np.array([v.to_tuple() for v in verts], dtype=np.single)
-        
-        
+        for f, row in enumerate(coeff, start=1):
+            for k, kb in enumerate(keys):
+                kb.value = float(row[k] / span[k])
+                kb.keyframe_insert("value", frame=f)
