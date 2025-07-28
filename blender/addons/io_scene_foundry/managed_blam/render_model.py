@@ -449,5 +449,8 @@ class RenderModelTag(Tag):
         return objects
             
             
+    def get_bounds(self):
+        return CompressionBounds(self.block_compression_info.Elements[0])
+            
             
             
