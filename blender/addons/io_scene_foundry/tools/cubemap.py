@@ -67,7 +67,7 @@ class CubemapFarm:
         except:
             print("Unable to replace bonobo_init.txt. It is currently read only")
         
-        utils.update_debug_menu(for_cubemaps=True)
+        utils.update_debug_menu(update_type=utils.DebugMenuType.CUBEMAP)
         
         if self.cubemaps_dir.exists():
             try:

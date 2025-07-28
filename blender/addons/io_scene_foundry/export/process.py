@@ -863,12 +863,11 @@ class ExportScene:
         props["bungie_mesh_poop_pathfinding"] = PoopInstancePathfindingPolicy[nwo.poop_pathfinding].value
         if self.export_settings.force_imposter_policy_never:
             props["bungie_mesh_poop_imposter_policy"] = PoopInstanceImposterPolicy.never.value
+            props["bungie_mesh_poop_imposter_transition_distance"] = 999999
         else:
-            props["bungie_mesh_poop_imposter_policy"] = PoopInstanceImposterPolicy[nwo.poop_imposter_policy].value
-            if (
-                nwo.poop_imposter_policy
-                != "never"
-            ):
+            imposter_policy = PoopInstanceImposterPolicy[nwo.poop_imposter_policy]
+            props["bungie_mesh_poop_imposter_policy"] = imposter_policy.value
+            if imposter_policy != PoopInstanceImposterPolicy.never:
                 if not nwo.poop_imposter_transition_distance_auto:
                     props["bungie_mesh_poop_imposter_transition_distance"] = nwo.poop_imposter_transition_distance
                 if self.corinth:

@@ -2802,9 +2802,11 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     )
     
     def get_is_valid_asset(self):
+        if not bpy.data.filepath:
+            return False
         project = utils.get_project(self.scene_project)
-        is_valid = bool(project and self.sidecar_path.strip() and Path(project.data_directory, self.sidecar_path).exists())
-        return is_valid
+        relative_blend = utils.relative_path(bpy.data.filepath)
+        return project and self.sidecar_path.strip() and (Path(project.data_directory, self.sidecar_path).exists() or str(Path(relative_blend).with_suffix(".sidecar.xml")) == self.sidecar_path)
     
     is_valid_asset: bpy.props.BoolProperty(
         get=get_is_valid_asset,

@@ -688,11 +688,10 @@ def check_path(filePath):
 
 
 def valid_nwo_asset(context=None):
-    """Returns true if this blender scene is a valid NWO asset i.e. has an existing sidecar file"""
+    """Returns true if this blender scene is a valid NWO asset"""
     if not context:
         context = bpy.context
-    return context.scene.nwo.sidecar_path != "" and Path(get_data_path(), context.scene.nwo.sidecar_path).exists()
-
+    return context.scene.nwo.is_valid_asset
 
 def nwo_asset_type():
     """Returns the NWO asset type"""
@@ -2921,18 +2920,26 @@ class DebugMenuCommand:
     def __repr__(self):
         return f'<item type = command name = "Foundry: Drop {self.name} [{self.tag_type}]" variable = "drop \\"{self.path}\\"">\n'
     
-def update_debug_menu(asset_dir="", asset_name="", for_cubemaps=False):
+class DebugMenuType(Enum):
+    DEFAULT = 0
+    CUBEMAP = 1
+    IMPOSTER = 2
+    
+def update_debug_menu(asset_dir="", asset_name="", update_type=DebugMenuType.DEFAULT):
     menu_commands: list[DebugMenuCommand] = []
-    if for_cubemaps:
-        menu_commands.append('<item type = command name = "Foundry: Generate Dynamic Cubemaps" variable = "\(cubemap_dynamic_generate\) \(print \\"Dynamic cubemap generation in progress\\"\)">\n')
-    else:
-        asset_dir = relative_path(asset_dir)
-        full_path = Path(get_tags_path(), asset_dir)
-        if not full_path.exists():
-            return
-        for file in full_path.iterdir():
-            if file.name.startswith(asset_name) and file.suffix in object_exts:
-                menu_commands.append(DebugMenuCommand(asset_dir, file.name))
+    match update_type:
+        case DebugMenuType.DEFAULT:
+            asset_dir = relative_path(asset_dir)
+            full_path = Path(get_tags_path(), asset_dir)
+            if not full_path.exists():
+                return
+            for file in full_path.iterdir():
+                if file.name.startswith(asset_name) and file.suffix in object_exts:
+                    menu_commands.append(DebugMenuCommand(asset_dir, file.name))
+        case DebugMenuType.CUBEMAP:
+            menu_commands.append('<item type = command name = "Foundry: Generate Dynamic Cubemaps" variable = "\(cubemap_dynamic_generate\) \(print \\"Dynamic cubemap generation in progress\\"\)">\n')
+        case DebugMenuType.IMPOSTER:
+            menu_commands.append('<item type = command name = "Foundry: Generate Instance Imposters" variable = "\(structure_instance_snapshot 0\) \(print \\"Dynamic Imposter Snapshot in progress\\"\)">\n')
             
     menu_path = os.path.join(get_project_path(), 'bin', 'debug_menu_user_init.txt')
     valid_lines = None

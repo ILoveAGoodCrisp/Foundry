@@ -48,6 +48,7 @@ from .get_tag_list import NWO_GetTagsList, NWO_TagExplore
 from .halo_launcher import NWO_HaloLauncher_Data, NWO_HaloLauncher_Foundation, NWO_HaloLauncher_Sapien, NWO_HaloLauncher_TagTest, NWO_HaloLauncher_Tags, NWO_OpenFoundationTag
 from .shader_builder import NWO_ListMaterialShaders, NWO_Shader_BuildSingle, NWO_ShaderPropertiesGroup
 from .halo_launcher import NWO_HaloLauncherPropertiesGroup, NWO_MaterialGirl
+from .imposter_farm import NWO_OT_InstanceImposterGenerate
 
 is_blender_startup = True
 
@@ -207,6 +208,7 @@ classes = (
     NWO_OT_LockChildBoneLocation,
     NWO_OT_LockChildBoneRotation,
     NWO_OT_LockChildBoneScale,
+    NWO_OT_InstanceImposterGenerate,
 )
 
 def register():
