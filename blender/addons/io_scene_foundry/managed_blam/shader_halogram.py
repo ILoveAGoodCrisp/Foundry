@@ -80,6 +80,11 @@ class ShaderHalogramTag(ShaderTag):
         
         self.has_rotating_bitmaps = e_misc == Misc.FIRST_PERSON_W_ROTATING_BITMAPS
         
+        if e_self_illumination.value > 10:
+            old_illum = e_self_illumination.name
+            e_self_illumination = SelfIllumination.PALETTIZED_PLASMA
+            utils.print_warning(f"Unsupported self-illumination : {old_illum}. Using {e_self_illumination.name} instead")
+        
         self.shader_parameters = {}
         self.shader_parameters.update(self.category_parameters["albedo"][utils.game_str(e_albedo.name)])
         self.shader_parameters.update(self.category_parameters["self_illumination"][utils.game_str(e_self_illumination.name)])

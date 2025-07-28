@@ -100,10 +100,10 @@ class NWO_OT_InstanceImposterGenerate(bpy.types.Operator):
         default=True,
     )
     
-    bsp: bpy.props.EnumProperty(
-        name="BSP",
-        description="Select the BSP to generate imposters. Defaults to all BSPs"
-    )
+    # bsp: bpy.props.EnumProperty(
+    #     name="BSP",
+    #     description="Select the BSP to generate imposters. Defaults to all BSPs"
+    # )
 
     def execute(self, context):
         if not self.filepath or Path(self.filepath).suffix.lower() != ".scenario":
