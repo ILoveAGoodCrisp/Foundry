@@ -1293,9 +1293,11 @@ class VirtualMesh:
             mask = np.asarray(scene.poop_obs[ob.data])
             if mask.all(): # Checks if all instances of a mesh use the poop_render_only flag, in which case it sets render only at face level
                 force_render_only = True
+                
+        bungie_attributes = [attr for attr in mesh.attributes if attr.domain == 'FACE' and attr.name.lower().startswith("bungie_")]
         
-        if (force_render_only or ob.data.nwo.face_props or (valid_materials_count > 1 and (special_mats_dict or prop_mats_dict))) and mesh_type_value in FACE_PROP_TYPES:
-            self.face_properties = gather_face_props(ob.data.nwo, mesh, num_polygons, scene, sorted_order, special_mats_dict, prop_mats_dict, props, force_render_only)
+        if (bungie_attributes or force_render_only or ob.data.nwo.face_props or (valid_materials_count > 1 and (special_mats_dict or prop_mats_dict))) and mesh_type_value in FACE_PROP_TYPES:
+            self.face_properties = gather_face_props(ob.data.nwo, mesh, num_polygons, scene, sorted_order, special_mats_dict, prop_mats_dict, props, force_render_only, bungie_attributes)
             
             if is_object_instance:
                 for prop_name, face_set in self.face_properties.items():
@@ -2118,6 +2120,8 @@ class FaceSet:
                 annotation_type.append(GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, b"Real32", None, size))
             case np.int32:
                 annotation_type.append(GrannyDataTypeDefinition(GrannyMemberType.granny_int32_member.value, b"Int32", None, size))
+            case np.byte:
+                annotation_type.append(GrannyDataTypeDefinition(GrannyMemberType.granny_string_member.value, b"Char", None, size))
             # case np.uint8:
             #     annotation_type.append(GrannyDataTypeDefinition(GrannyMemberType.granny_uint8_member.value, b"Uint8", None, size))
             case _:
@@ -2129,7 +2133,7 @@ class FaceSet:
         self.annotation_type = cast(type_info_array, POINTER(GrannyDataTypeDefinition))
             
 
-def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh, num_faces: int, scene: VirtualScene, sorted_order, special_mats_dict: dict, prop_mats_dict: dict, props: dict, force_render_only: bool) -> dict:
+def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh, num_faces: int, scene: VirtualScene, sorted_order, special_mats_dict: dict, prop_mats_dict: dict, props: dict, force_render_only: bool, bungie_attributes: list[bpy.types.Attribute]) -> dict:
     is_structure = props.get("bungie_mesh_type") == MeshType.default.value
     face_properties = {}
     deferred_transparencies = []
@@ -2424,6 +2428,54 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
                         if sky_index > 0 and props.get("bungie_sky_permutation_index") is None:
                             face_properties.setdefault("bungie_sky_permutation_index", FaceSet(np.zeros(num_faces, dtype=np.int32))).update_from_material(mesh, material_indices, sky_index)
                         
+    for attribute in bungie_attributes:
+        match attribute.data_type:
+            case 'FLOAT':
+                array = np.zeros(num_faces, dtype=np.single)
+                attribute.data.foreach_get("value", array)
+                face_properties[attribute.name] = FaceSet(array)
+            case 'INT' | 'INT8':
+                array = np.zeros(num_faces, dtype=np.int32)
+                attribute.data.foreach_get("value", array)
+                face_properties[attribute.name] = FaceSet(array)
+            case 'FLOAT_VECTOR':
+                array = np.zeros(num_faces * 3, dtype=np.single)
+                attribute.data.foreach_get("vector", array)
+                face_properties[attribute.name] = FaceSet(array.reshape(-1, 3))
+            case 'FLOAT_COLOR' | 'BYTE_COLOR':
+                array = np.zeros(num_faces * 4, dtype=np.single)
+                attribute.data.foreach_get("color", array)
+                array = array.reshape(-1, 4)
+                array[:, [0, 3]] = array[:, [3, 0]] # RGBA -> ARGB
+                face_properties[attribute.name] = FaceSet(array)
+            case 'STRING':
+                # TODO lookup string value in enums
+                array = np.zeros(num_faces, dtype=np.byte)
+                attribute.data.foreach_get("value", array)
+                # array = np.array([lookup_enum(scene, b) for b in array], dtype=np.int32)
+                face_properties[attribute.name] = FaceSet(array)
+            case 'BOOLEAN':
+                array = np.zeros(num_faces, dtype=np.int32)
+                attribute.data.foreach_get("value", array)
+                face_properties[attribute.name] = FaceSet(array)
+            case 'FLOAT2':
+                array = np.zeros((num_faces, 2), dtype=np.int32)
+                attribute.data.foreach_get("vector", array)
+                face_properties[attribute.name] = FaceSet(array)
+            case 'INT16_2D' | 'INT32_2D':
+                array = np.zeros((num_faces, 2), dtype=np.int32)
+                attribute.data.foreach_get("vector", array)
+                face_properties[attribute.name] = FaceSet(array)
+            # case 'QUATERNION':
+            #     array = np.zeros((num_faces, 4), dtype=np.int32)
+            #     attribute.data.foreach_get("value", array)
+            #     array[:, [0, 3]] = array[:, [3, 0]] # WXYZ Quarternion to IJKW
+            #     face_properties[attribute.name] = FaceSet(array)
+            # case 'FLOAT4X4':
+            #     array = np.zeros((num_faces, 16), dtype=np.int32)
+            #     attribute.data.foreach_get("value", array)
+            #     face_properties[attribute.name] = FaceSet(array)
+    
                         
     if force_render_only:
         existing_face_face_mode = face_properties.get("bungie_face_mode")
@@ -2439,6 +2491,9 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
             v.array = v.array[sorted_order]
     
     return face_properties
+
+def lookup_enum(scene: VirtualScene, name: str):
+    return 0
     
 def calc_transforms(matrix: Matrix) -> tuple[Array, Array, Array]:
     '''Gets the affine3, linear3x3, and inverse_linear3x3 from a matrix'''

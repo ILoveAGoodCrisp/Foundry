@@ -277,13 +277,11 @@ class Group:
 class TriAnnotationSet:
     def __init__(self, name: str, array: np.ndarray):
         self.name = name.encode()
-        self.type = 0
         c_type = c_int
         if array.dtype == np.single:
-            self.type = 1
             c_type = c_float
-            if array.shape[1] == 3:
-                self.type = 2
+        elif array.dtype == np.byte:
+            c_type = c_char_p
         self.tri_annotations = (c_type * len(array))(*array)
     
 class TriTopology:
