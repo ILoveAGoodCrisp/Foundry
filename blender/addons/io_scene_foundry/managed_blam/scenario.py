@@ -217,3 +217,10 @@ class ScenarioTag(Tag):
             zs_dict[element.Fields[0].GetStringData()] = [item.FlagName for item in element.SelectField("BlockFlags:bsp zone flags").Items if item.IsSet]
             
         return zs_dict
+    
+    def get_info(self, bsp_index: int) -> str | None:
+        if self.corinth:
+            return None
+        field = self.tag.SelectField(f"Block:structure bsps[{bsp_index}]/Reference:structure lighting_info")
+        if field is not None and field.Path is not None:
+            return Path(field.Path.Filename)

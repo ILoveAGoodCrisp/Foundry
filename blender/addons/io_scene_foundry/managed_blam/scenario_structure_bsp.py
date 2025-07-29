@@ -133,9 +133,13 @@ class ScenarioStructureBspTag(Tag):
             
         self.tag_has_changes = True
         
-    def to_blend_objects(self, collection: bpy.types.Collection, for_cinematic: bool, lighting_info_path: Path = None, structure_meta_path: Path = None):
+    def to_blend_objects(self, collection: bpy.types.Collection, for_cinematic: bool, lighting_info_path: Path = None, import_geometry=True, import_lights=True):
         objects = []
         game_objects = []
+        
+        if not import_geometry and not import_lights:
+            return objects, game_objects
+        
         self.collection = collection
         # Get all collision materials
         collision_materials = []
@@ -150,24 +154,34 @@ class ScenarioStructureBspTag(Tag):
                 emissives.append(Emissive(element))
         else:
             if not lighting_info_path:
-                lighting_info_path = Path(self.tag_path.Filename).with_suffix(".scenario_structure_lighting_info")
-                
+                if self.corinth:
+                    path = self.tag.SelectField("Reference:structure lighting_info").Path
+                    if path is not None:
+                        lighting_info_path = Path(path.RelativePathWithExtension)
+                else:
+                    lighting_info_path = Path(self.tag_path.Filename).with_suffix(".scenario_structure_lighting_info")
+            
             if lighting_info_path.exists():
                 with ScenarioStructureLightingInfoTag(path=str(lighting_info_path)) as info:
                     if not self.corinth:
                         for element in info.tag.SelectField("Block:material info").Elements:
                             emissives.append(Emissive(element))
-                            
-                        if not for_cinematic:
-                            lightmap_regions = info.lightmap_regions_to_blender()
-                            if lightmap_regions:
-                                print(f"Imported {len(lightmap_regions)} lightmap regions from {info.tag_path.RelativePathWithExtension}")
-                                objects.extend(lightmap_regions)
+                        
+                        if import_geometry:
+                            if not for_cinematic:
+                                lightmap_regions = info.lightmap_regions_to_blender()
+                                if lightmap_regions:
+                                    print(f"Imported {len(lightmap_regions)} lightmap regions from {info.tag_path.RelativePathWithExtension}")
+                                    objects.extend(lightmap_regions)
                     
-                    light_objects = info.to_blender(collection)
-                    if light_objects:
-                        print(f"Imported {len(light_objects)} lights from {info.tag_path.RelativePathWithExtension}")
-                        objects.extend(light_objects)
+                    if import_lights:
+                        light_objects = info.to_blender(collection)
+                        if light_objects:
+                            print(f"Imported {len(light_objects)} lights from {info.tag_path.RelativePathWithExtension}")
+                            objects.extend(light_objects)
+                            
+        if not import_geometry:
+            return objects, game_objects
                     
         # Get all render materials
         render_materials = []
@@ -364,19 +378,20 @@ class ScenarioStructureBspTag(Tag):
             
         # Now do environment objects
         if self.corinth:
-            if not structure_meta_path:
-                structure_meta_path = Path(self.tag_path.Filename).with_suffix(".scenario_structure_lighting_info")
-            if structure_meta_path.exists():
-                print("Importing Structure Meta")
-                meta_collection = bpy.data.collections.new(name=f"layer::{self.tag_path.ShortName}_meta")
-                meta_collection.nwo.type = "permutation"
-                meta_collection.nwo.permutation = layer
-                self.collection.children.link(meta_collection)
-                with StructureMetaTag(path=structure_meta_path) as meta:
-                    meta_objects, meta_game_objects = meta.to_blender(meta_collection, for_cinematic)
-                    objects.extend(meta_objects)
-                    objects.extend(meta_game_objects)
-                    game_objects.extend(meta_game_objects)
+            path = self.tag.SelectField("Reference:structure meta data").Path
+            if path is not None:
+                structure_meta_path = Path(path.RelativePathWithExtension)
+                if structure_meta_path.exists():
+                    print("Importing Structure Meta")
+                    meta_collection = bpy.data.collections.new(name=f"layer::{self.tag_path.ShortName}_meta")
+                    meta_collection.nwo.type = "permutation"
+                    meta_collection.nwo.permutation = layer
+                    self.collection.children.link(meta_collection)
+                    with StructureMetaTag(path=structure_meta_path) as meta:
+                        meta_objects, meta_game_objects = meta.to_blender(meta_collection, for_cinematic)
+                        objects.extend(meta_objects)
+                        objects.extend(meta_game_objects)
+                        game_objects.extend(meta_game_objects)
             
             # Prefabs
             # game_objects.extend(self._import_prefabs())

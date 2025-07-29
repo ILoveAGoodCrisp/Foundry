@@ -487,6 +487,18 @@ class NWO_Import(bpy.types.Operator):
         description="Skips importing bsp data like collision and portals. Use this if you aren't importing the BSP back into the game"
     )
     
+    tag_bsp_import_geometry: bpy.props.BoolProperty(
+        name="Import BSP Geometry",
+        description="Imports the all geometry data within bsp tags",
+        default=True,
+    )
+    
+    tag_import_lights: bpy.props.BoolProperty(
+        name="Import Lights",
+        description="Imports the all lights found in scenario_structure_lighting_info tags",
+        default=True,
+    )
+    
     tag_animation_filter: bpy.props.StringProperty(
         name="Animation Filter",
         options={'SKIP_SAVE'},
@@ -861,6 +873,8 @@ class NWO_Import(bpy.types.Operator):
                 if 'scenario' in importer.extensions:
                     importer.tag_zone_set = self.tag_zone_set
                     importer.tag_bsp_render_only = self.tag_bsp_render_only
+                    importer.tag_bsp_import_geometry = self.tag_bsp_import_geometry
+                    importer.tag_import_lights = self.tag_import_lights
                     importer.setup_as_asset = self.setup_as_asset
                     scenario_files = importer.sorted_filepaths["scenario"]
                     imported_scenario_objects = importer.import_scenarios(scenario_files)
@@ -878,6 +892,8 @@ class NWO_Import(bpy.types.Operator):
                     
                 elif 'scenario_structure_bsp' in importer.extensions:
                     importer.tag_bsp_render_only = self.tag_bsp_render_only
+                    importer.tag_bsp_import_geometry = self.tag_bsp_import_geometry
+                    importer.tag_import_lights = self.tag_import_lights
                     importer.setup_as_asset = self.setup_as_asset
                     bsp_files = importer.sorted_filepaths["scenario_structure_bsp"]
                     imported_bsp_objects = []
@@ -1124,7 +1140,9 @@ class NWO_Import(bpy.types.Operator):
             tag_type = 'material' if utils.is_corinth(context) else 'shader'
             box.label(text='Scenario Tag Settings')
             box.prop(self, 'tag_zone_set')
-            box.prop(self, 'tag_bsp_render_only')
+            box.prop(self, "tag_bsp_import_geometry")
+            box.prop(self, "tag_bsp_render_only")
+            box.prop(self, "tag_import_lights")
             box.prop(self, 'build_blender_materials', text=f"Blender Materials from {tag_type.capitalize()} Tags")
             box.prop(self, 'always_extract_bitmaps')
             if not self.scope or ('scenario' in self.scope):
@@ -1383,6 +1401,8 @@ class NWOImporter:
         self.tag_state = -1
         self.tag_zone_set = ""
         self.tag_bsp_render_only = False
+        self.tag_bsp_import_geometry = False
+        self.tag_import_lights = False
         self.tag_animation_filter = ""
         self.import_variant_children = False
         self.setup_as_asset = False
@@ -1968,27 +1988,16 @@ class NWOImporter:
                     scenario_name = scenario.tag_path.ShortName
                     scenario_collection = bpy.data.collections.new(scenario_name)
                     self.context.scene.collection.children.link(scenario_collection)
-                    for bsp in bsps:
-                        bsp_objects = self.import_bsp(bsp, scenario_collection)
+                    for idx, bsp in enumerate(bsps):
+                        bsp_objects = self.import_bsp(bsp, scenario_collection, None if self.corinth else scenario.get_info(idx))
                         imported_objects.extend(bsp_objects)
-                    
-                    # if seams:
-                    #     seams_tag = scenario.get_seams_path()
-                        
-            # if seams_tag is not None:
-            #     seams_collection = bpy.data.collections.new(f"seams_{scenario_name}")
-            #     scenario_collection.children.link(seams_collection)
-            #     with utils.TagImportMover(utils.get_project(context.scene.nwo.scene_project).tags_directory, seams_tag) as mover:
-            #         with StructureSeamsTag(path=mover.tag_path, raise_on_error=False) as structure_seams:
-            #             imported_objects.extend(structure_seams.to_blend_objects(seams, seams_collection))
-            
+
                     if self.setup_as_asset:
                         set_asset(Path(file).suffix)
         
         return imported_objects
     
-    def import_bsp(self, file, scenario_collection=None):
-        
+    def import_bsp(self, file, scenario_collection=None, info_path=None):
         bsp_name = Path(file).with_suffix("").name
         print(f"Importing BSP {bsp_name}")
         bsp_objects = []
@@ -1999,7 +2008,7 @@ class NWOImporter:
             scenario_collection.children.link(collection)
         with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
             with ScenarioStructureBspTag(path=mover.tag_path) as bsp:
-                bsp_objects, game_objects = bsp.to_blend_objects(collection, self.tag_bsp_render_only)
+                bsp_objects, game_objects = bsp.to_blend_objects(collection, self.tag_bsp_render_only, info_path, self.tag_bsp_import_geometry, self.tag_import_lights)
                 
                 meshes = {ob.data for ob in bsp_objects if ob.type == 'MESH'}
                 self.emissive_meshes.update({me for me in meshes if any(p.type == 'emissive' for p in me.nwo.face_props)})
@@ -3259,6 +3268,18 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         description="Skips importing bsp data like collision and portals. Use this if you aren't importing the BSP back into the game",
     )
     
+    tag_bsp_import_geometry: bpy.props.BoolProperty(
+        name="Import BSP Geometry",
+        description="Imports the all geometry data within bsp tags",
+        default=True,
+    )
+    
+    tag_import_lights: bpy.props.BoolProperty(
+        name="Import Lights",
+        description="Imports the all lights found in scenario_structure_lighting_info tags",
+        default=True,
+    )
+    
     tag_animation_filter: bpy.props.StringProperty(
         name="Animation Filter",
         description="Filter for the animations to import. Animation names that do not contain the specified string will be skipped"
@@ -3435,12 +3456,16 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 layout.prop(self, "always_extract_bitmaps")
             case "scenario":
                 layout.prop(self, "tag_zone_set")
+                layout.prop(self, "tag_bsp_import_geometry")
                 layout.prop(self, "tag_bsp_render_only")
+                layout.prop(self, "tag_import_lights")
                 layout.prop(self, "setup_as_asset")
                 layout.prop(self, "build_blender_materials")
                 layout.prop(self, "always_extract_bitmaps")
             case "scenario_structure_bsp" | "prefab":
+                layout.prop(self, "tag_bsp_import_geometry")
                 layout.prop(self, "tag_bsp_render_only")
+                layout.prop(self, "tag_import_lights")
                 layout.prop(self, "setup_as_asset")
                 layout.prop(self, "build_blender_materials")
                 layout.prop(self, "always_extract_bitmaps")
