@@ -3,11 +3,9 @@
 from math import radians
 from typing import cast
 
-from mathutils import Color, Matrix, Vector
+from mathutils import Matrix, Vector
 
 from ..tools.property_apply import apply_props_material
-
-from ..constants import WU_SCALAR
 
 from ..props.object import NWO_ObjectPropertiesGroup
 from ..props.light import NWO_LightPropertiesGroup
@@ -203,6 +201,8 @@ class ScenarioStructureLightingInfoTag(Tag):
             element.SelectField("bounce light control").Data = light.bounce_ratio
             element.SelectField("light volume distance").Data = light.volume_distance
             element.SelectField("light volume intensity scalar").Data = light.volume_intensity
+            element.SelectField("fade out distance").Data = light.fade_out_distance
+            element.SelectField("fade start distance").Data = light.fade_start_distance
             
             if light.light_tag:
                 element.SelectField("user control").Path = self._TagPath_from_string(light.light_tag)
@@ -343,10 +343,10 @@ class ScenarioStructureLightingInfoTag(Tag):
             
             nwo.light_screenspace_has_specular = element.SelectField("screen space specular").TestBit("screen space light has specular")
             nwo.light_bounce_ratio = element.SelectField("bounce light control").Data
-            nwo.light_volume_distance = element.SelectField("light volume distance").Data * WU_SCALAR
+            nwo.light_volume_distance = element.SelectField("light volume distance").Data
             nwo.light_volume_intensity = element.SelectField("light volume intensity scalar").Data
-            nwo.light_fade_end_distance = element.SelectField("fade out distance").Data * WU_SCALAR
-            nwo.light_fade_start_distance = element.SelectField("fade start distance").Data * WU_SCALAR
+            nwo.light_fade_end_distance = element.SelectField("fade out distance").Data
+            nwo.light_fade_start_distance = element.SelectField("fade start distance").Data
             nwo.light_tag_override = self.get_path_str(element.SelectField("user control").Path)
             nwo.light_shader_reference = self.get_path_str(element.SelectField("shader reference").Path)
             nwo.light_gel_reference = self.get_path_str(element.SelectField("gel reference").Path)
@@ -374,12 +374,11 @@ class ScenarioStructureLightingInfoTag(Tag):
             nwo = cast(NWO_LightPropertiesGroup, blender_light.nwo)
                     
             nwo.light_shape = '_connected_geometry_light_shape_circle' if element.SelectField("shape").Value == 1 else '_connected_geometry_light_shape_rectangle'
-            color = Color((*element.SelectField("color").Data,))
-            blender_light.color = color.from_srgb_to_scene_linear()
+            blender_light.color = [utils.srgb_to_linear(c) for c in element.SelectField("color").Data]
             nwo.light_intensity = element.SelectField("intensity").Data
             
-            blender_light.shadow_soft_size = max((*element.SelectField("near attenuation bounds").Data,)) * WU_SCALAR
-            nwo.light_far_attenuation_start, nwo.light_far_attenuation_end = [a * WU_SCALAR for a in element.SelectField("far attenuation bounds").Data]
+            blender_light.shadow_soft_size = max((*element.SelectField("near attenuation bounds").Data,))
+            nwo.light_far_attenuation_start, nwo.light_far_attenuation_end = [a for a in element.SelectField("far attenuation bounds").Data]
             nwo.light_aspect = element.SelectField("aspect").Data
             
             definitions[element.ElementIndex] = blender_light

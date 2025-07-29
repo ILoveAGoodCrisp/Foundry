@@ -24,6 +24,7 @@ class BlamLightInstance:
         data = ob.data
         self.data_name = ob.data.name
         self.bsp = bsp
+        unit_factor = utils.get_unit_conversion_factor(bpy.context)
         matrix = utils.halo_transforms(ob, scale, rotation)
         self.origin = matrix.translation.to_tuple()
         matrix_3x3 = matrix.to_3x3().normalized()
@@ -58,9 +59,13 @@ class BlamLightInstance:
         elif ob_nwo.light_mode == '_connected_geometry_light_mode_analytic':
             self.light_mode = 2
         
+        # Fade
+        self.fade_out_distance = ob_nwo.light_fade_end_distance * 100 * WU_SCALAR * unit_factor
+        self.fade_start_distance = ob_nwo.light_fade_start_distance * 100 * WU_SCALAR * unit_factor
+        
 class BlamLightDefinition:
     def __init__(self, data):
-        export_scale = utils.get_export_scale(bpy.context)
+        # export_scale = utils.get_export_scale(bpy.context)
         unit_factor = utils.get_unit_conversion_factor(bpy.context)
         if utils.is_corinth():
             atten_scalar = 1
@@ -81,7 +86,7 @@ class BlamLightDefinition:
             self.shape = 1
             
         self.color = [utils.linear_to_srgb(data.color[0]), utils.linear_to_srgb(data.color[1]), utils.linear_to_srgb(data.color[2])]
-        self.intensity = max(utils.calc_light_intensity(data, export_scale ** 2), 0.0001)
+        self.intensity = nwo.light_intensity
         self.hotspot_size = 0
         self.hotspot_cutoff = 0
         if data.type == 'SPOT':

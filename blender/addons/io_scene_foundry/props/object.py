@@ -1265,7 +1265,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         name="Light Fade Out Start",
         options=set(),
         description="The light starts to fade out when the camera is x units away",
-        default=utils.wu(100),
+        default=utils.wu(1),
         subtype='DISTANCE',
         unit='LENGTH',
     )
@@ -1274,7 +1274,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         name="Light Fade Out End",
         options=set(),
         description="The light completely fades out when the camera is x units away",
-        default=utils.wu(150),
+        default=utils.wu(1.5),
         subtype='DISTANCE',
         unit='LENGTH',
     )
