@@ -456,7 +456,22 @@ class MaterialTag(ShaderTag):
                 
                 reflection_map_node = rainbow_node.inputs['reflection_map'].links[0].from_node
                 tree.links.new(input=reflection_map_node.inputs[0], output=reflection_node.outputs[0])
-        
+            case 'srf_pbr_ca_terrain_macrocolor_paintrough_world':
+                vector_node = tree.nodes.new('ShaderNodeGroup')
+                vector_node.node_tree = utils.add_node_from_resources("h4_nodes", name='srf_pbr_ca_terrain_macrocolor_paintrough_world - vector')
+                
+                coMap_node = group_node.inputs['layer2_coMap'].links[0].from_node
+                tree.links.new(input=coMap_node.inputs[0], output=vector_node.outputs[0])
+                
+                coMap_xz_node = tree.nodes.new('ShaderNodeTexImage')
+                coMap_xz_node.image = coMap_node.image
+                coMap_xz_node.extension = coMap_node.extension
+                
+                tree.links.new(input=coMap_xz_node.inputs[0], output=vector_node.outputs[1])
+                
+                tree.links.new(input=group_node.inputs["layer2_coMap_xz"], output=coMap_xz_node.outputs[0])
+                tree.links.new(input=group_node.inputs["layer2_coMap_alpha_xz"], output=coMap_xz_node.outputs[1])
+
         # Make the Output
         node_output = nodes.new(type='ShaderNodeOutputMaterial')
 
