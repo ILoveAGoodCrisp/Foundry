@@ -516,8 +516,6 @@ def run_tool(tool_args: list, in_background=False, null_output=False, event_leve
         else:
             return check_call(command)  # ,stderr=PIPE)
 
-
-
 def run_tool_sidecar(tool_args: list, asset_path, event_level='WARNING'):
     """Runs Tool using the specified function and arguments. Do not include 'tool' in the args passed"""
     failed = False
@@ -2925,7 +2923,7 @@ class DebugMenuType(Enum):
     CUBEMAP = 1
     IMPOSTER = 2
     
-def update_debug_menu(asset_dir="", asset_name="", update_type=DebugMenuType.DEFAULT):
+def update_debug_menu(asset_dir="", asset_name="", update_type=DebugMenuType.DEFAULT, bsp_names=[]):
     menu_commands: list[DebugMenuCommand] = []
     match update_type:
         case DebugMenuType.DEFAULT:
@@ -2937,9 +2935,10 @@ def update_debug_menu(asset_dir="", asset_name="", update_type=DebugMenuType.DEF
                 if file.name.startswith(asset_name) and file.suffix in object_exts:
                     menu_commands.append(DebugMenuCommand(asset_dir, file.name))
         case DebugMenuType.CUBEMAP:
-            menu_commands.append('<item type = command name = "Foundry: Generate Dynamic Cubemaps" variable = "\(cubemap_dynamic_generate\) \(print \\"Dynamic cubemap generation in progress\\"\)">\n')
+            menu_commands.append('<item type = command name = "Foundry: Generate Dynamic Cubemaps" variable = "\(cubemap_dynamic_generate\)">\n')
         case DebugMenuType.IMPOSTER:
-            menu_commands.append('<item type = command name = "Foundry: Generate Instance Imposters" variable = "\(structure_instance_snapshot 0\) \(print \\"Dynamic Imposter Snapshot in progress\\"\)">\n')
+            for idx, name in enumerate(bsp_names):
+                menu_commands.append(f'<item type = command name = "Foundry: Generate Instance Imposters for BSP {name}" variable = "\(structure_instance_snapshot {idx}\)">\n')
             
     menu_path = os.path.join(get_project_path(), 'bin', 'debug_menu_user_init.txt')
     valid_lines = None

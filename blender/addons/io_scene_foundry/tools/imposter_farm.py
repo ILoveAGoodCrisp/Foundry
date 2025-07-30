@@ -1,6 +1,7 @@
 
 
 import ctypes
+from subprocess import check_call
 import bpy
 import os
 import time
@@ -9,8 +10,18 @@ from ..managed_blam.scenario import ScenarioTag
 from ..managed_blam.bitmap import BitmapTag
 from .. import utils
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import multiprocessing
 
 instructions_given = False
+
+def process_imposter(file_path):
+    utils.run_tool(["process-imposter", file_path], null_output=True)
+    
+def build_instance_imposter(file_path):
+    utils.run_tool(["build-instance-imposter", file_path], null_output=False)
+    
+spinny = iter(['|', '/', '-', '\\'])
 
 class ImposterFarm:
     def __init__(self, scenario_path) -> None:
@@ -19,13 +30,13 @@ class ImposterFarm:
         self.project_dir = Path(utils.get_project_path())
         self.imposter_cache_dir = Path(self.project_dir, "imposter_cache")
         
-    def get_tagplay_exe(self):
+    def get_tagtest_exe(self):
         for file in self.project_dir.iterdir():
-            if str(file).lower().endswith("tag_play.exe"):
+            if str(file).lower().endswith("tag_test.exe"):
                 return str(file)
     
     def launch_game(self):
-        executable = self.get_tagplay_exe()
+        executable = self.get_tagtest_exe()
         try:
             with open(Path(self.project_dir, "bonobo_init.txt"), "w") as init:
                 if utils.is_corinth():
@@ -44,7 +55,8 @@ class ImposterFarm:
         except:
             print("Unable to replace bonobo_init.txt. It is currently read only")
         
-        utils.update_debug_menu(update_type=utils.DebugMenuType.IMPOSTER)
+        with ScenarioTag(path=self.scenario_path) as scenario:
+            utils.update_debug_menu(update_type=utils.DebugMenuType.IMPOSTER, bsp_names=scenario.get_bsp_names())
         
         if self.imposter_cache_dir.exists():
             try:
@@ -53,7 +65,7 @@ class ImposterFarm:
                 utils.print_warning(f"Failed to remove existing imposter_cache directory: {self.imposter_cache_dir}")
                 
         print("Loading game...")
-        use_instructions = "1. Once the game has loaded press HOME on your keyboard to open the debug menu\n2. Scroll to the bottom of the menu and press enter on the Generate Imposter Source Files command\n3. Wait for the process to complete\n4. Exit the game using SHIFT+ESC\n"
+        use_instructions = "1. Once the game has loaded press HOME on your keyboard to open the debug menu\n2. Scroll to the bottom of the menu and press enter on the Generate Instance Imposters for each BSP you wish to run this on\n3. Wait for the process to complete (Tag Test may appear unresponsive but this is normal)\n4. Exit the game using SHIFT+ESC\n"
         global instructions_given
         if not instructions_given:
             ctypes.windll.user32.MessageBoxW(
@@ -69,12 +81,41 @@ class ImposterFarm:
     def process_imposter(self):
         if not self.imposter_cache_dir.exists():
             return f"No imposter_cache files found at {str(Path(self.project_dir, 'imposter_cache'))}"
-        print("--- Processing Imposters")
-        utils.run_tool(["process_imposters", ".\\"])
-        print("\n--- Building Instance Imposters")
-        utils.run_tool(["build-instance-imposter", ".\\"])
         
-        return "Done"
+        os.chdir(utils.get_project_path())
+
+        oss_files = []
+        
+        for root, dirs, files in os.walk(self.imposter_cache_dir):
+            for file in files:
+                if file.endswith(".oss"):
+                    oss_files.append(str(Path(root, file).relative_to(self.imposter_cache_dir).with_suffix('')))
+                    
+        total = len(oss_files)
+        completed = 0
+    
+        with ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
+            futures = {executor.submit(process_imposter, f): f for f in oss_files}
+            
+            for _ in as_completed(futures):
+                completed += 1
+                utils.update_job_count("--- Processing Imposters", "", completed, total)
+        
+        
+        print("Building Instance Imposters")
+        for dir in self.imposter_cache_dir.iterdir():
+            if dir.is_dir():
+                print(f"-- {dir.name}")
+                for subdir in dir.iterdir():
+                    if subdir.is_dir():
+                        for file in subdir.iterdir():
+                            if file.is_file() and file.suffix == ".imposter_metadata":
+                                target = dir / file.name
+                                shutil.move(str(file), str(target))
+                        
+                utils.run_tool(["build-instance-imposter", dir.name], null_output=False)
+            
+        return ""
 
 class NWO_OT_InstanceImposterGenerate(bpy.types.Operator):
     bl_idname = "nwo.instance_imposter_generate"
@@ -95,15 +136,10 @@ class NWO_OT_InstanceImposterGenerate(bpy.types.Operator):
     )
     
     launch_game: bpy.props.BoolProperty(
-        name="Generate Cubemap Source files",
+        name="Generate Imposter Source Files",
         description="Launches Tag Play for dynamic imposter snapshot to be ran. Access the debug menu via the home button post launch to execute the command (this should be at the bottom of your debug menu). Close the game when complete to continue the process",
         default=True,
     )
-    
-    # bsp: bpy.props.EnumProperty(
-    #     name="BSP",
-    #     description="Select the BSP to generate imposters. Defaults to all BSPs"
-    # )
 
     def execute(self, context):
         if not self.filepath or Path(self.filepath).suffix.lower() != ".scenario":
@@ -116,6 +152,7 @@ class NWO_OT_InstanceImposterGenerate(bpy.types.Operator):
             print(f"►►► IMPOSTER FARM ◄◄◄")
         if self.launch_game:
             farm.launch_game()
+            
         start = time.perf_counter()
         message = farm.process_imposter()
         if message:
@@ -129,14 +166,12 @@ class NWO_OT_InstanceImposterGenerate(bpy.types.Operator):
         return {"FINISHED"}
     
     def invoke(self, context, event):
+        tags_dir = utils.get_tags_path() + os.sep
+        self.filepath = tags_dir
         if utils.valid_nwo_asset() and context.scene.nwo.asset_type == "scenario":
             asset_path, asset_name = utils.get_asset_info()
             if asset_path and asset_name:
-                self.filepath = str(Path(asset_path, asset_name).with_suffix(".scenario"))
-            else:
-                self.filepath = utils.get_tags_path() + os.sep
-        else:
-            self.filepath = utils.get_tags_path() + os.sep
+                self.filepath = str(Path(tags_dir, asset_path, asset_name).with_suffix(".scenario"))
             
         context.window_manager.fileselect_add(self)
         return {"RUNNING_MODAL"}
@@ -145,3 +180,4 @@ class NWO_OT_InstanceImposterGenerate(bpy.types.Operator):
         layout = self.layout
         # layout.prop(self, "scenario_path")
         layout.prop(self, "launch_game")
+        layout.prop(self, "bsps")

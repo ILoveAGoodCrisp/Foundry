@@ -209,15 +209,13 @@ class NWO_OT_Cubemap(bpy.types.Operator):
         return {"FINISHED"}
     
     def invoke(self, context, event):
+        tags_dir = utils.get_tags_path() + os.sep
+        self.filepath = tags_dir
         if utils.valid_nwo_asset() and context.scene.nwo.asset_type == "scenario":
             asset_path, asset_name = utils.get_asset_info()
             if asset_path and asset_name:
-                self.filepath = str(Path(asset_path, asset_name).with_suffix(".scenario"))
-            else:
-                self.filepath = utils.get_tags_path() + os.sep
-        else:
-            self.filepath = utils.get_tags_path() + os.sep
-            
+                self.filepath = str(Path(tags_dir, asset_path, asset_name).with_suffix(".scenario"))
+                
         context.window_manager.fileselect_add(self)
         return {"RUNNING_MODAL"}
     
