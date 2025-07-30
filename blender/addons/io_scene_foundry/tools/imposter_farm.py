@@ -35,7 +35,7 @@ class ImposterFarm:
             if str(file).lower().endswith("tag_test.exe"):
                 return str(file)
     
-    def launch_game(self):
+    def launch_game(self, clear_imposter_cache=False):
         executable = self.get_tagtest_exe()
         try:
             with open(Path(self.project_dir, "bonobo_init.txt"), "w") as init:
@@ -58,7 +58,7 @@ class ImposterFarm:
         with ScenarioTag(path=self.scenario_path) as scenario:
             utils.update_debug_menu(update_type=utils.DebugMenuType.IMPOSTER, bsp_names=scenario.get_bsp_names())
         
-        if self.imposter_cache_dir.exists():
+        if clear_imposter_cache and self.imposter_cache_dir.exists():
             try:
                 shutil.rmtree(self.imposter_cache_dir)
             except:
@@ -140,6 +140,12 @@ class NWO_OT_InstanceImposterGenerate(bpy.types.Operator):
         description="Launches Tag Play for dynamic imposter snapshot to be ran. Access the debug menu via the home button post launch to execute the command (this should be at the bottom of your debug menu). Close the game when complete to continue the process",
         default=True,
     )
+    
+    clear_imposter_cache: bpy.props.BoolProperty(
+        name="Clear Imposter Cache",
+        description="Deletes the existing imposter_cache before loading the game",
+        default=True,
+    )
 
     def execute(self, context):
         if not self.filepath or Path(self.filepath).suffix.lower() != ".scenario":
@@ -151,7 +157,7 @@ class NWO_OT_InstanceImposterGenerate(bpy.types.Operator):
             bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
             print(f"►►► IMPOSTER FARM ◄◄◄")
         if self.launch_game:
-            farm.launch_game()
+            farm.launch_game(self.clear_imposter_cache)
             
         start = time.perf_counter()
         message = farm.process_imposter()
@@ -180,4 +186,5 @@ class NWO_OT_InstanceImposterGenerate(bpy.types.Operator):
         layout = self.layout
         # layout.prop(self, "scenario_path")
         layout.prop(self, "launch_game")
-        layout.prop(self, "bsps")
+        if self.launch_game:
+            layout.prop(self, "clear_imposter_cache")
