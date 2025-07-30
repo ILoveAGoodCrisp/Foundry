@@ -18,8 +18,12 @@ instructions_given = False
 def process_imposter(file_path):
     utils.run_tool(["process-imposter", file_path], null_output=True)
     
+
+def move_metadata(src: Path, dst: Path):
+    shutil.move(str(src), str(dst))
+    
 def build_instance_imposter(file_path):
-    utils.run_tool(["build-instance-imposter", file_path], null_output=False)
+    utils.run_tool(["build-instance-imposter", file_path], null_output=True)
     
 spinny = iter(['|', '/', '-', '\\'])
 
@@ -93,7 +97,8 @@ class ImposterFarm:
                     
         total = len(oss_files)
         completed = 0
-    
+        
+        utils.update_job_count("--- Processing Imposters", "", 0, total)
         with ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
             futures = {executor.submit(process_imposter, f): f for f in oss_files}
             
@@ -101,19 +106,42 @@ class ImposterFarm:
                 completed += 1
                 utils.update_job_count("--- Processing Imposters", "", completed, total)
         
-        
-        print("Building Instance Imposters")
+        move_tasks = []
+        bsp_dirs = []
+
         for dir in self.imposter_cache_dir.iterdir():
             if dir.is_dir():
-                print(f"-- {dir.name}")
+                # print(f"-- {dir.name}")
                 for subdir in dir.iterdir():
                     if subdir.is_dir():
                         for file in subdir.iterdir():
                             if file.is_file() and file.suffix == ".imposter_metadata":
                                 target = dir / file.name
-                                shutil.move(str(file), str(target))
-                        
-                utils.run_tool(["build-instance-imposter", dir.name], null_output=False)
+                                move_tasks.append((file, target))
+                                
+                bsp_dirs.append(dir.name)
+                
+        total = len(move_tasks)
+        completed = 0
+        
+        utils.update_job_count("--- Moving Imposter Metadata", "", 0, total)
+        with ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
+            futures = {executor.submit(move_metadata, src, dst): (src, dst) for src, dst in move_tasks}
+            
+            for _ in as_completed(futures):
+                completed += 1
+                utils.update_job_count("--- Moving Imposter Metadata", "", completed, total)
+                
+        total = len(bsp_dirs)
+        completed = 0
+
+        utils.update_job_count("--- Building Instance Imposter Definition Tags", "", 0, total)
+        with ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
+            futures = {executor.submit(build_instance_imposter, f): f for f in bsp_dirs}
+            
+            for _ in as_completed(futures):
+                completed += 1
+                utils.update_job_count("--- Building Instance Imposter Definition Tags", "", completed, total)
             
         return ""
 
