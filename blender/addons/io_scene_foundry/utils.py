@@ -2037,14 +2037,32 @@ def find_file_in_directory(root_dir, filename) -> str:
             
     return ''
 
-def add_node_from_resources(blend_name, name, link=False) -> bpy.types.NodeGroup:
-    if not bpy.data.node_groups.get(name, 0):
-        lib_blend = os.path.join(MATERIAL_RESOURCES, f'{blend_name}.blend')
-        with bpy.data.libraries.load(lib_blend, link=link) as (_, data_to):
-            if not bpy.data.node_groups.get(name, 0):
-                data_to.node_groups = [name]
-            
-    return bpy.data.node_groups.get(name)
+def add_node_from_resources(blend_name, name, link=False, check_multiple=False) -> bpy.types.NodeGroup | None:
+    node_group = bpy.data.node_groups.get(name)
+    if node_group is not None:
+        return node_group
+    
+    lib_blend = Path(MATERIAL_RESOURCES, f'{blend_name}.blend')
+    
+    if not lib_blend.exists():
+        return
+    
+    found = False
+    with bpy.data.libraries.load(str(lib_blend), link=link) as (data_from, data_to):
+        from_node_groups = frozenset(data_from.node_groups)
+        if name in from_node_groups:
+            data_to.node_groups = [name]
+            found = True
+        elif check_multiple:
+            while len(name) >= 7:
+                name = name[:-1]
+                if name in from_node_groups:
+                    data_to.node_groups = [name]
+                    found = True
+                    break
+                
+    if found:
+        return bpy.data.node_groups[name]
 
 def rgb_to_float_list(red, green, blue):
     return [red / 255, green / 255, blue / 255]

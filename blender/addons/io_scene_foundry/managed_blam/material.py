@@ -414,10 +414,12 @@ class MaterialTag(ShaderTag):
         if material_shader_parameters is None:
             return
 
-        node_tree = utils.add_node_from_resources("h4_nodes", name=material_shader_name)
+        node_tree = utils.add_node_from_resources("h4_nodes", name=material_shader_name, check_multiple=True)
         if node_tree is None:
             utils.print_warning(f"No node group for {material_shader_name}, creating BSDF shader nodes")
             return self._to_nodes_bsdf(blender_material)
+        elif material_shader_name != node_tree.name:
+            utils.print_warning(f"Failed to find node group for {material_shader_name}, using {node_tree.name} instead")
         
         blender_material.use_nodes = True
         tree = blender_material.node_tree
