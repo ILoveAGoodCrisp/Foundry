@@ -65,24 +65,24 @@ def get_coll_if_exists(data, full_name):
 def get_full_name(coll_type, coll_name):
     prefix = ""
     asset_type = bpy.context.scene.nwo.asset_type
-    match coll_type:
-        case "exclude":
-            prefix = "exclude::"
-        case "region":
-            if asset_type in ("scenario", "prefab"):
-                prefix = "bsp::"
-            else:
-                prefix = "region::"
-        case _:
-            if bpy.context.scene.nwo.asset_type in ("scenario", "prefab"):
-                prefix = "layer::"
-            else:
-                prefix = "permutation::"
+    # match coll_type:
+    #     case "exclude":
+    #         prefix = "exclude::"
+    #     case "region":
+    #         if asset_type in ("scenario", "prefab"):
+    #             prefix = "bsp::"
+    #         else:
+    #             prefix = "region::"
+    #     case _:
+    #         if bpy.context.scene.nwo.asset_type in ("scenario", "prefab"):
+    #             prefix = "layer::"
+    #         else:
+    #             prefix = "permutation::"
 
     if not coll_name:
         coll_name = "default"
         
-    full_name_base = f"{prefix}{coll_name}"
+    full_name_base = coll_name
     full_name = full_name_base
 
     # check if a collection by this name already exists, if so rename.

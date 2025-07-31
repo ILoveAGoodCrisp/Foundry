@@ -15,10 +15,22 @@ class NWO_CollectionPropertiesGroup(bpy.types.PropertyGroup):
         items.append(("exclude", "Exclude", ""))
 
         return items
+    
+    def update_color(self, context):
+        match self.type:
+            case 'none':
+                self.id_data.color_tag = 'NONE'
+            case 'region':
+                self.id_data.color_tag = 'COLOR_05'
+            case 'permutation':
+                self.id_data.color_tag = 'COLOR_04'
+            case 'exclude':
+                self.id_data.color_tag = 'COLOR_01'
 
     type: bpy.props.EnumProperty(
         name="Collection Type",
         items=type_items,
+        update=update_color,
         )
 
     region: bpy.props.StringProperty(

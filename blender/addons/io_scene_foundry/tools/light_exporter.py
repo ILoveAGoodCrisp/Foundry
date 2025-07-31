@@ -28,7 +28,7 @@ class BlamLightInstance:
         matrix = utils.halo_transforms(ob, scale, rotation)
         self.origin = matrix.translation.to_tuple()
         matrix_3x3 = matrix.to_3x3().normalized()
-        self.forward = matrix_3x3.col[1]
+        self.forward = matrix_3x3.col[0]
         self.up = matrix_3x3.col[2]
         ob_nwo = ob.nwo
         self.game_type = 0

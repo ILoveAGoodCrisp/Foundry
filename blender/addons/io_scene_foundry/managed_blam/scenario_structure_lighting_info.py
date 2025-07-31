@@ -238,7 +238,10 @@ class ScenarioStructureLightingInfoTag(Tag):
             objects.append(ob)
         
         if objects:
-            collection = cast(bpy.types.Collection, bpy.data.collections.new(f"{self.tag_path.ShortName}_lightmap_regions"))
+            coll_name = f"{self.tag_path.ShortName}_lightmap_regions"
+            collection = bpy.data.collections.get(coll_name)
+            if collection is None:
+                collection = cast(bpy.types.Collection, bpy.data.collections.new(coll_name))
             for ob in objects:
                 collection.objects.link(ob)
                 
@@ -293,14 +296,20 @@ class ScenarioStructureLightingInfoTag(Tag):
             objects = self._from_reach_light_instances(definitions)
         
         if objects:
-            collection = cast(bpy.types.Collection, bpy.data.collections.new(f"{self.tag_path.ShortName}_lights"))
+            collection_name = f"{self.tag_path.ShortName}_lights"
+            collection = bpy.data.collections.get(collection_name)
+            if collection is None:
+                collection = cast(bpy.types.Collection, bpy.data.collections.new(collection_name))
+                collection.nwo.type = 'permutation'
+                if parent_collection is None:
+                    bpy.context.scene.collection.children.link(collection)
+                else:
+                    parent_collection.children.link(collection)
+                    
             for ob in objects:
                 collection.objects.link(ob)
                 
-            if parent_collection is None:
-                bpy.context.scene.collection.children.link(collection)
-            else:
-                parent_collection.children.link(collection)
+
         
         return objects
     

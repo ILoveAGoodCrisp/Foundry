@@ -236,7 +236,7 @@ class ScenarioStructureBspTag(Tag):
         print("Creating Structure")
         collision = None
         layer = utils.add_permutation("structure")
-        structure_collection = bpy.data.collections.new(name=f"layer::{self.tag_path.ShortName}_structure")
+        structure_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_structure")
         structure_collection.nwo.type = "permutation"
         structure_collection.nwo.permutation = layer
         self.collection.children.link(structure_collection)
@@ -338,7 +338,7 @@ class ScenarioStructureBspTag(Tag):
             if self.tag.SelectField("Block:cluster portals").Elements.Count > 0:
                 print("Creating Portals")
                 layer = utils.add_permutation("portals")
-                portals_collection = bpy.data.collections.new(name=f"layer::{self.tag_path.ShortName}_portals")
+                portals_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_portals")
                 portals_collection.nwo.type = "permutation"
                 portals_collection.nwo.permutation = layer
                 self.collection.children.link(portals_collection)
@@ -351,7 +351,7 @@ class ScenarioStructureBspTag(Tag):
             if self.tag.SelectField("Block:cookie cutters").Elements.Count > 0:
                 print("Creating Cookie Cutters")
                 layer = utils.add_permutation("cookie_cutters")
-                cookies_collection = bpy.data.collections.new(name=f"layer::{self.tag_path.ShortName}_cookie_cutters")
+                cookies_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_cookie_cutters")
                 cookies_collection.nwo.type = "permutation"
                 cookies_collection.nwo.permutation = layer
                 self.collection.children.link(cookies_collection)
@@ -365,7 +365,7 @@ class ScenarioStructureBspTag(Tag):
             if self.tag.SelectField("Block:markers").Elements.Count > 0:
                 print("Creating Structure Markers")
                 layer = utils.add_permutation("markers")
-                markers_collection = bpy.data.collections.new(name=f"layer::{self.tag_path.ShortName}_markers")
+                markers_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_markers")
                 markers_collection.nwo.type = "permutation"
                 markers_collection.nwo.permutation = layer
                 self.collection.children.link(markers_collection)
@@ -383,7 +383,7 @@ class ScenarioStructureBspTag(Tag):
                 structure_meta_path = Path(path.RelativePathWithExtension)
                 if structure_meta_path.exists():
                     print("Importing Structure Meta")
-                    meta_collection = bpy.data.collections.new(name=f"layer::{self.tag_path.ShortName}_meta")
+                    meta_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_meta")
                     meta_collection.nwo.type = "permutation"
                     meta_collection.nwo.permutation = layer
                     self.collection.children.link(meta_collection)
@@ -400,7 +400,7 @@ class ScenarioStructureBspTag(Tag):
             if self.tag.SelectField("Block:environment objects").Elements.Count > 0:
                 print("Creating Game Object Markers")
                 layer = utils.add_permutation("objects")
-                env_objects_collection = bpy.data.collections.new(name=f"layer::{self.tag_path.ShortName}_objects")
+                env_objects_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_objects")
                 env_objects_collection.nwo.type = "permutation"
                 env_objects_collection.nwo.permutation = layer
                 self.collection.children.link(env_objects_collection)

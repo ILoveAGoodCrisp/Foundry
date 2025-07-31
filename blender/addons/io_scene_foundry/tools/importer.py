@@ -609,10 +609,11 @@ class NWO_Import(bpy.types.Operator):
                 # Only checking the last file for speed (last file is always self.filepath if there was one).
                 # If another file is a tag, too bad, we won't try to switch project for it
                 start_mb_for_import(filepaths[-1])
-                
+
                 scope_list = []
                 if self.scope:
                     scope_list = self.scope.split(',')
+                    
                 importer = NWOImporter(context, filepaths, scope_list)
                 
                 if self.place_at_mouse:
@@ -1385,7 +1386,6 @@ class NWOImporter:
         self.apply_materials = utils.get_prefs().apply_materials
         self.prefix_setting = utils.get_prefs().apply_prefix
         self.corinth = utils.is_corinth(context)
-        self.arm = utils.get_rig_prioritize_active(context)
         self.tag_render = False
         self.tag_markers = False
         self.tag_collision = False
@@ -1986,8 +1986,10 @@ class NWOImporter:
                     if not scenario.valid: continue
                     bsps = scenario.get_bsp_paths(self.tag_zone_set)
                     scenario_name = scenario.tag_path.ShortName
-                    scenario_collection = bpy.data.collections.new(scenario_name)
-                    self.context.scene.collection.children.link(scenario_collection)
+                    scenario_collection = bpy.data.collections.get(scenario_name)
+                    if scenario_collection is None:
+                        scenario_collection = bpy.data.collections.new(scenario_name)
+                        self.context.scene.collection.children.link(scenario_collection)
                     for idx, bsp in enumerate(bsps):
                         bsp_objects = self.import_bsp(bsp, scenario_collection, None if self.corinth else scenario.get_info(idx))
                         imported_objects.extend(bsp_objects)
@@ -2001,11 +2003,13 @@ class NWOImporter:
         bsp_name = Path(file).with_suffix("").name
         print(f"Importing BSP {bsp_name}")
         bsp_objects = []
-        collection = bpy.data.collections.new(bsp_name)
-        if scenario_collection is None:
-            self.context.scene.collection.children.link(collection)
-        else:
-            scenario_collection.children.link(collection)
+        collection = bpy.data.collections.get(bsp_name)
+        if collection is None:
+            collection = bpy.data.collections.new(bsp_name)
+            if scenario_collection is None:
+                self.context.scene.collection.children.link(collection)
+            else:
+                scenario_collection.children.link(collection)
         with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
             with ScenarioStructureBspTag(path=mover.tag_path) as bsp:
                 bsp_objects, game_objects = bsp.to_blend_objects(collection, self.tag_bsp_render_only, info_path, self.tag_bsp_import_geometry, self.tag_import_lights)
@@ -2036,7 +2040,7 @@ class NWOImporter:
                 # seams = bsp.get_seams(bsp_name, seams)
         
         bsp_name = utils.add_region(bsp_name)
-        collection.name = "bsp::" + bsp_name
+        collection.name = bsp_name
         collection.nwo.type = "region"
         collection.nwo.region = bsp_name
         
@@ -2177,7 +2181,7 @@ class NWOImporter:
                 new_coll = bpy.data.collections.new(file_name)
                 self.context.scene.collection.children.link(new_coll)
             if not is_model and possible_bsp:
-                new_coll.name = 'bsp::' + possible_bsp
+                new_coll.name = possible_bsp
                 regions_table = self.context.scene.nwo.regions_table
                 entry = regions_table.get(possible_bsp, 0)
                 if not entry:
@@ -2323,8 +2327,9 @@ class NWOImporter:
                 bpy.ops.import_scene.ass(filepath=str(path))
                 
         new_objects = [ob for ob in bpy.data.objects if ob not in pre_import_objects]
-        if self.arm and self.arm not in new_objects:
-            new_objects.append(self.arm)
+        arm = utils.get_rig_prioritize_active(bpy.context)
+        if arm and arm not in new_objects:
+            new_objects.append(arm)
             
         self.jms_file_marker_objects = []
         self.jms_file_mesh_objects = []
@@ -2359,7 +2364,7 @@ class NWOImporter:
         if not is_model and not self.existing_scene:
             possible_bsp = file_name
             if possible_bsp.lower() == 'shared': possible_bsp = "default_shared"
-            new_coll.name = 'bsp::' + possible_bsp
+            new_coll.name = possible_bsp
             regions_table = self.context.scene.nwo.regions_table
             entry = regions_table.get(possible_bsp, 0)
             if not entry:

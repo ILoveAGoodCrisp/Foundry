@@ -425,7 +425,7 @@ class Instance:
                 sub_collection_name = None
                 main_collection_name_main = collection_part
             
-            main_collection_name = f"layer::{main_collection_name_main}"
+            main_collection_name = f"{main_collection_name_main}"
                 
             main_collection = bpy.data.collections.get(main_collection_name)
             if main_collection is None or main_collection not in permitted_collections:
