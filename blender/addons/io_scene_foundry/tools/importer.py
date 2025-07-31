@@ -2303,6 +2303,7 @@ class NWOImporter:
         self.jms_mesh_objects = []
         self.jms_frame_objects = []
         self.jms_light_objects = []
+        self.jms_hidden_objects = []
         for path in jms_files:
             self.import_jms_file(path, legacy_type)
             
@@ -2311,7 +2312,7 @@ class NWOImporter:
         for me in meshes:
             utils.consolidate_face_attributes(me)
 
-        return self.jms_marker_objects + self.jms_mesh_objects + self.jms_frame_objects + self.jms_light_objects
+        return self.jms_marker_objects + self.jms_mesh_objects + self.jms_frame_objects + self.jms_light_objects + self.jms_hidden_objects
     
     def import_jms_file(self, path, legacy_type):
         # get all objects that exist prior to import
@@ -2391,6 +2392,8 @@ class NWOImporter:
                 
             if ob.type == 'MESH' and ob.data.ass_jms.XREF_name:
                 xref = XREF(ob.name, ob.data.ass_jms.XREF_path, ob.data.ass_jms.XREF_name)
+                self.jms_hidden_objects.append(ob)
+                utils.unlink(ob)
                 ob = convert_to_marker(ob, maintain_mesh=True)
                 self.setup_jms_marker(ob, is_model, xref)
                 
