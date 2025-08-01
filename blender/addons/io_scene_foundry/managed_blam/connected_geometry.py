@@ -1092,8 +1092,9 @@ class BSP:
             map_negated.append(negated)
             map_invalid.append(invalid)
             map_invisible.append(invisible)
-
             
+        map_negated_and_not_two_sided = np.logical_and(map_negated, np.logical_not(two_sided))
+
         materials_set = set(map_material)
         two_sided_set = set(map_two_sided)
         ladder_set = set(map_ladder)
@@ -1161,13 +1162,15 @@ class BSP:
         # bmesh.ops.delete(bm, geom=[bm.faces[i] for i in invalid_indices], context='FACES')
         
         to_remove = set(np.nonzero(map_invalid)[0])
+        # to_remove.update(set(np.nonzero(map_negated_and_not_two_sided)[0]))
                     
         if surface_indices:
             to_remove.update({idx for idx in range(len(bm.faces)) if idx not in set(surface_indices)})
-                    
+        
+        # print(to_remove)
+        
         if to_remove:
             bmesh.ops.delete(bm, geom=[bm.faces[i] for i in to_remove], context='FACES')
-            bm.faces.ensure_lookup_table()
         
         bm.to_mesh(mesh)
         bm.free()
@@ -1441,6 +1444,7 @@ class MeshSubpart:
         self.part_index = element.SelectField("part index").Value
         self.part = next(p for p in parts if p.index == self.part_index)
         self.is_water_subpart = self.index_start in water_indices
+        self.is_water_surface = self.part and self.part.water_surface
         
     def remove(self, ob: bpy.types.Object, tris: Face):
         indices = (t.index for t in tris if t.subpart is self)
@@ -1473,7 +1477,7 @@ class MeshSubpart:
             
         corinth = utils.is_corinth(bpy.context)
             
-        if self.is_water_subpart:
+        if self.is_water_surface:
             bm = bmesh.new()
             bm.from_mesh(mesh)
             water_layer = bm.faces.layers.bool.get('foundry_water')
@@ -1683,9 +1687,9 @@ class Mesh:
                 
                 if ob_water.data.materials:
                     utils.consolidate_materials(ob_water.data)
-                    ob_water.name = ob.data.materials[0].name
+                    ob_water.name = ob_water.data.materials[0].name
                 else:
-                    ob.name = "water_surface"
+                    ob_water.name = "water_surface"
                 
                 objects.append(ob_water)
         
