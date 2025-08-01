@@ -1093,7 +1093,7 @@ class BSP:
             map_invalid.append(invalid)
             map_invisible.append(invisible)
             
-        map_negated_and_not_two_sided = np.logical_and(map_negated, np.logical_not(two_sided))
+        # map_negated_and_not_two_sided = np.logical_and(map_negated, np.logical_not(two_sided))
 
         materials_set = set(map_material)
         two_sided_set = set(map_two_sided)
@@ -1162,7 +1162,13 @@ class BSP:
         # bmesh.ops.delete(bm, geom=[bm.faces[i] for i in invalid_indices], context='FACES')
         
         to_remove = set(np.nonzero(map_invalid)[0])
-        # to_remove.update(set(np.nonzero(map_negated_and_not_two_sided)[0]))
+        # bad_faces = set(np.nonzero(map_negated_and_not_two_sided)[0])
+        
+        # if bad_faces:
+        #     bad_vert_coords = [set([v.co.to_tuple() for v in f.verts]) for f in bm.faces if f.index in bad_faces]
+        #     final_bad_faces = [f.index for f in bm.faces if set(v.co.to_tuple() for v in f.verts) in bad_vert_coords]
+        #     to_remove.update(set(final_bad_faces))
+            
                     
         if surface_indices:
             to_remove.update({idx for idx in range(len(bm.faces)) if idx not in set(surface_indices)})
