@@ -2314,6 +2314,9 @@ class ExportScene:
         props['lightGen_solid_angles'] = " ".join(map(utils.jstr, lightGen_solid_angles))
         props['lightGen_samples'] = len(self.sky_lights) - 1
         
+        if self.sun is None:
+            self.sun = self.sky_lights[-1]
+        
         props['sun_size'] = self.scene_settings.sun_size
         props['sun_intensity'] = self.sun.data.energy
         props['sun_color'] = self.sun.data.color[:]
