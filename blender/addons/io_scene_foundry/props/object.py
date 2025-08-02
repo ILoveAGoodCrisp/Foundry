@@ -603,7 +603,8 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         name="Fog Volume Depth",
         options=set(),
         description="How deep the fog volume volume extends",
-        default=20,
+        min=0,
+        default=utils.wu(20),
     )
 
     marker_uses_regions: bpy.props.BoolProperty(

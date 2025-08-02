@@ -17,6 +17,8 @@ from mathutils import Color
 
 import numpy as np
 
+from ..managed_blam.structure_design import StructureDesignTag
+
 from ..managed_blam.globals import FPARMS, GlobalsTag
 
 from ..managed_blam import Tag, start_mb_for_import
@@ -67,7 +69,7 @@ tether_name = "tether_distance"
 # 6. Add an if with conditions for handling this import under NWO_Import.execute
 # 7. Update scope variable to importer calls in other python files where appropriate
 
-formats = "amf", "jms", "jma", "bitmap", "camera_track", "model", "render_model", "scenario", "scenario_structure_bsp", "particle_model", "object", "animation", "prefab"
+formats = "amf", "jms", "jma", "bitmap", "camera_track", "model", "render_model", "scenario", "scenario_structure_bsp", "particle_model", "object", "animation", "prefab", "structure_design"
 
 xref_tag_types = (
     ".crate",
@@ -909,6 +911,21 @@ class NWO_Import(bpy.types.Operator):
                     if for_cinematic:
                         self.link_anchor(context, imported_bsp_objects)
                         
+                        
+                elif 'structure_design' in importer.extensions:
+                    importer.setup_as_asset = self.setup_as_asset
+                    importer.tag_bsp_import_geometry = self.tag_bsp_import_geometry
+                    
+                    design_files = importer.sorted_filepaths["structure_design"]
+                    imported_design_objects = []
+                    for design in design_files:
+                        design_objects = importer.import_structure_design(design)
+                        imported_design_objects.extend(design_objects)
+                    if importer.needs_scaling:
+                        utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_design_objects, actions=[])
+                        
+                    imported_objects.extend(imported_design_objects)
+                        
                 elif 'prefab' in importer.extensions:
                     importer.setup_as_asset = self.setup_as_asset
                     if self.place_at_mouse:
@@ -1082,6 +1099,8 @@ class NWO_Import(bpy.types.Operator):
                 self.filter_glob += '*.mod*_*_graph;'
             if 'prefab' in self.scope:
                 self.filter_glob += '*.prefab;'
+            if 'structure_design' in self.scope:
+                self.filter_glob += '*.stru*_design;'
                     
             if utils.amf_addon_installed() and 'amf' in self.scope:
                 self.amf_okay = True
@@ -1476,6 +1495,9 @@ class NWOImporter:
             elif 'prefab' in valid_exts and path.lower().endswith(".prefab"):
                 self.extensions.add('prefab')
                 filetype_dict["prefab"][path] = None
+            elif 'structure_design' in valid_exts and path.lower().endswith(".structure_design"):
+                self.extensions.add('structure_design')
+                filetype_dict["structure_design"][path] = None
             
         # First stored as dict then converted to list. Avoids duplicate files
         for k, v in filetype_dict.items():
@@ -2045,6 +2067,28 @@ class NWOImporter:
         collection.nwo.region = bsp_name
         
         return bsp_objects
+    
+    def import_structure_design(self, file, scenario_collection=None):
+        design_name = Path(file).with_suffix("").name
+        print(f"Importing Structure Design {design_name}")
+        design_objects = []
+        collection = bpy.data.collections.get(design_name)
+        if collection is None:
+            collection = bpy.data.collections.new(design_name)
+            if scenario_collection is None:
+                self.context.scene.collection.children.link(collection)
+            else:
+                scenario_collection.children.link(collection)
+        with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
+            with StructureDesignTag(path=mover.tag_path) as design:
+                design_objects = design.to_blender(collection)
+        
+        design_name = utils.add_region(design_name)
+        collection.name = design_name
+        collection.nwo.type = "region"
+        collection.nwo.region = design_name
+        
+        return design_objects
     
     def import_prefab(self, file, bsp_collection=None):
         imported_objects = []
@@ -3494,7 +3538,7 @@ class NWO_FH_Import(bpy.types.FileHandler):
     bl_idname = "NWO_FH_Import"
     bl_label = "File handler Foundry Importer"
     bl_import_operator = "nwo.import_from_drop"
-    bl_file_extensions = ".jms;.amf;.ass;.bitmap;.model;.render_model;.scenario;.scenario_structure_bsp;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track;.particle_model;.biped;.crate;.creature;.device_control;.device_dispenser;.effect_scenery;.equipment;.giant;.device_machine;.projectile;.scenery;.spawner;.sound_scenery;.device_terminal;.vehicle;.weapon;.model_animation_graph;.prefab"
+    bl_file_extensions = ".jms;.amf;.ass;.bitmap;.model;.render_model;.scenario;.scenario_structure_bsp;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track;.particle_model;.biped;.crate;.creature;.device_control;.device_dispenser;.effect_scenery;.equipment;.giant;.device_machine;.projectile;.scenery;.spawner;.sound_scenery;.device_terminal;.vehicle;.weapon;.model_animation_graph;.prefab;.structure_design"
 
     @classmethod
     def poll_drop(cls, context):
