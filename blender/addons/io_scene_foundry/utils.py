@@ -2471,6 +2471,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                     else:
                         transform_objects.append(TransformObject(ob, rotation_matrix, scale_factor))
                 case _:
+                    ob.nwo.water_volume_flow_direction += rotation
                     transform_objects.append(TransformObject(ob, rotation_matrix, scale_factor)) # update and scale loc, update rot
 
             if not skip_data:

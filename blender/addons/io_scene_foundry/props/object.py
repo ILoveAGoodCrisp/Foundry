@@ -583,9 +583,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="How murky, i.e. opaque, the underwater fog appears",
         default=0.5,
-        subtype="FACTOR",
         min=0.0,
-        max=1.0,
     )
 
     def fog_clean_tag_path(self, context):

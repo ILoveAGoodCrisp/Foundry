@@ -834,7 +834,7 @@ class ExportScene:
         return copy
     
     def _setup_water_physics_props(self, nwo: NWO_ObjectPropertiesGroup, props: dict):
-        props["bungie_mesh_water_volume_depth"] = nwo.water_volume_depth
+        props["bungie_mesh_water_volume_depth"] = nwo.water_volume_depth * WU_SCALAR
         props["bungie_mesh_water_volume_flow_direction"] = degrees(nwo.water_volume_flow_direction)
         props["bungie_mesh_water_volume_flow_velocity"] = nwo.water_volume_flow_velocity
         props["bungie_mesh_water_volume_fog_murkiness"] = nwo.water_volume_fog_murkiness
