@@ -1678,6 +1678,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                         "water_volume_fog_murkiness",
                         text="Underwater Fog Murkiness",
                     )
+                    col.separator()
+                    col.operator("nwo.show_water_direction", depress=self.scene.nwo.show_water_direction, icon='MATFLUID')
 
             elif nwo.mesh_type in (
                 "_connected_geometry_mesh_type_default",

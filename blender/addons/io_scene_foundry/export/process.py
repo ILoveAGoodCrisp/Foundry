@@ -762,7 +762,7 @@ class ExportScene:
                             
                     case "_connected_geometry_mesh_type_water_surface":
                         if nwo.water_volume_depth > 0:
-                            if mesh.materials:
+                            if mesh.materials and any_render_materials(mesh):
                                 copy = ObjectCopy.WATER_PHYSICS
                             else:
                                 mesh_type = '_connected_geometry_mesh_type_water_physics_volume'
@@ -2380,3 +2380,13 @@ def make_default_render():
     mesh = bpy.data.meshes.new("default_render")
     mesh.from_pydata(vertices=[(1, 0, 0), (0, 1, 0), (0, 0, 1)], edges=[], faces=[[0, 1, 2]])
     return bpy.data.objects.new(mesh.name, mesh)
+
+def any_render_materials(mesh: bpy.types.Mesh):
+    for mat in mesh.materials:
+        if mat is None:
+            continue
+        
+        if mat.nwo.RenderMaterial:
+            return True
+    
+    return False

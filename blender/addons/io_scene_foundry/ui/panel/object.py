@@ -1,5 +1,6 @@
 """Classes for Object Panel UI"""
 
+from collections import defaultdict
 from pathlib import Path
 from typing import cast
 import bpy
@@ -1349,3 +1350,64 @@ class NWO_OT_List_Remove_MarkerPermutation(bpy.types.Operator):
         if nwo.marker_permutations_index > len(nwo.marker_permutations) - 1:
             nwo.marker_permutations_index += -1
         return {"FINISHED"}
+    
+class NWO_OT_ShowWaterDirection(bpy.types.Operator):
+    bl_idname = "nwo.show_water_direction"
+    bl_label = "Show Water Direction"
+    bl_description = "Temporarily replaces selected water surface object materials with arrows to indicate the direction of physical water flow. Requires material or rendered shading mode to be active"
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        if context.selected_objects:
+            for area in context.screen.areas:
+                for space in area.spaces:
+                    if space.type == 'VIEW_3D' and space.shading.type in {'MATERIAL', 'RENDERED'}:
+                        return True
+        return False
+
+    def execute(self, context):
+        if context.scene.nwo.show_water_direction:
+            context.scene.nwo.show_water_direction = False
+            return {"FINISHED"}
+        else:
+            context.scene.nwo.show_water_direction = True
+            self.ob_mats = defaultdict(list)
+            self.objects: set[bpy.types.Object] = {ob for ob in context.selected_objects if ob.type in VALID_MESHES and ob.data.nwo.mesh_type == '_connected_geometry_mesh_type_water_surface'}
+            self.set_materials()
+            context.window_manager.modal_handler_add(self)
+            return {"RUNNING_MODAL"}
+    
+    def set_materials(self):
+        water_material = bpy.data.materials.get("WaterDirection")
+        if water_material is None:
+            lib_blend = Path(utils.MATERIAL_RESOURCES, 'shared_nodes.blend')
+            with bpy.data.libraries.load(str(lib_blend), link=False) as (_, data_to):
+                data_to.materials = ["WaterDirection"]
+                
+            water_material = bpy.data.materials["WaterDirection"]
+            
+        for ob in self.objects:
+            if ob.material_slots:
+                for slot in ob.material_slots:
+                    self.ob_mats[ob].append(slot.material)
+                    slot.material = water_material
+            else:
+                self.ob_mats[ob] = []
+                ob.data.materials.append(water_material)
+    
+    def restore_materials(self):
+        for ob, materials in self.ob_mats.items():
+            if materials:
+                for slot, mat in zip(ob.material_slots, materials):
+                    slot.material = mat 
+            else:
+                ob.data.materials.clear()
+
+    def modal(self, context, event):
+        if context.scene.nwo.export_in_progress or not context.scene.nwo.show_water_direction:
+            context.scene.nwo.show_water_direction = False
+            self.restore_materials()
+            return {"FINISHED"}
+        
+        return {'PASS_THROUGH'}
