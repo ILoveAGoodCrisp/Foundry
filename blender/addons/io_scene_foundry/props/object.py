@@ -565,6 +565,9 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="Velocity of the water flow physics",
         default=1,
+        subtype='FACTOR',
+        min=0,
+        max=6,
     )
 
     water_volume_fog_color: bpy.props.FloatVectorProperty(

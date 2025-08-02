@@ -2028,7 +2028,7 @@ class NWOImporter:
                         bsp_objects = self.import_bsp(bsp, scenario_collection, None if self.corinth else scenario.get_info(idx))
                         imported_objects.extend(bsp_objects)
                     
-                    if self.tag_import_design:
+                    if self.tag_import_design and not self.tag_bsp_render_only:
                         designs = scenario.get_design_paths(self.tag_zone_set)
                         for idx, design in enumerate(designs):
                             design_objects = self.import_structure_design(design, scenario_collection)

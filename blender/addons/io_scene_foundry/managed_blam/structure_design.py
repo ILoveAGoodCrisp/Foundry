@@ -102,7 +102,7 @@ class StructureDesignTag(Tag):
                 mesh.from_pydata(vertices=verts, edges=[], faces=face_indices)
 
                 ob = bpy.data.objects.new(name, mesh)
-                ob.nwo.data.mesh_type = '_connected_geometry_mesh_type_planar_fog_volume'
+                ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_planar_fog_volume'
                 ob.nwo.fog_appearance_tag = self.get_path_str(element.SelectField("Reference:appearance settings").Path)
                 ob.nwo.fog_volume_depth = element.SelectField("Real:depth").Data
                 
@@ -167,6 +167,7 @@ class StructureDesignTag(Tag):
                 ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_water_surface'
                 ob.nwo.water_volume_depth = (highest_z - lowest_z) / 100 * (1 / WU_SCALAR)
                 direction, velocity = get_water_flow_direction_velocity(Vector((*element.SelectField("RealVector3d:flow velocity").Data,)))
+                
                 ob.nwo.water_volume_flow_direction = direction
                 ob.nwo.water_volume_flow_velocity = velocity
                 color = [utils.srgb_to_linear(c) for c in element.SelectField("RealArgbColor:fog color").Data]
@@ -228,23 +229,35 @@ class StructureDesignTag(Tag):
 
         return objects
     
-def get_water_flow_direction_velocity(flow_velocity_vector: Vector, global_forward=Vector((1, 0, 0)), global_up=Vector((0, 0, 1))):
-    # 1. Velocity (magnitude of the vector)
+def get_water_flow_direction_velocity(flow_velocity_vector):
+    
+    match bpy.context.scene.nwo.forward_direction:
+        case 'y-':
+            global_forward = Vector((0, -1, 0))
+        case 'y':
+            global_forward = Vector((0, 1, 0))
+        case 'x-':
+            global_forward = Vector((-1, 0, 0))
+        case 'x':
+            global_forward = Vector((1, 0, 0))
+            
+    # global_forward = Vector((1, 0, 0))
+    
+    
+    global_up = Vector((0, 0, 1))
+
     velocity = flow_velocity_vector.length
 
     if velocity == 0:
-        return 0.0, 0.0  # No direction if no flow
+        return 0.0, 0.0
 
-    # 2. Normalize the velocity vector to get direction only
     direction_vector = flow_velocity_vector.normalized()
 
-    # 3. Project the direction onto the rotation plane (remove vertical/up component)
     direction_flat = direction_vector - global_up * direction_vector.dot(global_up)
     direction_flat.normalize()
 
-    # 4. Angle between global_forward and direction_flat, around global_up
     dot = global_forward.dot(direction_flat)
     cross = global_forward.cross(direction_flat).dot(global_up)
-    angle = math.atan2(cross, dot)  # Result is in radians
+    angle = math.atan2(cross, dot)
 
     return angle, velocity
