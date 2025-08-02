@@ -2036,6 +2036,7 @@ class NWOImporter:
 
                     if self.setup_as_asset:
                         set_asset(Path(file).suffix)
+                        scenario.zone_sets_to_blender(self.tag_zone_set)
         
         return imported_objects
     

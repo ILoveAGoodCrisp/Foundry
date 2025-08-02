@@ -245,3 +245,39 @@ class ScenarioTag(Tag):
         field = self.tag.SelectField(f"Block:structure bsps[{bsp_index}]/Reference:structure lighting_info")
         if field is not None and field.Path is not None:
             return Path(field.Path.Filename)
+        
+    def zone_sets_to_blender(self, zone_set=""):
+        nwo = self.context.scene.nwo
+        nwo.zone_sets.clear()
+        bsp_dict = {r.name.lower(): idx for idx, r in enumerate(nwo.regions_table)}
+        if zone_set:
+            for element in self.block_zone_sets.Elements:
+                if element.Fields[0].GetStringData() == zone_set:
+                    blender_zs = nwo.zone_sets.add()
+                    blender_zs.name = zone_set
+                    for flag in element.SelectField("bsp zone flags").Items:
+                        if flag.IsSet:
+                            i = bsp_dict.get(flag.FlagName)
+                            if i is not None:
+                                setattr(blender_zs, f"bsp_{i}", True)
+                    for flag in element.SelectField("structure design zone flags").Items:
+                        if flag.IsSet:
+                            i = bsp_dict.get(flag.FlagName)
+                            if i is not None:
+                                setattr(blender_zs, f"bsp_{i}", True)
+                            
+        else:
+            for element in self.block_zone_sets.Elements:
+                zs_name = element.Fields[0].GetStringData()
+                blender_zs = nwo.zone_sets.add()
+                blender_zs.name = zs_name
+                for flag in element.SelectField("bsp zone flags").Items:
+                    if flag.IsSet:
+                        i = bsp_dict.get(flag.FlagName)
+                        if i is not None:
+                            setattr(blender_zs, f"bsp_{i}", True)
+                for flag in element.SelectField("structure design zone flags").Items:
+                    if flag.IsSet:
+                        i = bsp_dict.get(flag.FlagName)
+                        if i is not None:
+                            setattr(blender_zs, f"bsp_{i}", True)

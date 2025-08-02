@@ -580,7 +580,7 @@ class Sidecar:
         ##### STRUCTURE DESIGN #####
         for bsp in self.design:
             design_data = self.file_data.get("design")
-            content_name = f"{bsp}_design"
+            content_name = bsp
             content = ET.SubElement(contents, "Content", Name=content_name, Type="design")
             this_contents[content_name] = content
             content_object = ET.SubElement(content, "ContentObject", Name="", Type="structure_design")

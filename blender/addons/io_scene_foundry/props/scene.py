@@ -1159,6 +1159,15 @@ class NWO_ZoneSets_ListItems(PropertyGroup):
     bsp_29: bpy.props.BoolProperty()
     bsp_30: bpy.props.BoolProperty()
     bsp_31: bpy.props.BoolProperty()
+    # Adding more for structure designs
+    bsp_32: bpy.props.BoolProperty()
+    bsp_33: bpy.props.BoolProperty()
+    bsp_34: bpy.props.BoolProperty()
+    bsp_35: bpy.props.BoolProperty()
+    bsp_36: bpy.props.BoolProperty()
+    bsp_37: bpy.props.BoolProperty()
+    bsp_38: bpy.props.BoolProperty()
+    bsp_39: bpy.props.BoolProperty()
     
 class NWO_MaterialOverrides(PropertyGroup):
     
