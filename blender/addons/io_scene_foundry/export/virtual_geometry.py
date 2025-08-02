@@ -2144,6 +2144,9 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
     for material, material_indices in prop_mats_dict.items():
         for prop in material.nwo.material_props:
             match prop.type:
+                case 'collision_type':
+                    if props.get("bungie_mesh_poop_collision_type") is None:
+                        face_properties.setdefault("bungie_mesh_poop_collision_type", FaceSet(np.full(num_faces, face_prop_defaults["bungie_mesh_poop_collision_type"], dtype=np.int32))).update_from_material(mesh, material_indices, PoopCollisionType[prop.collision_type].value)
                 case 'face_mode':
                     if props.get("bungie_face_mode") is None:
                         face_mode = FaceMode[prop.face_mode]
@@ -2151,9 +2154,8 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
                         if scene.corinth and face_mode == FaceMode.breakable:
                             continue
                         face_properties.setdefault("bungie_face_mode", FaceSet(np.full(num_faces, face_prop_defaults["bungie_face_mode"], dtype=np.int32))).update_from_material(mesh, material_indices, face_mode.value)
-                case 'collision_type':
-                    if props.get("bungie_mesh_poop_collision_type") is None:
-                        face_properties.setdefault("bungie_mesh_poop_collision_type", FaceSet(np.full(num_faces, face_prop_defaults["bungie_mesh_poop_collision_type"], dtype=np.int32))).update_from_material(mesh, material_indices, PoopCollisionType[prop.collision_type].value)
+                    if scene.corinth and face_mode == FaceMode.lightmap_only:
+                        face_properties.setdefault("bungie_mesh_poop_collision_type", FaceSet(np.full(num_faces, face_prop_defaults["bungie_mesh_poop_collision_type"], dtype=np.int32))).update_from_material(mesh, material_indices, PoopCollisionType.none.value)
                 case 'face_sides':
                     if props.get("bungie_face_sides") is None:
                         side_value = 2 if prop.two_sided else 0
@@ -2266,6 +2268,9 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
     
     for prop in mesh_props.face_props:
         match prop.type:
+            case 'collision_type':
+                if props.get("bungie_mesh_poop_collision_type") is None:
+                    face_properties.setdefault("bungie_mesh_poop_collision_type", FaceSet(np.full(num_faces, face_prop_defaults["bungie_mesh_poop_collision_type"], dtype=np.int32))).update(mesh, prop, PoopCollisionType[prop.collision_type].value)
             case 'face_mode':
                 if props.get("bungie_face_mode") is None:
                     face_mode = FaceMode[prop.face_mode]
@@ -2273,9 +2278,8 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
                     if scene.corinth and face_mode == FaceMode.breakable:
                         continue
                     face_properties.setdefault("bungie_face_mode", FaceSet(np.full(num_faces, face_prop_defaults["bungie_face_mode"], dtype=np.int32))).update(mesh, prop, face_mode.value)
-            case 'collision_type':
-                if props.get("bungie_mesh_poop_collision_type") is None:
-                    face_properties.setdefault("bungie_mesh_poop_collision_type", FaceSet(np.full(num_faces, face_prop_defaults["bungie_mesh_poop_collision_type"], dtype=np.int32))).update(mesh, prop, PoopCollisionType[prop.collision_type].value)
+                    if scene.corinth and face_mode == FaceMode.lightmap_only:
+                        face_properties.setdefault("bungie_mesh_poop_collision_type", FaceSet(np.full(num_faces, face_prop_defaults["bungie_mesh_poop_collision_type"], dtype=np.int32))).update(mesh, prop, PoopCollisionType.none.value)
             case 'face_sides':
                 if props.get("bungie_face_sides") is None:
                     side_value = 2 if prop.two_sided else 0

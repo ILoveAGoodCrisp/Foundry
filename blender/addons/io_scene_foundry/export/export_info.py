@@ -147,6 +147,7 @@ class PoopCollisionType(BungieEnum):
     invisible_wall = 1
     play_collision = 2
     bullet_collision = 3
+    none = 4
     
 class ExportInfo:
     def __init__(self, regions, global_materials):

@@ -3183,6 +3183,17 @@ def area_light_to_emissive(light_ob: bpy.types.Object, corinth: bool):
     plane_nwo = plane_data.nwo
     if corinth:
         plane_nwo.mesh_type = "_connected_geometry_mesh_type_default"
+        invis_mat = bpy.data.materials.get("Invisible")
+        if invis_mat is None:
+            invis_mat = bpy.data.materials.new("Invisible")
+            invis_mat.diffuse_color = [0.4, 1.0, 0.4, 0.6]
+            invis_mat.use_nodes = True
+            bsdf = invis_mat.node_tree.nodes[0]
+            bsdf.inputs[0].default_value = invis_mat.diffuse_color
+            bsdf.inputs[4].default_value = invis_mat.diffuse_color[3]
+            invis_mat.blend_method = 'BLEND'
+            invis_mat.nwo.shader_path = 'levels\shared\shaders\simple\invis.material'
+        plane_data.materials.append(invis_mat)
     else:
         plane_nwo.mesh_type = "_connected_geometry_mesh_type_structure" # saves on the instance budget
     plane_ob.nwo.region_name = true_region(light_ob.nwo)

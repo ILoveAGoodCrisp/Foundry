@@ -876,7 +876,7 @@ class ExportScene:
         poop_render_only = False
         if nwo.poop_render_only:
             if self.corinth:
-                props["bungie_mesh_poop_collision_type"] = '_connected_geometry_poop_collision_type_none'
+                props["bungie_mesh_poop_collision_type"] = PoopCollisionType.none.value
             else:
                 poop_render_only = True
                 props["bungie_mesh_poop_is_render_only"] = 1
@@ -1120,6 +1120,9 @@ class ExportScene:
             # material props complicate things, skip 
             
             match prop.type:
+                        
+                case 'collision_type':
+                    mesh_props["bungie_mesh_poop_collision_type"] = PoopCollisionType[prop.collision_type].value
                 case 'face_mode':
                     face_mode = FaceMode[prop.face_mode]
                     
@@ -1128,15 +1131,14 @@ class ExportScene:
                             face_mode = FaceMode.normal
                         elif mesh.nwo.mesh_type == '_connected_geometry_mesh_type_default' and utils.test_face_prop_all(mesh, 'Collision Only'):
                             mesh_type_value = MeshType.poop_collision.value
+                        elif face_mode == FaceMode.lightmap_only:
+                            mesh_props["bungie_mesh_poop_collision_type"] = PoopCollisionType.none.value
                             
                         if mesh_type_value == MeshType.poop.value:
                             if face_mode == FaceMode.collision_only or face_mode == FaceMode.sphere_collision_only:
-                                mesh_type_value = MeshType.poop_collision.value      
+                                mesh_type_value = MeshType.poop_collision.value
                             
                     mesh_props["bungie_face_mode"] = face_mode.value
-                        
-                case 'collision_type':
-                    mesh_props["bungie_mesh_poop_collision_type"] = PoopCollisionType[prop.collision_type].value
                 case 'face_sides':
                     face_sides_props_full.append(prop)
                 case 'transparent':
@@ -1284,7 +1286,6 @@ class ExportScene:
         if not precise_face_level:
             if precise or precise_face_prop:
                 mesh_props["bungie_precise_position"] = int(precise)
-                
                 
         mesh_props["bungie_mesh_type"] = mesh_type_value
          
