@@ -138,6 +138,27 @@ class ScenarioTag(Tag):
                     
         return bsps
     
+    def get_design_paths(self, zone_set=""):
+        designs = []
+        zone_set_bsp_names = set()
+        if zone_set:
+            for element in self.block_zone_sets.Elements:
+                if element.Fields[0].GetStringData() == zone_set:
+                    for flag in element.SelectField("structure design zone flags").Items:
+                        if flag.IsSet:
+                            zone_set_bsp_names.add(flag.FlagName)
+                            
+        for element in self.block_structure_designs.Elements:
+            design_reference = element.SelectField('Reference:structure design').Path
+            if design_reference:
+                if zone_set_bsp_names and design_reference.ShortName not in zone_set_bsp_names:
+                    continue
+                full_path = design_reference.Filename
+                if Path(full_path).exists:
+                    designs.append(full_path)
+                    
+        return designs
+    
     def get_bsp_names(self) -> list[str]:
         return [os.path.basename(element.Fields[0].Path.RelativePath) for element in self.block_bsps.Elements if element.Fields[0].Path is not None]
     

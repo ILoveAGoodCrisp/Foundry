@@ -495,6 +495,12 @@ class NWO_Import(bpy.types.Operator):
         default=True,
     )
     
+    tag_import_design: bpy.props.BoolProperty(
+        name="Import Structure Design",
+        description="Imports geometry from scenario structure design tags. Ignored if render only is set",
+        default=True,
+    )
+    
     tag_import_lights: bpy.props.BoolProperty(
         name="Import Lights",
         description="Imports the all lights found in scenario_structure_lighting_info tags",
@@ -878,6 +884,7 @@ class NWO_Import(bpy.types.Operator):
                     importer.tag_bsp_render_only = self.tag_bsp_render_only
                     importer.tag_bsp_import_geometry = self.tag_bsp_import_geometry
                     importer.tag_import_lights = self.tag_import_lights
+                    importer.tag_import_design = self.tag_import_design
                     importer.setup_as_asset = self.setup_as_asset
                     scenario_files = importer.sorted_filepaths["scenario"]
                     imported_scenario_objects = importer.import_scenarios(scenario_files)
@@ -1161,7 +1168,11 @@ class NWO_Import(bpy.types.Operator):
             box.label(text='Scenario Tag Settings')
             box.prop(self, 'tag_zone_set')
             box.prop(self, "tag_bsp_import_geometry")
-            box.prop(self, "tag_bsp_render_only")
+            if self.tag_bsp_import_geometry:
+                box.prop(self, "tag_bsp_render_only")
+                if not self.tag_bsp_render_only:
+                    box.prop(self, "tag_bsp_import_geometry")
+                box.prop(self, "tag_import_design")
             box.prop(self, "tag_import_lights")
             box.prop(self, 'build_blender_materials', text=f"Blender Materials from {tag_type.capitalize()} Tags")
             box.prop(self, 'always_extract_bitmaps')
@@ -1422,6 +1433,7 @@ class NWOImporter:
         self.tag_bsp_render_only = False
         self.tag_bsp_import_geometry = False
         self.tag_import_lights = False
+        self.tag_import_design = False
         self.tag_animation_filter = ""
         self.import_variant_children = False
         self.setup_as_asset = False
@@ -2015,6 +2027,12 @@ class NWOImporter:
                     for idx, bsp in enumerate(bsps):
                         bsp_objects = self.import_bsp(bsp, scenario_collection, None if self.corinth else scenario.get_info(idx))
                         imported_objects.extend(bsp_objects)
+                    
+                    if self.tag_import_design:
+                        designs = scenario.get_design_paths(self.tag_zone_set)
+                        for idx, design in enumerate(designs):
+                            design_objects = self.import_structure_design(design, scenario_collection)
+                            imported_objects.extend(design_objects)
 
                     if self.setup_as_asset:
                         set_asset(Path(file).suffix)
@@ -2070,7 +2088,7 @@ class NWOImporter:
     
     def import_structure_design(self, file, scenario_collection=None):
         design_name = Path(file).with_suffix("").name
-        print(f"Importing Structure Design {design_name}")
+        print(f"\nImporting Structure Design {design_name}")
         design_objects = []
         collection = bpy.data.collections.get(design_name)
         if collection is None:
@@ -3326,6 +3344,12 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         default=True,
     )
     
+    tag_import_design: bpy.props.BoolProperty(
+        name="Import Structure Design",
+        description="Imports geometry from scenario structure design tags. Ignored if render only is set",
+        default=True,
+    )
+    
     tag_import_lights: bpy.props.BoolProperty(
         name="Import Lights",
         description="Imports the all lights found in scenario_structure_lighting_info tags",
@@ -3509,7 +3533,10 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
             case "scenario":
                 layout.prop(self, "tag_zone_set")
                 layout.prop(self, "tag_bsp_import_geometry")
-                layout.prop(self, "tag_bsp_render_only")
+                if self.tag_bsp_import_geometry:
+                    layout.prop(self, "tag_bsp_render_only")
+                    if not self.tag_bsp_render_only:
+                        layout.prop(self, "tag_import_design")
                 layout.prop(self, "tag_import_lights")
                 layout.prop(self, "setup_as_asset")
                 layout.prop(self, "build_blender_materials")
