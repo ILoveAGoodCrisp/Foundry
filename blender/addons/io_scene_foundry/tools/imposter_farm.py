@@ -69,7 +69,7 @@ class ImposterFarm:
                 utils.print_warning(f"Failed to remove existing imposter_cache directory: {self.imposter_cache_dir}")
                 
         print("Loading game...")
-        use_instructions = "1. Once the game has loaded press HOME on your keyboard to open the debug menu\n2. Scroll to the bottom of the menu and press enter on the Generate Instance Imposters for each BSP you wish to run this on\n3. Wait for the process to complete (Tag Test may appear unresponsive but this is normal)\n4. Exit the game using SHIFT+ESC\n"
+        use_instructions = "NOTE: This will only work on lightmapped BSPs!\n\n1. Once the game has loaded press HOME on your keyboard to open the debug menu\n2. Scroll to the bottom of the menu and press enter on the Generate Instance Imposters for each BSP you wish to run this on\n3. Wait for the process to complete (Tag Test may appear unresponsive but this is normal)\n4. Exit the game using SHIFT+ESC\n"
         global instructions_given
         if not instructions_given:
             ctypes.windll.user32.MessageBoxW(
