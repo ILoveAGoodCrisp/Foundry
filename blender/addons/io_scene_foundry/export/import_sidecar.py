@@ -194,3 +194,12 @@ class SidecarImport:
                 render_model.unlink()
         except:
             print("Failed to remove unused tags")
+            
+    def cull_imposter_defs(self):
+        try:
+            for bsp in self.structures:
+                path = Path(self.tags_dir, self.relative_asset_path, bsp).with_suffix(".instance_imposter_definition")
+                if path.exists():
+                    path.unlink()
+        except:
+            print("Failed to remove instance_imposter_definition tags")

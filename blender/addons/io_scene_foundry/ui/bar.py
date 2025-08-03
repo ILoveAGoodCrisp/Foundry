@@ -804,7 +804,7 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
     
     force_imposter_policy_never: bpy.props.BoolProperty(
         name="Disable Instance Imposters",
-        description="Exports all instanced geometry with their imposter policy set to 'Never'",
+        description="Exports all instanced geometry with their imposter policy set to 'Never'. This will also clear all imposter definition tags for exported BSPs",
         options=set(),
     )
     
