@@ -565,6 +565,8 @@ class Sidecar:
             this_contents[content_name] = content
             content_object = ET.SubElement(content, "ContentObject", Name="", Type="scenario_structure_bsp")
             bsp_data = self.file_data.get("structure")
+            if not bsp_data:
+                continue
             for data in bsp_data:
                 if data.region == bsp:
                     network_names.add(self._write_network_files_bsp(content_object, data))
