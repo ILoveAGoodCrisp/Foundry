@@ -376,7 +376,7 @@ class ScenarioStructureLightingInfoTag(Tag):
                     hotspot_cutoff_size = element.SelectField("hotspot cutoff size").Data
                     blender_light.spot_size = radians(hotspot_cutoff_size)
                     if hotspot_cutoff_size > 0.0:
-                        blender_light.spot_blend = element.SelectField("hotspot size").Data / hotspot_cutoff_size
+                        blender_light.spot_blend = 1 - element.SelectField("hotspot size").Data / hotspot_cutoff_size
                 case 2:
                     blender_light = cast(bpy.types.Light, bpy.data.lights.new(f"light_definition:{element.ElementIndex}", 'SUN'))
                     

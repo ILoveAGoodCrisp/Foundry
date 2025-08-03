@@ -1871,7 +1871,7 @@ class VirtualScene:
         
         self.vector_tracks = []
         self.poop_obs = {}
-        self.no_structure_export = export_settings.export_design
+        self.no_structure_export = not export_settings.export_structure
         
         spath = "shaders\invalid"
         stype = "material" if corinth else "shader"

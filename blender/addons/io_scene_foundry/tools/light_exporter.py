@@ -91,7 +91,7 @@ class BlamLightDefinition:
         self.hotspot_cutoff = 0
         if data.type == 'SPOT':
             self.hotspot_cutoff = min(degrees(data.spot_size), 160)
-            self.hotspot_size = self.hotspot_cutoff * data.spot_blend
+            self.hotspot_size = self.hotspot_cutoff * (1 - data.spot_blend)
             
         self.hotspot_falloff = nwo.light_falloff_shape
         
