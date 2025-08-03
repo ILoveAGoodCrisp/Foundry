@@ -2184,7 +2184,7 @@ class ExportScene:
                             with ScenarioStructureBspTag(path=bsp_path.RelativePathWithExtension) as bsp:
                                 bsp.fix_collision_render_surface_mapping()
 
-        if self.export_settings.update_lighting_info:
+        if self.export_settings.update_lighting_info and self.export_settings.export_structure:
             light_asset = self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB} or (self.corinth and self.asset_type in {AssetType.MODEL, AssetType.SKY})
             if light_asset:
                 if self.limit_bsps_to_selection:
