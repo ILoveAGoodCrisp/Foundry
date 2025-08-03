@@ -618,6 +618,11 @@ def get_error_explanation(line):
             return "Tool failed to process an object. Usually this happens with large geometry whose origin is far from the geometry itself. Try setting origin to object or otherwise adjusting the origin and geometry"
         else:
             return f"Tool failed to process the instanced geometry object [{mesh_name.strip(' )')}]. Usually this happens with large geometry whose origin is far from the geometry itself. Try setting origin to object or otherwise adjusting the origin and geometry"
+    elif "no corresponding model region (will not be collideable)" in line:
+        return "You need to add a render mesh that has the region referenced above or change the named region on collision meshes to one in use by any render mesh"
+    elif "no corresponding model region (will not be physical)" in line:
+        return "You need to add a render mesh that has the region referenced above or change the named region on physics meshes to one in use by any render mesh"
+    
     
     return ""
 
