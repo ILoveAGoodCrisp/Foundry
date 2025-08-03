@@ -184,8 +184,8 @@ class NWO_OT_ApplyTypeMesh(bpy.types.Operator):
                 items.append(
                     utils.nwo_enum(
                         "rain_blocker",
-                        "Rain Blocker Volume",
-                        "Blocks rain from rendering in the region this volume occupies",
+                        "Rain Blocker",
+                        "Blocks rain, creating a surface for the rain to impact",
                         "rain_blocker",
                         index,
                     )
