@@ -203,6 +203,7 @@ class StructureDesignTag(Tag):
                 mesh.from_pydata(vertices=verts, edges=[], faces=face_indices)
                 
                 ob = bpy.data.objects.new(name, mesh)
+                ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_boundary_surface'
                 
                 match element.SelectField("ShortEnum:type").Value:
                     case 0:

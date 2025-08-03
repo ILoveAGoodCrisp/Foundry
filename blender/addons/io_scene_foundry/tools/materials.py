@@ -33,6 +33,7 @@ Fog = ConventionMaterial('Fog', [0.3, 0.3, 1.0, 0.2])
 # RainBlocker = ConventionMaterial('RainBlocker', [0.3, 0.3, 1.0, 1.0])
 # RainSheet = ConventionMaterial('RainSheet', [0.3, 0.3, 1.0, 1.0])
 WaterVolume = ConventionMaterial('WaterVolume', [0.0, 0.0, 1.0, 0.9])
+WaterDirection = ConventionMaterial('WaterDirection', [0.0, 0.0, 1.0, 0.9])
 Structure = ConventionMaterial('Structure', [0.0, 0.0, 1.0, 0.9])
 SoftCeiling = ConventionMaterial('SoftCeiling', [0.5, 0.4, 0.1, 0.9])
 SoftKill = ConventionMaterial('SoftKill', [0.5, 0.0, 0.1, 0.9])
@@ -42,4 +43,4 @@ LightmapExcludeVolume = ConventionMaterial('LightmapExcludeVolume', [0, 1, 1, 0.
 LightmapRegion = ConventionMaterial('LightmapRegion', [1, 1, 1, 0.2])
         
 convention_materials = (InvisibleSky, Physics, Seam, Portal, Collision, PlayCollision, WallCollision, BulletCollision, 
-                        CookieCutter, Fog, WaterVolume, Structure, SoftCeiling, SoftKill, SlipSurface, StreamingVolume, LightmapExcludeVolume, LightmapRegion)
+                        CookieCutter, Fog, WaterVolume, WaterDirection, Structure, SoftCeiling, SoftKill, SlipSurface, StreamingVolume, LightmapExcludeVolume, LightmapRegion)

@@ -169,11 +169,12 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         row.scale_y = 1.1
         row.menu("NWO_MT_ProjectChooser", text=nwo.scene_project, icon_value=utils.project_icon(bpy.context))
         
-        col.label(text="BSP Collections")
-        row = col.row()
-        row.scale_y = 1.1
-        row.operator("nwo.file_split", icon='LINKED')
-        row.operator("nwo.file_aggregate", icon='UNLINKED')
+        if nwo.asset_type == 'scenario':
+            col.label(text="BSP Collections")
+            row = col.row()
+            row.scale_y = 1.1
+            row.operator("nwo.file_split", icon='LINKED')
+            row.operator("nwo.file_aggregate", icon='UNLINKED')
 
 
     def draw_asset_editor(self):

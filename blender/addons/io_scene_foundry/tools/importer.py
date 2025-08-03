@@ -2015,7 +2015,7 @@ class NWOImporter:
                 with ScenarioTag(path=mover.tag_path, raise_on_error=False) as scenario:
                     if not scenario.valid: continue
                     bsps = scenario.get_bsp_paths(self.tag_zone_set)
-                    scenario_name = scenario.tag_path.ShortName
+                    scenario_name = f"scenario_{scenario.tag_path.ShortName}"
                     scenario_collection = bpy.data.collections.get(scenario_name)
                     if scenario_collection is None:
                         scenario_collection = bpy.data.collections.new(scenario_name)

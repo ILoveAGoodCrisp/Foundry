@@ -1871,6 +1871,7 @@ class VirtualScene:
         
         self.vector_tracks = []
         self.poop_obs = {}
+        self.no_structure_export = export_settings.export_design
         
         spath = "shaders\invalid"
         stype = "material" if corinth else "shader"
@@ -2037,7 +2038,7 @@ class VirtualScene:
         if not self.structure:
             self.structure.add(default_region)
 
-        if self.structure == self.bsps_with_structure:
+        if self.no_structure_export or self.structure == self.bsps_with_structure:
             return
         no_bsp_structure = self.structure.difference(self.bsps_with_structure)
         print(f"--- Adding Structure Geometry For BSPs: {[bsp for bsp in no_bsp_structure]}")

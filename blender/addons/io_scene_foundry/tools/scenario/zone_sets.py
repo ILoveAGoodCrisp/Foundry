@@ -67,7 +67,7 @@ def write_zone_sets_to_scenario(scene_nwo, asset_name):
     foundry_zone_set_names = [zs.name.lower() for zs in foundry_zone_sets]
     missing_zone_sets = [zs for zs in foundry_zone_sets]
     full_bsp_names = [region.name for region in scene_nwo.regions_table if region.name]
-    full_sd_names = [f"{region.name}_structure_design" for region in scene_nwo.regions_table if region.name]
+    full_sd_names = [region.name for region in scene_nwo.regions_table if region.name]
     with ScenarioTag() as scenario:
         for element in scenario.block_zone_sets.Elements:
             tag_zs_name = element.SelectField("name").GetStringData()
