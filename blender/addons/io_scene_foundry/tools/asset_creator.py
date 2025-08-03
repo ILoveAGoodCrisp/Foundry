@@ -299,10 +299,11 @@ class NWO_OT_NewAsset(bpy.types.Operator):
     )
     
     animation_type: bpy.props.EnumProperty(
-        name="Animation Type",
+        name="Animation Graph Type",
         items=[
-            ("first_person", "First Person", ""),
-            ("standalone", "Standalone", ""),
+            ("first_person", "First Person", "For creating an animation graph for first person. All new animations created are automatically given the first_person mode"),
+            ("standalone", "Standalone", "For creating a standalone animation graph not necessarily linked to a model. For example a graph that holds a character's vignette animations"),
+            ("single", "Single", "For exporting a single animation to a single GR2 file only. This does not create tags on its own, but other assets can reference this GR2. Does not use the normal animation manager, and during export the current action as is will be used. Animation settings can be found in the asset editor"),
         ]
     )
     

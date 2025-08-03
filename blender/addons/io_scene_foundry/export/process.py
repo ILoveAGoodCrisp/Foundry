@@ -1947,12 +1947,16 @@ class ExportScene:
     def restore_scene(self):
         for ob, data in self.data_remap.items():
             ob.data = data
-        
-        for ob in self.temp_objects:
-            bpy.data.objects.remove(ob)
             
-        for mesh in self.temp_meshes:
-            bpy.data.meshes.remove(mesh)
+        bpy.data.batch_remove(self.temp_objects)
+        
+        # for ob in self.temp_objects:
+        #     bpy.data.objects.remove(ob)
+        
+        bpy.data.batch_remove(self.temp_meshes)
+            
+        # for mesh in self.temp_meshes:
+        #     bpy.data.meshes.remove(mesh)
         
         for armature, pose in self.armature_poses.items():
             armature.pose_position = pose

@@ -9,22 +9,22 @@ from ... import utils
 
 import xml.etree.ElementTree as ET
     
-class NWO_UL_ChildAsset(bpy.types.UIList):
-    def draw_item(
-        self,
-        context,
-        layout,
-        data,
-        item,
-        icon,
-        active_data,
-        active_propname,
-        index,
-    ):
-        name = item.asset_path
+# class NWO_UL_ChildAsset(bpy.types.UIList):
+#     def draw_item(
+#         self,
+#         context,
+#         layout,
+#         data,
+#         item,
+#         icon,
+#         active_data,
+#         active_propname,
+#         index,
+#     ):
+#         name = item.asset_path
                 
-        layout.label(text=name, icon='FILE')
-        layout.prop(item, "enabled", icon='CHECKBOX_HLT' if item.enabled else 'CHECKBOX_DEHLT', text="", emboss=False)
+#         layout.label(text=name, icon='FILE')
+#         layout.prop(item, "enabled", icon='CHECKBOX_HLT' if item.enabled else 'CHECKBOX_DEHLT', text="", emboss=False)
         
 class NWO_OT_OpenParentAsset(bpy.types.Operator):
     bl_idname = "nwo.open_parent_asset"
@@ -52,131 +52,131 @@ class NWO_OT_OpenParentAsset(bpy.types.Operator):
         bpy.ops.wm.open_mainfile(filepath=str(full_blend_path))
         return {'FINISHED'}
         
-class NWO_OT_OpenChildAsset(bpy.types.Operator):
-    bl_idname = "nwo.open_child_asset"
-    bl_label = "Open Blend"
-    bl_description = "Opens the source blend file for this asset"
-    bl_options = {"UNDO"}
+# class NWO_OT_OpenChildAsset(bpy.types.Operator):
+#     bl_idname = "nwo.open_child_asset"
+#     bl_label = "Open Blend"
+#     bl_description = "Opens the source blend file for this asset"
+#     bl_options = {"UNDO"}
     
-    @classmethod
-    def poll(cls, context):
-        return context.scene.nwo.child_assets and context.scene.nwo.active_child_asset_index > -1
+#     @classmethod
+#     def poll(cls, context):
+#         return context.scene.nwo.child_assets and context.scene.nwo.active_child_asset_index > -1
     
-    def execute(self, context):
-        asset_path = Path(context.scene.nwo.child_assets[context.scene.nwo.active_child_asset_index].asset_path)
-        if asset_path.suffix == '.blend':
-            relative_blend_path = utils.relative_path(asset_path)
-        else:
-            full_path = Path(utils.get_data_path(), asset_path, f"{asset_path.name}.sidecar.xml")
+#     def execute(self, context):
+#         asset_path = Path(context.scene.nwo.child_assets[context.scene.nwo.active_child_asset_index].asset_path)
+#         if asset_path.suffix == '.blend':
+#             relative_blend_path = utils.relative_path(asset_path)
+#         else:
+#             full_path = Path(utils.get_data_path(), asset_path, f"{asset_path.name}.sidecar.xml")
             
-            source_blend_element = None
-            try:
-                tree = ET.parse(full_path)
-                root = tree.getroot()
-                source_blend_element = root.find(".//SourceBlend")
-            except:
-                pass
+#             source_blend_element = None
+#             try:
+#                 tree = ET.parse(full_path)
+#                 root = tree.getroot()
+#                 source_blend_element = root.find(".//SourceBlend")
+#             except:
+#                 pass
             
-            if source_blend_element is None:
-                self.report({'WARNING'}, f"Failed to identify source blend file from {full_path}")
-                return {'CANCELLED'}
+#             if source_blend_element is None:
+#                 self.report({'WARNING'}, f"Failed to identify source blend file from {full_path}")
+#                 return {'CANCELLED'}
             
-            relative_blend_path = source_blend_element.text
+#             relative_blend_path = source_blend_element.text
         
-        full_blend_path = Path(utils.get_data_path(), relative_blend_path)
-        if not full_blend_path.exists():
-            self.report({'WARNING'}, f"Source blend file does not exist: {full_blend_path}")
-            return {'CANCELLED'}
+#         full_blend_path = Path(utils.get_data_path(), relative_blend_path)
+#         if not full_blend_path.exists():
+#             self.report({'WARNING'}, f"Source blend file does not exist: {full_blend_path}")
+#             return {'CANCELLED'}
         
-        bpy.ops.wm.save_mainfile()
-        bpy.ops.wm.open_mainfile(filepath=str(full_blend_path))
-        return {'FINISHED'}
+#         bpy.ops.wm.save_mainfile()
+#         bpy.ops.wm.open_mainfile(filepath=str(full_blend_path))
+#         return {'FINISHED'}
         
         
-class NWO_OT_AddChildAsset(bpy.types.Operator):
-    bl_idname = "nwo.add_child_asset"
-    bl_label = "Add Child Asset"
-    bl_description = "Adds a path to the sidecar which should contribute to this asset"
-    bl_options = {"UNDO"}
+# class NWO_OT_AddChildAsset(bpy.types.Operator):
+#     bl_idname = "nwo.add_child_asset"
+#     bl_label = "Add Child Asset"
+#     bl_description = "Adds a path to the sidecar which should contribute to this asset"
+#     bl_options = {"UNDO"}
     
-    @classmethod
-    def poll(cls, context):
-        return context.scene and utils.get_prefs().projects
+#     @classmethod
+#     def poll(cls, context):
+#         return context.scene and utils.get_prefs().projects
     
-    filter_glob: bpy.props.StringProperty(
-        default="*.sidecar.xml",
-        options={"HIDDEN"},
-    )
+#     filter_glob: bpy.props.StringProperty(
+#         default="*.sidecar.xml",
+#         options={"HIDDEN"},
+#     )
 
-    use_filter_folder: bpy.props.BoolProperty(default=True)
+#     use_filter_folder: bpy.props.BoolProperty(default=True)
 
-    filepath: bpy.props.StringProperty(
-        name="Sidecar Path",
-        description="",
-        subtype="FILE_PATH",
-    )
+#     filepath: bpy.props.StringProperty(
+#         name="Sidecar Path",
+#         description="",
+#         subtype="FILE_PATH",
+#     )
     
-    filename: bpy.props.StringProperty()
+#     filename: bpy.props.StringProperty()
 
-    def execute(self, context):
-        scene_nwo = context.scene.nwo
-        fp = Path(self.filepath)
-        if fp.is_absolute() and fp.is_relative_to(utils.get_data_path()):
-            relative_filepath = utils.relative_path(fp)
-            if relative_filepath == context.scene.nwo.sidecar_path:
-                self.report({'WARNING'}, f"Cannot add own asset sidecar")
-                return {'CANCELLED'}
-            child = scene_nwo.child_assets.add()
-            child.asset_path = str(Path(relative_filepath).parent)
-            scene_nwo.active_child_asset_index = len(scene_nwo.child_assets) - 1
-        else:
-            self.report({'WARNING'}, f"sidecar.xml path [{fp}] is not relative to current project data directory [{utils.get_data_path()}]. Cannot add child asset")
-            return {'CANCELLED'}
+#     def execute(self, context):
+#         scene_nwo = context.scene.nwo
+#         fp = Path(self.filepath)
+#         if fp.is_absolute() and fp.is_relative_to(utils.get_data_path()):
+#             relative_filepath = utils.relative_path(fp)
+#             if relative_filepath == context.scene.nwo.sidecar_path:
+#                 self.report({'WARNING'}, f"Cannot add own asset sidecar")
+#                 return {'CANCELLED'}
+#             child = scene_nwo.child_assets.add()
+#             child.asset_path = str(Path(relative_filepath).parent)
+#             scene_nwo.active_child_asset_index = len(scene_nwo.child_assets) - 1
+#         else:
+#             self.report({'WARNING'}, f"sidecar.xml path [{fp}] is not relative to current project data directory [{utils.get_data_path()}]. Cannot add child asset")
+#             return {'CANCELLED'}
         
-        return {'FINISHED'}
+#         return {'FINISHED'}
     
-    def invoke(self, context, _):
-        self.filepath = utils.get_asset_path_full() + os.sep
-        context.window_manager.fileselect_add(self)
-        return {'RUNNING_MODAL'}
+#     def invoke(self, context, _):
+#         self.filepath = utils.get_asset_path_full() + os.sep
+#         context.window_manager.fileselect_add(self)
+#         return {'RUNNING_MODAL'}
     
-class NWO_OT_RemoveChildAsset(bpy.types.Operator):
-    bl_idname = "nwo.remove_child_asset"
-    bl_label = "Remove"
-    bl_description = "Remove a child asset from the list"
-    bl_options = {"UNDO"}
+# class NWO_OT_RemoveChildAsset(bpy.types.Operator):
+#     bl_idname = "nwo.remove_child_asset"
+#     bl_label = "Remove"
+#     bl_description = "Remove a child asset from the list"
+#     bl_options = {"UNDO"}
 
-    @classmethod
-    def poll(cls, context):
-        return context.scene.nwo.child_assets and context.scene.nwo.active_child_asset_index > -1
+#     @classmethod
+#     def poll(cls, context):
+#         return context.scene.nwo.child_assets and context.scene.nwo.active_child_asset_index > -1
 
-    def execute(self, context):
-        nwo = context.scene.nwo
-        index = nwo.active_child_asset_index
-        nwo.child_assets.remove(index)
-        if nwo.active_child_asset_index > len(nwo.child_assets) - 1:
-            nwo.active_child_asset_index -= 1
-        context.area.tag_redraw()
-        return {"FINISHED"}
+#     def execute(self, context):
+#         nwo = context.scene.nwo
+#         index = nwo.active_child_asset_index
+#         nwo.child_assets.remove(index)
+#         if nwo.active_child_asset_index > len(nwo.child_assets) - 1:
+#             nwo.active_child_asset_index -= 1
+#         context.area.tag_redraw()
+#         return {"FINISHED"}
     
-class NWO_OT_MoveChildAsset(bpy.types.Operator):
-    bl_idname = "nwo.move_child_asset"
-    bl_label = "Move"
-    bl_description = "Moves the child asset up/down the list"
-    bl_options = {"UNDO"}
+# class NWO_OT_MoveChildAsset(bpy.types.Operator):
+#     bl_idname = "nwo.move_child_asset"
+#     bl_label = "Move"
+#     bl_description = "Moves the child asset up/down the list"
+#     bl_options = {"UNDO"}
     
-    direction: bpy.props.StringProperty()
+#     direction: bpy.props.StringProperty()
 
-    def execute(self, context):
-        nwo = context.scene.nwo
-        assets = nwo.child_assets
-        delta = {"down": 1, "up": -1,}[self.direction]
-        current_index = nwo.active_child_asset_index
-        to_index = (current_index + delta) % len(assets)
-        assets.move(current_index, to_index)
-        nwo.active_child_asset_index = to_index
-        context.area.tag_redraw()
-        return {'FINISHED'}
+#     def execute(self, context):
+#         nwo = context.scene.nwo
+#         assets = nwo.child_assets
+#         delta = {"down": 1, "up": -1,}[self.direction]
+#         current_index = nwo.active_child_asset_index
+#         to_index = (current_index + delta) % len(assets)
+#         assets.move(current_index, to_index)
+#         nwo.active_child_asset_index = to_index
+#         context.area.tag_redraw()
+#         return {'FINISHED'}
     
 class NWO_UL_IKChain(bpy.types.UIList):
     # Called for each drawn item.

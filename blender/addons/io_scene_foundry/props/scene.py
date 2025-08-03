@@ -1097,6 +1097,11 @@ class NWO_AnimationPropertiesGroup(bpy.types.PropertyGroup):
     custom: bpy.props.StringProperty(name="Custom")
 
     created_with_foundry: bpy.props.BoolProperty(options={'HIDDEN'})
+    
+    gr2_path: bpy.props.StringProperty(
+        name="GR2 Path",
+        description="Path to a GR2 file containing animation data to use in place of an action in this scene",
+    )
 
 class NWO_CinematicShotActor(bpy.types.PropertyGroup):
     active: bpy.props.BoolProperty(

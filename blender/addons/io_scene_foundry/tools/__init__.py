@@ -49,7 +49,7 @@ from .halo_launcher import NWO_HaloLauncher_Data, NWO_HaloLauncher_Foundation, N
 from .shader_builder import NWO_ListMaterialShaders, NWO_Shader_BuildSingle, NWO_ShaderPropertiesGroup
 from .halo_launcher import NWO_HaloLauncherPropertiesGroup, NWO_MaterialGirl
 from .imposter_farm import NWO_OT_InstanceImposterGenerate
-from .file_split import NWO_OT_FileSplit, NWO_OT_OpenLinkedCollection
+from .file_split import NWO_OT_FileAggregate, NWO_OT_FileSplit, NWO_OT_OpenLinkedCollection
 
 is_blender_startup = True
 
@@ -212,6 +212,7 @@ classes = (
     NWO_OT_InstanceImposterGenerate,
     NWO_OT_FileSplit,
     NWO_OT_OpenLinkedCollection,
+    NWO_OT_FileAggregate,
 )
 
 def register():

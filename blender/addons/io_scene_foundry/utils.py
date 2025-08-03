@@ -5078,3 +5078,12 @@ def to_aabb(ob: bpy.types.Object):
     ))
     
     return min_co, max_co
+
+def resolve_relative_blend(fp: str):
+    if fp.startswith("//"):
+        if bpy.data.filepath:
+            return str(Path(Path(bpy.data.filepath).parent, fp[2:]))
+        else:
+            return ""
+    
+    return fp

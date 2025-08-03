@@ -921,7 +921,6 @@ class NWO_Import(bpy.types.Operator):
                         
                 elif 'structure_design' in importer.extensions:
                     importer.setup_as_asset = self.setup_as_asset
-                    importer.tag_bsp_import_geometry = self.tag_bsp_import_geometry
                     
                     design_files = importer.sorted_filepaths["structure_design"]
                     imported_design_objects = []
@@ -1168,11 +1167,8 @@ class NWO_Import(bpy.types.Operator):
             box.label(text='Scenario Tag Settings')
             box.prop(self, 'tag_zone_set')
             box.prop(self, "tag_bsp_import_geometry")
-            if self.tag_bsp_import_geometry:
-                box.prop(self, "tag_bsp_render_only")
-                if not self.tag_bsp_render_only:
-                    box.prop(self, "tag_bsp_import_geometry")
-                box.prop(self, "tag_import_design")
+            box.prop(self, "tag_bsp_render_only")
+            box.prop(self, "tag_import_design")
             box.prop(self, "tag_import_lights")
             box.prop(self, 'build_blender_materials', text=f"Blender Materials from {tag_type.capitalize()} Tags")
             box.prop(self, 'always_extract_bitmaps')
@@ -3534,10 +3530,8 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
             case "scenario":
                 layout.prop(self, "tag_zone_set")
                 layout.prop(self, "tag_bsp_import_geometry")
-                if self.tag_bsp_import_geometry:
-                    layout.prop(self, "tag_bsp_render_only")
-                    if not self.tag_bsp_render_only:
-                        layout.prop(self, "tag_import_design")
+                layout.prop(self, "tag_bsp_render_only")
+                layout.prop(self, "tag_import_design")
                 layout.prop(self, "tag_import_lights")
                 layout.prop(self, "setup_as_asset")
                 layout.prop(self, "build_blender_materials")
@@ -3718,8 +3712,10 @@ def merge_collection(collection: bpy.types.Collection):
             
     bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
     
-    for ob in to_remove_objects:
-        bpy.data.objects.remove(ob)
+    bpy.data.batch_remove(to_remove_objects)
+    
+    # for ob in to_remove_objects:
+    #     bpy.data.objects.remove(ob)
         
     # bpy.ops.object.join()
     

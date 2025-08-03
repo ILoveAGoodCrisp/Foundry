@@ -14,15 +14,63 @@ class NWO_OT_OpenLinkedCollection(bpy.types.Operator):
     
     def execute(self, context):
         
-        fp = context.collection.library.filepath
+        fp = utils.resolve_relative_blend(context.collection.library.filepath)
         
-        if not Path(fp).exists():
+        if not fp or not Path(fp).exists():
             self.report({'WARNING'}, f"Library filepath does not exist: {fp}")
             return {'CANCELLED'}
         
         bpy.ops.wm.save_mainfile()
-        bpy.ops.wm.open_mainfile(filepath=context.collection.library.filepath)
+        bpy.ops.wm.open_mainfile(filepath=fp)
         return {"FINISHED"}
+    
+class NWO_OT_FileAggregate(bpy.types.Operator):
+    bl_idname = "nwo.file_aggregate"
+    bl_label = "BSP File Aggregate"
+    bl_description = "Moves linked BSP collections into this file"
+    bl_options = {"UNDO"}
+    
+    @classmethod
+    def poll(cls, context):
+        return utils.valid_nwo_asset(context) and utils.nwo_asset_type() == 'scenario'
+    
+    def execute(self, context):
+        print("Mapping Collections")
+        collections = create_parent_mapping(context)
+        
+        bsp_collection_parents = {}
+        coll_names = []
+        to_remove_collections = set()
+
+        for coll in collections.keys():
+            if coll.nwo.type != 'region' or not coll.library:
+                continue
+            to_remove_collections.add(coll)
+            to_remove_collections.update(coll.children_recursive)
+            coll_name = coll.name
+            parent = collections[coll]
+            
+            coll_names.append(coll_name)
+
+            path = utils.resolve_relative_blend(coll.library.filepath)
+            if path and Path(path).exists():
+                bsp_collection_parents[path] = (coll_name, parent)
+
+        # Unlink old collection
+        print(f"Unlinking collections")
+        bpy.data.batch_remove(to_remove_collections)
+
+        print("Appending collections to file")
+        for path, (coll_name, parent) in bsp_collection_parents.items():
+            print(f"Appending {coll_name}")
+            with bpy.data.libraries.load(path) as (data_from, data_to):
+                data_to.collections = [coll_name]
+                
+            parent.children.link(bpy.data.collections[coll_name])
+        
+        self.report({'INFO'}, "File Aggregate Complete")
+        return {"FINISHED"}
+        
 
 class NWO_OT_FileSplit(bpy.types.Operator):
     bl_idname = "nwo.file_split"
@@ -49,9 +97,9 @@ class NWO_OT_FileSplit(bpy.types.Operator):
         coll_names = []
         paths = []
         to_remove_collections = set()
-        # Work on copies to avoid editing live data during export
+
         for coll in collections.keys():
-            if coll.nwo.type != 'region':
+            if coll.nwo.type != 'region' or coll.library:
                 continue
             to_remove_collections.add(coll)
             to_remove_collections.update(coll.children_recursive)
@@ -65,7 +113,7 @@ class NWO_OT_FileSplit(bpy.types.Operator):
             if path.exists():
                 path.unlink()
             paths.append(path)
-            # Create temporary blend with just this collection
+
             temp_scene = context.scene.copy()
             for c in temp_scene.collection.children:
                 temp_scene.collection.children.unlink(c)
@@ -85,12 +133,10 @@ class NWO_OT_FileSplit(bpy.types.Operator):
             # child_asset = context.scene.nwo.child_assets.add()
             # child_asset.asset_path = utils.relative_path(path)
 
-        # Unlink old collection
         print(f"Unlinking collections")
         bpy.data.batch_remove(coll_objects)
         bpy.data.batch_remove(to_remove_collections)
 
-        # Link back the collection
         for name, path in zip(coll_names, paths):
             print(f"Linking {name} from {path}")
             with bpy.data.libraries.load(str(path), link=True, relative=True) as (data_from, data_to):
@@ -102,10 +148,10 @@ class NWO_OT_FileSplit(bpy.types.Operator):
             else:
                 bpy.context.scene.collection.children.link(bpy.data.collections[coll_name])
 
-        # Save once at the end
         # bpy.ops.wm.save_mainfile()
         print("Purging old data")
         bpy.data.orphans_purge(do_recursive=True)
+        self.report({'INFO'}, "File Split Complete")
         return {"FINISHED"}
     
 def create_parent_mapping(context):
