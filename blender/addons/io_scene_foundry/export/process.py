@@ -2061,14 +2061,18 @@ class ExportScene:
                 )
     
     def invoke_tool_import(self):
-        if self.virtual_scene is None:
+        no_virtual_scene = self.virtual_scene is None
+        if no_virtual_scene:
             structure = [region.name for region in self.context.scene.nwo.regions_table]
+            design = []
         else:
             structure = self.virtual_scene.structure
+            design = self.virtual_scene.design
+            
         # if self.is_child_asset:
         #     sidecar_importer = SidecarImport(self.parent_asset_path, self.parent_asset_name, self.asset_type, self.sidecar.parent_sidecar_relative, self.scene_settings, self.export_settings, self.selected_bsps, self.corinth, structure, self.tags_dir, self.selected_actors, self.cinematic_scene, self.active_animation)
         # else:
-        sidecar_importer = SidecarImport(self.asset_path, self.asset_name, self.asset_type, self.sidecar_path, self.scene_settings, self.export_settings, self.selected_bsps, self.corinth, structure, self.tags_dir, self.selected_actors, self.cinematic_scene, self.active_animation)
+        sidecar_importer = SidecarImport(self.asset_path, self.asset_name, self.asset_type, self.sidecar_path, self.scene_settings, self.export_settings, self.selected_bsps, self.corinth, structure, self.tags_dir, self.selected_actors, self.cinematic_scene, self.active_animation, structure, design, no_virtual_scene)
         if self.corinth and self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB}:
             sidecar_importer.save_lighting_infos()
         sidecar_importer.setup_templates()

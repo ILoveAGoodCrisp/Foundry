@@ -27,7 +27,7 @@ default_templates = [
 ]
 
 class SidecarImport:
-    def __init__(self, asset_path: str, asset_name: str, asset_type: AssetType, sidecar_path: Path, scene_settings: NWO_ScenePropertiesGroup, export_settings: NWO_HaloExportPropertiesGroup, selected_bsps: list[str], corinth: bool, bsps: set, tags_dir, selected_actors: set, cinematic_scene, active_animation: str):
+    def __init__(self, asset_path: str, asset_name: str, asset_type: AssetType, sidecar_path: Path, scene_settings: NWO_ScenePropertiesGroup, export_settings: NWO_HaloExportPropertiesGroup, selected_bsps: list[str], corinth: bool, bsps: set, tags_dir, selected_actors: set, cinematic_scene, active_animation: str, structures: list[str], designs: list[str], no_virtual_scene: bool):
         self.asset_path = asset_path
         self.relative_asset_path = utils.relative_path(asset_path)
         self.asset_name = asset_name
@@ -45,6 +45,9 @@ class SidecarImport:
         self.tags_dir = tags_dir
         self.cinematic_scene = cinematic_scene
         self.active_animation = active_animation
+        self.structures = structures
+        self.designs = designs
+        self.no_virtual_scene = no_virtual_scene
     
     def setup_templates(self):
         templates = default_templates.copy()
@@ -140,9 +143,17 @@ class SidecarImport:
             if self.export_settings.import_suppress_errors:
                 flags.append("suppress_errors_to_vrml")
 
-        if self.selected_bsps:
-            for bsp in self.selected_bsps:
-                flags.append(bsp)
+        if self.asset_type == AssetType.SCENARIO:
+            if self.selected_bsps:
+                for bsp in self.selected_bsps:
+                    flags.append(bsp)
+            elif not self.no_virtual_scene and (not self.export_settings.export_design or not self.export_settings.export_structure):
+                if self.export_settings.export_design:
+                    for design in self.designs:
+                        flags.append(design)
+                elif self.export_settings.export_structure:
+                    for bsp in self.structures:
+                        flags.append(bsp)
                 
         if self.cinematic_scene is not None:
             flags.append(self.cinematic_scene.name)
