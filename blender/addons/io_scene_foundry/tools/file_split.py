@@ -2,11 +2,14 @@ from pathlib import Path
 import bpy
 from .. import utils
 
-class NWO_OT_OpenLinkedFile(bpy.types.Operator):
-    bl_idname = "nwo.open_linked_file"
-    bl_label = "Open Linked File"
-    bl_description = "Opens a linked file"
+class NWO_OT_OpenLinkedCollection(bpy.types.Operator):
+    bl_idname = "nwo.open_linked_id"
+    bl_label = "Open Linked ID"
+    bl_description = "Opens the blend file for a linked ID"
     bl_options = {"UNDO"}
+    
+    def execute(self, context):
+        return super().execute(context)
 
 class NWO_OT_FileSplit(bpy.types.Operator):
     bl_idname = "nwo.file_split"
@@ -24,6 +27,7 @@ class NWO_OT_FileSplit(bpy.types.Operator):
             dir.mkdir(parents=True)
 
         original_file = bpy.data.filepath
+        relative_original = utils.relative_path(original_file)
         print("Mapping Collections")
         collections = create_parent_mapping(context)
 
@@ -54,6 +58,7 @@ class NWO_OT_FileSplit(bpy.types.Operator):
                 temp_scene.collection.children.unlink(c)
             temp_scene.collection.children.link(coll)
             temp_scene.nwo.is_child_asset = True
+            temp_scene.nwo.parent_asset = relative_original
             bpy.data.libraries.write(
                 str(path),
                 {temp_scene},
@@ -63,6 +68,9 @@ class NWO_OT_FileSplit(bpy.types.Operator):
             bpy.data.scenes.remove(temp_scene)
             
             coll_objects.update(coll.all_objects)
+            
+            # child_asset = context.scene.nwo.child_assets.add()
+            # child_asset.asset_path = utils.relative_path(path)
 
         # Unlink old collection
         print(f"Unlinking collections")

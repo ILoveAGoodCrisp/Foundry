@@ -157,29 +157,29 @@ class ExportScene:
         self.type_is_relevant = self.asset_type in {AssetType.MODEL, AssetType.SCENARIO, AssetType.SKY, AssetType.DECORATOR_SET, AssetType.PARTICLE_MODEL, AssetType.PREFAB}
         self.main_armature = None
         self.uses_main_armature = self.asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.ANIMATION}
-        self.is_child_asset = scene_settings.is_child_asset
-        self.parent_asset_path = None
-        self.parent_asset_path_relative = None
-        self.parent_asset_name = None
-        parent_sidecar = None
-        if self.is_child_asset and scene_settings.parent_asset.strip():
-            parent_relative = Path(scene_settings.parent_asset)
-            parent = Path(self.data_dir, parent_relative)
-            parent_sidecar = Path(parent, f"{parent.name}.sidecar.xml")
-            if parent_sidecar.exists():
-                self.parent_asset_path = parent
-                self.parent_asset_path_relative = parent_relative
-                self.parent_asset_name = parent_relative.name
+        # self.is_child_asset = scene_settings.is_child_asset
+        # self.parent_asset_path = None
+        # self.parent_asset_path_relative = None
+        # self.parent_asset_name = None
+        # parent_sidecar = None
+        # if self.is_child_asset and scene_settings.parent_asset.strip():
+        #     parent_relative = Path(scene_settings.parent_asset)
+        #     parent = Path(self.data_dir, parent_relative)
+        #     parent_sidecar = Path(parent, f"{parent.name}.sidecar.xml")
+        #     if parent_sidecar.exists():
+        #         self.parent_asset_path = parent
+        #         self.parent_asset_path_relative = parent_relative
+        #         self.parent_asset_name = parent_relative.name
                 
         self.cinematic_actors = []
         self.cinematic_scene = None
         if self.asset_type == AssetType.CINEMATIC:
-            if self.is_child_asset and self.parent_asset_path_relative is not None:
-                self.cinematic_scene = CinematicScene(self.parent_asset_path_relative, f"{self.parent_asset_name}_{self.asset_name}", context.scene)
-            else:
-                self.cinematic_scene = CinematicScene(self.asset_path_relative, f"{self.asset_name}_000", context.scene)
+            # if self.is_child_asset and self.parent_asset_path_relative is not None:
+            #     self.cinematic_scene = CinematicScene(self.parent_asset_path_relative, f"{self.parent_asset_name}_{self.asset_name}", context.scene)
+            # else:
+            self.cinematic_scene = CinematicScene(self.asset_path_relative, f"{self.asset_name}_000", context.scene)
                 
-        self.sidecar = Sidecar(sidecar_path_full, sidecar_path, asset_path, asset_name, self.asset_type, scene_settings, corinth, context, self.tags_dir, parent_sidecar)
+        self.sidecar = Sidecar(sidecar_path_full, sidecar_path, asset_path, asset_name, self.asset_type, scene_settings, corinth, context, self.tags_dir)
         self.active_animation = ""
         self.suspension_animations = {}
         
@@ -428,7 +428,7 @@ class ExportScene:
                     if self.asset_type == AssetType.CINEMATIC:
                         warning = utils.actor_validation(ob)
                         if warning is None:
-                            self.cinematic_actors.append(Actor(ob, self.cinematic_scene.name, self.parent_asset_path_relative if self.is_child_asset else self.asset_path_relative, self.asset_name if self.is_child_asset else ""))
+                            self.cinematic_actors.append(Actor(ob, self.cinematic_scene.name, self.asset_path_relative, ""))
                         else:
                             self.warnings.append(warning)
                             continue
@@ -1782,10 +1782,10 @@ class ExportScene:
             print(f'--- Built cinematic camera data for {shot_count} shot{"s" if shot_count != 1 else ""}')
                 
     def _write_qua(self):
-        if self.is_child_asset:
-            writer = QUA(self.parent_asset_path_relative, self.cinematic_scene.name, self.virtual_scene.shots, self.cinematic_actors, self.corinth, False)
-        else:
-            writer = QUA(self.asset_path_relative, self.cinematic_scene.name, self.virtual_scene.shots, self.cinematic_actors, self.corinth, False)
+        # if self.is_child_asset:
+        #     writer = QUA(self.parent_asset_path_relative, self.cinematic_scene.name, self.virtual_scene.shots, self.cinematic_actors, self.corinth, False)
+        # else:
+        writer = QUA(self.asset_path_relative, self.cinematic_scene.name, self.virtual_scene.shots, self.cinematic_actors, self.corinth, False)
         writer.write_to_tag()
                 
     def _export_animations(self):
@@ -1908,14 +1908,15 @@ class ExportScene:
         self.sidecar.global_materials = self.global_materials_list
         self.sidecar.structure = [region for region in self.regions if region in self.virtual_scene.structure]
         self.sidecar.design = self.virtual_scene.design
-        for child_asset in self.scene_settings.child_assets:
-            if child_asset.enabled:
-                full_path = Path(self.data_dir, child_asset.asset_path, f"{Path(child_asset.asset_path).name}.sidecar.xml")
-                if full_path.exists():
-                    print(f"--- Adding data from {full_path}")
-                    self.sidecar.child_sidecar_paths.append(full_path)
-                else:
-                    utils.print_warning(f"--- Child asset path does not exist in project data directory: {child_asset}")
+        
+        # for child_asset in self.scene_settings.child_assets:
+        #     if child_asset.enabled:
+        #         full_path = Path(self.data_dir, child_asset.asset_path, f"{Path(child_asset.asset_path).name}.sidecar.xml")
+        #         if full_path.exists():
+        #             print(f"--- Adding data from {full_path}")
+        #             self.sidecar.child_sidecar_paths.append(full_path)
+        #         else:
+        #             utils.print_warning(f"--- Child asset path does not exist in project data directory: {child_asset}")
                     
         if self.corinth and self.asset_type in {AssetType.MODEL, AssetType.SKY}:
             clones = {}
@@ -1938,7 +1939,7 @@ class ExportScene:
         # if self.asset_type == AssetType.MODEL and self.scene_settings.output_biped and self.has_animations: TODO uncomment once implemented in UI
         #     self.sidecar.write_verification()
 
-        self.sidecar.get_child_elements()
+        # self.sidecar.get_child_elements()
         self.sidecar.build()
                     
         print(f"--- Saved to: {self.sidecar.sidecar_path}")
@@ -2060,10 +2061,10 @@ class ExportScene:
             structure = [region.name for region in self.context.scene.nwo.regions_table]
         else:
             structure = self.virtual_scene.structure
-        if self.is_child_asset:
-            sidecar_importer = SidecarImport(self.parent_asset_path, self.parent_asset_name, self.asset_type, self.sidecar.parent_sidecar_relative, self.scene_settings, self.export_settings, self.selected_bsps, self.corinth, structure, self.tags_dir, self.selected_actors, self.cinematic_scene, self.active_animation)
-        else:
-            sidecar_importer = SidecarImport(self.asset_path, self.asset_name, self.asset_type, self.sidecar_path, self.scene_settings, self.export_settings, self.selected_bsps, self.corinth, structure, self.tags_dir, self.selected_actors, self.cinematic_scene, self.active_animation)
+        # if self.is_child_asset:
+        #     sidecar_importer = SidecarImport(self.parent_asset_path, self.parent_asset_name, self.asset_type, self.sidecar.parent_sidecar_relative, self.scene_settings, self.export_settings, self.selected_bsps, self.corinth, structure, self.tags_dir, self.selected_actors, self.cinematic_scene, self.active_animation)
+        # else:
+        sidecar_importer = SidecarImport(self.asset_path, self.asset_name, self.asset_type, self.sidecar_path, self.scene_settings, self.export_settings, self.selected_bsps, self.corinth, structure, self.tags_dir, self.selected_actors, self.cinematic_scene, self.active_animation)
         if self.corinth and self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB}:
             sidecar_importer.save_lighting_infos()
         sidecar_importer.setup_templates()
@@ -2107,73 +2108,73 @@ class ExportScene:
             
     def postprocess_tags(self):
         """ManagedBlam tasks to run after tool import is called"""
-        if not self.is_child_asset:
-            self._setup_model_overrides()
-            
-            # Set FP weapon
-            if self.scene_settings.output_weapon and self.scene_settings.use_as_fp_render_model:
-                expected_weapon_path = utils.get_asset_tag("weapon", True)
-                if Path(expected_weapon_path).exists():
-                    render_path = utils.get_asset_tag("render_model")
-                    self.print_post(f"--- Setting first person render model for weapon to {render_path}")
-                    with ObjectTag(path=expected_weapon_path) as weapon:
-                        weapon.set_fp_weapon_render_model(render_path)
-            
-            if self.has_frame_events or self.sidecar.reach_world_animations or self.sidecar.pose_overlays or self.suspension_animations:
-                with AnimationTag() as animation:
-                    if self.has_frame_events:
-                        self.print_post("--- Adding Frame Events")
-                    animation.events_from_blender() # outside of if so it clears events if there are none
-                    if self.sidecar.reach_world_animations:
-                        self.print_post(f"--- Setting up {len(self.sidecar.reach_world_animations)} world relative animation{'s' if len(self.sidecar.reach_world_animations) > 1 else ''}")
-                        animation.set_world_animations(self.sidecar.reach_world_animations)
-                    if self.sidecar.pose_overlays:
-                        self.print_post(f"--- Updating animation blend screens for {len(self.sidecar.pose_overlays)} pose overlay animation{'s' if len(self.sidecar.pose_overlays) > 1 else ''}")
-                        animation.setup_blend_screens(self.sidecar.pose_overlays)
-                        
-                    if self.suspension_animations:
-                        self.print_post(f"--- Writing vehicle suspension data for {len(self.suspension_animations)} suspension animation{'s' if len(self.suspension_animations) > 1 else ''}")
-                        for element in animation.tag.SelectField("Struct:content[0]/Block:vehicle suspension").Elements:
-                            label = element.Fields[0].GetStringData()
-                            virtual_animation = self.suspension_animations.get(label)
-                            if virtual_animation is not None:
-                                element.SelectField("marker name").SetStringData(virtual_animation.suspension_marker.nwo.marker_model_group)
-                                element.SelectField("full extension ground_depth").Data = virtual_animation.suspension_extension_depth
-                                element.SelectField("full compression ground_depth").Data = virtual_animation.suspension_compression_depth
-                                
-                                # if not element.SelectField("function name").GetStringData().strip():
-                                #     element.SelectField("function name").SetStringData(label.replace(":", "_"))
-                                
-                                if virtual_animation.suspension_destroyed_region_name:
-                                    element.SelectField("region name").SetStringData(virtual_animation.suspension_destroyed_region_name)
-                                    element.SelectField("destroyed full extension ground_depth").Data = virtual_animation.suspension_destroyed_extension_depth
-                                    element.SelectField("destroyed full compression ground_depth").Data = virtual_animation.suspension_destroyed_compression_depth
-                                
-                                animation.tag_has_changes = True
-
-            if self.asset_type == AssetType.SCENARIO:
-                if self.setup_scenario:
-                    lm_value = 6 if self.corinth else 3
-                    with ScenarioTag() as scenario:
-                        for bsp in self.virtual_scene.structure:
-                            res = scenario.set_bsp_lightmap_res(bsp, lm_value, 0)
-                            self.print_post(f"--- Setting scenario lightmap resolution to {res}")
+        # if not self.is_child_asset:
+        self._setup_model_overrides()
+        
+        # Set FP weapon
+        if self.scene_settings.output_weapon and self.scene_settings.use_as_fp_render_model:
+            expected_weapon_path = utils.get_asset_tag("weapon", True)
+            if Path(expected_weapon_path).exists():
+                render_path = utils.get_asset_tag("render_model")
+                self.print_post(f"--- Setting first person render model for weapon to {render_path}")
+                with ObjectTag(path=expected_weapon_path) as weapon:
+                    weapon.set_fp_weapon_render_model(render_path)
+        
+        if self.has_frame_events or self.sidecar.reach_world_animations or self.sidecar.pose_overlays or self.suspension_animations:
+            with AnimationTag() as animation:
+                if self.has_frame_events:
+                    self.print_post("--- Adding Frame Events")
+                animation.events_from_blender() # outside of if so it clears events if there are none
+                if self.sidecar.reach_world_animations:
+                    self.print_post(f"--- Setting up {len(self.sidecar.reach_world_animations)} world relative animation{'s' if len(self.sidecar.reach_world_animations) > 1 else ''}")
+                    animation.set_world_animations(self.sidecar.reach_world_animations)
+                if self.sidecar.pose_overlays:
+                    self.print_post(f"--- Updating animation blend screens for {len(self.sidecar.pose_overlays)} pose overlay animation{'s' if len(self.sidecar.pose_overlays) > 1 else ''}")
+                    animation.setup_blend_screens(self.sidecar.pose_overlays)
                     
-                if self.scene_settings.zone_sets:
-                    self.print_post(f"--- Updating scenario zone sets: {[zs.name for zs in self.scene_settings.zone_sets]}")
-                    write_zone_sets_to_scenario(self.scene_settings, self.asset_name)
-                    
-                if False and not self.corinth and self.any_collision_proxies:
-                    self.print_post(f"--- Fixing Up collision proxy surface mapping")
-                    with ScenarioTag() as scenario:
-                        for element in scenario.block_bsps.Elements:
-                            bsp_path = element.Fields[0].Path
-                            if bsp_path is None:
-                                continue
+                if self.suspension_animations:
+                    self.print_post(f"--- Writing vehicle suspension data for {len(self.suspension_animations)} suspension animation{'s' if len(self.suspension_animations) > 1 else ''}")
+                    for element in animation.tag.SelectField("Struct:content[0]/Block:vehicle suspension").Elements:
+                        label = element.Fields[0].GetStringData()
+                        virtual_animation = self.suspension_animations.get(label)
+                        if virtual_animation is not None:
+                            element.SelectField("marker name").SetStringData(virtual_animation.suspension_marker.nwo.marker_model_group)
+                            element.SelectField("full extension ground_depth").Data = virtual_animation.suspension_extension_depth
+                            element.SelectField("full compression ground_depth").Data = virtual_animation.suspension_compression_depth
                             
-                            if Path(bsp_path.Filename).exists():
-                                with ScenarioStructureBspTag(path=bsp_path.RelativePathWithExtension) as bsp:
-                                    bsp.fix_collision_render_surface_mapping()
+                            # if not element.SelectField("function name").GetStringData().strip():
+                            #     element.SelectField("function name").SetStringData(label.replace(":", "_"))
+                            
+                            if virtual_animation.suspension_destroyed_region_name:
+                                element.SelectField("region name").SetStringData(virtual_animation.suspension_destroyed_region_name)
+                                element.SelectField("destroyed full extension ground_depth").Data = virtual_animation.suspension_destroyed_extension_depth
+                                element.SelectField("destroyed full compression ground_depth").Data = virtual_animation.suspension_destroyed_compression_depth
+                            
+                            animation.tag_has_changes = True
+
+        if self.asset_type == AssetType.SCENARIO:
+            if self.setup_scenario:
+                lm_value = 6 if self.corinth else 3
+                with ScenarioTag() as scenario:
+                    for bsp in self.virtual_scene.structure:
+                        res = scenario.set_bsp_lightmap_res(bsp, lm_value, 0)
+                        self.print_post(f"--- Setting scenario lightmap resolution to {res}")
+                
+            if self.scene_settings.zone_sets:
+                self.print_post(f"--- Updating scenario zone sets: {[zs.name for zs in self.scene_settings.zone_sets]}")
+                write_zone_sets_to_scenario(self.scene_settings, self.asset_name)
+                
+            if False and not self.corinth and self.any_collision_proxies:
+                self.print_post(f"--- Fixing Up collision proxy surface mapping")
+                with ScenarioTag() as scenario:
+                    for element in scenario.block_bsps.Elements:
+                        bsp_path = element.Fields[0].Path
+                        if bsp_path is None:
+                            continue
+                        
+                        if Path(bsp_path.Filename).exists():
+                            with ScenarioStructureBspTag(path=bsp_path.RelativePathWithExtension) as bsp:
+                                bsp.fix_collision_render_surface_mapping()
 
         if self.export_settings.update_lighting_info:
             light_asset = self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB} or (self.corinth and self.asset_type in {AssetType.MODEL, AssetType.SKY})
@@ -2184,39 +2185,39 @@ class ExportScene:
                     bsps = [bsp for bsp in self.regions if bsp.lower() != "shared"]
                 if self.lights or (not self.corinth and self.lightmap_regions):
                     self.print_post(f"--- Writing lighting data from {len(self.lights)} light{'s' if len(self.lights) > 1 else ''}")
-                    if self.is_child_asset:
-                        export_lights(str(self.parent_asset_path_relative), self.parent_asset_name, self.lights, bsps, self.lightmap_regions)
-                    else:
-                        export_lights(self.asset_path_relative, self.asset_name, self.lights, bsps, self.lightmap_regions)
+                    # if self.is_child_asset:
+                    #     export_lights(str(self.parent_asset_path_relative), self.parent_asset_name, self.lights, bsps, self.lightmap_regions)
+                    # else:
+                    export_lights(self.asset_path_relative, self.asset_name, self.lights, bsps, self.lightmap_regions)
                 else:
-                    if self.is_child_asset:
-                        export_lights(str(self.parent_asset_path_relative), self.parent_asset_name, [], bsps, self.lightmap_regions) # this will clear the lighting info tag
-                    else:
-                        export_lights(self.asset_path_relative, self.asset_name, [], bsps, self.lightmap_regions)
+                    # if self.is_child_asset:
+                    #     export_lights(str(self.parent_asset_path_relative), self.parent_asset_name, [], bsps, self.lightmap_regions) # this will clear the lighting info tag
+                    # else:
+                    export_lights(self.asset_path_relative, self.asset_name, [], bsps, self.lightmap_regions)
                     
         if self.asset_type == AssetType.CINEMATIC:
             self.print_post(f"--- Writing cinematic scene: {self.cinematic_scene.name}")
             self._write_qua()
             scenario_path = Path(self.tags_dir, self.scene_settings.cinematic_scenario)
             cinematic_path = None
-            if self.is_child_asset:
-                cinematic_scenes = get_cinematic_scenes(self.sidecar.parent_sidecar)
-                cinematic_path = Path(self.parent_asset_path_relative, self.parent_asset_name)
-            else:
-                cinematic_scenes = get_cinematic_scenes(self.sidecar.sidecar_path_full)
-                cinematic_path = Path(self.asset_path, self.asset_name)
+            # if self.is_child_asset:
+            #     cinematic_scenes = get_cinematic_scenes(self.sidecar.parent_sidecar)
+            #     cinematic_path = Path(self.parent_asset_path_relative, self.parent_asset_name)
+            # else:
+            cinematic_scenes = get_cinematic_scenes(self.sidecar.sidecar_path_full)
+            cinematic_path = Path(self.asset_path, self.asset_name)
             with CinematicTag(path=cinematic_path) as cinematic:
                 term = "Created" if cinematic.tag_is_new else "Updated"
                 self.print_post(f"--- {term} cinematic tag: {cinematic.tag_path.RelativePathWithExtension}")
                 scenario_path = Path(self.tags_dir, self.scene_settings.cinematic_scenario)
                 if self.scene_settings.cinematic_scenario.strip() and scenario_path.exists() and scenario_path.is_file():
-                    if self.is_child_asset:
-                        cinematic.create(self.parent_asset_name, self.cinematic_scene, cinematic_scenes)
-                    else:
-                        cinematic.create(self.asset_name, self.cinematic_scene, cinematic_scenes, Path(self.scene_settings.cinematic_scenario), self.scene_settings.cinematic_zone_set if self.scene_settings.cinematic_zone_set.strip() else "cinematic")
-                        self.print_post(f"--- Linked cinematic to scenario: {self.scene_settings.cinematic_scenario}")
-                        if self.scene_settings.cinematic_zone_set:
-                            self.print_post(f"--- Linked to zone set: {self.scene_settings.cinematic_zone_set}")
+                    # if self.is_child_asset:
+                    #     cinematic.create(self.parent_asset_name, self.cinematic_scene, cinematic_scenes)
+                    # else:
+                    cinematic.create(self.asset_name, self.cinematic_scene, cinematic_scenes, Path(self.scene_settings.cinematic_scenario), self.scene_settings.cinematic_zone_set if self.scene_settings.cinematic_zone_set.strip() else "cinematic")
+                    self.print_post(f"--- Linked cinematic to scenario: {self.scene_settings.cinematic_scenario}")
+                    if self.scene_settings.cinematic_zone_set:
+                        self.print_post(f"--- Linked to zone set: {self.scene_settings.cinematic_zone_set}")
                             
                     self.print_post(f"--- {term} cutscene flags for cinematic anchor")
                 else:

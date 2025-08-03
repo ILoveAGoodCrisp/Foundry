@@ -45,7 +45,7 @@ class SidecarFileData:
         
 
 class Sidecar:
-    def __init__(self, sidecar_path_full: Path, sidecar_path: Path, asset_path: Path, asset_name: str, asset_type: AssetType, scene_settings: NWO_ScenePropertiesGroup, corinth: bool, context: bpy.types.Context, tags_dir=None, parent_sidecar=None):
+    def __init__(self, sidecar_path_full: Path, sidecar_path: Path, asset_path: Path, asset_name: str, asset_type: AssetType, scene_settings: NWO_ScenePropertiesGroup, corinth: bool, context: bpy.types.Context, tags_dir=None):
         self.reach_world_animations = set()
         self.pose_overlays = set()
         self.relative_asset_path = relative_path(asset_path)
@@ -84,8 +84,8 @@ class Sidecar:
         self.child_bsp_elements = []
         self.child_scene_elements = []
         self.cinematic_scene = None
-        self.parent_sidecar = parent_sidecar
-        self.parent_sidecar_relative = None if parent_sidecar is None else utils.relative_path(parent_sidecar)
+        # self.parent_sidecar = parent_sidecar
+        # self.parent_sidecar_relative = None if parent_sidecar is None else utils.relative_path(parent_sidecar)
         
     def create_actor_sidecar(self, actor: Actor, blend_path: Path):
         # This is awful but ultimately the best solution given the modder workflow
@@ -260,27 +260,26 @@ class Sidecar:
         m_standalone = "yes"
         metadata = ET.Element("Metadata")
         self._write_header(metadata)
-        if self.parent_sidecar is None:
-            if actor_render_model_path is not None:
-                self._get_object_output_types(metadata, "model", for_actor=True)
-            else:
-                match self.asset_type:
-                    case AssetType.MODEL:
-                        self._get_object_output_types(metadata, "model", self._get_model_tags())
-                    case AssetType.SCENARIO:
-                        self._get_object_output_types(metadata, "scenario")
-                    case AssetType.SKY:
-                        self._get_object_output_types(metadata, "model" if self.corinth else "sky")
-                    case AssetType.DECORATOR_SET:
-                        self._get_object_output_types(metadata, "decorator_set", "decorator_set")
-                    case AssetType.PARTICLE_MODEL:
-                        self._get_object_output_types(metadata, "particle_model", "particle_model")
-                    case AssetType.PREFAB:
-                        self._get_object_output_types(metadata, "prefab", "prefab")
-                    case AssetType.ANIMATION:
-                        self._get_object_output_types(metadata, "model")
-                    case AssetType.CINEMATIC:
-                        self._get_object_output_types(metadata, "cinematic")
+        if actor_render_model_path is not None:
+            self._get_object_output_types(metadata, "model", for_actor=True)
+        else:
+            match self.asset_type:
+                case AssetType.MODEL:
+                    self._get_object_output_types(metadata, "model", self._get_model_tags())
+                case AssetType.SCENARIO:
+                    self._get_object_output_types(metadata, "scenario")
+                case AssetType.SKY:
+                    self._get_object_output_types(metadata, "model" if self.corinth else "sky")
+                case AssetType.DECORATOR_SET:
+                    self._get_object_output_types(metadata, "decorator_set", "decorator_set")
+                case AssetType.PARTICLE_MODEL:
+                    self._get_object_output_types(metadata, "particle_model", "particle_model")
+                case AssetType.PREFAB:
+                    self._get_object_output_types(metadata, "prefab", "prefab")
+                case AssetType.ANIMATION:
+                    self._get_object_output_types(metadata, "model")
+                case AssetType.CINEMATIC:
+                    self._get_object_output_types(metadata, "cinematic")
 
         # self._write_folders(metadata)
         self._write_face_collections(metadata)

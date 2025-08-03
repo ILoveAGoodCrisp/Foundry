@@ -194,6 +194,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         
         if nwo.is_child_asset:
             col.prop(nwo, "parent_asset")
+            col.operator("nwo.open_parent_asset", icon='BLENDER')
             if nwo.asset_type == 'cinematic':
                 box = self.box.box()
                 box.label(text="Cinematic Scene")
@@ -267,8 +268,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 col.separator()
                 col.prop(nwo, 'cinematic_anchor')
             
-            if nwo.asset_type in {'model', 'sky', 'scenario', 'animation', 'cinematic'}:
-                self.draw_expandable_box(self.box.box(), nwo, "child_assets", panel_display_name="Child Assets" if nwo.asset_type != 'cinematic' else "Other Cinematic Scenes")
+            # if nwo.asset_type in {'model', 'sky', 'scenario', 'animation', 'cinematic'}:
+            #     self.draw_expandable_box(self.box.box(), nwo, "child_assets", panel_display_name="Child Assets" if nwo.asset_type != 'cinematic' else "Other Cinematic Scenes")
     
     def draw_expandable_box(self, box: bpy.types.UILayout, nwo, name, panel_display_name='', ob=None, material=None):
         if not panel_display_name:

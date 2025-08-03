@@ -26,6 +26,32 @@ class NWO_UL_ChildAsset(bpy.types.UIList):
         layout.label(text=name, icon='FILE')
         layout.prop(item, "enabled", icon='CHECKBOX_HLT' if item.enabled else 'CHECKBOX_DEHLT', text="", emboss=False)
         
+class NWO_OT_OpenParentAsset(bpy.types.Operator):
+    bl_idname = "nwo.open_parent_asset"
+    bl_label = "Open Parent Blend"
+    bl_description = "Opens the parent blend file"
+    bl_options = {"UNDO"}
+    
+    @classmethod
+    def poll(cls, context):
+        return context.scene.nwo.parent_asset.strip()
+    
+    def execute(self, context):
+        asset_path = Path(context.scene.nwo.parent_asset)
+        if asset_path.suffix != '.blend':
+            asset_path = asset_path.with_suffix(".blend")
+            
+        relative_blend_path = utils.relative_path(asset_path)
+        
+        full_blend_path = Path(utils.get_data_path(), relative_blend_path)
+        if not full_blend_path.exists():
+            self.report({'WARNING'}, f"Blend file does not exist: {full_blend_path}")
+            return {'CANCELLED'}
+        
+        bpy.ops.wm.save_mainfile()
+        bpy.ops.wm.open_mainfile(filepath=str(full_blend_path))
+        return {'FINISHED'}
+        
 class NWO_OT_OpenChildAsset(bpy.types.Operator):
     bl_idname = "nwo.open_child_asset"
     bl_label = "Open Blend"
@@ -38,29 +64,32 @@ class NWO_OT_OpenChildAsset(bpy.types.Operator):
     
     def execute(self, context):
         asset_path = Path(context.scene.nwo.child_assets[context.scene.nwo.active_child_asset_index].asset_path)
-        full_path = Path(utils.get_data_path(), asset_path, f"{asset_path.name}.sidecar.xml")
-        
-        source_blend_element = None
-        try:
-            tree = ET.parse(full_path)
-            root = tree.getroot()
-            source_blend_element = root.find(".//SourceBlend")
-        except:
-            pass
-        
-        if source_blend_element is None:
-            self.report({'WARNING'}, f"Failed to identify source blend file from {full_path}")
-            return {'CANCELLED'}
-        
-        relative_blend_path = source_blend_element.text
+        if asset_path.suffix == '.blend':
+            relative_blend_path = utils.relative_path(asset_path)
+        else:
+            full_path = Path(utils.get_data_path(), asset_path, f"{asset_path.name}.sidecar.xml")
+            
+            source_blend_element = None
+            try:
+                tree = ET.parse(full_path)
+                root = tree.getroot()
+                source_blend_element = root.find(".//SourceBlend")
+            except:
+                pass
+            
+            if source_blend_element is None:
+                self.report({'WARNING'}, f"Failed to identify source blend file from {full_path}")
+                return {'CANCELLED'}
+            
+            relative_blend_path = source_blend_element.text
         
         full_blend_path = Path(utils.get_data_path(), relative_blend_path)
         if not full_blend_path.exists():
             self.report({'WARNING'}, f"Source blend file does not exist: {full_blend_path}")
             return {'CANCELLED'}
         
-        os.startfile(full_blend_path)
-        
+        bpy.ops.wm.save_mainfile()
+        bpy.ops.wm.open_mainfile(filepath=str(full_blend_path))
         return {'FINISHED'}
         
         

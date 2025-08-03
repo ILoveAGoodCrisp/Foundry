@@ -66,6 +66,7 @@ classes = [
     animation.NWO_OT_PasteEvents,
     animation.NWO_OT_ClearAnimations,
     asset.NWO_UL_ChildAsset,
+    asset.NWO_OT_OpenParentAsset,
     asset.NWO_OT_OpenChildAsset,
     asset.NWO_OT_AddChildAsset,
     asset.NWO_OT_RemoveChildAsset,

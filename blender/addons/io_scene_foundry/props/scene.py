@@ -1344,9 +1344,9 @@ def prefab_warning(self, context):
 #         items=shared_asset_types,
 #     )
 
-class NWO_ChildAsset(PropertyGroup):
-    asset_path: bpy.props.StringProperty(options=set())
-    enabled: bpy.props.BoolProperty(name="Enabled", default=True, options=set())
+# class NWO_ChildAsset(PropertyGroup):
+#     asset_path: bpy.props.StringProperty(options=set())
+#     enabled: bpy.props.BoolProperty(name="Enabled", default=True, options=set())
     
 def poll_actor(self, object):
     return object.type == 'ARMATURE' and object.nwo.cinematic_object
@@ -1729,16 +1729,16 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     )
     
     # CHILD ASSET
-    child_assets: bpy.props.CollectionProperty(
-        name="Child Assets",
-        type=NWO_ChildAsset,
-        options=set(),
-    )
+    # child_assets: bpy.props.CollectionProperty(
+    #     name="Child Assets",
+    #     type=NWO_ChildAsset,
+    #     options=set(),
+    # )
     
-    active_child_asset_index: bpy.props.IntProperty(
-        name="Active Child Asset Index",
-        options=set(),
-    )
+    # active_child_asset_index: bpy.props.IntProperty(
+    #     name="Active Child Asset Index",
+    #     options=set(),
+    # )
     
     is_child_asset: bpy.props.BoolProperty(
         name="Child Asset",
@@ -1749,7 +1749,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         name="Parent Asset",
         description="Data relative filepath to the parent asset (without file extension)"
     )
-    
+
     mod_name: bpy.props.StringProperty(options={'HIDDEN'}, default="")
     
     def cinematic_scenario_clean_tag_path(self, context):
