@@ -15,7 +15,7 @@ from .shader_duplicate import NWO_OT_ShaderDuplicate
 from .camera_sync import NWO_OT_CameraSync
 from .prefab_exporter import NWO_OT_ExportPrefabs
 from .light_exporter import NWO_OT_ExportLights
-from .asset_creator import NWO_OT_NewAsset, NWO_OT_NewChildAsset
+from .asset_creator import NWO_OT_NewAsset #, NWO_OT_NewChildAsset
 from .animation.rename_importer import NWO_OT_RenameImporter
 from .animation.fcurve_transfer import NWO_OT_MovementDataToPedestal
 from .animation.composites import NWO_OT_AnimationBlendAxisAdd, NWO_OT_AnimationBlendAxisMove, NWO_OT_AnimationBlendAxisRemove, NWO_OT_AnimationCompositeAdd, NWO_OT_AnimationCompositeMove, NWO_OT_AnimationCompositeRemove, NWO_OT_AnimationDeadZoneAdd, NWO_OT_AnimationDeadZoneMove, NWO_OT_AnimationDeadZoneRemove, NWO_OT_AnimationLeafAdd, NWO_OT_AnimationLeafMove, NWO_OT_AnimationLeafRemove, NWO_OT_AnimationPhaseSetAdd, NWO_OT_AnimationPhaseSetMove, NWO_OT_AnimationPhaseSetRemove, NWO_UL_AnimationBlendAxis, NWO_UL_AnimationComposites, NWO_UL_AnimationDeadZone, NWO_UL_AnimationLeaf, NWO_UL_AnimationPhaseSet
@@ -49,7 +49,7 @@ from .halo_launcher import NWO_HaloLauncher_Data, NWO_HaloLauncher_Foundation, N
 from .shader_builder import NWO_ListMaterialShaders, NWO_Shader_BuildSingle, NWO_ShaderPropertiesGroup
 from .halo_launcher import NWO_HaloLauncherPropertiesGroup, NWO_MaterialGirl
 from .imposter_farm import NWO_OT_InstanceImposterGenerate
-from .file_split import NWO_OT_FileSplit
+from .file_split import NWO_OT_FileSplit, NWO_OT_OpenLinkedCollection
 
 is_blender_startup = True
 
@@ -201,7 +201,7 @@ classes = (
     NWO_OT_LaunchMCC,
     NWO_OT_OpenModFolder,
     NWO_OT_RefreshCinematicControls,
-    NWO_OT_NewChildAsset,
+    # NWO_OT_NewChildAsset,
     NWO_OT_ImportShader,
     NWO_FH_ImportShaderAsMaterial,
     NWO_OT_AnimationNameSearch,
@@ -211,6 +211,7 @@ classes = (
     NWO_OT_LockChildBoneScale,
     NWO_OT_InstanceImposterGenerate,
     NWO_OT_FileSplit,
+    NWO_OT_OpenLinkedCollection,
 )
 
 def register():

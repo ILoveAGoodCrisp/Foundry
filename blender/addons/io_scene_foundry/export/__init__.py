@@ -45,7 +45,7 @@ from ..utils import (
     print_error,
     print_warning,
     update_debug_menu,
-    valid_child_asset,
+    # valid_child_asset,
     validate_ek,
 )
 from .. import managed_blam
@@ -80,7 +80,7 @@ class NWO_ExportScene(Operator, ExportHelper):
     
     @classmethod
     def poll(cls, context):
-        return not validate_ek() and not context.scene.nwo.storage_only and context.scene.nwo.asset_type != 'resource'
+        return not validate_ek() and not context.scene.nwo.storage_only and context.scene.nwo.asset_type != 'resource' and not context.scene.nwo.is_child_asset
     
     @classmethod
     def description(cls, context, properties):
@@ -156,13 +156,13 @@ class NWO_ExportScene(Operator, ExportHelper):
                     f"Root Data Folder Export",
                     0,
                 )
-            elif nwo.is_child_asset and not valid_child_asset():
-                ctypes.windll.user32.MessageBoxW(
-                    0,
-                    f'Asset is marked as a child asset but does not specify a parent asset. Ensure the data relative path to the parent asset directory is set in the asset editor panel',
-                    f"Invalid Child Asset",
-                    0,
-                )
+            # elif nwo.is_child_asset and not valid_child_asset():
+            #     ctypes.windll.user32.MessageBoxW(
+            #         0,
+            #         f'Asset is marked as a child asset but does not specify a parent asset. Ensure the data relative path to the parent asset directory is set in the asset editor panel',
+            #         f"Invalid Child Asset",
+            #         0,
+            #     )
             else:
                 ctypes.windll.user32.MessageBoxW(
                     0,
@@ -305,7 +305,7 @@ class NWO_ExportScene(Operator, ExportHelper):
                             asset_path = utils.get_asset_path()
                             
                         asset_name = Path(asset_path).name
-                        scene_name = f"{asset_name}_{utils.get_asset_name()}" if context.scene.nwo.is_child_asset else f"{asset_name}_000"
+                        scene_name = f"{asset_name}_000"
                         shot_index = utils.current_shot_index(context)
                         add_controls_to_debug_menu(utils.is_corinth(context), Path(asset_path, asset_name).with_suffix(".cinematic"), scene_name, shot_index)
 
@@ -361,9 +361,9 @@ class NWO_ExportScene(Operator, ExportHelper):
             col.prop(scene_nwo_export, "faster_animation_export")
         col.separator()
         col.use_property_split = False
-        if not scene_nwo.is_child_asset:
-            col.prop(scene_nwo_export, "export_mode", text="")
-            col.prop(scene_nwo_export, "event_level", text="")
+        # if not scene_nwo.is_child_asset:
+        col.prop(scene_nwo_export, "export_mode", text="")
+        col.prop(scene_nwo_export, "event_level", text="")
         if scene_nwo.asset_type == 'camera_track_set':
             return
         scenario = scene_nwo.asset_type == "scenario"

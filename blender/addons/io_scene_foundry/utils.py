@@ -4328,29 +4328,29 @@ def halo_scale(number: float) -> float:
         
     return number * scale
 
-def valid_child_asset() -> bool:
-    '''Returns if this scene is a valid child asset'''
-    nwo = bpy.context.scene.nwo
-    parent_asset = nwo.parent_asset
-    if not parent_asset.strip():
-        return False
-    parent_name = Path(parent_asset).name
-    parent_sidecar = Path(get_tags_path(), parent_asset, f"{parent_name}.sidecar.xml")
-    return parent_sidecar.exists()
+# def valid_child_asset() -> bool:
+#     '''Returns if this scene is a valid child asset'''
+#     nwo = bpy.context.scene.nwo
+#     parent_asset = nwo.parent_asset
+#     if not parent_asset.strip():
+#         return False
+#     parent_name = Path(parent_asset).name
+#     parent_sidecar = Path(get_tags_path(), parent_asset, f"{parent_name}.sidecar.xml")
+#     return parent_sidecar.exists()
 
-def get_ultimate_asset_path(full=False) -> Path:
-    '''Gets the ultimate (parent if there is one) asset path for this asset. First argument is whether to return a full path or a relative path'''
-    nwo = bpy.context.scene.nwo
-    if nwo.is_child_asset:
-        assert(valid_child_asset())
-        path = nwo.parent_asset
-    else:
-        path = get_asset_path()
+# def get_ultimate_asset_path(full=False) -> Path:
+#     '''Gets the ultimate (parent if there is one) asset path for this asset. First argument is whether to return a full path or a relative path'''
+#     nwo = bpy.context.scene.nwo
+#     if nwo.is_child_asset:
+#         assert(valid_child_asset())
+#         path = nwo.parent_asset
+#     else:
+#         path = get_asset_path()
         
-    if full:
-        return Path(get_tags_path(), path)
-    else:
-        return Path(path)
+#     if full:
+#         return Path(get_tags_path(), path)
+#     else:
+#         return Path(path)
 
 def ray_cast_mouse(context, coords_2d):
     try:

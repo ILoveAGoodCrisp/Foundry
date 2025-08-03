@@ -1341,25 +1341,28 @@ def foundry_toolbar(layout, context):
         # sub_game_version.label(text="", icon_value=project_game_icon(context))
 
         sub0 = row.row(align=True)
-        if nwo.is_valid_asset and nwo.asset_type != 'resource':
-            sub0.operator(
-                "nwo.export_quick",
-                text="" if icons_only else "Export",
-                icon_value=get_icon_id("quick_export"),
-            )
-            sub0.popover(panel="NWO_PT_HaloExportSettings", text="")
-        elif nwo.sidecar_path:
-            sub0.operator(
-                "nwo.new_asset",
-                text=f"Copy {nwo.asset_name}",
-                icon_value=get_icon_id("halo_asset"),
-            ) 
+        if nwo.is_child_asset:
+            sub0.operator("nwo.open_parent_asset", icon='BLENDER')
         else:
-            sub0.operator(
-                "nwo.new_asset",
-                text=f"New Asset",
-                icon_value=get_icon_id("halo_asset"),
-            ) 
+            if nwo.is_valid_asset and nwo.asset_type != 'resource':
+                sub0.operator(
+                    "nwo.export_quick",
+                    text="" if icons_only else "Export",
+                    icon_value=get_icon_id("quick_export"),
+                )
+                sub0.popover(panel="NWO_PT_HaloExportSettings", text="")
+            elif nwo.sidecar_path:
+                sub0.operator(
+                    "nwo.new_asset",
+                    text=f"Copy {nwo.asset_name}",
+                    icon_value=get_icon_id("halo_asset"),
+                ) 
+            else:
+                sub0.operator(
+                    "nwo.new_asset",
+                    text=f"New Asset",
+                    icon_value=get_icon_id("halo_asset"),
+                ) 
         sub1 = row.row(align=True)
         sub1.operator(
             "nwo.launch_sapien",

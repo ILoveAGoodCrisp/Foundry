@@ -48,7 +48,7 @@ def gather_prefabs(context):
     return [ob for ob in context.scene.objects if utils.is_marker(ob) and not ob.nwo.ignore_for_export and ob.nwo.marker_type == '_connected_geometry_marker_type_game_instance' and ob.nwo.marker_game_instance_tag_name.lower().endswith(".prefab")]
 
 def export_prefabs():
-    asset_path = utils.get_ultimate_asset_path()
+    asset_path = utils.get_asset_path()
     prefabs = [BlamPrefab(ob, utils.true_region(ob.nwo)) for ob in gather_prefabs(bpy.context)]
     bsps = [r.name for r in bpy.context.scene.nwo.regions_table if r.name.lower() != 'shared']
     structure_bsp_paths = [str(Path(asset_path, f'{b}.scenario_structure_bsp')) for b in bsps]

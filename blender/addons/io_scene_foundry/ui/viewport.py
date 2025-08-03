@@ -625,6 +625,7 @@ def collection_context(self, context):
             layout.label(text=first_part + coll.nwo.permutation)
 
         layout.menu("NWO_MT_ApplyCollectionMenu", text="Set Halo Collection", icon_value=get_icon_id("collection"))
+        layout.operator("nwo.open_linked_collection", icon='BLENDER')
         
 class NWO_CollectionManager(bpy.types.Panel):
     bl_label = "Collection Creator"

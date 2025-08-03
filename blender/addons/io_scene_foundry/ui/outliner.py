@@ -20,7 +20,7 @@ class NWO_ApplyCollectionMenu(bpy.types.Menu):
         layout.operator_menu_enum('nwo.region_collection_list', property='name', text=r_name).c_type = 'region'
         layout.operator_menu_enum('nwo.permutation_collection_list', property='name', text=p_name).c_type = 'permutation'
         layout.operator('nwo.apply_type_collection', text="Exclude").c_type = "exclude"
-
+        
 class NWO_ApplyCollectionType(bpy.types.Operator):
     bl_idname = "nwo.apply_type_collection"
     bl_label = "Apply Collection Type"

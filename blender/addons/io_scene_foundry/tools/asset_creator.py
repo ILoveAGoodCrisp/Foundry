@@ -16,124 +16,124 @@ from .. import utils
 
 protected_folder_names = "models", "export", "animations", "cinematics", "work", "000"
 
-class NWO_OT_NewChildAsset(bpy.types.Operator):
-    bl_idname = "nwo.new_child_asset"
-    bl_label = "New Child Asset"
-    bl_description = "Creates a new child asset linked to this blend"
-    bl_options = set()
+# class NWO_OT_NewChildAsset(bpy.types.Operator):
+#     bl_idname = "nwo.new_child_asset"
+#     bl_label = "New Child Asset"
+#     bl_description = "Creates a new child asset linked to this blend"
+#     bl_options = set()
     
-    @classmethod
-    def poll(cls, context):
-        return context.scene and utils.valid_nwo_asset(context)
+#     @classmethod
+#     def poll(cls, context):
+#         return context.scene and utils.valid_nwo_asset(context)
     
-    name: bpy.props.StringProperty(
-        name="Name",
-        description="Name of the child asset. This name will be given to both the directory and blend created"
-    )
+#     name: bpy.props.StringProperty(
+#         name="Name",
+#         description="Name of the child asset. This name will be given to both the directory and blend created"
+#     )
     
-    child_type: bpy.props.IntProperty(options={'HIDDEN'}) # int enum representing the AssetType class
+#     child_type: bpy.props.IntProperty(options={'HIDDEN'}) # int enum representing the AssetType class
     
-    copy_type: bpy.props.EnumProperty(
-        name="Objects to Copy",
-        description="Select which objects to copy over to the new blend",
-        items=[
-            ('ALL', "All", "An exact copy of this scene is made and copied to the new blend"),
-            ('SELECTED', "Selected", "Only selected objects (and their associated data) are copied to the new blend"),
-            ('NONE', "None", "The new blend is a clean slate, albeit adopting the asset settings from the current file"),
-        ]
-    )
+#     copy_type: bpy.props.EnumProperty(
+#         name="Objects to Copy",
+#         description="Select which objects to copy over to the new blend",
+#         items=[
+#             ('ALL', "All", "An exact copy of this scene is made and copied to the new blend"),
+#             ('SELECTED', "Selected", "Only selected objects (and their associated data) are copied to the new blend"),
+#             ('NONE', "None", "The new blend is a clean slate, albeit adopting the asset settings from the current file"),
+#         ]
+#     )
     
-    load: bpy.props.BoolProperty(
-        name="Load New Blend",
-        description="Will open the new blend instead of staying with the current one",
-    )
+#     load: bpy.props.BoolProperty(
+#         name="Load New Blend",
+#         description="Will open the new blend instead of staying with the current one",
+#     )
     
-    def invoke(self, context: bpy.types.Context, _):
-        return context.window_manager.invoke_props_dialog(self)
+#     def invoke(self, context: bpy.types.Context, _):
+#         return context.window_manager.invoke_props_dialog(self)
     
-    def draw(self, context):
-        layout = self.layout
-        layout.use_property_split = True
-        if context.scene.nwo.asset_type != "cinematic":
-            layout.prop(self, "name")
-        layout.prop(self, "copy_type", expand=True)
-        layout.prop(self, "load")
+#     def draw(self, context):
+#         layout = self.layout
+#         layout.use_property_split = True
+#         if context.scene.nwo.asset_type != "cinematic":
+#             layout.prop(self, "name")
+#         layout.prop(self, "copy_type", expand=True)
+#         layout.prop(self, "load")
     
-    def execute(self, context):
-        asset_directory = Path(utils.get_asset_path_full())
-        sidecar_path = Path(utils.relative_path(Path(asset_directory, f"{asset_directory.name}.sidecar.xml")))
-        if context.scene.nwo.asset_type == "cinematic":
-            name = ""
-        else:
-            name = self.name.strip().lower().replace(" ", "_")
-        if not name or name in protected_folder_names:
-            name = "010"
-        child_asset_dir = Path(asset_directory, name)
-        asset_num = 0
-        while child_asset_dir.exists():
-            asset_num += 10
-            name = f"{asset_num:03}"
-            child_asset_dir = Path(asset_directory, name)
-            if asset_num > 999:
-                self.report({"WARNING"}, f"Failed to create child asset. What have you done")
-                return {'CANCELLED'}
+#     def execute(self, context):
+#         asset_directory = Path(utils.get_asset_path_full())
+#         sidecar_path = Path(utils.relative_path(Path(asset_directory, f"{asset_directory.name}.sidecar.xml")))
+#         if context.scene.nwo.asset_type == "cinematic":
+#             name = ""
+#         else:
+#             name = self.name.strip().lower().replace(" ", "_")
+#         if not name or name in protected_folder_names:
+#             name = "010"
+#         child_asset_dir = Path(asset_directory, name)
+#         asset_num = 0
+#         while child_asset_dir.exists():
+#             asset_num += 10
+#             name = f"{asset_num:03}"
+#             child_asset_dir = Path(asset_directory, name)
+#             if asset_num > 999:
+#                 self.report({"WARNING"}, f"Failed to create child asset. What have you done")
+#                 return {'CANCELLED'}
         
         
-        child_asset_dir.mkdir()
+#         child_asset_dir.mkdir()
             
-        child_asset_blend = Path(child_asset_dir, f"{name}.blend")
-        current_file = bpy.data.filepath
+#         child_asset_blend = Path(child_asset_dir, f"{name}.blend")
+#         current_file = bpy.data.filepath
         
-        child_sidecar_path = Path(child_asset_dir, f"{name}.sidecar.xml")
-        child_sidecar_path_relative = Path(utils.relative_path(child_sidecar_path))
+#         child_sidecar_path = Path(child_asset_dir, f"{name}.sidecar.xml")
+#         child_sidecar_path_relative = Path(utils.relative_path(child_sidecar_path))
         
-        child_assets = context.scene.nwo.child_assets
-        new_asset = child_assets.add()
-        new_asset.asset_path = str(child_sidecar_path_relative.parent)
+#         child_assets = context.scene.nwo.child_assets
+#         new_asset = child_assets.add()
+#         new_asset.asset_path = str(child_sidecar_path_relative.parent)
         
-        bpy.ops.wm.save_mainfile()
+#         bpy.ops.wm.save_mainfile()
         
-        bpy.ops.wm.save_as_mainfile(filepath=str(child_asset_blend), copy=False)
+#         bpy.ops.wm.save_as_mainfile(filepath=str(child_asset_blend), copy=False)
         
-        if not child_asset_blend.exists():
-            if bpy.data.filepath == current_file:
-                child_assets.remove(len(child_assets) - 1)
-            self.report({"WARNING"}, f"Failed to create new blend: {child_asset_blend}")
-            return {'CANCELLED'}
+#         if not child_asset_blend.exists():
+#             if bpy.data.filepath == current_file:
+#                 child_assets.remove(len(child_assets) - 1)
+#             self.report({"WARNING"}, f"Failed to create new blend: {child_asset_blend}")
+#             return {'CANCELLED'}
         
-        # We're now in the new file
-        while context.scene.nwo.child_assets:
-            context.scene.nwo.child_assets.remove(0)
+#         # We're now in the new file
+#         while context.scene.nwo.child_assets:
+#             context.scene.nwo.child_assets.remove(0)
             
-        context.scene.nwo.is_child_asset = True
-        context.scene.nwo.parent_asset = str(sidecar_path.parent)
-        context.scene.nwo.sidecar_path = str(child_sidecar_path_relative)
+#         context.scene.nwo.is_child_asset = True
+#         context.scene.nwo.parent_asset = str(sidecar_path.parent)
+#         context.scene.nwo.sidecar_path = str(child_sidecar_path_relative)
         
-        sidecar = Sidecar(child_sidecar_path, child_sidecar_path_relative, child_asset_dir, child_asset_dir.name, None, context.scene.nwo, utils.is_corinth(context), context)
-        sidecar.build()
+#         sidecar = Sidecar(child_sidecar_path, child_sidecar_path_relative, child_asset_dir, child_asset_dir.name, None, context.scene.nwo, utils.is_corinth(context), context)
+#         sidecar.build()
 
-        match self.copy_type:
-            case 'SELECTED':
-                for ob in bpy.data.objects:
-                    if not ob.select_get():
-                        bpy.data.objects.remove(ob)
-                bpy.ops.outliner.orphans_purge(do_recursive=True)
+#         match self.copy_type:
+#             case 'SELECTED':
+#                 for ob in bpy.data.objects:
+#                     if not ob.select_get():
+#                         bpy.data.objects.remove(ob)
+#                 bpy.ops.outliner.orphans_purge(do_recursive=True)
                 
-            case 'NONE':
-                for ob in bpy.data.objects:
-                    bpy.data.objects.remove(ob)
-                bpy.ops.outliner.orphans_purge(do_recursive=True)
+#             case 'NONE':
+#                 for ob in bpy.data.objects:
+#                     bpy.data.objects.remove(ob)
+#                 bpy.ops.outliner.orphans_purge(do_recursive=True)
         
-        bpy.ops.wm.save_mainfile()
+#         bpy.ops.wm.save_mainfile()
         
-        if self.load:
-            context.area.tag_redraw()
-        else:
-            # hop back to the original file unless the user selected to stay
-            bpy.ops.wm.open_mainfile(filepath=current_file)
+#         if self.load:
+#             context.area.tag_redraw()
+#         else:
+#             # hop back to the original file unless the user selected to stay
+#             bpy.ops.wm.open_mainfile(filepath=current_file)
         
-        self.report({'INFO'}, f"Created new child asset: {child_asset_blend}")
-        return {'FINISHED'}
+#         self.report({'INFO'}, f"Created new child asset: {child_asset_blend}")
+#         return {'FINISHED'}
 
 class NWO_OT_NewAsset(bpy.types.Operator):
     bl_idname = "nwo.new_asset"

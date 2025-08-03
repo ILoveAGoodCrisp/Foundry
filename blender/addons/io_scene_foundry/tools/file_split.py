@@ -3,13 +3,26 @@ import bpy
 from .. import utils
 
 class NWO_OT_OpenLinkedCollection(bpy.types.Operator):
-    bl_idname = "nwo.open_linked_id"
-    bl_label = "Open Linked ID"
-    bl_description = "Opens the blend file for a linked ID"
+    bl_idname = "nwo.open_linked_collection"
+    bl_label = "Open Linked Collection"
+    bl_description = "Opens the blend file for a linked collection"
     bl_options = {"UNDO"}
     
+    @classmethod
+    def poll(cls, context):
+        return context.collection and context.collection.library
+    
     def execute(self, context):
-        return super().execute(context)
+        
+        fp = context.collection.library.filepath
+        
+        if not Path(fp).exists():
+            self.report({'WARNING'}, f"Library filepath does not exist: {fp}")
+            return {'CANCELLED'}
+        
+        bpy.ops.wm.save_mainfile()
+        bpy.ops.wm.open_mainfile(filepath=context.collection.library.filepath)
+        return {"FINISHED"}
 
 class NWO_OT_FileSplit(bpy.types.Operator):
     bl_idname = "nwo.file_split"
@@ -80,7 +93,7 @@ class NWO_OT_FileSplit(bpy.types.Operator):
         # Link back the collection
         for name, path in zip(coll_names, paths):
             print(f"Linking {name} from {path}")
-            with bpy.data.libraries.load(str(path), link=True) as (data_from, data_to):
+            with bpy.data.libraries.load(str(path), link=True, relative=True) as (data_from, data_to):
                 data_to.collections = [name]
 
         for coll_name, parent_name in bsp_collection_parent_names.items():
