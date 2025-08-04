@@ -51,8 +51,6 @@ class NWO_ApplyCollectionType(bpy.types.Operator):
         )
 
     def execute(self, context):
-        if self.c_type == 'exclude':
-            self.name = utils.any_partition(context.collection.name, '::', True)
         if self.collection:
             coll = bpy.data.collections[self.collection]
         else:
@@ -63,15 +61,12 @@ class NWO_ApplyCollectionType(bpy.types.Operator):
         coll.nwo.type = self.c_type
         coll_name = self.name.lower()[:128]
         if self.c_type == 'none':
-            coll.name = utils.any_partition(coll.name, '::', True)
+            # coll.name = utils.any_partition(coll.name, '::', True)
             return {'FINISHED'}
 
         display_name = self.c_type
         is_scenario = context.scene.nwo.asset_type in ('scenario', 'prefab')
         if self.c_type == 'region':
-            if is_scenario:
-                display_name = 'bsp'
-
             regions = context.scene.nwo.regions_table
             coll.nwo.region = coll_name
             if coll_name not in [r.name for r in regions]:
@@ -79,15 +74,14 @@ class NWO_ApplyCollectionType(bpy.types.Operator):
                 new_region.name = coll_name
 
         elif self.c_type == 'permutation':
-            if is_scenario:
-                display_name = 'layer'
             permutations = context.scene.nwo.permutations_table
             coll.nwo.permutation = coll_name
             if coll_name not in [p.name for p in permutations]:
                 new_permutation = permutations.add()
                 new_permutation.name = coll_name
 
-        coll.name = display_name + '::' + coll_name
+        if self.c_type in {'region', 'permutation'}:
+            coll.name = coll_name
 
         return {'FINISHED'}
     
