@@ -3,7 +3,7 @@
 from pathlib import Path
 import bpy
 from ... import utils
-from ...constants import face_prop_type_items, face_prop_descriptions
+from ...constants import face_prop_type_items, face_prop_descriptions, face_mode_items
 
 class NWO_OT_MaterialOpenTag(bpy.types.Operator):
     bl_idname = "nwo.open_halo_material"
@@ -148,7 +148,11 @@ class NWO_OT_MaterialAttributeAdd(bpy.types.Operator):
         item = nwo.material_props.add()
         nwo.material_props_active_index = len(nwo.material_props) - 1
         
-        item.type = self.options
+        if self.options in face_mode_items:
+            item.type = 'face_mode'
+            item.face_mode = self.options
+        else:
+            item.type = self.options
 
         # item.color = utils.random_color()
 
