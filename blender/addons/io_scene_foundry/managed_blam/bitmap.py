@@ -3,6 +3,7 @@
 from math import sqrt
 import math
 import os
+import sys
 import clr
 from pathlib import Path
 import ctypes
@@ -24,44 +25,6 @@ path_cache = set()
 def clear_path_cache():
     global path_cache
     path_cache.clear()
-    
-def get_tif_width(path):
-    # Load shell properties
-    SHGetPropertyStoreFromParsingName = ctypes.windll.ole32.SHGetPropertyStoreFromParsingName
-    SHGetPropertyStoreFromParsingName.argtypes = [ctypes.c_wchar_p, ctypes.c_void_p, ctypes.c_uint32, ctypes.POINTER(ctypes.c_void_p)]
-    
-    # Define property keys
-    PROPERTYKEY = ctypes.c_byte * 16
-    PKEY_Image_HorizontalSize = PROPERTYKEY(0xE6, 0xD1, 0x8E, 0xC1, 0x6F, 0xEC, 0xE0, 0xF8, 0x4F, 0x56, 0x82, 0x8D, 0xD4, 0x72, 0x9A, 0x9F)
-
-    # Initialize COM
-    ctypes.windll.ole32.CoInitialize(None)
-    
-    # Retrieve file properties
-    ps = ctypes.c_void_p()
-    hr = SHGetPropertyStoreFromParsingName(str(path), None, 0, ctypes.byref(ps))
-    
-    if hr != 0:
-        raise RuntimeError("Failed to get property store")
-    
-    # Get property value
-    IPropertyStore_GetValue = ctypes.windll.ole32.IPropertyStore_GetValue
-    IPropertyStore_GetValue.argtypes = [ctypes.c_void_p, ctypes.POINTER(PROPERTYKEY), ctypes.POINTER(ctypes.c_void_p)]
-    
-    propvar = ctypes.c_void_p()
-    hr = IPropertyStore_GetValue(ps, ctypes.byref(PKEY_Image_HorizontalSize), ctypes.byref(propvar))
-    
-    if hr != 0:
-        raise RuntimeError("Failed to retrieve width property")
-    
-    # Extract width
-    width = ctypes.cast(propvar, ctypes.POINTER(ctypes.c_uint)).contents.value
-
-    # Cleanup
-    ctypes.windll.ole32.CoUninitialize()
-    
-    return width
-
 
 class BitmapTag(Tag):
     tag_ext = 'bitmap'
@@ -390,28 +353,46 @@ class BitmapTag(Tag):
         game_bitmap = self._GameBitmap(frame_index=frame_index)
         bitmap = game_bitmap.GetBitmap()
         game_bitmap.Dispose()
-        # is_linear = self.is_linear()
-        
+
         if bitmap.PixelFormat == PixelFormat.Format32bppArgb and blue_channel_fix:
-            bitmap_data = bitmap.LockBits(Rectangle(0, 0, bitmap.Width, bitmap.Height), ImageLockMode.ReadWrite, bitmap.PixelFormat)
-            total_bytes = abs(bitmap_data.Stride) * bitmap_data.Height
-            rgbValues = Array.CreateInstance(Byte, total_bytes)
-            Marshal.Copy(bitmap_data.Scan0, rgbValues, 0, total_bytes)
+            rectangle = Rectangle(0, 0, bitmap.Width, bitmap.Height)
+            data = bitmap.LockBits(rectangle, ImageLockMode.ReadWrite, bitmap.PixelFormat)
+            try:
+                height, width = data.Height, data.Width
+                stride = data.Stride
 
-            for i in range(0, total_bytes, 4):
-                red = rgbValues[i + 2] / 255.0
-                green = rgbValues[i + 1] / 255.0
-                blue = rgbValues[i] / 255.0
-                red = red ** 2.2
-                green = green ** 2.2
+                address = data.Scan0.ToInt64() if sys.maxsize > 2**32 else data.Scan0.ToInt32()
+                if stride < 0:
+                    address += (height - 1) * (-stride)
+                    stride = -stride
+
+                rowbytes = width * 4
+                total = stride * height
+
+                buf_t = ctypes.c_ubyte * total
+                buf = buf_t.from_address(address)
+
+                array = np.ctypeslib.as_array(buf).reshape(height, stride)[:, :rowbytes].reshape(height, width, 4)
+
+                B = array[..., 0]
+                G = array[..., 1]
+                R = array[..., 2]
+
+                lookup_table = (np.round(((np.arange(256) / 255.0) ** 2.2) * 255)).astype(np.uint8)
+                r_linear = lookup_table[R]
+                g_linear = lookup_table[G]
+
                 if blue_channel_fix:
-                    blue = calculate_z_vector(red, green)
-                    rgbValues[i + 2] = int(red * 255)
-                    rgbValues[i + 1] = int(green * 255)
-                    rgbValues[i] = int(blue * 255)
+                    r = r_linear.astype(np.float32) / 255.0
+                    g = g_linear.astype(np.float32) / 255.0
 
-            Marshal.Copy(rgbValues, 0, bitmap_data.Scan0, total_bytes)
-            bitmap.UnlockBits(bitmap_data)
+                    b = np.sqrt(np.clip(1.0 - r*r - g*g, 0.0, 1.0))
+                    B[:] = (b * 255.0 + 0.5).astype(np.uint8)
+
+                R[:] = r_linear
+                G[:] = g_linear
+            finally:
+                bitmap.UnlockBits(data)
         
         tiff_path = str(Path(self.data_dir, self.tag_path.RelativePath).with_suffix('.tiff'))
         if suffix: # we're dealing with a plate
