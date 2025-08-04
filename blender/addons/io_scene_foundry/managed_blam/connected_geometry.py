@@ -1563,8 +1563,8 @@ class Mesh:
         self.rigid_node_index = element.SelectField("rigid node index").Data
         self.index_buffer_type =  element.SelectField("index buffer type").Value
         self.bounds = bounds
-        self.parts = []
-        self.subparts = []
+        self.parts: list[MeshPart] = []
+        self.subparts: list[MeshSubpart] = []
         self.from_vert_normals = from_vert_normals
         
         water_indices = [e.Fields[0].Data for e in element.SelectField("Block:water indices start").Elements]
@@ -1640,17 +1640,40 @@ class Mesh:
         indices = [utils.unsigned_int16(element.Fields[0].Data) for element in raw_indices.Elements]
         buffer = IndexBuffer(self.index_buffer_type, indices)
         self.tris = buffer.get_faces(self)
-        self.water_tris = None
         if temp_mesh.SelectField("raw water data").Elements.Count > 0:
             water_data = temp_mesh.SelectField("raw water data").Elements[0]
+
             raw_water_indices = water_data.Fields[0]
-            water_indices = [utils.unsigned_int16(element.Fields[0].Data) for element in raw_water_indices.Elements]
-            water_buffer = IndexBuffer(self.index_buffer_type, water_indices)
-            self.water_tris = water_buffer.get_faces(self, [sp for sp in self.subparts if sp.is_water_subpart])
+            water_indices_local = [utils.unsigned_int16(e.Fields[0].Data) for e in raw_water_indices.Elements]
+
             raw_water_vertices = water_data.Fields[1]
             self.raw_water_texcoords = [e.Fields[0].Data for e in raw_water_vertices.Elements]
-            if len(self.raw_water_texcoords) != len(self.raw_texcoords):
-                self.raw_water_texcoords.extend([(0, 0)] * (len(self.raw_texcoords) - len(self.raw_water_texcoords)))
+
+            water_subparts = [sp for sp in self.subparts if sp.is_water_surface]
+
+            water_global_index_stream = []
+            for sp in water_subparts:
+                s, c = sp.index_start, sp.index_count
+                water_global_index_stream.extend(indices[s:s + c])
+
+            if len(water_global_index_stream) != len(water_indices_local):
+                print(f"[warn] water index count mismatch: "
+                    f"global={len(water_global_index_stream)} local={len(water_indices_local)}")
+
+            local_to_global = {}
+            for gi, li in zip(water_global_index_stream, water_indices_local):
+                if li not in local_to_global:
+                    local_to_global[li] = gi
+
+            vert_count = len(self.raw_positions) // 3
+            full = [(0.0, 0.0)] * vert_count
+            
+            for local_id, uv in enumerate(self.raw_water_texcoords):
+                gi = local_to_global.get(local_id)
+                if gi is not None:
+                    full[gi] = (float(uv[0]), float(uv[1]))
+
+            self.raw_water_texcoords = full
 
         objects = []
 
@@ -1705,9 +1728,10 @@ class Mesh:
         matrix = local_matrix or (parent.matrix_world if parent else Matrix.Identity(4))
 
         indices = [t.indices for t in self.tris if not subpart or t.subpart == subpart]
-        water_indices = [] if self.water_tris is None else [t.indices for t in self.water_tris if not subpart or t.subpart == subpart]
 
         vertex_indices = sorted({idx for tri in indices for idx in tri})
+        idx_start, idx_end = vertex_indices[0], vertex_indices[-1]
+        
         idx_start, idx_end = vertex_indices[0], vertex_indices[-1]
 
         mesh = bpy.data.meshes.new(name)
@@ -1723,8 +1747,6 @@ class Mesh:
 
         if idx_start > 0:
             indices = [[i - idx_start for i in tri] for tri in indices]
-            if water_indices:
-                water_indices = [[i - idx_start for i in tri] for tri in water_indices]
 
         mesh.from_pydata(positions, [], indices)
 
