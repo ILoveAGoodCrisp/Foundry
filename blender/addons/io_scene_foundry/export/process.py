@@ -1133,6 +1133,7 @@ class ExportScene:
                             mesh_type_value = MeshType.poop_collision.value
                         elif face_mode == FaceMode.lightmap_only:
                             mesh_props["bungie_mesh_poop_collision_type"] = PoopCollisionType.none.value
+                            mesh_props["material_override"] = 'levels\shared\shaders\simple\invis.material'
                             
                         if mesh_type_value == MeshType.poop.value:
                             if face_mode == FaceMode.collision_only or face_mode == FaceMode.sphere_collision_only:

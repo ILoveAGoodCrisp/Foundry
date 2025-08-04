@@ -1026,6 +1026,7 @@ class VirtualMesh:
             add_triangle_mod(eval_ob)
 
         mesh = eval_ob.to_mesh(preserve_all_data_layers=True, depsgraph=scene.depsgraph)
+        
         self.name = mesh.name
         if not mesh.polygons:
             if true_mesh:
@@ -1060,15 +1061,19 @@ class VirtualMesh:
         num_materials = len(self.bpy_materials)
         special_mats_dict = defaultdict(list)
         prop_mats_dict = defaultdict(list)
+        
+        material_override = props.get("material_override")
+        
         valid_materials_count = 0
-        for idx, mat in enumerate(self.bpy_materials):
-            if mat is not None:
-                if mat.nwo.SpecialMaterial:
-                    special_mats_dict[mat].append(idx)
-                elif mat.nwo.material_props:
-                    prop_mats_dict[mat].append(idx)
-                    
-                valid_materials_count += 1
+        if material_override is None:
+            for idx, mat in enumerate(self.bpy_materials):
+                if mat is not None:
+                    if mat.nwo.SpecialMaterial:
+                        special_mats_dict[mat].append(idx)
+                    elif mat.nwo.material_props:
+                        prop_mats_dict[mat].append(idx)
+                        
+                    valid_materials_count += 1
 
         sorted_order = None
         
@@ -1250,31 +1255,7 @@ class VirtualMesh:
             
         if self.vertex_ids is not None:
             self.vertex_ids = self.vertex_ids[new_indices, :]
-        
-        if num_materials > 1 and scene.supports_multiple_materials(ob, props, mesh_type_value):
-            material_indices = np.empty(num_polygons, dtype=np.int32)
-            mesh.polygons.foreach_get("material_index", material_indices)
-            sorted_order = np.argsort(material_indices)
-            sorted_polygons = self.indices.reshape((-1, 3))[sorted_order]
-            self.indices = sorted_polygons.ravel()
-            unique_indices = np.concatenate(([0], np.where(np.diff(material_indices[sorted_order]) != 0)[0] + 1))
-            counts = np.diff(np.concatenate((unique_indices, [len(material_indices)])))
-            mat_index_counts = list(zip(unique_indices, counts))
-            used_materials = [self.bpy_materials[i] for i in np.unique(material_indices) if i < len(self.bpy_materials)]
-            unique_materials = list(dict.fromkeys([m for m in used_materials]))
-            for idx, mat in enumerate(used_materials):
-                virtual_mat = scene._get_material(mat, scene)
-                self.materials[virtual_mat] = None
-                self.groups.append((virtual_mat, unique_materials.index(mat), mat_index_counts[idx]))
-        elif num_materials >= 1:
-            virtual_mat = scene._get_material(self.bpy_materials[0], scene)
-            self.materials[virtual_mat] = None
-            self.groups.append((virtual_mat, 0, (0, num_polygons)))
-        else:
-            virtual_mat = scene.materials["invalid"]
-            self.materials[virtual_mat] = None
-            self.groups.append((virtual_mat, 0, (0, num_polygons))) # default material
-        
+            
         self.num_indices = len(self.indices)
         self.num_vertices = len(self.positions)
         
@@ -1297,7 +1278,12 @@ class VirtualMesh:
         bungie_attributes = [attr for attr in mesh.attributes if attr.domain == 'FACE' and attr.name.lower().startswith("bungie_")]
         
         if (bungie_attributes or force_render_only or ob.data.nwo.face_props or (valid_materials_count > 1 and (special_mats_dict or prop_mats_dict))) and mesh_type_value in FACE_PROP_TYPES:
-            self.face_properties = gather_face_props(ob.data.nwo, mesh, num_polygons, scene, sorted_order, special_mats_dict, prop_mats_dict, props, force_render_only, bungie_attributes)
+            self.face_properties, changed_materials = gather_face_props(ob.data.nwo, mesh, num_polygons, scene, sorted_order, special_mats_dict, prop_mats_dict, props, force_render_only, bungie_attributes)
+            if changed_materials:
+                self.bpy_materials = list(self.bpy_materials)
+                self.bpy_materials.append(mesh.materials[-1])
+                self.bpy_materials = tuple(self.bpy_materials)
+                num_materials = len(self.bpy_materials)
             
             if is_object_instance:
                 for prop_name, face_set in self.face_properties.items():
@@ -1308,6 +1294,39 @@ class VirtualMesh:
                     if not np.array_equal(face_set.array, new_array):
                         scene.warnings.append(f"Object '{ob.name}' has different mesh properties per face, this is not allowed for instanced objects. Forcing {prop_name} to {face_set.array[0]}")
                         face_set.array = new_array
+        
+        if material_override is not None:
+            virtual_mat = scene.materials.get("Invisible")
+            if virtual_mat is None:
+                virtual_mat = VirtualMaterial('Invisible', scene, material_override)
+            self.materials[virtual_mat] = None
+            self.groups.append((virtual_mat, 0, (0, num_polygons))) # default material
+        elif num_materials > 1 and scene.supports_multiple_materials(ob, props, mesh_type_value):
+            material_indices = np.empty(num_polygons, dtype=np.int32)
+            mesh.polygons.foreach_get("material_index", material_indices)
+            sorted_order = np.argsort(material_indices)
+            sorted_polygons = self.indices.reshape((-1, 3))[sorted_order]
+            self.indices = sorted_polygons.ravel()
+            unique_indices = np.concatenate(([0], np.where(np.diff(material_indices[sorted_order]) != 0)[0] + 1))
+            counts = np.diff(np.concatenate((unique_indices, [len(material_indices)])))
+            mat_index_counts = list(zip(unique_indices, counts))
+            used_materials = [self.bpy_materials[i] for i in np.unique(material_indices) if i < len(self.bpy_materials)]
+            unique_materials = list(dict.fromkeys([m for m in used_materials]))
+            for idx, mat in enumerate(used_materials):
+                virtual_mat = scene._get_material(mat, scene)
+                self.materials[virtual_mat] = None
+                self.groups.append((virtual_mat, unique_materials.index(mat), mat_index_counts[idx]))
+        elif num_materials >= 1:
+            virtual_mat = scene._get_material(self.bpy_materials[0], scene)
+            self.materials[virtual_mat] = None
+            self.groups.append((virtual_mat, 0, (0, num_polygons)))
+        else:
+            virtual_mat = scene.materials["invalid"]
+            self.materials[virtual_mat] = None
+            self.groups.append((virtual_mat, 0, (0, num_polygons))) # default material
+            
+        if material_override is not None:
+            props.pop("material_override")
             
         eval_ob.to_mesh_clear()
         
@@ -2140,7 +2159,29 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
     deferred_transparencies = []
     deferred_opaques = []
     
+    changed_materials = False
+    
     # Do material probs first to ensure they can be overriden by face props
+    
+    def set_lightmap_only_mat() -> int:
+        invis_mat = bpy.data.materials.get("Invisible")
+        if invis_mat is None:
+            invis_mat = bpy.data.materials.new("Invisible")
+            invis_mat.diffuse_color = [0.4, 1.0, 0.4, 0.6]
+            invis_mat.use_nodes = True
+            bsdf = invis_mat.node_tree.nodes[0]
+            bsdf.inputs[0].default_value = invis_mat.diffuse_color
+            bsdf.inputs[4].default_value = invis_mat.diffuse_color[3]
+            invis_mat.blend_method = 'BLEND'
+            invis_mat.nwo.shader_path = 'levels\shared\shaders\simple\invis.material'
+            
+        invis_index = mesh.materials.find("Invisible")
+        if invis_index == -1:
+            invis_index = len(mesh.materials)
+            mesh.materials.append(invis_mat)
+            return invis_index, True
+        
+        return invis_index, False
     
     for material, material_indices in prop_mats_dict.items():
         for prop in material.nwo.material_props:
@@ -2152,11 +2193,21 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
                     if props.get("bungie_face_mode") is None:
                         face_mode = FaceMode[prop.face_mode]
                         
-                        if scene.corinth and face_mode == FaceMode.breakable:
-                            continue
+                        if scene.corinth:
+                            if face_mode == FaceMode.breakable:
+                                continue
+                            elif face_mode == FaceMode.lightmap_only:
+                                print("lightmap only material!!!!!!!!")
+                                # bungie_mesh_poop_collision_type does not appear to work at face level, so we're just setting the faces to render only instead of lightmap only
+                                face_properties.setdefault("bungie_face_mode", FaceSet(np.full(num_faces, face_prop_defaults["bungie_face_mode"], dtype=np.int32))).update_from_material(mesh, material_indices, FaceMode.render_only.value)
+                                invis_index, changed_materials = set_lightmap_only_mat()
+                                indices = np.empty(num_faces, dtype=np.int32)
+                                mesh.polygons.foreach_get("material_index", indices)
+                                indices[np.isin(indices, material_indices)] = invis_index
+                                mesh.polygons.foreach_set("material_index", indices)
+                                continue
                         face_properties.setdefault("bungie_face_mode", FaceSet(np.full(num_faces, face_prop_defaults["bungie_face_mode"], dtype=np.int32))).update_from_material(mesh, material_indices, face_mode.value)
-                    if scene.corinth and face_mode == FaceMode.lightmap_only:
-                        face_properties.setdefault("bungie_mesh_poop_collision_type", FaceSet(np.full(num_faces, face_prop_defaults["bungie_mesh_poop_collision_type"], dtype=np.int32))).update_from_material(mesh, material_indices, PoopCollisionType.none.value)
+                        
                 case 'face_sides':
                     if props.get("bungie_face_sides") is None:
                         side_value = 2 if prop.two_sided else 0
@@ -2276,11 +2327,26 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
                 if props.get("bungie_face_mode") is None:
                     face_mode = FaceMode[prop.face_mode]
                     
-                    if scene.corinth and face_mode == FaceMode.breakable:
-                        continue
+                    if scene.corinth:
+                        if face_mode == FaceMode.breakable:
+                            continue
+                        elif face_mode == FaceMode.lightmap_only:
+                            print("lightmap only mesh prop!!!!!!!!")
+                            face_properties.setdefault("bungie_face_mode", FaceSet(np.full(num_faces, face_prop_defaults["bungie_face_mode"], dtype=np.int32))).update(mesh, prop, FaceMode.render_only.value)
+                            attribute = mesh.attributes.get(prop.attribute_name)
+                            if attribute is not None:
+                                values_array = np.zeros(num_faces, dtype=np.int8)
+                                attribute.data.foreach_get("value", values_array)
+                                mask = values_array.astype(bool)
+                                invis_index, changed_materials = set_lightmap_only_mat()
+                                indices = np.empty(num_faces, dtype=np.int32)
+                                mesh.polygons.foreach_get("material_index", indices)
+                                indices[mask] = invis_index
+                                mesh.polygons.foreach_set("material_index", indices)
+                            continue
                     face_properties.setdefault("bungie_face_mode", FaceSet(np.full(num_faces, face_prop_defaults["bungie_face_mode"], dtype=np.int32))).update(mesh, prop, face_mode.value)
-                    if scene.corinth and face_mode == FaceMode.lightmap_only:
-                        face_properties.setdefault("bungie_mesh_poop_collision_type", FaceSet(np.full(num_faces, face_prop_defaults["bungie_mesh_poop_collision_type"], dtype=np.int32))).update(mesh, prop, PoopCollisionType.none.value)
+
+                        
             case 'face_sides':
                 if props.get("bungie_face_sides") is None:
                     side_value = 2 if prop.two_sided else 0
@@ -2494,8 +2560,9 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
     if sorted_order is not None:
         for v in face_properties.values():
             v.array = v.array[sorted_order]
+            
     
-    return face_properties
+    return face_properties, changed_materials
 
 def lookup_enum(scene: VirtualScene, name: str):
     return 0

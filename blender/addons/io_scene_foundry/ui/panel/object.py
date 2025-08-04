@@ -607,7 +607,7 @@ class NWO_OT_AddEmissiveNode(bpy.types.Operator):
     
     @classmethod
     def poll(self, context):
-        return context.object and context.object.type == 'MESH' and context.object.data.nwo.face_props
+        return context.object and context.object.type == 'MESH' and context.object.data.nwo.face_props and context.object.data.materials
     
     def execute(self, context):
         utils.setup_emissive_attributes(context.object.data)
