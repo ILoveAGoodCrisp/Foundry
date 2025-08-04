@@ -413,12 +413,19 @@ class MaterialTag(ShaderTag):
         material_shader_parameters = self.material_shaders.get(material_shader_name)
         if material_shader_parameters is None:
             return
-
-        node_tree = utils.add_node_from_resources("h4_nodes", name=material_shader_name, check_multiple=True)
+        
+        node_tree = None
+        actual_material_shader_name = material_shader_name
+        if len(material_shader_name) > 63:
+            actual_material_shader_name = material_shader_name[8:]
+            node_tree = utils.add_node_from_resources("h4_nodes", name=actual_material_shader_name, check_multiple=False) # cut off srf_pbr_
+        
+        if node_tree is None:
+            node_tree = utils.add_node_from_resources("h4_nodes", name=material_shader_name, check_multiple=True)
         if node_tree is None:
             utils.print_warning(f"No node group for {material_shader_name}, creating BSDF shader nodes")
             return self._to_nodes_bsdf(blender_material)
-        elif material_shader_name != node_tree.name:
+        elif actual_material_shader_name != node_tree.name:
             utils.print_warning(f"Failed to find node group for {material_shader_name}, using {node_tree.name} instead")
         
         blender_material.use_nodes = True
@@ -458,7 +465,7 @@ class MaterialTag(ShaderTag):
                 
                 reflection_map_node = rainbow_node.inputs['reflection_map'].links[0].from_node
                 tree.links.new(input=reflection_map_node.inputs[0], output=reflection_node.outputs[0])
-            case 'srf_pbr_ca_terrain_macrocolor_paintrough_world':
+            case 'srf_pbr_ca_terrain_macrocolor_paintrough_world' | 'srf_pbr_ca_terrain_world_blend':
                 vector_node = tree.nodes.new('ShaderNodeGroup')
                 vector_node.node_tree = utils.add_node_from_resources("h4_nodes", name='srf_pbr_ca_terrain_macrocolor_paintrough_world - vector')
                 
