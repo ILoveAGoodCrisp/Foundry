@@ -381,7 +381,8 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         name="Instanced Geometry Imposter Transition Distance",
         options=set(),
         description="The distance at which the instanced geometry transitions to its imposter variant",
-        default=50,
+        default=utils.wu(50),
+        subtype='DISTANCE'
     )
 
     poop_imposter_transition_distance_auto: bpy.props.BoolProperty(
@@ -826,7 +827,8 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         name="Imposter Transition Distance",
         options=set(),
         description="The distance at which the instanced geometry transitions to its imposter variant",
-        default=50,
+        default=utils.wu(50),
+        subtype='DISTANCE'
     )
 
     prefab_imposter_transition_distance_auto: bpy.props.BoolProperty(

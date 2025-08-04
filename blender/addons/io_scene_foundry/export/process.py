@@ -863,13 +863,13 @@ class ExportScene:
         props["bungie_mesh_poop_pathfinding"] = PoopInstancePathfindingPolicy[nwo.poop_pathfinding].value
         if self.export_settings.force_imposter_policy_never:
             props["bungie_mesh_poop_imposter_policy"] = PoopInstanceImposterPolicy.never.value
-            props["bungie_mesh_poop_imposter_transition_distance"] = 999999
+            # props["bungie_mesh_poop_imposter_transition_distance"] = 999999
         else:
             imposter_policy = PoopInstanceImposterPolicy[nwo.poop_imposter_policy]
             props["bungie_mesh_poop_imposter_policy"] = imposter_policy.value
             if imposter_policy != PoopInstanceImposterPolicy.never:
                 if not nwo.poop_imposter_transition_distance_auto:
-                    props["bungie_mesh_poop_imposter_transition_distance"] = nwo.poop_imposter_transition_distance
+                    props["bungie_mesh_poop_imposter_transition_distance"] = nwo.poop_imposter_transition_distance * WU_SCALAR
                 if self.corinth:
                     props["bungie_mesh_poop_imposter_brightness"] = nwo.poop_imposter_brightness
 
@@ -1014,7 +1014,7 @@ class ExportScene:
                             if nwo.prefab_imposter_brightness > 0:
                                 props["bungie_mesh_poop_imposter_brightness"] = nwo.prefab_imposter_brightness
                             if not nwo.prefab_imposter_transition_distance_auto:
-                                props["bungie_mesh_poop_imposter_transition_distance"] = nwo.prefab_imposter_transition_distance_auto
+                                props["bungie_mesh_poop_imposter_transition_distance"] = nwo.prefab_imposter_transition_distance * WU_SCALAR
                                 
                     if nwo.prefab_streaming_priority != "no_override":
                         props["bungie_mesh_poop_streamingpriority"] = nwo.prefab_streaming_priority

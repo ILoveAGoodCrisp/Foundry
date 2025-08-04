@@ -4,6 +4,8 @@ from pathlib import Path
 import bmesh
 import bpy
 
+from ..constants import WU_SCALAR
+
 from .structure_meta import StructureMetaTag
 
 from .scenario_structure_lighting_info import ScenarioStructureLightingInfoTag
@@ -89,11 +91,11 @@ class ScenarioStructureBspTag(Tag):
                 if nwo.prefab_imposter_policy != "never":
                     if nwo.prefab_imposter_brightness > 0:
                         policy_mask.SetBit("override imposter brightness", True)
-                        element.SelectField("override imposter brightness").SetStringData(jstr(nwo.prefab_imposter_brightness))
+                        element.SelectField("override imposter brightness").Data = nwo.prefab_imposter_brightness
                         
                     if not nwo.prefab_imposter_transition_distance_auto:
                         policy_mask.SetBit("override imposter transition distance policy", True)
-                        element.SelectField("override imposter transition distance").SetStringData(jstr(nwo.prefab_imposter_transition_distance))
+                        element.SelectField("override imposter transition distance").Data = nwo.prefab_imposter_transition_distance * WU_SCALAR
                         
             if nwo.prefab_streaming_priority != "no_override":
                 streaming = element.SelectField("override streaming priority")
