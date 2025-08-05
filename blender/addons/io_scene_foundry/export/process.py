@@ -122,7 +122,7 @@ class ExportScene:
         self.has_animations = False
         self.exported_animations = []
         self.setup_scenario = False
-        self.lights = []
+        self.lights = {}
         self.temp_objects = set()
         self.temp_meshes = set()
         self.sky_lights = []
@@ -187,7 +187,7 @@ class ExportScene:
         self.has_frame_events = False
         
         self.poop_obs = defaultdict(list)
-        self.lightmap_regions = []
+        self.lightmap_regions = {}
         
     def _get_export_tag_types(self):
         tag_types = set()
@@ -403,7 +403,7 @@ class ExportScene:
     def map_halo_properties(self):
         process = "--- Mapping Halo Properties"
         num_export_objects = len(self.export_objects)
-        self.collection_map = create_parent_mapping(self.context)
+        self.collection_map = utils.create_parent_mapping(self.context)
         object_parent_dict = {}
         support_armatures = set()
         for ob in self.support_armatures:
@@ -442,9 +442,7 @@ class ExportScene:
                             if ob.name.lower() == "sun":
                                 self.sun = ob
                             self.sky_lights.append(ob)
-                        else:
-                            self.lights.append(ob)
-                        continue
+                            continue
 
                 result = self.get_halo_props(ob)
                 if result is None:
@@ -602,6 +600,8 @@ class ExportScene:
                 return ObjectType.marker
         elif ob.type == 'ARMATURE':
             return ObjectType.frame
+        elif ob.type == 'LIGHT':
+            return ObjectType.light
                 
         return ObjectType.none
             
@@ -641,6 +641,10 @@ class ExportScene:
                 tmp_region = coll_region
             if coll_permutation is not None:
                 tmp_permutation = coll_permutation
+                
+        if object_type == ObjectType.light:
+            self.lights[ob] = region
+            return
                 
         if instanced_object:
             if nwo.marker_uses_regions:
@@ -776,7 +780,7 @@ class ExportScene:
                         props["bungie_mesh_fog_volume_depth"] = nwo.fog_volume_depth
                         
                     case "_connected_geometry_mesh_type_lightmap_region": # Never written to granny
-                        self.lightmap_regions.append(ob)
+                        self.lightmap_regions[ob] = region
                         return False
                         
                     case "_connected_geometry_mesh_type_boundary_surface":
@@ -2350,44 +2354,6 @@ def decorator_int(ob):
             return 3
         case _:
             return 4
-        
-class ExportCollection:
-    def __init__(self, collection: bpy.types.Collection):
-        self.region = None
-        self.permutation = None
-        self.non_export = False
-        
-        match collection.nwo.type:
-            case 'region':
-                self.region = collection.nwo.region
-            case 'permutation':
-                self.permutation = collection.nwo.permutation
-            case 'exclude':
-                self.non_export = True
-
-        for ob in collection.objects:
-            ob.nwo.export_collection = collection.name
-
-def create_parent_mapping(context):
-    collection_map: dict[bpy.types.Collection: ExportCollection] = {}
-    for collection in context.scene.collection.children:
-        recursive_parent_mapper(collection, collection_map, None)
-            
-    return collection_map
-
-def recursive_parent_mapper(collection: bpy.types.Collection, collection_map: dict[bpy.types.Collection: ExportCollection], parent_export_collection: ExportCollection | None):
-    export_collection = ExportCollection(collection)
-    collection_map[collection] = export_collection
-    if parent_export_collection is not None:
-        if parent_export_collection.region is not None and export_collection.region is None:
-            export_collection.region = parent_export_collection.region
-        if parent_export_collection.permutation is not None and export_collection.permutation is None:
-            export_collection.permutation = parent_export_collection.permutation
-        if parent_export_collection.non_export:
-            export_collection.non_export = True
-            
-    for child in collection.children:
-        recursive_parent_mapper(child, collection_map, export_collection)
 
 def make_default_render():
     mesh = bpy.data.meshes.new("default_render")

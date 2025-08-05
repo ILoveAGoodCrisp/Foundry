@@ -5087,3 +5087,41 @@ def resolve_relative_blend(fp: str):
             return ""
     
     return fp
+
+class ExportCollection:
+    def __init__(self, collection: bpy.types.Collection):
+        self.region = None
+        self.permutation = None
+        self.non_export = False
+        
+        match collection.nwo.type:
+            case 'region':
+                self.region = collection.nwo.region
+            case 'permutation':
+                self.permutation = collection.nwo.permutation
+            case 'exclude':
+                self.non_export = True
+
+        for ob in collection.objects:
+            ob.nwo.export_collection = collection.name
+
+def create_parent_mapping(context):
+    collection_map: dict[bpy.types.Collection: ExportCollection] = {}
+    for collection in context.scene.collection.children:
+        recursive_parent_mapper(collection, collection_map, None)
+            
+    return collection_map
+
+def recursive_parent_mapper(collection: bpy.types.Collection, collection_map: dict[bpy.types.Collection: ExportCollection], parent_export_collection: ExportCollection | None):
+    export_collection = ExportCollection(collection)
+    collection_map[collection] = export_collection
+    if parent_export_collection is not None:
+        if parent_export_collection.region is not None and export_collection.region is None:
+            export_collection.region = parent_export_collection.region
+        if parent_export_collection.permutation is not None and export_collection.permutation is None:
+            export_collection.permutation = parent_export_collection.permutation
+        if parent_export_collection.non_export:
+            export_collection.non_export = True
+            
+    for child in collection.children:
+        recursive_parent_mapper(child, collection_map, export_collection)

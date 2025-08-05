@@ -203,21 +203,24 @@ class NWO_OT_ExportLights(bpy.types.Operator):
             export_lights(asset_path, asset_name)
         return {"FINISHED"}
     
-def gather_lights(context):
-    return [ob for ob in context.scene.objects if ob.type == 'LIGHT' and ob.data.type != 'AREA' and not ob.nwo.ignore_for_export]
+def gather_lights(context, collection_map):
+    return {ob: ob.nwo.region_name if collection_map[bpy.data.collections[ob.nwo.export_collection]].region is None else collection_map[bpy.data.collections[ob.nwo.export_collection]].region for ob in context.scene.objects if ob.type == 'LIGHT' and ob.data.type != 'AREA' and not ob.nwo.ignore_for_export}
 
-def gather_lightmap_regions(context):
-    return [ob for ob in context.scene.objects if ob.type in VALID_MESHES and ob.data.nwo.mesh_type == '_connected_geometry_mesh_type_lightmap_region' and not ob.nwo.ignore_for_export]
+def gather_lightmap_regions(context, collection_map):
+    return {ob: ob.nwo.region_name if collection_map[bpy.data.collections[ob.nwo.export_collection]].region is None else collection_map[bpy.data.collections[ob.nwo.export_collection]].region for ob in context.scene.objects if ob.type in VALID_MESHES and ob.data.nwo.mesh_type == '_connected_geometry_mesh_type_lightmap_region' and not ob.nwo.ignore_for_export}
 
 def export_lights(asset_path, asset_name, light_objects = None, bsps = None, lightmap_regions=None):
     tags_dir = utils.get_tags_path()
     context = bpy.context
     corinth = utils.is_corinth(bpy.context)
     asset_type = context.scene.nwo.asset_type
+    if light_objects is None or lightmap_regions is None:
+        collection_map = utils.create_parent_mapping(context)
+    
     if light_objects is None:
-        light_objects = gather_lights(context)
+        light_objects = gather_lights(context, collection_map)
                 
-    lights = [BlamLightInstance(ob, utils.true_region(ob.nwo)) for ob in light_objects]
+    lights = [BlamLightInstance(ob, region) for ob, region in light_objects.items()]
     if asset_type == 'scenario':
         if bsps is None:
             bsps = [r.name for r in context.scene.nwo.regions_table if r.name.lower() != 'shared']
@@ -236,14 +239,14 @@ def export_lights(asset_path, asset_name, light_objects = None, bsps = None, lig
                 with ScenarioStructureLightingInfoTag(path=info_path) as tag:tag.build_tag(light_instances, light_definitions)
                 
             if lightmap_regions is None:
-                lightmap_regions = gather_lightmap_regions(context)
+                lightmap_regions = gather_lightmap_regions(context, collection_map)
             
             if not corinth:
                 for idx, info_path in enumerate(lighting_info_paths):
                     b = bsps[idx]
-                    regions_list = [region for region in lightmap_regions if utils.true_region(region.nwo) == b]
+                    lm_regions_list = {lm_region for lm_region, region in lightmap_regions.items() if region == b}
                     with ScenarioStructureLightingInfoTag(path=info_path) as tag:
-                        tag.lightmap_regions_from_blender(regions_list)
+                        tag.lightmap_regions_from_blender(lm_regions_list)
 
     elif corinth and asset_type in ('model', 'sky', 'prefab'):
         info_path = str(Path(asset_path, f'{asset_name}.scenario_structure_lighting_info'))
