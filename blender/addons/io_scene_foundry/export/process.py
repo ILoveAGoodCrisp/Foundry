@@ -1,5 +1,6 @@
 from collections import defaultdict
 from enum import Enum
+from functools import lru_cache
 from math import degrees, radians
 import os
 from pathlib import Path
@@ -188,6 +189,8 @@ class ExportScene:
         
         self.poop_obs = defaultdict(list)
         self.lightmap_regions = {}
+        
+        self.scene_collection_name = context.scene.collection.name
         
     def _get_export_tag_types(self):
         tag_types = set()
@@ -606,113 +609,154 @@ class ExportScene:
         return ObjectType.none
             
     def get_halo_props(self, ob: bpy.types.Object):
-        props = {}
+        nwo = ob.nwo
+        asset_type = self.asset_type
+        game_version = self.game_version
+
+        supports_regions = asset_type.supports_regions
+        supports_perms   = asset_type.supports_permutations
+        supports_bsp     = asset_type.supports_bsp
+
+        default_region = self.default_region
+        default_perm   = self.default_permutation
+
+        regions_set      = self.regions_set
+        permutations_set = self.permutations_set
+        permutations     = self.permutations
+
+        reg_name  = self.reg_name
+        perm_name = self.perm_name
+
+        scene_coll_name = self.scene_collection_name
+        collection_map  = self.collection_map
+        warnings_append = self.warnings.append
+
+        object_type = self._get_object_type(ob)
+        if object_type == ObjectType.none:
+            return
+
+        is_mesh   = (object_type == ObjectType.mesh)
+        is_marker = (object_type == ObjectType.marker)
+        instanced_object = (is_mesh and nwo.mesh_type == '_connected_geometry_mesh_type_object_instance')
+
+        props = {"bungie_object_type": object_type.value}
         mesh_props = {}
         copy = None
         is_pca = False
-        region = self.default_region
-        permutation = self.default_permutation
-        nwo = ob.nwo
-        object_type = self._get_object_type(ob)
-        # Frames go unused in non-model exports
-        if object_type == ObjectType.none:
-            return 
-        props["bungie_object_type"] = object_type.value
-        is_mesh = object_type == ObjectType.mesh
-        is_marker = object_type == ObjectType.marker
-        instanced_object = (is_mesh and nwo.mesh_type == '_connected_geometry_mesh_type_object_instance')
-        tmp_region, tmp_permutation = nwo.region_name, nwo.permutation_name
-        
-        if not tmp_region:
-            tmp_region = self.default_region
-            
-        if not tmp_permutation:
-            tmp_permutation = self.default_permutation
-            
-        collection = bpy.data.collections.get(ob.nwo.export_collection)
-        nwo.export_collection = ""
-        if collection and collection != self.context.scene.collection:
-            export_coll = self.collection_map.get(collection)
-            if export_coll is None: return
+
+        tmp_region = region = default_region
+        tmp_perm = permutation = default_perm
+
+        if nwo.export_collection != scene_coll_name:
+            export_coll = collection_map[nwo.export_collection]
             if export_coll.non_export:
                 return
-            coll_region, coll_permutation = export_coll.region, export_coll.permutation
-            if coll_region is not None:
-                tmp_region = coll_region
-            if coll_permutation is not None:
-                tmp_permutation = coll_permutation
-                
+            if export_coll.region is None:
+                tmp_region = ob.nwo.region_name
+            else:
+                tmp_region = export_coll.region
+            if export_coll.permutation is None:
+                tmp_perm = ob.nwo.permutation_name
+            else:
+                tmp_perm = export_coll.permutation
+        else:
+            tmp_region = ob.nwo.region_name
+            tmp_perm   = ob.nwo.permutation_name
+
         if object_type == ObjectType.light:
-            self.lights[ob] = region
+            self.lights[ob] = tmp_region
             return
-                
+
         if instanced_object:
             if nwo.marker_uses_regions:
-                if tmp_region in self.regions_set:
+                if tmp_region in regions_set:
                     region = tmp_region
                 else:
-                    self.warnings.append(f"Object [{ob.name}] has {self.reg_name} [{tmp_region}] which is not present in the {self.reg_name}s table. Setting {self.reg_name} to: {self.default_region}")
-                marker_perms = [item.name for item in nwo.marker_permutations]
+                    warnings_append(
+                        f"Object [{ob.name}] has {reg_name} [{tmp_region}] which is not present in the "
+                        f"{reg_name}s table. Setting {reg_name} to: {default_region}"
+                    )
+
+                marker_perm_names = {item.name for item in nwo.marker_permutations}
                 if nwo.marker_permutation_type == 'include':
-                    if nwo.marker_permutations:
-                        needs_perm = True
-                        for perm in marker_perms:
-                            if perm not in self.permutations_set:
-                                self.warnings.append(f"Object [{ob.name}] has {self.perm_name} [{perm}] in its include list which is not present in the {self.perm_name}s table. Ignoring {self.perm_name}")
-                            elif needs_perm:
-                                needs_perm = False
-                                permutation = perm
-                else:
-                    for perm in self.permutations:
-                        if perm not in marker_perms:
-                            permutation = perm
+                    if marker_perm_names:
+                        chosen = next((p for p in marker_perm_names if p in permutations_set), None)
+                        if chosen:
+                            permutation = chosen
+                        for p in marker_perm_names:
+                            if p not in permutations_set:
+                                warnings_append(
+                                    f"Object [{ob.name}] has {perm_name} [{p}] in its include list which is not present "
+                                    f"in the {perm_name}s table. Ignoring {perm_name}"
+                                )
+                else:  # exclude
+                    for p in permutations:
+                        if p not in marker_perm_names:
+                            permutation = p
                             break
-        elif is_marker and self.asset_type.supports_regions and nwo.marker_uses_regions:
-            if tmp_region in self.regions_set:
+
+        elif is_marker and supports_regions and nwo.marker_uses_regions:
+            if tmp_region in regions_set:
                 region = tmp_region
             else:
-                self.warnings.append(f"Object [{ob.name}] has {self.reg_name} [{tmp_region}] which is not present in the {self.reg_name}s table. Setting {self.reg_name} to: {self.default_region}")
+                warnings_append(
+                    f"Object [{ob.name}] has {reg_name} [{tmp_region}] which is not present in the "
+                    f"{reg_name}s table. Setting {reg_name} to: {default_region}"
+                )
         else:
-            if is_mesh or self.asset_type.supports_bsp:
-                if tmp_region in self.regions_set:
+            if (is_mesh or supports_bsp):
+                if tmp_region in regions_set:
                     region = tmp_region
                 else:
-                    self.warnings.append(f"Object [{ob.name}] has {self.reg_name} [{tmp_region}] which is not present in the {self.reg_name}s table. Setting {self.reg_name} to: {self.default_region}")
-                    
-            if self.asset_type.supports_permutations:
-                if tmp_permutation in self.permutations_set:
-                    permutation = tmp_permutation
+                    warnings_append(
+                        f"Object [{ob.name}] has {reg_name} [{tmp_region}] which is not present in the "
+                        f"{reg_name}s table. Setting {reg_name} to: {default_region}"
+                    )
+
+            if supports_perms:
+                if tmp_perm in permutations_set:
+                    permutation = tmp_perm
                 else:
-                    self.warnings.append(f"Object [{ob.name}] has {self.perm_name} [{tmp_permutation}] which is not present in the {self.perm_name}s table. Setting {self.perm_name} to: {self.default_permutation}")
-                    
+                    warnings_append(
+                        f"Object [{ob.name}] has {perm_name} [{tmp_perm}] which is not present in the "
+                        f"{perm_name}s table. Setting {perm_name} to: {default_perm}"
+                    )
             elif nwo.marker_uses_regions and nwo.marker_permutation_type == 'include' and nwo.marker_permutations:
-                marker_perms = [item.name for item in nwo.marker_permutations]
-                for perm in marker_perms:
-                    if perm not in self.permutations_set:
-                        self.warnings.append(f"Object [{ob.name}] has {self.perm_name} [{perm}] in its include list which is not present in the {self.perm_name}s table. Ignoring {self.perm_name}")
-            
-        if object_type == ObjectType.mesh:
-            if not nwo.mesh_type:
-                nwo.mesh_type = '_connected_geometry_mesh_type_default'
-            if utils.type_valid(nwo.mesh_type, self.asset_type.name.lower(), self.game_version):
-                copy = self._setup_mesh_properties(ob, ob.nwo, self.asset_type.supports_bsp, props, region, mesh_props)
+                marker_perm_names = {item.name for item in nwo.marker_permutations}
+                invalid = marker_perm_names.difference(permutations_set)
+                for p in invalid:
+                    warnings_append(
+                        f"Object [{ob.name}] has {perm_name} [{p}] in its include list which is not present "
+                        f"in the {perm_name}s table. Ignoring {perm_name}"
+                    )
+
+        @lru_cache(maxsize=128)
+        def _type_valid_cached(type_name, asset_name_lower, game_ver):
+            return utils.type_valid(type_name, asset_name_lower, game_ver)
+
+        asset_name_lower = asset_type.name.lower()
+
+        if is_mesh:
+            mesh_type = nwo.mesh_type or '_connected_geometry_mesh_type_default'
+            if _type_valid_cached(mesh_type, asset_name_lower, game_version):
+                copy = self._setup_mesh_properties(ob, nwo, supports_bsp, props, region, mesh_props)
                 if copy is not None and not copy:
-                    return # lightmap region
-                if ob.type == 'MESH' and ob.data.shape_keys and self.asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.ANIMATION, AssetType.CINEMATIC}:
+                    return  # lightmap region
+                if ob.type == 'MESH' and ob.data.shape_keys and asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.ANIMATION, AssetType.CINEMATIC}:
                     is_pca = True
-                
             elif self.type_is_relevant:
-                return self.warnings.append(f"{ob.name} has invalid mesh type [{nwo.mesh_type}] for asset [{self.asset_type}]. Skipped")
+                warnings_append(f"{ob.name} has invalid mesh type [{mesh_type}] for asset [{asset_type}]. Skipped")
+                return
             else:
                 return
-                
-        elif object_type == ObjectType.marker:
-            if not nwo.marker_type:
-                nwo.marker_type = '_connected_geometry_marker_type_model'
-            if utils.type_valid(nwo.marker_type, self.asset_type.name.lower(), self.game_version):
-                self._setup_marker_properties(ob, ob.nwo, props, region)
+
+        elif is_marker:
+            marker_type = nwo.marker_type or '_connected_geometry_marker_type_model' 
+            if _type_valid_cached(marker_type, asset_name_lower, game_version):
+                self._setup_marker_properties(ob, nwo, props, region)
             elif self.type_is_relevant:
-                return self.warnings.append(f"{ob.name} has invalid marker type [{nwo.mesh_type}] for asset [{self.asset_type}]. Skipped")
+                warnings_append(f"{ob.name} has invalid marker type [{marker_type}] for asset [{asset_type}]. Skipped")
+                return
             else:
                 return
 

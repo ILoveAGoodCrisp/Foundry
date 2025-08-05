@@ -204,10 +204,10 @@ class NWO_OT_ExportLights(bpy.types.Operator):
         return {"FINISHED"}
     
 def gather_lights(context, collection_map):
-    return {ob: ob.nwo.region_name if collection_map[bpy.data.collections[ob.nwo.export_collection]].region is None else collection_map[bpy.data.collections[ob.nwo.export_collection]].region for ob in context.scene.objects if ob.type == 'LIGHT' and ob.data.type != 'AREA' and not ob.nwo.ignore_for_export}
+    return {ob: ob.nwo.region_name if collection_map[ob.nwo.export_collection].region is None else collection_map[ob.nwo.export_collection].region for ob in context.scene.objects if ob.type == 'LIGHT' and ob.data.type != 'AREA' and not ob.nwo.ignore_for_export}
 
 def gather_lightmap_regions(context, collection_map):
-    return {ob: ob.nwo.region_name if collection_map[bpy.data.collections[ob.nwo.export_collection]].region is None else collection_map[bpy.data.collections[ob.nwo.export_collection]].region for ob in context.scene.objects if ob.type in VALID_MESHES and ob.data.nwo.mesh_type == '_connected_geometry_mesh_type_lightmap_region' and not ob.nwo.ignore_for_export}
+    return {ob: ob.nwo.region_name if collection_map[ob.nwo.export_collection].region is None else collection_map[ob.nwo.export_collection].region for ob in context.scene.objects if ob.type in VALID_MESHES and ob.data.nwo.mesh_type == '_connected_geometry_mesh_type_lightmap_region' and not ob.nwo.ignore_for_export}
 
 def export_lights(asset_path, asset_name, light_objects = None, bsps = None, lightmap_regions=None):
     tags_dir = utils.get_tags_path()

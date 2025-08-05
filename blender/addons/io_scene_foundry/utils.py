@@ -5106,7 +5106,7 @@ class ExportCollection:
             ob.nwo.export_collection = collection.name
 
 def create_parent_mapping(context):
-    collection_map: dict[bpy.types.Collection: ExportCollection] = {}
+    collection_map: dict[str: ExportCollection] = {}
     for collection in context.scene.collection.children:
         recursive_parent_mapper(collection, collection_map, None)
             
@@ -5114,7 +5114,7 @@ def create_parent_mapping(context):
 
 def recursive_parent_mapper(collection: bpy.types.Collection, collection_map: dict[bpy.types.Collection: ExportCollection], parent_export_collection: ExportCollection | None):
     export_collection = ExportCollection(collection)
-    collection_map[collection] = export_collection
+    collection_map[collection.name] = export_collection
     if parent_export_collection is not None:
         if parent_export_collection.region is not None and export_collection.region is None:
             export_collection.region = parent_export_collection.region
