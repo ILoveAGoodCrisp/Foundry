@@ -451,7 +451,10 @@ class NWO_ExportScene(Operator, ExportHelper):
             align=False,
         )
         col = flow.column()
-        col.prop(scene_nwo_export, "force_imposter_policy_never")
+        if scenario or prefab:
+            col.prop(scene_nwo_export, "force_imposter_policy_never")
+            if scenario:
+                col.prop(scene_nwo_export, "create_debug_zone_set")
         col.prop(scene_nwo_export, "import_force", text="Force full export")
         if h4:
             if scenario or prefab:

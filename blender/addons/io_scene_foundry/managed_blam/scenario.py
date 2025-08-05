@@ -246,38 +246,24 @@ class ScenarioTag(Tag):
         if field is not None and field.Path is not None:
             return Path(field.Path.Filename)
         
-    def zone_sets_to_blender(self, zone_set=""):
-        nwo = self.context.scene.nwo
-        nwo.zone_sets.clear()
-        bsp_dict = {r.name.lower(): idx for idx, r in enumerate(nwo.regions_table)}
-        if zone_set:
-            for element in self.block_zone_sets.Elements:
-                if element.Fields[0].GetStringData() == zone_set:
-                    blender_zs = nwo.zone_sets.add()
-                    blender_zs.name = zone_set
-                    for flag in element.SelectField("bsp zone flags").Items:
-                        if flag.IsSet:
-                            i = bsp_dict.get(flag.FlagName)
-                            if i is not None:
-                                setattr(blender_zs, f"bsp_{i}", True)
-                    for flag in element.SelectField("structure design zone flags").Items:
-                        if flag.IsSet:
-                            i = bsp_dict.get(flag.FlagName)
-                            if i is not None:
-                                setattr(blender_zs, f"bsp_{i}", True)
-                            
+    def write_foundry_zone_set(self):
+        for element in self.block_zone_sets.Elements:
+            if element.Fields[0].GetStringData() == "foundry_debug_zone_set":
+                foundry_element = element
+                break
         else:
-            for element in self.block_zone_sets.Elements:
-                zs_name = element.Fields[0].GetStringData()
-                blender_zs = nwo.zone_sets.add()
-                blender_zs.name = zs_name
-                for flag in element.SelectField("bsp zone flags").Items:
-                    if flag.IsSet:
-                        i = bsp_dict.get(flag.FlagName)
-                        if i is not None:
-                            setattr(blender_zs, f"bsp_{i}", True)
-                for flag in element.SelectField("structure design zone flags").Items:
-                    if flag.IsSet:
-                        i = bsp_dict.get(flag.FlagName)
-                        if i is not None:
-                            setattr(blender_zs, f"bsp_{i}", True)
+            foundry_element = self.block_zone_sets.AddElement()
+            foundry_element.Fields[0].SetStringData("foundry_debug_zone_set")
+            self.tag_has_changes = True
+
+        bsp_flags = foundry_element.SelectField("bsp zone flags")
+        sd_flags = foundry_element.SelectField("structure design zone flags")
+        
+        for item in bsp_flags.Items:
+            if not item.IsSet:
+                self.tag_has_changes = True
+                item.IsSet = True
+        for item in sd_flags.Items:
+            if not item.IsSet:
+                self.tag_has_changes = True
+                item.IsSet = True

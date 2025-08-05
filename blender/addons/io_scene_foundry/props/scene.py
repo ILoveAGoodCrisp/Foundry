@@ -1836,10 +1836,10 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     animation_composites_active_index: bpy.props.IntProperty(options=set())
     animation_composites: bpy.props.CollectionProperty(type=NWO_AnimationCompositesItems, options=set())
     
-    zone_sets_active_index: bpy.props.IntProperty(options=set())
-    zone_sets: bpy.props.CollectionProperty(type=NWO_ZoneSets_ListItems, options=set())
+    # zone_sets_active_index: bpy.props.IntProperty(options=set())
+    # zone_sets: bpy.props.CollectionProperty(type=NWO_ZoneSets_ListItems, options=set())
     
-    user_removed_all_zone_set: bpy.props.BoolProperty()
+    # user_removed_all_zone_set: bpy.props.BoolProperty()
 
     def items_mesh_type(self, context):
         """Function to handle context for mesh enum lists"""
@@ -2287,7 +2287,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     # model_overrides_expanded: bpy.props.BoolProperty(default=False, options=set())
     scenario_expanded: bpy.props.BoolProperty(default=False, options=set())
     lighting_expanded: bpy.props.BoolProperty(default=False, options=set())
-    zone_sets_expanded: bpy.props.BoolProperty(default=False, options=set())
+    # zone_sets_expanded: bpy.props.BoolProperty(default=False, options=set())
     objects_expanded: bpy.props.BoolProperty(default=False, options=set())
     prefabs_expanded: bpy.props.BoolProperty(default=False, options=set())
     model_expanded: bpy.props.BoolProperty(default=True, options=set())

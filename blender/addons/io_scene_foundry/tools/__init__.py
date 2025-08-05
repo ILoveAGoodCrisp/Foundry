@@ -22,7 +22,6 @@ from .animation.composites import NWO_OT_AnimationBlendAxisAdd, NWO_OT_Animation
 from .animation.copy import NWO_OT_AnimationCopyAdd, NWO_OT_AnimationCopyMove, NWO_OT_AnimationCopyRemove, NWO_UL_AnimationCopies
 from .animation.play_game_animation import NWO_OT_AnimationNameSearch, NWO_OT_PlayGameAnimation
 from .scenario.lightmap import NWO_OT_Lightmap
-from .scenario.zone_sets import NWO_OT_RemoveExistingZoneSets, NWO_OT_ZoneSetAdd, NWO_OT_ZoneSetMove, NWO_OT_ZoneSetRemove, NWO_UL_ZoneSets
 from .tag_templates import NWO_OT_LoadTemplate
 from .cubemap import NWO_OT_Cubemap
 from .scale_models import NWO_OT_AddScaleModel
@@ -158,11 +157,11 @@ classes = (
     NWO_OT_ConvertToHaloRig,
     NWO_OT_Cubemap,
     NWO_OT_LoadTemplate,
-    NWO_OT_RemoveExistingZoneSets,
-    NWO_OT_ZoneSetMove,
-    NWO_OT_ZoneSetRemove,
-    NWO_OT_ZoneSetAdd,
-    NWO_UL_ZoneSets,
+    # NWO_OT_RemoveExistingZoneSets,
+    # NWO_OT_ZoneSetMove,
+    # NWO_OT_ZoneSetRemove,
+    # NWO_OT_ZoneSetAdd,
+    # NWO_UL_ZoneSets,
     NWO_OT_Lightmap,
     NWO_UL_AnimationCopies,
     NWO_OT_AnimationCopyAdd,

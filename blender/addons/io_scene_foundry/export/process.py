@@ -24,7 +24,7 @@ from ..tools.scenario.lightmap import run_lightmapper
 
 from ..tools.light_exporter import calc_attenutation, export_lights
 
-from ..tools.scenario.zone_sets import write_zone_sets_to_scenario
+# from ..tools.scenario.zone_sets import write_zone_sets_to_scenario
 
 from ..managed_blam import Tag
 from ..managed_blam.scenario import ScenarioTag
@@ -2212,16 +2212,16 @@ class ExportScene:
                             animation.tag_has_changes = True
 
         if self.asset_type == AssetType.SCENARIO:
-            if self.setup_scenario:
+            if self.setup_scenario or self.export_settings.create_debug_zone_set:
                 lm_value = 6 if self.corinth else 3
                 with ScenarioTag() as scenario:
-                    for bsp in self.virtual_scene.structure:
-                        res = scenario.set_bsp_lightmap_res(bsp, lm_value, 0)
-                        self.print_post(f"--- Setting scenario lightmap resolution to {res}")
-                
-            if self.scene_settings.zone_sets:
-                self.print_post(f"--- Updating scenario zone sets: {[zs.name for zs in self.scene_settings.zone_sets]}")
-                write_zone_sets_to_scenario(self.scene_settings, self.asset_name)
+                    if self.setup_scenario:
+                        for bsp in self.virtual_scene.structure:
+                            res = scenario.set_bsp_lightmap_res(bsp, lm_value, 0)
+                            self.print_post(f"--- Setting scenario lightmap resolution to {res}")
+                    if self.export_settings.create_debug_zone_set:
+                        self.print_post(f"--- Adding debug zone set")
+                        scenario.write_foundry_zone_set()
                 
             if False and not self.corinth and self.any_collision_proxies:
                 self.print_post(f"--- Fixing Up collision proxy surface mapping")

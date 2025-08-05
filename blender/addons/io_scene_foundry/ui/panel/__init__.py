@@ -237,7 +237,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 
             elif nwo.asset_type == "scenario":
                 self.draw_expandable_box(self.box.box(), nwo, 'scenario')
-                self.draw_expandable_box(self.box.box(), nwo, 'zone_sets')
+                # self.draw_expandable_box(self.box.box(), nwo, 'zone_sets')
                 self.draw_expandable_box(self.box.box(), nwo, 'lighting')
                 # self.draw_expandable_box(self.box.box(), nwo, 'objects')
                 if self.h4:
@@ -358,41 +358,41 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         box.operator("nwo.export_prefabs", icon='EXPORT')
         box.prop(nwo, "prefabs_export_on_save")
     
-    def draw_zone_sets(self, box: bpy.types.UILayout, nwo):
-        row = box.row()
-        rows = 4
-        row.template_list(
-            "NWO_UL_ZoneSets",
-            "",
-            nwo,
-            "zone_sets",
-            nwo,
-            "zone_sets_active_index",
-            rows=rows,
-        )
-        col = row.column(align=True)
-        col.operator("nwo.zone_set_add", text="", icon="ADD")
-        col.operator("nwo.zone_set_remove", icon="REMOVE", text="")
-        col.separator()
-        col.operator("nwo.remove_existing_zone_sets", icon="X", text="")
-        col.separator()
-        col.operator("nwo.zone_set_move", text="", icon="TRIA_UP").direction = 'up'
-        col.operator("nwo.zone_set_move", icon="TRIA_DOWN", text="").direction = 'down'
-        if not nwo.zone_sets:
-            return
-        zone_set = nwo.zone_sets[nwo.zone_sets_active_index]
-        box.label(text=f"Zone Set BSPs")
-        if zone_set.name.lower() == "default":
-            return box.label(text="All BSPs included in Zone Set")
-        grid = box.grid_flow()
-        grid.scale_x = 0.8
-        max_index = 31 if self.h4 else 15
-        bsps = [region.name for region in nwo.regions_table]
-        for index, bsp in enumerate(bsps):
-            if index >= max_index:
-                break
-            if bsp.lower() != "shared":
-                grid.prop(zone_set, f"bsp_{index}", text=bsp)
+    # def draw_zone_sets(self, box: bpy.types.UILayout, nwo):
+    #     row = box.row()
+    #     rows = 4
+    #     row.template_list(
+    #         "NWO_UL_ZoneSets",
+    #         "",
+    #         nwo,
+    #         "zone_sets",
+    #         nwo,
+    #         "zone_sets_active_index",
+    #         rows=rows,
+    #     )
+    #     col = row.column(align=True)
+    #     col.operator("nwo.zone_set_add", text="", icon="ADD")
+    #     col.operator("nwo.zone_set_remove", icon="REMOVE", text="")
+    #     col.separator()
+    #     col.operator("nwo.remove_existing_zone_sets", icon="X", text="")
+    #     col.separator()
+    #     col.operator("nwo.zone_set_move", text="", icon="TRIA_UP").direction = 'up'
+    #     col.operator("nwo.zone_set_move", icon="TRIA_DOWN", text="").direction = 'down'
+    #     if not nwo.zone_sets:
+    #         return
+    #     zone_set = nwo.zone_sets[nwo.zone_sets_active_index]
+    #     box.label(text=f"Zone Set BSPs")
+    #     if zone_set.name.lower() == "default":
+    #         return box.label(text="All BSPs included in Zone Set")
+    #     grid = box.grid_flow()
+    #     grid.scale_x = 0.8
+    #     max_index = 31 if self.h4 else 15
+    #     bsps = [region.name for region in nwo.regions_table]
+    #     for index, bsp in enumerate(bsps):
+    #         if index >= max_index:
+    #             break
+    #         if bsp.lower() != "shared":
+    #             grid.prop(zone_set, f"bsp_{index}", text=bsp)
                 
     def draw_child_assets(self, box: bpy.types.UILayout, nwo):
         box.operator("nwo.new_child_asset", text="New Child Asset" if self.asset_type != 'cinematic' else "New Cinematic Scene", icon='NEWFOLDER')

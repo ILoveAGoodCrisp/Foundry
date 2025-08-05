@@ -1563,7 +1563,7 @@ class MeshSubpart:
             prop = utils.add_face_prop(mesh, "emissive", all_indices)
             prop.light_intensity = 0
             prop.debug_emissive_index = material.emissive_index
-            utils.print_warning(f"Mesh {ob.data.name} has invalid emissive on material {self.part.material.name}")
+            utils.print_warning(f"Mesh {ob.data.name} has invalid emissive on material {self.part.material.name} (part {self.part_index})")
             
 
 class Mesh:

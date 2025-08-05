@@ -598,6 +598,8 @@ class NWO_HaloExportSettingsFlags(bpy.types.Panel):
         col = flow.column()
         if scenario or prefab:
             col.prop(scene_nwo_export, "force_imposter_policy_never")
+            if scenario:
+                col.prop(scene_nwo_export, "create_debug_zone_set")
         if model or animation:
             col.prop(scene_nwo_export, "disable_automatic_suspension_computation")
             if model:
@@ -1125,6 +1127,12 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
 
     # def set_show_output(self, value):
     #     self["show_output"] = value
+    
+    create_debug_zone_set: bpy.props.BoolProperty(
+        name="Create Debug Zone Set",
+        description="Adds a zone set containing all BSPs and structure designs to the scenario on export",
+        default=True,
+    )
 
     def update_show_output(self, context):
         utils.foundry_output_state = self.show_output

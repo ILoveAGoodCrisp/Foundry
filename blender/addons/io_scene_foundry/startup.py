@@ -118,9 +118,9 @@ def load_handler(dummy):
         default_permutation.old = "default"
         default_permutation.name = "default"
         
-    if not scene_nwo.zone_sets and not scene_nwo.user_removed_all_zone_set:
-        all_zone_set = scene_nwo.zone_sets.add()
-        all_zone_set.name = "default"
+    # if not scene_nwo.zone_sets and not scene_nwo.user_removed_all_zone_set:
+    #     all_zone_set = scene_nwo.zone_sets.add()
+    #     all_zone_set.name = "default"
         
     # prefs = get_prefs()
     # if prefs.poop_default:
