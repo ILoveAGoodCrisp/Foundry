@@ -9,7 +9,7 @@ from ..icons import get_icon_id
 from ..managed_blam.scenario import ScenarioTag
 from ..tools.collection_manager import get_full_name
 
-from ..utils import is_corinth, is_frame, is_marker, is_mesh, poll_ui, true_permutation, true_region, update_tables_from_objects, valid_nwo_asset
+from ..utils import create_parent_mapping, is_corinth, is_frame, is_marker, is_marker_quick, is_mesh, poll_ui, update_tables_from_objects, valid_nwo_asset
 
 def has_region_or_perm(ob):
     if is_mesh(ob) and (ob.nwo.mesh_type != '_connected_geometry_mesh_type_object_instance' or ob.nwo.marker_uses_regions):
@@ -331,17 +331,18 @@ class TableEntryHide(bpy.types.Operator):
     entry_name: bpy.props.StringProperty()
     
     def execute(self, context):
+        collection_map = create_parent_mapping(context)
         nwo = context.scene.nwo
         table = getattr(nwo, self.table_str)
         entry = get_entry(table, self.entry_name)
         should_hide = entry.hidden
         available_objects = [ob for ob in context.view_layer.objects if has_region_or_perm(ob) and not ob.nwo.ignore_for_export]
-        entry_objects = [ob for ob in available_objects if true_table_entry(ob, self.ob_prop_str, entry.name)]
+        entry_objects = [ob for ob in available_objects if true_table_entry(ob, self.ob_prop_str, entry.name, collection_map)]
         if should_hide:
             for ob in entry_objects:
                 ob.hide_set(True)
         else:
-            unhide_objects(entry_objects, nwo)
+            unhide_objects(entry_objects, nwo, collection_map)
 
         return {'FINISHED'}
     
@@ -351,17 +352,26 @@ class TableEntryHideSelect(bpy.types.Operator):
     entry_name: bpy.props.StringProperty()
     
     def execute(self, context):
+        collection_map = create_parent_mapping(context)
         nwo = context.scene.nwo
         table = getattr(nwo, self.table_str)
         entry = get_entry(table, self.entry_name)
         should_hide_select = entry.hide_select
         available_objects = [ob for ob in context.view_layer.objects if has_region_or_perm(ob) and not ob.nwo.ignore_for_export]
-        entry_objects = [ob for ob in available_objects if true_table_entry(ob, self.ob_prop_str, entry.name)]
+        entry_objects = [ob for ob in available_objects if true_table_entry(ob, self.ob_prop_str, entry.name, collection_map)]
         regions_table = getattr(nwo, 'regions_table')
         permutations_table = getattr(nwo, 'permutations_table')
         for ob in entry_objects:
             if should_hide_select == False:
-                if get_entry(regions_table, true_region(ob.nwo)).hide_select or get_entry(permutations_table, true_permutation(ob.nwo)).hide_select:
+                ecoll = collection_map[ob.nwo.export_collection]
+                region = ecoll.region
+                permutation = ecoll.permutation
+                if region is None:
+                    region = ob.nwo.region_name
+                if permutation is None:
+                    permutation = ob.nwo.permutation_name    
+                
+                if get_entry(regions_table, region).hide_select or get_entry(permutations_table, permutation).hide_select:
                     continue
                 
             ob.hide_select = should_hide_select
@@ -905,9 +915,17 @@ def get_entry(table, entry_name):
         if entry.name == entry_name:
             return entry
         
-def true_table_entry(ob, ob_prop_str, entry_name) -> bool:
+def true_table_entry(ob, ob_prop_str, entry_name, collection_map) -> bool:
+    ecoll = collection_map[ob.nwo.export_collection]
+    region = ecoll.region
+    permutation = ecoll.permutation
+    if region is None:
+        region = ob.nwo.region_name
+    if permutation is None:
+        permutation = ob.nwo.permutation_name    
+    
     if ob_prop_str == "region_name":
-        return true_region(ob.nwo) == entry_name
+        return region == entry_name
     elif ob_prop_str == "permutation_name":
         if is_marker(ob) or ob.nwo.mesh_type == '_connected_geometry_mesh_type_object_instance':
             perms = [perm.name for perm in ob.nwo.marker_permutations]
@@ -916,7 +934,7 @@ def true_table_entry(ob, ob_prop_str, entry_name) -> bool:
             elif ob.nwo.marker_permutation_type == 'include':
                 return entry_name in perms
             
-        return true_permutation(ob.nwo) == entry_name
+        return permutation == entry_name
     
     
 # COOL TOOLS MENU
@@ -1060,12 +1078,21 @@ def restore_zone_set_flags(regions_table, zs_active_bsps: dict, nwo):
         for i in range(len(nwo.regions_table)):
             setattr(zs, f"bsp_{i}", bsp_names[i] in active_bsps)
             
-def unhide_objects(objects, nwo):
+def unhide_objects(objects, nwo, collection_map):
     regions_table = nwo.regions_table
     permutations_table = nwo.permutations_table
+
     # Only unhide objects if both region and permutation are set to unhidden
     for ob in objects:
-        if get_entry(regions_table, true_region(ob.nwo)).hidden or get_entry(permutations_table, true_permutation(ob.nwo)).hidden:
+        ecoll = collection_map[ob.nwo.export_collection]
+        region = ecoll.region
+        permutation = ecoll.permutation
+        if not region:
+            region = ob.nwo.region_name
+        if not permutation:
+            permutation = ob.nwo.permutation_name  
+
+        if get_entry(regions_table, region).hidden or get_entry(permutations_table, permutation).hidden:
             continue
         if ob.type == 'LIGHT' and not nwo.connected_geometry_object_type_light_visible:
             continue
@@ -1091,25 +1118,25 @@ class NWO_OT_HideObjectType(bpy.types.Operator):
         return True
 
     def execute(self, context):
+        collection_map = create_parent_mapping(context)
         nwo = context.scene.nwo
         visible_str = f"{self.object_type[1:]}_visible"
         valid_objects = objects_by_type(context, self.object_type)
         if valid_objects:
             if getattr(nwo, visible_str):
-                unhide_objects(valid_objects, nwo)
+                unhide_objects(valid_objects, nwo, collection_map)
             else:
-                [ob.hide_set(True) for ob in valid_objects]
+                for ob in valid_objects:
+                    ob.hide_set(True)
             
         return {"FINISHED"}
     
 def objects_by_type(context: bpy.types.Context, object_type: str) -> list[bpy.types.Object]:
     if object_type == '_connected_geometry_object_type_light':
-        return [ob for ob in context.view_layer.objects if ob.type == 'LIGHT' and not ob.nwo.ignore_for_export]
+        return [ob for ob in context.view_layer.objects if ob.type == 'LIGHT']
     elif object_type == '_connected_geometry_object_type_frame':
-        return [ob for ob in context.view_layer.objects if is_frame(ob) and not ob.nwo.ignore_for_export]
+        return [ob for ob in context.view_layer.objects if is_frame(ob)]
     elif object_type.startswith("_connected_geometry_marker_type"):
-        return [ob for ob in context.view_layer.objects if is_marker(ob) and ob.nwo.marker_type == object_type and not ob.nwo.ignore_for_export]
+        return [ob for ob in context.view_layer.objects if is_marker_quick(ob) and ob.nwo.marker_type == object_type]
     elif object_type.startswith("_connected_geometry_mesh_type"):
-        return [ob for ob in context.view_layer.objects if is_mesh(ob) and ob.data.nwo.mesh_type == object_type and not ob.nwo.ignore_for_export]
-
-            
+        return [ob for ob in context.view_layer.objects if is_mesh(ob) and ob.data.nwo.mesh_type == object_type]
