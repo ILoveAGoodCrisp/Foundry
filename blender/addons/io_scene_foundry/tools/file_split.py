@@ -65,8 +65,11 @@ class NWO_OT_FileAggregate(bpy.types.Operator):
             print(f"Appending {coll_name}")
             with bpy.data.libraries.load(path) as (data_from, data_to):
                 data_to.collections = [coll_name]
-                
-            parent.children.link(bpy.data.collections[coll_name])
+            
+            if parent is None:
+                context.scene.collection.children.link(bpy.data.collections[coll_name])
+            else:
+                parent.children.link(bpy.data.collections[coll_name])
         
         self.report({'INFO'}, "File Aggregate Complete")
         return {"FINISHED"}
@@ -105,7 +108,7 @@ class NWO_OT_FileSplit(bpy.types.Operator):
             to_remove_collections.update(coll.children_recursive)
             coll_name = coll.name
             parent = collections[coll]
-            bsp_collection_parent_names[coll_name] = parent.name
+            bsp_collection_parent_names[coll_name] = None if parent is None else parent.name
             coll_names.append(coll_name)
             print(f"Exporting collection: {coll_name}")
 
