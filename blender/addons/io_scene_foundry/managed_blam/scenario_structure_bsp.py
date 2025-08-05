@@ -308,6 +308,9 @@ class ScenarioStructureBspTag(Tag):
             # separate out the seams
             seam_material_indices = {idx for idx, m in enumerate(main_structure_ob.data.materials) if m.name == "+seam"}
             if seam_material_indices:
+                seam_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_seams")
+                seam_collection.hide_render = True
+                structure_collection.children.link(seam_collection)
                 seam_ob = main_structure_ob.copy()
                 seam_ob.data = main_structure_ob.data.copy()
                 
@@ -327,7 +330,7 @@ class ScenarioStructureBspTag(Tag):
                 seam_ob.nwo.seam_back_manual = True
                 seam_ob.name = f"{self.tag_path.ShortName}_seams"
                 objects.append(seam_ob)
-                structure_collection.objects.link(seam_ob)
+                seam_collection.objects.link(seam_ob)
         
         print("Removing Duplicate Material Slots")
         ob_meshes = {o.data for o in objects if o.type == 'MESH'}
@@ -341,6 +344,7 @@ class ScenarioStructureBspTag(Tag):
                 print("Creating Portals")
                 layer = utils.add_permutation("portals")
                 portals_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_portals")
+                portals_collection.hide_render = True
                 portals_collection.nwo.type = "permutation"
                 portals_collection.nwo.permutation = layer
                 self.collection.children.link(portals_collection)
@@ -354,6 +358,7 @@ class ScenarioStructureBspTag(Tag):
                 print("Creating Cookie Cutters")
                 layer = utils.add_permutation("cookie_cutters")
                 cookies_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_cookie_cutters")
+                cookies_collection.hide_render = True
                 cookies_collection.nwo.type = "permutation"
                 cookies_collection.nwo.permutation = layer
                 self.collection.children.link(cookies_collection)

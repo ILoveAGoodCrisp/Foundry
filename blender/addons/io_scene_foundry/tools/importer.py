@@ -1968,6 +1968,7 @@ class NWOImporter:
         print("Importing Collision Model")
         collision_model_objects = []
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_collision")
+        collection.hide_render = True
         model_collection.children.link(collection)
         with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
             with CollisionTag(path=mover.tag_path) as collision_model:
@@ -1979,6 +1980,7 @@ class NWOImporter:
         print("Importing Physics Model")
         physics_model_objects = []
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_physics")
+        collection.hide_render = True
         model_collection.children.link(collection)
         with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
             with PhysicsTag(path=mover.tag_path) as physics_model:
@@ -2089,6 +2091,7 @@ class NWOImporter:
         print(f"\nImporting Structure Design {design_name}")
         design_objects = []
         collection = bpy.data.collections.get(design_name)
+        collection.hide_render = True
         if collection is None:
             collection = bpy.data.collections.new(design_name)
             if scenario_collection is None:
