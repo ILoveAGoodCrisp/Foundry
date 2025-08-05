@@ -647,7 +647,7 @@ class ExportScene:
         tmp_region = region = default_region
         tmp_perm = permutation = default_perm
 
-        if nwo.export_collection != scene_coll_name:
+        if nwo.export_collection:
             export_coll = collection_map[nwo.export_collection]
             if export_coll.non_export:
                 return
@@ -2252,7 +2252,7 @@ class ExportScene:
                     # if self.is_child_asset:
                     #     export_lights(str(self.parent_asset_path_relative), self.parent_asset_name, [], bsps, self.lightmap_regions) # this will clear the lighting info tag
                     # else:
-                    export_lights(self.asset_path_relative, self.asset_name, [], bsps, self.lightmap_regions)
+                    export_lights(self.asset_path_relative, self.asset_name, {}, bsps, self.lightmap_regions)
                     
         if self.asset_type == AssetType.CINEMATIC:
             self.print_post(f"--- Writing cinematic scene: {self.cinematic_scene.name}")
