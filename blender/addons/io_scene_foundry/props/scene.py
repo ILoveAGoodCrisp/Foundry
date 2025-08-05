@@ -2623,8 +2623,8 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     def scale_display_items(self, context):
         items = []
         unit_length: str = context.scene.unit_settings.length_unit
-        items.append(('meters', unit_length.title(), "Meters displayed in Blender are equal to 0.328 in game world units", 'DRIVER_DISTANCE', 0))
-        items.append(('world_units', 'World Units', "Meters displayed in Blender are equal to in game world units i.e. 1 Meter = 1 World Unit. Use this when you want the units displayed in blender to match the units shown in Sapien", get_icon_id('wu_scale'), 1))
+        items.append(('meters', unit_length, "Meters displayed in Blender are equal to 0.328 in game world units", 'DRIVER_DISTANCE', 0))
+        items.append(('world_units', 'World Units'.upper(), "Meters displayed in Blender are equal to in game world units i.e. 1 Meter = 1 World Unit. Use this when you want the units displayed in blender to match the units shown in Sapien", get_icon_id('wu_scale'), 1))
         return items
     
     scale: bpy.props.EnumProperty(
