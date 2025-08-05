@@ -1323,12 +1323,17 @@ class Material:
         self.lm_analytical_absorb = element.SelectField("Real:lightmap analytical light absorb").Data
         self.lm_normal_absorb = element.SelectField("Real:lightmap normal light absorb").Data
         
+        self.emissive_invalid = False
+        
         # Emissive Properties
         self.emissive: Emissive = None
-        if self.emissive_index > -1 and self.emissive_index < len(emissives):
-            emissive = emissives[self.emissive_index]
-            if emissive.power > 0:
+        if self.emissive_index > -1:
+            if self.emissive_index < len(emissives):
+                emissive = emissives[self.emissive_index]
                 self.emissive = emissive
+            else:
+                self.emissive_invalid = True
+                utils.print_warning(f"Invalid emissive on tag material {self.name}, material index={self.index}, emissive index={self.emissive_index}")
         
         self.blender_material = get_blender_material(self.name, self.shader_path)
         
@@ -1554,6 +1559,12 @@ class MeshSubpart:
             prop.material_lighting_emissive_quality = e.quality
             prop.material_lighting_use_shader_gel = e.use_shader_gel
             prop.material_lighting_bounce_ratio = e.bounce_ratio
+        elif material.emissive_invalid:
+            prop = utils.add_face_prop(mesh, "emissive", all_indices)
+            prop.light_intensity = 0
+            prop.debug_emissive_index = material.emissive_index
+            utils.print_warning(f"Mesh {ob.data.name} has invalid emissive on material {self.part.material.name}")
+            
 
 class Mesh:
     '''All new Halo 3 render geometry definitions!'''

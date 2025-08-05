@@ -910,13 +910,14 @@ class NWO_Import(bpy.types.Operator):
                     for bsp in bsp_files:
                         bsp_objects = importer.import_bsp(bsp)
                         imported_bsp_objects.extend(bsp_objects)
+                        set_asset(Path(bsp).suffix)
                     if importer.needs_scaling:
                         utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_bsp_objects, actions=[])
                         
                     imported_objects.extend(imported_bsp_objects)
                     
                     if for_cinematic:
-                        self.link_anchor(context, imported_bsp_objects)
+                        self.link_anchor(context, imported_bsp_objects)    
                         
                         
                 elif 'structure_design' in importer.extensions:

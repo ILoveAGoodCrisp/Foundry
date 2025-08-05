@@ -4577,6 +4577,7 @@ def emissive_signature(prop):
         prop.material_lighting_emissive_power,
         # prop.light_intensity,
         prop.material_lighting_emissive_quality,
+        prop.debug_emissive_index,
     )
     
 def consolidate_face_attributes(mesh: bpy.types.Mesh):

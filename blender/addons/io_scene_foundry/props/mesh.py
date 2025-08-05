@@ -469,6 +469,8 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
     )
     
     light_intensity_value: bpy.props.FloatProperty(options={'HIDDEN'})
+    
+    debug_emissive_index: bpy.props.IntProperty(options={'HIDDEN'})
 
     material_lighting_emissive_quality: bpy.props.FloatProperty(
         name="Material Lighting Emissive Quality",
