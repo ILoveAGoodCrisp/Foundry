@@ -41,7 +41,7 @@ class StructureDesignTag(Tag):
             # Get all render materials
             render_materials = []
             for element in self.tag.SelectField("Block:materials").Elements:
-                render_materials.append(Material(element, [], True))
+                render_materials.append(Material(element, [], False))
                 
             # Get all compression bounds
             bounds = []
