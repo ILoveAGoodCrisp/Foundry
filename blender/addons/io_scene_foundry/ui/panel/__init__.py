@@ -2451,9 +2451,13 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
 
         tags_dir = utils.get_tags_path()
         data_dir = utils.get_data_path()
-        bitmap_path = str(Path(bitmap.filepath).with_suffix(".bitmap"))
-        if not Path(tags_dir, bitmap_path).exists():
+        if bitmap.filepath:
+            bitmap_path = str(Path(bitmap.filepath).with_suffix(".bitmap"))
+            if not Path(tags_dir, bitmap_path).exists():
+                bitmap_path = utils.dot_partition(image.filepath_from_user().lower().replace(data_dir, "")) + '.bitmap'
+        else:
             bitmap_path = utils.dot_partition(image.filepath_from_user().lower().replace(data_dir, "")) + '.bitmap'
+
         if not Path(tags_dir, bitmap_path).exists():
             col.separator()
             col.label(text='Bitmap Export Tools')
