@@ -1538,7 +1538,7 @@ def get_mesh_display(mesh_type):
             elif poll_ui(('DECORATOR')):
                 return 'Decorator', get_icon_id('decorator')
             else:
-                return 'Render', get_icon_id('model')
+                return 'Render', get_icon_id('render')
 
 def library_instanced_collection(ob):
     return ob.instance_type == 'COLLECTION' and ob.instance_collection and ob.instance_collection.library
