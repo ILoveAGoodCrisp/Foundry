@@ -2091,13 +2091,13 @@ class NWOImporter:
         print(f"\nImporting Structure Design {design_name}")
         design_objects = []
         collection = bpy.data.collections.get(design_name)
-        collection.hide_render = True
         if collection is None:
             collection = bpy.data.collections.new(design_name)
             if scenario_collection is None:
                 self.context.scene.collection.children.link(collection)
             else:
                 scenario_collection.children.link(collection)
+        collection.hide_render = True
         with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
             with StructureDesignTag(path=mover.tag_path) as design:
                 design_objects = design.to_blender(collection)
