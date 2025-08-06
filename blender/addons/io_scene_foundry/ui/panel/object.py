@@ -987,7 +987,7 @@ class NWO_MT_MeshTypes(bpy.types.Menu):
         layout = self.layout
         h4 = utils.is_corinth(context)
         if utils.poll_ui("model"):
-            layout.operator('nwo.apply_type_mesh_single', text='Render', icon_value=get_icon_id('model')).m_type = 'render'
+            layout.operator('nwo.apply_type_mesh_single', text='Render', icon_value=get_icon_id('render')).m_type = 'render'
             layout.operator('nwo.apply_type_mesh_single', text='Collision', icon_value=get_icon_id('collider')).m_type = 'collision'
             layout.operator('nwo.apply_type_mesh_single', text='Physics', icon_value=get_icon_id('physics')).m_type = 'physics'
             layout.operator('nwo.apply_type_mesh_single', text='Instanced Object', icon_value=get_icon_id('instance')).m_type = 'io'
