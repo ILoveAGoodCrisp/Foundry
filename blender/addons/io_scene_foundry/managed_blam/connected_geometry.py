@@ -1333,8 +1333,9 @@ class Material:
             if self.emissive_index > -1:
                 if self.emissive_index < len(emissives):
                     emissive = emissives[self.emissive_index]
-                    self.emissive = emissive
-                    self.blender_material.nwo.emits = True
+                    if emissive.power > 0:
+                        self.emissive = emissive
+                        # self.blender_material.nwo.emits = True
                 elif emissives or self.emissive_index > 0:
                     self.emissive_invalid = True
                     utils.print_warning(f"Invalid emissive on tag material {self.name}, material index={self.index}, emissive index={self.emissive_index}")
