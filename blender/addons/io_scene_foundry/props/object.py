@@ -1176,20 +1176,20 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     
     invert_topology: bpy.props.BoolProperty(options={'HIDDEN'})
     
-    # GETTER PROPS
-    def get_object_id(self):
-        current_id = self.get('object_id', 0)
-        if current_id:
-            return current_id
+    # # GETTER PROPS
+    # def get_object_id(self):
+    #     current_id = self.get('object_id', 0)
+    #     if current_id:
+    #         return current_id
         
-        rnd = random.Random()
-        id = str(uuid.UUID(int=rnd.getrandbits(128)))
-        self['object_id'] = id
-        return id
+    #     rnd = random.Random()
+    #     id = str(uuid.UUID(int=rnd.getrandbits(128)))
+    #     self['object_id'] = id
+    #     return id
     
-    ObjectID: bpy.props.StringProperty(
-        get=get_object_id,
-    )
+    # ObjectID: bpy.props.StringProperty(
+    #     get=get_object_id,
+    # )
 
     # INSTANCED GEOMETRY ONLY
 

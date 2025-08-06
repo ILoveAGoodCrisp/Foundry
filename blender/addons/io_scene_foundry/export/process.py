@@ -5,6 +5,7 @@ from math import degrees, radians
 import os
 from pathlib import Path
 import random
+import uuid
 import bmesh
 import bpy
 from mathutils import Color, Matrix, Vector
@@ -1043,7 +1044,9 @@ class ExportScene:
         
         elif self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB}:
             if marker_type == "_connected_geometry_marker_type_game_instance":
-                props["bungie_object_ID"] = str(nwo.ObjectID)
+                rnd = random.Random()
+                rnd.seed(ob.name)
+                props["bungie_object_ID"] = str(uuid.UUID(int=rnd.getrandbits(128)))
                 tag_name = nwo.marker_game_instance_tag_name.lower()
                 props["bungie_marker_game_instance_tag_name"] = tag_name
                 if self.corinth and tag_name.endswith(
