@@ -3081,7 +3081,7 @@ def restart_blender():
     bpy.ops.wm.quit_blender()
     
 def save_blender():
-    bpy.ops.wm.save_mainfile()
+    bpy.ops.wm.save_mainfile(compress=bpy.context.preferences.filepaths.use_file_compression)
     
 def human_time(time: float | int, decimal_seconds=False) -> str:
     '''Returns a string of hours, minutes and seconds using the given time input (in seconds)'''

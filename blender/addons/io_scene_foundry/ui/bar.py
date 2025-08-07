@@ -150,7 +150,7 @@ class NWO_OT_ProjectChooser(bpy.types.Operator):
                         blend_path = bpy.data.filepath
                         if not blend_path:
                             blend_path = str(Path(tempfile.gettempdir(), "temp"))
-                        bpy.ops.wm.save_mainfile(filepath=blend_path, check_existing=False)
+                        bpy.ops.wm.save_mainfile(filepath=blend_path, check_existing=False, compress=context.preferences.filepaths.use_file_compression)
                         utils.restart_blender()
                     
                     self.report({"WARNING"}, "Project cannot be changed until Blender restart")

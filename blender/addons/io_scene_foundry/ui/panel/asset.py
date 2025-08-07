@@ -48,7 +48,7 @@ class NWO_OT_OpenParentAsset(bpy.types.Operator):
             self.report({'WARNING'}, f"Blend file does not exist: {full_blend_path}")
             return {'CANCELLED'}
         
-        bpy.ops.wm.save_mainfile()
+        bpy.ops.wm.save_mainfile(compress=context.preferences.filepaths.use_file_compression)
         bpy.ops.wm.open_mainfile(filepath=str(full_blend_path))
         return {'FINISHED'}
         

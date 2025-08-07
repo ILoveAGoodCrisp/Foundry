@@ -20,7 +20,7 @@ class NWO_OT_OpenLinkedCollection(bpy.types.Operator):
             self.report({'WARNING'}, f"Library filepath does not exist: {fp}")
             return {'CANCELLED'}
         
-        bpy.ops.wm.save_mainfile()
+        bpy.ops.wm.save_mainfile(compress=context.preferences.filepaths.use_file_compression)
         bpy.ops.wm.open_mainfile(filepath=fp)
         return {"FINISHED"}
     
@@ -126,7 +126,7 @@ class NWO_OT_FileSplit(bpy.types.Operator):
             bpy.data.libraries.write(
                 str(path),
                 {temp_scene},
-                compress=True,
+                compress=context.preferences.filepaths.use_file_compression,
             )
             
             bpy.data.scenes.remove(temp_scene)

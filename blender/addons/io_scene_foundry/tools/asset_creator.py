@@ -403,7 +403,7 @@ class NWO_OT_NewAsset(bpy.types.Operator):
         # # Save a copy of the original blend if possible
         try:
             if bpy.data.filepath and bpy.data.filepath != str(blender_filepath):
-                bpy.ops.wm.save_mainfile()
+                bpy.ops.wm.save_mainfile(compress=context.preferences.filepaths.use_file_compression)
         except:
             print("Failed to save current file")
         
@@ -457,7 +457,7 @@ class NWO_OT_NewAsset(bpy.types.Operator):
         
         # Save the file to the asset folder
         if self.save_new_blend_file:
-            bpy.ops.wm.save_as_mainfile(filepath=str(blender_filepath), check_existing=False)
+            bpy.ops.wm.save_as_mainfile(filepath=str(blender_filepath), check_existing=False, compress=context.preferences.filepaths.use_file_compression)
             
         sidecar = Sidecar(sidecar_path_full, sidecar_path, asset_path, asset_name, None, scene_settings.nwo, utils.is_corinth(context), context)
         sidecar.build()
