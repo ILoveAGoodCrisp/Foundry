@@ -1310,7 +1310,7 @@ class ExportScene:
                         if len(material.name) > 4 and material.name[4].isdigit():
                             if len(material.name) > 5 and material.name[5].isdigit():
                                 sky_index = int("".join(material.name[4:5]))
-                            elif material.name[4].isdigit():
+                            else:
                                 sky_index = int(material.name[4])
                             sky_indices.add(sky_index)
                     elif material.name.startswith("+seamsealer"):
@@ -1322,7 +1322,7 @@ class ExportScene:
                 mesh_props["bungie_face_type"] = FaceType.sky.value
                 if len(sky_indices) < 2:
                     if sky_indices:
-                        mesh_props["bungie_sky_permutation_index"] = sky_indices[0]
+                        mesh_props["bungie_sky_permutation_index"] = list(sky_indices)[0]
                     else:
                         mesh_props["bungie_sky_permutation_index"] = 0
                     
