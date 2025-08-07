@@ -133,6 +133,10 @@ class Cluster:
         self.index = element.ElementIndex
         self.mesh_index = element.SelectField("mesh index").Data
         self.mesh = Mesh(mesh_block.Elements[self.mesh_index], materials=render_materials)
+        # self.sky_index = -1
+        # sky_index_field = element.SelectField("CharInteger:scenario sky index")
+        # if sky_index_field is not None:
+        #     self.sky_index = sky_index_field.Data
         
     def create(self, render_model, temp_meshes, cluster_surface_triangle_mapping=[], section_index=0) -> bpy.types.Object:
         return self.mesh.create(render_model, temp_meshes, name=f"cluster:{self.index}", surface_triangle_mapping=cluster_surface_triangle_mapping, section_index=section_index)
