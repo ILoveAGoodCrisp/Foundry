@@ -2035,6 +2035,7 @@ class NWOImporter:
 
                     if self.setup_as_asset:
                         set_asset(Path(file).suffix)
+                        self.context.scene.nwo_export.create_debug_zone_set = False
                         # scenario.zone_sets_to_blender(self.tag_zone_set)
         
         return imported_objects
