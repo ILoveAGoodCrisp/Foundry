@@ -1296,7 +1296,7 @@ class CompressionBounds:
 class Emissive:
     def __init__(self, element: TagFieldBlockElement):
         self.power = element.Fields[0].Data
-        self.color = tuple([n for n in element.Fields[1].Data])
+        self.color = tuple([utils.srgb_to_linear(n) for n in element.Fields[1].Data])
         self.quality = element.Fields[2].Data
         self.focus = element.Fields[3].Data
         flags = element.Fields[4]
