@@ -120,6 +120,7 @@ class ExportScene:
         self.forward = scene_settings.forward_direction
         self.from_halo_scale = 1 if scene_settings.scale == 'max' else 0.03048
         self.to_halo_scale = utils.get_export_scale(context)
+        self.to_maya_scale = self.to_halo_scale / 10 if self.corinth else self.to_halo_scale
         self.mirror = export_settings.granny_mirror
         self.has_animations = False
         self.exported_animations = []
@@ -976,7 +977,7 @@ class ExportScene:
                 if self.corinth:
                     scale = ob.matrix_world.to_scale()
                     max_abs_scale = max(abs(scale.x), abs(scale.y), abs(scale.z))
-                    props["bungie_marker_hint_length"] = ob.empty_display_size * 2 * max_abs_scale * self.to_halo_scale
+                    props["bungie_marker_hint_length"] = ob.empty_display_size * 2 * max_abs_scale * self.to_maya_scale
 
                         
             elif marker_type == "_connected_geometry_marker_type_pathfinding_sphere":
@@ -2330,7 +2331,7 @@ class ExportScene:
     def get_marker_sphere_size(self, ob):
         scale = ob.matrix_world.to_scale()
         max_abs_scale = max(abs(scale.x), abs(scale.y), abs(scale.z))
-        return ob.empty_display_size * max_abs_scale * self.to_halo_scale
+        return ob.empty_display_size * max_abs_scale * self.to_maya_scale
     
     def _set_primitive_props(self, ob, prim_type, props):
         props["bungie_mesh_primitive_type"] = prim_type
@@ -2338,18 +2339,18 @@ class ExportScene:
         match prim_type:
             case '_connected_geometry_primitive_type_sphere':
                 utils.set_origin_to_centre(ob)
-                props["bungie_mesh_primitive_sphere_radius"] = utils.radius(ob, scale=self.to_halo_scale)
+                props["bungie_mesh_primitive_sphere_radius"] = utils.radius(ob, scale=self.to_maya_scale)
                 name = "sphere"
             case '_connected_geometry_primitive_type_pill':
                 utils.set_origin_to_floor(ob)
-                props["bungie_mesh_primitive_pill_radius"] = utils.radius(ob, True, scale=self.to_halo_scale)
-                props["bungie_mesh_primitive_pill_height"] = ob.dimensions.z * self.to_halo_scale
+                props["bungie_mesh_primitive_pill_radius"] = utils.radius(ob, True, scale=self.to_maya_scale)
+                props["bungie_mesh_primitive_pill_height"] = ob.dimensions.z * self.to_maya_scale
                 name = "pill"
             case '_connected_geometry_primitive_type_box':
                 utils.set_origin_to_floor(ob)
-                props["bungie_mesh_primitive_box_width"] =  ob.dimensions.x * self.to_halo_scale
-                props["bungie_mesh_primitive_box_length"] = ob.dimensions.y * self.to_halo_scale
-                props["bungie_mesh_primitive_box_height"] = ob.dimensions.z * self.to_halo_scale
+                props["bungie_mesh_primitive_box_width"] =  ob.dimensions.x * self.to_maya_scale
+                props["bungie_mesh_primitive_box_length"] = ob.dimensions.y * self.to_maya_scale
+                props["bungie_mesh_primitive_box_height"] = ob.dimensions.z * self.to_maya_scale
                 name = "box"
                 
         if ob.nwo.global_material.strip():
