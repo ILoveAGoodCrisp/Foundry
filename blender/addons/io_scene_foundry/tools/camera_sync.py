@@ -115,7 +115,7 @@ def sync_reach_tag_test(location, yaw, pitch, roll, in_camera, context):
     pm.write_float(0x141EFA350, fov)
     
 def sync_corinth_sapien(location, yaw, pitch, roll, in_camera, context):
-    camera_address = resolve_pointer_chain(pm, base, [0x1A0, 0x8, 0x20])
+    camera_address = resolve_pointer_chain(pm, base + 0x04F966E8, [0x8, 0x20])
     write_camera(pm, camera_address, (location[0], location[1], location[2], yaw + r90, pitch - r90, roll))
     if in_camera:
         fov = np.median([math.degrees(context.scene.camera.data.angle), 1, 150])
@@ -143,7 +143,7 @@ def sync_camera_to_game(context: bpy.types.Context):
         exe_name = Path(utils.get_exe("sapien")).name
         if not base:
             pm = pymem.Pymem(exe_name)
-            base = pymem.process.module_from_name(pm.process_handle, exe_name).lpBaseOfDll + 0x0227F5C0
+            base = pymem.process.module_from_name(pm.process_handle, exe_name).lpBaseOfDll
         sync_corinth_sapien(location, yaw, pitch, roll, in_camera, context)
     else:
         exe_name = Path(utils.get_exe("tag_test")).name
