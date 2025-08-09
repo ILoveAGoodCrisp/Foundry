@@ -96,16 +96,15 @@ def write_camera(pm, address, floats):
     pm.write_bytes(address, byte_array, len(byte_array))
 
 def sync_reach_tag_test(location, yaw, pitch, roll, in_camera, context):
-    # try:
-    camera_address = resolve_pointer_chain(pm, base + 0x04063500, [0xE0, 0x20])
-    write_camera(pm, camera_address, (location[0], location[1], location[2], yaw + r90, pitch - r90, roll))
-    # except:
-    #     pass
-    #     # try:
-    #     #     camera_address = resolve_pointer_chain(pm, base + 0x01431D6C, [0x468, 0x0, 0x5F0, 0x58, 0x28])
-    #     #     write_camera(pm, camera_address, (location[0], location[1], location[2], yaw + r90, pitch - r90, roll))
-    #     # except:
-    #     #     pass
+    try:
+        camera_address = resolve_pointer_chain(pm, base + 0x04063500, [0xE0, 0x20])
+        write_camera(pm, camera_address, (location[0], location[1], location[2], yaw + r90, pitch - r90, roll))
+    except:
+        try:
+            camera_address = resolve_pointer_chain(pm, base + 0x01D2C0A0, [0x268, 0x1D4, 0x20])
+            write_camera(pm, camera_address, (location[0], location[1], location[2], yaw + r90, pitch - r90, roll))
+        except:
+            pass
         
     if in_camera:
         fov = np.median([math.degrees(context.scene.camera.data.angle), 1, 150])
