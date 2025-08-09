@@ -67,22 +67,22 @@ def register():
     preview_collections["foundry"] = foundry_icons
     icons_activate()
     
-    if _rebuild_previews not in bpy.app.handlers.load_post:
-        bpy.app.handlers.load_post.append(_rebuild_previews)
-    if _rebuild_previews not in bpy.app.handlers.undo_post:
-        bpy.app.handlers.undo_post.append(_rebuild_previews)
-    if _rebuild_previews not in bpy.app.handlers.redo_post:
-        bpy.app.handlers.redo_post.append(_rebuild_previews)
+    # if _rebuild_previews not in bpy.app.handlers.load_post:
+    #     bpy.app.handlers.load_post.append(_rebuild_previews)
+    # if _rebuild_previews not in bpy.app.handlers.undo_post:
+    #     bpy.app.handlers.undo_post.append(_rebuild_previews)
+    # if _rebuild_previews not in bpy.app.handlers.redo_post:
+    #     bpy.app.handlers.redo_post.append(_rebuild_previews)
 
 def unregister():
-    for lst in (bpy.app.handlers.load_post,
-                bpy.app.handlers.undo_post,
-                bpy.app.handlers.redo_post):
-        try:
-            while _rebuild_previews in lst:
-                lst.remove(_rebuild_previews)
-        except Exception:
-            pass
+    # for lst in (bpy.app.handlers.load_post,
+    #             bpy.app.handlers.undo_post,
+    #             bpy.app.handlers.redo_post):
+    #     try:
+    #         while _rebuild_previews in lst:
+    #             lst.remove(_rebuild_previews)
+    #     except Exception:
+    #         pass
 
     for icon in list(preview_collections.values()):
         try:

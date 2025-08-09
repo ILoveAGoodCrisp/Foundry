@@ -228,7 +228,9 @@ def launch_game(is_sapien, settings, filepath, scene_nwo, ignore_play=False):
     asset_type = scene_nwo.asset_type
     if asset_type in {"scenario", "cinematic"} and settings.game_default == "asset":
         if asset_type == "scenario":
-            filepath = get_tag_if_exists(asset_path, asset_name, "scenario")
+            new_filepath = get_tag_if_exists(asset_path, asset_name, "scenario")
+            if new_filepath:
+                filepath = new_filepath
         else:
             cin_scen_path = Path(get_tags_path(), relative_path(scene_nwo.cinematic_scenario))
             if cin_scen_path.exists() and cin_scen_path.is_file() and cin_scen_path.is_absolute():
