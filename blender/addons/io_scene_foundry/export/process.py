@@ -934,6 +934,8 @@ class ExportScene:
         if not self.corinth:
             self.poop_obs[ob.data].append(poop_render_only)
                 
+        if nwo.poop_chops_portals:
+            props["bungie_mesh_poop_chops_portals"] = 1
         if nwo.poop_does_not_block_aoe:
             props["bungie_mesh_poop_does_not_block_aoe"] = 1
         if nwo.poop_excluded_from_lightprobe:

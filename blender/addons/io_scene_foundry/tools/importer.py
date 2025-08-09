@@ -2716,8 +2716,8 @@ class NWOImporter:
                     ob.nwo.poop_lighting = 'single_probe'
                 case '*':
                     ob.nwo.poop_render_only = True
-                # case '&':
-                #     ob.nwo.poop_chops_portals = True
+                case '&':
+                    ob.nwo.poop_chops_portals = True
                 case '^':
                     ob.nwo.poop_does_not_block_aoe = True
                 case '<':

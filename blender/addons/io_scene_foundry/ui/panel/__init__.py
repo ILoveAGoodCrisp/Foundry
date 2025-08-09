@@ -1745,15 +1745,15 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     col.separator()
 
                     col = col.column(heading="Instance Flags")
-                    # col.prop(
-                    #     nwo,
-                    #     "poop_chops_portals",
-                    #     text="Chops Portals",
-                    # )
                     col.prop(
                         nwo,
                         "poop_render_only",
                         text="Render Only",
+                    )
+                    col.prop(
+                        nwo,
+                        "poop_chops_portals",
+                        text="Chops Portals",
                     )
                     col.prop(
                         nwo,

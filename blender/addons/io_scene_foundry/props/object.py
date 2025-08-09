@@ -421,7 +421,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     poop_chops_portals: bpy.props.BoolProperty(
         name="Chops Portals",
         options=set(),
-        description="Doesn't work",
+        description="Lets this instance chop a portal the same way structure geometry does",
         default=False,
     )
 
