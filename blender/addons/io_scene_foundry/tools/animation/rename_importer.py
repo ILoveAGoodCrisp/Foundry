@@ -31,20 +31,20 @@ class RenameParser:
         stripped_line = line.strip(' .>#"[]\'')
         no_quotes = stripped_line.replace('"', '').replace("'", "")
         parts = no_quotes.split()
-        separator = "="
+        separator = " = "
         for part in parts:
             if part == "=":
-                separator = "="
+                separator = " = "
                 break
             elif part == "==>":
-                separator = "==>"
+                separator = " ==> "
                 break
             elif part == "to":
-                separator = "to"
+                separator = " to "
                 break
         else:
             if "=" in line:
-                separator = "="
+                separator = " = "
             else:
                 return None, None, False
         
@@ -85,12 +85,15 @@ class NWO_OT_RenameImporter(bpy.types.Operator):
     
     def create_renames(self, renames: dict):
         for animation in bpy.context.scene.nwo.animations:
+            anim_name = animation.name.lower()
             for source, new in renames.items():
-                source_clean = source.replace(":", " ").lower()
-                if source_clean != animation.name: continue
-                existing_renames = [item.name for item in animation.animation_renames]
+                source_clean = source.lower()
+                if source_clean != anim_name:
+                    continue
+
+                existing_renames = [item.name.lower() for item in animation.animation_renames]
                 for name in new:
-                    name_clean = name.replace(":", " ").lower()
+                    name_clean = name.lower()
                     if name_clean not in existing_renames:
                         item = animation.animation_renames.add()
                         item.name = name_clean
@@ -99,11 +102,15 @@ class NWO_OT_RenameImporter(bpy.types.Operator):
     def create_copies(self, context, copies: dict):
         nwo = context.scene.nwo
         for source, new in copies.items():
-            source_clean = source.replace(":", " ").lower()
+            source_clean = source.lower()
             for name in new:
-                name_clean = name.replace(":", " ").lower()
-                existing_copies = [f"{item.source_name}:{item.name}" for item in nwo.animation_copies]
-                if f"{source_clean}:{name_clean}" not in existing_copies:
+                name_clean = name.lower()
+                existing_copies = [
+                    f"{item.source_name.lower()}:{item.name.lower()}" 
+                    for item in nwo.animation_copies
+                ]
+                key = f"{source_clean}:{name_clean}"
+                if key not in existing_copies:
                     item = nwo.animation_copies.add()
                     item.source_name = source_clean
                     item.name = name_clean
