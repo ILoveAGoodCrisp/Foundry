@@ -228,7 +228,8 @@ class TableEntrySelect(bpy.types.Operator):
         table_active_index = getattr(nwo, table_active_index_str)
         entry = table[table_active_index]
         available_objects = [ob for ob in context.view_layer.objects if has_region_or_perm(ob)]
-        entry_objects = [ob for ob in available_objects if true_table_entry(ob, self.ob_prop_str, entry.name)]
+        collection_map = create_parent_mapping(context)
+        entry_objects = [ob for ob in available_objects if true_table_entry(ob, self.ob_prop_str, entry.name, collection_map)]
         [ob.select_set(self.select) for ob in entry_objects]
         return {'FINISHED'}
     
