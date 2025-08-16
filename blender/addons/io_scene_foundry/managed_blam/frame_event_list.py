@@ -189,9 +189,9 @@ class AnimationEvent:
                 case 'EFFECT':
                     effect = EffectEvent()
                     effect.frame_offset = data.frame_offset
-                    if effect.marker is not None:
+                    if data.marker is not None:
                         effect.marker_name = data.marker.nwo.marker_model_group
-                    effect.sound_reference = unique_effects.get((data.event_sound_tag, data.flag_allow_on_player, data.flag_left_arm_only, data.flag_right_arm_only, data.flag_first_person_only, data.flag_third_person_only, data.flag_forward_only, data.flag_reverse_only, data.flag_fp_no_aged_weapons, data.event_model, data.variant))
+                    effect.effect_reference = unique_effects.get((data.event_sound_tag, data.flag_allow_on_player, data.flag_left_arm_only, data.flag_right_arm_only, data.flag_first_person_only, data.flag_third_person_only, data.flag_forward_only, data.flag_reverse_only, data.flag_fp_no_aged_weapons, data.event_model, data.variant))
                     effect.damage_effect_reporting_type = data.damage_effect_reporting_type
                     if effect.effect_reference is not None:
                         self.effect_events.append(effect)
