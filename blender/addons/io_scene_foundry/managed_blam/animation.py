@@ -365,6 +365,11 @@ class AnimationTag(Tag):
                 elif "pitch" in state and "turn" in state:
                     yaw_source_value = "first person turn"
                     pitch_source_value = "first person pitch"
+                elif "defense" in state:
+                    yaw_source_value = "defense yaw"
+                    pitch_source_value = "defense pitch"
+                    weight_source_value = "defense"
+                    interpolation_rate = "0.25"
                     
                 if state.endswith("_down"):
                     flag_weapon_down = True

@@ -312,8 +312,6 @@ class FrameEventListTag(Tag):
                 
                 data_only_event = animation_event.type == "none"
                 
-                print()
-                
                 if not data_only_event:
                     event = frame_event.Fields[2].AddElement()
                     event.Fields[0].SetStringData(animation_event.name)
