@@ -901,7 +901,7 @@ class AnimationTag(Tag):
         
     def events_to_blender(self) -> int:
         '''Create AnimationEvents from legacy graph events'''
-        event_list_events = []
+        event_list_events = {}
         frame_event_list_path = self.get_frame_event_list()
         if not frame_event_list_path:
             utils.print_warning(f"Animation graph contains no reference to a frame event list")
