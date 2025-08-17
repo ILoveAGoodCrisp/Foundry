@@ -1022,7 +1022,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 col = box.column()
                 col.use_property_split = True
                 box = col.box()
-                box.label(text="Blend Axes")
+                box.label(text="Sub Blend Axes")
                 row = box.row()
                 row.template_list(
                     "NWO_UL_AnimationSubBlendAxis",
@@ -1128,7 +1128,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                         
                         self.draw_animation_leaves(col, phase_set, True, sub_axis=True)
                         
-                if not blend_axis.groups:
+                if not sub_blend_axis.groups:
                     col.operator("nwo.animation_group_add", text="Add Animation Group", icon='GROUP_VERTEX')
                 else:
                     box = col.box()
@@ -1137,9 +1137,9 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     row.template_list(
                         "NWO_UL_AnimationGroup",
                         "",
-                        blend_axis,
+                        sub_blend_axis,
                         "groups",
-                        blend_axis,
+                        sub_blend_axis,
                         "groups_active_index",
                     )
                     col = row.column(align=True)
@@ -1149,7 +1149,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     col.operator("nwo.animation_group_move", text="", icon="TRIA_UP").direction = 'up'
                     col.operator("nwo.animation_group_move", icon="TRIA_DOWN", text="").direction = 'down'
                     
-                    group = blend_axis.groups[blend_axis.groups_active_index]
+                    group = sub_blend_axis.groups[sub_blend_axis.groups_active_index]
                     col = box.column()
                     col.use_property_split = True
                     col.prop(group, "uses_move_speed")

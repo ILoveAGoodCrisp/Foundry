@@ -554,7 +554,7 @@ class NWO_OT_NewAnimation(bpy.types.Operator):
 
     mode: bpy.props.StringProperty(
         name="Mode",
-        description="The mode the object must be in to use this animation. Use 'any' for all modes. Other valid inputs inlcude but are not limited to: 'crouch' when a unit is crouching,  'combat' when a unit is in combat. Modes can also refer to vehicle seats. For example an animation for a unit driving a warthog would use 'warthog_d'. For more information refer to existing model_animation_graph tags. Can be empty",
+        description="The mode the object must be in to use this animation. Use 'any' for all modes. Other valid inputs include but are not limited to: 'crouch' when a unit is crouching,  'combat' when a unit is in combat. Modes can also refer to vehicle seats. For example an animation for a unit driving a warthog would use 'warthog_d'. For more information refer to existing model_animation_graph tags. Can be empty",
     )
 
     weapon_class: bpy.props.StringProperty(

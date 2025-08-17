@@ -92,7 +92,7 @@ class NWO_AnimationDeadZonesItems(PropertyGroup):
     bounds: bpy.props.FloatVectorProperty(name="Dead Zone Bounds", options=set(), size=2, subtype='COORDINATES', min=0)
     rate: bpy.props.FloatProperty(name="Dead Zone Rate", options=set(), min=0, default=90)
 
-class NWO_AnimationBlendAxisSubItems(PropertyGroup):
+class NWO_AnimationSubBlendAxisItems(PropertyGroup):
     name: bpy.props.EnumProperty(
         name="Type",
         options=set(),
@@ -181,7 +181,7 @@ class NWO_AnimationBlendAxisItems(PropertyGroup):
     groups: bpy.props.CollectionProperty(name="Animation Groups", options=set(), type=NWO_AnimationGroupItems)
     
     blend_axis_active_index: bpy.props.IntProperty(options=set())
-    blend_axis: bpy.props.CollectionProperty(name="Blend Axis", options=set(), type=NWO_AnimationBlendAxisSubItems)
+    blend_axis: bpy.props.CollectionProperty(name="Blend Axis", options=set(), type=NWO_AnimationSubBlendAxisItems)
 
 class NWO_AnimationCompositesItems(PropertyGroup):
     name: bpy.props.StringProperty(name="Name", options=set())
@@ -1057,7 +1057,7 @@ class NWO_AnimationPropertiesGroup(bpy.types.PropertyGroup):
         name="Mode",
         options=set(),
         description="""The mode the object must be in to use this animation. Use 'any' for all modes. Other valid
-        inputs inlcude but are not limited to: 'crouch' when a unit is crouching, 
+        inputs include but are not limited to: 'crouch' when a unit is crouching, 
         'combat' when a unit is in combat. Modes can also refer
         to vehicle seats. For example an animation for a unit driving a warthog would use 'warthog_d'. For more
         information refer to existing model_animation_graph tags. Can be empty""",
