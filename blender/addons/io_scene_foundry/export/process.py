@@ -2018,7 +2018,6 @@ class ExportScene:
             
         # for collection in self.disabled_collections:
         #     collection.exclude = False
-        
 
         self.context.scene.frame_set(self.current_frame)
         

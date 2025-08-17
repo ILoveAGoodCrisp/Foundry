@@ -56,6 +56,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     node_order_source: bpy.props.StringProperty(
         name="Original Render Model",
         description="Tag relative path to the render_model tag which provides the bone order for this armature",
+        update=node_order_source_clean_tag_path,
     )
     
     # CINEMATIC

@@ -405,8 +405,7 @@ class FrameEventListTag(Tag):
                 if element.SelectField("ShortBlockIndex:sound").Value > -1:
                     sound_event = SoundEvent()
                     sound_event.from_element(element, unique_sounds)
-                    if sound_event.animation_event_index > -1:
-                        
+                    if sound_event.animation_event_index > -1 and sound_event.animation_event_index < len(animation_events):
                         animation_events[sound_event.animation_event_index].sound_events.append(sound_event)
                     elif animation_events:
                         closest_animation_event = min(animation_events, key=lambda ae: abs(ae.frame - sound_event.frame_offset))
@@ -423,7 +422,7 @@ class FrameEventListTag(Tag):
                 if element.SelectField("ShortBlockIndex:effect").Value > -1:
                     effect_event = EffectEvent()
                     effect_event.from_element(element, unique_effects)
-                    if effect_event.animation_event_index > -1:
+                    if effect_event.animation_event_index > -1 and effect_event.animation_event_index < len(animation_events):
                         animation_events[effect_event.animation_event_index].effect_events.append(effect_event)
                     elif animation_events:
                         closest_animation_event = min(animation_events, key=lambda ae: abs(ae.frame - effect_event.frame_offset))
@@ -439,7 +438,7 @@ class FrameEventListTag(Tag):
             for element in frame_event.SelectField("Block:dialogue events").Elements:
                 dialogue_event = DialogueEvent()
                 dialogue_event.from_element(element)
-                if dialogue_event.animation_event_index > -1:
+                if dialogue_event.animation_event_index > -1 and dialogue_event.animation_event_index < len(animation_events):
                     animation_events[dialogue_event.animation_event_index].dialogue_events.append(dialogue_event)
                 elif animation_events:
                     closest_animation_event = min(animation_events, key=lambda ae: abs(ae.frame - dialogue_event.frame_offset))
