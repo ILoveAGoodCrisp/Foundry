@@ -892,9 +892,14 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             blend_axis = item.blend_axis[item.blend_axis_active_index]
             col = box.column()
             col.use_property_split = True
-            col.prop(blend_axis, "animation_source_bounds")
+            col.prop(blend_axis, "animation_source_bounds_manual")
+            if blend_axis.animation_source_bounds_manual:
+                col.prop(blend_axis, "animation_source_bounds")
             col.prop(blend_axis, "animation_source_limit")
-            col.prop(blend_axis, "runtime_source_bounds")
+            col.separator()
+            col.prop(blend_axis, "runtime_source_bounds_manual")
+            if blend_axis.runtime_source_bounds_manual:
+                col.prop(blend_axis, "runtime_source_bounds")
             col.prop(blend_axis, "runtime_source_clamped")
             col.prop(blend_axis, "adjusted")
             if not blend_axis.dead_zones:
@@ -978,12 +983,196 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     grid.prop(phase_set, 'key_effect_event')
                     
                     self.draw_animation_leaves(col, phase_set, True)
+                    
+            if not blend_axis.groups:
+                col.operator("nwo.animation_group_add", text="Add Animation Group", icon='GROUP_VERTEX')
+            else:
+                box = col.box()
+                box.label(text="Groups")
+                row = box.row()
+                row.template_list(
+                    "NWO_UL_AnimationGroup",
+                    "",
+                    blend_axis,
+                    "groups",
+                    blend_axis,
+                    "groups_active_index",
+                )
+                col = row.column(align=True)
+                col.operator("nwo.animation_group_add", text="", icon="ADD")
+                col.operator("nwo.animation_group_remove", icon="REMOVE", text="")
+                col.separator()
+                col.operator("nwo.animation_group_move", text="", icon="TRIA_UP").direction = 'up'
+                col.operator("nwo.animation_group_move", icon="TRIA_DOWN", text="").direction = 'down'
+                
+                group = blend_axis.groups[blend_axis.groups_active_index]
+                col = box.column()
+                col.use_property_split = True
+                col.prop(group, "uses_move_speed")
+                if group.uses_move_speed:
+                    col.prop(group, "move_speed")
+                col.prop(group, "uses_move_angle")
+                if group.uses_move_angle:
+                    col.prop(group, "move_angle")
+                    
+                self.draw_animation_leaves(col, group, in_group=True)
             
+            if blend_axis.blend_axis:
+                sub_blend_axis = blend_axis.blend_axis[blend_axis.blend_axis_active_index]
+                col = box.column()
+                col.use_property_split = True
+                box = col.box()
+                box.label(text="Blend Axes")
+                row = box.row()
+                row.template_list(
+                    "NWO_UL_AnimationSubBlendAxis",
+                    "",
+                    blend_axis,
+                    "blend_axis",
+                    blend_axis,
+                    "blend_axis_active_index",
+                )
+                col = row.column(align=True)
+                col.operator("nwo.animation_sub_blend_axis_add", text="", icon="ADD")
+                col.operator("nwo.animation_sub_blend_axis_remove", icon="REMOVE", text="")
+                col.separator()
+                col.operator("nwo.animation_sub_blend_axis_move", text="", icon="TRIA_UP").direction = 'up'
+                col.operator("nwo.animation_sub_blend_axis_move", icon="TRIA_DOWN", text="").direction = 'down'
+
+                col = box.column()
+                col.use_property_split = True
+                col.prop(sub_blend_axis, "animation_source_bounds")
+                col.prop(sub_blend_axis, "animation_source_limit")
+                col.prop(sub_blend_axis, "runtime_source_bounds")
+                col.prop(sub_blend_axis, "runtime_source_clamped")
+                col.prop(sub_blend_axis, "adjusted")
+                if not sub_blend_axis.dead_zones:
+                    col.operator("nwo.animation_dead_zone_add", text="Add Dead Zone", icon='CON_OBJECTSOLVER')
+                else:
+                    box = col.box()
+                    box.label(text="Dead Zones")
+                    row = box.row()
+                    row.template_list(
+                        "NWO_UL_AnimationDeadZone",
+                        "",
+                        sub_blend_axis,
+                        "dead_zones",
+                        sub_blend_axis,
+                        "dead_zones_active_index",
+                    )
+                    col = row.column(align=True)
+                    col.operator("nwo.animation_dead_zone_add", text="", icon="ADD")
+                    col.operator("nwo.animation_dead_zone_remove", icon="REMOVE", text="")
+                    col.separator()
+                    col.operator("nwo.animation_dead_zone_move", text="", icon="TRIA_UP").direction = 'up'
+                    col.operator("nwo.animation_dead_zone_move", icon="TRIA_DOWN", text="").direction = 'down'
+                    if sub_blend_axis.dead_zones and sub_blend_axis.dead_zones_active_index > -1:
+                        dead_zone = sub_blend_axis.dead_zones[sub_blend_axis.dead_zones_active_index]
+                        col = box.column()
+                        col.use_property_split = True
+                        col.prop(dead_zone, "bounds")
+                        col.prop(dead_zone, "rate")
+                    
+                self.draw_animation_leaves(col, sub_blend_axis, False, sub_axis=True)
+                if not sub_blend_axis.phase_sets:
+                    col.operator("nwo.animation_phase_set_add", text="Add Animation Set", icon='PRESET')
+                else:
+                    box = col.box()
+                    box.label(text="Sets")
+                    row = box.row()
+                    row.template_list(
+                        "NWO_UL_AnimationPhaseSet",
+                        "",
+                        sub_blend_axis,
+                        "phase_sets",
+                        sub_blend_axis,
+                        "phase_sets_active_index",
+                    )
+                    col = row.column(align=True)
+                    col.operator("nwo.animation_phase_set_add", text="", icon="ADD")
+                    col.operator("nwo.animation_phase_set_remove", icon="REMOVE", text="")
+                    col.separator()
+                    col.operator("nwo.animation_phase_set_move", text="", icon="TRIA_UP").direction = 'up'
+                    col.operator("nwo.animation_phase_set_move", icon="TRIA_DOWN", text="").direction = 'down'
+                    if sub_blend_axis.phase_sets and sub_blend_axis.phase_sets_active_index > -1:
+                        phase_set = sub_blend_axis.phase_sets[sub_blend_axis.phase_sets_active_index]
+                        col = box.column()
+                        col.use_property_split = True
+                        col.prop(phase_set, "name")
+                        col.prop(phase_set, "priority")
+                        col.label(text="Keys")
+                        grid = col.grid_flow()
+                        grid.prop(phase_set, 'key_primary_keyframe')
+                        grid.prop(phase_set, 'key_secondary_keyframe')
+                        grid.prop(phase_set, 'key_tertiary_keyframe')
+                        grid.prop(phase_set, 'key_left_foot')
+                        grid.prop(phase_set, 'key_right_foot')
+                        grid.prop(phase_set, 'key_body_impact')
+                        grid.prop(phase_set, 'key_left_foot_lock')
+                        grid.prop(phase_set, 'key_left_foot_unlock')
+                        grid.prop(phase_set, 'key_right_foot_lock')
+                        grid.prop(phase_set, 'key_right_foot_unlock')
+                        grid.prop(phase_set, 'key_blend_range_marker')
+                        grid.prop(phase_set, 'key_stride_expansion')
+                        grid.prop(phase_set, 'key_stride_contraction')
+                        grid.prop(phase_set, 'key_ragdoll_keyframe')
+                        grid.prop(phase_set, 'key_drop_weapon_keyframe')
+                        grid.prop(phase_set, 'key_match_a')
+                        grid.prop(phase_set, 'key_match_b')
+                        grid.prop(phase_set, 'key_match_c')
+                        grid.prop(phase_set, 'key_match_d')
+                        grid.prop(phase_set, 'key_jetpack_closed')
+                        grid.prop(phase_set, 'key_jetpack_open')
+                        grid.prop(phase_set, 'key_sound_event')
+                        grid.prop(phase_set, 'key_effect_event')
+                        
+                        self.draw_animation_leaves(col, phase_set, True, sub_axis=True)
+                        
+                if not blend_axis.groups:
+                    col.operator("nwo.animation_group_add", text="Add Animation Group", icon='GROUP_VERTEX')
+                else:
+                    box = col.box()
+                    box.label(text="Groups")
+                    row = box.row()
+                    row.template_list(
+                        "NWO_UL_AnimationGroup",
+                        "",
+                        blend_axis,
+                        "groups",
+                        blend_axis,
+                        "groups_active_index",
+                    )
+                    col = row.column(align=True)
+                    col.operator("nwo.animation_group_add", text="", icon="ADD")
+                    col.operator("nwo.animation_group_remove", icon="REMOVE", text="")
+                    col.separator()
+                    col.operator("nwo.animation_group_move", text="", icon="TRIA_UP").direction = 'up'
+                    col.operator("nwo.animation_group_move", icon="TRIA_DOWN", text="").direction = 'down'
+                    
+                    group = blend_axis.groups[blend_axis.groups_active_index]
+                    col = box.column()
+                    col.use_property_split = True
+                    col.prop(group, "uses_move_speed")
+                    if group.uses_move_speed:
+                        col.prop(group, "move_speed")
+                    col.prop(group, "uses_move_angle")
+                    if group.uses_move_angle:
+                        col.prop(group, "move_angle")
+                        
+                    self.draw_animation_leaves(col, group, in_group=True, sub_axis=True)
+                        
+            else:
+                col.operator("nwo.animation_sub_blend_axis_add", text="Add Sub Blend Axis", icon="ADD")
+                
             
-    def draw_animation_leaves(self, col: bpy.types.UILayout, parent, in_set):
+    def draw_animation_leaves(self, col: bpy.types.UILayout, parent, in_set=False, in_group=False, sub_axis=False):
         box = col.box()
-        name = "Set Animations" if in_set else "Blend Axis Animations"
-        box.label(text=name)
+        if in_set:
+            box.label(text="Phase Set Animations")
+        elif in_group:
+            box.label(text="Group Animations")
+        else:
+            box.label(text="Blend Axis Animations")
         row = box.row()
         row.template_list(
             "NWO_UL_AnimationLeaf",
@@ -994,15 +1183,25 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             "leaves_active_index",
         )
         col = row.column(align=True)
-        col.operator("nwo.animation_leaf_add", text="", icon="ADD").phase_set = in_set
-        col.operator("nwo.animation_leaf_remove", icon="REMOVE", text="").phase_set = in_set
+        add = col.operator("nwo.animation_leaf_add", text="", icon="ADD")
+        add.phase_set = in_set
+        add.group = in_group
+        add.sub_axis = sub_axis
+        remove = col.operator("nwo.animation_leaf_remove", icon="REMOVE", text="")
+        remove.phase_set = in_set
+        remove.group = in_group
+        remove.sub_axis = sub_axis
         col.separator()
         move_up = col.operator("nwo.animation_leaf_move", text="", icon="TRIA_UP")
         move_up.direction = 'up'
         move_up.phase_set = in_set
+        move_up.group = in_group
+        move_up.sub_axis = sub_axis
         move_down = col.operator("nwo.animation_leaf_move", icon="TRIA_DOWN", text="")
         move_down.direction = 'down'
         move_down.phase_set = in_set
+        move_down.group = in_group
+        move_down.sub_axis = sub_axis
         if parent.leaves and parent.leaves_active_index > -1:
             leaf = parent.leaves[parent.leaves_active_index]
             col = box.column()

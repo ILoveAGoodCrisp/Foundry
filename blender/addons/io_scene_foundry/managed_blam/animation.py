@@ -939,7 +939,7 @@ class AnimationTag(Tag):
             if blender_animation is None:
                 blender_animation = blender_animations.get(name)
                 if not blender_animation:
-                    utils.print_warning(f"--- Animation graph contains animation {name_with_spaces} but Blender does not")
+                    # utils.print_warning(f"--- Animation graph contains animation {name_with_spaces} but Blender does not")
                     continue
                 
             print(f"--- Getting events for {blender_animation.name}")

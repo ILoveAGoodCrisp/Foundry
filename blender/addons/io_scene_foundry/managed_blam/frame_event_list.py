@@ -298,7 +298,7 @@ class FrameEventListTag(Tag):
             if blender_animation is None:
                 blender_animation = blender_animations.get(animation.name)
                 if not blender_animation:
-                    utils.print_warning(f"--- Animation Graph contains animation {name_with_spaces} but Blender does not (or it is not set to export)")
+                    # utils.print_warning(f"--- Animation Graph contains animation {name_with_spaces} but Blender does not (or it is not set to export)")
                     continue
                 
             if not blender_animation.animation_events:
@@ -389,7 +389,7 @@ class FrameEventListTag(Tag):
             if blender_animation is None:
                 blender_animation = blender_animations.get(name)
                 if not blender_animation:
-                    utils.print_warning(f"--- Frame Events List contains animation {name_with_spaces} but Blender does not")
+                    # utils.print_warning(f"--- Frame Events List contains animation {name_with_spaces} but Blender does not")
                     continue
                 
             print(f"--- Getting events for {blender_animation.name}")

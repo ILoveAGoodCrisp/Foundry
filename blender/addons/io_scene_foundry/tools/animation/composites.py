@@ -50,15 +50,18 @@ class NWO_OT_AnimationCompositeAdd(bpy.types.Operator):
     
     mode: bpy.props.StringProperty(
         name="Mode",
+        default="combat",
         description="The mode the object must be in to use this animation. Use 'any' for all modes. Other valid inputs inlcude but are not limited to: 'crouch' when a unit is crouching,  'combat' when a unit is in combat. Modes can also refer to vehicle seats. For example an animation for a unit driving a warthog would use 'warthog_d'. For more information refer to existing model_animation_graph tags. Can be empty",
     )
 
     weapon_class: bpy.props.StringProperty(
         name="Weapon Class",
+        default="any",
         description="The weapon class this unit must be holding to use this animation. Weapon class is defined per weapon in .weapon tags (under Group WEAPON > weapon labels). Can be empty",
     )
     state: bpy.props.EnumProperty(
         name="State",
+        description="Animation state. You can rename this after creating the composite if you would like a state not listed below",
         items=[
             ("locomote", "locomote", ""),
             ("aim_locomote_up", "aim_locomote_up", ""),
@@ -66,6 +69,11 @@ class NWO_OT_AnimationCompositeAdd(bpy.types.Operator):
             ("turn_right_composite", "turn_right_composite", ""),
             ("jump", "jump", ""),
         ]
+    )
+    
+    use_preset: bpy.props.BoolProperty(
+        name="Use Preset",
+        description="Adds default fields for the selected state"
     )
     
     def build_name(self):
@@ -97,6 +105,7 @@ class NWO_OT_AnimationCompositeAdd(bpy.types.Operator):
         col.prop(self, "mode")
         col.prop(self, "weapon_class")
         col.prop(self, "state", text="State")
+        col.prop(self, "use_preset")
     
 class NWO_OT_AnimationCompositeRemove(bpy.types.Operator):
     bl_label = "Remove Composite Animation"
@@ -130,6 +139,80 @@ class NWO_OT_AnimationCompositeMove(bpy.types.Operator):
         context.area.tag_redraw()
         return {'FINISHED'}
             
+class NWO_UL_AnimationSubBlendAxis(bpy.types.UIList):
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
+        if item:
+            # row.alignment = 'LEFT'
+            layout.prop(item, 'name', emboss=False, text="", icon='INDIRECT_ONLY_OFF')
+        else:
+            layout.label(text="", translate=False, icon_value=icon)
+            
+class NWO_OT_AnimationSubBlendAxisAdd(bpy.types.Operator):
+    bl_label = "Add Blend Axis"
+    bl_idname = "nwo.animation_sub_blend_axis_add"
+    bl_options = {'UNDO'}
+    
+    blend_axis: bpy.props.EnumProperty(
+        name="Blend Axis",
+        items=[
+            ("movement_angles", "Movement Angles", ""), # linear_movement_angle get_move_angle
+            ("movement_speed", "Movement Speed", ""), # linear_movement_speed get_move_speed
+            ("turn_rate", "Turn Rate", ""), # average_angular_rate get_turn_rate
+            ("vertical", "Vertical", ""), # translation_offset_z get_destination_vertical
+            ("horizontal", "Horizontal", ""), # translation_offset_horizontal get_destination_forward
+        ]
+    )
+    
+    def execute(self, context):
+        composite = context.scene.nwo.animation_composites[context.scene.nwo.animation_composites_active_index]
+        blend_axis = composite.blend_axis[composite.blend_axis_active_index]
+        table = blend_axis.blend_axis
+        entry = table.add()
+        entry.name = self.blend_axis
+        blend_axis.blend_axis_active_index = len(table) - 1
+        context.area.tag_redraw()
+        return {'FINISHED'}
+    
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+    
+    def draw(self, context):
+        self.layout.prop(self, 'blend_axis')
+        
+class NWO_OT_AnimationSubBlendAxisRemove(bpy.types.Operator):
+    bl_label = "Remove Blend Axis"
+    bl_idname = "nwo.animation_sub_blend_axis_remove"
+    bl_options = {'UNDO'}
+
+    def execute(self, context):
+        composite = context.scene.nwo.animation_composites[context.scene.nwo.animation_composites_active_index]
+        blend_axis = composite.blend_axis[composite.blend_axis_active_index]
+        table = blend_axis.blend_axis
+        table.remove(blend_axis.blend_axis_active_index)
+        if blend_axis.blend_axis_active_index > len(table) - 1:
+            blend_axis.blend_axis_active_index -= 1
+        context.area.tag_redraw()
+        return {'FINISHED'}
+    
+class NWO_OT_AnimationSubBlendAxisMove(bpy.types.Operator):
+    bl_label = "Move Blend Axis"
+    bl_idname = "nwo.animation_sub_blend_axis_move"
+    bl_options = {'UNDO'}
+    
+    direction: bpy.props.StringProperty()
+
+    def execute(self, context):
+        composite = context.scene.nwo.animation_composites[context.scene.nwo.animation_composites_active_index]
+        blend_axis = composite.blend_axis[composite.blend_axis_active_index]
+        table = blend_axis.blend_axis
+        delta = {"down": 1, "up": -1,}[self.direction]
+        current_index = blend_axis.blend_axis_active_index
+        to_index = (current_index + delta) % len(table)
+        table.move(current_index, to_index)
+        blend_axis.blend_axis_active_index = to_index
+        context.area.tag_redraw()
+        return {'FINISHED'}
+    
 class NWO_UL_AnimationBlendAxis(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
         if item:
@@ -257,6 +340,62 @@ class NWO_OT_AnimationDeadZoneMove(bpy.types.Operator):
         context.area.tag_redraw()
         return {'FINISHED'}
     
+class NWO_UL_AnimationGroup(bpy.types.UIList):
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
+        if item:
+            layout.prop(item, 'name', emboss=False, text="", icon='GROUP_VERTEX')
+        else:
+            layout.label(text="", translate=False, icon_value=icon)
+            
+class NWO_OT_AnimationGroupAdd(bpy.types.Operator):
+    bl_label = "Add Animation Group"
+    bl_idname = "nwo.animation_group_add"
+    bl_options = {'UNDO'}
+    
+    def execute(self, context):
+        composite = context.scene.nwo.animation_composites[context.scene.nwo.animation_composites_active_index]
+        blend_axis = composite.blend_axis[composite.blend_axis_active_index]
+        table = blend_axis.groups
+        entry = table.add()
+        blend_axis.groups_active_index = len(table) - 1
+        entry.name = f"group{blend_axis.groups_active_index}"
+        context.area.tag_redraw()
+        return {'FINISHED'}
+        
+class NWO_OT_AnimationGroupRemove(bpy.types.Operator):
+    bl_label = "Remove Animation Group"
+    bl_idname = "nwo.animation_group_remove"
+    bl_options = {'UNDO'}
+
+    def execute(self, context):
+        composite = context.scene.nwo.animation_composites[context.scene.nwo.animation_composites_active_index]
+        blend_axis = composite.blend_axis[composite.blend_axis_active_index]
+        table = blend_axis.groups
+        table.remove(blend_axis.groups_active_index)
+        if blend_axis.groups_active_index > len(table) - 1:
+            blend_axis.groups_active_index -= 1
+        context.area.tag_redraw()
+        return {'FINISHED'}
+    
+class NWO_OT_AnimationGroupMove(bpy.types.Operator):
+    bl_label = "Move Animation Group"
+    bl_idname = "nwo.animation_group_move"
+    bl_options = {'UNDO'}
+    
+    direction: bpy.props.StringProperty()
+
+    def execute(self, context):
+        composite = context.scene.nwo.animation_composites[context.scene.nwo.animation_composites_active_index]
+        blend_axis = composite.blend_axis[composite.blend_axis_active_index]
+        table = blend_axis.groups
+        delta = {"down": 1, "up": -1,}[self.direction]
+        current_index = blend_axis.groups_active_index
+        to_index = (current_index + delta) % len(table)
+        table.move(current_index, to_index)
+        blend_axis.groups_active_index = to_index
+        context.area.tag_redraw()
+        return {'FINISHED'}
+    
 class NWO_UL_AnimationPhaseSet(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
         if item:
@@ -329,13 +468,19 @@ class NWO_OT_AnimationLeafAdd(bpy.types.Operator):
     bl_options = {'UNDO'}
     
     phase_set: bpy.props.BoolProperty(options={'SKIP_SAVE', 'HIDDEN'})
+    group: bpy.props.BoolProperty(options={'SKIP_SAVE', 'HIDDEN'})
+    sub_axis: bpy.props.BoolProperty(options={'SKIP_SAVE', 'HIDDEN'})
     
     def execute(self, context):
         composite = context.scene.nwo.animation_composites[context.scene.nwo.animation_composites_active_index]
         blend_axis = composite.blend_axis[composite.blend_axis_active_index]
+        if self.sub_axis:
+            blend_axis = blend_axis.blend_axis[blend_axis.blend_axis_active_index]
         
         if self.phase_set:
             parent = blend_axis.phase_sets[blend_axis.phase_sets_active_index]
+        elif self.group:
+            parent = blend_axis.groups[blend_axis.groups_active_index]
         else:
             parent = blend_axis
             
@@ -350,13 +495,19 @@ class NWO_OT_AnimationLeafRemove(bpy.types.Operator):
     bl_options = {'UNDO'}
     
     phase_set: bpy.props.BoolProperty(options={'SKIP_SAVE', 'HIDDEN'})
+    group: bpy.props.BoolProperty(options={'SKIP_SAVE', 'HIDDEN'})
+    sub_axis: bpy.props.BoolProperty(options={'SKIP_SAVE', 'HIDDEN'})
 
     def execute(self, context):
         composite = context.scene.nwo.animation_composites[context.scene.nwo.animation_composites_active_index]
         blend_axis = composite.blend_axis[composite.blend_axis_active_index]
+        if self.sub_axis:
+            blend_axis = blend_axis.blend_axis[blend_axis.blend_axis_active_index]
         
         if self.phase_set:
             parent = blend_axis.phase_sets[blend_axis.phase_sets_active_index]
+        elif self.group:
+            parent = blend_axis.groups[blend_axis.groups_active_index]
         else:
             parent = blend_axis
             
@@ -373,13 +524,19 @@ class NWO_OT_AnimationLeafMove(bpy.types.Operator):
     
     direction: bpy.props.StringProperty()
     phase_set: bpy.props.BoolProperty(options={'SKIP_SAVE', 'HIDDEN'})
+    group: bpy.props.BoolProperty(options={'SKIP_SAVE', 'HIDDEN'})
+    sub_axis: bpy.props.BoolProperty(options={'SKIP_SAVE', 'HIDDEN'})
 
     def execute(self, context):
         composite = context.scene.nwo.animation_composites[context.scene.nwo.animation_composites_active_index]
         blend_axis = composite.blend_axis[composite.blend_axis_active_index]
+        if self.sub_axis:
+            blend_axis = blend_axis.blend_axis[blend_axis.blend_axis_active_index]
         
         if self.phase_set:
             parent = blend_axis.phase_sets[blend_axis.phase_sets_active_index]
+        elif self.group:
+            parent = blend_axis.groups[blend_axis.groups_active_index]
         else:
             parent = blend_axis
             
@@ -397,7 +554,7 @@ class CompositeXML:
         
     def build_xml(self):
         element_composite = ET.Element("composite")
-        timing_name = self.data.timing_source
+        timing_name = utils.space_partition(self.data.timing_source.replace(":", " "), True)
         ET.SubElement(element_composite, "timing", source=timing_name)
         for blend_axis in self.data.blend_axis:
             self.write_blend_axis_entry(element_composite, blend_axis)
@@ -444,8 +601,8 @@ class CompositeXML:
                 animation_source_name = "translation_offset_horizontal"
                 runtime_source_name = "get_destination_forward"
                 
-        ET.SubElement(element_blend_axis, "animation", source=animation_source_name, bounds=self.two_vector_string(blend_axis.animation_source_bounds), limit=str(int(blend_axis.animation_source_limit)))
-        ET.SubElement(element_blend_axis, "runtime", source=runtime_source_name, bounds=self.two_vector_string(blend_axis.runtime_source_bounds), clamped=str(blend_axis.runtime_source_clamped).lower())
+        ET.SubElement(element_blend_axis, "animation", source=animation_source_name, bounds=self.two_vector_string(blend_axis.animation_source_bounds) if blend_axis.animation_source_bounds_manual else "auto", limit=str(int(blend_axis.animation_source_limit)))
+        ET.SubElement(element_blend_axis, "runtime", source=runtime_source_name, bounds=self.two_vector_string(blend_axis.runtime_source_bounds) if blend_axis.runtime_source_bounds_manual else "auto", clamped=str(blend_axis.runtime_source_clamped).lower())
         if blend_axis.adjusted != "none":
             ET.SubElement(element_blend_axis, "adjustment", rate=blend_axis.adjusted)
             
@@ -468,7 +625,7 @@ class CompositeXML:
             self.write_leaf_entry(element_phase_set, leaf)
             
     def write_leaf_entry(self, element, leaf):
-        props = {"source": leaf.animation}
+        props = {"source": utils.space_partition(leaf.animation.replace(":", " "), True)}
         if leaf.uses_move_speed:
             props["get_move_speed"] = str(round(leaf.move_speed, 1))
         if leaf.uses_move_angle:

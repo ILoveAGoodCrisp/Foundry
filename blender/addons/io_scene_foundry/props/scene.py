@@ -39,6 +39,15 @@ class NWO_AnimationLeavesItems(PropertyGroup):
     uses_move_angle: bpy.props.BoolProperty(name="Uses Move Angle", options=set())
     move_angle: bpy.props.FloatProperty(name="Move Angle", options=set(), subtype='ANGLE', min=0, max=radians(360))
     
+class NWO_AnimationGroupItems(PropertyGroup):
+    name: bpy.props.StringProperty(name="Name", options=set())
+    uses_move_speed: bpy.props.BoolProperty(name="Uses Move Speed", options=set())
+    move_speed: bpy.props.FloatProperty(name="Move Speed", options=set(), min=0, max=1, subtype='FACTOR')
+    uses_move_angle: bpy.props.BoolProperty(name="Uses Move Angle", options=set())
+    move_angle: bpy.props.FloatProperty(name="Move Angle", options=set(), subtype='ANGLE', min=0, max=radians(360))
+    leaves_active_index: bpy.props.IntProperty(options=set())
+    leaves: bpy.props.CollectionProperty(name="Animations", options=set(), type=NWO_AnimationLeavesItems)
+    
 class NWO_AnimationPhaseSetsItems(PropertyGroup):
     name: bpy.props.StringProperty(name="Name", options=set())
     priority: bpy.props.EnumProperty(
@@ -83,6 +92,50 @@ class NWO_AnimationDeadZonesItems(PropertyGroup):
     bounds: bpy.props.FloatVectorProperty(name="Dead Zone Bounds", options=set(), size=2, subtype='COORDINATES', min=0)
     rate: bpy.props.FloatProperty(name="Dead Zone Rate", options=set(), min=0, default=90)
 
+class NWO_AnimationBlendAxisSubItems(PropertyGroup):
+    name: bpy.props.EnumProperty(
+        name="Type",
+        options=set(),
+        items=[
+            ("movement_angles", "Movement Angles", ""), # linear_movement_angle get_move_angle
+            ("movement_speed", "Movement Speed", ""), # linear_movement_speed get_move_speed
+            ("turn_rate", "Turn Rate", ""), # average_angular_rate get_turn_rate
+            ("vertical", "Vertical", ""), # translation_offset_z get_destination_vertical
+            ("horizontal", "Horizontal", ""), # translation_offset_horizontal get_destination_forward
+        ]
+    )
+    
+    animation_source_bounds_manual: bpy.props.BoolProperty(name="Animation Manual Bounds", options=set())
+    animation_source_bounds: bpy.props.FloatVectorProperty(name="Animation Source Bounds", options=set(), size=2, subtype='COORDINATES', min=0)
+    animation_source_limit: bpy.props.FloatProperty(name="Animation Source Limit", options=set())
+    
+    runtime_source_bounds_manual: bpy.props.BoolProperty(name="Runtime Manual Bounds", options=set())
+    runtime_source_bounds: bpy.props.FloatVectorProperty(name="Runtime Source Bounds", options=set(), size=2, subtype='COORDINATES', min=0)
+    runtime_source_clamped: bpy.props.BoolProperty(name="Runtime Source Clamped", options=set())
+    
+    adjusted: bpy.props.EnumProperty(
+        name="Adjustment",
+        options=set(),
+        items=[
+            ("none", "None", ""),
+            ("on_start", "On Start", ""),
+            ("on_loop", "On Loop", ""),
+            ("continuous", "Continuous", ""),
+        ]
+    )
+
+    leaves_active_index: bpy.props.IntProperty(options=set())
+    leaves: bpy.props.CollectionProperty(name="Animations", options=set(), type=NWO_AnimationLeavesItems)
+    
+    dead_zones_active_index: bpy.props.IntProperty(options=set())
+    dead_zones: bpy.props.CollectionProperty(name="Blend Axis Dead Zones", options=set(), type=NWO_AnimationDeadZonesItems)
+    
+    phase_sets_active_index: bpy.props.IntProperty(options=set())
+    phase_sets: bpy.props.CollectionProperty(name="Animation Sets", options=set(), type=NWO_AnimationPhaseSetsItems)
+    
+    groups_active_index: bpy.props.IntProperty(options=set())
+    groups: bpy.props.CollectionProperty(name="Animation Groups", options=set(), type=NWO_AnimationGroupItems)
+
 class NWO_AnimationBlendAxisItems(PropertyGroup):
     name: bpy.props.EnumProperty(
         name="Type",
@@ -124,6 +177,11 @@ class NWO_AnimationBlendAxisItems(PropertyGroup):
     phase_sets_active_index: bpy.props.IntProperty(options=set())
     phase_sets: bpy.props.CollectionProperty(name="Animation Sets", options=set(), type=NWO_AnimationPhaseSetsItems)
     
+    groups_active_index: bpy.props.IntProperty(options=set())
+    groups: bpy.props.CollectionProperty(name="Animation Groups", options=set(), type=NWO_AnimationGroupItems)
+    
+    blend_axis_active_index: bpy.props.IntProperty(options=set())
+    blend_axis: bpy.props.CollectionProperty(name="Blend Axis", options=set(), type=NWO_AnimationBlendAxisSubItems)
 
 class NWO_AnimationCompositesItems(PropertyGroup):
     name: bpy.props.StringProperty(name="Name", options=set())
