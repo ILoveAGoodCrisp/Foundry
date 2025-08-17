@@ -855,12 +855,17 @@ class NWO_Import(bpy.types.Operator):
                         good_to_go = True
                         render_model = existing_armature.nwo.node_order_source
                         if not render_model.strip():
-                            utils.print_warning(f"Armature [{armature.name}] has no render model set. Set this in Foundry object properties")
-                            good_to_go = False
-                        full_render_path = Path(utils.get_tags_path(), utils.relative_path(render_model))
-                        if not full_render_path.exists():
-                            utils.print_warning(f"Armature [{existing_armature.name}] has invalid render model set (it does not exist) [{full_render_path}]")
-                            good_to_go = False
+                            # try own asset
+                            render_model = utils.get_asset_render_model()
+                            if render_model is None:
+                                utils.print_warning(f"Armature [{existing_armature.name}] has no render model set. Set this in Foundry object properties")
+                                good_to_go = False
+                                
+                        if good_to_go:
+                            full_render_path = Path(utils.get_tags_path(), utils.relative_path(render_model))
+                            if not full_render_path.exists():
+                                utils.print_warning(f"Armature [{existing_armature.name}] has invalid render model set (it does not exist) [{full_render_path}]")
+                                good_to_go = False
                         
                         if good_to_go:
                             if importer.needs_scaling:
