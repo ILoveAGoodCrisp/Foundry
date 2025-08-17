@@ -418,7 +418,7 @@ class Instance:
         
         return ob
     
-    def get_collection(self, ig_collection, permitted_collections) -> bpy.types.Collection:
+    def get_collection(self, ig_collection, permitted_collections, bsp_name: str) -> bpy.types.Collection:
         if "(" in self.name and ")" in self.name.rpartition("(")[2]:
             collection_part = re.findall(r'\((.*?)\)', self.name)[0]
             if ":" in collection_part:
@@ -429,7 +429,10 @@ class Instance:
                 sub_collection_name = None
                 main_collection_name_main = collection_part
             
-            main_collection_name = f"{main_collection_name_main}"
+            main_collection_name = main_collection_name_main
+            
+            if main_collection_name == bsp_name:
+                main_collection_name = f"layer_{main_collection_name}"
                 
             main_collection = bpy.data.collections.get(main_collection_name)
             if main_collection is None or main_collection not in permitted_collections:
@@ -440,6 +443,9 @@ class Instance:
                 main_collection.nwo.permutation = main_collection_name_main
                 
             if sub_collection_name is not None:
+                if sub_collection_name == bsp_name:
+                    sub_collection_name = f"sublayer_{main_collection_name}"
+                
                 sub_collection = bpy.data.collections.get(sub_collection_name)
                 if sub_collection is None or sub_collection not in permitted_collections:
                     sub_collection = bpy.data.collections.new(name=sub_collection_name)

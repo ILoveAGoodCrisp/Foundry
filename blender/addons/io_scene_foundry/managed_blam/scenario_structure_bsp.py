@@ -223,7 +223,7 @@ class ScenarioStructureBspTag(Tag):
             for element in self.block_instances.Elements:
                 io = Instance(element, instance_definitions)
                 if io.definition.blender_render or io.definition.blender_collision:
-                    io_collection = io.get_collection(ig_collection, permitted_collections)
+                    io_collection = io.get_collection(ig_collection, permitted_collections, self.tag_path.ShortName)
                     permitted_collections.add(io_collection)
                     ob = io.create()
                     objects.append(ob)

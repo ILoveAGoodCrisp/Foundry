@@ -2045,6 +2045,8 @@ class NWOImporter:
         print(f"Importing BSP {bsp_name}")
         bsp_objects = []
         collection = bpy.data.collections.get(bsp_name)
+        if collection is not None and collection.nwo.type != 'region':
+            collection = None
         if collection is None:
             collection = bpy.data.collections.new(bsp_name)
             if scenario_collection is None:
