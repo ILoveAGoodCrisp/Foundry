@@ -485,7 +485,7 @@ def run_tool(tool_args: list, in_background=False, null_output=False, event_leve
     os.chdir(get_project_path())
     if force_tool:
         command = f"""tool {' '.join(f'"{arg}"' for arg in tool_args)}"""
-    if force_tool_fast:
+    elif force_tool_fast:
         command = f"""tool_fast {' '.join(f'"{arg}"' for arg in tool_args)}"""
     else:
         command = f"""{get_tool_type()} {' '.join(f'"{arg}"' for arg in tool_args)}"""
