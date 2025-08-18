@@ -32,7 +32,11 @@ class ScenarioObject:
             self.scale = 1
         palette_index = element.SelectField("ShortBlockIndex:type").Value
         self.reference = palette[palette_index] if palette_index > -1  and palette_index < len(palette) else None
-        self.variant = element.SelectField("Struct:permutation data[0]/StringId:variant name").GetStringData()
+        variant = element.SelectField("Struct:permutation data[0]/StringId:variant name")
+        if variant is None:
+            self.variant = ""
+        else:
+            self.variant = variant.GetStringData()
         
         self.folder_index = element.SelectField("Struct:object data[0]/ShortBlockIndex:editor folder").Value
         self.parent_index = element.SelectField("Struct:object data[0]/Struct:parent id[0]/ShortBlockIndex:parent object").Value
@@ -344,35 +348,46 @@ class ScenarioTag(Tag):
             else:
                 folders[parent_index].children.link(collection)
         
-        # Scenery
-        scenery = self.tag.SelectField("Block:scenery")
-        if scenery.Elements.Count > 0:
-            used_collection = False
-            print("Creating Scenario Scenery Objects")
-            scenery_collection = bpy.data.collections.new(name="scenery")
-            objects_collection.children.link(scenery_collection)
-            scenery_palette = [ScenarioObjectReference(e) for e in self.tag.SelectField("Block:scenery palette").Elements]
-            for element in scenery.Elements:
-                scenario_object = ScenarioObject(element, scenery_palette, object_names)
-                ob = scenario_object.to_object()
-                if ob is not None:
-                    if scenario_object.name_index > -1 and scenario_object.name_index < len(object_names):
-                        named_objects[scenario_object.name_index] = ob
+        def process_object_block(block_name: str, palette_name: str):
+            block = self.tag.SelectField(f"Block:{block_name}")
+            if block.Elements.Count > 0:
+                used_collection = False
+                print(f"Creating Scenario {block_name.capitalize()} Objects")
+                collection = bpy.data.collections.new(name="scenery")
+                objects_collection.children.link(collection)
+                palette = [ScenarioObjectReference(e) for e in self.tag.SelectField(f"Block:{palette_name} palette").Elements]
+                for element in block.Elements:
+                    scenario_object = ScenarioObject(element, palette, object_names)
+                    ob = scenario_object.to_object()
+                    if ob is not None:
+                        if scenario_object.name_index > -1 and scenario_object.name_index < len(object_names):
+                            named_objects[scenario_object.name_index] = ob
+                            
+                        if scenario_object.parent_index > -1:
+                            child_objects[ob] = scenario_object.parent_index
+                            
+                        if scenario_object.folder_index > -1 and scenario_object.folder_index < len(folders):
+                            folder = folders[scenario_object.folder_index]
+                            folder.objects.link(ob)
+                        else:
+                            collection.objects.link(ob)
+                            used_collection = True
+                            
+                        objects.append(ob)
                         
-                    if scenario_object.parent_index > -1:
-                        child_objects[ob] = scenario_object.parent_index
-                        
-                    if scenario_object.folder_index > -1 and scenario_object.folder_index < len(folders):
-                        folder = folders[scenario_object.folder_index]
-                        folder.objects.link(ob)
-                    else:
-                        scenery_collection.objects.link(ob)
-                        used_collection = True
-                        
-                    objects.append(ob)
-                    
-            if not used_collection:
-                bpy.data.collections.remove(scenery_collection)
+                if not used_collection:
+                    bpy.data.collections.remove(collection)
+        
+        process_object_block("scenery", "scenery")
+        process_object_block("bipeds", "biped")
+        process_object_block("vehicles", "vehicle")
+        process_object_block("equipment", "equipment")
+        process_object_block("weapons", "weapon")
+        process_object_block("machines", "machine")
+        process_object_block("terminals", "terminal")
+        process_object_block("controls", "control")
+        process_object_block("giants", "giant")
+        process_object_block("crates", "crate")
                 
         # Parent
         for ob, parent_index in child_objects.items():
