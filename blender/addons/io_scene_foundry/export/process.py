@@ -11,6 +11,8 @@ import bpy
 from mathutils import Color, Matrix, Vector
 import numpy as np
 
+from ..patches import ToolPatcher
+
 from ..managed_blam.scenario_structure_bsp import ScenarioStructureBspTag
 
 from ..managed_blam.object import ObjectTag
@@ -792,11 +794,14 @@ class ExportScene:
                         seam_material = mesh.materials.get("+seam")
                         if seam_material is not None:
                             props["bungie_mesh_seam_associated_bsp"] = region
+                            if len(mesh.materials) == 1:
+                                mesh_type = '_connected_geometry_mesh_type_seam'
                         
                 match mesh_type:
                     case '_connected_geometry_mesh_type_poop':
                         self._setup_poop_props(ob, nwo, data_nwo, props, mesh_props)
                     case '_connected_geometry_mesh_type_seam':
+                        if props.get("bungie_mesh_seam_associated_bsp") is None:
                             props["bungie_mesh_seam_associated_bsp"] = region
                             if not nwo.seam_back_manual:
                                 copy = ObjectCopy.SEAM
@@ -2130,6 +2135,14 @@ class ExportScene:
         if self.corinth and self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB}:
             sidecar_importer.save_lighting_infos()
         sidecar_importer.setup_templates()
+        
+        # Patcher
+        tool_path = Path(self.project_root, utils.get_tool_type()).with_suffix(".exe")
+        patcher = ToolPatcher(tool_path)
+        if not self.corinth:
+            if self.asset_type == AssetType.SCENARIO:
+                patcher.reach_plane_builder()
+        
         sidecar_importer.run()
         if sidecar_importer.lighting_infos:
             sidecar_importer.restore_lighting_infos()
