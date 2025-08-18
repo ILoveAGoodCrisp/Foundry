@@ -36,7 +36,7 @@ Foundry only needs to be installed once. Thereafter, you can use Blender to down
 - [Crisp](https://github.com/ILoveAGoodCrisp) - Addon Developer
 - [Alexis Jonsson | WyvernZu](https://github.com/AlexisJonsson) - UI/UX/Icon Design
 - [General Heed](https://github.com/Generalkidd) - Early Foundry work
-- [Krevil](https://github.com/Krevil) - Guidance on editing GR2 files and for research into Cubemap checksum calculation
+- [Krevil](https://github.com/Krevil) - Guidance on editing GR2 files, research into Cubemap checksum calculation, providing offsets for Tool patches
 - [Gravemind2401](https://github.com/Gravemind2401) - Advice on tag extraction
 - [Matthew](https://github.com/matty45) - GR2 Research
 - [Chiefster](https://github.com/chiefster-4014) - Creation of Blender Material Nodes for Halo models
