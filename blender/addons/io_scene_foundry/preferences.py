@@ -346,6 +346,12 @@ class FoundryPreferences(AddonPreferences):
         default=False,
         description="Allows importing of animated functions when importing a Halo shader or material tag into Blender. Animated shaders can be taxing on Blender when the timeline is playing"
     )
+    
+    allow_tool_patches: BoolProperty(
+        name="Allow Tool Patches",
+        description="Allow Foundry to patch tool.exe and tool_fast.exe. Disabling this means some features may be fail",
+        default=True,
+    )
 
     def draw(self, context):
         prefs = self
@@ -401,6 +407,8 @@ class FoundryPreferences(AddonPreferences):
         row.prop(prefs, "debug_menu_on_launch")
         row = box.row(align=True)
         row.prop(prefs, "import_shaders_with_time_period")
+        row = box.row(align=True)
+        row.prop(prefs, "allow_tool_patches")
         
 classes = [
     H2AMPEKLocationPath,

@@ -1,10 +1,14 @@
 from pathlib import Path
+import bpy
 
 class ToolPatcher:
     def __init__(self, tool_path: str | Path):
         self.tool_path = str(tool_path)
         
     def _patch(self, offsets: list[bytes] | bytes, patches: list[bytes] | bytes, originals: list[bytes] | bytes):
+        if not bpy.context.preferences.addons[__package__].preferences.allow_tool_patches:
+            return
+        
         if not isinstance(offsets, list):
             offsets = [offsets]
         

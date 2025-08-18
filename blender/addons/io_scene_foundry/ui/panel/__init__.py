@@ -3363,6 +3363,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         row.prop(prefs, "debug_menu_on_launch")
         row = box.row(align=True)
         row.prop(prefs, "import_shaders_with_time_period")
+        row = box.row(align=True)
+        row.prop(prefs, "allow_tool_patches")
         blend_prefs = context.preferences
         if blend_prefs.use_preferences_save and (not bpy.app.use_userpref_skip_save_on_exit):
             return
