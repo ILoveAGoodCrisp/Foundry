@@ -470,7 +470,7 @@ class StructureMarker:
         ob.empty_display_size *= (1 / 0.03048)
         ob.matrix_world = Matrix.LocRotScale(self.position, self.rotation, Vector.Fill(3, 1))
         return ob
-    
+        
 class EnvironmentObjectReference:
     def __init__(self, element: TagFieldBlockElement):
         self.definition = ""
@@ -1529,8 +1529,15 @@ class MeshSubpart:
             utils.add_face_prop(mesh, "lightmap_type", all_indices)
             
         # Material Props
-        if not corinth and material.lm_res != LIGHTMAP_RESOLUTION_SCALE:
-            utils.add_face_prop(mesh, "lightmap_resolution_scale", all_indices).lightmap_resolution_scale = str(material.lm_res)
+        if not corinth and material.lm_res != LIGHTMAP_RESOLUTION_SCALE and material.lm_res != 0.0:
+            res = 3
+            if material.lm_res < 1:
+                res = "1"
+            elif material.lm_res > 7:
+                res = "7"
+            else:
+                res = str(material.lm_res)
+            utils.add_face_prop(mesh, "lightmap_resolution_scale", all_indices).lightmap_resolution_scale = res
             
         if material.lm_ignore_default_res != LIGHTMAP_IGNORE_DEFAULT_RESOLUTION_SCALE:
             utils.add_face_prop(mesh, "lightmap_ignore_default_resolution_scale", all_indices).lightmap_ignore_default_resolution_scale = material.lm_ignore_default_res

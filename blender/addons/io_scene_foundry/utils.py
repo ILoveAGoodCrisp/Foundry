@@ -2379,24 +2379,18 @@ def halo_loc_rot_sca(matrix: Matrix, scale=None, rotation=None, marker=False) ->
 import math
 
 def ypr_from_flu(forward, left, up):
-    # Construct the rotation matrix
     R = [
         [left[0], up[0], forward[0]],
         [left[1], up[1], forward[1]],
         [left[2], up[2], forward[2]],
     ]
     
-    # Extract Euler angles (assuming ZYX order)
-    # Yaw (rotation around Y-axis)
     yaw = math.atan2(R[1][2], R[0][2])
     
-    # Pitch (rotation around X-axis)
     pitch = math.asin(-R[2][2])
     
-    # Roll (rotation around Z-axis)
     roll = math.atan2(R[2][1], R[2][0])
     
-    # Convert to degrees for readability (optional)
     yaw_deg = math.degrees(yaw) + 90
     pitch_deg = math.degrees(pitch)
     roll_deg = math.degrees(roll)

@@ -1,10 +1,61 @@
+from math import radians
 from pathlib import Path
+
+from mathutils import Euler, Matrix, Quaternion, Vector
+
+from .Tags import TagFieldBlockElement
 
 from ..managed_blam import Tag
 import os
 from .. import utils
+import bpy
 
-# TODO Handle resources
+class ScenarioObjectReference:
+    def __init__(self, element: TagFieldBlockElement):
+        self.definition = ""
+        self.name = "object"
+        def_path = element.Fields[0].Path
+        if def_path is not None:
+            if Path(def_path.Filename).exists():
+                self.definition = def_path.RelativePathWithExtension
+                self.name = def_path.ShortName
+    
+class ScenarioObject:
+    def __init__(self, element: TagFieldBlockElement, palette: list[ScenarioObjectReference], object_names: list[str]):
+        self.name_index = element.SelectField("ShortBlockIndex:name").Value
+        self.name = "object"
+        self.position = Vector([n * 100 for n in element.SelectField("Struct:object data[0]/RealPoint3d:position").Data])
+        rot = [radians(n) for n in element.SelectField("Struct:object data[0]/RealEulerAngles3d:rotation").Data]
+        self.rotation = Euler((rot[2], rot[1], rot[0]))
+        self.scale = element.SelectField("Struct:object data[0]/Real:scale").Data
+        if self.scale == 0.0:
+            self.scale = 1
+        palette_index = element.SelectField("ShortBlockIndex:type").Value
+        self.reference = palette[palette_index] if palette_index > -1  and palette_index < len(palette) else None
+        self.variant = element.SelectField("Struct:permutation data[0]/StringId:variant name").GetStringData()
+        
+        self.folder_index = element.SelectField("Struct:object data[0]/ShortBlockIndex:editor folder").Value
+        self.parent_index = element.SelectField("Struct:object data[0]/Struct:parent id[0]/ShortBlockIndex:parent object").Value
+        self.parent_marker = element.SelectField("Struct:object data[0]/Struct:parent id[0]/StringId:parent marker").GetStringData()
+        
+        if self.name_index > -1 and self.name_index < len(object_names):
+            self.name = object_names[self.name_index]
+        elif self.reference is not None:
+            self.name = f"{self.reference.name}:{element.ElementIndex}"
+            
+    def to_object(self):
+        if self.reference is None or self.reference.definition is None:
+            return print(f"Found scenario object named {self.name} but it has no valid tag reference")
+            
+        ob = bpy.data.objects.new(name=self.name, object_data=None)
+        ob.empty_display_type = "ARROWS"
+        ob.matrix_world = Matrix.LocRotScale(self.position, self.rotation, Vector.Fill(3, self.scale))
+
+        ob.nwo.marker_type = '_connected_geometry_marker_type_game_instance'
+        ob.nwo.marker_game_instance_tag_name = self.reference.definition
+        ob.nwo.marker_game_instance_tag_variant_name = self.variant
+        
+        return ob
 
 class ScenarioTag(Tag):
     tag_ext = 'scenario'
@@ -267,3 +318,67 @@ class ScenarioTag(Tag):
             if not item.IsSet:
                 self.tag_has_changes = True
                 item.IsSet = True
+                
+                
+    def objects_to_blender(self, parent_collection=None):
+        
+        objects = []
+        child_objects = {}
+        
+        objects_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_objects")
+        objects_collection.nwo.type = 'exclude'
+        
+        if parent_collection is None:
+            bpy.context.scene.collection.children.link(objects_collection)
+        else:
+            parent_collection.children.link(objects_collection)
+            
+        object_names = [e.Fields[0].GetStringData() for e in self.tag.SelectField("Block:object names").Elements]
+        named_objects = [None] * len(object_names)
+        editor_folders = {bpy.data.collections.new(e.Fields[1].GetStringData()): e.Fields[0].Value for e in self.tag.SelectField("Block:editor folders").Elements}
+        folders = list(editor_folders)
+        
+        for collection, parent_index in editor_folders.items():
+            if parent_index < 0 or parent_index >= len(editor_folders):
+                objects_collection.children.link(collection)
+            else:
+                folders[parent_index].children.link(collection)
+        
+        # Scenery
+        scenery = self.tag.SelectField("Block:scenery")
+        if scenery.Elements.Count > 0:
+            used_collection = False
+            print("Creating Scenario Scenery Objects")
+            scenery_collection = bpy.data.collections.new(name="scenery")
+            objects_collection.children.link(scenery_collection)
+            scenery_palette = [ScenarioObjectReference(e) for e in self.tag.SelectField("Block:scenery palette").Elements]
+            for element in scenery.Elements:
+                scenario_object = ScenarioObject(element, scenery_palette, object_names)
+                ob = scenario_object.to_object()
+                if ob is not None:
+                    if scenario_object.name_index > -1 and scenario_object.name_index < len(object_names):
+                        named_objects[scenario_object.name_index] = ob
+                        
+                    if scenario_object.parent_index > -1:
+                        child_objects[ob] = scenario_object.parent_index
+                        
+                    if scenario_object.folder_index > -1 and scenario_object.folder_index < len(folders):
+                        folder = folders[scenario_object.folder_index]
+                        folder.objects.link(ob)
+                    else:
+                        scenery_collection.objects.link(ob)
+                        used_collection = True
+                        
+                    objects.append(ob)
+                    
+            if not used_collection:
+                bpy.data.collections.remove(scenery_collection)
+                
+        # Parent
+        for ob, parent_index in child_objects.items():
+            if parent_index < len(named_objects):
+                parent = named_objects[parent_index]
+                if parent is not None:
+                    ob.parent = parent
+                    
+        return objects

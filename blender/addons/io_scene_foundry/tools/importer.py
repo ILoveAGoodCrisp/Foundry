@@ -501,6 +501,12 @@ class NWO_Import(bpy.types.Operator):
         default=True,
     )
     
+    tag_scenario_import_objects: bpy.props.BoolProperty(
+        name="Import Scenario Objects",
+        description="Imports scenario objects. Added to an exclude collection by default",
+        default=False,
+    )
+    
     tag_import_lights: bpy.props.BoolProperty(
         name="Import Lights",
         description="Imports the all lights found in scenario_structure_lighting_info tags",
@@ -890,6 +896,7 @@ class NWO_Import(bpy.types.Operator):
                     importer.tag_bsp_import_geometry = self.tag_bsp_import_geometry
                     importer.tag_import_lights = self.tag_import_lights
                     importer.tag_import_design = self.tag_import_design
+                    importer.tag_scenario_import_objects = self.tag_scenario_import_objects
                     importer.setup_as_asset = self.setup_as_asset
                     scenario_files = importer.sorted_filepaths["scenario"]
                     imported_scenario_objects = importer.import_scenarios(scenario_files)
@@ -1176,6 +1183,7 @@ class NWO_Import(bpy.types.Operator):
             box.prop(self, "tag_bsp_render_only")
             box.prop(self, "tag_import_design")
             box.prop(self, "tag_import_lights")
+            box.prop(self, "tag_scenario_import_objects")
             box.prop(self, 'build_blender_materials', text=f"Blender Materials from {tag_type.capitalize()} Tags")
             box.prop(self, 'always_extract_bitmaps')
             if not self.scope or ('scenario' in self.scope):
@@ -1436,6 +1444,7 @@ class NWOImporter:
         self.tag_bsp_import_geometry = False
         self.tag_import_lights = False
         self.tag_import_design = False
+        self.tag_scenario_import_objects = False
         self.tag_animation_filter = ""
         self.import_variant_children = False
         self.setup_as_asset = False
@@ -2037,6 +2046,29 @@ class NWOImporter:
                         for idx, design in enumerate(designs):
                             design_objects = self.import_structure_design(design, scenario_collection)
                             imported_objects.extend(design_objects)
+                            
+                    if self.tag_scenario_import_objects:
+                        game_objects = scenario.objects_to_blender(scenario_collection)
+                        if game_objects:
+                            print("Importing Game Object Geometry")
+                            imported_objects.extend(game_objects)
+                            game_object_cache = {(c.nwo.game_object_path, c.nwo.game_object_variant): c for c in utils.get_foundry_storage_scene().collection.children if c.nwo.game_object_path}
+                            for ob in game_objects:
+                                key = ob.nwo.marker_game_instance_tag_name, ob.nwo.marker_game_instance_tag_variant_name
+                                game_object_collection = game_object_cache.get(key)
+                                
+                                if game_object_collection is None:
+                                    game_object_collection = self.import_object(ob, None)
+                                    merge_collection(game_object_collection)
+                                    imported_objects.extend(game_object_collection.all_objects)
+                                    self.context.scene.collection.children.unlink(game_object_collection)
+                                    utils.get_foundry_storage_scene().collection.children.link(game_object_collection)
+                                    game_object_collection.nwo.game_object_path, game_object_collection.nwo.game_object_variant = key
+                                    game_object_cache[key] = game_object_collection
+                                    
+                                ob.instance_type = 'COLLECTION'
+                                ob.instance_collection = game_object_collection
+                                ob.nwo.marker_instance = True
 
                     if self.setup_as_asset:
                         set_asset(Path(file).suffix)
@@ -3359,6 +3391,12 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         default=True,
     )
     
+    tag_scenario_import_objects: bpy.props.BoolProperty(
+        name="Import Scenario Objects",
+        description="Imports scenario objects. Added to an exclude collection by default",
+        default=False,
+    )
+    
     tag_import_lights: bpy.props.BoolProperty(
         name="Import Lights",
         description="Imports the all lights found in scenario_structure_lighting_info tags",
@@ -3545,6 +3583,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 layout.prop(self, "tag_bsp_render_only")
                 layout.prop(self, "tag_import_design")
                 layout.prop(self, "tag_import_lights")
+                layout.prop(self, "tag_scenario_import_objects")
                 layout.prop(self, "setup_as_asset")
                 layout.prop(self, "build_blender_materials")
                 layout.prop(self, "always_extract_bitmaps")
