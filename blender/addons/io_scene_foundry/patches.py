@@ -25,8 +25,8 @@ class ToolPatcher:
                     f.write(patch)
         
     def reach_lightmap_color(self):
-        patch = b"\xEB\x3D"
         original = b"\x73\x0C"
+        patch = b"\xEB\x3D"
         if self.tool_path.lower().endswith("_fast.exe"):
             address0 = 0xF2A7F
             address1 = 0xF29F9
@@ -37,8 +37,8 @@ class ToolPatcher:
         self._patch([address0, address1], patch, original)
         
     def reach_plane_builder(self):
-        patch = b"\xEB"
         original = b"\x77"
+        patch = b"\xEB"
         if self.tool_path.lower().endswith("_fast.exe"):
             address0 = 0x19A775
             address1 = 0x19A789
@@ -49,3 +49,16 @@ class ToolPatcher:
             address2 = 0x220DBB
             
         self._patch([address0, address1, address2], patch, original)
+        
+    def reach_wetness_data(self):
+        original0 = b"\x74"
+        patch0 = b"\xEB"
+        original1 = b"\x25"
+        patch1 = b"\x10"
+        if self.tool_path.lower().endswith("_fast.exe"):
+            return
+        else:
+            address0 = 0xB04F12
+            address1 = 0x382557
+            
+        self._patch([address0, address1], [patch0, patch1], [original0, original1])
