@@ -1762,6 +1762,11 @@ def set_origin_to_point(ob: bpy.types.Object, point: Vector):
     ob.data.transform(translation_matrix)
     ob.matrix_world = ob.matrix_world @ translation_matrix.inverted_safe()
 
+def current_project_valid():
+    project = get_project(bpy.context.scene.nwo.scene_project)
+    
+    return bool(project)
+
 def get_project(project_name):
     projects = get_prefs().projects
     if projects:

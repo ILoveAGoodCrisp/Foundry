@@ -81,7 +81,7 @@ class NWO_ExportScene(Operator, ExportHelper):
     
     @classmethod
     def poll(cls, context):
-        return not validate_ek() and not context.scene.nwo.storage_only and context.scene.nwo.asset_type != 'resource' and not context.scene.nwo.is_child_asset
+        return utils.current_project_valid() and not validate_ek() and not context.scene.nwo.storage_only and context.scene.nwo.asset_type != 'resource' and not context.scene.nwo.is_child_asset
     
     @classmethod
     def description(cls, context, properties):

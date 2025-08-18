@@ -17,7 +17,6 @@ instructions_given = False
 
 def process_imposter(file_path):
     utils.run_tool(["process-imposter", file_path], null_output=True)
-    
 
 def move_metadata(src: Path, dst: Path):
     shutil.move(str(src), str(dst))

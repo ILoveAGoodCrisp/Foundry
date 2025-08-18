@@ -2,9 +2,9 @@
 
 import bpy
 
+from .scenario.wetness import NWO_OT_GenerateWetnessData
+
 from .animation.transforms_lock import NWO_OT_LockChildBoneLocation, NWO_OT_LockChildBoneRotation, NWO_OT_LockChildBoneScale
-
-
 
 from .refresh_cinematic_controls import NWO_OT_RefreshCinematicControls
 
@@ -220,6 +220,7 @@ classes = (
     NWO_OT_FileSplit,
     NWO_OT_OpenLinkedCollection,
     NWO_OT_FileAggregate,
+    NWO_OT_GenerateWetnessData
 )
 
 def register():

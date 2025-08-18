@@ -276,6 +276,15 @@ class CacheBuilder:
                     "false",
                 ]
             )
+            
+    def wetness(self):
+        pass
+    
+    def imposters(self):
+        pass
+    
+    def cubemaps(self):
+        pass
         
     def lightmap(self):
         export = self.context.scene.nwo_export
@@ -851,9 +860,27 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
         default=True,
     )
     
+    cubemap_farm: bpy.props.BoolProperty(
+        name="Build Cubemaps",
+        description="Runs the cubemap farm tool",
+        default=False,
+    )
+    
+    imposter_farm: bpy.props.BoolProperty(
+        name="Build Instance Imposters",
+        description="Runs the imposter farm tool",
+        default=False,
+    )
+    
+    wetness_farm: bpy.props.BoolProperty(
+        name="Generate Wetness Data",
+        description="Generates wetness data for all BSPs",
+        default=False,
+    )
+    
     lightmap: bpy.props.BoolProperty(
         name="Lightmap",
-        description="Lightmaps the scenario prior to build the cache file",
+        description="Lightmaps the scenario prior to building the cache file",
     )
     
     validate_multiplayer: bpy.props.BoolProperty(
@@ -913,11 +940,20 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
             
             builder = CacheBuilder(relative_path, context, self.validate_multiplayer, own_asset)
             
+            if self.wetness_farm:
+                builder.wetness()
+            
             if self.lightmap:
                 if not scene_nwo_export.lightmap_all_bsps and scene_nwo_export.lightmap_specific_bsp not in builder.bsps:
                     utils.print_error(f"Skipping Lightmap. Specified BSP [{scene_nwo_export.lightmap_specific_bsp}] does not exist in the scenario tag: {builder.scenario.with_suffix('.scenario')}")
                 else:
                     builder.lightmap()
+                    
+            if self.imposter_farm:
+                builder.imposters()
+                
+            if self.cubemap_farm:
+                builder.cubemaps()
             
             if utils.is_corinth(context) and self.texture_analysis:
                 print("\n\nFaux Texture Analysis")
