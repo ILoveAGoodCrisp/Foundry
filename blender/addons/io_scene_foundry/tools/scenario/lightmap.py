@@ -2,6 +2,8 @@ import datetime
 from pathlib import Path
 import bpy
 
+from ...patches import ToolPatcher
+
 from ...managed_blam.lightmapper_globals import LightmapperGlobalsTag
 
 from ...managed_blam import Tag
@@ -73,6 +75,7 @@ class NWO_OT_Lightmap(bpy.types.Operator):
             asset_type in ("model", "sky") and is_corinth,
             scene_nwo_export.lightmap_threads,
             bsps)
+        
         return {"FINISHED"}
     
 def run_lightmapper(
@@ -104,6 +107,18 @@ def run_lightmapper(
         lightmap_results = lightmap.lightmap_h4()
     else:
         lightmap_results = lightmap.lightmap_reach()
+        
+    if lightmap_results.lightmap_failed:
+        utils.print_error(lightmap_results.lightmap_message)
+        proj = utils.get_project_path()
+        if proj:
+            crash_report = Path(proj, "crash_report", "crash_info.txt")
+            if crash_report.exists():
+                utils.print_warning("Showing last crash report")
+                with open(crash_report, "r") as f:
+                    utils.print_error(f.read())
+    else:
+        print(lightmap_results.lightmap_message)
 
     return lightmap_results
 
@@ -150,8 +165,7 @@ class LightMapper:
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
         with open(log_filename, "w") as log:
-            return (
-                utils.run_tool(
+            p = utils.run_tool(
                     [
                         "faux_farm_" + stage,
                         self.blob_dir,
@@ -159,10 +173,10 @@ class LightMapper:
                         str(self.thread_count),
                     ],
                     True,
-                    log,
-                ),
-                log_filename,
-            )
+                    log_file=log,
+                    force_tool_fast=True)
+            print(f"--- Spawned Process {thread_index}")
+            return (p, log_filename)
 
     def farm(self, stage):
         # self.print_exec_time()
@@ -170,9 +184,10 @@ class LightMapper:
             self.threads(stage, thread_index)
             for thread_index in range(self.thread_count)
         ]
-        for p, log_filename in processes:
+        print("--- Waiting for processes to complete")
+        for idx, (p, log_filename) in enumerate(processes):
             if p.wait() != 0:
-                self.lightmap_message = f"Lightmapper failed during {stage}. See error log for details: {log_filename}\nIf nothing is written to the above log, it may be that you have minimal space remaining on your disk drive"
+                self.lightmap_message = f"Lightmapper failed during {stage} on process {idx}. See error log for details: {log_filename}\nIf nothing is written to the above log, it may be that you have minimal space remaining on your disk drive"
                 self.lightmap_failed = True
                 return False
 
@@ -181,7 +196,8 @@ class LightMapper:
                 "faux_farm_" + stage + "_merge",
                 self.blob_dir,
                 str(self.thread_count),
-            ]
+            ],
+            force_tool_fast=True,
         )
 
         return True
@@ -191,13 +207,17 @@ class LightMapper:
         self.analytical_light = "true"
         self.blob_dir = os.path.join("faux", self.blob_dir_name)
         self.start_time = datetime.datetime.now()
+        
+        tool_path = Path(utils.get_project_path(), "tool_fast.exe")
+        patcher = ToolPatcher(tool_path)
+        patcher.reach_lightmap_color()
 
         print("\n\nFaux Data Sync")
         print(
             "-------------------------------------------------------------------------\n"
         )
         # self.print_exec_time()
-        utils.run_tool(["faux_data_sync", self.scenario, self.bsp])
+        utils.run_tool(["faux_data_sync", self.scenario, self.bsp], force_tool_fast=True)
 
         print("\nFaux Farm")
         print(
@@ -213,7 +233,8 @@ class LightMapper:
                 self.quality,
                 self.blob_dir_name,
                 self.analytical_light,
-            ]
+            ],
+            force_tool_fast=True
         )
 
         print("\nDirect Illumination")
@@ -245,14 +266,15 @@ class LightMapper:
         print(
             "-------------------------------------------------------------------------\n"
         )
-        utils.run_tool(["faux_farm_finish", self.blob_dir])
+        utils.run_tool(["faux_farm_finish", self.blob_dir], force_tool_fast=True)
 
         utils.run_tool(
             [
                 "faux-reorganize-mesh-for-analytical-lights",
                 self.scenario,
                 self.bsp,
-            ]
+            ],
+            force_tool_fast=True
         )
         utils.run_tool(
             [
@@ -261,7 +283,8 @@ class LightMapper:
                 self.bsp,
                 "true",
                 "true",
-            ]
+            ],
+            force_tool_fast=True
         )
         self.lightmap_message = f"{utils.formalise_string(self.quality)} Quality lightmap complete"
         return self

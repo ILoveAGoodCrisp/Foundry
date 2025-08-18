@@ -480,11 +480,13 @@ def set_tool_event_level(event_level):
     except:
         print("Unable to replace bonobo_init.txt to set event level. It is currently read only")
 
-def run_tool(tool_args: list, in_background=False, null_output=False, event_level=None, force_tool=False):
+def run_tool(tool_args: list, in_background=False, null_output=False, event_level=None, force_tool=False, log_file=None, force_tool_fast=False):
     """Runs Tool using the specified function and arguments. Do not include 'tool' in the args passed"""
     os.chdir(get_project_path())
     if force_tool:
         command = f"""tool {' '.join(f'"{arg}"' for arg in tool_args)}"""
+    if force_tool_fast:
+        command = f"""tool_fast {' '.join(f'"{arg}"' for arg in tool_args)}"""
     else:
         command = f"""{get_tool_type()} {' '.join(f'"{arg}"' for arg in tool_args)}"""
     # print(command)
@@ -497,7 +499,9 @@ def run_tool(tool_args: list, in_background=False, null_output=False, event_leve
         set_tool_event_level(event_level)
     
     if in_background:
-        if null_output:
+        if log_file:
+            return Popen(command, stdout=log_file, stderr=log_file)
+        elif null_output:
             return Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         elif log_warnings:
             return Popen(command, stderr=str(tmp_log))

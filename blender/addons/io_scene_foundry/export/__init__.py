@@ -35,6 +35,7 @@ from ..ui.bar import NWO_MT_ProjectChooserMenuDisallowNew
 
 from ..utils import (
     check_path,
+    get_asset_path_full,
     get_data_path,
     get_asset_info,
     get_prefs,
@@ -129,8 +130,8 @@ class NWO_ExportScene(Operator, ExportHelper):
             
     def export_invalid(self):
         if (
-            not check_path(self.filepath)
-            or not file_exists(f"{get_tool_path()}.exe")
+           # not check_path(self.filepath)
+            not file_exists(f"{get_tool_path()}.exe")
             or self.asset_path.lower() + os.sep == get_data_path().lower()
         ):  # check the user is saving the file to a location in their editing kit data directory AND tool exists. AND prevent exports to root data dir
             nwo = bpy.context.scene.nwo
@@ -196,9 +197,14 @@ class NWO_ExportScene(Operator, ExportHelper):
 
         start = time.perf_counter()
         # get the asset name and path to the asset folder
-        self.asset_path, self.asset_name = get_asset_info(self.filepath)
+        if scene_nwo.sidecar_path:
+            self.asset_path = get_asset_path_full()
+            self.asset_name = Path(self.asset_path).name
+        else:
+            self.asset_path, self.asset_name = get_asset_info(self.filepath)
 
         sidecar_path_full = str(Path(self.asset_path, self.asset_name).with_suffix(".sidecar.xml"))
+        print(sidecar_path_full)
         global sidecar_path
         sidecar_path = str(Path(sidecar_path_full).relative_to(get_data_path()))
         

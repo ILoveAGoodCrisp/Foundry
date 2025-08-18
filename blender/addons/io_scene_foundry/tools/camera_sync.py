@@ -17,6 +17,9 @@ try:
 except:
     pass
 
+import logging
+logging.getLogger("pymem").setLevel(logging.CRITICAL)
+
 r90 = math.radians(90)
 
 pm = None
