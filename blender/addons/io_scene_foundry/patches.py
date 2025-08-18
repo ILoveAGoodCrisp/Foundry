@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 class ToolPatcher:
     def __init__(self, tool_path: str | Path):
         self.tool_path = str(tool_path)
@@ -20,13 +19,14 @@ class ToolPatcher:
         with open(self.tool_path, "r+b") as f:
             for offset, patch, original in zip(offsets, patches, originals):
                 f.seek(offset)
-                data = f.read(len(patch))
+                data = f.read(len(original))
                 if data == original:
                     f.seek(offset)
                     f.write(patch)
         
     def reach_lightmap_color(self):
         patch = b"\xEB\x3D"
+        original = b"\x73\x0C"
         if self.tool_path.lower().endswith("_fast.exe"):
             address0 = 0xF2A7F
             address1 = 0xF29F9
@@ -34,7 +34,7 @@ class ToolPatcher:
             address0 = 0x170956
             address1 = 0x17157F
             
-        self._patch([address0, address1], patch)
+        self._patch([address0, address1], patch, original)
         
     def reach_plane_builder(self):
         patch = b"\xEB"
