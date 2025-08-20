@@ -28,17 +28,22 @@ class ToolPatcher:
                     f.seek(offset)
                     f.write(patch)
         
-    def reach_lightmap_color(self):
-        original = b"\x73\x0C"
-        patch = b"\xEB\x3D"
-        if self.tool_path.lower().endswith("_fast.exe"):
-            address0 = 0xF2A7F
-            address1 = 0xF29F9
-        else:
-            address0 = 0x170956
-            address1 = 0x17157F
+    def reach_lightmap_color(self): 
+        original0 = b"\xE8\x4D\x54\x29\x00"
+        original1 = b"\xE8\x37\x54\x29\x00"
+        original2 = b"\xE8\x1C\x54\x29\x00"
+        original3 = b"\xE8\xC7\x53\x29\x00"
+        original4 = b"\xE8\xB1\x53\x29\x00"
+        original5 = b"\xE8\x96\x53\x29\x00"
+        patch = b"\x90\x90\x90\x90\x90"
+        address0 = 0xF2A02
+        address1 = 0xF2A18
+        address2 = 0xF2A33
+        address3 = 0xF2A88
+        address4 = 0xF2A9E
+        address5 = 0xF2AB9
             
-        self._patch([address0, address1], patch, original)
+        self._patch([address0, address1, address2, address3, address4, address5], patch, [original0, original1, original2, original3, original4, original5])
         
     def reach_plane_builder(self):
         original = b"\x77"
