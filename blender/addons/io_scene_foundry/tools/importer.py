@@ -3831,7 +3831,7 @@ def setup_materials(context: bpy.types.Context, importer: NWOImporter, starting_
                     utils.copy_material_nodes(existing_mat, mat)
                     
                 # TODO Add emissive node
-                
+        
         for ob in imported_objects:
             for slot in ob.material_slots:
                 if slot.material:
@@ -3841,7 +3841,7 @@ def setup_materials(context: bpy.types.Context, importer: NWOImporter, starting_
                     if functions:
                         for func in functions:
                             bool_prop = add_function(context.scene, func, ob, ob.parent)
-                            key = sequence_drivers.get(func)
+                            key = sequence_drivers.get((func, slot.material.node_tree))
                             if key is not None:
                                 driver, sequence_length = key
                                 driver: bpy.types.Driver
@@ -3866,7 +3866,7 @@ def setup_materials(context: bpy.types.Context, importer: NWOImporter, starting_
                                             driver.expression = f"(floor({var.name} / 10) - floor({var.name} / 100) * 10) / {sequence_length}"
                                         case "hundreds":
                                             driver.expression = f"(floor({var.name} / 100) - floor({var.name} / 1000) * 10) / {sequence_length}"
-                            
+                
         for ob, func_dict in importer.obs_for_props.items():
             for export_name, funcs in func_dict.items():
                 if export_name in validated_funcs:

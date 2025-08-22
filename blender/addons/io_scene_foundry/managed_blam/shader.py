@@ -957,7 +957,7 @@ class ShaderTag(Tag):
                 var.targets[0].id = None
                 var.targets[0].data_path = f'["{text}"]'
                 driver.expression = f"{var.name} * {sequence_length} - {sequence_length - 0.9999}"
-                self.sequence_drivers[text] = (driver, sequence_length)
+                self.sequence_drivers[(text, tree)] = (driver, sequence_length)
             else:
                 result = tree.driver_add(f'nodes["{data_node.name}"].image_user.frame_offset')
                 driver = result.driver
