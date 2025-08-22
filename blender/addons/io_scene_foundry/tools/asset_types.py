@@ -33,12 +33,12 @@ scenario = NWOAsset("scenario", "Scenario", "scenario", False, scenario_descript
 sky = NWOAsset("sky", "Sky", "sky", False, sky_description)
 decorator_set = NWOAsset("decorator_set", "Decorator Set", "decorator", False, decorator_set_description)
 particle_model = NWOAsset("particle_model", "Particle Model", "particle_model", False, particle_model_description)
-animation = NWOAsset("animation", "Animation Graph", "ACTION", False, animation_description)
+animation = NWOAsset("animation", "Animation Graph", "animation", False, animation_description)
 camera_track_set = NWOAsset("camera_track_set", "Camera Track Set", 'CON_CAMERASOLVER', False, camera_track_set_description)
 resource = NWOAsset("resource", "Resource", "LINKED", False, resource_description)
 cinematic = NWOAsset("cinematic", "Cinematic", "VIEW_CAMERA_UNSELECTED", False, cinematic_description)
 prefab = NWOAsset("prefab", "Prefab", "prefab", True, prefab_description)
-single_animation = NWOAsset("single_animation", "Single Animation", "single_animation", False, animation_description)
+single_animation = NWOAsset("single_animation", "Single Animation", "ACTION", False, animation_description)
 
 asset_types = [model, scenario, sky, decorator_set, particle_model, animation, camera_track_set, resource, cinematic, prefab, single_animation]
 

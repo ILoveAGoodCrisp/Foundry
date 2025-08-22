@@ -159,7 +159,7 @@ class ExportScene:
         self.data_remap = {}
         
         self.selected_actors = set()
-        self.type_is_relevant = self.asset_type in {AssetType.MODEL, AssetType.SCENARIO, AssetType.SKY, AssetType.DECORATOR_SET, AssetType.PARTICLE_MODEL, AssetType.PREFAB}
+        self.type_is_relevant = self.asset_type in {AssetType.MODEL, AssetType.SCENARIO, AssetType.SKY, AssetType.PARTICLE_MODEL, AssetType.PREFAB}
         self.main_armature = None
         self.uses_main_armature = self.asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.ANIMATION, AssetType.SINGLE_ANIMATION}
         # self.is_child_asset = scene_settings.is_child_asset
@@ -623,30 +623,30 @@ class ExportScene:
         game_version = self.game_version
 
         supports_regions = asset_type.supports_regions
-        supports_perms   = asset_type.supports_permutations
-        supports_bsp     = asset_type.supports_bsp
+        supports_perms = asset_type.supports_permutations
+        supports_bsp = asset_type.supports_bsp
 
         default_region = self.default_region
-        default_perm   = self.default_permutation
+        default_perm = self.default_permutation
 
-        regions_set      = self.regions_set
+        regions_set = self.regions_set
         permutations_set = self.permutations_set
-        permutations     = self.permutations
+        permutations = self.permutations
 
         reg_name  = self.reg_name
         perm_name = self.perm_name
 
         scene_coll_name = self.scene_collection_name
-        collection_map  = self.collection_map
+        collection_map = self.collection_map
         warnings_append = self.warnings.append
 
         object_type = self._get_object_type(ob)
         if object_type == ObjectType.none:
             return
 
-        is_mesh   = (object_type == ObjectType.mesh)
+        is_mesh = (object_type == ObjectType.mesh)
         is_marker = (object_type == ObjectType.marker)
-        instanced_object = (is_mesh and nwo.mesh_type == '_connected_geometry_mesh_type_object_instance')
+        instanced_object = (is_mesh and nwo.mesh_type == '_connected_geometry_mesh_type_object_instance' and self.asset_type == AssetType.MODEL)
 
         props = {"bungie_object_type": object_type.value}
         mesh_props = {}
@@ -747,7 +747,7 @@ class ExportScene:
 
         if is_mesh:
             mesh_type = nwo.mesh_type or '_connected_geometry_mesh_type_default'
-            if _type_valid_cached(mesh_type, asset_name_lower, game_version):
+            if not self.type_is_relevant or _type_valid_cached(mesh_type, asset_name_lower, game_version):
                 copy = self._setup_mesh_properties(ob, nwo, supports_bsp, props, region, mesh_props)
                 if copy is not None and not copy:
                     return  # lightmap region
@@ -761,7 +761,7 @@ class ExportScene:
 
         elif is_marker:
             marker_type = nwo.marker_type or '_connected_geometry_marker_type_model' 
-            if _type_valid_cached(marker_type, asset_name_lower, game_version):
+            if not self.type_is_relevant or _type_valid_cached(marker_type, asset_name_lower, game_version):
                 self._setup_marker_properties(ob, nwo, props, region)
             elif self.type_is_relevant:
                 warnings_append(f"{ob.name} has invalid marker type [{marker_type}] for asset [{asset_type}]. Skipped")

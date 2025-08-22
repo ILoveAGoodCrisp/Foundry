@@ -1119,7 +1119,7 @@ class ShaderTag(Tag):
         material_model_has_alpha_input = False
         if e_material_model != MaterialModel.NONE:
             material_model_has_alpha_input = e_material_model != MaterialModel.FOLIAGE
-            mm_supports_glancing_spec = e_material_model.value > 0
+            mm_supports_glancing_spec = e_material_model.value > 0 and e_material_model != MaterialModel.FOLIAGE
             node_material_model = self._add_group_material_model(tree, nodes, utils.game_str(e_material_model.name), mm_supports_glancing_spec, e_material_model == MaterialModel.COOK_TORRANCE)
             final_node = node_material_model
         
