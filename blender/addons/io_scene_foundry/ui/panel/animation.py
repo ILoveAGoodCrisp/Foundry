@@ -620,6 +620,7 @@ class NWO_OT_NewAnimation(bpy.types.Operator):
 
     frame_start: bpy.props.IntProperty(name="First Frame", default=1)
     frame_end: bpy.props.IntProperty(name="Last Frame", default=30)
+    copy: bpy.props.BoolProperty(name="Is Copy")
     
     def animation_type_items(self, context):
         items = [
@@ -850,14 +851,23 @@ class NWO_OT_NewAnimation(bpy.types.Operator):
             self.mode = "first_person"
 
     def execute(self, context):
-        full_name = self.create_name()
         scene_nwo = context.scene.nwo
         # Create the animation
+        current_animation = None
         if scene_nwo.active_animation_index > -1:
             current_animation = scene_nwo.animations[scene_nwo.active_animation_index]
             utils.clear_animation(current_animation)
         
         animation = scene_nwo.animations.add()
+        
+        if self.copy and current_animation:
+            for key, value in current_animation.items():
+                animation[key] = value
+            animation.name += "_copy"
+            scene_nwo.active_animation_index = len(scene_nwo.animations) - 1
+            return {'FINISHED'}
+        
+        full_name = self.create_name()
         scene_nwo.active_animation_index = len(scene_nwo.animations) - 1
         if context.object:
             if self.create_new_actions:
@@ -919,6 +929,9 @@ class NWO_OT_NewAnimation(bpy.types.Operator):
         layout = self.layout
         col = layout.column()
         col.use_property_split = True
+        col.prop(self, "copy")
+        if self.copy:
+            return
         col.prop(self, "create_new_actions")
         col.prop(self, "frame_start", text="First Frame")
         col.prop(self, "frame_end", text="Last Frame")

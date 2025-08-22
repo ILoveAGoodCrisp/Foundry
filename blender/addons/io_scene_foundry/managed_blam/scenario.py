@@ -364,7 +364,6 @@ class ScenarioTag(Tag):
                 for element in block.Elements:
                     scenario_object = ScenarioObject(element, palette, object_names)
                     if not scenario_object.valid:
-                        print("NOT VALID", scenario_object)
                         continue
                     ob = scenario_object.to_object()
                     if ob is not None:
