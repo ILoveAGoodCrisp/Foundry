@@ -26,6 +26,7 @@ camera_track_set_description = "Camera tracks represent the position of a third 
 resource_description = "Resource assets cannot be exported but offer access to all object/mesh/marker types and tools.\n\nThey are designed to contain data (such as materials of meshes) that can then be referenced in other scenes"
 cinematic_description = "Cinematic"
 prefab_description = "Prefabs act like standalone bits of instanced geometry that can be referenced in BSPs.\n\nTo reference a prefab in a Scenario asset, add a Game Object Marker and add the relative tag path to your the tag path field"
+single_animation_description = "Exports a single gr2 with the same name as this blend file. Animation properties can be found in the asset editor panel. Does not use the animation action track system to load actions, just exports animations as is. What you see is what you get",
   
 model = NWOAsset("model", "Model", "model", False, model_description)
 scenario = NWOAsset("scenario", "Scenario", "scenario", False, scenario_description)
@@ -37,8 +38,9 @@ camera_track_set = NWOAsset("camera_track_set", "Camera Track Set", 'CON_CAMERAS
 resource = NWOAsset("resource", "Resource", "LINKED", False, resource_description)
 cinematic = NWOAsset("cinematic", "Cinematic", "VIEW_CAMERA_UNSELECTED", False, cinematic_description)
 prefab = NWOAsset("prefab", "Prefab", "prefab", True, prefab_description)
+single_animation = NWOAsset("single_animation", "Single Animation", "single_animation", False, animation_description)
 
-asset_types = [model, scenario, sky, decorator_set, particle_model, animation, camera_track_set, resource, cinematic, prefab]
+asset_types = [model, scenario, sky, decorator_set, particle_model, animation, camera_track_set, resource, cinematic, prefab, single_animation]
 
 def asset_type_items(self, context):
     items = []
@@ -70,6 +72,7 @@ class AssetType(Enum):
     RESOURCE = 7
     CINEMATIC = 8
     PREFAB = 9
+    SINGLE_ANIMATION = 10
     
     @property
     def supports_permutations(self):

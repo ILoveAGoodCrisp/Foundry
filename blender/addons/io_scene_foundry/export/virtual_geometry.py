@@ -11,6 +11,8 @@ import bpy
 from mathutils import Euler, Matrix, Vector
 import numpy as np
 
+from ..props.scene import NWO_ScenePropertiesGroup
+
 from ..tools.light_exporter import calc_attenutation
 
 from ..managed_blam.material import MaterialTag
@@ -304,24 +306,37 @@ class VectorTrack:
             
 class VirtualAnimation:
     def __init__(self, animation, scene: 'VirtualScene', sample: bool, animation_controls=[], shape_key_objects=[], vector_events=[]):
-        self.name = animation.name
-        self.anim = animation
-        if scene.default_animation_compression != "Automatic" and animation.compression == "Default":
-            self.compression = scene.default_animation_compression
+        if isinstance(animation, NWO_ScenePropertiesGroup):
+            self.name = Path(bpy.data.filepath).with_suffix("").name
+            self.anim = animation
+            self.compression = 'Default'
+            self.animation_type = None
+            self.movement = None
+            self.space = None
+            self.overlay = False
+            self.frame_count: int = animation.id_data.frame_end - animation.id_data.frame_start + 1
+            self.frame_range: tuple[int, int] = (animation.id_data.frame_start, animation.id_data.frame_end)
         else:
-            self.compression = animation.compression
+            self.name = animation.name
             
-        self.animation_type = animation.animation_type
-        self.movement = animation.animation_movement_data
-        self.space = animation.animation_space
-        self.overlay = animation.animation_type == 'overlay'
-        self.pose_overlay = False # Now calculating this rather than this being user defined
+            if scene.default_animation_compression != "Automatic" and animation.compression == "Default":
+                self.compression = scene.default_animation_compression
+            else:
+                self.compression = animation.compression
+                
+            self.animation_type = animation.animation_type
+            self.movement = animation.animation_movement_data
+            self.space = animation.animation_space
+            self.overlay = animation.animation_type == 'overlay'
+            
+            self.frame_count: int = animation.frame_end - animation.frame_start + 1
+            self.frame_range: tuple[int, int] = (animation.frame_start, animation.frame_end)
         
+        self.pose_overlay = False # Now calculating this rather than this being user defined
+        self.anim = animation
         self.morph_target_data = []
         self.is_pca = False
-        
-        self.frame_count: int = animation.frame_end - animation.frame_start + 1
-        self.frame_range: tuple[int, int] = (animation.frame_start, animation.frame_end)
+            
         self.granny_animation = None
         self.granny_track_group = None
         self.granny_event_track_groups = []
@@ -1909,7 +1924,7 @@ class VirtualScene:
 
         self.template_node_order = {}
         
-        self.has_main_skeleton = asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.ANIMATION}
+        self.has_main_skeleton = asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.ANIMATION, AssetType.SINGLE_ANIMATION}
         self.is_cinematic = asset_type == AssetType.CINEMATIC
         
         self.disable_automatic_suspension_computation = export_settings.disable_automatic_suspension_computation

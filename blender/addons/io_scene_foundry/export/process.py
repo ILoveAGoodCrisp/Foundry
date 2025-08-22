@@ -161,7 +161,7 @@ class ExportScene:
         self.selected_actors = set()
         self.type_is_relevant = self.asset_type in {AssetType.MODEL, AssetType.SCENARIO, AssetType.SKY, AssetType.DECORATOR_SET, AssetType.PARTICLE_MODEL, AssetType.PREFAB}
         self.main_armature = None
-        self.uses_main_armature = self.asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.ANIMATION}
+        self.uses_main_armature = self.asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.ANIMATION, AssetType.SINGLE_ANIMATION}
         # self.is_child_asset = scene_settings.is_child_asset
         # self.parent_asset_path = None
         # self.parent_asset_path_relative = None
@@ -746,7 +746,7 @@ class ExportScene:
                 copy = self._setup_mesh_properties(ob, nwo, supports_bsp, props, region, mesh_props)
                 if copy is not None and not copy:
                     return  # lightmap region
-                if ob.type == 'MESH' and ob.data.shape_keys and asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.ANIMATION, AssetType.CINEMATIC}:
+                if ob.type == 'MESH' and ob.data.shape_keys and asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.ANIMATION, AssetType.CINEMATIC, AssetType.SINGLE_ANIMATION}:
                     is_pca = True
             elif self.type_is_relevant:
                 warnings_append(f"{ob.name} has invalid mesh type [{mesh_type}] for asset [{asset_type}]. Skipped")
@@ -1351,7 +1351,7 @@ class ExportScene:
          
     def set_template_node_order(self):
         nodes = []
-        if self.asset_type not in {AssetType.MODEL, AssetType.ANIMATION, AssetType.CINEMATIC}:
+        if self.asset_type not in {AssetType.MODEL, AssetType.ANIMATION, AssetType.CINEMATIC, AssetType.SINGLE_ANIMATION}:
             return
         if self.asset_type == AssetType.MODEL:
             if self.scene_settings.template_model_animation_graph and Path(self.tags_dir, utils.relative_path(self.scene_settings.template_model_animation_graph)).exists():
@@ -1506,34 +1506,44 @@ class ExportScene:
             if armature_mods is not None:
                 utils.unmute_armature_mods(armature_mods)
             
-    def sample_animations(self):
-        if self.asset_type not in {AssetType.MODEL, AssetType.ANIMATION} or not self.virtual_scene.skeleton_node:
+    def sample_animations(self, single_animation=False):
+        if self.asset_type not in {AssetType.MODEL, AssetType.ANIMATION, AssetType.SINGLE_ANIMATION} or not self.virtual_scene.skeleton_node:
             return
         animation_names = set()
         valid_animations = []
-        for idx, animation in enumerate(self.context.scene.nwo.animations):
-            if animation.export_this:
-                if animation.name in animation_names:
-                    self.warnings.append(f"Duplicate animation name found: {animation.name} [index {idx}]. Skipping animation")
-                else:
-                    animation_names.add(animation.name)
-                    valid_animations.append(animation)
+        if not single_animation:
+            for idx, animation in enumerate(self.context.scene.nwo.animations):
+                if animation.export_this:
+                    if animation.name in animation_names:
+                        self.warnings.append(f"Duplicate animation name found: {animation.name} [index {idx}]. Skipping animation")
+                    else:
+                        animation_names.add(animation.name)
+                        valid_animations.append(animation)
                 
-        if not valid_animations:
-            return
-        process = "--- Sampling Animations"
-        num_animations = len(valid_animations)
-        for armature in self.armature_poses.keys():
-            armature.pose_position = 'POSE'
-        # for ob in self.context.view_layer.objects:
-        #     ob: bpy.types.Object
-        #     if ob.type != 'ARMATURE':
-        #         utils.unlink(ob)
+            if not valid_animations:
+                return
+            process = "--- Sampling Animations"
+            num_animations = len(valid_animations)
+            for armature in self.armature_poses.keys():
+                armature.pose_position = 'POSE'
+            # for ob in self.context.view_layer.objects:
+            #     ob: bpy.types.Object
+            #     if ob.type != 'ARMATURE':
+            #         utils.unlink(ob)
+            
         armature_mods = utils.mute_armature_mods() if self.export_settings.faster_animation_export else None
         # self.context.view_layer.update()
         self.has_animations = True
         try:
-            if self.export_settings.export_animations == 'ALL':
+            if single_animation:        
+                print("--- Sampling Animation", end="")
+                with utils.Spinner():
+                    controls, vector_events = self.create_event_objects(self.scene_settings)
+                    shape_key_objects = [ob for ob in self.context.view_layer.objects if ob.type == 'MESH' and ob.data.shape_keys and ob.data.shape_keys.animation_data]
+                    self.virtual_scene.add_animation(self.scene_settings, controls=controls, shape_key_objects=shape_key_objects, vector_events=vector_events)
+                print(" ", end="")
+
+            elif self.export_settings.export_animations == 'ALL':
                 with utils.Spinner():
                     utils.update_job_count(process, "", 0, num_animations)
                     for idx, animation in enumerate(valid_animations):
@@ -1804,13 +1814,16 @@ class ExportScene:
             for warning in self.virtual_scene.warnings:
                 utils.print_warning(warning)     
     
-    def export_files(self):
-        self._create_export_groups()
-        self._export_models()
-        if self.asset_type == AssetType.CINEMATIC:
-            self._export_shots()
+    def export_files(self, single_animation=False):
+        if single_animation:
+            self._export_single_animation()
         else:
-            self._export_animations()
+            self._create_export_groups()
+            self._export_models()
+            if self.asset_type == AssetType.CINEMATIC:
+                self._export_shots()
+            else:
+                self._export_animations()
             
     def _export_shots(self):
         
@@ -1873,7 +1886,20 @@ class ExportScene:
                 
             if export and not exported_something:
                 print("--- No animations to export")
-    
+                
+    def _export_single_animation(self):
+        if self.virtual_scene.skeleton_node and self.virtual_scene.animations:
+            print("\n\nExporting Animation")
+            print("-----------------------------------------------------------------------\n")
+            animation = self.virtual_scene.animations[0]
+            granny_path = Path(bpy.data.filepath).with_suffix(".gr2")
+            
+            nodes = animation.nodes
+            nodes_dict = {node.ob: node for node in nodes + [self.virtual_scene.skeleton_node]}
+            self._export_granny_file(granny_path, nodes_dict, animation)
+            print(f"--- Saved gr2 to {granny_path}")
+            
+
     def _create_export_groups(self):
         self.animation_groups = defaultdict(list)
         self.model_groups = defaultdict(list)

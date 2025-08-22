@@ -764,7 +764,7 @@ class NWO_HaloExport(bpy.types.Operator):
     def execute(self, context):
         scene = context.scene
         scene_nwo_export = scene.nwo_export
-        if scene_nwo_export.export_quick and utils.valid_nwo_asset(context):
+        if scene_nwo_export.export_quick and (utils.valid_nwo_asset(context) or utils.nwo_asset_type() == 'single_animation'):
             bpy.ops.nwo.export_scene()
         else:
             bpy.ops.nwo.export_scene("INVOKE_DEFAULT")
@@ -1349,10 +1349,14 @@ def foundry_toolbar(layout, context):
         # sub_game_version.label(text="", icon_value=project_game_icon(context))
 
         sub0 = row.row(align=True)
+        
+        single_animation = utils.nwo_asset_type() == 'single_animation'
+        
         if nwo.is_child_asset:
             sub0.operator("nwo.open_parent_asset", icon='BLENDER')
-        else:
-            if nwo.is_valid_asset and nwo.asset_type != 'resource':
+        
+        if single_animation or not nwo.is_child_asset:
+            if single_animation or (nwo.is_valid_asset and nwo.asset_type != 'resource'):
                 sub0.operator(
                     "nwo.export_quick",
                     text="" if icons_only else "Export",

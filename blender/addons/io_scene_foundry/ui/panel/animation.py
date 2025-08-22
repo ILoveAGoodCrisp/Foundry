@@ -240,6 +240,22 @@ class NWO_OT_UnlinkAnimation(bpy.types.Operator):
                     
         return {"FINISHED"}
     
+# class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
+#     bl_label = "Animations from Blend"
+#     bl_idname = "nwo.animations_from_blend"
+#     bl_description = "Imports animations from the selected blend file"
+#     bl_options = {'UNDO'}
+    
+#     def execute(self, context):
+        
+#         with bpy.data.libraries.load(str(lib_blend), link=Faslse) as (data_from, data_to):
+#             data_to.scenes = data_from.scenes
+        
+#         return {'FINISHED'}
+    
+#     def invoke(self, context, _):
+#         return {'FINISHED'}
+    
 class NWO_OT_AnimationsFromActions(bpy.types.Operator):
     bl_label = "Animations from Actions"
     bl_idname = "nwo.animations_from_actions"
@@ -258,7 +274,15 @@ class NWO_OT_AnimationsFromActions(bpy.types.Operator):
                 objects = [arm]
         scene_nwo = context.scene.nwo
         current_animation_names = {animation.name for animation in context.scene.nwo.animations}
+        used_actions = set()
+        for animation in context.scene.nwo.animations:
+            for track in animation.action_tracks:
+                if track.action:
+                    used_actions.add(action)
+                    
         for action in bpy.data.actions:
+            if action in used_actions:
+                continue
             # action_nwo = action.nwo
             # name = action_nwo.name_override if action_nwo.name_override else action.name
             name = action.name

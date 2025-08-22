@@ -2022,13 +2022,6 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
 
         return items
 
-    default_mesh_type: bpy.props.EnumProperty(
-        name="Default Mesh Type",
-        options=set(),
-        description="Set the default Halo mesh type for new objects",
-        items=items_mesh_type,
-    )
-
     def apply_props(self, context):
         for ob in context.scene.objects:
             ob_nwo = ob.data.nwo
@@ -2059,8 +2052,8 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         name="Animation Type",
         options=set(),
         items=[
-            ("first_person", "First Person", ""),
-            ("standalone", "Standalone", ""),
+            ("first_person", "First Person", "For creating a first person animation graph"),
+            ("standalone", "Standalone", "For creating a standalone animation graph, e.g. for use in a vingette"),
         ]
     )
 
@@ -2957,3 +2950,14 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     )
     
     show_water_direction: bpy.props.BoolProperty(options={'HIDDEN'})
+    
+    animation_events: bpy.props.CollectionProperty(
+        type=NWO_Animation_ListItems,
+    )
+
+    active_animation_event_index: bpy.props.IntProperty(
+        name="Index for Animation Event",
+        default=0,
+        min=0,
+        options=set(),
+    )

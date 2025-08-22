@@ -81,7 +81,7 @@ class NWO_ExportScene(Operator, ExportHelper):
     
     @classmethod
     def poll(cls, context):
-        return utils.current_project_valid() and not validate_ek() and not context.scene.nwo.storage_only and context.scene.nwo.asset_type != 'resource' and not context.scene.nwo.is_child_asset
+        return utils.current_project_valid() and not validate_ek() and not context.scene.nwo.storage_only and context.scene.nwo.asset_type != 'resource' and (utils.nwo_asset_type() == 'single_animation' or not context.scene.nwo.is_child_asset)
     
     @classmethod
     def description(cls, context, properties):
@@ -92,9 +92,12 @@ class NWO_ExportScene(Operator, ExportHelper):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # SETUP #
+        self.game_path_not_set = False
+        if utils.nwo_asset_type() == 'single_animation':
+            self.filepath = str(Path(bpy.data.filepath).with_suffix(".gr2"))
+            return
         scene = bpy.context.scene
         data_dir = get_data_path()
-        self.game_path_not_set = False
 
         if Path(get_tool_path()).with_suffix(".exe").exists():
             # get sidecar path from users EK data path + internal path
@@ -197,24 +200,32 @@ class NWO_ExportScene(Operator, ExportHelper):
 
         start = time.perf_counter()
         # get the asset name and path to the asset folder
-        if scene_nwo.sidecar_path:
-            self.asset_path = get_asset_path_full()
-            self.asset_name = Path(self.asset_path).name
-        else:
-            self.asset_path, self.asset_name = get_asset_info(self.filepath)
-
-        sidecar_path_full = str(Path(self.asset_path, self.asset_name).with_suffix(".sidecar.xml"))
-        print(sidecar_path_full)
+        single_animation = utils.nwo_asset_type() == 'single_animation'
         global sidecar_path
-        sidecar_path = str(Path(sidecar_path_full).relative_to(get_data_path()))
+        if single_animation:
+            sidecar_path_full = ""
+            sidecar_path = ""
+            self.asset_name = ""
+            self.asset_path = ""
+        else:
+            if scene_nwo.sidecar_path:
+                self.asset_path = get_asset_path_full()
+                self.asset_name = Path(self.asset_path).name
+            else:
+                self.asset_path, self.asset_name = get_asset_info(self.filepath)
+
+            sidecar_path_full = str(Path(self.asset_path, self.asset_name).with_suffix(".sidecar.xml"))
+            print(sidecar_path_full)
+            
+            sidecar_path = str(Path(sidecar_path_full).relative_to(get_data_path()))
+            
+            scene_nwo.sidecar_path = sidecar_path
         
-        scene_nwo.sidecar_path = sidecar_path
-        
-        # Check that we can export
-        if self.export_invalid():
-            scene_nwo_export.export_quick = False
-            self.report({"WARNING"}, "Export aborted")
-            return {"CANCELLED"}
+            # Check that we can export
+            if self.export_invalid():
+                scene_nwo_export.export_quick = False
+                self.report({"WARNING"}, "Export aborted")
+                return {"CANCELLED"}
         
         if not self.for_cache_build:
             # toggle the console
@@ -238,7 +249,7 @@ class NWO_ExportScene(Operator, ExportHelper):
         try:
             try:
                 process_results = None
-                export_asset(context, sidecar_path_full, sidecar_path, self.asset_name, self.asset_path, scene_nwo, scene_nwo_export, is_corinth(context))
+                export_asset(context, sidecar_path_full, sidecar_path, self.asset_name, self.asset_path, scene_nwo, scene_nwo_export, is_corinth(context), single_animation)
             
             except Exception as e:
                 if isinstance(e, RuntimeError):
@@ -555,7 +566,7 @@ def unregister():
     bpy.types.TOPBAR_MT_file_export.remove(menu_func_export)
     bpy.utils.unregister_class(NWO_ExportScene)
 
-def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_path, scene_settings, export_settings, corinth):
+def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_path, scene_settings, export_settings, corinth, single_animation):
     asset_type = scene_settings.asset_type
     if asset_type == 'camera_track_set':
         return export_current_action_as_camera_track(context,asset_path) # Return early if this is a camera track export
@@ -572,12 +583,13 @@ def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_pat
             if export_scene.asset_type == AssetType.CINEMATIC:
                 export_scene.sample_shots()
             else:
-                export_scene.sample_animations()
+                export_scene.sample_animations(single_animation)
             export_scene.report_warnings()
-            export_scene.export_files()
-            export_scene.write_sidecar()
+            export_scene.export_files(single_animation)
+            if not single_animation:
+                export_scene.write_sidecar()
             
-        if export_settings.export_mode in {'FULL', 'TAGS'}:
+        if not single_animation and export_settings.export_mode in {'FULL', 'TAGS'}:
             if export_settings.export_mode == 'TAGS' and (export_scene.limit_perms_to_selection or export_scene.limit_bsps_to_selection):
                 # Need to figure out what perms/bsps are selected in this case
                 print("\n\nQuick Scene Process")

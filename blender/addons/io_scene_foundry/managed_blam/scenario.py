@@ -60,6 +60,10 @@ class ScenarioObject:
         ob.nwo.marker_game_instance_tag_variant_name = self.variant
         
         return ob
+    
+class ScenarioDecal:
+    def __init__(self, element: TagFieldBlockElement, palette: list[ScenarioObjectReference]):
+        pass
 
 class ScenarioTag(Tag):
     tag_ext = 'scenario'
