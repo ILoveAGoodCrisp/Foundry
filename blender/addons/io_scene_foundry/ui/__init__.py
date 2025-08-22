@@ -58,6 +58,8 @@ classes = [
     animation.NWO_OT_List_Add_Animation_Event,
     animation.NWO_OT_List_Remove_Animation_Event,
     animation.NWO_OT_AnimationEventMove,
+    animation.NWO_OT_SingleList_Add_Animation_Event,
+    animation.NWO_OT_SingleList_Remove_Animation_Event,
     animation.NWO_OT_SetActionTracksActive,
     animation.NWO_OT_AddActionTrack,
     animation.NWO_OT_RemoveActionTrack,

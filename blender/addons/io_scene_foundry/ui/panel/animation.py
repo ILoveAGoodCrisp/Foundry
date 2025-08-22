@@ -282,7 +282,7 @@ class NWO_OT_OpenExternalAnimationBlend(bpy.types.Operator):
         
         if blend.exists():
             bpy.ops.wm.save_mainfile(compress=context.preferences.filepaths.use_file_compression)
-            bpy.ops.wm.open_mainfile(filepath=str(blend), compress=context.preferences.filepaths.use_file_compression)
+            bpy.ops.wm.open_mainfile(filepath=str(blend))
         else:
             self.report({'WARNING'}, f"No blender file associated with this GR2. Expected: {blend}")
             return {'CANCELLED'}
@@ -343,6 +343,7 @@ class NWO_OT_AnimationMoveToOwnBlend(bpy.types.Operator):
             scene.nwo.parent_asset = rel_path
             scene.nwo.parent_sidecar = sidecar_path
         
+        bpy.ops.wm.save_mainfile(compress=context.preferences.filepaths.use_file_compression)
         self.report({'INFO'}, f"Loaded new blend: {blend_path}")
         return {'FINISHED'}
     
@@ -1472,7 +1473,7 @@ class NWO_OT_AnimationFramesSyncToKeyFrames(bpy.types.Operator):
 class NWO_OT_List_Add_Animation_Event(bpy.types.Operator):
     """Add an Item to the UIList"""
 
-    bl_idname = "animation_event.list_add"
+    bl_idname = "nwo.animation_event_list_add"
     bl_label = "Add"
     bl_description = "Add a new animation event"
     filename_ext = ""
@@ -1498,7 +1499,7 @@ class NWO_OT_List_Add_Animation_Event(bpy.types.Operator):
 class NWO_OT_List_Remove_Animation_Event(bpy.types.Operator):
     """Remove an Item from the UIList"""
 
-    bl_idname = "animation_event.list_remove"
+    bl_idname = "nwo.animation_event_list_remove"
     bl_label = "Remove"
     bl_description = "Remove an animation event from the list"
     bl_options = {"UNDO"}
@@ -1533,3 +1534,50 @@ class NWO_OT_AnimationEventMove(bpy.types.Operator):
         animation.active_animation_event_index = to_index
         context.area.tag_redraw()
         return {'FINISHED'}
+    
+class NWO_OT_SingleList_Add_Animation_Event(bpy.types.Operator):
+    """Add an Item to the UIList"""
+
+    bl_idname = "nwo.single_animation_event_list_add"
+    bl_label = "Add"
+    bl_description = "Add a new animation event"
+    filename_ext = ""
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene
+
+    def execute(self, context):
+        animation = context.scene.nwo
+        event = animation.animation_events.add()
+        animation.active_animation_event_index = len(animation.animation_events) - 1
+        event.frame_frame = context.scene.frame_current
+        event.event_id = random.randint(0, 2147483647)
+        event.name = f"event_{len(animation.animation_events)}"
+
+        context.area.tag_redraw()
+
+        return {"FINISHED"}
+
+
+class NWO_OT_SingleList_Remove_Animation_Event(bpy.types.Operator):
+    """Remove an Item from the UIList"""
+
+    bl_idname = "nwo.single_animation_event_list_remove"
+    bl_label = "Remove"
+    bl_description = "Remove an animation event from the list"
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene and context.scene.nwo.animation_events
+
+    def execute(self, context):
+        animation = context.scene.nwo
+        index = animation.active_animation_event_index
+        animation.animation_events.remove(index)
+        if animation.active_animation_event_index > len(animation.animation_events) - 1:
+            animation.active_animation_event_index += -1
+        context.area.tag_redraw()
+        return {"FINISHED"}
