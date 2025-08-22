@@ -12,7 +12,7 @@ import bpy
 
 class ScenarioObjectReference:
     def __init__(self, element: TagFieldBlockElement):
-        self.definition = ""
+        self.definition = None
         self.name = "object"
         def_path = element.Fields[0].Path
         if def_path is not None:
@@ -32,6 +32,7 @@ class ScenarioObject:
             self.scale = 1
         palette_index = element.SelectField("ShortBlockIndex:type").Value
         self.reference = palette[palette_index] if palette_index > -1  and palette_index < len(palette) else None
+        self.valid = self.reference is not None and self.reference.definition is not None
         variant = element.SelectField("Struct:permutation data[0]/StringId:variant name")
         if variant is None:
             self.variant = ""
@@ -362,6 +363,9 @@ class ScenarioTag(Tag):
                 palette = [ScenarioObjectReference(e) for e in self.tag.SelectField(f"Block:{palette_name} palette").Elements]
                 for element in block.Elements:
                     scenario_object = ScenarioObject(element, palette, object_names)
+                    if not scenario_object.valid:
+                        print("NOT VALID", scenario_object)
+                        continue
                     ob = scenario_object.to_object()
                     if ob is not None:
                         if scenario_object.name_index > -1 and scenario_object.name_index < len(object_names):

@@ -473,7 +473,7 @@ class StructureMarker:
         
 class EnvironmentObjectReference:
     def __init__(self, element: TagFieldBlockElement):
-        self.definition = ""
+        self.definition = None
         def_path = element.Fields[0].Path
         if def_path is not None:
             if Path(def_path.Filename).exists():
