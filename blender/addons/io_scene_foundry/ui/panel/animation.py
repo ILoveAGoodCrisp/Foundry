@@ -864,6 +864,10 @@ class NWO_OT_NewAnimation(bpy.types.Operator):
             for key, value in current_animation.items():
                 animation[key] = value
             animation.name += "_copy"
+            animation.animation_renames.clear()
+            for track in animation.action_tracks:
+                if track.action:
+                    track.action = track.action.copy()
             scene_nwo.active_animation_index = len(scene_nwo.animations) - 1
             return {'FINISHED'}
         
@@ -951,8 +955,8 @@ class NWO_OT_NewAnimation(bpy.types.Operator):
                 row.prop(self, 'animation_space', expand=True)
         self.draw_name(layout)
 
-    def draw_name(self, layout):
-        if self.fp_animation:
+    def draw_name(self, layout, ignore_fp=False):
+        if self.fp_animation and not ignore_fp:
             layout.prop(self, "state", text="State")
             layout.prop(self, "variant")
         else:
@@ -1094,7 +1098,7 @@ class NWO_OT_List_Add_Animation_Rename(NWO_OT_NewAnimation):
             self.custom = animation.name
 
     def draw(self, context):
-        self.draw_name(self.layout)
+        self.draw_name(self.layout, True)
 
     def execute(self, context):
         full_name = self.create_name()
