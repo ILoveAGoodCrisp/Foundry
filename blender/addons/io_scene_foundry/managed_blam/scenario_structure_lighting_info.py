@@ -384,7 +384,7 @@ class ScenarioStructureLightingInfoTag(Tag):
                     
             nwo.light_shape = '_connected_geometry_light_shape_circle' if element.SelectField("shape").Value == 1 else '_connected_geometry_light_shape_rectangle'
             blender_light.color = [utils.srgb_to_linear(c) for c in element.SelectField("color").Data]
-            nwo.light_intensity = element.SelectField("intensity").Data
+            blender_light.energy = utils.calc_light_energy(blender_light, element.SelectField("intensity").Data)
             
             blender_light.shadow_soft_size = max((*element.SelectField("near attenuation bounds").Data,))
             nwo.light_far_attenuation_start, nwo.light_far_attenuation_end = [a for a in element.SelectField("far attenuation bounds").Data]
