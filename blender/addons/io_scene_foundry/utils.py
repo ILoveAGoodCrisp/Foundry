@@ -5152,3 +5152,14 @@ def recursive_parent_mapper(collection: bpy.types.Collection, collection_map: di
             
     for child in collection.children:
         recursive_parent_mapper(child, collection_map, export_collection)
+        
+def reduce_suffix(name: str) -> str:
+    """Reduce Blender's .00X suffix by 1, or strip it if .001"""
+    m = re.match(r"^(.*)\.(\d{3})$", name)
+    if not m:
+        return name
+    base, num_str = m.groups()
+    num = int(num_str)
+    if num <= 1:
+        return base  # .001 → base
+    return f"{base}.{num-1:03d}"

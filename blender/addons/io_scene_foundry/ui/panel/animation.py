@@ -240,25 +240,59 @@ class NWO_OT_UnlinkAnimation(bpy.types.Operator):
                     
         return {"FINISHED"}
     
-# class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
-#     bl_label = "Animations from Blend"
-#     bl_idname = "nwo.animations_from_blend"
-#     bl_description = "Imports animations from the selected blend file"
-#     bl_options = {'UNDO'}
-
-    # @classmethod
-    # def poll(cls, context):
-    #     return context.scene.nwo.animations and context.scene.nwo.active_animation_index > -1
+class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
+    bl_label = "Animations from Blend"
+    bl_idname = "nwo.animations_from_blend"
+    bl_description = "Imports animations from the selected blend file"
+    bl_options = {'UNDO'}
     
-#     def execute(self, context):
-        
-#         with bpy.data.libraries.load(str(lib_blend), link=Faslse) as (data_from, data_to):
-#             data_to.scenes = data_from.scenes
-        
-#         return {'FINISHED'}
+    filepath: bpy.props.StringProperty(
+        name="Blend File", description="Path to a blend file", subtype="FILE_PATH"
+    )
     
-#     def invoke(self, context, _):
-#         return {'FINISHED'}
+    filter_glob: bpy.props.StringProperty(
+        default="*.blend",
+        options={"HIDDEN"},
+        maxlen=1024,
+    )
+    
+    def execute(self, context):
+        current_scenes = set(bpy.data.scenes)
+        current_animations = context.scene.nwo.animations
+        with bpy.data.libraries.load(self.filepath, link=False) as (data_from, data_to):
+            data_to.scenes = data_from.scenes
+            
+        new_scenes = [s for s in bpy.data.scenes if s not in current_scenes]
+        
+        new_anim_count = 0
+        
+        for scene in new_scenes:
+            for anim in scene.nwo.animations:
+                if current_animations.get(anim.name) is None:
+                    new_anim = current_animations.add()
+                    new_anim_count += 1
+                    for key, value in anim.items():
+                        new_anim[key] = value
+                        
+                    for track in new_anim.action_tracks:
+                        ob = track.object
+                        if ob is not None:
+                            original_name = utils.reduce_suffix(ob.name)
+                            potential_ob = bpy.data.objects.get(original_name)
+                            if potential_ob:
+                                track.object = potential_ob
+                            else:
+                                track.object = None
+                        
+        for scene in new_scenes:
+            bpy.data.scenes.remove(scene)
+        
+        self.report({'INFO'}, f"Imported {new_anim_count} animations")
+        return {'FINISHED'}
+    
+    def invoke(self, context, _):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
 
 class NWO_OT_OpenExternalAnimationBlend(bpy.types.Operator):
     bl_label = "Open Blend"
@@ -522,6 +556,7 @@ class NWO_MT_AnimationTools(bpy.types.Menu):
     def draw(self, context):
         layout = self.layout
         layout.operator("nwo.animations_from_actions", icon='UV_SYNC_SELECT')
+        layout.operator("nwo.animations_from_blend", icon='IMPORT')
         layout.operator("nwo.clear_animations", icon='CANCEL')
         layout.operator("nwo.clear_renames", icon='CANCEL')
         layout.operator("nwo.clear_events", icon='CANCEL')

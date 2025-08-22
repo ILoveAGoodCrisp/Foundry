@@ -44,6 +44,7 @@ classes = [
     animation.NWO_OT_AnimationLinkToGR2,
     animation.NWO_OT_AnimationMoveToOwnBlend,
     animation.NWO_OT_OpenExternalAnimationBlend,
+    animation.NWO_OT_AnimationsFromBlend,
     animation.NWO_OT_SetTimeline,
     animation.NWO_OT_ClearRenames,
     animation.NWO_OT_ClearEvents,

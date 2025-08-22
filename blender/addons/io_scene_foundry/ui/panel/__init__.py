@@ -2987,6 +2987,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             box.operator("nwo.new_animation", icon="ANIM", text="New Animation")
             box.operator("nwo.select_armature", text="Select Armature", icon='OUTLINER_OB_ARMATURE')
             box.operator("nwo.animations_from_actions", icon='UV_SYNC_SELECT')
+            box.operator("nwo.animations_from_blend", icon='IMPORT')
             return
 
         row.template_list(
