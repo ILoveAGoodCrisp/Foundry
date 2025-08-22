@@ -1939,10 +1939,16 @@ class NWOImporter:
                                 marker_children.append(marker_ob)
                                 
                     if marker_children:
-                        # Where there is a child marker, the child armature should be given the transforms of the child marker
-                        # However, we must also unwind the transformation we did to make the marker relative to a bone head instead of tail
-                        marker_ob = marker_children[0]
-                        armature.matrix_world = marker_ob.matrix_world
+                        attach_point = marker_children[0].copy()
+                        attach_point.name = f"{obj.tag_path.ShortName}_attach"
+                        attach_point_matrix = attach_point.matrix_world.copy()
+                        attach_point.parent = None
+                        attach_point.matrix_world = attach_point_matrix
+                        child_collection.objects.link(attach_point)
+                        imported_objects.append(attach_point)
+                        arm_matrix = armature.matrix_world.copy()
+                        armature.parent = attach_point
+                        armature.matrix_world = arm_matrix
                         
                     marker_parents = []
                     
@@ -1950,17 +1956,19 @@ class NWOImporter:
                         for marker_ob, group_name in markers.items():
                             if group_name == child_object.parent_marker:
                                 marker_parents.append(marker_ob)
-                    
-                    # con = armature.constraints.new('CHILD_OF')
-                    # con.set_inverse_pending = False
+
                     if marker_parents:
-                        armature.parent = marker_parents[0]
-                        # con.target = marker_parents[0]
+                        if marker_children:
+                            attach_point.parent = marker_parents[0]
+                            attach_point.matrix_world = marker_parents[0].matrix_world
+                        else:
+                            armature.parent = marker_parents[0]
                     else:
-                        armature.parent = parent_armature
-                        # con.target = parent_armature
-                        
-                    # con.inverse_matrix = IDENTITY_MATRIX
+                        if marker_children:
+                            attach_point.parent = parent_armature
+                            attach_point.matrix_world = parent_armature.matrix_world
+                        else:
+                            armature.parent = parent_armature
                         
         return imported_objects
             
