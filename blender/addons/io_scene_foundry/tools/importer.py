@@ -1688,7 +1688,7 @@ class NWOImporter:
                                                     fp_collection = bpy.data.collections.new(f"FP Arms - {self.import_fp_arms.name.title()}")
                                                     self.context.scene.collection.children.link(fp_collection)
                                                     with RenderModelTag(path=fp_arms_path) as render_model:
-                                                        fp_objects, fp_armature = render_model.to_blend_objects(fp_collection, True, self.tag_markers, self.context.scene.collection, None, allowed_fp_region_permutations)
+                                                        fp_objects, fp_armature = render_model.to_blend_objects(fp_collection, True, self.tag_markers, self.context.scene.collection, None, allowed_fp_region_permutations, no_io=True)
                                                         fp_objects.remove(fp_armature)
                                                         render_objects.extend(fp_objects)
                                                         

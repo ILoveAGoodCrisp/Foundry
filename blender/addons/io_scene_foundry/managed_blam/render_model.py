@@ -92,7 +92,7 @@ class RenderModelTag(Tag):
         print("#"*50 + '\n')
         print([i for i in tex_coords])
         
-    def to_blend_objects(self, collection, render: bool, markers: bool, model_collection: bpy.types.Collection, existing_armature=None, allowed_region_permutations=set(), from_vert_normals=False):
+    def to_blend_objects(self, collection, render: bool, markers: bool, model_collection: bpy.types.Collection, existing_armature=None, allowed_region_permutations=set(), from_vert_normals=False, no_io=False):
         self.collection = collection
         self.model_collection = model_collection
         objects = []
@@ -105,7 +105,7 @@ class RenderModelTag(Tag):
         
         if render:
             print("Creating Render Geometry")
-            result = self._create_render_geometry(allowed_region_permutations, from_vert_normals)
+            result = self._create_render_geometry(allowed_region_permutations, from_vert_normals, no_io)
             if result:
                 objects.extend(result)
             else:
@@ -165,7 +165,7 @@ class RenderModelTag(Tag):
         return arm.ob
         
 
-    def _create_render_geometry(self, allowed_region_permutations: set | str, from_vert_normals=False):
+    def _create_render_geometry(self, allowed_region_permutations: set | str, from_vert_normals=False, no_io=False):
         objects = []
         if not self.block_compression_info.Elements.Count:
             utils.print_warning("Render Model has no compression info. Cannot import render model mesh")
@@ -266,15 +266,16 @@ class RenderModelTag(Tag):
                 
         # Instances
         self.instances = []
-        self.instance_mesh_index = self.tag.SelectField("LongBlockIndex:instance mesh index").Value
-        if self.instance_mesh_index > -1:
-            if valid_instance_indexes is None:
-                for element in self.tag.SelectField("Block:instance placements").Elements:
-                    self.instances.append(InstancePlacement(element, self.nodes))
-            else:
-                for element in self.tag.SelectField("Block:instance placements").Elements:
-                    if element.ElementIndex in valid_instance_indexes:
+        if not no_io:
+            self.instance_mesh_index = self.tag.SelectField("LongBlockIndex:instance mesh index").Value
+            if self.instance_mesh_index > -1:
+                if valid_instance_indexes is None:
+                    for element in self.tag.SelectField("Block:instance placements").Elements:
                         self.instances.append(InstancePlacement(element, self.nodes))
+                else:
+                    for element in self.tag.SelectField("Block:instance placements").Elements:
+                        if element.ElementIndex in valid_instance_indexes:
+                            self.instances.append(InstancePlacement(element, self.nodes))
 
         for ob, region_perm in ob_region_perms.items():
             region, permutation = region_perm
