@@ -1866,11 +1866,11 @@ def calc_emissive_intensity(emissive_power, factor=1):
     intensity = factor * ((emissive_power / 0.03048**-2) / (100 if is_corinth() else 300))
     return intensity
 
-def calc_light_energy(light_data, intensity):
+def calc_light_energy(light_data, intensity, scale=0.03048):
     if light_data.type == "SUN":
         return intensity
     
-    energy = intensity * (0.03048 ** -2) * (100 if is_corinth() else 300)
+    energy = intensity * (scale ** -2) * (100 if is_corinth() else 300)
     
     return energy
 
@@ -2428,6 +2428,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
     all_objects = False
     with TransformManager():
         # armatures = [ob for ob in bpy.data.objects if ob.type == 'ARMATURE']
+        light_intensities = {}
         if objects is None:
             objects = bpy.data.objects
             all_objects = True
@@ -2441,6 +2442,10 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
             meshes = {ob.data for ob in objects if ob.type =='MESH'}
             cameras = {ob.data for ob in objects if ob.type =='CAMERA'}
             lights = {ob.data for ob in objects if ob.type =='LIGHT'}
+            
+            for light in lights:
+                if light.type != 'SUN':
+                    light_intensities[light] = light.nwo.light_intensity
             
         if actions is None:
             actions = bpy.data.actions
@@ -2587,8 +2592,6 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                 camera.display_size *= scale_factor
                 
             for light in lights:
-                # if light.type != 'SUN':
-                #     light.energy *= scale_factor ** 2
                 light.nwo.light_far_attenuation_start *= scale_factor
                 light.nwo.light_far_attenuation_end *= scale_factor
                 # light.nwo.light_near_attenuation_start *= scale_factor
@@ -2770,6 +2773,9 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                 
         for arm, pose_pos in armatures.items():
             arm.data.pose_position = pose_pos
+        
+        for light, intensity in light_intensities.items():
+            light.energy = calc_light_energy(light, intensity, 1 / scale_factor)
             
 def get_area_info(context):
     area = [

@@ -2189,7 +2189,7 @@ class ExportScene:
         self._setup_model_overrides()
         
         # Set FP weapon
-        if self.scene_settings.output_weapon and self.scene_settings.use_as_fp_render_model:
+        if self.asset_type == AssetType.MODEL and self.scene_settings.output_weapon and self.scene_settings.use_as_fp_render_model:
             expected_weapon_path = utils.get_asset_tag("weapon", True)
             if Path(expected_weapon_path).exists():
                 render_path = utils.get_asset_tag("render_model")

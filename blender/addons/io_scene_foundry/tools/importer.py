@@ -1707,10 +1707,10 @@ class NWOImporter:
                                                         block_fp = obj.tag.SelectField("Struct:player interface[0]/Block:first person")
                                                         fp_anim_tag = None
                                                         if self.import_fp_arms == FPARMS.SPARTAN:
-                                                            if block_fp.Elements.Count > 0:
+                                                            if block_fp.Elements.Count > 0 and block_fp.Elements[0].SelectField("Reference:first person animations").Path is not None:
                                                                 fp_anim_tag = block_fp.Elements[0].SelectField("Reference:first person animations").Path.Filename
                                                         elif self.import_fp_arms == FPARMS.ELITE:
-                                                            if block_fp.Elements.Count > 1:
+                                                            if block_fp.Elements.Count > 1 and block_fp.Elements[1].SelectField("Reference:first person animations").Path is not None:
                                                                 fp_anim_tag = block_fp.Elements[1].SelectField("Reference:first person animations").Path.Filename
                                                                 
                                                         if fp_anim_tag is not None and Path(fp_anim_tag).exists():
