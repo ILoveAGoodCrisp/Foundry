@@ -4163,10 +4163,10 @@ def get_version_string() -> str:
     return ".".join([str(n) for n in version])
 
 def has_gr2_viewer() -> bool:
-    root = get_project_path()
-    if not root:
+    viewer_path = get_prefs().granny_viewer_path
+    if len(viewer_path.strip()) < 3:
         return False
-    return Path(root, "gr2_viewer.exe").exists()
+    return Path(viewer_path.strip("""'\" """)).with_suffix(".exe").exists()
 
 def remove_node_prefix(string):
     node_prefix_tuple = ('b ', 'b_', 'bone ', 'bone_', 'frame ', 'frame_', 'bip01 ', 'bip01_')

@@ -7,11 +7,13 @@ import bpy
 from ..ui.bar import draw_game_launcher_pruning, draw_game_launcher_settings
 from ..managed_blam.scenario import ScenarioTag
 from ..utils import (
+    get_asset_path_full,
     get_data_path,
     get_exe,
     get_prefs,
     get_project_path,
     get_tags_path,
+    has_gr2_viewer,
     is_corinth,
     nwo_asset_type,
     relative_path,
@@ -572,7 +574,39 @@ class NWO_HaloLauncher_Tags(bpy.types.Operator):
             True,
             scene.nwo
         )
+        
+class NWO_HaloLauncher_Granny(bpy.types.Operator):
+    bl_idname = "nwo.launch_granny_viewer"
+    bl_label = "Open GR2 File"
+    
+    @classmethod
+    def poll(cls, context):
+        return has_gr2_viewer()
+    
+    filepath: bpy.props.StringProperty(
+        name="GR2 File", description="Path to a gr2 file", subtype="FILE_PATH"
+    )
 
+    def execute(self, context):
+        os.startfile(Path(get_prefs().granny_viewer_path.strip("""'\" """)).with_suffix(".exe"), arguments=self.filepath)
+        return {'FINISHED'}
+    
+    def invoke(self, context, _):
+        single_animation = nwo_asset_type() == 'single_animation'
+        if single_animation or valid_nwo_asset():
+            if single_animation:
+                self.filepath = str(Path(bpy.data.filepath).parent)
+            else:
+                self.filepath = get_asset_path_full()
+        
+            models = Path(self.filepath, "export", "models")
+            if models.exists():
+                self.filepath = str(models)
+                
+            self.filepath += os.sep
+        
+        context.window_manager.fileselect_add(self)
+        return {"RUNNING_MODAL"}
 
 class NWO_HaloLauncher_Sapien(bpy.types.Operator):
     """Opens Sapien"""
@@ -1052,3 +1086,4 @@ class NWO_HaloLauncherPropertiesGroup(bpy.types.PropertyGroup):
         description="Name of Blender blender text editor file to get custom init lines from. If no such text exists, instead looks in the root editing kit for an init.txt with this name. If this doesn't exist, then the actual text is used instead",
         default="",
     )
+    

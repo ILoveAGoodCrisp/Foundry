@@ -352,6 +352,11 @@ class FoundryPreferences(AddonPreferences):
         description="Allow Foundry to patch tool.exe and tool_fast.exe. Disabling this means some features may be fail",
         default=True,
     )
+    
+    granny_viewer_path: StringProperty(
+        name="Granny Viewer Path",
+        description="Full system path to granny viewer. Having this allows Foundry to open gr2 files in the viewer",
+    )
 
     def draw(self, context):
         prefs = self
@@ -409,6 +414,8 @@ class FoundryPreferences(AddonPreferences):
         row.prop(prefs, "import_shaders_with_time_period")
         row = box.row(align=True)
         row.prop(prefs, "allow_tool_patches")
+        row = box.row(align=True)
+        row.prop(prefs, "granny_viewer_path")
         
 classes = [
     H2AMPEKLocationPath,

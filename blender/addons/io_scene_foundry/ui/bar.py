@@ -1394,6 +1394,9 @@ def foundry_toolbar(layout, context):
             icon_value=get_icon_id("foundation"),
         )
         sub2.popover(panel="NWO_PT_HaloLauncherFoundationSettings", text="")
+        if utils.has_gr2_viewer():
+            sub_granny = row.row(align=True)
+            sub_granny.operator("nwo.launch_granny_viewer", text="", icon_value=get_icon_id("granny3d"))
         sub3 = row.row(align=True)
         sub3.operator(
             "nwo.launch_data",

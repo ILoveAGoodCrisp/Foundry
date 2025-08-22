@@ -1977,7 +1977,7 @@ class ExportScene:
         self.granny.save()
         
         if self.granny_open and not animation_export and filepath.exists():
-            os.startfile(Path(self.project_root, "gr2_viewer.exe"), arguments=str(filepath))
+            os.startfile(Path(utils.get_prefs().granny_viewer_path.strip("""'\" """)).with_suffix(".exe"), arguments=str(filepath))
             
     def _get_export_path(self, name: str, animation=False):
         """Gets the path to save a particular file to"""

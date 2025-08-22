@@ -44,7 +44,7 @@ from .shader_reader import NWO_ShaderToNodes
 from .get_model_variants import NWO_GetModelVariants
 from .get_zone_sets import NWO_GetZoneSets
 from .get_tag_list import NWO_GetTagsList, NWO_TagExplore
-from .halo_launcher import NWO_HaloLauncher_Data, NWO_HaloLauncher_Foundation, NWO_HaloLauncher_Sapien, NWO_HaloLauncher_TagTest, NWO_HaloLauncher_Tags, NWO_OpenFoundationTag
+from .halo_launcher import NWO_HaloLauncher_Data, NWO_HaloLauncher_Foundation, NWO_HaloLauncher_Granny, NWO_HaloLauncher_Sapien, NWO_HaloLauncher_TagTest, NWO_HaloLauncher_Tags, NWO_OpenFoundationTag
 from .shader_builder import NWO_ListMaterialShaders, NWO_Shader_BuildSingle, NWO_ShaderPropertiesGroup
 from .halo_launcher import NWO_HaloLauncherPropertiesGroup, NWO_MaterialGirl
 from .imposter_farm import NWO_OT_InstanceImposterGenerate
@@ -103,6 +103,7 @@ classes = (
     NWO_HaloLauncher_Tags,
     NWO_HaloLauncher_Sapien,
     NWO_HaloLauncher_TagTest,
+    NWO_HaloLauncher_Granny,
     NWO_ExportBitmapsSingle,
     NWO_GetModelVariants,
     NWO_GetZoneSets,
