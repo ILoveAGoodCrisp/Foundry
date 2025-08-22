@@ -25,8 +25,8 @@ class ScenarioObject:
         self.name_index = element.SelectField("ShortBlockIndex:name").Value
         self.name = "object"
         self.position = Vector([n * 100 for n in element.SelectField("Struct:object data[0]/RealPoint3d:position").Data])
-        rot = [radians(n) for n in element.SelectField("Struct:object data[0]/RealEulerAngles3d:rotation").Data]
-        self.rotation = Euler((rot[2], rot[1], rot[0]))
+        yaw, pitch, roll = [radians(n) for n in element.SelectField("Struct:object data[0]/RealEulerAngles3d:rotation").Data]
+        self.rotation = Euler((roll, -pitch, yaw), 'ZYX')
         self.scale = element.SelectField("Struct:object data[0]/Real:scale").Data
         if self.scale == 0.0:
             self.scale = 1
