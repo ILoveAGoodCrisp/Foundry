@@ -520,7 +520,7 @@ def run_tool(tool_args: list, in_background=False, null_output=False, event_leve
         else:
             return check_call(command)  # ,stderr=PIPE)
 
-def run_tool_sidecar(tool_args: list, asset_path, event_level='WARNING'):
+def run_tool_sidecar(tool_args: list, event_level='WARNING'):
     """Runs Tool using the specified function and arguments. Do not include 'tool' in the args passed"""
     failed = False
     os.chdir(get_project_path())
@@ -2173,10 +2173,27 @@ def wu(meters) -> int:
     return meters * 3.048
 
 def exit_local_view(context):
+    local_views = set()
     for area in context.screen.areas:
         if area.type == "VIEW_3D":
             space = area.spaces[0]
             if space.local_view:
+                local_views.add(space)
+                for region in area.regions:
+                    if region.type == "WINDOW":
+                        override = context.copy()
+                        override["area"] = area
+                        override["region"] = region
+                        with context.temp_override(**override):
+                            bpy.ops.view3d.localview()
+    
+    return local_views
+
+def set_local_view(context, local_views):
+    for area in context.screen.areas:
+        if area.type == "VIEW_3D":
+            space = area.spaces[0]
+            if space in local_views:
                 for region in area.regions:
                     if region.type == "WINDOW":
                         override = context.copy()

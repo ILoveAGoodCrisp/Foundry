@@ -830,6 +830,27 @@ class NWO_ActionGroup(bpy.types.PropertyGroup):
 
 class NWO_AnimationPropertiesGroup(bpy.types.PropertyGroup):
     active_action_group_index: bpy.props.IntProperty()
+    
+    external: bpy.props.BoolProperty(
+        name="External",
+        description="Animation data comes from separate GR2 file"
+    )
+    
+    gr2_path: bpy.props.StringProperty(
+        name="GR2 Path",
+        description="Data relative path to the file that contains animation data"
+    )
+    
+    pose_overlay: bpy.props.BoolProperty(
+        name="Pose Overlay",
+        description="External animation is a pose overlay"
+    )
+    
+    has_pca: bpy.props.BoolProperty(
+        name="PCA",
+        description="External animation has PCA (shape key) data"
+    )
+    
     action_tracks: bpy.props.CollectionProperty(type=NWO_ActionGroup)
     name: bpy.props.StringProperty(
         name="Name",
@@ -1809,8 +1830,12 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     )
     
     parent_asset: bpy.props.StringProperty(
-        name="Parent Asset",
-        description="Data relative filepath to the parent asset (without file extension)"
+        name="Parent Blend",
+        description="Data relative filepath to the parent blend"
+    )
+    parent_sidecar: bpy.props.StringProperty(
+        name="Parent Sidecar",
+        description="Data relative filepath to the parent sidecar"
     )
 
     mod_name: bpy.props.StringProperty(options={'HIDDEN'}, default="")

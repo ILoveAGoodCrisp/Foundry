@@ -94,7 +94,12 @@ class NWO_ExportScene(Operator, ExportHelper):
         # SETUP #
         self.game_path_not_set = False
         if utils.nwo_asset_type() == 'single_animation':
-            self.filepath = str(Path(bpy.data.filepath).with_suffix(".gr2"))
+            if not bpy.data.filepath:
+                return
+            name = Path(bpy.data.filepath).with_suffix("").name
+            parent = Path(bpy.data.filepath).parent.parent
+            export = Path(parent, "export", "animations", name).with_suffix(".gr2")
+            self.filepath = str(export)
             return
         scene = bpy.context.scene
         data_dir = get_data_path()
@@ -201,12 +206,24 @@ class NWO_ExportScene(Operator, ExportHelper):
         start = time.perf_counter()
         # get the asset name and path to the asset folder
         single_animation = utils.nwo_asset_type() == 'single_animation'
+        
+        if single_animation and not bpy.data.filepath:
+            self.report({'WARNING'}, "Single Animation files must be saved before export")
+            return {'CANCELLED'}
+        
         global sidecar_path
         if single_animation:
             sidecar_path_full = ""
             sidecar_path = ""
             self.asset_name = ""
             self.asset_path = ""
+            
+            if scene_nwo.is_child_asset and scene_nwo.parent_sidecar:
+                par_sidecar = Path(utils.get_data_path(), scene_nwo.parent_sidecar)
+                if par_sidecar.exists():
+                    sidecar_path_full = str(par_sidecar)
+                    sidecar_path = utils.relative_path(par_sidecar)
+            
         else:
             if scene_nwo.sidecar_path:
                 self.asset_path = get_asset_path_full()
@@ -374,7 +391,7 @@ class NWO_ExportScene(Operator, ExportHelper):
         col.prop(scene_nwo, "asset_type", text="Asset Type")
         col.prop(scene_nwo_export, "export_quick", text="Quick Export")
         col.prop(scene_nwo_export, "show_output", text="Toggle Output")
-        if scene_nwo.asset_type in {'cinematic', 'model', 'animation'}:
+        if scene_nwo.asset_type in {'cinematic', 'model', 'animation', 'single_animation'}:
             col.prop(scene_nwo_export, "faster_animation_export")
         col.separator()
         col.use_property_split = False
@@ -588,6 +605,11 @@ def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_pat
             export_scene.export_files(single_animation)
             if not single_animation:
                 export_scene.write_sidecar()
+                
+        if single_animation and export_settings.export_mode in {'FULL', 'TAGS'} and sidecar_path:
+            print("\n\nWriting Tags")
+            print("-----------------------------------------------------------------------\n")
+            export_scene.tool_import_simple(sidecar_path)
             
         if not single_animation and export_settings.export_mode in {'FULL', 'TAGS'}:
             if export_settings.export_mode == 'TAGS' and (export_scene.limit_perms_to_selection or export_scene.limit_bsps_to_selection):

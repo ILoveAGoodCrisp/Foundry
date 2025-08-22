@@ -3214,7 +3214,7 @@ class NWOImporter:
             self.actions.append(action)
             animation = self.context.scene.nwo.animations.add()
             animation.name = anim_name
-            action.use_fake_user = True
+            # action.use_fake_user = True
             action.use_frame_range = True
             animation.frame_start = 1
             animation.frame_end = jma.frame_count

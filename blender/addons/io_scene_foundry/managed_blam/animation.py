@@ -455,7 +455,7 @@ class AnimationTag(Tag):
                 print(f"--- {action.name}")
                 animation = self.context.scene.nwo.animations.add()
                 animation.name = new_name
-                action.use_fake_user = True
+                # action.use_fake_user = True
                 action.use_frame_range = True
                 animation.frame_start = 1
                 animation.frame_end = frame_count

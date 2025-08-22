@@ -586,6 +586,12 @@ class NWO_HaloLauncher_Granny(bpy.types.Operator):
     filepath: bpy.props.StringProperty(
         name="GR2 File", description="Path to a gr2 file", subtype="FILE_PATH"
     )
+    
+    filter_glob: bpy.props.StringProperty(
+        default="*.gr2",
+        options={"HIDDEN"},
+        maxlen=1024,
+    )
 
     def execute(self, context):
         os.startfile(Path(get_prefs().granny_viewer_path.strip("""'\" """)).with_suffix(".exe"), arguments=self.filepath)

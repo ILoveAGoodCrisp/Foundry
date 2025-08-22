@@ -150,7 +150,7 @@ class ExportScene:
         # self.disabled_collections = set()
         self.current_frame = context.scene.frame_current
         self.current_animation = None
-        self.action_map = {}
+        # self.action_map = {}
         self.current_mode = context.mode
         
         self.atten_scalar = 1 if corinth else 100
@@ -196,6 +196,9 @@ class ExportScene:
         
         self.scene_collection_name = context.scene.collection.name
         
+        self.external_animations = {}
+        self.local_views = set()
+        
     def _get_export_tag_types(self):
         tag_types = set()
         match self.asset_type:
@@ -233,7 +236,7 @@ class ExportScene:
         return tag_types
         
     def ready_scene(self):
-        utils.exit_local_view(self.context)
+        self.local_views = utils.exit_local_view(self.context)
         self.context.view_layer.update()
         utils.set_object_mode(self.context)
         # self.disabled_collections = utils.disable_excluded_collections(self.context)
@@ -410,6 +413,7 @@ class ExportScene:
     def map_halo_properties(self):
         process = "--- Mapping Halo Properties"
         num_export_objects = len(self.export_objects)
+        # use_action_map = self.asset_type in {AssetType.MODEL, AssetType.ANIMATION}
         self.collection_map = utils.create_parent_mapping(self.context)
         object_parent_dict = {}
         support_armatures = set()
@@ -424,10 +428,11 @@ class ExportScene:
             utils.update_job_count(process, "", 0, num_export_objects)
             for idx, ob in enumerate(self.export_objects):
                 ob.nwo.export_name = ""
-                if ob.animation_data is not None:
-                    self.action_map[ob] = (ob.matrix_basis.copy(), ob.animation_data.action)
-                if ob.type == 'MESH' and ob.data.shape_keys and ob.data.shape_keys.animation_data:
-                    self.action_map[ob.data.shape_keys] = (ob.matrix_basis.copy(), ob.data.shape_keys.animation_data.action)
+                # if use_action_map:
+                #     if ob.animation_data is not None:
+                #         self.action_map[ob] = (ob.matrix_basis.copy(), ob.animation_data.action)
+                #     if ob.type == 'MESH' and ob.data.shape_keys and ob.data.shape_keys.animation_data:
+                #         self.action_map[ob.data.shape_keys] = (ob.matrix_basis.copy(), ob.data.shape_keys.animation_data.action)
                 ob: bpy.types.Object
                 if ob.type == 'ARMATURE':
                     self.armature_poses[ob.data] = ob.data.pose_position
@@ -1516,6 +1521,18 @@ class ExportScene:
                 if animation.export_this:
                     if animation.name in animation_names:
                         self.warnings.append(f"Duplicate animation name found: {animation.name} [index {idx}]. Skipping animation")
+                    elif animation.external:
+                        if len(animation.gr2_path.strip()) > 2:
+                            rel_path = utils.relative_path(animation.gr2_path)
+                            if rel_path != animation.gr2_path:
+                                animation.gr2_path = rel_path
+                            path = Path(self.data_dir, rel_path)
+                            if path.exists():
+                                self.external_animations[animation] = Path(rel_path)
+                            else:
+                                self.warnings.append(f"{animation.name} has invalid GR2 path: {str(path)}")
+                        else:
+                            self.warnings.append(f"{animation.name} has no GR2 path")
                     else:
                         animation_names.add(animation.name)
                         valid_animations.append(animation)
@@ -1886,13 +1903,23 @@ class ExportScene:
                 
             if export and not exported_something:
                 print("--- No animations to export")
+            
+            if self.external_animations:
+                print("\n\nNoting External Animations")
+                print("-----------------------------------------------------------------------\n")
+            for animation, granny_path in self.external_animations.items():
+                blend_path = Path(granny_path.parent.parent.parent, "animations", granny_path.with_suffix("").name).with_suffix(".blend")
+                print(f"--- {granny_path.with_suffix('').name}")
+                self.sidecar.add_animation_file_data(granny_path, blend_path, animation.name, animation.compression, animation.animation_type, animation.animation_movement_data, animation.animation_space, animation.pose_overlay, animation.has_pca)
                 
     def _export_single_animation(self):
         if self.virtual_scene.skeleton_node and self.virtual_scene.animations:
             print("\n\nExporting Animation")
             print("-----------------------------------------------------------------------\n")
             animation = self.virtual_scene.animations[0]
-            granny_path = Path(bpy.data.filepath).with_suffix(".gr2")
+            name = Path(bpy.data.filepath).with_suffix("").name
+            parent = Path(bpy.data.filepath).parent.parent
+            granny_path = Path(parent, "export", "animations", name).with_suffix(".gr2")
             
             nodes = animation.nodes
             nodes_dict = {node.ob: node for node in nodes + [self.virtual_scene.skeleton_node]}
@@ -2052,16 +2079,31 @@ class ExportScene:
 
         self.context.scene.frame_set(self.current_frame)
         
-        if self.action_map:
-            for id, (matrix, action) in self.action_map.items():
-                if isinstance(id, bpy.types.Object):
-                    if id.type == 'ARMATURE':
-                        for bone in id.pose.bones:
-                            bone.matrix_basis = Matrix.Identity(4)
-                    id.matrix_basis = matrix
-                id.animation_data.action = action
+        # if self.action_map:
+        #     for id, (matrix, action) in self.action_map.items():
+        #         if action
+        #         if isinstance(id, bpy.types.Object):
+        #             if id.type == 'ARMATURE':
+        #                 for bone in id.pose.bones:
+        #                     bone.matrix_basis = Matrix.Identity(4)
+        #             id.matrix_basis = matrix
+                
+        #         if action:
+        #             if action.slots:
+        #                 slot_id = ""
+        #                 if action.slots.active:
+        #                     slot_id = action.slots.active.identifier
+        #                 else:
+        #                     slot_id = action.slots[0].identifier
+        #                 id.animation_data.last_slot_identifier = slot_id
+                    
+        #             id.animation_data.action = action
+        if self.asset_type in {AssetType.MODEL, AssetType.ANIMATION} and self.scene_settings.animations and self.scene_settings.active_animation_index > -1:
+            self.scene_settings.active_animation_index = self.scene_settings.active_animation_index
                 
         utils.restore_mode(self.current_mode)
+        
+        utils.set_local_view(self.context, self.local_views)
             
         self.context.view_layer.update()
         
@@ -2144,6 +2186,30 @@ class ExportScene:
                 or self.scene_settings.node_usage_right_hand
                 or self.scene_settings.node_usage_weapon_ik
                 )
+    
+    def tool_import_simple(self, sidecar_path):
+        import_failed, error = utils.run_tool_sidecar(
+            [
+                "import",
+                sidecar_path,
+            ],
+            self.export_settings.event_level
+        )
+        
+        if import_failed:
+            print("")
+            utils.print_box("ERROR EXPLANATION")
+            print("")
+            if error:
+                print(error)
+                print("")
+                print("+" * len(error))
+            else:
+                dev_message = "Tool failed but the developer hasn't seen this error before. Please share it with him so it can be documented!"
+                print(dev_message)
+                print("")
+                print("+" * len(dev_message))
+            raise RuntimeError("Export failed due to Tool assertion. See above")
     
     def invoke_tool_import(self):
         no_virtual_scene = self.virtual_scene is None

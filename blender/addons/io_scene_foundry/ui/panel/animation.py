@@ -182,7 +182,7 @@ class NWO_OT_DeleteAnimation(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.active_animation_index > -1
+        return context.scene.nwo.animations and context.scene.nwo.active_animation_index > -1
     
     def action_map(self, all_animations):    
         self.action_animations = defaultdict(list)
@@ -229,7 +229,7 @@ class NWO_OT_UnlinkAnimation(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.active_animation_index > -1
+        return context.scene.nwo.animations and context.scene.nwo.active_animation_index > -1
 
     def execute(self, context):
         context.scene.tool_settings.use_keyframe_insert_auto = False
@@ -245,6 +245,10 @@ class NWO_OT_UnlinkAnimation(bpy.types.Operator):
 #     bl_idname = "nwo.animations_from_blend"
 #     bl_description = "Imports animations from the selected blend file"
 #     bl_options = {'UNDO'}
+
+    # @classmethod
+    # def poll(cls, context):
+    #     return context.scene.nwo.animations and context.scene.nwo.active_animation_index > -1
     
 #     def execute(self, context):
         
@@ -255,6 +259,166 @@ class NWO_OT_UnlinkAnimation(bpy.types.Operator):
     
 #     def invoke(self, context, _):
 #         return {'FINISHED'}
+
+class NWO_OT_OpenExternalAnimationBlend(bpy.types.Operator):
+    bl_label = "Open Blend"
+    bl_idname = "nwo.open_external_animation_blend"
+    bl_description = "Opens the blend file for this GR2 file (it it exists)"
+    bl_options = {'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene.nwo.animations and context.scene.nwo.active_animation_index > -1
+    
+    def execute(self, context):
+        animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
+        
+        if not animation.external:
+            self.report({'WARNING'}, "Animation is not external. No blend to open")
+            return {'CANCELLED'}
+            
+        root_asset = Path(animation.gr2_path).parent.parent.parent
+        blend = Path(utils.get_data_path(), root_asset, "animations", animation.name).with_suffix(".blend")
+        
+        if blend.exists():
+            bpy.ops.wm.save_mainfile(compress=context.preferences.filepaths.use_file_compression)
+            bpy.ops.wm.open_mainfile(filepath=str(blend), compress=context.preferences.filepaths.use_file_compression)
+        else:
+            self.report({'WARNING'}, f"No blender file associated with this GR2. Expected: {blend}")
+            return {'CANCELLED'}
+        
+        self.report({'INFO'}, f"Loaded blend: {blend}")
+        return {'FINISHED'}
+
+class NWO_OT_AnimationMoveToOwnBlend(bpy.types.Operator):
+    bl_label = "Move to Own Blend"
+    bl_idname = "nwo.animation_move_to_own_blend"
+    bl_description = "Moves this animation to its own blend file"
+    bl_options = {'UNDO'}
+    
+    pca: bpy.props.BoolProperty(
+        name="PCA",
+        description="Animation has PCA (shape key) data"
+    )
+    
+    pose_overlay: bpy.props.BoolProperty(
+        name="Pose Overlay",
+        description="Animation has pose overlay data"
+    )
+    
+    @classmethod
+    def poll(cls, context):
+        return context.scene.nwo.animations and context.scene.nwo.active_animation_index > -1 and utils.valid_nwo_asset(context)
+    
+    def execute(self, context):
+        animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
+        rel_path = ""
+        if bpy.data.filepath:
+            rel_path = utils.relative_path(bpy.data.filepath)
+            
+        sidecar_path = context.scene.nwo.sidecar_path
+        
+        asset_path = utils.get_asset_path_full()
+        blend_path = Path(utils.get_asset_path_full(), "animations", animation.name).with_suffix(".blend")
+        gr2_path = Path(asset_path, "export", "animations", animation.name).with_suffix(".gr2")
+        animation.external = True
+        animation.gr2_path = utils.relative_path(gr2_path)
+        
+        bpy.ops.wm.save_mainfile(compress=context.preferences.filepaths.use_file_compression)
+        
+        frame_start, frame_end = animation.frame_start, animation.frame_end
+        
+        if not blend_path.parent.exists():
+            blend_path.parent.mkdir(parents=True)
+            
+        bpy.ops.wm.save_as_mainfile(filepath=str(blend_path), check_existing=False, compress=context.preferences.filepaths.use_file_compression)
+        
+        scene = bpy.context.scene
+        scene.frame_start, scene.frame_end = frame_start, frame_end
+        scene.nwo.animations.clear()
+        
+        scene.nwo.asset_type = 'single_animation'
+        if rel_path:
+            scene.nwo.is_child_asset = True
+            scene.nwo.parent_asset = rel_path
+            scene.nwo.parent_sidecar = sidecar_path
+        
+        self.report({'INFO'}, f"Loaded new blend: {blend_path}")
+        return {'FINISHED'}
+    
+    def invoke(self, context, _):
+        return context.window_manager.invoke_props_dialog(self)
+    
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "pose_overlay")
+        if utils.is_corinth(context):
+            layout.prop(self, "pca")
+
+class NWO_OT_AnimationLinkToGR2(bpy.types.Operator):
+    bl_label = "Link to GR2"
+    bl_idname = "nwo.animation_link_to_gr2"
+    bl_description = "Links this animation directly to a gr2 file"
+    bl_options = {'UNDO'}
+    
+    filepath: bpy.props.StringProperty(
+        name="path", description="Path to a gr2 file", subtype="FILE_PATH"
+    )
+    
+    filter_glob: bpy.props.StringProperty(
+        default="*.gr2",
+        options={"HIDDEN"},
+        maxlen=1024,
+    )
+    
+    pca: bpy.props.BoolProperty(
+        name="PCA",
+        description="Animation has PCA (shape key) data"
+    )
+    
+    pose_overlay: bpy.props.BoolProperty(
+        name="Pose Overlay",
+        description="Animation has pose overlay data"
+    )
+    
+    @classmethod
+    def poll(cls, context):
+        return context.scene.nwo.animations and context.scene.nwo.active_animation_index > -1
+    
+    def execute(self, context):
+        
+        path = Path(self.filepath)
+        
+        if path.exists():
+            animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
+            animation.external = True
+            animation.gr2_path = utils.relative_path(self.filepath)
+            animation.pose_overlay = self.pose_overlay
+            animation.has_pca = utils.is_corinth(context) and self.pca
+        
+        return {'FINISHED'}
+    
+    def invoke(self, context, _):
+        asset_path = utils.get_asset_path_full()
+        
+        if Path(asset_path).exists():
+            self.filepath = asset_path
+            animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
+            expected_path = Path(self.filepath, "export", "animations", animation.name).with_suffix(".gr2")
+            if expected_path.exists():
+                self.filepath = str(expected_path)
+        
+        elif bpy.data.filepath and Path(bpy.data.filepath).exists():
+            self.filepath = str(Path(bpy.data.filepath).parent)
+            
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+    
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "pose_overlay")
+        if utils.is_corinth(context):
+            layout.prop(self, "pca")
     
 class NWO_OT_AnimationsFromActions(bpy.types.Operator):
     bl_label = "Animations from Actions"

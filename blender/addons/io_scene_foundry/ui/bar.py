@@ -475,7 +475,7 @@ class NWO_HaloExportSettings(bpy.types.Panel):
         col.separator()
         col = flow.column()
         col.use_property_split = False
-        if not scene.nwo.is_child_asset or asset_type == 'cinematic':
+        if not scene.nwo.is_child_asset or asset_type == 'cinematic' or asset_type == 'single_animation':
             col.prop(scene_nwo_export, "export_mode", text="")
             col.prop(scene_nwo_export, "event_level", text="")
         if asset_type == 'camera_track_set':
@@ -1354,6 +1354,8 @@ def foundry_toolbar(layout, context):
         
         if nwo.is_child_asset:
             sub0.operator("nwo.open_parent_asset", icon='BLENDER')
+            if single_animation:
+                sub0 = row.row(align=True)
         
         if single_animation or not nwo.is_child_asset:
             if single_animation or (nwo.is_valid_asset and nwo.asset_type != 'resource'):
