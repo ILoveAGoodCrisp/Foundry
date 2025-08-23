@@ -424,9 +424,9 @@ class Instance:
             col = bpy.data.collections.get(name)
             if col:
                 return col
-
+            base = name.rsplit(".", 1)[0]
             for c in bpy.data.collections:
-                if c.name == name or c.name.startswith(name + "."):
+                if c.name.rsplit(".", 1)[0] == base:
                     return c
             return None
 
@@ -441,33 +441,41 @@ class Instance:
                 main_collection_name_main = collection_part
 
             main_collection_name = main_collection_name_main
-
             if main_collection_name == bsp_name:
                 main_collection_name = f"layer_{main_collection_name}"
 
+            # ---- MAIN COLLECTION ----
             main_collection = find_collection(main_collection_name)
-            if main_collection is None or main_collection not in permitted_collections:
+            if main_collection is None:
+                # truly doesn't exist → create it
                 main_collection = bpy.data.collections.new(name=main_collection_name)
                 ig_collection.children.link(main_collection)
                 utils.add_permutation(main_collection_name_main)
                 main_collection.nwo.type = 'permutation'
                 main_collection.nwo.permutation = main_collection_name_main
+            elif main_collection not in permitted_collections:
+                # exists but not permitted → just link it instead of creating duplicates
+                if main_collection.name not in ig_collection.children:
+                    ig_collection.children.link(main_collection)
 
+            # ---- SUB COLLECTION ----
             if sub_collection_name is not None:
                 if sub_collection_name == bsp_name:
                     sub_collection_name = f"sublayer_{main_collection_name}"
 
                 sub_collection = find_collection(sub_collection_name)
-                if sub_collection is None or sub_collection not in permitted_collections:
+                if sub_collection is None:
                     sub_collection = bpy.data.collections.new(name=sub_collection_name)
                     main_collection.children.link(sub_collection)
+                elif sub_collection not in permitted_collections:
+                    if sub_collection.name not in main_collection.children:
+                        main_collection.children.link(sub_collection)
 
                 return sub_collection
             else:
                 return main_collection
 
         return ig_collection
-
 
 class StructureMarker:
     def __init__(self, element: TagFieldBlockElement):
