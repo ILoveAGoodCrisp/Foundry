@@ -417,8 +417,19 @@ class Instance:
         
         
         return ob
-    
+
     def get_collection(self, ig_collection, permitted_collections, bsp_name: str) -> bpy.types.Collection:
+        def find_collection(name: str) -> bpy.types.Collection | None:
+            """Finds a collection by name, ignoring .001/.002 suffixes."""
+            col = bpy.data.collections.get(name)
+            if col:
+                return col
+
+            for c in bpy.data.collections:
+                if c.name == name or c.name.startswith(name + "."):
+                    return c
+            return None
+
         if "(" in self.name and ")" in self.name.rpartition("(")[2]:
             collection_part = re.findall(r'\((.*?)\)', self.name)[0]
             if ":" in collection_part:
@@ -428,35 +439,35 @@ class Instance:
             else:
                 sub_collection_name = None
                 main_collection_name_main = collection_part
-            
+
             main_collection_name = main_collection_name_main
-            
+
             if main_collection_name == bsp_name:
                 main_collection_name = f"layer_{main_collection_name}"
-                
-            main_collection = bpy.data.collections.get(main_collection_name)
+
+            main_collection = find_collection(main_collection_name)
             if main_collection is None or main_collection not in permitted_collections:
                 main_collection = bpy.data.collections.new(name=main_collection_name)
                 ig_collection.children.link(main_collection)
                 utils.add_permutation(main_collection_name_main)
                 main_collection.nwo.type = 'permutation'
                 main_collection.nwo.permutation = main_collection_name_main
-                
+
             if sub_collection_name is not None:
                 if sub_collection_name == bsp_name:
                     sub_collection_name = f"sublayer_{main_collection_name}"
-                
-                sub_collection = bpy.data.collections.get(sub_collection_name)
+
+                sub_collection = find_collection(sub_collection_name)
                 if sub_collection is None or sub_collection not in permitted_collections:
                     sub_collection = bpy.data.collections.new(name=sub_collection_name)
                     main_collection.children.link(sub_collection)
-                    
+
                 return sub_collection
-            
             else:
                 return main_collection
-        
+
         return ig_collection
+
 
 class StructureMarker:
     def __init__(self, element: TagFieldBlockElement):
@@ -1455,7 +1466,12 @@ class MeshPart:
             
         self.part_type = PartType(element.SelectField("part type").Data)
         self.tessellation = Tessellation(element.SelectField("tessellation").Value)
-        self.material = next(m for m in materials if m.index == self.material_index)
+        self.material = next((m for m in materials if m.index == self.material_index), None)
+        if self.material is None:
+            invalid_mat = bpy.data.materials.get("invalid")
+            if invalid_mat is None:
+                invalid_mat = bpy.data.materials.new("invalid")
+            self.material = invalid_mat
             
 class MeshSubpart:
     def __init__(self, element: TagFieldBlockElement, parts: list[MeshPart], water_indices: list[int]):
