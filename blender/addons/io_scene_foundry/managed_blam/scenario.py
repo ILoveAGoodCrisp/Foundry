@@ -1,6 +1,7 @@
 from math import radians
 from pathlib import Path
 
+import bmesh
 from mathutils import Euler, Matrix, Quaternion, Vector
 
 from .Tags import TagFieldBlockElement
@@ -64,7 +65,36 @@ class ScenarioObject:
     
 class ScenarioDecal:
     def __init__(self, element: TagFieldBlockElement, palette: list[ScenarioObjectReference]):
-        pass
+        self.rotation = utils.ijkw_to_wxyz([n for n in element.SelectField("RealQuaternion:rotation").Data])
+        self.position = Vector([n * 100 for n in element.SelectField("RealPoint3d:position").Data])
+        self.scale_x = element.SelectField("Real:scale x").Data * 100
+        self.scale_y = element.SelectField("Real:scale y").Data * 100
+        self.name = "decal"
+        palette_index = element.SelectField("ShortBlockIndex:decal palette index").Value
+        self.reference = palette[palette_index] if palette_index > -1  and palette_index < len(palette) else None
+        self.valid = self.reference is not None and self.reference.definition is not None
+        if self.valid:
+            self.name = self.reference.name
+        
+    def to_object(self):
+        if self.reference is None or self.reference.definition is None:
+            return print(f"Found scenario decal object named {self.name} but it has no valid tag reference")
+            
+        mesh = bpy.data.meshes.new(self.name)
+
+        verts = [
+            (-self.scale_x / 2, -self.scale_y / 2, 0),
+            ( self.scale_x / 2, -self.scale_y / 2, 0),
+            ( self.scale_x / 2,  self.scale_y / 2, 0),
+            (-self.scale_x / 2,  self.scale_y / 2, 0),
+        ]
+        faces = [(0, 1, 2, 3)]
+        mesh.from_pydata(verts, [], faces)
+        ob = bpy.data.objects.new(name=self.name, object_data=mesh)
+        ob.matrix_world = Matrix.LocRotScale(self.position, self.rotation, Vector.Fill(3, 1))
+        
+        return ob
+        
 
 class ScenarioTag(Tag):
     tag_ext = 'scenario'
@@ -327,6 +357,32 @@ class ScenarioTag(Tag):
             if not item.IsSet:
                 self.tag_has_changes = True
                 item.IsSet = True
+                
+    def decals_to_blender(self, parent_collection=None):
+        objects = []
+            
+        block = self.tag.SelectField(f"Block:decals")
+        if block.Elements.Count > 0:
+            print(f"Creating Scenario Decals")
+            objects_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_decals")
+            objects_collection.nwo.type = 'exclude'
+            
+            if parent_collection is None:
+                bpy.context.scene.collection.children.link(objects_collection)
+            else:
+                parent_collection.children.link(objects_collection)
+            
+            palette = [ScenarioObjectReference(e) for e in self.tag.SelectField("Block:decal palette").Elements]
+            for element in block.Elements:
+                decal = ScenarioDecal(element, palette)
+                if not decal.valid:
+                    continue
+                ob = decal.to_object()
+                if ob is not None:
+                    objects_collection.objects.link(ob)
+                    objects.append(ob)
+                    
+        return objects
                 
                 
     def objects_to_blender(self, parent_collection=None):
