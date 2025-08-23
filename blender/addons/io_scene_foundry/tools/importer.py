@@ -466,6 +466,11 @@ class NWO_Import(bpy.types.Operator):
         options={'SKIP_SAVE'},
     )
     
+    import_biped_weapon: bpy.props.BoolProperty(
+        name="Import Biped Weapon",
+        description="Imports the bipeds weapon if it has one",
+    )
+    
     tag_state: bpy.props.EnumProperty(
         name="Model State",
         description="The damage state to import. Only valid when a variant is set",
@@ -798,6 +803,7 @@ class NWO_Import(bpy.types.Operator):
                         importer.graph_import_events = self.graph_import_events
                         importer.graph_import_ik_chains = self.graph_import_ik_chains
                         importer.import_variant_children = self.import_variant_children
+                        importer.import_biped_weapon = self.import_biped_weapon
                         importer.setup_as_asset = self.setup_as_asset
                         importer.import_fp_arms = FPARMS[self.import_fp_arms]
                         importer.from_vert_normals = self.from_vert_normals
@@ -1169,7 +1175,8 @@ class NWO_Import(bpy.types.Operator):
             box.prop(self, 'tag_state')
             if self.tag_variant and self.tag_markers:
                 box.prop(self, "import_variant_children")
-                
+            
+            box.prop(self, 'import_biped_weapon')
             box.prop(self, "setup_as_asset")
             box.prop(self, "from_vert_normals")
             box.prop(self, "import_fp_arms", text="FP Arms (Weapon Only)")
@@ -1456,6 +1463,7 @@ class NWOImporter:
         self.tag_scenario_import_decals = False
         self.tag_animation_filter = ""
         self.import_variant_children = False
+        self.import_biped_weapon = False
         self.setup_as_asset = False
         self.for_cinematic = context.scene.nwo.asset_type == "cinematic"
         self.obs_for_props = {}
@@ -1833,6 +1841,24 @@ class NWOImporter:
                                         print(f"--- {child.child_object.ShortNameWithExtension}")
                                         imported_objects.extend(self.import_child_object(child, armature, {ob: ob.nwo.marker_model_group for ob in render_objects if ob.type == 'EMPTY'}, child_collection, is_game_object))
                                     self.context.view_layer.update()
+                                    
+                            if self.import_biped_weapon:
+                                weapons = obj.tag.SelectField("Struct:unit[0]/Block:weapons")
+                                if weapons is not None and weapons.Elements.Count > 0:
+                                    weapon_collection = bpy.data.collections.new(name=f"{model.tag_path.ShortName}_weapon")
+                                    model_collection.children.link(weapon_collection)
+                                    weapon = weapons.Elements[0].Fields[0].Path
+                                    if weapon is not None:
+                                        print(f"--- Importing Weapon: {weapon.ShortNameWithExtension}")
+                                        child = ChildObject()
+                                        parent_marker = obj.tag.SelectField("Struct:unit[0]/StringId:right_hand_node").GetStringData()
+                                        child.parent_marker = parent_marker if parent_marker else "primary_weapon"
+                                        child_marker = obj.tag.SelectField("Struct:unit[0]/Struct:more damn nodes[0]/StringId:preferred_gun_node").GetStringData()
+                                        child.child_marker = child_marker if child_marker else "right_hand"
+                                        child.child_object = weapon
+                                        imported_objects.extend(self.import_child_object(child, armature, {ob: ob.nwo.marker_model_group for ob in render_objects if ob.type == 'EMPTY'}, child_collection, is_game_object))
+                                    self.context.view_layer.update()
+                                    
                                     
                             if not is_game_object and self.setup_as_asset:
                                 set_asset(Path(file).suffix, armature, model.is_sky())
@@ -3490,6 +3516,11 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         options={'SKIP_SAVE'},
     )
     
+    import_biped_weapon: bpy.props.BoolProperty(
+        name="Import Biped Weapon",
+        description="Imports the bipeds weapon if it has one",
+    )
+    
     amf_okay : bpy.props.BoolProperty(options={"HIDDEN", "SKIP_SAVE"})
     legacy_okay : bpy.props.BoolProperty(options={"HIDDEN", "SKIP_SAVE"})
     
@@ -3588,6 +3619,8 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                     layout.prop(self, "from_vert_normals")
                     if self.import_type == "weapon":
                         layout.prop(self, "import_fp_arms")
+                    elif self.import_type == "biped":
+                        layout.prop(self, "import_biped_weapon")
                     if self.tag_animation:
                         layout.prop(self, "tag_animation_filter")
                         layout.prop(self, "graph_import_animations")

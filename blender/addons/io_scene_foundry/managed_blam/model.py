@@ -9,11 +9,17 @@ from .render_model import RenderModelTag
 from ..managed_blam import Tag
 
 class ChildObject:
-    def __init__(self, element: TagFieldBlockElement):
-        self.parent_marker: str = element.SelectField("parent marker").GetStringData()
-        self.child_marker: str = element.SelectField("child marker").GetStringData()
-        self.child_variant_name: str = element.SelectField("child variant name").GetStringData()
-        self.child_object: TagPath | None = element.SelectField("child object").Path
+    def __init__(self, element: TagFieldBlockElement = None):
+        if element is None:
+            self.parent_marker = ""
+            self.child_marker = ""
+            self.child_variant_name = ""
+            self.child_variant_name = None
+        else:
+            self.parent_marker: str = element.SelectField("parent marker").GetStringData()
+            self.child_marker: str = element.SelectField("child marker").GetStringData()
+            self.child_variant_name: str = element.SelectField("child variant name").GetStringData()
+            self.child_object: TagPath | None = element.SelectField("child object").Path
 
 class ModelTag(Tag):
     tag_ext = 'model'
