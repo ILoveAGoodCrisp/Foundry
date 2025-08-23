@@ -161,36 +161,36 @@ class NWO_OT_AnimationCompositeAdd(bpy.types.Operator):
         
         
     def preset_turn_left(self, composite: NWO_AnimationCompositesItems):
-        composite.timing_source = f"{self.mode} {self.weapon_class} turn_left"
+        composite.timing_source = f"{self.mode} {self.weapon_class} turn_left_90"
         
         turn_blend_axis = cast(NWO_AnimationBlendAxisItems, composite.blend_axis.add())
-        turn_blend_axis.name = "turn_rate"
+        turn_blend_axis.name = "turn_angle"
         turn_blend_axis.animation_source_bounds_manual = True
-        turn_blend_axis.animation_source_bounds = 0, 360
-        turn_blend_axis.animation_source_limit = 45
+        turn_blend_axis.animation_source_bounds = 0, 180
+        turn_blend_axis.animation_source_limit = 0
         turn_blend_axis.runtime_source_bounds_manual = True
-        turn_blend_axis.runtime_source_bounds = 0, 360
+        turn_blend_axis.runtime_source_bounds = 0, 180
         turn_blend_axis.runtime_source_clamped = False
         
-        turn_blend_axis.leaves.add().animation = f"{self.mode} {self.weapon_class} turn_left"
-        turn_blend_axis.leaves.add().animation = f"{self.mode} {self.weapon_class} turn_left_slow"
-        turn_blend_axis.leaves.add().animation = f"{self.mode} {self.weapon_class} turn_left_fast"
+        turn_blend_axis.leaves.add().animation = f"{self.mode} {self.weapon_class} turn_left_0"
+        turn_blend_axis.leaves.add().animation = f"{self.mode} {self.weapon_class} turn_left_90"
+        turn_blend_axis.leaves.add().animation = f"{self.mode} {self.weapon_class} turn_left_180"
         
     def preset_turn_right(self, composite: NWO_AnimationCompositesItems):
-        composite.timing_source = f"{self.mode} {self.weapon_class} turn_right"
+        composite.timing_source = f"{self.mode} {self.weapon_class} turn_right_90"
         
         turn_blend_axis = cast(NWO_AnimationBlendAxisItems, composite.blend_axis.add())
-        turn_blend_axis.name = "turn_rate"
+        turn_blend_axis.name = "turn_angle"
         turn_blend_axis.animation_source_bounds_manual = True
-        turn_blend_axis.animation_source_bounds = 0, 360
-        turn_blend_axis.animation_source_limit = 45
+        turn_blend_axis.animation_source_bounds = 0, 180
+        turn_blend_axis.animation_source_limit = 0
         turn_blend_axis.runtime_source_bounds_manual = True
-        turn_blend_axis.runtime_source_bounds = 0, 360
+        turn_blend_axis.runtime_source_bounds = 0, 180
         turn_blend_axis.runtime_source_clamped = False
         
-        turn_blend_axis.leaves.add().animation = f"{self.mode} {self.weapon_class} turn_right"
-        turn_blend_axis.leaves.add().animation = f"{self.mode} {self.weapon_class} turn_right_slow"
-        turn_blend_axis.leaves.add().animation = f"{self.mode} {self.weapon_class} turn_right_fast"
+        turn_blend_axis.leaves.add().animation = f"{self.mode} {self.weapon_class} turn_right_0"
+        turn_blend_axis.leaves.add().animation = f"{self.mode} {self.weapon_class} turn_right_90"
+        turn_blend_axis.leaves.add().animation = f"{self.mode} {self.weapon_class} turn_right_180"
         
     def preset_crouch_aim(self, composite: NWO_AnimationCompositesItems):
         composite.timing_source = f"{self.mode} {self.weapon_class} aim_locomote_run_front_up"
@@ -200,7 +200,7 @@ class NWO_OT_AnimationCompositeAdd(bpy.types.Operator):
         angle_blend_axis.name = "movement_angles"
         angle_blend_axis.animation_source_bounds_manual = True
         angle_blend_axis.animation_source_bounds = 0, 360
-        angle_blend_axis.animation_source_limit = 45
+        angle_blend_axis.animation_source_limit = 90
         angle_blend_axis.runtime_source_bounds_manual = True
         angle_blend_axis.runtime_source_bounds = 0, 360
         angle_blend_axis.runtime_source_clamped = False
@@ -248,7 +248,7 @@ class NWO_OT_AnimationCompositeAdd(bpy.types.Operator):
         angle_blend_axis.name = "movement_angles"
         angle_blend_axis.animation_source_bounds_manual = True
         angle_blend_axis.animation_source_bounds = 0, 360
-        angle_blend_axis.animation_source_limit = 45
+        angle_blend_axis.animation_source_limit = 90
         angle_blend_axis.runtime_source_bounds_manual = True
         angle_blend_axis.runtime_source_bounds = 0, 360
         angle_blend_axis.runtime_source_clamped = False
@@ -497,6 +497,7 @@ class NWO_OT_AnimationSubBlendAxisAdd(bpy.types.Operator):
             ("movement_angles", "Movement Angles", ""), # linear_movement_angle get_move_angle
             ("movement_speed", "Movement Speed", ""), # linear_movement_speed get_move_speed
             ("turn_rate", "Turn Rate", ""), # average_angular_rate get_turn_rate
+            ("turn_angle", "Turn Angle", ""), # total_angular_offset get_turn_angle
             ("vertical", "Vertical", ""), # translation_offset_z get_destination_vertical
             ("horizontal", "Horizontal", ""), # translation_offset_horizontal get_destination_forward
         ]
@@ -571,6 +572,7 @@ class NWO_OT_AnimationBlendAxisAdd(bpy.types.Operator):
             ("movement_angles", "Movement Angles", ""), # linear_movement_angle get_move_angle
             ("movement_speed", "Movement Speed", ""), # linear_movement_speed get_move_speed
             ("turn_rate", "Turn Rate", ""), # average_angular_rate get_turn_rate
+            ("turn_angle", "Turn Angle", ""), # total_angular_offset get_turn_angle
             ("vertical", "Vertical", ""), # translation_offset_z get_destination_vertical
             ("horizontal", "Horizontal", ""), # translation_offset_horizontal get_destination_forward
         ]
@@ -933,6 +935,9 @@ class CompositeXML:
             case "turn_rate":
                 animation_source_name = "average_angular_rate"
                 runtime_source_name = "get_turn_rate"
+            case "turn_angle":
+                animation_source_name = "total_angular_offset"
+                runtime_source_name = "get_turn_angle"
             case "vertical":
                 animation_source_name = "translation_offset_z"
                 runtime_source_name = "get_destination_vertical"
