@@ -100,6 +100,7 @@ class NWO_AnimationSubBlendAxisItems(PropertyGroup):
             ("movement_angles", "Movement Angles", ""), # linear_movement_angle get_move_angle
             ("movement_speed", "Movement Speed", ""), # linear_movement_speed get_move_speed
             ("turn_rate", "Turn Rate", ""), # average_angular_rate get_turn_rate
+            ("turn_angle", "Turn Angle", ""), # total_angular_offset get_turn_angle
             ("vertical", "Vertical", ""), # translation_offset_z get_destination_vertical
             ("horizontal", "Horizontal", ""), # translation_offset_horizontal get_destination_forward
         ]
@@ -144,6 +145,7 @@ class NWO_AnimationBlendAxisItems(PropertyGroup):
             ("movement_angles", "Movement Angles", ""), # linear_movement_angle get_move_angle
             ("movement_speed", "Movement Speed", ""), # linear_movement_speed get_move_speed
             ("turn_rate", "Turn Rate", ""), # average_angular_rate get_turn_rate
+            ("turn_angle", "Turn Angle", ""), # total_angular_offset get_turn_angle
             ("vertical", "Vertical", ""), # translation_offset_z get_destination_vertical
             ("horizontal", "Horizontal", ""), # translation_offset_horizontal get_destination_forward
         ]
