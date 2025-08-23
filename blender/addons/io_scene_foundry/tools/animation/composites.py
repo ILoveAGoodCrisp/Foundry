@@ -435,7 +435,7 @@ class NWO_OT_AnimationCompositeAdd(bpy.types.Operator):
         group_315.move_angle = radians(315)
         group_315.leaves.add().animation = f"{self.mode} {self.weapon_class} locomote_walk_inplace"
         group_315.leaves.add().animation = f"{self.mode} {self.weapon_class} locomote_walk_frontright"
-        group_315.leaves.add().animation = f"{self.mode} {self.weapon_class} locomote_walk_frontright"
+        group_315.leaves.add().animation = f"{self.mode} {self.weapon_class} locomote_run_frontright"
         
         group_360 = cast(NWO_AnimationGroupItems, speed_blend_axis.groups.add())
         group_360.name = "360 Front"
