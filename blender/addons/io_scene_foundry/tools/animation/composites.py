@@ -973,7 +973,7 @@ class CompositeXML:
     def write_group_entry(self, element_blend_axis, group):
         props = {}
         if group.uses_move_speed:
-            props["get_move_speed"] = str(round(group.move_speed, 1))
+            props["get_move_speed"] = str(round(group.move_speed, 3))
         if group.uses_move_angle:
             props["get_move_angle"] = str(int(round(degrees(group.move_angle), 0)))
             
@@ -985,7 +985,7 @@ class CompositeXML:
     def write_leaf_entry(self, element, leaf):
         props = {"source": utils.space_partition(leaf.animation.replace(":", " "), True)}
         if leaf.uses_move_speed:
-            props["get_move_speed"] = str(round(leaf.move_speed, 1))
+            props["get_move_speed"] = str(round(leaf.move_speed, 3))
         if leaf.uses_move_angle:
             props["get_move_angle"] = str(int(round(degrees(leaf.move_angle), 0)))
         ET.SubElement(element, "leaf", props)
