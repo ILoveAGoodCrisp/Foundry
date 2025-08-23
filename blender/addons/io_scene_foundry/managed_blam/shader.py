@@ -1,6 +1,7 @@
 
 
 from enum import Enum
+from math import radians
 from pathlib import Path
 from mathutils import Vector
 
@@ -1053,7 +1054,15 @@ class ShaderTag(Tag):
     def add_texcoord_node(self, tree, input):
         nodes = tree.nodes
         node = nodes.new(type="ShaderNodeTexCoord")
-        tree.links.new(input=input, output=node.outputs[0] if self.generated_uvs else node.outputs[2])
+        if self.generated_uvs:
+            vec_node = nodes.new(type="ShaderNodeVectorRotate")
+            vec_node.rotation_type = 'Z_AXIS'
+            vec_node.inputs[1].default_value = 0.5, 0.5, 0.5
+            vec_node.inputs[3].default_value = radians(90)
+            tree.links.new(input=vec_node.inputs[0], output=node.outputs[0])
+            tree.links.new(input=input, output=vec_node.outputs[0])
+        else:
+            tree.links.new(input=input, output=node.outputs[2])
     
     def _to_nodes_group(self, blender_material: bpy.types.Material):
         # Get options

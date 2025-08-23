@@ -25,10 +25,11 @@ class ScenarioObjectReference:
                 self.name = def_path.ShortName
                 if for_decal:
                     with DecalSystemTag(path=self.definition) as decal:
-                        if decal.decal_name is not None:
-                            decal_name = decal.tag_path.ShortName
+                        for element in decal.tag.SelectField("Block:decals").Elements:
+                            decal_name = f'{decal.tag_path.ShortName}_{element.SelectField("StringId:decal name").GetStringData()}'
                             mat = bpy.data.materials.get(decal_name)
                             if mat is None:
+                                decal.reread_fields(element.ElementIndex)
                                 mat = bpy.data.materials.new(decal_name)
                                 decal.to_nodes(mat, generated_uvs=True)
                                 
@@ -104,8 +105,13 @@ class ScenarioDecal:
         faces = [(0, 1, 2, 3)]
         mesh.from_pydata(verts, [], faces)
         ob = bpy.data.objects.new(name=self.name, object_data=mesh)
+
         ob.matrix_world = Matrix.LocRotScale(self.position, self.rotation, Vector.Fill(3, 1))
         
+        # add a decal offset
+        normal = ob.matrix_world.to_3x3() @ Vector((0, 0, 1))
+        ob.location += normal.normalized() * 0.1
+
         if self.reference.decal_material is not None:
             mesh.materials.append(self.reference.decal_material)
         
