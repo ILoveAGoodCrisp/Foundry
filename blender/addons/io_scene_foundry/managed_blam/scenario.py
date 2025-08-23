@@ -4,6 +4,8 @@ from pathlib import Path
 import bmesh
 from mathutils import Euler, Matrix, Quaternion, Vector
 
+from .decal_system import DecalSystemTag
+
 from .Tags import TagFieldBlockElement
 
 from ..managed_blam import Tag
@@ -12,14 +14,25 @@ from .. import utils
 import bpy
 
 class ScenarioObjectReference:
-    def __init__(self, element: TagFieldBlockElement):
+    def __init__(self, element: TagFieldBlockElement, for_decal=False):
         self.definition = None
         self.name = "object"
+        self.decal_material = None
         def_path = element.Fields[0].Path
         if def_path is not None:
             if Path(def_path.Filename).exists():
                 self.definition = def_path.RelativePathWithExtension
                 self.name = def_path.ShortName
+                if for_decal:
+                    with DecalSystemTag(path=self.definition) as decal:
+                        if decal.decal_name is not None:
+                            decal_name = decal.tag_path.ShortName
+                            mat = bpy.data.materials.get(decal_name)
+                            if mat is None:
+                                mat = bpy.data.materials.new(decal_name)
+                                decal.to_nodes(mat, generated_uvs=True)
+                                
+                            self.decal_material = mat
     
 class ScenarioObject:
     def __init__(self, element: TagFieldBlockElement, palette: list[ScenarioObjectReference], object_names: list[str]):
@@ -92,6 +105,9 @@ class ScenarioDecal:
         mesh.from_pydata(verts, [], faces)
         ob = bpy.data.objects.new(name=self.name, object_data=mesh)
         ob.matrix_world = Matrix.LocRotScale(self.position, self.rotation, Vector.Fill(3, 1))
+        
+        if self.reference.decal_material is not None:
+            mesh.materials.append(self.reference.decal_material)
         
         return ob
         
@@ -372,7 +388,7 @@ class ScenarioTag(Tag):
             else:
                 parent_collection.children.link(objects_collection)
             
-            palette = [ScenarioObjectReference(e) for e in self.tag.SelectField("Block:decal palette").Elements]
+            palette = [ScenarioObjectReference(e, True) for e in self.tag.SelectField("Block:decal palette").Elements]
             for element in block.Elements:
                 decal = ScenarioDecal(element, palette)
                 if not decal.valid:

@@ -464,12 +464,13 @@ class ShaderTag(Tag):
             
             
     # READING
-    def to_nodes(self, blender_material, always_extract_bitmaps=False):
+    def to_nodes(self, blender_material, always_extract_bitmaps=False, generated_uvs=False):
         self.always_extract_bitmaps = always_extract_bitmaps
         self.game_functions = set()
         self.object_functions = set()
         self.sequence_drivers = {}
         self.has_rotating_bitmaps = False
+        self.generated_uvs = generated_uvs
         self._get_info(self.reference_material_shader.Path if self.corinth else self.definition.Path)
         if self.group_supported:
             self._to_nodes_group(blender_material)
@@ -994,7 +995,10 @@ class ShaderTag(Tag):
                     tree.links.new(input=node.inputs[specified_input] if isinstance(specified_input, int) else input_map[specified_input], output=data_node.outputs[1])
         
         tiling_node = self._tiling_from_animated_parameters(tree, parameter)
-        if tiling_node is not None:
+        if tiling_node is None:
+            if self.generated_uvs:
+                self.add_texcoord_node(tree, data_node.inputs[0])
+        else:
             tree.links.new(input=data_node.inputs[0], output=tiling_node.outputs[0])
             
         return data_node
@@ -1049,7 +1053,7 @@ class ShaderTag(Tag):
     def add_texcoord_node(self, tree, input):
         nodes = tree.nodes
         node = nodes.new(type="ShaderNodeTexCoord")
-        tree.links.new(input=input, output=node.outputs[2])
+        tree.links.new(input=input, output=node.outputs[0] if self.generated_uvs else node.outputs[2])
     
     def _to_nodes_group(self, blender_material: bpy.types.Material):
         # Get options

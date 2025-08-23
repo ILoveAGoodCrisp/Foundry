@@ -74,6 +74,10 @@ class ShaderDecalTag(ShaderTag):
             utils.print_warning(f"Albedo not supported: {e_albedo.name}. Using {Albedo.DIFFUSE_ONLY.name}")
             e_albedo = Albedo.DIFFUSE_ONLY
             
+        if e_blend_mode not in {BlendMode.OPAQUE, BlendMode.ADDITIVE, BlendMode.ALPHA_BLEND, BlendMode.MULTIPLY}:
+            utils.print_warning(f"Blend Mode not supported: {e_blend_mode.name}. Using {BlendMode.MULTIPLY.name}")
+            e_blend_mode = BlendMode.MULTIPLY
+            
         self.shader_parameters = {}
         self.shader_parameters.update(self.category_parameters["albedo"][utils.game_str(e_albedo.name)])
         self.shader_parameters.update(self.category_parameters["blend_mode"][utils.game_str(e_blend_mode.name)])
@@ -116,12 +120,12 @@ class ShaderDecalTag(ShaderTag):
             tree.links.new(input=node_albedo.inputs["Normal"], output=node_bump_mapping.outputs[0])
             
             
-        if e_blend_mode in {BlendMode.ADDITIVE, BlendMode.ALPHA_BLEND}:
+        if e_blend_mode in {BlendMode.ADDITIVE, BlendMode.ALPHA_BLEND, BlendMode.MULTIPLY}:
             blender_material.surface_render_method = 'BLENDED'
             node_blend_mode = self._add_group_node(tree, nodes, f"blend_mode - {utils.game_str(e_blend_mode.name)}")
             tree.links.new(input=node_blend_mode.inputs[0], output=final_node.outputs[0])
             final_node = node_blend_mode
-            if len(node_albedo.outputs) > 1:
+            if e_blend_mode == BlendMode.ALPHA_BLEND and len(node_albedo.outputs) > 1:
                 tree.links.new(input=node_blend_mode.inputs[1], output=node_albedo.outputs[1])
                 
         # Make the Output
