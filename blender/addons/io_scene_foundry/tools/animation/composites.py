@@ -106,9 +106,9 @@ class NWO_OT_AnimationCompositeAdd(bpy.types.Operator):
                         self.preset_locomote(entry)
                 case 'aim_locomote_up':
                     if self.mode == 'crouch':
-                        self.preset_aim_locomote_up(entry)
-                    else:
                         self.preset_crouch_aim(entry)
+                    else:
+                        self.preset_aim_locomote_up(entry)
                 case 'turn_left_composite':
                     self.preset_turn_left(entry)
                 case 'turn_right_composite':
