@@ -127,6 +127,10 @@ class ShaderDecalTag(ShaderTag):
             final_node = node_blend_mode
             if e_blend_mode == BlendMode.ALPHA_BLEND and len(node_albedo.outputs) > 1:
                 tree.links.new(input=node_blend_mode.inputs[1], output=node_albedo.outputs[1])
+            elif e_blend_mode == BlendMode.MULTIPLY:
+                tree.links.new(input=node_blend_mode.inputs[1], output=node_albedo.outputs[0])
+                if len(node_albedo.outputs) > 1:
+                    tree.links.new(input=node_blend_mode.inputs[2], output=node_albedo.outputs[1])
                 
         # Make the Output
         node_output = nodes.new(type='ShaderNodeOutputMaterial')

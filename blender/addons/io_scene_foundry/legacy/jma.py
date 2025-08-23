@@ -166,7 +166,7 @@ class JMA:
         bone_dict = {}
         bones_ordered = [node.pose_bone for node in valid_nodes]
         for bone in bones_ordered:
-            if bone.parent:
+            if bone.parent and bone.parent in valid_nodes:
                 bone_dict[bone] = bone_dict[bone.parent] + 1
             else:
                 bone_dict[bone] = 0
