@@ -3134,185 +3134,185 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col.operator("nwo.animation_rename_move", text="", icon="TRIA_UP").direction = 'up'
             col.operator("nwo.animation_rename_move", icon="TRIA_DOWN", text="").direction = 'down'
 
-            # ANIMATION EVENTS
-            if not animation.animation_events:
-                if animation.animation_renames:
-                    row = box.row()
-                row.operator("nwo.animation_event_list_add", text="New Event", icon_value=get_icon_id('animation_event'))
-                if bpy.ops.nwo.paste_events.poll():
-                    row.operator("nwo.paste_events", icon="PASTEDOWN")
-            else:
-                box = box.box()
+        # ANIMATION EVENTS
+        if not animation.animation_events:
+            if animation.animation_renames:
                 row = box.row()
-                row.label(text="Animation Events")
-                row = box.row()
-                rows = 3
-                row.template_list(
-                    "NWO_UL_AnimProps_Events",
-                    "",
-                    animation,
-                    "animation_events",
-                    animation,
-                    "active_animation_event_index",
-                    rows=rows,
-                )
-
-                col = row.column(align=True)
-                col.operator("nwo.animation_event_list_add", icon="ADD", text="")
-                col.operator("nwo.animation_event_list_remove", icon="REMOVE", text="")
-                col.separator()
-                col.operator("nwo.animation_event_move", text="", icon="TRIA_UP").direction = 'up'
-                col.operator("nwo.animation_event_move", icon="TRIA_DOWN", text="").direction = 'down'
-                
-                row = box.row()
-                row.operator("nwo.copy_events", icon="COPYDOWN")
+            row.operator("nwo.animation_event_list_add", text="New Event", icon_value=get_icon_id('animation_event'))
+            if bpy.ops.nwo.paste_events.poll():
                 row.operator("nwo.paste_events", icon="PASTEDOWN")
-                row = box.row()
-                row.operator("nwo.export_animation_frame_events", icon="EXPORT")
+        else:
+            box = box.box()
+            row = box.row()
+            row.label(text="Animation Events")
+            row = box.row()
+            rows = 3
+            row.template_list(
+                "NWO_UL_AnimProps_Events",
+                "",
+                animation,
+                "animation_events",
+                animation,
+                "active_animation_event_index",
+                rows=rows,
+            )
 
-                if animation.animation_events:
-                    item = animation.animation_events[animation.active_animation_event_index]
-                    # row = layout.row()
-                    # row.prop(item, "name") # debug only
-                    flow = box.grid_flow(
-                        row_major=True,
-                        columns=0,
-                        even_columns=True,
-                        even_rows=False,
-                        align=False,
-                    )
-                    col = flow.column()
-                    col.use_property_split = True
-                    col.prop(item, "event_type")
-                    if item.event_type == '_connected_geometry_animation_event_type_frame':
-                        row = col.row()
-                        row.prop(item, "multi_frame", expand=True)
-                        if item.multi_frame == "range":
-                            row = col.row(align=True)
-                            row.prop(item, "frame_frame", text="Frame Start")
-                            row.operator("nwo.animation_event_set_frame", text="", icon="KEYFRAME_HLT").prop_to_set = "frame_frame"
-                            row = col.row(align=True)
-                            row.prop(item, "frame_range", text="Frame End")
-                            row.operator("nwo.animation_event_set_frame", text="", icon="KEYFRAME_HLT").prop_to_set = "frame_range"
-                        else:
-                            row = col.row(align=True)
-                            row.prop(item, "frame_frame")
-                            row.operator("nwo.animation_event_set_frame", text="", icon="KEYFRAME_HLT").prop_to_set = "frame_frame"
-                            
-                        col.prop(item, "frame_name", text="Event")
-                        
-                        
-                        if item.event_data:
-                            box = box.box()
-                            row = box.row()
-                            row.label(text="Animation Event Data")
-                            row = box.row()
-                            rows = 3
-                            row.template_list(
-                                "NWO_UL_AnimProps_EventsData",
-                                "",
-                                item,
-                                "event_data",
-                                item,
-                                "active_event_data_index",
-                                rows=rows,
-                            )
-                            col = row.column(align=True)
-                            col.operator("nwo.add_animation_event_data", icon="ADD", text="")
-                            col.operator("nwo.remove_animation_event_data", icon="REMOVE", text="")
-                            
-                            data = item.event_data[item.active_event_data_index]
-                            
-                            col = box.column()
-                            col.separator()
-                            col.use_property_split = True
-                            row = col.row()
-                            row.use_property_split = False
-                            row.prop(data, "data_type", expand=True)
-                            col.separator()
-                            col.prop(data, "frame_offset")
-                            col.separator()
-                            if data.data_type == 'DIALOGUE':
-                                col.prop(data, "dialogue_event")
-                                col.prop(data, "damage_effect_reporting_type")
-                            else:
-                                if data.data_type == 'EFFECT':
-                                    row = col.row(align=True)
-                                    row.prop(data, "event_effect_tag", icon_value=get_icon_id("tags"))
-                                    row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "event_effect_tag"
-                                    row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'event_effect_tag'
-                                    col.prop(data, "marker")
-                                else:
-                                    row = col.row(align=True)
-                                    row.prop(data, "event_sound_tag", icon_value=get_icon_id("tags"))
-                                    row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "event_sound_tag"
-                                    row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'event_sound_tag'
-                                    col.prop(data, "marker")
-                                col.separator()
-                                if self.h4:
-                                    row = col.row()
-                                    row.prop(data, "event_model", icon_value=get_icon_id("tags"))
-                                    row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "event_model"
-                                    row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'event_model'
-                                    col.prop(data, "variant")
-                                col.separator()
-                                col.prop(data, "flag_allow_on_player")
-                                col.prop(data, "flag_left_arm_only")
-                                col.prop(data, "flag_right_arm_only")
-                                col.prop(data, "flag_first_person_only")
-                                col.prop(data, "flag_third_person_only")
-                                col.prop(data, "flag_forward_only")
-                                col.prop(data, "flag_reverse_only")
-                                col.prop(data, "flag_fp_no_aged_weapons")
-                            
-                            
-                            
-                        else:
-                            box.operator("nwo.add_animation_event_data", icon="ADD", text="Add Event Data")
-                        
-                    elif (
-                        item.event_type
-                        == "_connected_geometry_animation_event_type_wrinkle_map"
-                    ):
+            col = row.column(align=True)
+            col.operator("nwo.animation_event_list_add", icon="ADD", text="")
+            col.operator("nwo.animation_event_list_remove", icon="REMOVE", text="")
+            col.separator()
+            col.operator("nwo.animation_event_move", text="", icon="TRIA_UP").direction = 'up'
+            col.operator("nwo.animation_event_move", icon="TRIA_DOWN", text="").direction = 'down'
+            
+            row = box.row()
+            row.operator("nwo.copy_events", icon="COPYDOWN")
+            row.operator("nwo.paste_events", icon="PASTEDOWN")
+            row = box.row()
+            row.operator("nwo.export_animation_frame_events", icon="EXPORT")
+
+            if animation.animation_events:
+                item = animation.animation_events[animation.active_animation_event_index]
+                # row = layout.row()
+                # row.prop(item, "name") # debug only
+                flow = box.grid_flow(
+                    row_major=True,
+                    columns=0,
+                    even_columns=True,
+                    even_rows=False,
+                    align=False,
+                )
+                col = flow.column()
+                col.use_property_split = True
+                col.prop(item, "event_type")
+                if item.event_type == '_connected_geometry_animation_event_type_frame':
+                    row = col.row()
+                    row.prop(item, "multi_frame", expand=True)
+                    if item.multi_frame == "range":
                         row = col.row(align=True)
-                        col.prop(item, "wrinkle_map_face_region", text="Face Region")
-                        col.prop(item, "event_value", text="Wrinkle Map Factor")
-                    elif (
-                        item.event_type
-                        == "_connected_geometry_animation_event_type_import"
-                    ):
-                        row = col.row(align=True)
-                        row.prop(item, "frame_frame", text="Frame")
+                        row.prop(item, "frame_frame", text="Frame Start")
                         row.operator("nwo.animation_event_set_frame", text="", icon="KEYFRAME_HLT").prop_to_set = "frame_frame"
-                        col.prop(item, "import_name")
-                    elif item.event_type.startswith('_connected_geometry_animation_event_type_ik'):
-                        valid_ik_chains = [chain for chain in scene_nwo.ik_chains if chain.start_node and chain.effector_node]
-                        if not valid_ik_chains:
-                            col.label(text='Add IK Chains in the Asset Editor tab', icon='ERROR')
-                            return
-                        col.prop(item, "ik_chain")
-                        # col.prop(item, "ik_active_tag")
-                        # col.prop(item, "ik_target_tag")
-                        col.prop(item, "ik_target_marker", icon_value=get_icon_id('marker'))
-                        col.prop(item, "ik_target_marker_name_override")
-                        col.prop(item, "ik_target_usage")
-                        col.prop(item, 'event_value', text="IK Influence")
-                        col.prop(item, 'ik_pole_vector')
-                        # col.prop(item, "ik_proxy_target_id")
-                        # col.prop(item, "ik_pole_vector_id")
-                        # col.prop(item, "ik_effector_id")
-                    elif (
-                        item.event_type
-                        == "_connected_geometry_animation_event_type_object_function"
-                    ):
-                        col.prop(item, "object_function_name")
-                        col.prop(item, "event_value", text="Function Value")
-                    elif (
-                        item.event_type
-                        == "_connected_geometry_animation_event_type_import"
-                    ):
-                        col.prop(item, "frame_frame")
-                        col.prop(item, "import_name")
+                        row = col.row(align=True)
+                        row.prop(item, "frame_range", text="Frame End")
+                        row.operator("nwo.animation_event_set_frame", text="", icon="KEYFRAME_HLT").prop_to_set = "frame_range"
+                    else:
+                        row = col.row(align=True)
+                        row.prop(item, "frame_frame")
+                        row.operator("nwo.animation_event_set_frame", text="", icon="KEYFRAME_HLT").prop_to_set = "frame_frame"
+                        
+                    col.prop(item, "frame_name", text="Event")
+                    
+                    
+                    if item.event_data:
+                        box = box.box()
+                        row = box.row()
+                        row.label(text="Animation Event Data")
+                        row = box.row()
+                        rows = 3
+                        row.template_list(
+                            "NWO_UL_AnimProps_EventsData",
+                            "",
+                            item,
+                            "event_data",
+                            item,
+                            "active_event_data_index",
+                            rows=rows,
+                        )
+                        col = row.column(align=True)
+                        col.operator("nwo.add_animation_event_data", icon="ADD", text="")
+                        col.operator("nwo.remove_animation_event_data", icon="REMOVE", text="")
+                        
+                        data = item.event_data[item.active_event_data_index]
+                        
+                        col = box.column()
+                        col.separator()
+                        col.use_property_split = True
+                        row = col.row()
+                        row.use_property_split = False
+                        row.prop(data, "data_type", expand=True)
+                        col.separator()
+                        col.prop(data, "frame_offset")
+                        col.separator()
+                        if data.data_type == 'DIALOGUE':
+                            col.prop(data, "dialogue_event")
+                            col.prop(data, "damage_effect_reporting_type")
+                        else:
+                            if data.data_type == 'EFFECT':
+                                row = col.row(align=True)
+                                row.prop(data, "event_effect_tag", icon_value=get_icon_id("tags"))
+                                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "event_effect_tag"
+                                row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'event_effect_tag'
+                                col.prop(data, "marker")
+                            else:
+                                row = col.row(align=True)
+                                row.prop(data, "event_sound_tag", icon_value=get_icon_id("tags"))
+                                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "event_sound_tag"
+                                row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'event_sound_tag'
+                                col.prop(data, "marker")
+                            col.separator()
+                            if self.h4:
+                                row = col.row()
+                                row.prop(data, "event_model", icon_value=get_icon_id("tags"))
+                                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "event_model"
+                                row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'event_model'
+                                col.prop(data, "variant")
+                            col.separator()
+                            col.prop(data, "flag_allow_on_player")
+                            col.prop(data, "flag_left_arm_only")
+                            col.prop(data, "flag_right_arm_only")
+                            col.prop(data, "flag_first_person_only")
+                            col.prop(data, "flag_third_person_only")
+                            col.prop(data, "flag_forward_only")
+                            col.prop(data, "flag_reverse_only")
+                            col.prop(data, "flag_fp_no_aged_weapons")
+                        
+                        
+                        
+                    else:
+                        box.operator("nwo.add_animation_event_data", icon="ADD", text="Add Event Data")
+                    
+                elif (
+                    item.event_type
+                    == "_connected_geometry_animation_event_type_wrinkle_map"
+                ):
+                    row = col.row(align=True)
+                    col.prop(item, "wrinkle_map_face_region", text="Face Region")
+                    col.prop(item, "event_value", text="Wrinkle Map Factor")
+                elif (
+                    item.event_type
+                    == "_connected_geometry_animation_event_type_import"
+                ):
+                    row = col.row(align=True)
+                    row.prop(item, "frame_frame", text="Frame")
+                    row.operator("nwo.animation_event_set_frame", text="", icon="KEYFRAME_HLT").prop_to_set = "frame_frame"
+                    col.prop(item, "import_name")
+                elif item.event_type.startswith('_connected_geometry_animation_event_type_ik'):
+                    valid_ik_chains = [chain for chain in scene_nwo.ik_chains if chain.start_node and chain.effector_node]
+                    if not valid_ik_chains:
+                        col.label(text='Add IK Chains in the Asset Editor tab', icon='ERROR')
+                        return
+                    col.prop(item, "ik_chain")
+                    # col.prop(item, "ik_active_tag")
+                    # col.prop(item, "ik_target_tag")
+                    col.prop(item, "ik_target_marker", icon_value=get_icon_id('marker'))
+                    col.prop(item, "ik_target_marker_name_override")
+                    col.prop(item, "ik_target_usage")
+                    col.prop(item, 'event_value', text="IK Influence")
+                    col.prop(item, 'ik_pole_vector')
+                    # col.prop(item, "ik_proxy_target_id")
+                    # col.prop(item, "ik_pole_vector_id")
+                    # col.prop(item, "ik_effector_id")
+                elif (
+                    item.event_type
+                    == "_connected_geometry_animation_event_type_object_function"
+                ):
+                    col.prop(item, "object_function_name")
+                    col.prop(item, "event_value", text="Function Value")
+                elif (
+                    item.event_type
+                    == "_connected_geometry_animation_event_type_import"
+                ):
+                    col.prop(item, "frame_frame")
+                    col.prop(item, "import_name")
 
     def draw_tools(self):
         nwo = self.scene.nwo

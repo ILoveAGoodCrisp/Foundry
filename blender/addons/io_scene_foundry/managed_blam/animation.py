@@ -459,6 +459,12 @@ class AnimationTag(Tag):
                 action.use_frame_range = True
                 animation.frame_start = 1
                 animation.frame_end = frame_count
+                
+                if self.corinth and element.SelectField("ShortBlockIndex:composite").Value > -1:
+                    animation.animation_type = 'composite'
+                    self._import_composite(animation, element.SelectField("ShortBlockIndex:composite").Value)
+                    continue
+                
                 match anim_type:
                     case 0 | 1:
                         if shared_data.Elements[0].SelectField("internal flags").TestBit("world relative"):
@@ -480,6 +486,7 @@ class AnimationTag(Tag):
                         animation.animation_type = 'overlay'
                     case 3:
                         animation.animation_type = 'replacement'
+
                 track = animation.action_tracks.add()
                 track.object = armature
                 track.action = action
@@ -669,6 +676,42 @@ class AnimationTag(Tag):
             frame_data[node] = matrix
         
         base_transforms[frame] = frame_data
+        
+    def _import_composite(self, blender_animation, composite_index: int):
+        return # TODO
+        composites_block = self.tag.SelectField("Struct:definitions[0]/Block:composites")
+        if composites_block.Elements.Count == 0 or composite_index >= composites_block.Elements.Count:
+            return
+        
+        composite = composites_block.Elements[composite_index]
+
+        name = composite.SelectField("StringId:name").GetStringData()
+        state = utils.space_partition(name, True)
+        axis_1 = composite.SelectField("Block:axes[0]")
+        axis_2 = composite.SelectField("Block:axes[1]")
+        
+        use_groups = state == "locomote"
+        
+        if axis_1 is None:
+            return
+        
+        blend_axis_1 = blender_animation.blend_axes.add()
+        blend_axis_1.name = axis_1.SelectField("name")
+        blend_axis_1.animation_source_bounds_manual = True
+        blend_axis_1.animation_source_bounds = (*axis_1.SelectField("animation bounds").Data,)
+        blend_axis_1.runtime_source_bounds_manual = True
+        blend_axis_1.runtime_source_bounds = (*axis_1.SelectField("input bounds").Data,)
+        blend_axis_1.runtime_source_clamped = axis_1.SelectField("flags").TestBit("clamped")
+        blend_axis_1.animation_source_limit = axis_1.SelectField("blend limit").Data
+        
+        for dead_zone in axis_1.SelectField("Block:dead zones").Elements:
+            blender_dead_zone = blend_axis_1.dead_zones.add()
+            blender_dead_zone.bounds = (*dead_zone.SelectField("RealBounds:bounds").Data,)
+            blender_dead_zone.rate = 360 / dead_zone.SelectField("Real:rate").Data
+            
+        if use_groups:
+            blender_group = blend_axis_1.groups.add()
+        
             
     def get_play_text(self, animation, loop: bool, unit: bool, game_object: str = "(player_get 0)") -> str:
         hs_func = "custom_animation_loop" if loop else "custom_animation"
