@@ -1094,10 +1094,10 @@ class AnimationTag(Tag):
                 for event in sorted(animation_events, key=lambda x: x.frame):
                     blender_event = blender_animation.animation_events.add()
                     blender_event.name = event.name
-                    blender_event.frame_frame = event.frame + 1
+                    blender_event.frame_frame = blender_animation.frame_start + event.frame
                     if event.end_frame > event.frame:
                         blender_event.multi_frame = 'range'
-                        blender_event.frame_range = event.end_frame + 1
+                        blender_event.frame_range = blender_animation.frame_start + event.end_frame
                     blender_event.frame_name = event.type
                     blender_event.event_id = event.unique_id
                     
