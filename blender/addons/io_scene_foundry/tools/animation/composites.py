@@ -207,38 +207,38 @@ class NWO_OT_AnimationCompositeAdd(bpy.types.Operator):
         
         run_front_up = cast(NWO_AnimationLeavesItems, angle_blend_axis.leaves.add())
         run_front_up.animation = f"{self.mode} {self.weapon_class} aim_locomote_run_front_up"
-        run_front_up.uses_move_speed = True
-        run_front_up.move_speed = 0.9
-        run_front_up.uses_move_angle = True
-        run_front_up.move_angle = 0
+        run_front_up.manual_blend_axis_1 = True
+        run_front_up.blend_axis_1 = 0
+        run_front_up.manual_blend_axis_2 = True
+        run_front_up.blend_axis_2 = 0.9
         
         run_left_up = cast(NWO_AnimationLeavesItems, angle_blend_axis.leaves.add())
         run_left_up.animation = f"{self.mode} {self.weapon_class} aim_locomote_run_left_up"
-        run_left_up.uses_move_speed = True
-        run_left_up.move_speed = 0.9
-        run_left_up.uses_move_angle = True
-        run_left_up.move_angle = radians(90)
-        
+        run_left_up.manual_blend_axis_1 = True
+        run_left_up.blend_axis_1 = 90
+        run_left_up.manual_blend_axis_2 = True
+        run_left_up.blend_axis_2 = 0.9
+    
         run_back_up = cast(NWO_AnimationLeavesItems, angle_blend_axis.leaves.add())
         run_back_up.animation = f"{self.mode} {self.weapon_class} aim_locomote_run_back_up"
-        run_back_up.uses_move_speed = True
-        run_back_up.move_speed = 0.9
-        run_back_up.uses_move_angle = True
-        run_back_up.move_angle = radians(180)
+        run_back_up.manual_blend_axis_1 = True
+        run_back_up.blend_axis_1 = 180
+        run_back_up.manual_blend_axis_2 = True
+        run_back_up.blend_axis_2 = 0.9
         
         run_right_up = cast(NWO_AnimationLeavesItems, angle_blend_axis.leaves.add())
         run_right_up.animation = f"{self.mode} {self.weapon_class} aim_locomote_run_right_up"
-        run_right_up.uses_move_speed = True
-        run_right_up.move_speed = 0.9
-        run_right_up.uses_move_angle = True
-        run_right_up.move_angle = radians(270)
+        run_right_up.manual_blend_axis_1 = True
+        run_right_up.blend_axis_1 = 270
+        run_right_up.manual_blend_axis_2 = True
+        run_right_up.blend_axis_2 = 0.9
         
         run_360_up = cast(NWO_AnimationLeavesItems, angle_blend_axis.leaves.add())
         run_360_up.animation = f"{self.mode} {self.weapon_class} aim_locomote_run_front_up"
-        run_360_up.uses_move_speed = True
-        run_360_up.move_speed = 0.9
-        run_360_up.uses_move_angle = True
-        run_360_up.move_angle = radians(360)
+        run_360_up.manual_blend_axis_1 = True
+        run_360_up.blend_axis_1 = 360
+        run_360_up.manual_blend_axis_2 = True
+        run_360_up.blend_axis_2 = 0.9
         
     def preset_aim_locomote_up(self, composite: NWO_AnimationCompositesItems):
         composite.timing_source = f"{self.mode} {self.weapon_class} aim_locomote_run_front_up"
@@ -263,73 +263,73 @@ class NWO_OT_AnimationCompositeAdd(bpy.types.Operator):
         
         walk_front_up = cast(NWO_AnimationLeavesItems, speed_blend_axis.leaves.add())
         walk_front_up.animation = f"{self.mode} {self.weapon_class} aim_locomote_walk_front_up"
-        walk_front_up.uses_move_speed = True
+        walk_front_up.manual_blend_axis_1 = True
+        walk_front_up.blend_axis_1 = 0
+        walk_front_up.manual_blend_axis_2 = True
         walk_front_up.move_speed = 0.5
-        walk_front_up.uses_move_angle = True
-        walk_front_up.move_angle = 0
         
         run_front_up = cast(NWO_AnimationLeavesItems, speed_blend_axis.leaves.add())
         run_front_up.animation = f"{self.mode} {self.weapon_class} aim_locomote_run_front_up"
-        run_front_up.uses_move_speed = True
+        run_front_up.manual_blend_axis_1 = True
+        run_front_up.blend_axis_1 = 0
+        run_front_up.manual_blend_axis_2 = True
         run_front_up.move_speed = 0.9
-        run_front_up.uses_move_angle = True
-        run_front_up.move_angle = 0
         
         walk_left_up = cast(NWO_AnimationLeavesItems, speed_blend_axis.leaves.add())
         walk_left_up.animation = f"{self.mode} {self.weapon_class} aim_locomote_walk_left_up"
-        walk_left_up.uses_move_speed = True
+        walk_left_up.manual_blend_axis_1 = True
+        walk_left_up.blend_axis_1 = 90
+        walk_left_up.manual_blend_axis_2 = True
         walk_left_up.move_speed = 0.5
-        walk_left_up.uses_move_angle = True
-        walk_left_up.move_angle = radians(90)
         
         run_left_up = cast(NWO_AnimationLeavesItems, speed_blend_axis.leaves.add())
         run_left_up.animation = f"{self.mode} {self.weapon_class} aim_locomote_run_left_up"
-        run_left_up.uses_move_speed = True
+        run_left_up.manual_blend_axis_1 = True
+        run_left_up.blend_axis_1 = 90
+        run_left_up.manual_blend_axis_2 = True
         run_left_up.move_speed = 0.9
-        run_left_up.uses_move_angle = True
-        run_left_up.move_angle = radians(90)
         
         walk_back_up = cast(NWO_AnimationLeavesItems, speed_blend_axis.leaves.add())
         walk_back_up.animation = f"{self.mode} {self.weapon_class} aim_locomote_walk_back_up"
-        walk_back_up.uses_move_speed = True
+        walk_back_up.manual_blend_axis_1 = True
+        walk_back_up.blend_axis_1 = 180
+        walk_back_up.manual_blend_axis_2 = True
         walk_back_up.move_speed = 0.5
-        walk_back_up.uses_move_angle = True
-        walk_back_up.move_angle = radians(180)
         
         run_back_up = cast(NWO_AnimationLeavesItems, speed_blend_axis.leaves.add())
         run_back_up.animation = f"{self.mode} {self.weapon_class} aim_locomote_run_back_up"
-        run_back_up.uses_move_speed = True
+        run_back_up.manual_blend_axis_1 = True
+        run_back_up.blend_axis_1 = 180
+        run_back_up.manual_blend_axis_2 = True
         run_back_up.move_speed = 0.9
-        run_back_up.uses_move_angle = True
-        run_back_up.move_angle = radians(180)
         
         walk_right_up = cast(NWO_AnimationLeavesItems, speed_blend_axis.leaves.add())
         walk_right_up.animation = f"{self.mode} {self.weapon_class} aim_locomote_walk_right_up"
-        walk_right_up.uses_move_speed = True
+        walk_right_up.manual_blend_axis_1 = True
+        walk_right_up.blend_axis_1 = 270
+        walk_right_up.manual_blend_axis_2 = True
         walk_right_up.move_speed = 0.5
-        walk_right_up.uses_move_angle = True
-        walk_right_up.move_angle = radians(270)
         
         run_right_up = cast(NWO_AnimationLeavesItems, speed_blend_axis.leaves.add())
         run_right_up.animation = f"{self.mode} {self.weapon_class} aim_locomote_run_right_up"
-        run_right_up.uses_move_speed = True
+        run_right_up.manual_blend_axis_1 = True
+        run_right_up.blend_axis_1 = 270
+        run_right_up.manual_blend_axis_2 = True
         run_right_up.move_speed = 0.9
-        run_right_up.uses_move_angle = True
-        run_right_up.move_angle = radians(270)
         
         walk_360_up = cast(NWO_AnimationLeavesItems, speed_blend_axis.leaves.add())
         walk_360_up.animation = f"{self.mode} {self.weapon_class} aim_locomote_walk_front_up"
-        walk_360_up.uses_move_speed = True
+        walk_360_up.manual_blend_axis_1 = True
+        walk_360_up.blend_axis_1 = 360
+        walk_360_up.manual_blend_axis_2 = True
         walk_360_up.move_speed = 0.5
-        walk_360_up.uses_move_angle = True
-        walk_360_up.move_angle = radians(360)
         
         run_360_up = cast(NWO_AnimationLeavesItems, speed_blend_axis.leaves.add())
         run_360_up.animation = f"{self.mode} {self.weapon_class} aim_locomote_run_front_up"
-        run_360_up.uses_move_speed = True
+        run_360_up.manual_blend_axis_1 = True
+        run_360_up.blend_axis_1 = 360
+        run_360_up.manual_blend_axis_2 = True
         run_360_up.move_speed = 0.9
-        run_360_up.uses_move_angle = True
-        run_360_up.move_angle = radians(360)
         
     def preset_sprint(self, composite: NWO_AnimationCompositesItems):
         composite.timing_source = f"sprint {self.weapon_class} move_front_fast"
@@ -356,15 +356,15 @@ class NWO_OT_AnimationCompositeAdd(bpy.types.Operator):
         angle_blend_axis.runtime_source_bounds = 0, 360
         angle_blend_axis.runtime_source_clamped = False
         
-        dead_zone_0 = cast(NWO_AnimationDeadZonesItems, angle_blend_axis.dead_zones.add())
-        dead_zone_0.name = "deadzone0"
-        dead_zone_0.bounds = 45, 90
-        dead_zone_0.rate = 90
+        # dead_zone_0 = cast(NWO_AnimationDeadZonesItems, angle_blend_axis.dead_zones.add())
+        # dead_zone_0.name = "deadzone0"
+        # dead_zone_0.bounds = 45, 90
+        # dead_zone_0.rate = 90
         
-        dead_zone_1 = cast(NWO_AnimationDeadZonesItems, angle_blend_axis.dead_zones.add())
-        dead_zone_1.name = "deadzone1"
-        dead_zone_1.bounds = 225, 270
-        dead_zone_1.rate = 90
+        # dead_zone_1 = cast(NWO_AnimationDeadZonesItems, angle_blend_axis.dead_zones.add())
+        # dead_zone_1.name = "deadzone1"
+        # dead_zone_1.bounds = 225, 270
+        # dead_zone_1.rate = 90
         
         speed_blend_axis = cast(NWO_AnimationSubBlendAxisItems, angle_blend_axis.blend_axis.add())
         speed_blend_axis.name = "movement_speed"
@@ -374,8 +374,8 @@ class NWO_OT_AnimationCompositeAdd(bpy.types.Operator):
         
         group_0 = cast(NWO_AnimationGroupItems, speed_blend_axis.groups.add())
         group_0.name = "Front"
-        group_0.uses_move_angle = True
-        group_0.move_angle = 0
+        group_0.manual_blend_axis_1 = True
+        group_0.blend_axis_1 = 0
         group_0.leaves.add().animation = f"{self.mode} {self.weapon_class} locomote_walk_inplace"
         group_0.leaves.add().animation = f"{self.mode} {self.weapon_class} locomote_walkslow_front"
         group_0.leaves.add().animation = f"{self.mode} {self.weapon_class} locomote_walk_front"
@@ -383,64 +383,64 @@ class NWO_OT_AnimationCompositeAdd(bpy.types.Operator):
         
         group_45 = cast(NWO_AnimationGroupItems, speed_blend_axis.groups.add())
         group_45.name = "Front Left"
-        group_45.uses_move_angle = True
-        group_45.move_angle = radians(45)
+        group_45.manual_blend_axis_1 = True
+        group_45.blend_axis_1 = 45
         group_45.leaves.add().animation = f"{self.mode} {self.weapon_class} locomote_walk_inplace"
         group_45.leaves.add().animation = f"{self.mode} {self.weapon_class} locomote_walk_frontleft"
         group_45.leaves.add().animation = f"{self.mode} {self.weapon_class} locomote_run_frontleft"
         
         group_90 = cast(NWO_AnimationGroupItems, speed_blend_axis.groups.add())
         group_90.name = "Left"
-        group_90.uses_move_angle = True
-        group_90.move_angle = radians(90)
+        group_90.manual_blend_axis_1 = True
+        group_90.blend_axis_1 = 90
         group_90.leaves.add().animation = f"{self.mode} {self.weapon_class} locomote_walk_inplace"
         group_90.leaves.add().animation = f"{self.mode} {self.weapon_class} locomote_walk_left"
         group_90.leaves.add().animation = f"{self.mode} {self.weapon_class} locomote_run_left"
         
         group_135 = cast(NWO_AnimationGroupItems, speed_blend_axis.groups.add())
         group_135.name = "Back Left"
-        group_135.uses_move_angle = True
-        group_135.move_angle = radians(135)
+        group_135.manual_blend_axis_1 = True
+        group_135.blend_axis_1 = 135
         group_135.leaves.add().animation = f"{self.mode} {self.weapon_class} locomote_walk_inplace"
         group_135.leaves.add().animation = f"{self.mode} {self.weapon_class} locomote_walk_backleft"
         group_135.leaves.add().animation = f"{self.mode} {self.weapon_class} locomote_run_backleft"
         
         group_180 = cast(NWO_AnimationGroupItems, speed_blend_axis.groups.add())
         group_180.name = "Back"
-        group_180.uses_move_angle = True
-        group_180.move_angle = radians(180)
+        group_180.manual_blend_axis_1 = True
+        group_180.blend_axis_1 = 180
         group_180.leaves.add().animation = f"{self.mode} {self.weapon_class} locomote_walk_inplace"
         group_180.leaves.add().animation = f"{self.mode} {self.weapon_class} locomote_walk_back"
         group_180.leaves.add().animation = f"{self.mode} {self.weapon_class} locomote_run_back"
         
         group_225 = cast(NWO_AnimationGroupItems, speed_blend_axis.groups.add())
         group_225.name = "Back Right"
-        group_225.uses_move_angle = True
-        group_225.move_angle = radians(225)
+        group_225.manual_blend_axis_1 = True
+        group_225.blend_axis_1 = 225
         group_225.leaves.add().animation = f"{self.mode} {self.weapon_class} locomote_walk_inplace"
         group_225.leaves.add().animation = f"{self.mode} {self.weapon_class} locomote_walk_backright"
         group_225.leaves.add().animation = f"{self.mode} {self.weapon_class} locomote_run_backright"
         
         group_270 = cast(NWO_AnimationGroupItems, speed_blend_axis.groups.add())
         group_270.name = "Right"
-        group_270.uses_move_angle = True
-        group_270.move_angle = radians(270)
+        group_270.manual_blend_axis_1 = True
+        group_270.blend_axis_1 = 270
         group_270.leaves.add().animation = f"{self.mode} {self.weapon_class} locomote_walk_inplace"
         group_270.leaves.add().animation = f"{self.mode} {self.weapon_class} locomote_walk_right"
         group_270.leaves.add().animation = f"{self.mode} {self.weapon_class} locomote_run_right"
         
         group_315 = cast(NWO_AnimationGroupItems, speed_blend_axis.groups.add())
         group_315.name = "Front Right"
-        group_315.uses_move_angle = True
-        group_315.move_angle = radians(315)
+        group_315.manual_blend_axis_1 = True
+        group_315.blend_axis_1 = 315
         group_315.leaves.add().animation = f"{self.mode} {self.weapon_class} locomote_walk_inplace"
         group_315.leaves.add().animation = f"{self.mode} {self.weapon_class} locomote_walk_frontright"
         group_315.leaves.add().animation = f"{self.mode} {self.weapon_class} locomote_run_frontright"
         
         group_360 = cast(NWO_AnimationGroupItems, speed_blend_axis.groups.add())
         group_360.name = "360 Front"
-        group_360.uses_move_angle = True
-        group_360.move_angle = radians(360)
+        group_360.manual_blend_axis_1 = True
+        group_360.blend_axis_1 = 360
         group_360.leaves.add().animation = f"{self.mode} {self.weapon_class} locomote_walk_inplace"
         group_360.leaves.add().animation = f"{self.mode} {self.weapon_class} locomote_walkslow_front"
         group_360.leaves.add().animation = f"{self.mode} {self.weapon_class} locomote_walk_front"
@@ -921,10 +921,11 @@ class CompositeXML:
             
         return str(relative_path)
         
-    def write_blend_axis_entry(self, element_composite, blend_axis):
+    def write_blend_axis_entry(self, element_composite, blend_axis, parent_blend_axis=None):
         element_blend_axis = ET.SubElement(element_composite, "blend_axis", name=blend_axis.name)
         animation_source_name = ""
         runtime_source_name = ""
+        parent_runtime_source_name = ""
         match blend_axis.name:
             case "movement_angles":
                 animation_source_name = "linear_movement_angle"
@@ -945,6 +946,9 @@ class CompositeXML:
                 animation_source_name = "translation_offset_horizontal"
                 runtime_source_name = "get_destination_forward"
                 
+        if parent_blend_axis:
+            parent_runtime_source_name = function_from_name(parent_blend_axis.name)
+                
         ET.SubElement(element_blend_axis, "animation", source=animation_source_name, bounds=self.two_vector_string(blend_axis.animation_source_bounds) if blend_axis.animation_source_bounds_manual else "auto", limit=str(int(blend_axis.animation_source_limit)))
         ET.SubElement(element_blend_axis, "runtime", source=runtime_source_name, bounds=self.two_vector_string(blend_axis.runtime_source_bounds) if blend_axis.runtime_source_bounds_manual else "auto", clamped=str(blend_axis.runtime_source_clamped).lower())
         if blend_axis.adjusted != "none":
@@ -954,17 +958,17 @@ class CompositeXML:
             ET.SubElement(element_blend_axis, "dead_zone", bounds=self.two_vector_string(dead_zone.bounds), rate=str(int(dead_zone.rate)))
         
         for leaf in blend_axis.leaves:
-            self.write_leaf_entry(element_blend_axis, leaf)
+            self.write_leaf_entry(element_blend_axis, leaf, parent_runtime_source_name, runtime_source_name)
         
         for phase_set in blend_axis.phase_sets:
             self.write_phase_set_entry(element_blend_axis, phase_set)
             
         for group in blend_axis.groups:
-            self.write_group_entry(element_blend_axis, group)
+            self.write_group_entry(element_blend_axis, group, parent_runtime_source_name, runtime_source_name)
         
         if hasattr(blend_axis, "blend_axis"):
             for sub_blend_axis in blend_axis.blend_axis:
-                self.write_blend_axis_entry(element_blend_axis, sub_blend_axis)
+                self.write_blend_axis_entry(element_blend_axis, sub_blend_axis, blend_axis)
             
     def write_phase_set_entry(self, element_blend_axis, phase_set):
         element_phase_set = ET.SubElement(element_blend_axis, "phase_set", name=phase_set.name)
@@ -975,26 +979,54 @@ class CompositeXML:
         for leaf in phase_set.leaves:
             self.write_leaf_entry(element_phase_set, leaf)
             
-    def write_group_entry(self, element_blend_axis, group):
+    def write_group_entry(self, element_blend_axis, group, parent_function_name, function_name):
         props = {}
-        if group.uses_move_speed:
-            props["get_move_speed"] = str(round(group.move_speed, 3))
-        if group.uses_move_angle:
-            props["get_move_angle"] = str(int(round(degrees(group.move_angle), 0)))
+        if parent_function_name:
+            if group.manual_blend_axis_1:
+                props[parent_function_name] = str(round(group.blend_axis_1, 6))
+            if group.manual_blend_axis_2:
+                props[function_name] = str(round(group.blend_axis_2, 6))
+        else:
+            if group.manual_blend_axis_1:
+                props[function_name] = str(round(group.blend_axis_1, 6))
             
         element_group = ET.SubElement(element_blend_axis, "group", props)
             
         for leaf in group.leaves:
             self.write_leaf_entry(element_group, leaf)
             
-    def write_leaf_entry(self, element, leaf):
+    def write_leaf_entry(self, element, leaf, parent_function_name, function_name):
         props = {"source": utils.space_partition(leaf.animation.replace(":", " "), True)}
-        if leaf.uses_move_speed:
-            props["get_move_speed"] = str(round(leaf.move_speed, 3))
-        if leaf.uses_move_angle:
-            props["get_move_angle"] = str(int(round(degrees(leaf.move_angle), 0)))
+        if parent_function_name:
+            if leaf.manual_blend_axis_1:
+                props[parent_function_name] = str(round(leaf.blend_axis_1, 6))
+            if leaf.manual_blend_axis_2:
+                props[function_name] = str(round(leaf.blend_axis_2, 6))
+        else:
+            if leaf.manual_blend_axis_1:
+                props[function_name] = str(round(leaf.blend_axis_1, 6))
+                
         ET.SubElement(element, "leaf", props)
     
     @staticmethod
     def two_vector_string(vector):
         return f"{str(int(vector[0]))},{str(int(vector[1]))}"
+    
+    
+def function_from_name(name):
+    match name:
+        case 'movement_angles':
+            return "get_move_angle"
+        case 'movement_speed':
+            return "get_move_speed"
+        case 'turn_rate':
+            return "get_turn_rate"
+        case 'turn_angle':
+            return "get_turn_angle"
+        case 'vertical':
+            return "get_destination_vertical"
+        case 'horizontal':
+            return "get_destination_forward"
+            
+    return "function_unknown"
+            

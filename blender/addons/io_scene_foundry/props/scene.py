@@ -34,17 +34,42 @@ class NWO_AnimationCopiesItems(PropertyGroup):
 class NWO_AnimationLeavesItems(PropertyGroup):
     animation: bpy.props.StringProperty(name="Animation")
     # animation: bpy.props.PointerProperty(name="Animation", type=bpy.types.Action)
-    uses_move_speed: bpy.props.BoolProperty(name="Uses Move Speed", options=set())
-    move_speed: bpy.props.FloatProperty(name="Move Speed", options=set(), min=0, max=1, subtype='FACTOR')
-    uses_move_angle: bpy.props.BoolProperty(name="Uses Move Angle", options=set())
-    move_angle: bpy.props.FloatProperty(name="Move Angle", options=set(), subtype='ANGLE', min=0, max=radians(360))
+    
+    manual_blend_axis_1: bpy.props.BoolProperty(
+        name="Manual Blend Axis 1",
+        description="Manually assign a value to this blend axix instead of allowing it to be calculated"
+    )
+    manual_blend_axis_2: bpy.props.BoolProperty(
+        name="Manual Blend Axis 2",
+        description="Manually assign a value to this blend axix instead of allowing it to be calculated"
+    )
+    blend_axis_1: bpy.props.FloatProperty(
+        name="Blend Axis Value 1",
+        description="Value of this blend axis"
+    )
+    blend_axis_2: bpy.props.FloatProperty(
+        name="Blend Axis Value 2",
+        description="Value of this blend axis"
+    )
     
 class NWO_AnimationGroupItems(PropertyGroup):
     name: bpy.props.StringProperty(name="Name", options=set())
-    uses_move_speed: bpy.props.BoolProperty(name="Uses Move Speed", options=set())
-    move_speed: bpy.props.FloatProperty(name="Move Speed", options=set(), min=0, max=1, subtype='FACTOR')
-    uses_move_angle: bpy.props.BoolProperty(name="Uses Move Angle", options=set())
-    move_angle: bpy.props.FloatProperty(name="Move Angle", options=set(), subtype='ANGLE', min=0, max=radians(360))
+    manual_blend_axis_1: bpy.props.BoolProperty(
+        name="Manual Blend Axis 1",
+        description="Manually assign a value to this blend axix instead of allowing it to be calculated"
+    )
+    manual_blend_axis_2: bpy.props.BoolProperty(
+        name="Manual Blend Axis 2",
+        description="Manually assign a value to this blend axix instead of allowing it to be calculated"
+    )
+    blend_axis_1: bpy.props.FloatProperty(
+        name="Blend Axis Value 1",
+        description="Value of this blend axis"
+    )
+    blend_axis_2: bpy.props.FloatProperty(
+        name="Blend Axis Value 2",
+        description="Value of this blend axis"
+    )
     leaves_active_index: bpy.props.IntProperty(options=set())
     leaves: bpy.props.CollectionProperty(name="Animations", options=set(), type=NWO_AnimationLeavesItems)
     
@@ -96,6 +121,7 @@ class NWO_AnimationSubBlendAxisItems(PropertyGroup):
     name: bpy.props.EnumProperty(
         name="Type",
         options=set(),
+        description="What kind of data this composite relies on",
         items=[
             ("movement_angles", "Movement Angles", ""), # linear_movement_angle get_move_angle
             ("movement_speed", "Movement Speed", ""), # linear_movement_speed get_move_speed
@@ -106,13 +132,13 @@ class NWO_AnimationSubBlendAxisItems(PropertyGroup):
         ]
     )
     
-    animation_source_bounds_manual: bpy.props.BoolProperty(name="Animation Manual Bounds", options=set())
-    animation_source_bounds: bpy.props.FloatVectorProperty(name="Animation Source Bounds", options=set(), size=2, subtype='COORDINATES', min=0)
-    animation_source_limit: bpy.props.FloatProperty(name="Animation Source Limit", options=set())
+    animation_source_bounds_manual: bpy.props.BoolProperty(name="Animation Manual Bounds", options=set(), description="Manually define the bounds of the animation axis")
+    animation_source_bounds: bpy.props.FloatVectorProperty(name="Animation Source Bounds", options=set(), size=2, subtype='COORDINATES', min=0, description="Manual animation bounds")
+    animation_source_limit: bpy.props.FloatProperty(name="Animation Source Limit", options=set(), description="The limit between each animation on an axis. For example on an angle axis with animtions for every 90 degrees, you'd use 90")
     
-    runtime_source_bounds_manual: bpy.props.BoolProperty(name="Runtime Manual Bounds", options=set())
-    runtime_source_bounds: bpy.props.FloatVectorProperty(name="Runtime Source Bounds", options=set(), size=2, subtype='COORDINATES', min=0)
-    runtime_source_clamped: bpy.props.BoolProperty(name="Runtime Source Clamped", options=set())
+    runtime_source_bounds_manual: bpy.props.BoolProperty(name="Input Manual Bounds", options=set(), description="Define the input bounds manually")
+    runtime_source_bounds: bpy.props.FloatVectorProperty(name="Input Source Bounds", options=set(), size=2, subtype='COORDINATES', min=0, description="Manual input bounds")
+    runtime_source_clamped: bpy.props.BoolProperty(name="Input Source Clamped", options=set(), description="Clamps input to within this range")
     
     adjusted: bpy.props.EnumProperty(
         name="Adjustment",
@@ -151,13 +177,13 @@ class NWO_AnimationBlendAxisItems(PropertyGroup):
         ]
     )
     
-    animation_source_bounds_manual: bpy.props.BoolProperty(name="Animation Manual Bounds", options=set())
-    animation_source_bounds: bpy.props.FloatVectorProperty(name="Animation Source Bounds", options=set(), size=2, subtype='COORDINATES', min=0)
-    animation_source_limit: bpy.props.FloatProperty(name="Animation Source Limit", options=set())
+    animation_source_bounds_manual: bpy.props.BoolProperty(name="Animation Manual Bounds", options=set(), description="Manually define the bounds of the animation axis")
+    animation_source_bounds: bpy.props.FloatVectorProperty(name="Animation Source Bounds", options=set(), size=2, subtype='COORDINATES', min=0, description="Manual animation bounds")
+    animation_source_limit: bpy.props.FloatProperty(name="Animation Source Limit", options=set(), description="The limit between each animation on an axis. For example on an angle axis with animtions for every 90 degrees, you'd use 90")
     
-    runtime_source_bounds_manual: bpy.props.BoolProperty(name="Animation Manual Bounds", options=set())
-    runtime_source_bounds: bpy.props.FloatVectorProperty(name="Runtime Source Bounds", options=set(), size=2, subtype='COORDINATES', min=0)
-    runtime_source_clamped: bpy.props.BoolProperty(name="Runtime Source Clamped", options=set())
+    runtime_source_bounds_manual: bpy.props.BoolProperty(name="Input Manual Bounds", options=set(), description="Define the input bounds manually")
+    runtime_source_bounds: bpy.props.FloatVectorProperty(name="Input Source Bounds", options=set(), size=2, subtype='COORDINATES', min=0, description="Manual input bounds")
+    runtime_source_clamped: bpy.props.BoolProperty(name="Input Source Clamped", options=set(), description="Clamps input to within this range")
     
     adjusted: bpy.props.EnumProperty(
         name="Adjustment",

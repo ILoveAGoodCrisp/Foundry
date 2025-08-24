@@ -1097,7 +1097,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     col.prop(dead_zone, "bounds")
                     col.prop(dead_zone, "rate")
                 
-            self.draw_animation_leaves(col, blend_axis, False)
+            self.draw_animation_leaves(col, blend_axis, False, blend_axis=blend_axis)
             if not blend_axis.phase_sets:
                 col.operator("nwo.animation_phase_set_add", text="Add Animation Set", icon='PRESET')
             else:
@@ -1150,7 +1150,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     grid.prop(phase_set, 'key_sound_event')
                     grid.prop(phase_set, 'key_effect_event')
                     
-                    self.draw_animation_leaves(col, phase_set, True)
+                    self.draw_animation_leaves(col, phase_set, True, blend_axis=blend_axis)
                     
             if not blend_axis.groups:
                 col.operator("nwo.animation_group_add", text="Add Animation Group", icon='GROUP_VERTEX')
@@ -1176,14 +1176,14 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 group = blend_axis.groups[blend_axis.groups_active_index]
                 col = box.column()
                 col.use_property_split = True
-                col.prop(group, "uses_move_speed")
-                if group.uses_move_speed:
-                    col.prop(group, "move_speed")
-                col.prop(group, "uses_move_angle")
-                if group.uses_move_angle:
-                    col.prop(group, "move_angle")
+                col.prop(group, "manual_blend_axis_1")
+                if group.manual_blend_axis_1:
+                    col.prop(group, "blend_axis_1")
+                col.prop(group, "manual_blend_axis_2")
+                if group.manual_blend_axis_2:
+                    col.prop(group, "blend_axis_2")
                     
-                self.draw_animation_leaves(col, group, in_group=True)
+                self.draw_animation_leaves(col, group, in_group=True, blend_axis=blend_axis)
             
             if blend_axis.blend_axis:
                 sub_blend_axis = blend_axis.blend_axis[blend_axis.blend_axis_active_index]
@@ -1241,7 +1241,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                         col.prop(dead_zone, "bounds")
                         col.prop(dead_zone, "rate")
                     
-                self.draw_animation_leaves(col, sub_blend_axis, False, sub_axis=True)
+                self.draw_animation_leaves(col, sub_blend_axis, False, blend_axis=blend_axis, sub_axis=sub_blend_axis)
                 if not sub_blend_axis.phase_sets:
                     col.operator("nwo.animation_phase_set_add", text="Add Animation Set", icon='PRESET')
                 else:
@@ -1294,7 +1294,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                         grid.prop(phase_set, 'key_sound_event')
                         grid.prop(phase_set, 'key_effect_event')
                         
-                        self.draw_animation_leaves(col, phase_set, True, sub_axis=True)
+                        self.draw_animation_leaves(col, phase_set, True, sub_axis=sub_blend_axis)
                         
                 if not sub_blend_axis.groups:
                     col.operator("nwo.animation_group_add", text="Add Animation Group", icon='GROUP_VERTEX')
@@ -1327,13 +1327,13 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     if group.uses_move_angle:
                         col.prop(group, "move_angle")
                         
-                    self.draw_animation_leaves(col, group, in_group=True, sub_axis=True)
+                    self.draw_animation_leaves(col, group, in_group=True, blend_axis=blend_axis, sub_axis=sub_blend_axis)
                         
             else:
                 col.operator("nwo.animation_sub_blend_axis_add", text="Add Sub Blend Axis", icon="ADD")
                 
             
-    def draw_animation_leaves(self, col: bpy.types.UILayout, parent, in_set=False, in_group=False, sub_axis=False):
+    def draw_animation_leaves(self, col: bpy.types.UILayout, parent, in_set=False, in_group=False, blend_axis=None, sub_axis=None):
         box = col.box()
         if in_set:
             box.label(text="Phase Set Animations")
@@ -1354,33 +1354,81 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         add = col.operator("nwo.animation_leaf_add", text="", icon="ADD")
         add.phase_set = in_set
         add.group = in_group
-        add.sub_axis = sub_axis
+        add.sub_axis = bool(sub_axis)
         remove = col.operator("nwo.animation_leaf_remove", icon="REMOVE", text="")
         remove.phase_set = in_set
         remove.group = in_group
-        remove.sub_axis = sub_axis
+        remove.sub_axis =  bool(sub_axis)
         col.separator()
         move_up = col.operator("nwo.animation_leaf_move", text="", icon="TRIA_UP")
         move_up.direction = 'up'
         move_up.phase_set = in_set
         move_up.group = in_group
-        move_up.sub_axis = sub_axis
+        move_up.sub_axis =  bool(sub_axis)
         move_down = col.operator("nwo.animation_leaf_move", icon="TRIA_DOWN", text="")
         move_down.direction = 'down'
         move_down.phase_set = in_set
         move_down.group = in_group
-        move_down.sub_axis = sub_axis
+        move_down.sub_axis = bool(sub_axis)
         if parent.leaves and parent.leaves_active_index > -1:
             leaf = parent.leaves[parent.leaves_active_index]
             col = box.column()
             col.use_property_split = True
-            col.prop_search(leaf, "animation", self.scene.nwo, "animations")
-            col.prop(leaf, "uses_move_speed")
-            if leaf.uses_move_speed:
-                col.prop(leaf, "move_speed")
-            col.prop(leaf, "uses_move_angle")
-            if leaf.uses_move_angle:
-                col.prop(leaf, "move_angle")
+            col.prop_search(leaf, "animation", self.scene.nwo, "animations", icon='ANIM')
+            
+            blend_axis_1_name = "NAME_ERROR"
+            blend_axis_1_function = "FUNCTION_ERROR"
+            match blend_axis.name:
+                case 'movement_angles':
+                    blend_axis_1_name = "Movement Angle"
+                    blend_axis_1_function = "get_move_angle"
+                case 'movement_speed':
+                    blend_axis_1_name = "Movement Speed"
+                    blend_axis_1_function = "get_move_speed"
+                case 'turn_rate':
+                    blend_axis_1_name = "Turn Rate"
+                    blend_axis_1_function = "get_turn_rate"
+                case 'turn_angle':
+                    blend_axis_1_name = "Turn Angle"
+                    blend_axis_1_function = "get_turn_angle"
+                case 'vertical':
+                    blend_axis_1_name = "Vertical"
+                    blend_axis_1_function = "get_destination_vertical"
+                case 'movemhorizontalent_angles':
+                    blend_axis_1_name = "Horizontal"
+                    blend_axis_1_function = "get_destination_forward"
+            
+            
+            col.prop(leaf, "manual_blend_axis_1", text=f"Manual {blend_axis_1_name}")
+            if leaf.manual_blend_axis_1:
+                col.prop(leaf, "blend_axis_1", text=f"{blend_axis_1_function} value")
+            if sub_axis:
+                
+                blend_axis_2_name = "NAME_ERROR"
+                blend_axis_2_function = "FUNCTION_ERROR"
+                match sub_axis.name:
+                    case 'movement_angles':
+                        blend_axis_2_name = "Movement Angle"
+                        blend_axis_2_function = "get_move_angle"
+                    case 'movement_speed':
+                        blend_axis_2_name = "Movement Speed"
+                        blend_axis_2_function = "get_move_speed"
+                    case 'turn_rate':
+                        blend_axis_2_name = "Turn Rate"
+                        blend_axis_2_function = "get_turn_rate"
+                    case 'turn_angle':
+                        blend_axis_2_name = "Turn Angle"
+                        blend_axis_2_function = "get_turn_angle"
+                    case 'vertical':
+                        blend_axis_2_name = "Vertical"
+                        blend_axis_2_function = "get_destination_vertical"
+                    case 'horizontal':
+                        blend_axis_2_name = "Horizontal"
+                        blend_axis_2_function = "get_destination_forward"
+                
+                col.prop(leaf, "manual_blend_axis_2", text=f"Manual {blend_axis_2_name}")
+                if leaf.manual_blend_axis_2:
+                    col.prop(leaf, "blend_axis_2", text=f"{blend_axis_2_function} value")
     
     def draw_rig_ui(self, context, nwo):
         box = self.box.box()
