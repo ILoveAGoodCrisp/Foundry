@@ -402,6 +402,8 @@ class NWO_ExportScene(Operator, ExportHelper):
             return
         scenario = scene_nwo.asset_type == "scenario"
         render = utils.poll_ui(("model", "sky"))
+        model = scene_nwo.asset_type == "model"
+        animation = scene_nwo.asset_type == "animation"
         scenario_lightmap = (h4 and render) or scenario
         if render or scenario:
             if scenario:
@@ -489,6 +491,12 @@ class NWO_ExportScene(Operator, ExportHelper):
             col.prop(scene_nwo_export, "force_imposter_policy_never")
             if scenario:
                 col.prop(scene_nwo_export, "create_debug_zone_set")
+        if model or animation:
+            col.prop(scene_nwo_export, "disable_automatic_suspension_computation")
+            if h4:
+                col.prop(scene_nwo_export, "debug_composites")
+            if model:
+                col.prop(scene_nwo_export, "auto_precise")
         col.prop(scene_nwo_export, "import_force", text="Force full export")
         if h4:
             if scenario or prefab:

@@ -1521,6 +1521,8 @@ class ExportScene:
                 if animation.export_this:
                     if animation.name in animation_names:
                         self.warnings.append(f"Duplicate animation name found: {animation.name} [index {idx}]. Skipping animation")
+                    elif animation.animation_type == 'composite':
+                        self.sidecar.animation_composites.append(animation)
                     elif animation.external:
                         if len(animation.gr2_path.strip()) > 2:
                             rel_path = utils.relative_path(animation.gr2_path)

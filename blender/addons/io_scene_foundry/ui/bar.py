@@ -602,6 +602,8 @@ class NWO_HaloExportSettingsFlags(bpy.types.Panel):
                 col.prop(scene_nwo_export, "create_debug_zone_set")
         if model or animation:
             col.prop(scene_nwo_export, "disable_automatic_suspension_computation")
+            if h4:
+                col.prop(scene_nwo_export, "debug_composites")
             if model:
                 col.prop(scene_nwo_export, "auto_precise")
         col.prop(scene_nwo_export, "import_force", text="Force full export")

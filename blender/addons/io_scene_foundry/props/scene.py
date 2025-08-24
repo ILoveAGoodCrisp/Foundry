@@ -211,13 +211,13 @@ class NWO_AnimationBlendAxisItems(PropertyGroup):
     blend_axis_active_index: bpy.props.IntProperty(options=set())
     blend_axis: bpy.props.CollectionProperty(name="Blend Axis", options=set(), type=NWO_AnimationSubBlendAxisItems)
 
-class NWO_AnimationCompositesItems(PropertyGroup):
-    name: bpy.props.StringProperty(name="Name", options=set())
-    overlay: bpy.props.BoolProperty(name="Overlay", options=set())
+# class NWO_AnimationCompositesItems(PropertyGroup):
+#     name: bpy.props.StringProperty(name="Name", options=set())
+#     overlay: bpy.props.BoolProperty(name="Overlay", options=set())
     
-    timing_source: bpy.props.StringProperty(name="Timing Source", description="Name of the animation to use as the timing source")
-    blend_axis_active_index: bpy.props.IntProperty(options=set())
-    blend_axis: bpy.props.CollectionProperty(name="Blend Axis", options=set(), type=NWO_AnimationBlendAxisItems)
+#     timing_source: bpy.props.StringProperty(name="Timing Source", description="Name of the animation to use as the timing source")
+#     blend_axis_active_index: bpy.props.IntProperty(options=set())
+#     blend_axis: bpy.props.CollectionProperty(name="Blend Axis", options=set(), type=NWO_AnimationBlendAxisItems)
     
 #############################################################
 #############################################################
@@ -952,63 +952,18 @@ class NWO_AnimationPropertiesGroup(bpy.types.PropertyGroup):
             ("Rough", "Rough", "Highest level of compression"),
         ],
     )
-
-    def animation_type_items(self, context):
-        items = [
-            (
-                "base",
-                "Base",
-                "Defines a base animation. Allows for varying levels of root bone movement (or none). Useful for cinematic animations, idle animations, turn and movement animations",
-                '',
-                0,
-            ),
-            (
-                "overlay",
-                "Overlay",
-                "Animations that overlay on top of a base animation (or none). Supports keyframe and pose overlays. Useful for animations that should overlay on top of base animations, such as vehicle steering or weapon aiming. Supports object functions to define how these animations blend with others\nLegacy format: JMO\nExamples: fire_1, reload_1, device position",
-                '',
-                1,
-            ),
-            (
-                "replacement",
-                "Replacement",
-                "Animations that fully replace base animated nodes, provided those bones are animated. Useful for animations that should completely overrule a certain set of bones, and don't need any kind of blending influence. Can be set to either object or local space",
-                '',
-                2,
-            ),
-            (
-                "world",
-                "World",
-                "Animations that play relative to the world rather than an objects current position",
-                '',
-                3,
-            )
-        ]
-        
-        return items
-    
-    def get_animation_type(self):
-        max_int = 3
-        if self.animation_type_help > max_int:
-            return 0
-        return self.animation_type_help
-
-    def set_animation_type(self, value):
-        self["animation_type"] = value
-
-    def update_animation_type(self, context):
-        self.animation_type_help = self["animation_type"]
-        
-    animation_type_help: bpy.props.IntProperty(options=set(),)
             
     animation_type: bpy.props.EnumProperty(
         name="Type",
         description="Set the type of Halo animation you want this action to be",
-        items=animation_type_items,
-        get=get_animation_type,
-        set=set_animation_type,
-        update=update_animation_type,
         options=set(),
+        items=[
+            ("base", "Base", "Defines a base animation. Allows for varying levels of root bone movement (or none). Useful for cinematic animations, idle animations, turn and movement animations"),
+            ("overlay","Overlay", "Animations that overlay on top of a base animation (or none). Supports keyframe and pose overlays. Useful for animations that should overlay on top of base animations, such as vehicle steering or weapon aiming. Supports object functions to define how these animations blend with others\nLegacy format: JMO\nExamples: fire_1, reload_1, device position"),
+            ("replacement", "Replacement", "Animations that fully replace base animated nodes, provided those bones are animated. Useful for animations that should completely overrule a certain set of bones, and don't need any kind of blending influence. Can be set to either object or local space"),
+            ("world", "World", "Animations that play relative to the world rather than an objects current position"),
+            ("composite", "Composite", "Composite animation. Has no animation data itself but references other animations. Halo 4 and Halo 2AMP only")
+        ],
     )
     
     animation_movement_data: bpy.props.EnumProperty(
@@ -1089,6 +1044,11 @@ class NWO_AnimationPropertiesGroup(bpy.types.PropertyGroup):
     suspension_contact_marker: bpy.props.PointerProperty(poll=poll_empty, type=bpy.types.Object, name="Ground Point", description="Empty whose position marks the bottom of the object undergoing suspension (i.e. the bottom point of a wheel). This empty should be parented to the same bone that the suspension object is parented / vertex weighted to (usually a wheel or tread). This empty does not need to be exported")
     suspension_destroyed_region_name: bpy.props.StringProperty(name="Destroyed Region Name", description="Optional. Only necessary for suspension with a destroyed state")
     suspension_destroyed_contact_marker: bpy.props.PointerProperty(poll=poll_empty, type=bpy.types.Object, name="Destroyed Ground Point", description="Optional. Empty whose position marks the bottom of the object undergoing suspension (i.e. the bottom point of a wheel) when destroyed. This empty should be parented to the same bone that the suspension object is parented / vertex weighted to (usually a wheel or tread). This empty does not need to be exported")
+
+    # Composites
+    timing_source: bpy.props.StringProperty(name="Timing Source", description="Name of the animation to use as the timing source")
+    blend_axis_active_index: bpy.props.IntProperty(options=set())
+    blend_axis: bpy.props.CollectionProperty(name="Blend Axis", options=set(), type=NWO_AnimationBlendAxisItems)
 
     # NOT VISIBLE TO USER, USED FOR ANIMATION RENAMES
     state_type: bpy.props.EnumProperty(
@@ -1944,8 +1904,8 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     animation_copies_active_index: bpy.props.IntProperty(options=set())
     animation_copies: bpy.props.CollectionProperty(type=NWO_AnimationCopiesItems, options=set())
     
-    animation_composites_active_index: bpy.props.IntProperty(options=set())
-    animation_composites: bpy.props.CollectionProperty(type=NWO_AnimationCompositesItems, options=set())
+    # animation_composites_active_index: bpy.props.IntProperty(options=set())
+    # animation_composites: bpy.props.CollectionProperty(type=NWO_AnimationCompositesItems, options=set())
     
     # zone_sets_active_index: bpy.props.IntProperty(options=set())
     # zone_sets: bpy.props.CollectionProperty(type=NWO_ZoneSets_ListItems, options=set())
@@ -2419,7 +2379,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     rig_usages_expanded: bpy.props.BoolProperty(default=False, options=set())
     ik_chains_expanded: bpy.props.BoolProperty(default=False, options=set())
     animation_copies_expanded: bpy.props.BoolProperty(default=False, options=set())
-    animation_composites_expanded: bpy.props.BoolProperty(default=False, options=set())
+    # animation_composites_expanded: bpy.props.BoolProperty(default=False, options=set())
     
     child_assets_expanded: bpy.props.BoolProperty(default=False, options=set())
     

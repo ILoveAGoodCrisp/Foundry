@@ -61,6 +61,7 @@ class Sidecar:
         self.relative_blend = str(Path(bpy.data.filepath).relative_to(get_data_path())) if Path(bpy.data.filepath).is_relative_to(get_data_path()) else bpy.data.filepath
         self.external_blend = self.relative_blend == bpy.data.filepath
         self.scene_settings = scene_settings
+        self.animation_composites = []
         self.corinth = corinth
         self.context = context
         self.lods = set()
@@ -791,7 +792,7 @@ class Sidecar:
                     NetworkReference=item.source_name,
                 )
 
-            for item in self.scene_settings.animation_composites:
+            for item in self.animation_composites:
                 ET.SubElement(
                     content_object,
                     "ContentNetwork",

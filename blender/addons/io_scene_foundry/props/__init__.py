@@ -21,7 +21,7 @@ classes = [
     scene.NWO_AnimationDeadZonesItems,
     scene.NWO_AnimationSubBlendAxisItems,
     scene.NWO_AnimationBlendAxisItems,
-    scene.NWO_AnimationCompositesItems,
+    # scene.NWO_AnimationCompositesItems,
     scene.NWO_ActionGroup,
     scene.NWO_AnimationRenamesItems,
     scene.NWO_AnimationEventData_ListItems,
