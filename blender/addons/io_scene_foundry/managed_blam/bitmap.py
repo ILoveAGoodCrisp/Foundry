@@ -404,8 +404,21 @@ class BitmapTag(Tag):
         
         if not os.path.exists(tiff_dir):
             os.makedirs(tiff_dir, exist_ok=True)
-        if self.is_cubemap:
-            # save the original cubemap
+        try:
+            if self.is_cubemap:
+                # save the original cubemap
+                match format:
+                    case 'bmp':
+                        bitmap.Save(save_path, ImageFormat.Bmp)
+                    case 'png':
+                        bitmap.Save(save_path, ImageFormat.Png)
+                    case 'jpeg':
+                        bitmap.Save(save_path, ImageFormat.Jpeg)
+                    case 'tiff':
+                        bitmap.Save(save_path, ImageFormat.Tiff)
+                bitmap, tiff_path = self._convert_cubemap(bitmap, suffix)
+                save_path = tiff_path
+
             match format:
                 case 'bmp':
                     bitmap.Save(save_path, ImageFormat.Bmp)
@@ -415,18 +428,8 @@ class BitmapTag(Tag):
                     bitmap.Save(save_path, ImageFormat.Jpeg)
                 case 'tiff':
                     bitmap.Save(save_path, ImageFormat.Tiff)
-            bitmap, tiff_path = self._convert_cubemap(bitmap, suffix)
-            save_path = tiff_path
-
-        match format:
-            case 'bmp':
-                bitmap.Save(save_path, ImageFormat.Bmp)
-            case 'png':
-                bitmap.Save(save_path, ImageFormat.Png)
-            case 'jpeg':
-                bitmap.Save(save_path, ImageFormat.Jpeg)
-            case 'tiff':
-                bitmap.Save(save_path, ImageFormat.Tiff)
+        except:
+            utils.print_warning(f"Failed to save tiff: {tiff_path}")
                 
         bitmap.Dispose()
         return tiff_path
