@@ -3369,7 +3369,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         col = row.column()
         # col.operator('nwo.auto_seam', text='Auto-Seam', icon_value=get_icon_id('seam'))
         col.operator('nwo.cubemap', text='Cubemap Farm', icon_value=get_icon_id("cubemap"))
-        col.operator('nwo.instance_imposter_generate', text='Imposter Farm')
+        col.operator('nwo.instance_imposter_generate', text='Imposter Farm', icon_value=get_icon_id('imposter'))
         col.operator('nwo.generate_wetness_data', text='Generate Wetness Data', icon='MOD_FLUIDSIM')
         
     def draw_cache_tools(self, box, nwo):

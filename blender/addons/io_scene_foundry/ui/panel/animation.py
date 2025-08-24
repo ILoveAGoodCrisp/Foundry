@@ -1740,8 +1740,8 @@ class NWO_UL_AnimationList(bpy.types.UIList):
                 icon_str = f'anim_replacement_{item.animation_space}'
             case 'world':
                 icon_str = 'anim_world'
-            case 'compposite':
-                icon_str = f'anim_world'
+            case 'composite':
+                icon_str = f'anim_composite'
             
         layout.prop(item, "name", text="", emboss=False, icon_value=get_icon_id(icon_str))
         # layout.label(text=str((item.frame_end + 1) - item.frame_start), icon='KEYFRAME_HLT')
