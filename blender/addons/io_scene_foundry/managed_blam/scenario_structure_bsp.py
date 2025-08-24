@@ -3,6 +3,7 @@
 from pathlib import Path
 import bmesh
 import bpy
+from mathutils import Matrix, Vector
 
 from ..constants import WU_SCALAR
 
@@ -401,7 +402,9 @@ class ScenarioStructureBspTag(Tag):
                         game_objects.extend(meta_game_objects)
             
             # Prefabs
-            # game_objects.extend(self._import_prefabs())
+            prefabs = self._import_prefabs(self.collection)
+            objects.extend(prefabs)
+            game_objects.extend(prefabs)
                 
         else:
             if self.tag.SelectField("Block:environment objects").Elements.Count > 0:
@@ -422,13 +425,144 @@ class ScenarioStructureBspTag(Tag):
             
         return objects, game_objects
     
-    def _import_prefabs(self):
+    def _import_prefabs(self, parent_collection):
         objects = []
         block_prefabs = self.tag.SelectField("Block:external references")
         if block_prefabs.Elements.Count == 0:
             return objects
         
         print("Importing Prefabs")
+        prefabs_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_prefabs")
+        prefabs_collection.nwo.type = "permutation"
+        prefabs_collection.nwo.permutation = "prefabs"
+        parent_collection.children.link(prefabs_collection)
+        
+        for element in self.block_prefabs.Elements:
+            ref = self.get_path_str(element.SelectField("prefab reference").Path, True) 
+            if not ref:
+                continue
+            
+            if not Path(ref).exists():
+                continue
+            
+            name = element.SelectField("name").GetStringData()
+            ob = bpy.data.objects.new(name=name, object_data=None)
+            ob.empty_display_type = "ARROWS"
+            
+            ob.nwo.marker_type = '_connected_geometry_marker_type_game_instance'
+            ob.nwo.marker_game_instance_tag_name = utils.relative_path(ref)
+            
+            forward = element.SelectField("forward").Data
+            left = element.SelectField("left").Data
+            up = element.SelectField("up").Data
+            position = element.SelectField("position").Data
+            
+            ob.matrix_world = Matrix((
+                (forward[0], left[0], up[0], position[0] * 100),
+                (forward[1], left[1], up[1], position[1] * 100),
+                (forward[2], left[2], up[2], position[2] * 100),
+                (0, 0, 0, 1),
+            ))
+            
+            scale = element.SelectField("scale").Data
+            if scale != 0:
+                ob.scale = Vector.Fill(3, scale)
+            
+            override_flags = element.SelectField("override flags")
+            flags_mask = element.SelectField("instance flags Mask")
+            policy_mask = element.SelectField("instance policy mask")
+            
+            # if nwo.prefab_lighting != "no_override":
+            #     policy_mask.SetBit("override lightmapping policy", True)
+            #     lighting = element.SelectField("override lightmapping policy")
+            #     match nwo.prefab_lighting:
+            #         case "per_pixel":
+            #             lighting.Value = 0
+            #         case "per_vertex":
+            #             lighting.Value = 1
+            #         case "single_probe":
+            #             lighting.Value = 2
+            #         case "per_vertex_ao":
+            #             lighting.Value = 5
+                        
+            # if nwo.prefab_lightmap_res > 0:
+            #     policy_mask.SetBit("override lightmap resolution policy", True)
+            #     element.SelectField("override lightmap resolution scale").SetStringData(str(nwo.prefab_lightmap_res))
+                    
+            # if nwo.prefab_pathfinding != "no_override":
+            #     policy_mask.SetBit("override pathfinding policy", True)
+            #     pathfinding = element.SelectField("override pathfinding policy")
+            #     match nwo.prefab_lighting:
+            #         case "cutout":
+            #             pathfinding.Value = 0
+            #         case "static":
+            #             pathfinding.Value = 1
+            #         case "none":
+            #             pathfinding.Value = 2
+                        
+            # if nwo.prefab_imposter_policy != "no_override":
+            #     policy_mask.SetBit("override lmposter policy", True)
+            #     imposter = element.SelectField("override imposter policy")
+            #     match nwo.prefab_imposter_policy:
+            #         case "polygon_default":
+            #             imposter.Value = 0
+            #         case "polygon_high":
+            #             imposter.Value = 1
+            #         case "card_default":
+            #             imposter.Value = 2
+            #         case "card_high":
+            #             imposter.Value = 3
+            #         case "never":
+            #             imposter.Value = 4
+            #     if nwo.prefab_imposter_policy != "never":
+            #         if nwo.prefab_imposter_brightness > 0:
+            #             policy_mask.SetBit("override imposter brightness", True)
+            #             element.SelectField("override imposter brightness").Data = nwo.prefab_imposter_brightness
+                        
+            #         if not nwo.prefab_imposter_transition_distance_auto:
+            #             policy_mask.SetBit("override imposter transition distance policy", True)
+            #             element.SelectField("override imposter transition distance").Data = nwo.prefab_imposter_transition_distance * WU_SCALAR
+                        
+            # if nwo.prefab_streaming_priority != "no_override":
+            #     streaming = element.SelectField("override streaming priority")
+            #     match nwo.prefab_streaming_priority:
+            #         case "_connected_geometry_poop_streamingpriority_default":
+            #             streaming.Value = 0
+            #         case "_connected_geometry_poop_streamingpriority_higher":
+            #             streaming.Value = 1
+            #         case "_connected_geometry_poop_streamingpriority_highest":
+            #             streaming.Value = 2
+            
+            # if nwo.prefab_cinematic_properties == '_connected_geometry_poop_cinema_only':
+            #     override_flags.SetBit("cinema only", True)
+            #     flags_mask.SetBit("cinema only", True)
+            # elif nwo.prefab_cinematic_properties == '_connected_geometry_poop_cinema_exclude':
+            #     override_flags.SetBit("exclude from cinema", True)
+            #     flags_mask.SetBit("exclude from cinema", True)
+                
+            # if nwo.prefab_render_only:
+            #     override_flags.SetBit("render only", True)
+            #     flags_mask.SetBit("render only", True)
+            # if nwo.prefab_does_not_block_aoe:
+            #     override_flags.SetBit("does not block aoe damage", True)
+            #     flags_mask.SetBit("does not block aoe damage", True)
+            # if nwo.prefab_excluded_from_lightprobe:
+            #     override_flags.SetBit("not in lightprobes", True)
+            #     flags_mask.SetBit("not in lightprobes", True)
+            # if nwo.prefab_decal_spacing:
+            #     override_flags.SetBit("decal spacing", True)
+            #     flags_mask.SetBit("decal spacing", True)
+            # if nwo.prefab_remove_from_shadow_geometry:
+            #     override_flags.SetBit("remove from shadow geometry", True)
+            #     flags_mask.SetBit("remove from shadow geometry", True)
+            # if nwo.prefab_disallow_lighting_samples:
+            #     override_flags.SetBit("disallow object lighting samples", True)
+            #     flags_mask.SetBit("disallow object lighting samples", True)
+            
+            prefabs_collection.objects.link(ob)
+            objects.append(ob)
+            
+        return objects
     
     # def get_seams(self, name, existing_seams: list[BSPSeam]=[]):
     #     seams = []
@@ -465,35 +599,27 @@ class ScenarioStructureBspTag(Tag):
             self.tag_has_changes = True
     
 def are_faces_overlapping(face1, face2):
-    # Check if faces are coplanar (i.e., their normals are parallel)
-    if not face1.normal.dot(face2.normal) > 0.999:  # or a small epsilon
+    if not face1.normal.dot(face2.normal) > 0.999:
         return False
     
     verts1 = {vert.co.to_tuple() for vert in face1.verts}
     verts2 = {vert.co.to_tuple() for vert in face2.verts}
     
-    # Check if the sets are identical
     return verts1 == verts2
 
 def auto_merge_and_split():
     ts = bpy.context.scene.tool_settings
     ts.use_mesh_automerge         = True
     ts.use_mesh_automerge_and_split = True
-    # (Optionally tweak the merge threshold; default is quite small)
-    # ts.mesh_automerge_threshold = 0.001
-
-    # 2. For each selected mesh, enter Edit Mode, select all, and apply a no-op transform
     for obj in bpy.context.selected_objects:
         if obj.type == 'MESH':
             bpy.context.view_layer.objects.active = obj
 
-            # Enter Edit Mode and select everything
             bpy.ops.object.mode_set(mode='EDIT')
             bpy.ops.mesh.select_all(action='SELECT')
 
-            # Apply a zero-degree rotation (or any tiny move) around X to trigger the tool
             bpy.ops.transform.rotate(
-                value=0.0,                  # zero radians == no visible change
+                value=0.0,
                 orient_axis='X',
                 orient_type='GLOBAL'
             )

@@ -2101,7 +2101,10 @@ class NWOImporter:
                                 game_object_collection = game_object_cache.get(key)
                                 
                                 if game_object_collection is None:
-                                    game_object_collection = self.import_object(ob, None)
+                                    if ob.nwo.marker_game_instance_tag_name.endswith(".prefab"):
+                                        game_object_collection = self.import_prefab(ob)
+                                    else:
+                                        game_object_collection = self.import_object(ob, None)
                                     merge_collection(game_object_collection)
                                     imported_objects.extend(game_object_collection.all_objects)
                                     self.context.scene.collection.children.unlink(game_object_collection)
@@ -2152,7 +2155,10 @@ class NWOImporter:
                         game_object_collection = game_object_cache.get(key)
                         
                         if game_object_collection is None:
-                            game_object_collection = self.import_object(ob, None)
+                            if ob.nwo.marker_game_instance_tag_name.endswith(".prefab"):
+                                game_object_collection = self.import_prefab(ob)
+                            else:
+                                game_object_collection = self.import_object(ob, None)
                             merge_collection(game_object_collection)
                             bsp_objects.extend(game_object_collection.all_objects)
                             self.context.scene.collection.children.unlink(game_object_collection)
@@ -3820,9 +3826,8 @@ def merge_collection(collection: bpy.types.Collection):
                 bpy.context.view_layer.objects.active = ob
         else:
             to_remove_objects.append(ob)
-            
-    bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
     
+    bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
     bpy.data.batch_remove(to_remove_objects)
     
     # for ob in to_remove_objects:
@@ -3830,7 +3835,7 @@ def merge_collection(collection: bpy.types.Collection):
         
     # bpy.ops.object.join()
     
-    for ob in collection.all_objects:
+    for ob in list(collection.all_objects):
         utils.unlink(ob)
         collection.objects.link(ob)
     

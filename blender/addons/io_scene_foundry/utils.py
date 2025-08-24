@@ -1178,7 +1178,8 @@ def foundry_update_check(current_version):
 
 def unlink(ob):
     if ob.library is None:
-        for collection in ob.users_collection: collection.objects.unlink(ob)
+        for c in list(ob.users_collection):
+            c.objects.unlink(ob)
 
 def set_object_mode(context):
     mode = context.mode
