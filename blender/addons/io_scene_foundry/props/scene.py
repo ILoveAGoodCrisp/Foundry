@@ -2948,11 +2948,6 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         description="A halo script expression which evaluates to the object you wish to animate. This might be the object name directly in the scenario or something like (player_get 2)",
     )
     
-    debug_composites: bpy.props.BoolProperty(
-        name="Debug Composites",
-        description="Does not overwrite existing composite files with the information set in Blender"
-    )
-    
     sun_size: bpy.props.FloatProperty(
         name="Sun Size",
         default=1.0,

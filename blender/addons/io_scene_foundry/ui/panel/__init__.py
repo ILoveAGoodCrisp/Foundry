@@ -1187,13 +1187,18 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
 
             col = box.column()
             col.use_property_split = True
-            col.prop(sub_blend_axis, "animation_source_bounds")
+            col.prop(sub_blend_axis, "animation_source_bounds_manual")
+            if sub_blend_axis.animation_source_bounds_manual:
+                col.prop(sub_blend_axis, "animation_source_bounds")
             col.prop(sub_blend_axis, "animation_source_limit")
-            col.prop(sub_blend_axis, "runtime_source_bounds")
+            col.separator()
+            col.prop(sub_blend_axis, "runtime_source_bounds_manual")
+            if sub_blend_axis.runtime_source_bounds_manual:
+                col.prop(sub_blend_axis, "runtime_source_bounds")
             col.prop(sub_blend_axis, "runtime_source_clamped")
             col.prop(sub_blend_axis, "adjusted")
             if not sub_blend_axis.dead_zones:
-                col.operator("nwo.animation_dead_zone_add", text="Add Dead Zone", icon='CON_OBJECTSOLVER')
+                col.operator("nwo.animation_dead_zone_add", text="Add Dead Zone", icon='CON_OBJECTSOLVER').sub_axis = True
             else:
                 box = col.box()
                 box.label(text="Dead Zones")
@@ -1207,11 +1212,15 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     "dead_zones_active_index",
                 )
                 col = row.column(align=True)
-                col.operator("nwo.animation_dead_zone_add", text="", icon="ADD")
-                col.operator("nwo.animation_dead_zone_remove", icon="REMOVE", text="")
+                col.operator("nwo.animation_dead_zone_add", text="", icon="ADD").sub_axis = True
+                col.operator("nwo.animation_dead_zone_remove", icon="REMOVE", text="").sub_axis = True
                 col.separator()
-                col.operator("nwo.animation_dead_zone_move", text="", icon="TRIA_UP").direction = 'up'
-                col.operator("nwo.animation_dead_zone_move", icon="TRIA_DOWN", text="").direction = 'down'
+                op = col.operator("nwo.animation_dead_zone_move", text="", icon="TRIA_UP")
+                op.direction = 'up'
+                op.sub_axis = True
+                op = col.operator("nwo.animation_dead_zone_move", text="", icon="TRIA_DOWN")
+                op.direction = 'down'
+                op.sub_axis = True
                 if sub_blend_axis.dead_zones and sub_blend_axis.dead_zones_active_index > -1:
                     dead_zone = sub_blend_axis.dead_zones[sub_blend_axis.dead_zones_active_index]
                     col = box.column()
@@ -1221,7 +1230,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 
             self.draw_animation_leaves(col, sub_blend_axis, False, blend_axis=blend_axis, sub_axis=sub_blend_axis)
             if not sub_blend_axis.phase_sets:
-                col.operator("nwo.animation_phase_set_add", text="Add Animation Set", icon='PRESET')
+                col.operator("nwo.animation_phase_set_add", text="Add Animation Set", icon='PRESET').sub_axis = True
             else:
                 box = col.box()
                 box.label(text="Sets")
@@ -1235,11 +1244,15 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     "phase_sets_active_index",
                 )
                 col = row.column(align=True)
-                col.operator("nwo.animation_phase_set_add", text="", icon="ADD")
-                col.operator("nwo.animation_phase_set_remove", icon="REMOVE", text="")
+                col.operator("nwo.animation_phase_set_add", text="", icon="ADD").sub_axis = True
+                col.operator("nwo.animation_phase_set_remove", icon="REMOVE", text="").sub_axis = True
                 col.separator()
-                col.operator("nwo.animation_phase_set_move", text="", icon="TRIA_UP").direction = 'up'
-                col.operator("nwo.animation_phase_set_move", icon="TRIA_DOWN", text="").direction = 'down'
+                op = col.operator("nwo.animation_phase_set_move", text="", icon="TRIA_UP")
+                op.direction = 'up'
+                op.sub_axis = True
+                op = col.operator("nwo.animation_phase_set_move", text="", icon="TRIA_DOWN")
+                op.direction = 'down'
+                op.sub_axis = True
                 if sub_blend_axis.phase_sets and sub_blend_axis.phase_sets_active_index > -1:
                     phase_set = sub_blend_axis.phase_sets[sub_blend_axis.phase_sets_active_index]
                     col = box.column()
@@ -1275,7 +1288,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     self.draw_animation_leaves(col, phase_set, True, sub_axis=sub_blend_axis)
                     
             if not sub_blend_axis.groups:
-                col.operator("nwo.animation_group_add", text="Add Animation Group", icon='GROUP_VERTEX')
+                col.operator("nwo.animation_group_add", text="Add Animation Group", icon='GROUP_VERTEX').sub_axis = True
             else:
                 box = col.box()
                 box.label(text="Groups")
@@ -1289,11 +1302,15 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     "groups_active_index",
                 )
                 col = row.column(align=True)
-                col.operator("nwo.animation_group_add", text="", icon="ADD")
-                col.operator("nwo.animation_group_remove", icon="REMOVE", text="")
+                col.operator("nwo.animation_group_add", text="", icon="ADD").sub_axis = True
+                col.operator("nwo.animation_group_remove", icon="REMOVE", text="").sub_axis = True
                 col.separator()
-                col.operator("nwo.animation_group_move", text="", icon="TRIA_UP").direction = 'up'
-                col.operator("nwo.animation_group_move", icon="TRIA_DOWN", text="").direction = 'down'
+                op = col.operator("nwo.animation_group_move", text="", icon="TRIA_UP")
+                op.direction = 'up'
+                op.sub_axis = True
+                op = col.operator("nwo.animation_group_move", text="", icon="TRIA_DOWN")
+                op.direction = 'down'
+                op.sub_axis = True
                 
                 group = sub_blend_axis.groups[sub_blend_axis.groups_active_index]
                 col = box.column()

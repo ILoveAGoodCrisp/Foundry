@@ -1273,70 +1273,70 @@ class NWO_OT_NewAnimation(bpy.types.Operator):
         walk_front_up.manual_blend_axis_1 = True
         walk_front_up.blend_axis_1 = 0
         walk_front_up.manual_blend_axis_2 = True
-        walk_front_up.move_speed = 0.5
+        walk_front_up.blend_axis_2 = 0.5
         
         run_front_up = cast(NWO_AnimationLeavesItems, speed_blend_axis.leaves.add())
         run_front_up.animation = f"{self.composite_mode} {self.composite_weapon_class} aim_locomote_run_front_up"
         run_front_up.manual_blend_axis_1 = True
         run_front_up.blend_axis_1 = 0
         run_front_up.manual_blend_axis_2 = True
-        run_front_up.move_speed = 0.9
+        run_front_up.blend_axis_2 = 0.9
         
         walk_left_up = cast(NWO_AnimationLeavesItems, speed_blend_axis.leaves.add())
         walk_left_up.animation = f"{self.composite_mode} {self.composite_weapon_class} aim_locomote_walk_left_up"
         walk_left_up.manual_blend_axis_1 = True
         walk_left_up.blend_axis_1 = 90
         walk_left_up.manual_blend_axis_2 = True
-        walk_left_up.move_speed = 0.5
+        walk_left_up.blend_axis_2 = 0.5
         
         run_left_up = cast(NWO_AnimationLeavesItems, speed_blend_axis.leaves.add())
         run_left_up.animation = f"{self.composite_mode} {self.composite_weapon_class} aim_locomote_run_left_up"
         run_left_up.manual_blend_axis_1 = True
         run_left_up.blend_axis_1 = 90
         run_left_up.manual_blend_axis_2 = True
-        run_left_up.move_speed = 0.9
+        run_left_up.blend_axis_2 = 0.9
         
         walk_back_up = cast(NWO_AnimationLeavesItems, speed_blend_axis.leaves.add())
         walk_back_up.animation = f"{self.composite_mode} {self.composite_weapon_class} aim_locomote_walk_back_up"
         walk_back_up.manual_blend_axis_1 = True
         walk_back_up.blend_axis_1 = 180
         walk_back_up.manual_blend_axis_2 = True
-        walk_back_up.move_speed = 0.5
+        walk_back_up.blend_axis_2 = 0.5
         
         run_back_up = cast(NWO_AnimationLeavesItems, speed_blend_axis.leaves.add())
         run_back_up.animation = f"{self.composite_mode} {self.composite_weapon_class} aim_locomote_run_back_up"
         run_back_up.manual_blend_axis_1 = True
         run_back_up.blend_axis_1 = 180
         run_back_up.manual_blend_axis_2 = True
-        run_back_up.move_speed = 0.9
+        run_back_up.blend_axis_2 = 0.9
         
         walk_right_up = cast(NWO_AnimationLeavesItems, speed_blend_axis.leaves.add())
         walk_right_up.animation = f"{self.composite_mode} {self.composite_weapon_class} aim_locomote_walk_right_up"
         walk_right_up.manual_blend_axis_1 = True
         walk_right_up.blend_axis_1 = 270
         walk_right_up.manual_blend_axis_2 = True
-        walk_right_up.move_speed = 0.5
+        walk_right_up.blend_axis_2 = 0.5
         
         run_right_up = cast(NWO_AnimationLeavesItems, speed_blend_axis.leaves.add())
         run_right_up.animation = f"{self.composite_mode} {self.composite_weapon_class} aim_locomote_run_right_up"
         run_right_up.manual_blend_axis_1 = True
         run_right_up.blend_axis_1 = 270
         run_right_up.manual_blend_axis_2 = True
-        run_right_up.move_speed = 0.9
+        run_right_up.blend_axis_2 = 0.9
         
         walk_360_up = cast(NWO_AnimationLeavesItems, speed_blend_axis.leaves.add())
         walk_360_up.animation = f"{self.composite_mode} {self.composite_weapon_class} aim_locomote_walk_front_up"
         walk_360_up.manual_blend_axis_1 = True
         walk_360_up.blend_axis_1 = 360
         walk_360_up.manual_blend_axis_2 = True
-        walk_360_up.move_speed = 0.5
+        walk_360_up.blend_axis_2 = 0.5
         
         run_360_up = cast(NWO_AnimationLeavesItems, speed_blend_axis.leaves.add())
         run_360_up.animation = f"{self.composite_mode} {self.composite_weapon_class} aim_locomote_run_front_up"
         run_360_up.manual_blend_axis_1 = True
         run_360_up.blend_axis_1 = 360
         run_360_up.manual_blend_axis_2 = True
-        run_360_up.move_speed = 0.9
+        run_360_up.blend_axis_2 = 0.9
         
     def preset_sprint(self, composite):
         composite.timing_source = f"sprint {self.composite_weapon_class} move_front_fast"

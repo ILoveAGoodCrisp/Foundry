@@ -896,6 +896,13 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
         default=True,
         options=set(),
     )
+    
+    
+    debug_composites: bpy.props.BoolProperty(
+        name="Debug Composites",
+        description="Does not overwrite existing composite files with the information set in Blender"
+    )
+    
     # import_draft: bpy.props.BoolProperty(
     #     name="Draft",
     #     description="Skip generating PRT data. Faster speed, lower quality",
