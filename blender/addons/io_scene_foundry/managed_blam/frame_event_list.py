@@ -347,7 +347,7 @@ class FrameEventListTag(Tag):
                     effect_event.Fields[4].SetStringData(effect.marker_name)
                     for idx, item in enumerate(effect_event.Fields[5].Items):
                         if item.DisplayName == effect.damage_effect_reporting_type:
-                            event.Fields[5].Value = idx
+                            effect_event.Fields[5].Value = idx
                             break
                         
                 for dialogue in animation_event.dialogue_events:
