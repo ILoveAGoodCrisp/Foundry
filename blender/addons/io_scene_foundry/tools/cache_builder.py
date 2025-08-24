@@ -1026,6 +1026,8 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
                 self.filepath = str(path)
             else:
                 self.filepath = utils.get_tags_path() + os.sep
+        else:
+            self.filepath = utils.get_tags_path() + os.sep
         context.window_manager.fileselect_add(self)
         return {"RUNNING_MODAL"}
     
