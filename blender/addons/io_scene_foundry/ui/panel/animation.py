@@ -618,6 +618,10 @@ class NWO_OT_SetTimeline(bpy.types.Operator):
         scene = context.scene
         scene_nwo = scene.nwo
         animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
+        
+        if animation.animation_type == 'composite':
+            return {'FINISHED'}
+        
         actions = []
         start_frame = animation.frame_start
         if self.use_self_props:
@@ -894,6 +898,7 @@ class NWO_OT_NewAnimation(bpy.types.Operator):
         if self.animation_type == 'composite':
             self.execute_composite(animation)
             full_name = self.build_name()
+            scene_nwo.active_animation_index = len(scene_nwo.animations) - 1
         else:
             full_name = self.create_name()
             scene_nwo.active_animation_index = len(scene_nwo.animations) - 1
@@ -945,7 +950,8 @@ class NWO_OT_NewAnimation(bpy.types.Operator):
         animation.variant = self.variant
 
         animation.created_with_foundry = True
-        bpy.ops.nwo.set_timeline()
+        if self.animation_type != 'composite':
+            bpy.ops.nwo.set_timeline()
         self.report({"INFO"}, f"Created animation: {full_name}")
         return {"FINISHED"}
 
@@ -1102,14 +1108,14 @@ class NWO_OT_NewAnimation(bpy.types.Operator):
     def execute_composite(self, animation):
         
         if self.composite_use_preset:
-            match self.state:
+            match self.composite_state:
                 case 'locomote':
-                    if self.mode == 'sprint':
+                    if self.composite_mode == 'sprint':
                         self.preset_sprint(animation)
                     else:
                         self.preset_locomote(animation)
                 case 'aim_locomote_up':
-                    if self.mode == 'crouch':
+                    if self.composite_mode == 'crouch':
                         self.preset_crouch_aim(animation)
                     else:
                         self.preset_aim_locomote_up(animation)
@@ -1741,7 +1747,7 @@ class NWO_UL_AnimationList(bpy.types.UIList):
             case 'world':
                 icon_str = 'anim_world'
             case 'composite':
-                icon_str = f'anim_composite'
+                icon_str = 'anim_composite'
             
         layout.prop(item, "name", text="", emboss=False, icon_value=get_icon_id(icon_str))
         # layout.label(text=str((item.frame_end + 1) - item.frame_start), icon='KEYFRAME_HLT')

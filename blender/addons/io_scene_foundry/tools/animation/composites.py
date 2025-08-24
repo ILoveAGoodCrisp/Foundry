@@ -75,7 +75,7 @@ class NWO_UL_AnimationSubBlendAxis(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
         if item:
             # row.alignment = 'LEFT'
-            layout.prop(item, 'name', emboss=False, text="", icon='INDIRECT_ONLY_OFF')
+            layout.label(text=utils.formalise_string(item.name), icon='INDIRECT_ONLY_OFF')
         else:
             layout.label(text="", translate=False, icon_value=icon)
             
@@ -97,7 +97,7 @@ class NWO_OT_AnimationSubBlendAxisAdd(bpy.types.Operator):
     )
     
     def execute(self, context):
-        composite = context.scene.nwo.animation_composites[context.scene.nwo.animation_composites_active_index]
+        composite = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
         blend_axis = composite.blend_axis[composite.blend_axis_active_index]
         table = blend_axis.blend_axis
         entry = table.add()
@@ -118,7 +118,7 @@ class NWO_OT_AnimationSubBlendAxisRemove(bpy.types.Operator):
     bl_options = {'UNDO'}
 
     def execute(self, context):
-        composite = context.scene.nwo.animation_composites[context.scene.nwo.animation_composites_active_index]
+        composite = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
         blend_axis = composite.blend_axis[composite.blend_axis_active_index]
         table = blend_axis.blend_axis
         table.remove(blend_axis.blend_axis_active_index)
@@ -135,7 +135,7 @@ class NWO_OT_AnimationSubBlendAxisMove(bpy.types.Operator):
     direction: bpy.props.StringProperty()
 
     def execute(self, context):
-        composite = context.scene.nwo.animation_composites[context.scene.nwo.animation_composites_active_index]
+        composite = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
         blend_axis = composite.blend_axis[composite.blend_axis_active_index]
         table = blend_axis.blend_axis
         delta = {"down": 1, "up": -1,}[self.direction]
@@ -150,7 +150,7 @@ class NWO_UL_AnimationBlendAxis(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
         if item:
             # row.alignment = 'LEFT'
-            layout.prop(item, 'name', emboss=False, text="", icon='INDIRECT_ONLY_OFF')
+            layout.label(text=utils.formalise_string(item.name), icon='INDIRECT_ONLY_OFF')
         else:
             layout.label(text="", translate=False, icon_value=icon)
             
@@ -172,7 +172,7 @@ class NWO_OT_AnimationBlendAxisAdd(bpy.types.Operator):
     )
     
     def execute(self, context):
-        composite = context.scene.nwo.animation_composites[context.scene.nwo.animation_composites_active_index]
+        composite = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
         table = composite.blend_axis
         entry = table.add()
         entry.name = self.blend_axis
@@ -192,7 +192,7 @@ class NWO_OT_AnimationBlendAxisRemove(bpy.types.Operator):
     bl_options = {'UNDO'}
 
     def execute(self, context):
-        composite = context.scene.nwo.animation_composites[context.scene.nwo.animation_composites_active_index]
+        composite = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
         table = composite.blend_axis
         table.remove(composite.blend_axis_active_index)
         if composite.blend_axis_active_index > len(table) - 1:
@@ -208,7 +208,7 @@ class NWO_OT_AnimationBlendAxisMove(bpy.types.Operator):
     direction: bpy.props.StringProperty()
 
     def execute(self, context):
-        composite = context.scene.nwo.animation_composites[context.scene.nwo.animation_composites_active_index]
+        composite = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
         table = composite.blend_axis
         delta = {"down": 1, "up": -1,}[self.direction]
         current_index = composite.blend_axis_active_index
@@ -231,7 +231,7 @@ class NWO_OT_AnimationDeadZoneAdd(bpy.types.Operator):
     bl_options = {'UNDO'}
     
     def execute(self, context):
-        composite = context.scene.nwo.animation_composites[context.scene.nwo.animation_composites_active_index]
+        composite = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
         blend_axis = composite.blend_axis[composite.blend_axis_active_index]
         table = blend_axis.dead_zones
         entry = table.add()
@@ -246,7 +246,7 @@ class NWO_OT_AnimationDeadZoneRemove(bpy.types.Operator):
     bl_options = {'UNDO'}
 
     def execute(self, context):
-        composite = context.scene.nwo.animation_composites[context.scene.nwo.animation_composites_active_index]
+        composite = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
         blend_axis = composite.blend_axis[composite.blend_axis_active_index]
         table = blend_axis.dead_zones
         table.remove(blend_axis.dead_zones_active_index)
@@ -263,7 +263,7 @@ class NWO_OT_AnimationDeadZoneMove(bpy.types.Operator):
     direction: bpy.props.StringProperty()
 
     def execute(self, context):
-        composite = context.scene.nwo.animation_composites[context.scene.nwo.animation_composites_active_index]
+        composite = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
         blend_axis = composite.blend_axis[composite.blend_axis_active_index]
         table = blend_axis.dead_zones
         delta = {"down": 1, "up": -1,}[self.direction]
@@ -287,7 +287,7 @@ class NWO_OT_AnimationGroupAdd(bpy.types.Operator):
     bl_options = {'UNDO'}
     
     def execute(self, context):
-        composite = context.scene.nwo.animation_composites[context.scene.nwo.animation_composites_active_index]
+        composite = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
         blend_axis = composite.blend_axis[composite.blend_axis_active_index]
         table = blend_axis.groups
         entry = table.add()
@@ -302,7 +302,7 @@ class NWO_OT_AnimationGroupRemove(bpy.types.Operator):
     bl_options = {'UNDO'}
 
     def execute(self, context):
-        composite = context.scene.nwo.animation_composites[context.scene.nwo.animation_composites_active_index]
+        composite = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
         blend_axis = composite.blend_axis[composite.blend_axis_active_index]
         table = blend_axis.groups
         table.remove(blend_axis.groups_active_index)
@@ -319,7 +319,7 @@ class NWO_OT_AnimationGroupMove(bpy.types.Operator):
     direction: bpy.props.StringProperty()
 
     def execute(self, context):
-        composite = context.scene.nwo.animation_composites[context.scene.nwo.animation_composites_active_index]
+        composite = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
         blend_axis = composite.blend_axis[composite.blend_axis_active_index]
         table = blend_axis.groups
         delta = {"down": 1, "up": -1,}[self.direction]
@@ -343,7 +343,7 @@ class NWO_OT_AnimationPhaseSetAdd(bpy.types.Operator):
     bl_options = {'UNDO'}
     
     def execute(self, context):
-        composite = context.scene.nwo.animation_composites[context.scene.nwo.animation_composites_active_index]
+        composite = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
         blend_axis = composite.blend_axis[composite.blend_axis_active_index]
         table = blend_axis.phase_sets
         entry = table.add()
@@ -358,7 +358,7 @@ class NWO_OT_AnimationPhaseSetRemove(bpy.types.Operator):
     bl_options = {'UNDO'}
 
     def execute(self, context):
-        composite = context.scene.nwo.animation_composites[context.scene.nwo.animation_composites_active_index]
+        composite = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
         blend_axis = composite.blend_axis[composite.blend_axis_active_index]
         table = blend_axis.phase_sets
         table.remove(blend_axis.phase_sets_active_index)
@@ -375,7 +375,7 @@ class NWO_OT_AnimationPhaseSetMove(bpy.types.Operator):
     direction: bpy.props.StringProperty()
 
     def execute(self, context):
-        composite = context.scene.nwo.animation_composites[context.scene.nwo.animation_composites_active_index]
+        composite = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
         blend_axis = composite.blend_axis[composite.blend_axis_active_index]
         table = blend_axis.phase_sets
         delta = {"down": 1, "up": -1,}[self.direction]
@@ -406,7 +406,7 @@ class NWO_OT_AnimationLeafAdd(bpy.types.Operator):
     sub_axis: bpy.props.BoolProperty(options={'SKIP_SAVE', 'HIDDEN'})
     
     def execute(self, context):
-        composite = context.scene.nwo.animation_composites[context.scene.nwo.animation_composites_active_index]
+        composite = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
         blend_axis = composite.blend_axis[composite.blend_axis_active_index]
         if self.sub_axis:
             blend_axis = blend_axis.blend_axis[blend_axis.blend_axis_active_index]
@@ -433,7 +433,7 @@ class NWO_OT_AnimationLeafRemove(bpy.types.Operator):
     sub_axis: bpy.props.BoolProperty(options={'SKIP_SAVE', 'HIDDEN'})
 
     def execute(self, context):
-        composite = context.scene.nwo.animation_composites[context.scene.nwo.animation_composites_active_index]
+        composite = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
         blend_axis = composite.blend_axis[composite.blend_axis_active_index]
         if self.sub_axis:
             blend_axis = blend_axis.blend_axis[blend_axis.blend_axis_active_index]
@@ -462,7 +462,7 @@ class NWO_OT_AnimationLeafMove(bpy.types.Operator):
     sub_axis: bpy.props.BoolProperty(options={'SKIP_SAVE', 'HIDDEN'})
 
     def execute(self, context):
-        composite = context.scene.nwo.animation_composites[context.scene.nwo.animation_composites_active_index]
+        composite = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
         blend_axis = composite.blend_axis[composite.blend_axis_active_index]
         if self.sub_axis:
             blend_axis = blend_axis.blend_axis[blend_axis.blend_axis_active_index]

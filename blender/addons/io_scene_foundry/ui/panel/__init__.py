@@ -1155,12 +1155,11 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             group = blend_axis.groups[blend_axis.groups_active_index]
             col = box.column()
             col.use_property_split = True
-            col.prop(group, "manual_blend_axis_1")
+            blend_axis_1_name, blend_axis_1_function = blend_axis_name(blend_axis.name)
+
+            col.prop(group, "manual_blend_axis_1", text=f"Manual {blend_axis_1_name}")
             if group.manual_blend_axis_1:
-                col.prop(group, "blend_axis_1")
-            col.prop(group, "manual_blend_axis_2")
-            if group.manual_blend_axis_2:
-                col.prop(group, "blend_axis_2")
+                col.prop(group, "blend_axis_1", text=f"{blend_axis_1_function} value")
                 
             self.draw_animation_leaves(col, group, in_group=True, blend_axis=blend_axis)
         
@@ -1299,14 +1298,19 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 group = sub_blend_axis.groups[sub_blend_axis.groups_active_index]
                 col = box.column()
                 col.use_property_split = True
-                col.prop(group, "uses_move_speed")
-                if group.uses_move_speed:
-                    col.prop(group, "move_speed")
-                col.prop(group, "uses_move_angle")
-                if group.uses_move_angle:
-                    col.prop(group, "move_angle")
+                blend_axis_1_name, blend_axis_1_function = blend_axis_name(blend_axis.name)
+
+                col.prop(group, "manual_blend_axis_1", text=f"Manual {blend_axis_1_name}")
+                if group.manual_blend_axis_1:
+                    col.prop(group, "blend_axis_1", text=f"{blend_axis_1_function} value")
+                if sub_blend_axis:
+                    blend_axis_2_name, blend_axis_2_function = blend_axis_name(sub_blend_axis.name)
                     
-                self.draw_animation_leaves(col, group, in_group=True, blend_axis=blend_axis, sub_axis=sub_blend_axis)
+                    col.prop(group, "manual_blend_axis_2", text=f"Manual {blend_axis_2_name}")
+                    if group.manual_blend_axis_2:
+                        col.prop(group, "blend_axis_2", text=f"{blend_axis_2_function} value")
+                        
+                    self.draw_animation_leaves(col, group, in_group=True, blend_axis=blend_axis, sub_axis=sub_blend_axis)
                     
         else:
             col.operator("nwo.animation_sub_blend_axis_add", text="Add Sub Blend Axis", icon="ADD")
@@ -1355,55 +1359,13 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col.use_property_split = True
             col.prop_search(leaf, "animation", self.scene.nwo, "animations", icon='ANIM')
             
-            blend_axis_1_name = "NAME_ERROR"
-            blend_axis_1_function = "FUNCTION_ERROR"
-            match blend_axis.name:
-                case 'movement_angles':
-                    blend_axis_1_name = "Movement Angle"
-                    blend_axis_1_function = "get_move_angle"
-                case 'movement_speed':
-                    blend_axis_1_name = "Movement Speed"
-                    blend_axis_1_function = "get_move_speed"
-                case 'turn_rate':
-                    blend_axis_1_name = "Turn Rate"
-                    blend_axis_1_function = "get_turn_rate"
-                case 'turn_angle':
-                    blend_axis_1_name = "Turn Angle"
-                    blend_axis_1_function = "get_turn_angle"
-                case 'vertical':
-                    blend_axis_1_name = "Vertical"
-                    blend_axis_1_function = "get_destination_vertical"
-                case 'movemhorizontalent_angles':
-                    blend_axis_1_name = "Horizontal"
-                    blend_axis_1_function = "get_destination_forward"
-            
-            
+            blend_axis_1_name, blend_axis_1_function = blend_axis_name(blend_axis.name)
+
             col.prop(leaf, "manual_blend_axis_1", text=f"Manual {blend_axis_1_name}")
             if leaf.manual_blend_axis_1:
                 col.prop(leaf, "blend_axis_1", text=f"{blend_axis_1_function} value")
             if sub_axis:
-                
-                blend_axis_2_name = "NAME_ERROR"
-                blend_axis_2_function = "FUNCTION_ERROR"
-                match sub_axis.name:
-                    case 'movement_angles':
-                        blend_axis_2_name = "Movement Angle"
-                        blend_axis_2_function = "get_move_angle"
-                    case 'movement_speed':
-                        blend_axis_2_name = "Movement Speed"
-                        blend_axis_2_function = "get_move_speed"
-                    case 'turn_rate':
-                        blend_axis_2_name = "Turn Rate"
-                        blend_axis_2_function = "get_turn_rate"
-                    case 'turn_angle':
-                        blend_axis_2_name = "Turn Angle"
-                        blend_axis_2_function = "get_turn_angle"
-                    case 'vertical':
-                        blend_axis_2_name = "Vertical"
-                        blend_axis_2_function = "get_destination_vertical"
-                    case 'horizontal':
-                        blend_axis_2_name = "Horizontal"
-                        blend_axis_2_function = "get_destination_forward"
+                blend_axis_2_name, blend_axis_2_function = blend_axis_name(sub_axis.name)
                 
                 col.prop(leaf, "manual_blend_axis_2", text=f"Manual {blend_axis_2_name}")
                 if leaf.manual_blend_axis_2:
@@ -3056,7 +3018,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         
         if animation.animation_type == 'composite':
             if self.h4:
-                self.draw_expandable_box(box.box(), animation, 'animation_composites')
+                return self.draw_animation_composites(box, animation)
             else:
                 col.label(text="Composite animations not valid for Reach")
         
@@ -3830,3 +3792,28 @@ class NWO_OT_PanelExpand(bpy.types.Operator):
             # Asset editor descriptions
             case "rig_usages":
                 return "A list of special bones that unique properties used by Halo's animation system. Any bones you set here will be added to the animation graph tag for you automatically whenever you export the asset. Leave all these fields blank to if you'd prefer to set the values in the tag yourself, or do not need them"
+
+def blend_axis_name(name):
+    blend_axis_name = "NAME_ERROR"
+    blend_axis_function = "FUNCTION_ERROR"
+    match name:
+        case 'movement_angles':
+            blend_axis_name = "Movement Angle"
+            blend_axis_function = "get_move_angle"
+        case 'movement_speed':
+            blend_axis_name = "Movement Speed"
+            blend_axis_function = "get_move_speed"
+        case 'turn_rate':
+            blend_axis_name = "Turn Rate"
+            blend_axis_function = "get_turn_rate"
+        case 'turn_angle':
+            blend_axis_name = "Turn Angle"
+            blend_axis_function = "get_turn_angle"
+        case 'vertical':
+            blend_axis_name = "Vertical"
+            blend_axis_function = "get_destination_vertical"
+        case 'horizontal':
+            blend_axis_name = "Horizontal"
+            blend_axis_function = "get_destination_forward"
+            
+    return blend_axis_name, blend_axis_function

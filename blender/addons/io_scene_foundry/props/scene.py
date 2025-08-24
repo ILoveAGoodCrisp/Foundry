@@ -37,38 +37,46 @@ class NWO_AnimationLeavesItems(PropertyGroup):
     
     manual_blend_axis_1: bpy.props.BoolProperty(
         name="Manual Blend Axis 1",
-        description="Manually assign a value to this blend axix instead of allowing it to be calculated"
+        description="Manually assign a value to this blend axix instead of allowing it to be calculated",
+        options=set(),
     )
     manual_blend_axis_2: bpy.props.BoolProperty(
         name="Manual Blend Axis 2",
-        description="Manually assign a value to this blend axix instead of allowing it to be calculated"
+        description="Manually assign a value to this blend axix instead of allowing it to be calculated",
+        options=set(),
     )
     blend_axis_1: bpy.props.FloatProperty(
         name="Blend Axis Value 1",
-        description="Value of this blend axis"
+        description="Value of this blend axis",
+        options=set(),
     )
     blend_axis_2: bpy.props.FloatProperty(
         name="Blend Axis Value 2",
-        description="Value of this blend axis"
+        description="Value of this blend axis",
+        options=set(),
     )
     
 class NWO_AnimationGroupItems(PropertyGroup):
     name: bpy.props.StringProperty(name="Name", options=set())
     manual_blend_axis_1: bpy.props.BoolProperty(
         name="Manual Blend Axis 1",
-        description="Manually assign a value to this blend axix instead of allowing it to be calculated"
+        description="Manually assign a value to this blend axix instead of allowing it to be calculated",
+        options=set(),
     )
     manual_blend_axis_2: bpy.props.BoolProperty(
         name="Manual Blend Axis 2",
-        description="Manually assign a value to this blend axix instead of allowing it to be calculated"
+        description="Manually assign a value to this blend axix instead of allowing it to be calculated",
+        options=set(),
     )
     blend_axis_1: bpy.props.FloatProperty(
         name="Blend Axis Value 1",
-        description="Value of this blend axis"
+        description="Value of this blend axis",
+        options=set(),
     )
     blend_axis_2: bpy.props.FloatProperty(
         name="Blend Axis Value 2",
-        description="Value of this blend axis"
+        description="Value of this blend axis",
+        options=set(),
     )
     leaves_active_index: bpy.props.IntProperty(options=set())
     leaves: bpy.props.CollectionProperty(name="Animations", options=set(), type=NWO_AnimationLeavesItems)
@@ -859,9 +867,18 @@ class NWO_ActionGroup(bpy.types.PropertyGroup):
 class NWO_AnimationPropertiesGroup(bpy.types.PropertyGroup):
     active_action_group_index: bpy.props.IntProperty()
     
+    # animation_composites_expanded: bpy.props.BoolProperty(default=True, options=set())
+    
+    overlay: bpy.props.BoolProperty(
+        name="Overlay",
+        description="Composite is an overlay",
+        options=set(),
+    )
+    
     external: bpy.props.BoolProperty(
         name="External",
-        description="Animation data comes from separate GR2 file"
+        description="Animation data comes from separate GR2 file",
+        options=set(),
     )
     
     gr2_path: bpy.props.StringProperty(
@@ -871,12 +888,14 @@ class NWO_AnimationPropertiesGroup(bpy.types.PropertyGroup):
     
     pose_overlay: bpy.props.BoolProperty(
         name="Pose Overlay",
-        description="External animation is a pose overlay"
+        description="External animation is a pose overlay",
+        options=set(),
     )
     
     has_pca: bpy.props.BoolProperty(
         name="PCA",
-        description="External animation has PCA (shape key) data"
+        description="External animation has PCA (shape key) data",
+        options=set(),
     )
     
     action_tracks: bpy.props.CollectionProperty(type=NWO_ActionGroup)
@@ -1883,7 +1902,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
                             track.object.data.animation_data.last_slot_identifier = slot_id
                             track.object.data.animation_data.action = track.action
 
-            if utils.get_prefs().sync_timeline_range:
+            if utils.get_prefs().sync_timeline_range and animation.animation_type != "composite":
                 bpy.ops.nwo.set_timeline()
                 
         self.previous_active_animation_index = self.active_animation_index
@@ -2379,7 +2398,6 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     rig_usages_expanded: bpy.props.BoolProperty(default=False, options=set())
     ik_chains_expanded: bpy.props.BoolProperty(default=False, options=set())
     animation_copies_expanded: bpy.props.BoolProperty(default=False, options=set())
-    # animation_composites_expanded: bpy.props.BoolProperty(default=False, options=set())
     
     child_assets_expanded: bpy.props.BoolProperty(default=False, options=set())
     
