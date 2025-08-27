@@ -266,7 +266,7 @@ class Sidecar:
         else:
             match self.asset_type:
                 case AssetType.MODEL:
-                    self._get_object_output_types(metadata, "model", self._get_model_tags())
+                    self._get_object_output_types(metadata, "model")
                 case AssetType.SCENARIO:
                     self._get_object_output_types(metadata, "scenario")
                 case AssetType.SKY:
@@ -336,6 +336,15 @@ class Sidecar:
 
     def _get_model_tags(self):
         tags = ["model"]
+        
+        if self.asset_type == AssetType.ANIMATION:
+            tags.append("scenery")
+            self.no_top_level_tag = True
+            return tags
+        elif self.asset_type == AssetType.SKY:
+            tags.append("scenery")
+            return tags
+        
         if self.scene_settings.output_biped:
             tags.append("biped")
         if self.scene_settings.output_crate:

@@ -310,7 +310,7 @@ class ExportScene:
         self.support_armatures = {}
         self.export_objects = []
         
-        instancers = [ob for ob in self.context.view_layer.objects if ob.is_instancer and ob.instance_collection and ob.instance_collection.all_objects and not ob.nwo.marker_instance]
+        instancers = [ob for ob in self.context.view_layer.objects if ob.is_instancer and ob.instance_collection and ob.instance_collection.all_objects and not ob.nwo.marker_instance and utils.can_export_check_parent(ob)]
         self.skip_obs = set()
         if instancers:
             self.collections_to_hide = set()
