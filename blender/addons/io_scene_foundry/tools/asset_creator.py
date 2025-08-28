@@ -143,7 +143,7 @@ class NWO_OT_NewAsset(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.scene and utils.get_prefs().projects
+        return context.scene and utils.current_project_valid()
     
     filter_glob: bpy.props.StringProperty(
         default="",

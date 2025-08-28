@@ -20,6 +20,7 @@ from ..utils import (
     run_ek_cmd,
     update_debug_menu,
     valid_nwo_asset,
+    current_project_valid,
 )
 
 class NWO_OpenFoundationTag(bpy.types.Operator):
@@ -28,6 +29,10 @@ class NWO_OpenFoundationTag(bpy.types.Operator):
     bl_description = "Opens the specified tag in Foundation"
 
     tag_path : bpy.props.StringProperty()
+    
+    @classmethod
+    def poll(cls, context):
+        return current_project_valid()
 
     def execute(self, context):
         full_tag_path = Path(get_tags_path(), self.tag_path)
@@ -512,6 +517,10 @@ def open_file_explorer(type, is_tags, scene_nwo):
 class NWO_MaterialGirl(bpy.types.Operator):
     bl_label = "Material Viewer"
     bl_idname = "nwo.open_matman"
+    
+    @classmethod
+    def poll(cls, context):
+        return current_project_valid()
 
     def execute(self, context):
         launch_args = [os.path.join(get_project_path(), "Foundation.exe")]
@@ -535,6 +544,10 @@ class NWO_HaloLauncher_Foundation(bpy.types.Operator):
 
     bl_idname = "nwo.launch_foundation"
     bl_label = "Foundation"
+    
+    @classmethod
+    def poll(cls, context):
+        return current_project_valid()
 
     def execute(self, context):
         from .halo_launcher import launch_foundation
@@ -547,6 +560,10 @@ class NWO_HaloLauncher_Data(bpy.types.Operator):
 
     bl_idname = "nwo.launch_data"
     bl_label = "Data"
+    
+    @classmethod
+    def poll(cls, context):
+        return current_project_valid()
 
     def execute(self, context):
         scene = context.scene
@@ -564,6 +581,10 @@ class NWO_HaloLauncher_Tags(bpy.types.Operator):
 
     bl_idname = "nwo.launch_tags"
     bl_label = "Tags"
+    
+    @classmethod
+    def poll(cls, context):
+        return current_project_valid()
 
     def execute(self, context):
         scene = context.scene
@@ -632,6 +653,10 @@ class NWO_HaloLauncher_Sapien(bpy.types.Operator):
     )
     
     ignore_play: bpy.props.BoolProperty(options={'SKIP_SAVE'})
+    
+    @classmethod
+    def poll(cls, context):
+        return current_project_valid()
 
     def execute(self, context):
         scene = context.scene
@@ -680,6 +705,10 @@ class NWO_HaloLauncher_TagTest(bpy.types.Operator):
     )
     
     ignore_play: bpy.props.BoolProperty(options={'SKIP_SAVE'})
+    
+    @classmethod
+    def poll(cls, context):
+        return current_project_valid()
 
     def execute(self, context):
         scene = context.scene

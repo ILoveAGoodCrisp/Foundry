@@ -10,6 +10,10 @@ class NWO_AppendFoundryMaterials(bpy.types.Operator):
     bl_label = "Append Special Materials"
     bl_description = "Appends special materials relevant to the current project and asset type to the blend file. Special materials are denoted by their '+' prefix"
     bl_options = {"UNDO"}
+    
+    @classmethod
+    def poll(cls, context):
+        return utils.current_project_valid()
 
     def execute(self, context):
         game = 'h4' if utils.is_corinth(context) else 'reach'

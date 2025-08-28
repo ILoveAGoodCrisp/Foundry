@@ -165,7 +165,7 @@ class NWO_OT_Cubemap(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return True
+        return utils.current_project_valid()
         
     filepath: bpy.props.StringProperty(
         name='Scenario Filepath',

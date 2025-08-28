@@ -773,6 +773,10 @@ class NWO_OT_OpenModFolder(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
+        
+        if not utils.current_project_valid():
+            return
+        
         if not context.scene.nwo.mod_name:
             return False
         path = Path(utils.get_project_path(), "MCC", context.scene.nwo.mod_name)
@@ -788,6 +792,10 @@ class NWO_OT_LaunchMCC(bpy.types.Operator):
     bl_label = "Launch MCC"
     bl_description = "Launches the Steam version of The Masterchief Collection provied you have this installed"
     bl_options = {"UNDO"}
+    
+    @classmethod
+    def poll(cls, context):
+        return utils.current_project_valid()
     
     def execute(self, context):
         os.startfile("steam://launch/976730/option2")

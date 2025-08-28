@@ -4,7 +4,7 @@ import bpy
 import bmesh
 from ..tools.property_apply import apply_props_material
 
-from ..utils import deselect_all_objects, export_objects_mesh_only, get_prefs, poll_ui, set_active_object, true_permutation, true_region
+from ..utils import deselect_all_objects, export_objects_mesh_only, get_prefs, poll_ui, set_active_object, true_permutation, true_region, current_project_valid
 
 class NWO_AutoSeam(bpy.types.Operator):
     bl_idname = "nwo.auto_seam"
@@ -16,7 +16,7 @@ class NWO_AutoSeam(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return context.mode == 'OBJECT' and poll_ui('scenario') and len(context.scene.nwo.regions_table) > 1
+        return context.mode == 'OBJECT' and poll_ui('scenario') and len(context.scene.nwo.regions_table) > 1 and current_project_valid()
 
     def execute(self, context):
         return self.auto_seam(context)

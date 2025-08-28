@@ -4,7 +4,7 @@ import bpy
 from ..managed_blam.model import ModelTag
 from ..managed_blam.object import ObjectTag
 
-from ..utils import get_tags_path, relative_path
+from ..utils import get_tags_path, relative_path, current_project_valid
 
 class NWO_GetModelVariants(bpy.types.Operator):
     bl_idname = "nwo.get_model_variants"
@@ -18,6 +18,10 @@ class NWO_GetModelVariants(bpy.types.Operator):
             return False
         if not context.object.nwo.marker_game_instance_tag_name.strip():
             return False
+        
+        if not current_project_valid():
+            return False
+        
         tag_path = Path(get_tags_path(), relative_path(context.object.nwo.marker_game_instance_tag_name))
         return tag_path.is_absolute() and tag_path.exists() and tag_path.is_file()
     

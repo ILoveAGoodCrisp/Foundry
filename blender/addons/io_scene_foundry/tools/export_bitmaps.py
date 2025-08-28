@@ -14,10 +14,13 @@ logging.basicConfig(level=logging.ERROR)
 class NWO_ExportBitmapsSingle(bpy.types.Operator):
     bl_idname = "nwo.export_bitmaps_single"
     bl_label = "Export Bitmap"
+    
+    @classmethod
+    def poll(cls, context):
+        return utils.current_project_valid()
 
     def execute(self, context):
         image = context.object.active_material.nwo.active_image
-        nwo = image.nwo
         export_bitmap(image, self.report)
         return {'FINISHED'}
 

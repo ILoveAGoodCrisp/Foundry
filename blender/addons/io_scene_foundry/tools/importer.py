@@ -275,6 +275,10 @@ class NWO_OT_ConvertScene(bpy.types.Operator):
         ]
     )
     
+    @classmethod
+    def poll(cls, context):
+        return utils.current_project_valid()
+    
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
@@ -356,7 +360,7 @@ class NWO_Import(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return True
+        return utils.current_project_valid()
     
     filter_glob: bpy.props.StringProperty(
         default="",
@@ -3545,6 +3549,10 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     
     mouse_x : bpy.props.FloatProperty(options={"HIDDEN", "SKIP_SAVE"})
     mouse_y : bpy.props.FloatProperty(options={"HIDDEN", "SKIP_SAVE"})
+    
+    @classmethod
+    def poll(cls, context):
+        return utils.current_project_valid()
     
     def execute(self, context):
         bpy.ops.nwo.foundry_import(**self.as_keywords())

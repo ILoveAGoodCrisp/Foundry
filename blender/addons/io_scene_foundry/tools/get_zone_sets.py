@@ -14,6 +14,10 @@ class NWO_GetZoneSets(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
+        
+        if not utils.current_project_valid():
+            return False
+        
         if not context.scene.nwo.cinematic_scenario:
             return False
         tag_path = Path(get_tags_path(), context.scene.nwo.cinematic_scenario)

@@ -33,9 +33,9 @@ class NWO_OT_CameraSync(bpy.types.Operator):
     
     cancel_sync: bpy.props.BoolProperty(options={'HIDDEN', 'SKIP_SAVE'})
 
-    # @classmethod
-    # def poll(cls, context):
-    #     return utils.valid_nwo_asset(context)
+    @classmethod
+    def poll(cls, context):
+        return utils.current_project_valid()
     
     def execute(self, context):
         if self.cancel_sync:

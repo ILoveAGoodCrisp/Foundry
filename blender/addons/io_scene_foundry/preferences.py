@@ -191,87 +191,6 @@ class NWO_OT_ProjectEdit(Operator):
         layout.prop(self, "display_name")
         layout.prop(self, "material_path", text=f"Default {shader_name} Tag")
 
-class HREKLocationPath(Operator):
-    """Set the path to your Halo Reach Editing Kit"""
-
-    bl_idname = "nwo.hrek_path"
-    bl_label = "Select Folder"
-
-    filter_folder: BoolProperty(
-        default=True,
-        options={"HIDDEN"},
-    )
-
-    directory: StringProperty(
-        name="hrek_path",
-        description="Set the path to your Halo Reach Editing Kit",
-    )
-
-    def execute(self, context):
-        context.preferences.addons[__package__].preferences.hrek_path = self.directory.strip('"\\')
-
-        return {"FINISHED"}
-
-    def invoke(self, context, event):
-        context.window_manager.fileselect_add(self)
-
-        return {"RUNNING_MODAL"}
-
-
-class H4EKLocationPath(Operator):
-    """Set the path to your Halo 4 Editing Kit"""
-
-    bl_idname = "nwo.h4ek_path"
-    bl_label = "Select Folder"
-
-    filter_folder: BoolProperty(
-        default=True,
-        options={"HIDDEN"},
-    )
-
-    directory: StringProperty(
-        name="h4ek_path",
-        description="Set the path to your Halo 4 Editing Kit",
-    )
-
-    def execute(self, context):
-        context.preferences.addons[__package__].preferences.h4ek_path = self.directory.strip('"\\')
-
-        return {"FINISHED"}
-
-    def invoke(self, context, event):
-        context.window_manager.fileselect_add(self)
-
-        return {"RUNNING_MODAL"}
-
-
-class H2AMPEKLocationPath(Operator):
-    """Set the path to your Halo 2 Anniversary Multiplayer Editing Kit"""
-
-    bl_idname = "nwo.h2aek_path"
-    bl_label = "Select Folder"
-
-    filter_folder: BoolProperty(
-        default=True,
-        options={"HIDDEN"},
-    )
-
-    directory: StringProperty(
-        name="h2aek_path",
-        description="Set the path to your Halo 2 Anniversary Multiplayer Editing Kit",
-    )
-
-    def execute(self, context):
-        context.preferences.addons[__package__].preferences.h2aek_path = self.directory.strip('"\\')
-
-        return {"FINISHED"}
-
-    def invoke(self, context, event):
-        context.window_manager.fileselect_add(self)
-
-        return {"RUNNING_MODAL"}
-
-
 class FoundryPreferences(AddonPreferences):
     bl_idname = __package__
 
@@ -418,9 +337,6 @@ class FoundryPreferences(AddonPreferences):
         row.prop(prefs, "granny_viewer_path")
         
 classes = [
-    H2AMPEKLocationPath,
-    H4EKLocationPath,
-    HREKLocationPath,
     NWO_Project_ListItems,
     NWO_UL_Projects,
     NWO_ProjectAdd,
