@@ -266,7 +266,7 @@ class Sidecar:
         else:
             match self.asset_type:
                 case AssetType.MODEL:
-                    self._get_object_output_types(metadata, "model")
+                    self._get_object_output_types(metadata, "model", self._get_model_tags())
                 case AssetType.SCENARIO:
                     self._get_object_output_types(metadata, "scenario")
                 case AssetType.SKY:
