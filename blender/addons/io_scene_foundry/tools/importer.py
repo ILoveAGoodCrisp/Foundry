@@ -2079,13 +2079,14 @@ class NWOImporter:
                 with ScenarioTag(path=mover.tag_path, raise_on_error=False) as scenario:
                     if not scenario.valid: continue
                     bsps = scenario.get_bsp_paths(self.tag_zone_set)
+                    all_bsps = scenario.get_bsp_paths()
                     scenario_name = f"scenario_{scenario.tag_path.ShortName}"
                     scenario_collection = bpy.data.collections.get(scenario_name)
                     if scenario_collection is None:
                         scenario_collection = bpy.data.collections.new(scenario_name)
                         self.context.scene.collection.children.link(scenario_collection)
-                    for idx, bsp in enumerate(bsps):
-                        bsp_objects = self.import_bsp(bsp, scenario_collection, None if self.corinth else scenario.get_info(idx))
+                    for bsp in bsps:
+                        bsp_objects = self.import_bsp(bsp, scenario_collection, None if self.corinth else scenario.get_info(all_bsps.index(bsp)))
                         imported_objects.extend(bsp_objects)
                     
                     if self.tag_import_design and not self.tag_bsp_render_only:

@@ -11,8 +11,6 @@ from .structure_meta import StructureMetaTag
 
 from .scenario_structure_lighting_info import ScenarioStructureLightingInfoTag
 
-from ..tools.property_apply import apply_props_material
-
 from .connected_geometry import BSP, BSPCollisionMaterial, Cluster, CompressionBounds, Emissive, EnvironmentObject, EnvironmentObjectReference, Instance, InstanceDefinition, Material, Portal, StructureCollision, StructureMarker, SurfaceMapping
 from ..utils import jstr
 from . import Tag
@@ -137,6 +135,7 @@ class ScenarioStructureBspTag(Tag):
         self.tag_has_changes = True
         
     def to_blend_objects(self, collection: bpy.types.Collection, for_cinematic: bool, lighting_info_path: Path = None, import_geometry=True, import_lights=True):
+        
         objects = []
         game_objects = []
         
