@@ -48,6 +48,9 @@ class ScenarioStructureLightingInfoTag(Tag):
             self.block_generic_light_definitions.RemoveAllElements()
             for _ in range(len(light_definitions)):
                 self.block_generic_light_definitions.AddElement()
+            self.block_generic_light_instances.RemoveAllElements()
+            for _ in range(len(light_instances)):
+                self.block_generic_light_instances.AddElement()
             
             # Save and load the tag again to get around some post process BS the reach tag does
             self.tag.Save()
@@ -186,9 +189,9 @@ class ScenarioStructureLightingInfoTag(Tag):
             element.SelectField("aspect").Data = light.aspect
             
     def _write_reach_light_instances(self, light_instances, light_definitions):
-        self.block_generic_light_instances.RemoveAllElements()
-        for light in light_instances:
-            element = self.block_generic_light_instances.AddElement()
+        # self.block_generic_light_instances.RemoveAllElements()
+        for idx, light in enumerate(light_instances):
+            element = self.block_generic_light_instances.Elements[idx]
             element.SelectField("definition index").Data = self._definition_index_from_data_name(light.data_name, light_definitions)
             element.SelectField("origin").Data = light.origin
             element.SelectField("forward").Data = light.forward
@@ -199,6 +202,7 @@ class ScenarioStructureLightingInfoTag(Tag):
             flags.SetBit("screen space light has specular", light.screen_space_specular)
             
             element.SelectField("bounce light control").Data = light.bounce_ratio
+            print(light.bounce_ratio, element.SelectField("bounce light control").Data)
             element.SelectField("light volume distance").Data = light.volume_distance
             element.SelectField("light volume intensity scalar").Data = light.volume_intensity
             element.SelectField("fade out distance").Data = light.fade_out_distance
