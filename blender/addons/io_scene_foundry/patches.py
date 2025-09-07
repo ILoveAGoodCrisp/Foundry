@@ -6,27 +6,30 @@ class ToolPatcher:
         self.tool_path = str(tool_path)
         
     def _patch(self, offsets: list[bytes] | bytes, patches: list[bytes] | bytes, originals: list[bytes] | bytes):
-        if not bpy.context.preferences.addons[__package__].preferences.allow_tool_patches:
-            return
-        
-        if not isinstance(offsets, list):
-            offsets = [offsets]
-        
-        if not isinstance(patches, list):
-            patches = [patches] * len(offsets)
+        try:
+            if not bpy.context.preferences.addons[__package__].preferences.allow_tool_patches:
+                return
             
-        if not isinstance(originals, list):
-            originals = [originals] * len(offsets)
+            if not isinstance(offsets, list):
+                offsets = [offsets]
             
-        assert len(offsets) == len(patches) == len(originals)
-            
-        with open(self.tool_path, "r+b") as f:
-            for offset, patch, original in zip(offsets, patches, originals):
-                f.seek(offset)
-                data = f.read(len(original))
-                if data == original:
+            if not isinstance(patches, list):
+                patches = [patches] * len(offsets)
+                
+            if not isinstance(originals, list):
+                originals = [originals] * len(offsets)
+                
+            assert len(offsets) == len(patches) == len(originals)
+                
+            with open(self.tool_path, "r+b") as f:
+                for offset, patch, original in zip(offsets, patches, originals):
                     f.seek(offset)
-                    f.write(patch)
+                    data = f.read(len(original))
+                    if data == original:
+                        f.seek(offset)
+                        f.write(patch)
+        except:
+            print("Failed to patch Tool")
         
     def reach_lightmap_color(self): 
         original0 = b"\xE8\x4D\x54\x29\x00"

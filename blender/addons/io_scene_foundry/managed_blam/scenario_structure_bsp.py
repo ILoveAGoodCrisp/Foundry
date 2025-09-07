@@ -4,6 +4,7 @@ from pathlib import Path
 import bmesh
 import bpy
 from mathutils import Matrix, Vector
+import numpy as np
 
 from ..constants import WU_SCALAR
 
@@ -280,9 +281,21 @@ class ScenarioStructureBspTag(Tag):
             collision_only_indices = [idx for idx, mapping in enumerate(structure_surface_triangle_mapping) if mapping.collision_only]
             if collision_only_indices:
                 ob = collision.to_object(surface_indices=collision_only_indices)
-                # ob.data.nwo.mesh_type = "_connected_geometry_mesh_type_structure"
-                # structure_collection.objects.link(ob)
-                # self.structure_collision = ob
+                collision_mesh = ob.data
+                if collision.some_sphere_collision:
+                    sphere_coll_face_props = [prop for prop in collision_mesh.nwo.face_props if prop.name == "Sphere Collision Only"]
+                    if sphere_coll_face_props:
+                        sphere_coll_face_prop = sphere_coll_face_props[0]
+                        sphere_coll_attribute = collision_mesh.attributes.get(sphere_coll_face_prop.attribute_name)
+                        array = np.zeros(len(collision_mesh.polygons), dtype=np.int8)
+                        sphere_coll_attribute.data.foreach_get("value", array)
+                        coll_only_array = array ^ 1
+                        utils.add_face_prop(collision_mesh, "face_mode", coll_only_array).face_mode = 'collision_only'
+                    else:
+                        utils.add_face_prop(collision_mesh, "face_mode").face_mode = 'sphere_collision_only'
+                    
+                elif not collision.sphere_collision_only:
+                    utils.add_face_prop(collision_mesh, "face_mode").face_mode = 'collision_only'
                 structure_objects.append(ob)
                         
         # Merge all structure objects

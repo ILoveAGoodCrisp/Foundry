@@ -202,7 +202,7 @@ class ScenarioStructureLightingInfoTag(Tag):
             flags.SetBit("screen space light has specular", light.screen_space_specular)
             
             element.SelectField("bounce light control").Data = light.bounce_ratio
-            print(light.bounce_ratio, element.SelectField("bounce light control").Data)
+
             element.SelectField("light volume distance").Data = light.volume_distance
             element.SelectField("light volume intensity scalar").Data = light.volume_intensity
             element.SelectField("fade out distance").Data = light.fade_out_distance
@@ -300,7 +300,7 @@ class ScenarioStructureLightingInfoTag(Tag):
             objects = self._from_reach_light_instances(definitions)
         
         if objects:
-            collection_name = f"{self.tag_path.ShortName}_lights"
+            collection_name = f"{self.tag_path.ShortName}_lighting_info"
             collection = bpy.data.collections.get(collection_name)
             if collection is None:
                 collection = cast(bpy.types.Collection, bpy.data.collections.new(collection_name))
@@ -312,9 +312,7 @@ class ScenarioStructureLightingInfoTag(Tag):
                     
             for ob in objects:
                 collection.objects.link(ob)
-                
 
-        
         return objects
     
     def _from_reach_light_instances(self, definitions: dict[int: bpy.types.Light]):

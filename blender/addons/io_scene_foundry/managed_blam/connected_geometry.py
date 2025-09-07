@@ -159,6 +159,7 @@ class SurfaceMapping:
                 self.triangle_indices.append(mapping)
         else:
             self.collision_only = True
+            
 class InstanceDefinition:
     def __init__(self, element: TagFieldBlockElement, mesh_block: TagFieldBlock, compression_bounds: list['CompressionBounds'], render_materials: list['Material'], collision_materials: list['BSPCollisionMaterial'], for_cinematic = False):
         self.index = element.ElementIndex
