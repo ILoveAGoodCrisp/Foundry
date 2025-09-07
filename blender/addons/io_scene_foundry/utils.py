@@ -5134,6 +5134,9 @@ class ExportCollection:
             ob.nwo.export_collection = collection.name
 
 def create_parent_mapping(context):
+    for ob in bpy.data.objects:
+        ob.nwo.export_collection = ""
+
     collection_map: dict[str: ExportCollection] = {}
     for collection in context.scene.collection.children:
         recursive_parent_mapper(collection, collection_map, None)

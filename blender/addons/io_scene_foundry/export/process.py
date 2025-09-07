@@ -657,17 +657,21 @@ class ExportScene:
         tmp_perm = permutation = default_perm
 
         if nwo.export_collection:
-            export_coll = collection_map[nwo.export_collection]
-            if export_coll.non_export:
-                return
-            if export_coll.region is None:
+            export_coll = collection_map.get(nwo.export_collection)
+            if export_coll is None:
+                if export_coll.non_export:
+                    return
+                if export_coll.region is None:
+                    tmp_region = ob.nwo.region_name
+                else:
+                    tmp_region = export_coll.region
+                if export_coll.permutation is None:
+                    tmp_perm = ob.nwo.permutation_name
+                else:
+                    tmp_perm = export_coll.permutation
+            else:
                 tmp_region = ob.nwo.region_name
-            else:
-                tmp_region = export_coll.region
-            if export_coll.permutation is None:
-                tmp_perm = ob.nwo.permutation_name
-            else:
-                tmp_perm = export_coll.permutation
+                tmp_perm   = ob.nwo.permutation_name
         else:
             tmp_region = ob.nwo.region_name
             tmp_perm   = ob.nwo.permutation_name
