@@ -100,8 +100,7 @@ class BitmapTag(Tag):
         override.SelectField("reset usage override").RunCommand()
         source_gamma = override.SelectField('source gamma')
         source_gamma_value = self._source_gamma_from_color_space(color_space)
-        if source_gamma_value:
-            source_gamma.SetStringData(str(source_gamma_value))
+        source_gamma.Data = source_gamma_value
         bitmap_curve = override.SelectField("bitmap curve")
         if source_gamma_value == 2.2:
             bitmap_curve.SetValue("sRGB (gamma 2.2)")
@@ -114,7 +113,7 @@ class BitmapTag(Tag):
         if bitmap_type in ("Material Map", "Diffuse Map", "Blend Map (linear for terrains)", "Self-Illum Map", "Cube Map (Reflection Map)", "Detail Map"):
             bitmap_format.SetValue('DXT5 (Compressed Color + Compressed 8-bit Alpha)')
             if bitmap_type == 'Material Map':
-                override.SelectField('mipmap limit').SetStringData('-1')
+                override.SelectField('mipmap limit').Data = -1
         elif bitmap_type in ("ZBrush Bump Map (from Bump Map)", "Normal Map (aka zbump)", "Normal Map (from Standard Orientation of Maya, Modo, Zbrush)"):
             bitmap_format.SetValue('DXN Compressed Normals (better)')
             
