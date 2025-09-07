@@ -18,6 +18,19 @@ class MaterialShaderParameter:
             self.ui_name = self.name
             
         self.type = element.Fields[1].Value
+        self.type_name = "bitmap"
+        match self.type:
+            case 0:
+                self.type_name = 'bitmap'
+            case 1:
+                self.type_name = 'real'
+            case 2:
+                self.type_name = 'int'
+            case 3:
+                self.type_name = 'bool'
+            case 4:
+                self.type_name = 'color'
+                
         self.default_bitmap = None
         tif = element.SelectField("bitmap path").GetStringData()
         if tif.strip():

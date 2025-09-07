@@ -206,8 +206,8 @@ class ShaderTag(Tag):
     def _edit_tag(self):
         self.alpha_type = self._alpha_type_from_blender_material()
         if self.custom:
-            self._get_info(self.material_shader if self.corinth else self.definition.Path)
-            self._from_nodes_group()
+            if self.corinth:
+                self._from_nodes_group()
         else:
             def get_basic_mapping(blender_material):
                 """Maps all the important parts we need from a blender material node tree to generate a basic shader"""

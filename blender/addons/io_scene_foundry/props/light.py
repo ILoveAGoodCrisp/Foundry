@@ -222,8 +222,6 @@ class NWO_LightPropertiesGroup(bpy.types.PropertyGroup):
         description="Aspect ratio of the rectangular spotlight",
         default=1,
         min=0.0,
-        max=1.0,
-        subtype="FACTOR",
     )
 
     # light_bounce_ratio: bpy.props.FloatProperty(

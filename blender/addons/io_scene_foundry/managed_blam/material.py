@@ -77,11 +77,14 @@ class MaterialTag(ShaderTag):
         self.alpha_blend_mode = self.tag.SelectField('CharEnum:alpha blend mode')
     
     @classmethod
-    def _get_info(cls, material_shader_path: TagPath):
+    def _get_info(cls, material_shader_path: TagPath | str):
         if material_shader_path is None:
             return
         
-        material_parameters = cls.material_shaders.get(material_shader_path.ShortName)
+        if isinstance(material_shader_path, str):
+            material_parameters = cls.material_shaders.get(Path(material_shader_path).with_suffix("").name)
+        else:
+            material_parameters = cls.material_shaders.get(material_shader_path.ShortName)
         if material_parameters is None:
             with MaterialShaderTag(path=material_shader_path) as material_shader:
                 material_parameters = material_shader.get_defaults()
@@ -95,6 +98,8 @@ class MaterialTag(ShaderTag):
         #     assert path, f"Group node in use for material but no corresponding material shader found. Expected material shader named {group_node_name} in {MATERIAL_SHADERS_DIR} (or sub-folders)"
         #     with MaterialShaderTag(path=path) as material_shader:
         #         cls.material_shader_data[material_shader.tag_path.RelativePath] = material_shader.read_parameters()
+        
+        return material_parameters
 
     def _material_shader_path_from_group_node(self, group_node_name):
         filename = group_node_name + '.material_shader'
@@ -104,14 +109,19 @@ class MaterialTag(ShaderTag):
         name_type_node_dict = {}
         inputs = self.group_node.inputs
         cull_chars = " _-()'\""
+        
+        group_node_name = utils.dot_partition(self.group_node.node_tree.name.lower().replace(' ', '_'))
+        self.reference_material_shader.Path = self._TagPath_from_string(self._material_shader_path_from_group_node(group_node_name))
+
+        paramaters = self._get_info(self.reference_material_shader.Path)
+        
         for i in inputs:
-            for parameter_name, value in self.global_material_shader.items():
-                d_name, param_type = value
+            for parameter_name, value in paramaters.items():
                 parameter_name_culled = utils.remove_chars(parameter_name.lower(), cull_chars)
-                display_name = utils.remove_chars(d_name.lower(), cull_chars)
+                display_name = utils.remove_chars(value.ui_name.lower(), cull_chars)
                 input_name = utils.remove_chars(i.name.lower(), cull_chars)
                 if input_name == parameter_name_culled or input_name == display_name:
-                    name_type_node_dict[parameter_name] = [param_type, self._source_from_input_and_parameter_type(i, param_type)]
+                    name_type_node_dict[parameter_name] = [value.type_name, self._source_from_input_and_parameter_type(i, value.type_name)]
                     break
                     
         for name, value in name_type_node_dict.items():
@@ -120,9 +130,6 @@ class MaterialTag(ShaderTag):
             if element:
                 mapping = self._setup_function_parameters(source, element, param_type)
                 self._finalize_material_parameters(mapping, element)
-        
-        group_node_name = utils.dot_partition(self.group_node.node_tree.name.lower().replace(' ', '_'))
-        self.reference_material_shader.Path = self._TagPath_from_string(self._material_shader_path_from_group_node(group_node_name))
                 
     def _build_basic(self, map: dict):
         # Set up shader parameters
