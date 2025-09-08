@@ -278,7 +278,14 @@ class ScenarioStructureLightingInfoTag(Tag):
             region = regions.AddElement()
             region.Fields[0].SetStringData(ob.name.lower())
             triangles = region.Fields[1]
-            print("MAX TRI COUNT= ", triangles.MaximumElementCount)
+            
+            loop_tris = mesh.loop_triangles
+            
+            if len(loop_tris) > triangles.MaximumElementCount:
+                utils.print_warning(f"Lightmap region exceeds loop triangle maximum. Has {len(loop_tris)}, max is {triangles.MaximumElementCount}")
+                continue
+            
+            # print("MAX TRI COUNT= ", triangles.MaximumElementCount)
             
             for tri in mesh.loop_triangles:
                 element = triangles.AddElement()
