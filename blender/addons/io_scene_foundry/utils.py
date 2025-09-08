@@ -1692,6 +1692,8 @@ def blender_toolset_installed():
     for dir in script_dirs:
         if os.path.exists(os.path.join(dir, 'addons', 'io_scene_halo')):
             return True
+        elif os.path.exists(os.path.join(dir, 'addons_core', 'io_scene_halo')):
+            return True
     return False
     
 def amf_addon_installed():
@@ -1700,6 +1702,10 @@ def amf_addon_installed():
         if os.path.exists(os.path.join(dir, 'addons', 'Blender AMF2.py')):
             return 'Blender AMF2'
         elif os.path.exists(os.path.join(dir, 'addons', 'Blender_AMF2.py')):
+            return 'Blender_AMF2'
+        elif os.path.exists(os.path.join(dir, 'addons_core', 'Blender AMF2.py')):
+            return 'Blender AMF2'
+        elif os.path.exists(os.path.join(dir, 'addons_core', 'Blender_AMF2.py')):
             return 'Blender_AMF2'
         
     return False

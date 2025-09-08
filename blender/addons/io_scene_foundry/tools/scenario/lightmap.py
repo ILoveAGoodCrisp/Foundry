@@ -22,12 +22,19 @@ def model_exists() -> bool:
     asset_dir, asset_name = utils.get_asset_info()
     model_path = Path(utils.get_tags_path(), asset_dir, asset_name).with_suffix('.model')
     return model_path.exists()
+
+def ulong_to_long_sub(u):
+    if (u > (1 << 32)):
+        u = u & 0xFFFFFFFF
+    return u - (1 << 32) if u >= (1<<31) else u
         
-def calc_job_id(scenario_name, bsp_name):
-    r = random.Random()
-    r.seed(f"{scenario_name}::{bsp_name}")
-    result = r.randint(0, 999999)
-    return f"{result:06d}"
+def calc_job_id(scenario, bsp):
+    hash = 0x117
+    for char in scenario:
+        hash ^= (hash << 11) ^ ord(char)
+    for char in bsp:
+        hash ^= (hash << 7) ^ ord(char)
+    return abs(ulong_to_long_sub(hash))
 
 class NWO_OT_Lightmap(bpy.types.Operator):
     bl_idname = "nwo.lightmap"
@@ -209,7 +216,7 @@ class LightMapper:
         return True
 
     def lightmap_reach(self):
-        self.blob_dir_name = calc_job_id(self.scenario, self.bsp)
+        self.blob_dir_name = str(calc_job_id(self.scenario, self.bsp))
         self.analytical_light = "true"
         self.blob_dir = os.path.join("faux", self.blob_dir_name)
         self.start_time = datetime.datetime.now()
