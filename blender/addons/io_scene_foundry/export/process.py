@@ -427,7 +427,6 @@ class ExportScene:
         with utils.Spinner():
             utils.update_job_count(process, "", 0, num_export_objects)
             for idx, ob in enumerate(self.export_objects):
-                ob.nwo.export_name = ""
                 # if use_action_map:
                 #     if ob.animation_data is not None:
                 #         self.action_map[ob] = (ob.matrix_basis.copy(), ob.animation_data.action)

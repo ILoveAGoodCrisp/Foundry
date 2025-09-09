@@ -4732,21 +4732,23 @@ def consolidate_face_attributes(mesh: bpy.types.Mesh):
             continue
         attr.data.foreach_set("value", mask.astype(np.int8))
 
-        cnt = int(mask.sum())
+        count = int(mask.sum())
         prop = attr_prop_map.get(name)
         if prop:
-            prop.face_count = cnt
-            if cnt == 0:
-                j = mesh.nwo.face_props.find(prop.name)
-                if j != -1:
-                    to_remove.add(j)
-
+            prop.face_count = count
+            
     for j, prop in enumerate(mesh.nwo.face_props):
         if prop.face_count == 0:
             to_remove.add(j)
+    
+    if to_remove:
+        bm = bmesh.new()
+        bm.from_mesh(mesh)
+        for j in sorted(to_remove, reverse=True):
+            delete_face_prop(mesh, j, bm)
             
-    for j in sorted(to_remove, reverse=True):
-        delete_face_prop(mesh, j)
+        bm.to_mesh(mesh)
+        bm.free()
         
 def connect_verts_on_edge(mesh: bpy.types.Mesh, do_degen_dissolve=True):
     """Split edges so that stray verts become connected"""
