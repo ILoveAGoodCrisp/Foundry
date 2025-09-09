@@ -311,7 +311,7 @@ class ScenarioStructureLightingInfoTag(Tag):
             collection = bpy.data.collections.get(collection_name)
             if collection is None:
                 collection = cast(bpy.types.Collection, bpy.data.collections.new(collection_name))
-                collection.nwo.type = 'permutation'
+                # collection.nwo.type = 'permutation'
                 if parent_collection is None:
                     bpy.context.scene.collection.children.link(collection)
                 else:

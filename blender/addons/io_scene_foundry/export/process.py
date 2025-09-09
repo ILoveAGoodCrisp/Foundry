@@ -635,7 +635,6 @@ class ExportScene:
         reg_name  = self.reg_name
         perm_name = self.perm_name
 
-        scene_coll_name = self.scene_collection_name
         collection_map = self.collection_map
         warnings_append = self.warnings.append
 
@@ -658,6 +657,9 @@ class ExportScene:
         if nwo.export_collection:
             export_coll = collection_map.get(nwo.export_collection)
             if export_coll is None:
+                tmp_region = ob.nwo.region_name
+                tmp_perm = ob.nwo.permutation_name
+            else:
                 if export_coll.non_export:
                     return
                 if export_coll.region is None:
@@ -668,9 +670,6 @@ class ExportScene:
                     tmp_perm = ob.nwo.permutation_name
                 else:
                     tmp_perm = export_coll.permutation
-            else:
-                tmp_region = ob.nwo.region_name
-                tmp_perm   = ob.nwo.permutation_name
         else:
             tmp_region = ob.nwo.region_name
             tmp_perm   = ob.nwo.permutation_name
