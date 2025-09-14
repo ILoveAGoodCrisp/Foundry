@@ -15,10 +15,6 @@ from ..managed_blam import Tag
 from .. import utils
 
 clr.AddReference('System.Drawing')
-from System import Array, Byte # type: ignore
-from System.Runtime.InteropServices import Marshal # type: ignore
-from System.Drawing import Rectangle, Bitmap # type: ignore
-from System.Drawing.Imaging import ImageLockMode, ImageFormat, PixelFormat # type: ignore
 
 path_cache = set()
 
@@ -245,6 +241,7 @@ class BitmapTag(Tag):
 
 
     def extract_faces(self, cubemap, face_size):
+        from System.Drawing import Rectangle # type: ignore
         faces = {
             "+Y": cubemap.Clone(Rectangle(0, 0, face_size, face_size), cubemap.PixelFormat),
             "-Y": cubemap.Clone(Rectangle(0, 2 * face_size, face_size, face_size), cubemap.PixelFormat),
@@ -280,7 +277,8 @@ class BitmapTag(Tag):
 
         return faces[face].GetPixel(u, v)
 
-    def cubemap_to_equirectangular(self, bitmap: Bitmap, mode: str = "bilinear") -> Bitmap:
+    def cubemap_to_equirectangular(self, bitmap, mode: str = "bilinear"):
+        from System.Drawing import Bitmap # type: ignore
         from System import Array, Byte # type: ignore
         from System.Runtime.InteropServices import Marshal # type: ignore
         from System.Drawing import Rectangle, Imaging # type: ignore
@@ -352,6 +350,9 @@ class BitmapTag(Tag):
         game_bitmap = self._GameBitmap(frame_index=frame_index)
         bitmap = game_bitmap.GetBitmap()
         game_bitmap.Dispose()
+        
+        from System.Drawing import Rectangle # type: ignore
+        from System.Drawing.Imaging import ImageLockMode, ImageFormat, PixelFormat # type: ignore
 
         if bitmap.PixelFormat == PixelFormat.Format32bppArgb and blue_channel_fix:
             rectangle = Rectangle(0, 0, bitmap.Width, bitmap.Height)
