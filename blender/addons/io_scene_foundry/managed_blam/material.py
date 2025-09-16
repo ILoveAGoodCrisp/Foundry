@@ -237,15 +237,15 @@ class MaterialTag(ShaderTag):
     def _finalize_material_parameters(self, mapping, element):
         color = mapping.get('color', 0)
         if color:
-            argb_color = ['1', str(utils.linear_to_srgb(color[0])), str(utils.linear_to_srgb(color[1])), str(utils.linear_to_srgb(color[2]))]
-            element.SelectField('color').SetStringData(argb_color)
-        if mapping.get(self.scale_u, 0):
-            element.SelectField('real').SetStringData(str(mapping.get(self.scale_u)))
-        if mapping.get(self.scale_v, 0):
-            if mapping.get(self.translation_u, 0):
-                element.SelectField('vector').SetStringData([str(mapping.get(self.scale_v), str(mapping.get(self.translation_u)), str(mapping.get(self.translation_v)))])
+            argb_color = [1, utils.linear_to_srgb(color[0]), utils.linear_to_srgb(color[1]), utils.linear_to_srgb(color[2])]
+            element.SelectField('color').Data = argb_color
+        if mapping.get(self.scale_u) is not None:
+            element.SelectField('real').Data = mapping.get(self.scale_u)
+        if mapping.get(self.scale_v) is not None:
+            if mapping.get(self.translation_u) is not None:
+                element.SelectField('vector').Data = [mapping.get(self.scale_v), mapping.get(self.translation_u), mapping.get(self.translation_v)]
             else:
-                element.SelectField('vector').SetStringData([str(mapping.get(self.scale_v)), '0', '0'])
+                element.SelectField('vector').Data = [mapping.get(self.scale_v), 0, 0]
 
     
     def _alpha_type(self, material_shader_name):
