@@ -163,6 +163,8 @@ class AnimationEvent:
         self.end_frame = self.frame
         type_items = element.SelectField("ShortEnum:type").Items
         self.type = type_items[element.SelectField("ShortEnum:type").Value].DisplayName
+        if self.type in {'jetpack closed', 'jetpack open', 'sound event', 'effect event'}:
+            self.type = 'none'
             
     
     def to_element(self, element: TagFieldBlockElement):
