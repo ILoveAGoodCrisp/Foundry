@@ -246,6 +246,11 @@ class MaterialTag(ShaderTag):
                 element.SelectField('vector').Data = [mapping.get(self.scale_v), mapping.get(self.translation_u), mapping.get(self.translation_v)]
             else:
                 element.SelectField('vector').Data = [mapping.get(self.scale_v), 0, 0]
+        
+        value = mapping.get('value')
+        if value is not None:
+            element.SelectField('real').Data = value
+            element.SelectField(r'int\bool').Data = int(value)
 
     
     def _alpha_type(self, material_shader_name):

@@ -407,11 +407,11 @@ class ShaderTag(Tag):
                         mapping[self.scale_v] = scale_node.inputs['Scale'].default_value.y
                         mapping[self.translation_u] = scale_node.inputs['Location'].default_value.x
                         mapping[self.translation_v] = scale_node.inputs['Location'].default_value.y
+            case 'real' | 'int' | 'bool':
+                mapping['value'] = source
             case 'color':
                 mapping['color'] = source
-            case 'real':
-                mapping['value'] = source
-
+                
         return mapping
             
     def _setup_function_parameters(self, source: tuple[float] | bpy.types.Node, element: TagsNameSpace.TagElement, parameter_type: str):
