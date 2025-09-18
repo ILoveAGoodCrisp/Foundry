@@ -79,7 +79,7 @@ class SoundEvent:
             self.frame_offset = element.SelectField("ShortInteger:frame").Data
         self.marker_name = element.SelectField("StringId:marker name").GetStringData()
         sound_index = element.SelectField("ShortBlockIndex:sound").Value
-        if sound_index > -1:
+        if sound_index > -1 and sound_index < len(sounds):
             self.sound_reference = sounds[sound_index]
     
     def to_element(self, element: TagFieldBlockElement):
@@ -104,7 +104,7 @@ class EffectEvent:
             self.frame_offset = element.SelectField("ShortInteger:frame").Data
         self.marker_name = element.SelectField("StringId:marker name").GetStringData()
         effect_index = element.SelectField("ShortBlockIndex:effect").Value
-        if effect_index > -1:
+        if effect_index > -1 and effect_index < len(effects):
             self.effect_reference = effects[effect_index]
             
         damage_items = element.SelectField("CharEnum:damage effect reporting type").Items
@@ -131,7 +131,6 @@ class DialogueEvent:
         dialogue_items = element.SelectField("ShortEnum:dialogue event").Items
         self.dialogue_type = dialogue_items[element.SelectField("ShortEnum:dialogue event").Value].DisplayName
         
-    
     def to_element(self, element: TagFieldBlockElement):
         pass
     
@@ -156,7 +155,7 @@ class AnimationEvent:
         else:
             self.frame = element.SelectField("ShortInteger:frame").Data + element.SelectField("ShortInteger:frame offset").Data
             self.name = element.SelectField("StringId:event name").GetStringData()
-            id = unique_id = element.SelectField("LongInteger:unique ID").Data
+            id = element.SelectField("LongInteger:unique ID").Data
             if id != 0:
                 self.unique_id = id
             
@@ -407,6 +406,10 @@ class FrameEventListTag(Tag):
                 if element.SelectField("ShortBlockIndex:sound").Value > -1:
                     sound_event = SoundEvent()
                     sound_event.from_element(element, unique_sounds)
+                    
+                    if sound_event.sound_reference is None:
+                        continue
+                    
                     if sound_event.animation_event_index > -1 and sound_event.animation_event_index < len(animation_events):
                         animation_events[sound_event.animation_event_index].sound_events.append(sound_event)
                     elif animation_events:
@@ -424,6 +427,10 @@ class FrameEventListTag(Tag):
                 if element.SelectField("ShortBlockIndex:effect").Value > -1:
                     effect_event = EffectEvent()
                     effect_event.from_element(element, unique_effects)
+                    
+                    if effect_event.effect_reference is None:
+                        continue
+                    
                     if effect_event.animation_event_index > -1 and effect_event.animation_event_index < len(animation_events):
                         animation_events[effect_event.animation_event_index].effect_events.append(effect_event)
                     elif animation_events:

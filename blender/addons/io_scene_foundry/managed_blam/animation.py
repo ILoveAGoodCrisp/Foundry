@@ -998,6 +998,10 @@ class AnimationTag(Tag):
                 if element.SelectField("ShortBlockIndex:sound").Value > -1:
                     sound_event = SoundEvent()
                     sound_event.from_element(element, unique_sounds, True)
+                    
+                    if sound_event.sound_reference is None:
+                        continue
+                    
                     if animation_events:
                         closest_animation_event = min(animation_events, key=lambda ae: abs(ae.frame - sound_event.frame_offset))
                         sound_event.frame_offset = sound_event.frame_offset - closest_animation_event.frame
@@ -1013,6 +1017,10 @@ class AnimationTag(Tag):
                 if element.SelectField("ShortBlockIndex:effect").Value > -1:
                     effect_event = EffectEvent()
                     effect_event.from_element(element, unique_effects, True)
+                    
+                    if effect_event.effect_reference is None:
+                        continue
+                    
                     if animation_events:
                         closest_animation_event = min(animation_events, key=lambda ae: abs(ae.frame - effect_event.frame_offset))
                         effect_event.frame_offset = effect_event.frame_offset - closest_animation_event.frame
