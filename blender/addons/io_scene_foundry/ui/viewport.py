@@ -313,10 +313,10 @@ class NWO_OT_ApplyTypeMesh(bpy.types.Operator):
             elif self.convert_mesh == "bounding_box":
                 utils.to_bounding_box(ob)
 
-            if self.m_type == "seam":
-                closest_bsp = utils.closest_bsp_object(context, ob)
-                if closest_bsp is not None:
-                    ob.nwo.seam_back = utils.true_region(closest_bsp.nwo)
+            # if self.m_type == "seam":
+            #     closest_bsp = utils.closest_bsp_object(context, ob)
+            #     if closest_bsp is not None:
+            #         ob.nwo.seam_back = utils.true_region(closest_bsp.nwo)
                     
             ob.select_set(False)
 
@@ -344,10 +344,10 @@ class NWO_OT_ApplyTypeMeshSingle(NWO_OT_ApplyTypeMesh):
         if apply_materials:
             apply_props_material(ob, material)
 
-        if self.m_type == "seam":
-            closest_bsp = utils.closest_bsp_object(context, ob)
-            if closest_bsp is not None:
-                ob.nwo.seam_back = utils.true_region(closest_bsp.nwo)
+        # if self.m_type == "seam":
+        #     closest_bsp = utils.closest_bsp_object(context, ob)
+        #     if closest_bsp is not None:
+        #         ob.nwo.seam_back = utils.true_region(closest_bsp.nwo)
 
         return {"FINISHED"}
 
