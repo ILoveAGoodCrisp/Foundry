@@ -1860,7 +1860,7 @@ class NWOImporter:
                                         child_marker = obj.tag.SelectField("Struct:unit[0]/Struct:more damn nodes[0]/StringId:preferred_gun_node").GetStringData()
                                         child.child_marker = child_marker if child_marker else "right_hand"
                                         child.child_object = weapon
-                                        imported_objects.extend(self.import_child_object(child, armature, {ob: ob.nwo.marker_model_group for ob in render_objects if ob.type == 'EMPTY'}, child_collection, is_game_object))
+                                        imported_objects.extend(self.import_child_object(child, armature, {ob: ob.nwo.marker_model_group for ob in render_objects if ob.type == 'EMPTY'}, weapon_collection, is_game_object))
                                     self.context.view_layer.update()
                                     
                                     
