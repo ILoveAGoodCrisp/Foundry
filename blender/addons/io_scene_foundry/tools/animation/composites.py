@@ -605,7 +605,7 @@ class CompositeXML:
             self.write_leaf_entry(element_blend_axis, leaf, parent_runtime_source_name, runtime_source_name)
         
         for phase_set in blend_axis.phase_sets:
-            self.write_phase_set_entry(element_blend_axis, phase_set)
+            self.write_phase_set_entry(element_blend_axis, phase_set, parent_runtime_source_name, runtime_source_name)
             
         for group in blend_axis.groups:
             self.write_group_entry(element_blend_axis, group, parent_runtime_source_name, runtime_source_name)
@@ -614,14 +614,14 @@ class CompositeXML:
             for sub_blend_axis in blend_axis.blend_axis:
                 self.write_blend_axis_entry(element_blend_axis, sub_blend_axis, blend_axis)
             
-    def write_phase_set_entry(self, element_blend_axis, phase_set):
+    def write_phase_set_entry(self, element_blend_axis, phase_set, parent_function_name, function_name):
         element_phase_set = ET.SubElement(element_blend_axis, "phase_set", name=phase_set.name)
         for k in keys:
             if getattr(phase_set, f"key_{k}"):
                 ET.SubElement(element_phase_set, "sync", key=k.replace("_", " "))
                 
         for leaf in phase_set.leaves:
-            self.write_leaf_entry(element_phase_set, leaf)
+            self.write_leaf_entry(element_phase_set, leaf, parent_function_name, function_name)
             
     def write_group_entry(self, element_blend_axis, group, parent_function_name, function_name):
         props = {}
