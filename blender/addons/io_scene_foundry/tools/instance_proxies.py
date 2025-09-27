@@ -214,39 +214,39 @@ class NWO_ProxyInstanceNew(bpy.types.Operator):
         return ob
 
     def build_from_parent(self):
-        bm = bmesh.new()
-        bm.from_mesh(self.parent.data)
+        # bm = bmesh.new()
+        # bm.from_mesh(self.parent.data)
 
         # cut out render_only faces
-        for f in bm.faces:
-            f.smooth = False
-            f.select = False
+        # for f in bm.faces:
+        #     f.smooth = False
+        #     f.select = False
 
-        face_attributes = self.parent.data.nwo.face_props
-        layer_faces_dict = {
-            layer: layer_faces(bm, bm.faces.layers.int.get(layer.layer_name))
-            for layer in face_attributes
-        }
+        # face_attributes = self.parent.data.nwo.face_props
+        # layer_faces_dict = {
+        #     layer: layer_faces(bm, bm.faces.layers.int.get(layer.attribute_name))
+        #     for layer in face_attributes
+        # }
         
-        for layer, face_seq in layer_faces_dict.items():
-            face_count = len(face_seq)
-            if not face_count:
-                continue
-            if layer.face_mode_override and layer.face_mode_ui in (
-                "render_only",
-                "lightmap_only",
-                "shadow_only",
-            ):
-                for f in face_seq:
-                    f.select = True
+        # for layer, face_seq in layer_faces_dict.items():
+        #     face_count = len(face_seq)
+        #     if not face_count:
+        #         continue
+        #     if layer.face_mode_override and layer.face_mode_ui in (
+        #         "render_only",
+        #         "lightmap_only",
+        #         "shadow_only",
+        #     ):
+        #         for f in face_seq:
+        #             f.select = True
 
-        selected = [f for f in bm.faces if f.select]
-        bmesh.ops.delete(bm, geom=selected, context="FACES")
+        # selected = [f for f in bm.faces if f.select]
+        # bmesh.ops.delete(bm, geom=selected, context="FACES")
 
         # make new object to take this bmesh
         me = bpy.data.meshes.new(self.proxy_name)
-        bm.to_mesh(me)
-        ob = bpy.data.objects.new(me.name, me)
+        # bm.to_mesh(me)
+        ob = bpy.data.objects.new(me.name, self.parent.data.copy())
 
         return ob
     

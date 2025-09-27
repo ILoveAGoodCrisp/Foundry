@@ -3329,10 +3329,10 @@ def get_asset_tags(extension= "", full=False):
     return []
             
 def save_loop_normals(bm: bmesh.types.BMesh, mesh: bpy.types.Mesh):
-    layer_names = [f"ln{i}" for i in range(max(len(face.verts) for face in bm.faces))]
+    attribute_names = [f"ln{i}" for i in range(max(len(face.verts) for face in bm.faces))]
     layers = {}
 
-    for name in layer_names:
+    for name in attribute_names:
         if not bm.faces.layers.float_vector.get(name):
             layers[name] = bm.faces.layers.float_vector.new(name)
         else:
@@ -3354,8 +3354,8 @@ def save_loop_normals_mesh(mesh: bpy.types.Mesh):
 def remove_face_attributes(bm: bmesh.types.BMesh, layer_prefix="ln"):
     layers_to_remove = [layer for layer in bm.faces.layers.float_vector.keys() if layer.startswith(layer_prefix)]
     
-    for layer_name in layers_to_remove:
-        layer = bm.faces.layers.float_vector[layer_name]
+    for attribute_name in layers_to_remove:
+        layer = bm.faces.layers.float_vector[attribute_name]
         bm.faces.layers.float_vector.remove(layer)
             
 def apply_loop_normals(mesh: bpy.types.Mesh):        
@@ -3530,24 +3530,24 @@ def set_marker_permutations(ob, permutations: list[str]):
         ob.nwo.marker_permutations.add().name = name
         
     
-def new_face_prop(data, layer_name, display_name, override_prop, other_props={}) -> str:
+def new_face_prop(data, attribute_name, display_name, override_prop, other_props={}) -> str:
     face_props = data.nwo.face_props
     layer = face_props.add()
-    layer.layer_name = layer_name
+    layer.attribute_name = attribute_name
     layer.name = display_name
     layer.color = random_color()
     setattr(layer, override_prop, True)
     for prop, value in other_props.items():
         setattr(layer, prop, value)
         
-    return layer_name
+    return attribute_name
 
-def new_face_attribute(bm, data, layer_name, display_name, override_prop, other_props={}):
-    layer = bm.faces.layers.int.get(layer_name)
+def new_face_attribute(bm, data, attribute_name, display_name, override_prop, other_props={}):
+    layer = bm.faces.layers.int.get(attribute_name)
     if layer:
         return layer
     else:
-        return bm.faces.layers.int.new(new_face_prop(data, layer_name, display_name, override_prop, other_props))
+        return bm.faces.layers.int.new(new_face_prop(data, attribute_name, display_name, override_prop, other_props))
     
 def face_attribute_count(mesh: bpy.types.Mesh, prop) -> 0:
     attribute = mesh.attributes.get(prop.attribute_name)

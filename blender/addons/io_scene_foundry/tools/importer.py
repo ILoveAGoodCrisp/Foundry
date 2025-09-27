@@ -3124,11 +3124,11 @@ class NWOImporter:
                     continue
                 layer = face_props.add()
                 layer.name = slot.material.name
-                layer.layer_name = 'face_global_material'
+                layer.attribute_name = 'face_global_material'
                 layer.face_global_material = slot.material.name
                 layer.face_global_material_override = True
                 material_index = slot.slot_index
-                layer.layer_name, layer.face_count = self.add_collision_face_attribute(ob.data, material_index, layer.layer_name)
+                layer.attribute_name, layer.face_count = self.add_collision_face_attribute(ob.data, material_index, layer.attribute_name)
                 layer.color = utils.random_color()
                 
     def add_collision_face_attribute(self, mesh, material_index, prefix):

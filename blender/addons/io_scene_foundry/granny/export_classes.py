@@ -300,7 +300,7 @@ class TriTopology:
         # bm.from_mesh(mesh)
         # for prop in mesh.nwo.face_props:
         #     if prop.face_two_sided:
-        #         layer = bm.faces.layers.int.get(prop.layer_name)
+        #         layer = bm.faces.layers.int.get(prop.attribute_name)
         #         if layer:
         #             self.tri_annotation_sets.append(TriAnnotationSet(bm, layer, "bungie_face_sides", FaceSides.two_sided.value, 0))
         
