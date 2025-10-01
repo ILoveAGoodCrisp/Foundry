@@ -353,17 +353,13 @@ class ExportScene:
         
         proxies = []
         
+        new_default_coll = None
+        
         if has_coll:
             coll_props = {}
             coll_props["bungie_object_type"] = ObjectType.mesh.value
-
                     
             mesh_props = self.processed_meshes.get(proxy_collision.data)
-            if self.corinth:
-                if has_phys:
-                    mesh_props["bungie_mesh_poop_collision_type"] = PoopCollisionType.bullet_collision.value
-                else:
-                    mesh_props["bungie_mesh_poop_collision_type"] = PoopCollisionType.default.value
             if mesh_props is None:
                 mesh_props = {}
                 self._setup_mesh_level_props(proxy_collision, "default", mesh_props, MeshType.poop_collision.value, coll_props)
@@ -371,6 +367,13 @@ class ExportScene:
                 if mesh_props.get("bungie_face_mode") == FaceMode.breakable.value:
                     mesh_props["bungie_face_mode"] = FaceMode.normal.value
                 self.processed_meshes[proxy_collision.data] = mesh_props
+                
+            if self.corinth:
+                new_default_coll = PoopCollisionType.none.value
+                if has_phys:
+                    mesh_props["bungie_mesh_poop_collision_type"] = PoopCollisionType.bullet_collision.value
+                else:
+                    mesh_props["bungie_mesh_poop_collision_type"] = PoopCollisionType.default.value
             
             coll_props.update(mesh_props)
             ob_halo_data[proxy_collision] = (coll_props, region, permutation, tuple())
@@ -384,12 +387,15 @@ class ExportScene:
 
                         
                 mesh_props = self.processed_meshes.get(proxy_physics.data)
-                if self.corinth:
-                    mesh_props["bungie_mesh_poop_collision_type"] = PoopCollisionType.play_collision.value
                 if mesh_props is None:
                     mesh_props = {}
                     self._setup_mesh_level_props(proxy_physics, "default", mesh_props, MeshType.poop_collision.value if self.corinth else MeshType.poop_physics.value, phys_props)
                     self.processed_meshes[proxy_physics.data] = mesh_props
+                    
+                if self.corinth:
+                    mesh_props["bungie_mesh_poop_collision_type"] = PoopCollisionType.play_collision.value
+                    if not has_coll:
+                        new_default_coll = PoopCollisionType.bullet_collision.value
                 
                 phys_props.update(mesh_props)
                 ob_halo_data[proxy_physics] = (phys_props, region, permutation, tuple())
@@ -408,7 +414,7 @@ class ExportScene:
             ob_halo_data[proxy_cookie_cutter] = (cookie_props, region, permutation, tuple())
             proxies.append(proxy_cookie_cutter)
         
-        return ob_halo_data, proxies, has_coll
+        return ob_halo_data, proxies, has_coll, new_default_coll
     
     def map_halo_properties(self):
         process = "--- Mapping Halo Properties"
@@ -479,11 +485,14 @@ class ExportScene:
                 mesh_type = mesh_props.get("bungie_mesh_type")
                     
                 if self.supports_bsp and mesh_type == MeshType.poop.value and ob.data not in self.processed_poop_meshes:
-                    self.ob_halo_data, proxies, has_collision_proxy = self.create_instance_proxies(ob, self.ob_halo_data, region, permutation)
+                    self.ob_halo_data, proxies, has_collision_proxy, new_default_coll = self.create_instance_proxies(ob, self.ob_halo_data, region, permutation)
                     if has_collision_proxy:
                         current_face_mode = mesh_props.get("bungie_face_mode")
                         if not current_face_mode or current_face_mode not in {FaceMode.render_only.value, FaceMode.lightmap_only.value, FaceMode.shadow_only.value}:
                             mesh_props["bungie_face_mode"] = FaceMode.render_only.value
+                            
+                    if self.corinth and new_default_coll is not None:
+                        mesh_props["bungie_mesh_poop_collision_type"] = new_default_coll
                 
                 props.update(mesh_props)
                 
