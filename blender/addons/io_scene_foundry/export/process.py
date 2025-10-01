@@ -783,6 +783,13 @@ class ExportScene:
             case AssetType.MODEL:
                 match mesh_type:
                     case "_connected_geometry_mesh_type_physics":
+                        
+                        if ob.nwo.global_material.strip():
+                            mat = ob.nwo.global_material.strip().replace(' ', "_")
+                            if mat:
+                                self.global_materials.add(mat)
+                                props["bungie_face_global_material"] = mat
+                        
                         if nwo.mesh_primitive_type != '_connected_geometry_primitive_type_none':
                             copy = ObjectCopy.PHYSICS
                         elif self.corinth and nwo.mopp_physics:
@@ -2462,12 +2469,6 @@ class ExportScene:
                 props["bungie_mesh_primitive_box_length"] = ob.dimensions.y * self.to_maya_scale
                 props["bungie_mesh_primitive_box_height"] = ob.dimensions.z * self.to_maya_scale
                 name = "box"
-                
-        if ob.nwo.global_material.strip():
-            mat = ob.nwo.global_material.strip().replace(' ', "_")
-            if mat:
-                self.global_materials.add(mat)
-                props["bungie_face_global_material"] = mat
                 
         return name
     
