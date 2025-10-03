@@ -1787,6 +1787,7 @@ class VirtualSkeleton:
         if self.node.mesh:
             for proxy in self.node.mesh.proxies:
                 node = scene.add(proxy, *scene.object_halo_data[proxy], self.node)
+                print(node.name, node.props)
                 if not node or node.invalid: continue
                 b = VirtualBone(proxy, node.name)
                 b.parent_index = parent_index
@@ -2001,12 +2002,6 @@ class VirtualScene:
                 
         self.materials[virtual_mat.name] = virtual_mat
         return virtual_mat
-    
-    def has_instance_proxy(self, node: VirtualNode):
-        return (self.asset_type.supports_bsp and 
-                node and 
-                node.mesh and 
-                node.props.get("bungie_mesh_type") == "_connected_geometry_mesh_type_poop")
         
     def add_automatic_structure(self, default_region, default_permutation, scalar):
         def wrap_bounding_box(nodes, padding):
