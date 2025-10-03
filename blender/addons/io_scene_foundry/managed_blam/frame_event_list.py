@@ -412,10 +412,10 @@ class FrameEventListTag(Tag):
                     
                     if sound_event.animation_event_index > -1 and sound_event.animation_event_index < len(animation_events):
                         animation_events[sound_event.animation_event_index].sound_events.append(sound_event)
-                    elif animation_events:
-                        closest_animation_event = min(animation_events, key=lambda ae: abs(ae.frame - sound_event.frame_offset))
-                        sound_event.frame_offset = sound_event.frame_offset - closest_animation_event.frame
-                        closest_animation_event.sound_events.append(sound_event)
+                    # elif animation_events:
+                    #     closest_animation_event = min(animation_events, key=lambda ae: abs(ae.frame - sound_event.frame_offset))
+                    #     sound_event.frame_offset = sound_event.frame_offset - closest_animation_event.frame
+                    #     closest_animation_event.sound_events.append(sound_event)
                     else:
                         animation_event_sound = AnimationEvent()
                         animation_event_sound.frame = sound_event.frame_offset
@@ -433,10 +433,10 @@ class FrameEventListTag(Tag):
                     
                     if effect_event.animation_event_index > -1 and effect_event.animation_event_index < len(animation_events):
                         animation_events[effect_event.animation_event_index].effect_events.append(effect_event)
-                    elif animation_events:
-                        closest_animation_event = min(animation_events, key=lambda ae: abs(ae.frame - effect_event.frame_offset))
-                        effect_event.frame_offset = effect_event.frame_offset - closest_animation_event.frame
-                        closest_animation_event.effect_events.append(effect_event)
+                    # elif animation_events:
+                    #     closest_animation_event = min(animation_events, key=lambda ae: abs(ae.frame - effect_event.frame_offset))
+                    #     effect_event.frame_offset = effect_event.frame_offset - closest_animation_event.frame
+                    #     closest_animation_event.effect_events.append(effect_event)
                     else:
                         animation_event_effect = AnimationEvent()
                         animation_event_effect.frame = effect_event.frame_offset
@@ -449,10 +449,10 @@ class FrameEventListTag(Tag):
                 dialogue_event.from_element(element)
                 if dialogue_event.animation_event_index > -1 and dialogue_event.animation_event_index < len(animation_events):
                     animation_events[dialogue_event.animation_event_index].dialogue_events.append(dialogue_event)
-                elif animation_events:
-                    closest_animation_event = min(animation_events, key=lambda ae: abs(ae.frame - dialogue_event.frame_offset))
-                    dialogue_event.frame_offset = dialogue_event.frame_offset - closest_animation_event.frame
-                    closest_animation_event.dialogue_events.append(dialogue_event)
+                # elif animation_events:
+                #     closest_animation_event = min(animation_events, key=lambda ae: abs(ae.frame - dialogue_event.frame_offset))
+                #     dialogue_event.frame_offset = dialogue_event.frame_offset - closest_animation_event.frame
+                #     closest_animation_event.dialogue_events.append(dialogue_event)
                 else:
                     animation_event_dialogue = AnimationEvent()
                     animation_event_dialogue.frame = dialogue_event.frame_offset
