@@ -257,6 +257,14 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
         maxlen=1024,
     )
     
+    use_existing_actions: bpy.props.BoolProperty(name="Use Existing Actions", default=False, description="Tries to link to an existing action rather than using the imported one")
+    import_events: bpy.props.BoolProperty(name="Import Events", default=True)
+    import_renames: bpy.props.BoolProperty(name="Import Renames", default=True)
+    animation_filter: bpy.props.StringProperty(
+        name="Filter",
+        description="Filter for the animations to import. Animations that don't contain the specified strings (space or colon delimited) will be skipped"
+    )
+    
     def execute(self, context):
         current_scenes = set(bpy.data.scenes)
         current_animations = context.scene.nwo.animations
@@ -267,13 +275,26 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
         
         new_anim_count = 0
         
+        filter = self.animation_filter.replace(" ", ":")
+        
         for scene in new_scenes:
             for anim in scene.nwo.animations:
+                colon_name = anim.name.replace(" ", ":")
+                
+                if filter and filter not in colon_name:
+                    continue
+                
                 if current_animations.get(anim.name) is None:
                     new_anim = current_animations.add()
                     new_anim_count += 1
                     for key, value in anim.items():
                         new_anim[key] = value
+                        
+                    if not self.import_events:
+                        new_anim.animation_events.clear()
+                        
+                    if not self.import_renames:
+                        new_anim.animation_renames.clear()
                         
                     for track in new_anim.action_tracks:
                         ob = track.object
@@ -285,6 +306,14 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
                             else:
                                 track.object = None
                         
+                        if self.use_existing_actions:
+                            action = track.action
+                            if action is not None:
+                                original_name = utils.reduce_suffix(action.name)
+                                potential_action = bpy.data.actions.get(original_name)
+                                if potential_action:
+                                    track.action = potential_action
+                        
         for scene in new_scenes:
             bpy.data.scenes.remove(scene)
         
@@ -294,6 +323,13 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
     def invoke(self, context, _):
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
+    
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "use_existing_actions")
+        layout.prop(self, "import_events")
+        layout.prop(self, "import_renames")
+        layout.prop(self, "animation_filter")
 
 class NWO_OT_OpenExternalAnimationBlend(bpy.types.Operator):
     bl_label = "Open Blend"
