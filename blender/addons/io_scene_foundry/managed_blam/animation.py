@@ -1002,16 +1002,16 @@ class AnimationTag(Tag):
                     if sound_event.sound_reference is None:
                         continue
                     
-                    if animation_events:
-                        closest_animation_event = min(animation_events, key=lambda ae: abs(ae.frame - sound_event.frame_offset))
-                        sound_event.frame_offset = sound_event.frame_offset - closest_animation_event.frame
-                        closest_animation_event.sound_events.append(sound_event)
-                    else:
-                        animation_event_sound = AnimationEvent()
-                        animation_event_sound.frame = sound_event.frame_offset
-                        sound_event.frame_offset = 0
-                        animation_event_sound.sound_events.append(sound_event)
-                        animation_events.append(animation_event_sound)
+                    # if animation_events:
+                    #     closest_animation_event = min(animation_events, key=lambda ae: abs(ae.frame - sound_event.frame_offset))
+                    #     sound_event.frame_offset = sound_event.frame_offset - closest_animation_event.frame
+                    #     closest_animation_event.sound_events.append(sound_event)
+                    # else:
+                    animation_event_sound = AnimationEvent()
+                    animation_event_sound.frame = sound_event.frame_offset
+                    sound_event.frame_offset = 0
+                    animation_event_sound.sound_events.append(sound_event)
+                    animation_events.append(animation_event_sound)
                     
             for element in animation.SelectField("Block:shared animation data[0]/Block:effect events").Elements:
                 if element.SelectField("ShortBlockIndex:effect").Value > -1:
@@ -1021,30 +1021,30 @@ class AnimationTag(Tag):
                     if effect_event.effect_reference is None:
                         continue
                     
-                    if animation_events:
-                        closest_animation_event = min(animation_events, key=lambda ae: abs(ae.frame - effect_event.frame_offset))
-                        effect_event.frame_offset = effect_event.frame_offset - closest_animation_event.frame
-                        closest_animation_event.effect_events.append(effect_event)
-                    else:
-                        animation_event_effect = AnimationEvent()
-                        animation_event_effect.frame = effect_event.frame_offset
-                        effect_event.frame_offset = 0
-                        animation_event_effect.effect_events.append(effect_event)
-                        animation_events.append(animation_event_effect)
+                    # if animation_events:
+                    #     closest_animation_event = min(animation_events, key=lambda ae: abs(ae.frame - effect_event.frame_offset))
+                    #     effect_event.frame_offset = effect_event.frame_offset - closest_animation_event.frame
+                    #     closest_animation_event.effect_events.append(effect_event)
+                    # else:
+                    animation_event_effect = AnimationEvent()
+                    animation_event_effect.frame = effect_event.frame_offset
+                    effect_event.frame_offset = 0
+                    animation_event_effect.effect_events.append(effect_event)
+                    animation_events.append(animation_event_effect)
                         
             for element in animation.SelectField("Block:shared animation data[0]/Block:dialogue events").Elements:
                 dialogue_event = DialogueEvent()
                 dialogue_event.from_element(element, True)
-                if animation_events:
-                    closest_animation_event = min(animation_events, key=lambda ae: abs(ae.frame - dialogue_event.frame_offset))
-                    dialogue_event.frame_offset = dialogue_event.frame_offset - closest_animation_event.frame
-                    closest_animation_event.dialogue_events.append(dialogue_event)
-                else:
-                    animation_event_dialogue = AnimationEvent()
-                    animation_event_dialogue.frame = dialogue_event.frame_offset
-                    dialogue_event.frame_offset = 0
-                    animation_event_dialogue.dialogue_events.append(dialogue_event)
-                    animation_events.append(animation_event_dialogue)
+                # if animation_events:
+                #     closest_animation_event = min(animation_events, key=lambda ae: abs(ae.frame - dialogue_event.frame_offset))
+                #     dialogue_event.frame_offset = dialogue_event.frame_offset - closest_animation_event.frame
+                #     closest_animation_event.dialogue_events.append(dialogue_event)
+                # else:
+                animation_event_dialogue = AnimationEvent()
+                animation_event_dialogue.frame = dialogue_event.frame_offset
+                dialogue_event.frame_offset = 0
+                animation_event_dialogue.dialogue_events.append(dialogue_event)
+                animation_events.append(animation_event_dialogue)
                     
             # See if we can make any ranged frame events
             def collapse_events(aes):
