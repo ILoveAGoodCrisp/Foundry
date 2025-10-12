@@ -104,7 +104,9 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
             case 'lightmap_lighting_from_both_sides':
                 return "Lightmap Lighting Two-Sided" if self.lightmap_lighting_from_both_sides else "Lightmap Lighting One-Sided" 
             case 'emissive':
-                return f"Emissive: Intensity {round(self.light_intensity, 2)}" 
+                return f"Emissive: Intensity {round(self.light_intensity, 2)}"
+            case _:
+                return "Something went wrong"
     
     name: bpy.props.StringProperty(get=get_name)
     
