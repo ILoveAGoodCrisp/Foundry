@@ -171,6 +171,14 @@ def load_handler(dummy):
         except:
             pass
     
+    # Ensure icons loaded
+    from . import icons
+    if icons.icons_active:
+        icons.unregister()
+    icons.register()
+    if not icons.icons_active:
+        icons.icons_activate()
+    
     global load_handler_complete
     load_handler_complete = True
         
