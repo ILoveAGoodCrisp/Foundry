@@ -17,6 +17,8 @@ from mathutils import Color
 
 import numpy as np
 
+from ..managed_blam.scenario_structure_lighting_info import ScenarioStructureLightingInfoTag
+
 from ..managed_blam.structure_design import StructureDesignTag
 
 from ..managed_blam.globals import FPARMS, GlobalsTag
@@ -742,6 +744,7 @@ class NWO_Import(bpy.types.Operator):
                     importer.graph_import_ik_chains = self.graph_import_ik_chains
                     importer.import_variant_children = self.import_variant_children
                     importer.setup_as_asset = self.setup_as_asset
+                    importer.tag_import_lights = importer.corinth and self.tag_import_lights
                     model_files = importer.sorted_filepaths["model"]
                     existing_armature = None
                     if self.reuse_armature:
@@ -811,6 +814,7 @@ class NWO_Import(bpy.types.Operator):
                         importer.setup_as_asset = self.setup_as_asset
                         importer.import_fp_arms = FPARMS[self.import_fp_arms]
                         importer.from_vert_normals = self.from_vert_normals
+                        importer.tag_import_lights = importer.corinth and self.tag_import_lights
                         object_files = importer.sorted_filepaths["object"]
                         existing_armature = None
                         if self.reuse_armature:
@@ -1175,6 +1179,14 @@ class NWO_Import(bpy.types.Operator):
             box.prop(self, 'tag_collision')
             box.prop(self, 'tag_physics')
             box.prop(self, 'tag_animation')
+            if self.tag_animation:
+                box.prop(self, "tag_animation_filter")
+                box.prop(self, "graph_import_animations")
+                box.prop(self, "graph_generate_renames")
+                box.prop(self, "graph_import_events")
+                box.prop(self, "graph_import_ik_chains")
+            if utils.is_corinth(context):
+                layout.prop(self, "tag_import_lights")
             box.prop(self, 'tag_variant')
             box.prop(self, 'tag_state')
             if self.tag_variant and self.tag_markers:
@@ -1184,13 +1196,6 @@ class NWO_Import(bpy.types.Operator):
             box.prop(self, "setup_as_asset")
             box.prop(self, "from_vert_normals")
             box.prop(self, "import_fp_arms", text="FP Arms (Weapon Only)")
-            
-            if self.tag_animation:
-                box.prop(self, "tag_animation_filter")
-                box.prop(self, "graph_import_animations")
-                box.prop(self, "graph_generate_renames")
-                box.prop(self, "graph_import_events")
-                box.prop(self, "graph_import_ik_chains")
             
         if not self.scope or ('scenario' in self.scope) or ('scenario_structure_bsp' in self.scope):
             box = layout.box()
@@ -1624,6 +1629,19 @@ class NWOImporter:
                         print("Importing Animations")
                         imported_animations.extend(self.import_animation_graph(animation, armature, render))
                         
+                    if self.tag_import_lights:
+                        path = model.tag.SelectField("Reference:Lighting Info").Path
+                        if path is not None:
+                            lighting_info_path = Path(path.Filename)
+                            if lighting_info_path.exists():
+                                with ScenarioStructureLightingInfoTag(path=str(lighting_info_path)) as info:
+                                    light_objects = info.to_blender(model_collection)
+                                    if light_objects:
+                                        print(f"Imported {len(light_objects)} lights from {info.tag_path.RelativePathWithExtension}")
+                                        imported_objects.extend(light_objects)
+                                        for ob in light_objects:
+                                            ob.parent = armature
+                        
                     if self.setup_as_asset:
                         set_asset(Path(file).suffix, armature, model.is_sky())
         
@@ -1833,6 +1851,19 @@ class NWOImporter:
                                 print("Importing Animation Graph")
                                 imported_animations.extend(self.import_animation_graph(animation, armature, render))
                                 
+                            if self.tag_import_lights:
+                                path = model.tag.SelectField("Reference:Lighting Info").Path
+                                if path is not None:
+                                    lighting_info_path = Path(path.Filename)
+                                    if lighting_info_path.exists():
+                                        with ScenarioStructureLightingInfoTag(path=str(lighting_info_path)) as info:
+                                            light_objects = info.to_blender(model_collection)
+                                            if light_objects:
+                                                print(f"Imported {len(light_objects)} lights from {info.tag_path.RelativePathWithExtension}")
+                                                imported_objects.extend(light_objects)
+                                                for ob in light_objects:
+                                                    ob.parent = armature
+                                
                             if self.import_variant_children and temp_variant:
                                 child_collection = bpy.data.collections.new(name=f"{model.tag_path.ShortName}_child_objects")
                                 model_collection.children.link(child_collection)
@@ -1969,6 +2000,19 @@ class NWOImporter:
                         imported_objects.extend(self.import_collision_model(collision, armature, model_collection, allowed_region_permutations))
                     if not is_game_object and physics and self.tag_physics:
                         imported_objects.extend(self.import_physics_model(physics, armature, model_collection, allowed_region_permutations))
+                        
+                    if self.tag_import_lights:
+                        path = model.tag.SelectField("Reference:Lighting Info").Path
+                        if path is not None:
+                            lighting_info_path = Path(path.Filename)
+                            if lighting_info_path.exists():
+                                with ScenarioStructureLightingInfoTag(path=str(lighting_info_path)) as info:
+                                    light_objects = info.to_blender(model_collection)
+                                    if light_objects:
+                                        print(f"Imported {len(light_objects)} lights from {info.tag_path.RelativePathWithExtension}")
+                                        imported_objects.extend(light_objects)
+                                        for ob in light_objects:
+                                            ob.parent = armature
                         
                     marker_children = []
                         
@@ -3630,18 +3674,20 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                     layout.prop(self, "tag_collision")
                     layout.prop(self, "tag_physics")
                     layout.prop(self, "tag_animation")
-                    layout.prop(self, "setup_as_asset")
-                    layout.prop(self, "from_vert_normals")
-                    if self.import_type == "weapon":
-                        layout.prop(self, "import_fp_arms")
-                    elif self.import_type == "biped":
-                        layout.prop(self, "import_biped_weapon")
                     if self.tag_animation:
                         layout.prop(self, "tag_animation_filter")
                         layout.prop(self, "graph_import_animations")
                         layout.prop(self, "graph_generate_renames")
                         layout.prop(self, "graph_import_events")
                         layout.prop(self, "graph_import_ik_chains")
+                    if utils.is_corinth(context):
+                        layout.prop(self, "tag_import_lights")
+                    layout.prop(self, "setup_as_asset")
+                    layout.prop(self, "from_vert_normals")
+                    if self.import_type == "weapon":
+                        layout.prop(self, "import_fp_arms")
+                    elif self.import_type == "biped":
+                        layout.prop(self, "import_biped_weapon")
                 layout.prop(self, "build_blender_materials")
                 layout.prop(self, "always_extract_bitmaps")
             case "render_model":
