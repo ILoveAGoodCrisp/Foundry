@@ -1104,58 +1104,82 @@ class VirtualMesh:
         
         def remap(i):
             return vgroup_remap.get(i, 0)
-        # TODO ensure collision is not skinned
+
         if self.vertex_weighted:
-            # collision = props.get("bungie_mesh_type") == MeshType.collision.value
-            unique_bone_indices = set()
-            vgroup_bone_names = {}
-            for idx, vg in enumerate(ob.vertex_groups):
-                vgroup_bone_names[vg.name] = idx
+            is_collision = mesh_type_value == MeshType.collision.value
+            is_physics = mesh_type_value == MeshType.physics.value
+            vgroup_bone_names = {vg.name: idx for idx, vg in enumerate(ob.vertex_groups)}
+
             bone_weights = np.zeros((num_loops, 4), dtype=np.single)
             bone_indices = np.zeros((num_loops, 4), dtype=np.int32)
             vgroup_remap = {}
+            unique_bone_indices = set()
+
             for idx, bone in enumerate(bones):
                 vg_bone_index = vgroup_bone_names.get(bone)
                 if vg_bone_index is not None:
                     vgroup_remap[vg_bone_index] = idx
 
+            bone_use_counter = {}
+
             for idx, vertex in enumerate(mesh.vertices):
                 groups = vertex.groups
+                if not groups:
+                    continue
 
-                if groups:
-                    weights = np.empty(len(groups), dtype=np.single)
-                    indices = np.empty(len(groups), dtype=np.int32)
-                    groups.foreach_get("weight", weights)
-                    groups.foreach_get("group", indices)
-                        
-                    indices = np.vectorize(remap)(indices)
+                weights = np.empty(len(groups), dtype=np.single)
+                indices = np.empty(len(groups), dtype=np.int32)
+                groups.foreach_get("weight", weights)
+                groups.foreach_get("group", indices)
 
-                    top_indices = np.argsort(-weights)[:4]
-                    top_weights = weights[top_indices]
-                    top_bone_indices = indices[top_indices]
+                indices = np.vectorize(remap)(indices)
 
-                    if top_weights.sum() > 0:
-                        top_weights /= top_weights.sum()
+                top_indices = np.argsort(-weights)
+                weights = weights[top_indices]
+                indices = indices[top_indices]
 
-                    top_bone_indices[top_weights == 0] = 0
-                    
-                    bone_weights[idx] = np.pad((top_weights * 255), (0, 4 - len(top_weights)))
-                    bone_indices[idx] = np.pad(top_bone_indices, (0, 4 - len(top_bone_indices)))
+                if is_collision:
+                    weights = weights[:1]
+                    indices = indices[:1]
 
-                    unique_bone_indices.update(top_bone_indices)
-                    
-                
-            if vgroup_remap:
-                self.bone_bindings = [bones[idx] for idx in vgroup_remap.values()]
-                max_index = max(vgroup_remap.values()) + 1
-                mapping_array = np.full(max_index, -1, dtype=np.int32)
-                for new_idx, old_idx in enumerate(vgroup_remap.values()):
-                    mapping_array[old_idx] = new_idx
+                elif is_physics:
+                    for i in indices[weights > 0]:
+                        bone_use_counter[i] = bone_use_counter.get(i, 0) + 1
+                else:
+                    weights = weights[:4]
+                    indices = indices[:4]
 
-                bone_indices = np.clip(mapping_array[bone_indices], 0, max_index - 1)
+                if weights.sum() > 0:
+                    weights /= weights.sum()
 
-                self.bone_weights = bone_weights.astype(np.byte)[loop_vertex_indices]
-                self.bone_indices = bone_indices.astype(np.byte)[loop_vertex_indices]
+                indices[weights == 0] = 0
+
+                bone_weights[idx] = np.pad((weights * 255), (0, 4 - len(weights)))
+                bone_indices[idx] = np.pad(indices, (0, 4 - len(indices)))
+
+                unique_bone_indices.update(indices[indices != 0])
+
+            if is_physics:
+                if bone_use_counter:
+                    most_used_bone = max(bone_use_counter, key=bone_use_counter.get)
+                else:
+                    most_used_bone = 0
+
+                bone_weights[:] = 255
+                bone_indices[:] = most_used_bone
+                unique_bone_indices = {most_used_bone}
+
+            used_bones = sorted(unique_bone_indices)
+            bone_index_remap = {old_idx: new_idx for new_idx, old_idx in enumerate(used_bones)}
+
+            remapped_indices = np.full_like(bone_indices, 0)
+            for old_idx, new_idx in bone_index_remap.items():
+                remapped_indices[bone_indices == old_idx] = new_idx
+
+
+            self.bone_bindings = [bones[i] for i in used_bones]
+            self.bone_weights = bone_weights.astype(np.byte)[loop_vertex_indices]
+            self.bone_indices = remapped_indices.astype(np.byte)[loop_vertex_indices]
         
         if render_mesh:
             # We only care about writing this data if the in game mesh will have a render definition
