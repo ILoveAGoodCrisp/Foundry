@@ -744,7 +744,7 @@ class NWO_Import(bpy.types.Operator):
                     importer.graph_import_ik_chains = self.graph_import_ik_chains
                     importer.import_variant_children = self.import_variant_children
                     importer.setup_as_asset = self.setup_as_asset
-                    importer.tag_import_lights = importer.corinth and self.tag_import_lights
+                    importer.tag_import_lights = self.tag_import_lights
                     model_files = importer.sorted_filepaths["model"]
                     existing_armature = None
                     if self.reuse_armature:
@@ -814,7 +814,7 @@ class NWO_Import(bpy.types.Operator):
                         importer.setup_as_asset = self.setup_as_asset
                         importer.import_fp_arms = FPARMS[self.import_fp_arms]
                         importer.from_vert_normals = self.from_vert_normals
-                        importer.tag_import_lights = importer.corinth and self.tag_import_lights
+                        importer.tag_import_lights = self.tag_import_lights
                         object_files = importer.sorted_filepaths["object"]
                         existing_armature = None
                         if self.reuse_armature:
@@ -1604,7 +1604,10 @@ class NWOImporter:
         imported_objects = []
         imported_animations = []
         for file in paths:
-            print(f'Importing Model Tag: {Path(file).with_suffix("").name} ')
+            if self.tag_variant:
+                print(f'Importing Model Tag: {Path(file).with_suffix("").name} [{self.tag_variant}] ')
+            else:
+                print(f'Importing Model Tag: {Path(file).with_suffix("").name} ')
             with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
                 with ModelTag(path=mover.tag_path, raise_on_error=False) as model:
                     if not model.valid: continue
@@ -1629,7 +1632,7 @@ class NWOImporter:
                         print("Importing Animations")
                         imported_animations.extend(self.import_animation_graph(animation, armature, render))
                         
-                    if self.tag_import_lights:
+                    if self.tag_import_lights and self.corinth:
                         path = model.tag.SelectField("Reference:Lighting Info").Path
                         if path is not None:
                             lighting_info_path = Path(path.Filename)
@@ -1661,7 +1664,10 @@ class NWOImporter:
             if is_game_object:
                 game_object = file
                 file = str(Path(utils.get_tags_path(), game_object.nwo.marker_game_instance_tag_name))
-            print(f'Importing Object Tag: {Path(file).name} ')
+            if self.tag_variant:
+                print(f'Importing Object Tag: {Path(file).name} [{self.tag_variant}]')
+            else:
+                print(f'Importing Object Tag: {Path(file).name} ')
             with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
                 with ObjectTag(path=mover.tag_path, raise_on_error=False) as obj:
                     if is_game_object:
@@ -1851,7 +1857,7 @@ class NWOImporter:
                                 print("Importing Animation Graph")
                                 imported_animations.extend(self.import_animation_graph(animation, armature, render))
                                 
-                            if self.tag_import_lights:
+                            if self.tag_import_lights and self.corinth:
                                 path = model.tag.SelectField("Reference:Lighting Info").Path
                                 if path is not None:
                                     lighting_info_path = Path(path.Filename)
@@ -2001,7 +2007,7 @@ class NWOImporter:
                     if not is_game_object and physics and self.tag_physics:
                         imported_objects.extend(self.import_physics_model(physics, armature, model_collection, allowed_region_permutations))
                         
-                    if self.tag_import_lights:
+                    if self.tag_import_lights and self.corinth:
                         path = model.tag.SelectField("Reference:Lighting Info").Path
                         if path is not None:
                             lighting_info_path = Path(path.Filename)
