@@ -155,33 +155,33 @@ class ScenarioStructureBspTag(Tag):
         if self.corinth:
             for element in self.tag.SelectField("Block:emissive materials").Elements:
                 emissives.append(Emissive(element))
-        else:
-            if not lighting_info_path:
-                if self.corinth:
-                    path = self.tag.SelectField("Reference:structure lighting_info").Path
-                    if path is not None:
-                        lighting_info_path = Path(path.RelativePathWithExtension)
-                else:
-                    lighting_info_path = Path(self.tag_path.Filename).with_suffix(".scenario_structure_lighting_info")
-            
-            if lighting_info_path.exists():
-                with ScenarioStructureLightingInfoTag(path=str(lighting_info_path)) as info:
-                    if not self.corinth:
-                        for element in info.tag.SelectField("Block:material info").Elements:
-                            emissives.append(Emissive(element))
-                        
-                        if import_geometry:
-                            if not for_cinematic:
-                                lightmap_regions = info.lightmap_regions_to_blender()
-                                if lightmap_regions:
-                                    print(f"Imported {len(lightmap_regions)} lightmap regions from {info.tag_path.RelativePathWithExtension}")
-                                    objects.extend(lightmap_regions)
+                
+        if not lighting_info_path:
+            if self.corinth:
+                path = self.tag.SelectField("structure lighting_info").Path
+                if path is not None:
+                    lighting_info_path = Path(path.Filename)
+            else:
+                lighting_info_path = Path(self.tag_path.Filename).with_suffix(".scenario_structure_lighting_info")
+        
+        if lighting_info_path.exists():
+            with ScenarioStructureLightingInfoTag(path=str(lighting_info_path)) as info:
+                if not self.corinth:
+                    for element in info.tag.SelectField("Block:material info").Elements:
+                        emissives.append(Emissive(element))
                     
-                    if import_lights:
-                        light_objects = info.to_blender(collection)
-                        if light_objects:
-                            print(f"Imported {len(light_objects)} lights from {info.tag_path.RelativePathWithExtension}")
-                            objects.extend(light_objects)
+                    if import_geometry:
+                        if not for_cinematic:
+                            lightmap_regions = info.lightmap_regions_to_blender()
+                            if lightmap_regions:
+                                print(f"Imported {len(lightmap_regions)} lightmap regions from {info.tag_path.RelativePathWithExtension}")
+                                objects.extend(lightmap_regions)
+                
+                if import_lights:
+                    light_objects = info.to_blender(collection)
+                    if light_objects:
+                        print(f"Imported {len(light_objects)} lights from {info.tag_path.RelativePathWithExtension}")
+                        objects.extend(light_objects)
                             
         if not import_geometry:
             return objects, game_objects

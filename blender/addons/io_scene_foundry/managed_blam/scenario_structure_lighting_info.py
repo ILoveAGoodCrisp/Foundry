@@ -300,8 +300,8 @@ class ScenarioStructureLightingInfoTag(Tag):
                 
     def to_blender(self, parent_collection: bpy.types.Collection = None):
         if self.corinth:
-            definitions = []
-            objects = []
+            definitions = self._from_corinth_light_definitions()
+            objects = self._from_corinth_light_instances(definitions)
         else:
             definitions = self._from_reach_light_definitions()
             objects = self._from_reach_light_instances(definitions)
@@ -322,6 +322,122 @@ class ScenarioStructureLightingInfoTag(Tag):
 
         return objects
     
+    def _from_corinth_light_instances(self, definitions: dict[int: bpy.types.Light]):
+        objects = []
+        for element in self.block_generic_light_instances.Elements:
+            blender_light = definitions.get(element.SelectField("Light Definition Index").Data)
+            if blender_light is None:
+                continue
+            
+            ob = cast(bpy.types.Object, bpy.data.objects.new(f"light_instance:{element.ElementIndex}", blender_light))
+            nwo = cast(NWO_ObjectPropertiesGroup, ob.nwo)
+            
+            origin = Vector(*(element.SelectField("origin").Data,)) * 100
+            forward = Vector((*element.SelectField("forward").Data,)).normalized()
+            up = Vector((*element.SelectField("up").Data,)).normalized()
+            left = up.cross(forward).normalized()
+            
+            matrix = Matrix((
+                (forward[0], left[0], up[0], origin[0]),
+                (forward[1], left[1], up[1], origin[1]),
+                (forward[2], left[2], up[2], origin[2]),
+                (0, 0, 0, 1),
+            ))
+            
+            ob.matrix_world = matrix
+            ob.scale *= (1 / 0.03048)
+            
+            match element.SelectField("light mode").Value:
+                case 0:
+                    nwo.light_mode = '_connected_geometry_light_mode_dynamic'
+                case 1:
+                    nwo.light_mode = '_connected_geometry_light_mode_static'
+                case 2:
+                    nwo.light_mode = '_connected_geometry_light_mode_analytic'
+            
+            objects.append(ob)
+            
+        return objects
+    
+    def _from_corinth_light_definitions(self):
+        definitions: dict[int: bpy.types.Light] = {}
+        for element in self.block_generic_light_definitions.Elements:
+            parameters = element.SelectField("Struct:Midnight_Light_Parameters").Elements[0]
+            match parameters.SelectField("Light Type").Value:
+                case 0:
+                    blender_light = cast(bpy.types.Light, bpy.data.lights.new(f"light_definition:{element.ElementIndex}", 'POINT'))
+                case 1:
+                    blender_light = cast(bpy.types.Light, bpy.data.lights.new(f"light_definition:{element.ElementIndex}", 'SPOT'))
+                    hotspot_cutoff_size = parameters.SelectField("Inner Cone Angle").Data
+                    hotpot_struct = parameters.SelectField("Outer Cone End")
+                    hotspot = hotpot_struct.Elements[0]
+                    hotspot_mapping = hotspot.SelectField("Custom:Mapping")
+                    blender_light.spot_size = radians(hotspot_cutoff_size)
+                    if hotspot_cutoff_size > 0.0:
+                        blender_light.spot_blend = 1 - hotspot_mapping.Value.ClampRangeMin / hotspot_cutoff_size
+                case 2:
+                    blender_light = cast(bpy.types.Light, bpy.data.lights.new(f"light_definition:{element.ElementIndex}", 'SUN'))
+                    
+            nwo = cast(NWO_LightPropertiesGroup, blender_light.nwo)
+                    
+            blender_light.color = [utils.srgb_to_linear(c) for c in parameters.SelectField("Light Color").Data]
+            
+            intensity_struct = parameters.SelectField("Intensity")
+            intensity = intensity_struct.Elements[0]
+            intensity_mapping = intensity.SelectField("Custom:Mapping")
+
+            blender_light.energy = utils.calc_light_energy(blender_light, intensity_mapping.Value.ClampRangeMin)
+            
+            nwo.light_physically_correct = parameters.SelectField("Lighting Mode").Value == 0
+            
+            nwo.light_far_attenuation_start = parameters.SelectField("Distance Attenuation Start").Data * 100
+            atten_struct = parameters.SelectField("Distance Attenuation End")
+            atten = atten_struct.Elements[0]
+            atten_mapping = atten.SelectField("Custom:Mapping")
+
+            nwo.light_far_attenuation_end = atten_mapping.Value.ClampRangeMin * 100
+            
+            nwo.light_cone_projection_shape = '_connected_geometry_cone_projection_shape_cone' if parameters.SelectField("Cone Projection Shape").Value == 0 else '_connected_geometry_cone_projection_shape_frustum'
+            
+            # Dynamic props
+            
+            nwo.light_shadow_near_clipplane = parameters.SelectField("Shadow Near Clip Plane").Data
+            nwo.light_shadow_far_clipplane = parameters.SelectField("Shadow Far Clip Plane").Data
+            nwo.light_shadow_bias_offset = parameters.SelectField("Shadow Bias Offset").Data
+            nwo.light_dynamic_shadow_quality = '_connected_geometry_dynamic_shadow_quality_normal' if parameters.SelectField("Dynamic Shadow Quality").Value == 0 else '_connected_geometry_dynamic_shadow_quality_expensive'
+            nwo.light_shadows = parameters.SelectField("Shadows").Value == 1
+            nwo.light_screenspace = parameters.SelectField("Screenspace Light").Value == 1
+            nwo.light_ignore_dynamic_objects = parameters.SelectField("Ignore Dynamic Objects").Value == 1
+            nwo.light_cinema_objects_only = parameters.SelectField("Cinema Objects Only").Value == 1
+            if parameters.SelectField("Cinema Only").Value == 1:
+                nwo.light_cinema = '_connected_geometry_lighting_cinema_only'
+            if parameters.SelectField("Cinema Exclude").Value == 1:
+                nwo.light_cinema = '_connected_geometry_lighting_cinema_exclude'
+                
+            nwo.light_specular_contribution = parameters.SelectField("Specular Contribution").Value == 1
+            nwo.light_diffuse_contribution = parameters.SelectField("Diffuse Contribution").Value == 1
+            
+            # Static Props
+            
+            nwo.light_amplification_factor = element.SelectField("indirect amplification factor").Data
+            nwo.light_jitter_sphere_radius = element.SelectField("jitter sphere radius").Data
+            nwo.light_jitter_angle = radians(element.SelectField("jitter angle").Data)
+            
+            match element.SelectField("jitter quality").Value:
+                case 0:
+                    nwo.light_jitter_quality = '_connected_geometry_light_jitter_quality_low'
+                case 1:
+                    nwo.light_jitter_quality = '_connected_geometry_light_jitter_quality_medium'
+                case 2:
+                    nwo.light_jitter_quality = '_connected_geometry_light_jitter_quality_high'
+                    
+            nwo.light_indirect_only = element.SelectField("indirect only").Value == 1
+            nwo.light_static_analytic = element.SelectField("static analytic").Value == 1
+            
+            definitions[element.ElementIndex] = blender_light
+            
+        return definitions
+            
     def _from_reach_light_instances(self, definitions: dict[int: bpy.types.Light]):
         objects = []
         for element in self.block_generic_light_instances.Elements:
