@@ -925,7 +925,7 @@ class NWO_OT_NewAnimation(bpy.types.Operator):
             for key, value in current_animation.items():
                 animation[key] = value
             animation.name += "_copy"
-            animation.animation_renames.clear()
+            # animation.animation_renames.clear()
             for track in animation.action_tracks:
                 if track.action:
                     track.action = track.action.copy()
