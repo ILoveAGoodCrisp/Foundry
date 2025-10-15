@@ -19,6 +19,18 @@ def poll_armature(self, object: bpy.types.Object):
 def poll_empty(self, object: bpy.types.Object):
     return object.type == 'EMPTY'
 
+def animation_from_group(self, context):
+    group = self.groups[self.groups_active_index]
+    animation_from_leaf(group, context)
+    
+def animation_from_phase_set(self, context):
+    phase_set = self.phase_sets[self.phase_sets_active_index]
+    animation_from_leaf(phase_set, context)
+    
+def animation_from_blend_axis(self, context):
+    axis = self.blend_axis[self.blend_axis_active_index]
+    animation_from_leaf(axis, context)
+
 def animation_from_leaf(self, context):
     if self.leaves and self.leaves_active_index > -1:
         leaf = self.leaves[self.leaves_active_index]
@@ -53,6 +65,8 @@ def animation_from_leaf(self, context):
                         if track.object.data.animation_data:
                             track.object.data.animation_data.last_slot_identifier = slot_id
                             track.object.data.animation_data.action = track.action
+                            
+            self.id_data.nwo.previous_active_animation_index = animations.find(animation_name)
                             
             if utils.get_prefs().sync_timeline_range:
                 self.id_data.frame_start = animation.frame_start
@@ -206,10 +220,10 @@ class NWO_AnimationSubBlendAxisItems(PropertyGroup):
     dead_zones_active_index: bpy.props.IntProperty(options=set())
     dead_zones: bpy.props.CollectionProperty(name="Blend Axis Dead Zones", options=set(), type=NWO_AnimationDeadZonesItems)
     
-    phase_sets_active_index: bpy.props.IntProperty(options=set())
+    phase_sets_active_index: bpy.props.IntProperty(options=set(), update=animation_from_phase_set)
     phase_sets: bpy.props.CollectionProperty(name="Animation Sets", options=set(), type=NWO_AnimationPhaseSetsItems)
     
-    groups_active_index: bpy.props.IntProperty(options=set())
+    groups_active_index: bpy.props.IntProperty(options=set(), update=animation_from_group)
     groups: bpy.props.CollectionProperty(name="Animation Groups", options=set(), type=NWO_AnimationGroupItems)
 
 class NWO_AnimationBlendAxisItems(PropertyGroup):
@@ -251,13 +265,13 @@ class NWO_AnimationBlendAxisItems(PropertyGroup):
     dead_zones_active_index: bpy.props.IntProperty(options=set())
     dead_zones: bpy.props.CollectionProperty(name="Blend Axis Dead Zones", options=set(), type=NWO_AnimationDeadZonesItems)
     
-    phase_sets_active_index: bpy.props.IntProperty(options=set())
+    phase_sets_active_index: bpy.props.IntProperty(options=set(), update=animation_from_phase_set)
     phase_sets: bpy.props.CollectionProperty(name="Animation Sets", options=set(), type=NWO_AnimationPhaseSetsItems)
     
-    groups_active_index: bpy.props.IntProperty(options=set())
+    groups_active_index: bpy.props.IntProperty(options=set(), update=animation_from_group)
     groups: bpy.props.CollectionProperty(name="Animation Groups", options=set(), type=NWO_AnimationGroupItems)
     
-    blend_axis_active_index: bpy.props.IntProperty(options=set())
+    blend_axis_active_index: bpy.props.IntProperty(options=set(), update=animation_from_blend_axis)
     blend_axis: bpy.props.CollectionProperty(name="Blend Axis", options=set(), type=NWO_AnimationSubBlendAxisItems)
 
 # class NWO_AnimationCompositesItems(PropertyGroup):
