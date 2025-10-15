@@ -141,11 +141,11 @@ class NWO_AnimationSubBlendAxisItems(PropertyGroup):
     )
     
     animation_source_bounds_manual: bpy.props.BoolProperty(name="Animation Manual Bounds", options=set(), description="Manually define the bounds of the animation axis")
-    animation_source_bounds: bpy.props.FloatVectorProperty(name="Animation Source Bounds", options=set(), size=2, subtype='COORDINATES', min=0, description="Manual animation bounds")
+    animation_source_bounds: bpy.props.FloatVectorProperty(name="Animation Source Bounds", options=set(), size=2, subtype='COORDINATES', description="Manual animation bounds")
     animation_source_limit: bpy.props.FloatProperty(name="Animation Source Limit", options=set(), description="The limit between each animation on an axis. For example on an angle axis with animtions for every 90 degrees, you'd use 90")
     
     runtime_source_bounds_manual: bpy.props.BoolProperty(name="Input Manual Bounds", options=set(), description="Define the input bounds manually")
-    runtime_source_bounds: bpy.props.FloatVectorProperty(name="Input Source Bounds", options=set(), size=2, subtype='COORDINATES', min=0, description="Manual input bounds")
+    runtime_source_bounds: bpy.props.FloatVectorProperty(name="Input Source Bounds", options=set(), size=2, subtype='COORDINATES', description="Manual input bounds")
     runtime_source_clamped: bpy.props.BoolProperty(name="Input Source Clamped", options=set(), description="Clamps input to within this range")
     
     adjusted: bpy.props.EnumProperty(
@@ -186,11 +186,11 @@ class NWO_AnimationBlendAxisItems(PropertyGroup):
     )
     
     animation_source_bounds_manual: bpy.props.BoolProperty(name="Animation Manual Bounds", options=set(), description="Manually define the bounds of the animation axis")
-    animation_source_bounds: bpy.props.FloatVectorProperty(name="Animation Source Bounds", options=set(), size=2, subtype='COORDINATES', min=0, description="Manual animation bounds")
+    animation_source_bounds: bpy.props.FloatVectorProperty(name="Animation Source Bounds", options=set(), size=2, subtype='COORDINATES', description="Manual animation bounds")
     animation_source_limit: bpy.props.FloatProperty(name="Animation Source Limit", options=set(), description="The limit between each animation on an axis. For example on an angle axis with animtions for every 90 degrees, you'd use 90")
     
     runtime_source_bounds_manual: bpy.props.BoolProperty(name="Input Manual Bounds", options=set(), description="Define the input bounds manually")
-    runtime_source_bounds: bpy.props.FloatVectorProperty(name="Input Source Bounds", options=set(), size=2, subtype='COORDINATES', min=0, description="Manual input bounds")
+    runtime_source_bounds: bpy.props.FloatVectorProperty(name="Input Source Bounds", options=set(), size=2, subtype='COORDINATES', description="Manual input bounds")
     runtime_source_clamped: bpy.props.BoolProperty(name="Input Source Clamped", options=set(), description="Clamps input to within this range")
     
     adjusted: bpy.props.EnumProperty(
