@@ -1374,7 +1374,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             leaf = parent.leaves[parent.leaves_active_index]
             col = box.column()
             col.use_property_split = True
-            col.prop_search(leaf, "animation", self.scene.nwo, "animations", icon='ANIM')
+            col.prop_search(leaf, "animation", self.scene.nwo, "animations", icon='ANIM', results_are_suggestions=True)
             
             blend_axis_1_name, blend_axis_1_function = blend_axis_name(blend_axis.name)
 

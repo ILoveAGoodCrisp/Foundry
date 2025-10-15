@@ -19,6 +19,44 @@ def poll_armature(self, object: bpy.types.Object):
 def poll_empty(self, object: bpy.types.Object):
     return object.type == 'EMPTY'
 
+def animation_from_leaf(self, context):
+    if self.leaves and self.leaves_active_index > -1:
+        leaf = self.leaves[self.leaves_active_index]
+        animation_name = leaf.animation
+        previous_active_animation_index = self.id_data.nwo.previous_active_animation_index
+        animations = self.id_data.nwo.animations
+        animation = animations.get(animation_name)
+        if animation is not None:
+            if previous_active_animation_index > -1:
+                if len(animations) > previous_active_animation_index:
+                    previous_animation = animations[previous_active_animation_index]
+                if previous_animation:
+                    utils.clear_animation(previous_animation)
+                    
+            for track in animation.action_tracks:
+                if track.object and track.action:
+                    slot_id = ""
+                    if track.action.slots:
+                        if track.action.slots.active:
+                            slot_id = track.action.slots.active.identifier
+                        else:
+                            slot_id = track.action.slots[0].identifier
+
+                    if track.is_shape_key_action:
+                        if track.object.type == 'MESH' and track.object.data.shape_keys and track.object.data.shape_keys.animation_data:
+                            track.object.data.shape_keys.animation_data.last_slot_identifier = slot_id
+                            track.object.data.shape_keys.animation_data.action = track.action
+                    else:
+                        if track.object.animation_data:
+                            track.object.animation_data.last_slot_identifier = slot_id
+                            track.object.animation_data.action = track.action
+                        if track.object.data.animation_data:
+                            track.object.data.animation_data.last_slot_identifier = slot_id
+                            track.object.data.animation_data.action = track.action
+                            
+            if utils.get_prefs().sync_timeline_range:
+                bpy.ops.nwo.set_timeline()
+
 #############################################################
 # ANIMATION COPIES
 #############################################################
@@ -78,8 +116,9 @@ class NWO_AnimationGroupItems(PropertyGroup):
         description="Value of this blend axis",
         options=set(),
     )
-    leaves_active_index: bpy.props.IntProperty(options=set())
+    leaves_active_index: bpy.props.IntProperty(options=set(), update=animation_from_leaf)
     leaves: bpy.props.CollectionProperty(name="Animations", options=set(), type=NWO_AnimationLeavesItems)
+            
     
 class NWO_AnimationPhaseSetsItems(PropertyGroup):
     name: bpy.props.StringProperty(name="Name", options=set())
@@ -93,7 +132,7 @@ class NWO_AnimationPhaseSetsItems(PropertyGroup):
             ("alternate", "Alternate", ""),
         ]
     )
-    leaves_active_index: bpy.props.IntProperty(options=set())
+    leaves_active_index: bpy.props.IntProperty(options=set(), update=animation_from_leaf)
     leaves: bpy.props.CollectionProperty(name="Animations", options=set(), type=NWO_AnimationLeavesItems)
     
     key_primary_keyframe: bpy.props.BoolProperty(name="Primary Keyframe", options=set())
@@ -159,7 +198,7 @@ class NWO_AnimationSubBlendAxisItems(PropertyGroup):
         ]
     )
 
-    leaves_active_index: bpy.props.IntProperty(options=set())
+    leaves_active_index: bpy.props.IntProperty(options=set(), update=animation_from_leaf)
     leaves: bpy.props.CollectionProperty(name="Animations", options=set(), type=NWO_AnimationLeavesItems)
     
     dead_zones_active_index: bpy.props.IntProperty(options=set())
@@ -204,7 +243,7 @@ class NWO_AnimationBlendAxisItems(PropertyGroup):
         ]
     )
 
-    leaves_active_index: bpy.props.IntProperty(options=set())
+    leaves_active_index: bpy.props.IntProperty(options=set(), update=animation_from_leaf)
     leaves: bpy.props.CollectionProperty(name="Animations", options=set(), type=NWO_AnimationLeavesItems)
     
     dead_zones_active_index: bpy.props.IntProperty(options=set())
@@ -899,10 +938,55 @@ class NWO_AnimationPropertiesGroup(bpy.types.PropertyGroup):
     )
     
     action_tracks: bpy.props.CollectionProperty(type=NWO_ActionGroup)
+    
+    def update_composite_names(self, context):
+        old_name = self.name_old
+        new_name = self.name
+        self.name_old = new_name
+        if not utils.is_corinth(context):
+            return
+        for anim in self.id_data.nwo.animations:
+            if anim.animation_type != 'composite':
+                continue
+            
+            for axis in anim.blend_axis:
+                for leaf in axis.leaves:
+                    if leaf.animation == old_name:
+                        leaf.animation = new_name
+                        
+                for group in axis.groups:
+                    for leaf in group.leaves:
+                        if leaf.animation == old_name:
+                            leaf.animation = new_name
+                            
+                for phase_set in axis.phase_sets:
+                    for leaf in phase_set.leaves:
+                        if leaf.animation == old_name:
+                            leaf.animation = new_name
+                
+                for sub_axis in axis.blend_axis:
+                    for leaf in sub_axis.leaves:
+                        if leaf.animation == old_name:
+                            leaf.animation = new_name
+                            
+                    for group in sub_axis.groups:
+                        for leaf in group.leaves:
+                            if leaf.animation == old_name:
+                                leaf.animation = new_name
+                                
+                    for phase_set in sub_axis.phase_sets:
+                        for leaf in phase_set.leaves:
+                            if leaf.animation == old_name:
+                                leaf.animation = new_name
+    
     name: bpy.props.StringProperty(
         name="Name",
         options=set(),
+        update=update_composite_names,
     )
+    
+    name_old: bpy.props.StringProperty(options={'HIDDEN'})
+    
     def get_actions(self) -> list[bpy.types.Action]:
         return [group.action for group in self.action_tracks if group.action is not None]
     
@@ -929,29 +1013,6 @@ class NWO_AnimationPropertiesGroup(bpy.types.PropertyGroup):
         min=0,
         update=update_frame_end,
     )
-            
-    
-    def update_name_override(self, context):
-        if self.name_override.rpartition(".")[2] != self.animation_type:
-            match self.name_override.rpartition(".")[2].upper():
-                case "JMA":
-                    self.animation_type = "JMA"
-                case "JMT":
-                    self.animation_type = "JMT"
-                case "JMZ":
-                    self.animation_type = "JMZ"
-                case "JMV":
-                    self.animation_type = "JMV"
-                case "JMO":
-                    self.animation_type = "JMO"
-                case "JMOX":
-                    self.animation_type = "JMOX"
-                case "JMR":
-                    self.animation_type = "JMR"
-                case "JMRX":
-                    self.animation_type = "JMRX"
-                case _:
-                    self.animation_type = "JMM"
 
     export_this: bpy.props.BoolProperty(
         name="Export",
@@ -1875,6 +1936,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         previous_animation = None
         if self.active_animation_index > -1:
             animation = self.animations[self.active_animation_index]
+            is_composite = animation.animation_type == 'composite'
             if self.previous_active_animation_index > -1:
                 if len(self.animations) > self.previous_active_animation_index:
                     previous_animation = self.animations[self.previous_active_animation_index]
@@ -1902,7 +1964,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
                             track.object.data.animation_data.last_slot_identifier = slot_id
                             track.object.data.animation_data.action = track.action
 
-            if utils.get_prefs().sync_timeline_range and animation.animation_type != "composite":
+            if utils.get_prefs().sync_timeline_range and not is_composite:
                 bpy.ops.nwo.set_timeline()
                 
         self.previous_active_animation_index = self.active_animation_index
