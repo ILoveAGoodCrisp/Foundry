@@ -436,7 +436,7 @@ class ExportScene:
                 #     if ob.type == 'MESH' and ob.data.shape_keys and ob.data.shape_keys.animation_data:
                 #         self.action_map[ob.data.shape_keys] = (ob.matrix_basis.copy(), ob.data.shape_keys.animation_data.action)
                 ob: bpy.types.Object
-                if ob.type == 'ARMATURE':
+                if ob.type == 'ARMATURE' and self.asset_type in {AssetType.MODEL, AssetType.ANIMATION, AssetType.CINEMATIC}:
                     self.armature_poses[ob.data] = ob.data.pose_position
                     ob.data.pose_position = 'REST'
                     if self.asset_type == AssetType.CINEMATIC:
@@ -1569,7 +1569,7 @@ class ExportScene:
         # self.context.view_layer.update()
         self.has_animations = True
         try:
-            if single_animation:        
+            if single_animation:
                 print("--- Sampling Animation", end="")
                 with utils.Spinner():
                     controls, vector_events = self.create_event_objects(self.scene_settings)
