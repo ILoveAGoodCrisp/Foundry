@@ -914,6 +914,7 @@ class NWO_OT_NewAnimation(bpy.types.Operator):
         scene_nwo = context.scene.nwo
         # Create the animation
         current_animation = None
+        
         if scene_nwo.active_animation_index > -1:
             current_animation = scene_nwo.animations[scene_nwo.active_animation_index]
             utils.clear_animation(current_animation)
@@ -1081,30 +1082,31 @@ class NWO_OT_NewAnimation(bpy.types.Operator):
 
             if weapon_class:
                 full_name += f" {weapon_class}"
-            elif weapon_type or is_transition:
-                full_name += f" any"
+            elif weapon_type:
+                full_name += " any"
 
             if weapon_type:
                 full_name += f" {weapon_type}"
-            elif set or is_transition:
-                full_name += f" any"
+            elif set:
+                full_name += " any"
 
             if set:
                 full_name += f" {set}"
             elif is_transition:
-                full_name += f" any"
+                full_name += " any"
 
             if state and not is_damage:
                 full_name += f" {state}"
             elif not is_damage:
                 self.report({"WARNING"}, "No state defined. Setting to idle")
-                full_name += f" idle"
+                full_name += " idle"
 
             if is_transition:
+                full_name += " 2"
                 if destination_mode:
                     full_name += f" {destination_mode}"
                 else:
-                    full_name += f" any"
+                    full_name += " any"
 
                 if destination_state:
                     full_name += f" {destination_state}"
@@ -1112,7 +1114,7 @@ class NWO_OT_NewAnimation(bpy.types.Operator):
                     self.report(
                         {"WARNING"}, "No destination state defined. Setting to idle"
                     )
-                    full_name += f" idle"
+                    full_name += " idle"
 
             elif is_damage:
                 full_name += f" {self.damage_power[0]}"
@@ -1490,7 +1492,7 @@ class NWO_OT_NewAnimation(bpy.types.Operator):
         group_360.leaves.add().animation = f"{self.composite_mode} {self.composite_weapon_class} locomote_run_front"
 
 
-class NWO_OT_List_Add_Animation_Rename(NWO_OT_NewAnimation):
+class NWO_OT_List_Add_Animation_Rename(bpy.types.Operator):
     bl_label = "New Animation Rename"
     bl_idname = "nwo.animation_rename_add"
     bl_description = "Creates a new Halo Animation Rename"

@@ -3049,10 +3049,14 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 row.prop(animation, 'animation_movement_data')     
             elif animation.animation_type == 'replacement':
                 row.prop(animation, 'animation_space', expand=True)
-            col.separator()
             row = col.row()
             row.use_property_split = True
             row.prop(animation, "compression", text="Compression")
+            col.separator()
+            row = col.row(align=False)
+            row.use_property_split = False
+            row.prop(animation, "frame_start", text='Start Frame', icon='KEYFRAME_HLT')
+            row.prop(animation, "frame_end", text='End Frame', icon='KEYFRAME_HLT')
             tokens = utils.tokenise(animation.name)
             if tokens[0] == "suspension":
                 col.separator()
@@ -3120,11 +3124,6 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             row.operator("nwo.animation_frames_sync_to_keyframes", text="Sync Frame Range to Keyframes", icon='FILE_REFRESH', depress=scene_nwo.keyframe_sync_active)
             row.operator("nwo.action_tracks_set_active", icon='ACTION_TWEAK')
             col.separator()
-
-            row = col.row()
-            row.use_property_split = False
-            row.prop(animation, "frame_start", text='Start Frame', icon='KEYFRAME_HLT')
-            row.prop(animation, "frame_end", text='End Frame', icon='KEYFRAME_HLT')
         col.separator()
             
         row = col.row()
