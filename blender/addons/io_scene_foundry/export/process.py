@@ -317,10 +317,7 @@ class ExportScene:
             self.setup_instancers(instancers)
             
         if self.uses_main_armature and not self.main_armature:
-            for ob in self.context.view_layer.objects:
-                if ob.type == 'ARMATURE' and ob.parent is None:
-                    self.main_armature = ob
-                    break
+            self.main_armature = utils.get_rig_prioritize_active(self.context)
                     
         if self.main_armature:
             self.support_armatures = [ob for ob in self.main_armature.children if ob.type == 'ARMATURE' and not ob.nwo.ignore_for_export]
@@ -328,7 +325,7 @@ class ExportScene:
         self.depsgraph = self.context.evaluated_depsgraph_get()
         
         if self.asset_type == AssetType.ANIMATION and not self.granny_animations_mesh:
-            self.export_objects = [ob for ob in self.context.view_layer.objects if ob.nwo.export_this and (ob.type == "ARMATURE" and ob not in self.support_armatures) and ob not in self.skip_obs and utils.can_export_check_parent(ob)]
+            self.export_objects = [ob for ob in self.context.view_layer.objects if ob.nwo.export_this and not (ob.type == 'ARMATURE' and ob != self.main_armature) and ob not in self.skip_obs and utils.can_export_check_parent(ob)]
             null_ob = make_default_render()
             self.temp_objects.add(null_ob)
             self.temp_meshes.add(null_ob.data)
@@ -336,7 +333,7 @@ class ExportScene:
         elif self.asset_type == AssetType.CINEMATIC:
             self.export_objects = [ob for ob in self.context.view_layer.objects if ob.nwo.export_this and ob.type == "ARMATURE" and ob not in self.skip_obs and utils.can_export_check_parent(ob)]
         else:    
-            self.export_objects = [ob for ob in self.context.view_layer.objects if ob.nwo.export_this and ob.type in VALID_OBJECTS and ob not in self.support_armatures and ob not in self.skip_obs and utils.can_export_check_parent(ob)]
+            self.export_objects = [ob for ob in self.context.view_layer.objects if ob.nwo.export_this and ob.type in VALID_OBJECTS and not (ob.type == 'ARMATURE' and ob != self.main_armature) and ob not in self.skip_obs and utils.can_export_check_parent(ob)]
         
         self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir, self.granny, self.export_settings, utils.time_step(), self.scene_settings.default_animation_compression, utils.blender_halo_rotation_diff(self.forward), self.scene_settings.maintain_marker_axis, self.granny_textures, utils.get_project(self.context.scene.nwo.scene_project), self.to_halo_scale, self.unit_factor, self.atten_scalar, self.context)
         
