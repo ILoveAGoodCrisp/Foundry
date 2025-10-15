@@ -55,7 +55,9 @@ def animation_from_leaf(self, context):
                             track.object.data.animation_data.action = track.action
                             
             if utils.get_prefs().sync_timeline_range:
-                bpy.ops.nwo.set_timeline()
+                self.id_data.frame_start = animation.frame_start
+                self.id_data.frame_end = animation.frame_end
+                self.id_data.frame_current = animation.frame_start
 
 #############################################################
 # ANIMATION COPIES
