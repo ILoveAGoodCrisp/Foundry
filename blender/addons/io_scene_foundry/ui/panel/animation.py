@@ -875,14 +875,10 @@ class NWO_OT_NewAnimation(bpy.types.Operator):
         default=True,
     )
     
-    composite_mode: bpy.props.EnumProperty(
+    composite_mode: bpy.props.StringProperty(
         name="Mode",
         description="The mode the object must be in to use this animation. Use 'any' for all modes. Other valid inputs include but are not limited to: 'crouch' when a unit is crouching, 'combat' when a unit is in combat, 'sprint' when a unit is sprinting. Modes can also refer to vehicle seats. For example an animation for a unit driving a warthog would use 'warthog_d'. For more information refer to existing model_animation_graph tags. Can be empty",
-        items=[
-            ('combat', 'combat', ""),
-            ('crouch', 'crouch', ""),
-            ('sprint', 'sprint', ""),
-        ]
+        default="combat"
     )
 
     composite_weapon_class: bpy.props.StringProperty(
@@ -1503,52 +1499,24 @@ class NWO_OT_List_Add_Animation_Rename(NWO_OT_NewAnimation):
     @classmethod
     def poll(cls, context):
         return context.scene.nwo.animations and context.scene.nwo.active_animation_index > -1
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        animation = bpy.context.scene.nwo.animations[bpy.context.scene.nwo.active_animation_index]
-        state = animation.state.lower().strip(" :_,-")
-        state = "idle" if state == "" else state
-        if animation.created_with_foundry and state in animation.name:
-            self.state_type = animation.state_type
-            self.custom = animation.custom
-            self.mode = animation.mode
-            self.weapon_class = animation.weapon_class
-            self.weapon_type = animation.weapon_type
-            self.set = animation.set
-            self.state = animation.state
-            self.destination_mode = animation.destination_mode
-            self.destination_state = animation.destination_state
-            self.damage_power = animation.damage_power
-            self.damage_type = animation.damage_type
-            self.damage_direction = animation.damage_direction
-            self.damage_region = animation.damage_region
-            self.variant = animation.variant
-
-        else:
-            self.state_type = "custom"
-            self.custom = animation.name
-
-    def draw(self, context):
-        self.draw_name(self.layout, True)
-
+    
     def execute(self, context):
-        full_name = self.create_name()
-        animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
-        if full_name == animation.name:
-            self.report(
-                {"WARNING"},
-                f"Rename entry not created. Rename cannot match animation name",
-            )
-            return {"CANCELLED"}
+        # full_name = self.create_name()
+        # animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
+        # if full_name == animation.name:
+        #     self.report(
+        #         {"WARNING"},
+        #         f"Rename entry not created. Rename cannot match animation name",
+        #     )
+        #     return {"CANCELLED"}
 
         # Create the rename
+        animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
         rename = animation.animation_renames.add()
         animation.active_animation_rename_index = len(animation.animation_renames) - 1
-        rename.name = full_name
+        rename.name = animation.name
         context.area.tag_redraw()
 
-        self.report({"INFO"}, f"Created rename: {full_name}")
         return {"FINISHED"}
 
 class NWO_OT_List_Remove_Animation_Rename(bpy.types.Operator):
@@ -1681,6 +1649,8 @@ class NWO_OT_AddActionTrack(bpy.types.Operator):
             #     group.nla_uuid = str(uuid4())
             #     group.object.animation_data.nla_tracks.active
             animation.active_action_group_index = len(animation.action_tracks) - 1
+        else:
+            return self.report({'WARNING'}, f"No active action for object [{ob.name}], cannot add action track")
         if ob.type == 'MESH' and ob.data.shape_keys and ob.data.shape_keys.animation_data and ob.data.shape_keys.animation_data.action:
             for track in animation.action_tracks:
                 if track.action == ob.data.shape_keys.animation_data.action:
@@ -1689,8 +1659,6 @@ class NWO_OT_AddActionTrack(bpy.types.Operator):
             group.object = ob
             group.action = ob.data.shape_keys.animation_data.action
             group.is_shape_key_action = True
-        else:
-            return self.report({'WARNING'}, f"No active action for object [{ob.name}], cannot add action track")
         
 
 class NWO_OT_RemoveActionTrack(bpy.types.Operator):
