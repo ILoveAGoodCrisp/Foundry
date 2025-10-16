@@ -30,11 +30,18 @@ def animation_from_phase_set(self, context):
 def animation_from_blend_axis(self, context):
     axis = self.blend_axis[self.blend_axis_active_index]
     animation_from_leaf(axis, context)
-
+    
 def animation_from_leaf(self, context):
     if self.leaves and self.leaves_active_index > -1:
         leaf = self.leaves[self.leaves_active_index]
-        animation_name = leaf.animation
+        animation_from_composite(leaf, context)
+        
+def animation_from_composite(self, context):
+    if self.id_data.nwo.active_animation_index > -1 and self.id_data.nwo.animations:
+        current_animation = self.id_data.nwo.animations[self.id_data.nwo.active_animation_index]
+        if current_animation.animation_type != 'composite':
+            return
+        animation_name = self.animation
         previous_active_animation_index = self.id_data.nwo.previous_active_animation_index
         animations = self.id_data.nwo.animations
         animation = animations.get(animation_name)
@@ -73,6 +80,8 @@ def animation_from_leaf(self, context):
                 self.id_data.frame_end = animation.frame_end
                 self.id_data.frame_current = animation.frame_start
 
+        
+
 #############################################################
 # ANIMATION COPIES
 #############################################################
@@ -86,7 +95,7 @@ class NWO_AnimationCopiesItems(PropertyGroup):
 #############################################################
 
 class NWO_AnimationLeavesItems(PropertyGroup):
-    animation: bpy.props.StringProperty(name="Animation")
+    animation: bpy.props.StringProperty(name="Animation", update=animation_from_composite)
     # animation: bpy.props.PointerProperty(name="Animation", type=bpy.types.Action)
     
     manual_blend_axis_1: bpy.props.BoolProperty(
@@ -1143,7 +1152,7 @@ class NWO_AnimationPropertiesGroup(bpy.types.PropertyGroup):
 
     # Composites
     timing_source: bpy.props.StringProperty(name="Timing Source", description="Name of the animation to use as the timing source")
-    blend_axis_active_index: bpy.props.IntProperty(options=set())
+    blend_axis_active_index: bpy.props.IntProperty(options=set(), update=animation_from_blend_axis)
     blend_axis: bpy.props.CollectionProperty(name="Blend Axis", options=set(), type=NWO_AnimationBlendAxisItems)
 
     # NOT VISIBLE TO USER, USED FOR ANIMATION RENAMES
