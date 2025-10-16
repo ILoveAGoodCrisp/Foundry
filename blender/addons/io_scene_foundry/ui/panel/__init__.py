@@ -1285,7 +1285,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     grid.prop(phase_set, 'key_sound_event')
                     grid.prop(phase_set, 'key_effect_event')
                     
-                    self.draw_animation_leaves(col, phase_set, True, sub_axis=sub_blend_axis)
+                    self.draw_animation_leaves(col, phase_set, True, sub_axis=sub_blend_axis, blend_axis=blend_axis)
                     
             if not sub_blend_axis.groups:
                 col.operator("nwo.animation_group_add", text="Add Animation Group", icon='GROUP_VERTEX').sub_axis = True

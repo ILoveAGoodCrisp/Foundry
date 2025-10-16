@@ -1181,9 +1181,12 @@ class NWO_OT_NewAnimation(bpy.types.Operator):
         composite.timing_source = f"{self.composite_mode} {self.composite_weapon_class} jump_forward_long"
         
         vertical_blend_axis = cast(NWO_AnimationBlendAxisItems, composite.blend_axis.add())
+        vertical_blend_axis.name = "vertical"
         vertical_blend_axis.adjusted = 'on_start'
         
-        horizontal_blend_axis = cast(NWO_AnimationBlendAxisItems, composite.blend_axis.add())
+        horizontal_blend_axis = cast(NWO_AnimationSubBlendAxisItems, vertical_blend_axis.blend_axis.add())
+        
+        horizontal_blend_axis.name = "horizontal"
         horizontal_blend_axis.adjusted = 'on_start'
         
         jump_phase_set = cast(NWO_AnimationPhaseSetsItems, horizontal_blend_axis.phase_sets.add())
