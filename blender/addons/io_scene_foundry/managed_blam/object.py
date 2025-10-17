@@ -91,10 +91,11 @@ class ObjectTag(Tag):
     
     def get_variants(self) -> list[str]:
         model_path = self.get_model_tag_path_full()
-        if not Path(model_path).exists():
+        if model_path and Path(model_path).exists():
+            with ModelTag(path=model_path) as model:
+                return model.get_model_variants()
+        else:
             return []
-        with ModelTag(path=model_path) as model:
-            return model.get_model_variants()
                 
     def functions_to_blender(self) -> dict:
         '''Converts object functions to blender shader node groups'''

@@ -1678,6 +1678,8 @@ class NWOImporter:
                         else:
                             self.tag_variant = ""
                     model_path = obj.get_model_tag_path_full()
+                    if not model_path or not Path(model_path).exists():
+                        continue
                     change_colors = obj.get_change_colors(self.tag_variant)
                     magazine_size = obj.get_magazine_size()
                     has_ammo = magazine_size > 0
@@ -1847,7 +1849,6 @@ class NWOImporter:
                                                     var.targets[0].id = armature
                                                     var.targets[0].data_path = f'["{prop}"]'
                                                     driver.expression = var.name
-                                                
                                                                                 
                             if not is_game_object and collision and self.tag_collision:
                                 imported_objects.extend(self.import_collision_model(collision, armature, model_collection, allowed_region_permutations))
@@ -1883,7 +1884,7 @@ class NWOImporter:
                                         imported_objects.extend(self.import_child_object(child, armature, {ob: ob.nwo.marker_model_group for ob in render_objects if ob.type == 'EMPTY'}, child_collection, is_game_object))
                                     self.context.view_layer.update()
                                     
-                            if self.import_biped_weapon:
+                            if self.import_biped_weapon and obj.tag_path.Extension == "biped":
                                 weapons = obj.tag.SelectField("Struct:unit[0]/Block:weapons")
                                 if weapons is not None and weapons.Elements.Count > 0:
                                     weapon_collection = bpy.data.collections.new(name=f"{model.tag_path.ShortName}_weapon")
@@ -1912,9 +1913,11 @@ class NWOImporter:
     def import_child_object(self, child_object: ChildObject, parent_armature: bpy.types.Object, markers: dict[bpy.types.Object: str], child_collection, is_game_object):
         imported_objects = []
         if child_object.child_object is None:
-            return
+            return imported_objects
         with ObjectTag(path=child_object.child_object, raise_on_error=False) as obj:
             model_path = obj.get_model_tag_path_full()
+            if not model_path or not Path(model_path).exists():
+                return imported_objects
             change_colors = obj.get_change_colors(self.tag_variant)
             has_change_colors = change_colors is not None
             magazine_size = obj.get_magazine_size()
