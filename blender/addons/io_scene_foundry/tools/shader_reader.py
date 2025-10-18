@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 import bpy
 
@@ -12,6 +13,52 @@ from ..managed_blam.shader import ShaderTag
 from ..managed_blam.shader_decal import ShaderDecalTag
 from .. import utils
 
+class NWO_OT_ShaderToNodesBulk(bpy.types.Operator):
+    bl_idname = "nwo.shader_to_nodes_bulk"
+    bl_label = "Convert all Shaders to Blender Material Nodes"
+    bl_description = "Builds blender materials for all shaders"
+    bl_options = {"UNDO"}
+    
+    always_extract_bitmaps: bpy.props.BoolProperty(
+        name="Always extract bitmaps",
+        description="By default existing tiff files will be used for shaders. Checking this option means the bitmaps will always be re-extracted regardless if they exist or not"
+    )
+
+    @classmethod
+    def poll(cls, context):
+        return not context.scene.nwo.export_in_progress
+    
+    def execute(self, context):
+        corinth = utils.is_corinth(context)
+        
+        os.system("cls")
+        if context.scene.nwo_export.show_output:
+            bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
+            print(f"Building Blender Materials\n")
+        
+        built_count = 0
+        for mat in bpy.data.materials:
+            if not mat.nwo.RenderMaterial:
+                continue
+            
+            built_count += 1
+            shader_path = utils.relative_path(mat.nwo.shader_path)
+            full_path = Path(utils.get_tags_path(), shader_path)
+            if not full_path.exists():
+                continue
+            
+            tag_to_nodes(corinth, mat, shader_path)
+            
+        self.report({'INFO'}, f"Built {built_count} blender materials")
+        return {"FINISHED"}
+    
+    def invoke(self, context: bpy.types.Context, _):
+        return context.window_manager.invoke_props_dialog(self)
+    
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "always_extract_bitmaps")
+
 class NWO_ShaderToNodes(bpy.types.Operator):
     bl_idname = "nwo.shader_to_nodes"
     bl_label = "Convert Shader to Blender Material Nodes"
@@ -19,6 +66,11 @@ class NWO_ShaderToNodes(bpy.types.Operator):
     bl_options = {"UNDO"}
     
     mat_name: bpy.props.StringProperty()
+    
+    always_extract_bitmaps: bpy.props.BoolProperty(
+        name="Always extract bitmaps",
+        description="By default existing tiff files will be used for shaders. Checking this option means the bitmaps will always be re-extracted regardless if they exist or not"
+    )
 
     @classmethod
     def poll(cls, context):
@@ -29,13 +81,20 @@ class NWO_ShaderToNodes(bpy.types.Operator):
         if not mat:
             self.report({'WARNING'}, "Material not supplied")
             return {"CANCELLED"}
-        shader_path = mat.nwo.shader_path
+        shader_path = utils.relative_path(mat.nwo.shader_path)
         full_path = Path(utils.get_tags_path(), shader_path)
         if not full_path.exists():
             self.report({'WARNING'}, "Tag not found")
             return {"CANCELLED"}
         tag_to_nodes(utils.is_corinth(context), mat, shader_path)
         return {"FINISHED"}
+    
+    def invoke(self, context: bpy.types.Context, _):
+        return context.window_manager.invoke_props_dialog(self)
+    
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "always_extract_bitmaps")
 
 def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str, always_extract_bitmaps=False) -> set:
     """Turns a shader/material tag into blender material nodes"""
