@@ -1901,7 +1901,6 @@ class NWOImporter:
                                         imported_objects.extend(self.import_child_object(child, armature, {ob: ob.nwo.marker_model_group for ob in render_objects if ob.type == 'EMPTY'}, weapon_collection, is_game_object))
                                     self.context.view_layer.update()
                                     
-                                    
                             if not is_game_object and self.setup_as_asset:
                                 set_asset(Path(file).suffix, armature, model.is_sky())
 

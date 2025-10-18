@@ -1204,7 +1204,7 @@ class ShaderTag(Tag):
                 node_cc_primary.attribute_type = 'INSTANCER'
                 tree.links.new(input=node_self_illumination.inputs["primary_change_color"], output=node_cc_primary.outputs[0])
             
-            if final_node is None:
+            if final_node is None or no_material_model:
                 final_node = node_self_illumination
             else:
                 node_illum_add = nodes.new(type='ShaderNodeAddShader')
