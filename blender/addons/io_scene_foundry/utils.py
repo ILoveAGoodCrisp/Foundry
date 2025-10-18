@@ -143,6 +143,24 @@ shader_exts = (
     ".material",
 )
 
+shader_exts_reach = (
+    ".shader",
+    ".shader_cortana",
+    ".shader_custom",
+    ".shader_decal",
+    ".shader_foliage",
+    ".shader_fur",
+    ".shader_fur_stencil",
+    ".shader_glass",
+    ".shader_halogram",
+    ".shader_mux",
+    ".shader_mux_material",
+    ".shader_screen",
+    ".shader_skin",
+    ".shader_terrain",
+    ".shader_water",
+)
+
 blender_object_types_mesh = (
     "MESH",
     "CURVE",

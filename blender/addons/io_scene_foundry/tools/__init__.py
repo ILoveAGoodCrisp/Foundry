@@ -40,7 +40,7 @@ from .set_sky_permutation_index import NWO_NewSky, NWO_SetDefaultSky, NWO_SetSky
 from .sets_manager import NWO_BSPContextMenu, NWO_BSPInfo, NWO_BSPSetLightmapRes, NWO_FaceRegionAdd, NWO_FaceRegionAssignSingle, NWO_MaterialRegionAssignSingle, NWO_OT_HideObjectType, NWO_PermutationAdd, NWO_PermutationAssign, NWO_PermutationAssignSingle, NWO_PermutationHide, NWO_PermutationHideSelect, NWO_PermutationMove, NWO_PermutationRemove, NWO_PermutationRename, NWO_PermutationSelect, NWO_RegionAdd, NWO_RegionAssign, NWO_RegionAssignSingle, NWO_RegionHide, NWO_RegionHideSelect, NWO_RegionMove, NWO_RegionRemove, NWO_RegionRename, NWO_RegionSelect, NWO_SeamAssignSingle, NWO_UpdateSets
 from .shader_farm import NWO_FarmShaders
 from .shader_finder import NWO_ShaderFinder_Find, NWO_ShaderFinder_FindSingle
-from .shader_reader import NWO_OT_ShaderToNodesBulk, NWO_ShaderToNodes
+from .shader_reader import NWO_OT_BuildShaderTemplates, NWO_OT_ShaderToNodesBulk, NWO_ShaderToNodes
 from .get_model_variants import NWO_GetModelVariants
 from .get_zone_sets import NWO_GetZoneSets
 from .get_tag_list import NWO_GetTagsList, NWO_TagExplore
@@ -151,6 +151,7 @@ classes = (
     NWO_BSPInfo,
     NWO_BSPSetLightmapRes,
     NWO_ShaderToNodes,
+    NWO_OT_BuildShaderTemplates,
     NWO_OT_ShaderToNodesBulk,
     NWO_AppendFoundryMaterials,
     NWO_ClearShaderPaths,

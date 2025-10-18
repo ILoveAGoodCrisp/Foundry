@@ -3470,7 +3470,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         col.operator("nwo.shader_farm", text=f"Batch Build {shader_type}s", icon_value=get_icon_id("material_exporter"))
         col.separator()
         col.operator("nwo.shader_to_nodes_bulk", text=f"Convert {shader_type}s to Blender Materials", icon='NODE_MATERIAL')
-        # col.operator("nwo.shader_farm", text=f"Batch Build {shader_type}s", icon_value=get_icon_id("material_exporter"))
+        col.operator("nwo.build_shader_templates", text=f"Generate Missing Shader Templates", icon='VIEWZOOM')
         col.separator()
         col.operator("nwo.stomp_materials", text=f"Remove Duplicate Materials", icon='X')
         col.operator("nwo.clear_shader_paths", text=f"Clear {shader_type} Paths", icon='X')
