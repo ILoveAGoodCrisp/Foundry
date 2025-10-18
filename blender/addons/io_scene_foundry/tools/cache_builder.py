@@ -7,6 +7,12 @@ import bpy
 import json
 from uuid import uuid4
 
+from .cubemap import CubemapFarm
+
+from .imposter_farm import ImposterFarm
+
+from ..patches import ToolPatcher
+
 from .scenario.lightmap import run_lightmapper
 
 from ..managed_blam.scenario import ScenarioTag
@@ -278,13 +284,35 @@ class CacheBuilder:
             )
             
     def wetness(self):
-        pass
+        print("--- Generating wet mask for all BSPs")
+        tool_path = Path(utils.get_project_path(), "tool.exe")
+        patcher = ToolPatcher(tool_path)
+        patcher.reach_wetness_data()
+
+        utils.run_tool(["wet-mask-generate", str(self.scenario), "all"], force_tool=True)
     
     def imposters(self):
-        pass
+        print("--- Generating imposters. This will launch TagTest")
+        farm = ImposterFarm(str(self.scenario.with_suffix(".scenario")))
+        farm.launch_game(True)
+        start = time.perf_counter()
+        farm.process_imposter()
+        end = time.perf_counter()
+        print("\n-----------------------------------------------------------------------")
+        print(f"Imposters generated in {utils.human_time(end - start, True)}")
+        print("-----------------------------------------------------------------------")
     
     def cubemaps(self):
-        pass
+        print("--- Generating cubemaps. This will launch TagTest")
+        farm = CubemapFarm(str(self.scenario.with_suffix(".scenario")))
+        farm.ensure_cubemap_points()
+        farm.launch_game()
+        start = time.perf_counter()
+        farm.write_cubemap_bitmaps()
+        end = time.perf_counter()
+        print("\n-----------------------------------------------------------------------")
+        print(f"Cubemaps generated in {utils.human_time(end - start, True)}")
+        print("-----------------------------------------------------------------------")
         
     def lightmap(self):
         export = self.context.scene.nwo_export
@@ -1050,6 +1078,11 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
         layout.prop(self, "validate_multiplayer")
         if corinth:
             layout.prop(self, "texture_analysis")
+        else:
+            layout.prop(self, "wetness_farm")
+        
+        layout.prop(self, "imposter_farm")
+        layout.prop(self, "cubemap_farm")
         layout.prop(self, "launch_mcc")
         layout.prop(self, "rexport_scenario")
         layout.prop(self, "lightmap")

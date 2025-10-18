@@ -5,6 +5,8 @@ import bpy
 import os
 import time
 import shutil
+
+from ..managed_blam import Tag
 from ..managed_blam.scenario import ScenarioTag
 from ..managed_blam.bitmap import BitmapTag
 from .. import utils
@@ -46,6 +48,29 @@ class CubemapFarm:
         for file in self.project_dir.iterdir():
             if str(file).lower().endswith("tag_play.exe"):
                 return str(file)
+            
+    def ensure_cubemap_points(self):
+        with ScenarioTag(path=self.scenario_path) as scenario:
+            block_cubemaps = scenario.tag.SelectField("Block:cubemaps")
+            if block_cubemaps.Elements.Count > 0:
+                return
+            else:
+                print("Scenario has no cubemaps, adding default cubemap at position 0.0,0.0,0.6")
+                element = block_cubemaps.AddElement()
+                element.SelectField("cubemap position").Data = 0.0, 0.0, 0.6
+                scenario.tag_has_changes = True
+                resources = scenario.tag.SelectField("Block:scenario resources")
+                if resources.Elements.Count > 0:
+                    split_resources = resources.SelectField("Block:new split resources")
+                    if split_resources.Elements.Count > 0:
+                        cubemap_resource = split_resources.SelectField("Reference:cubemap reference resource")
+                        path = scenario.get_path_str(cubemap_resource.Path, True)
+                        if path and Path(path).exists():
+                            with Tag(path=path) as resource:
+                                block_cubemaps = resource.tag.SelectField("Block:cubemaps")
+                                element = block_cubemaps.AddElement()
+                                element.SelectField("cubemap position").Data = 0.0, 0.0, 0.6
+                                resource.tag_has_changes = True
     
     def launch_game(self):
         executable = self.get_tagplay_exe()
@@ -194,6 +219,7 @@ class NWO_OT_Cubemap(bpy.types.Operator):
         if context.scene.nwo_export.show_output:
             bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
             print(f"►►► CUBEMAP FARM ◄◄◄")
+        farm.ensure_cubemap_points()
         if self.launch_game:
             farm.launch_game()
         start = time.perf_counter()
