@@ -95,6 +95,7 @@ class NWO_OT_BuildShaderTemplates(bpy.types.Operator):
         new_template_count = 0
         processes = []
         max_process_count = multiprocessing.cpu_count()
+        built_templates = set()
         
         print("--- Validating templates for shaders")
         for spath in shader_paths:
@@ -112,6 +113,10 @@ class NWO_OT_BuildShaderTemplates(bpy.types.Operator):
                     definition_path = shader.get_path_str(definition.Path, True)
                     if definition_path and Path(definition_path).exists():
                         template_name = path_template.with_suffix("").name
+                        if template_name in built_templates:
+                            continue
+                        
+                        built_templates.add(template_name)
                         
                         while len(processes) >= max_process_count:
                             processes = [p for p in processes if p.poll() is None]
