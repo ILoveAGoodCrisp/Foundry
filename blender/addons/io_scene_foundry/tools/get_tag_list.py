@@ -150,6 +150,8 @@ def extensions_from_type(list_type):
                         ".device_dispenser", ".biped", ".creature", ".giant", ".vehicle", ".weapon", ".equipment")
         case 'cinematic_scenario':
             return (".scenario")
+        case 'animation_cmd_path':
+            return (".model_animation_graph")
         case 'sound_tag':
             return (".sound")
         case 'female_sound_tag':

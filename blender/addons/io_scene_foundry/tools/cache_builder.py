@@ -292,7 +292,7 @@ class CacheBuilder:
         utils.run_tool(["wet-mask-generate", str(self.scenario), "all"], force_tool=True)
     
     def imposters(self):
-        print("--- Generating imposters. This will launch TagTest")
+        print("\n--- Generating imposters. This will launch TagTest")
         farm = ImposterFarm(str(self.scenario.with_suffix(".scenario")))
         farm.launch_game(True)
         start = time.perf_counter()
@@ -303,7 +303,7 @@ class CacheBuilder:
         print("-----------------------------------------------------------------------")
     
     def cubemaps(self):
-        print("--- Generating cubemaps. This will launch TagTest")
+        print("\n--- Generating cubemaps. This will launch TagTest")
         farm = CubemapFarm(str(self.scenario.with_suffix(".scenario")))
         farm.ensure_cubemap_points()
         farm.launch_game()
