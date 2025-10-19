@@ -1828,6 +1828,7 @@ class NWO_UL_AnimationList(bpy.types.UIList):
             row.separator()
             row.prop(self, "use_filter_event", text="", icon_value=get_icon_id("animation_event"))
             row.prop(self, "use_filter_rename", text="", icon_value=get_icon_id("animation_rename"))
+            row.prop(self, "use_filter_export", text="", icon='CHECKBOX_HLT')
             row.separator()
             row.prop(self, "use_filter_sort_reverse", text="", icon="SORT_ASC")
             layout.separator()

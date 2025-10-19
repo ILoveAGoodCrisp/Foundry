@@ -2982,7 +2982,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                         col.prop(event, "script_text", text="Title String ID")
 
     def draw_animation_manager(self):
-        box = self.box.box()
+        box = self.box
         
         context = self.context
         ob = context.object
@@ -3480,7 +3480,6 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         if h4:
             col.separator()
             col.operator("nwo.open_matman", text="Open Material Tag Viewer", icon_value=get_icon_id("foundation"))
-
 
     def draw_help(self):
         self.box.operator("extensions.userpref_show_for_update", text="Check for Update", icon_value=get_icon_id("foundry"))
