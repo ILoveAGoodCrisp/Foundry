@@ -46,28 +46,52 @@ class NWO_UL_CinematicEvents(bpy.types.UIList):
 
     def filter_items(self, context, data, propname):
         items = getattr(data, propname)
+        bit = self.bitflag_filter_item
+
         if self.filter_name:
-            flt_flags = bpy.types.UI_UL_list.filter_items_by_name(self.filter_name, self.bitflag_filter_item, items, "name", reverse=False)
+            name_flags = bpy.types.UI_UL_list.filter_items_by_name(
+                self.filter_name, bit, items, "name", reverse=False
+            )
+            visible_by_name = [(f & bit) != 0 for f in name_flags]
         else:
-            flt_flags = [self.bitflag_filter_item] * len(items)
-        
-        order = None
-        sort = []
-        sequences = context.scene.sequence_editor.sequences_all
+            name_flags = [bit] * len(items)
+            visible_by_name = [True] * len(items)
+
+        visible_by_custom = [True] * len(items)
+
+        flt_flags = [0] * len(items)
+        for i in range(len(items)):
+            final_visible = visible_by_name[i] and visible_by_custom[i]
+
+            if self.use_filter_invert:
+                final_visible = not final_visible
+
+            base_flag = name_flags[i] if self.filter_name else bit
+            base_flag &= ~bit
+            if final_visible:
+                base_flag |= bit
+            flt_flags[i] = base_flag
+
+        order = []
+        sequences = getattr(context.scene, "sequence_editor", None)
+        sequences_all = getattr(sequences, "sequences_all", None) if sequences else None
+
         if self.use_filter_sort_frame:
+            sort = []
             for idx, item in enumerate(items):
-                if item.type == 'DIALOGUE' and item.sound_strip:
-                    strip = sequences.get(item.sound_strip)
-                    if strip is not None:
-                        sort.append((idx, int(strip.frame_start)))
-                        continue
-                    
-                sort.append((idx, item.frame))
-                        
+                frame_val = getattr(item, "frame", 0)
+
+                if getattr(item, "type", "") == 'DIALOGUE' and getattr(item, "sound_strip", ""):
+                    if sequences_all:
+                        strip = sequences_all.get(item.sound_strip)
+                        if strip is not None:
+                            frame_val = int(strip.frame_start)
+                sort.append((idx, frame_val))
+
             order = bpy.types.UI_UL_list.sort_items_helper(sort, key=lambda i: i[1], reverse=False)
 
-
         return flt_flags, order
+
 
 class NWO_OT_CinematicEventAdd(bpy.types.Operator):
     bl_idname = "nwo.cinematic_event_add"

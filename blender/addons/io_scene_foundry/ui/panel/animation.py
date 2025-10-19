@@ -1737,15 +1737,67 @@ class NWO_UL_ActionTrack(bpy.types.UIList):
         layout.label(text=name, icon=icon)
 
 class NWO_UL_AnimationList(bpy.types.UIList):
-    # Constants (flags)
-    # Be careful not to shadow FILTER_ITEM (i.e. UIList().bitflag_filter_item)!
-    # E.g. VGROUP_EMPTY = 1 << 0
+    
+    use_filter_sort_frame: bpy.props.BoolProperty(
+        name="Sort By Frame Count",
+        default=False,
+    )
+    
+    use_filter_event: bpy.props.BoolProperty(
+        name="Has Events",
+        default=False,
+    )
+    
+    use_filter_rename: bpy.props.BoolProperty(
+        name="Has Renames",
+        default=False,
+    )
+    
+    use_filter_base_none: bpy.props.BoolProperty(
+        name="Base None",
+        default=True,
+    )
+    use_filter_base_xy: bpy.props.BoolProperty(
+        name="Base Horizonta",
+        default=True,
+    )
+    use_filter_base_xyyaw: bpy.props.BoolProperty(
+        name="Base Horizontal and Yaw",
+        default=True,
+    )
+    use_filter_base_xyzyaw: bpy.props.BoolProperty(
+        name="Base Full & Yaw",
+        default=True,
+    )
+    use_filter_base_full: bpy.props.BoolProperty(
+        name="Base Full",
+        default=True,
+    )
+    use_filter_world: bpy.props.BoolProperty(
+        name="World",
+        default=True,
+    )
+    use_filter_overlay: bpy.props.BoolProperty(
+        name="Overlay",
+        default=True,
+    )
+    use_filter_replacement_local: bpy.props.BoolProperty(
+        name="Replacement Local",
+        default=True,
+    )
+    use_filter_replacement_object: bpy.props.BoolProperty(
+        name="Replacement Object",
+        default=True,
+    )
+    use_filter_composite: bpy.props.BoolProperty(
+        name="Composite",
+        default=True,
+    )
+    use_filter_export: bpy.props.BoolProperty(
+        name="Export Enabled Only",
+        default=False,
+    )
 
-    # Custom properties, saved with .blend file. E.g.
-    # use_filter_empty = bpy.props.BoolProperty(name="Filter Empty", default=False, options=set(),
-    #                                           description="Whether to filter empty vertex groups")
-
-    # Called for each drawn item.
     def draw_item(self, context, layout: bpy.types.UILayout, data, item, icon, active_data, active_propname, index, flt_flag):
         match item.animation_type:
             case 'base':
@@ -1763,31 +1815,118 @@ class NWO_UL_AnimationList(bpy.types.UIList):
                 icon_str = 'anim_composite'
             
         layout.prop(item, "name", text="", emboss=False, icon_value=get_icon_id(icon_str))
-        # layout.label(text=str((item.frame_end + 1) - item.frame_start), icon='KEYFRAME_HLT')
-        # num_action_tracks = len([track for track in item.action_tracks if not track.is_shape_key_action])
-        # num_shape_key_tracks = len(item.action_tracks) - num_action_tracks
-        # layout.label(text=str(num_action_tracks), icon='ACTION')
-        # if num_shape_key_tracks:
-        #     layout.label(text=str(num_shape_key_tracks), icon='SHAPEKEY_DATA')
-        # if item.animation_renames:
-        #     layout.label(text=str(len(item.animation_renames)), icon_value=get_icon_id("animation_rename"))
-        # else:
-        #     layout.label(text=' ', icon='BLANK1')
-        # if item.animation_events:
-        #     layout.label(text=str(len(item.animation_events)), icon_value=get_icon_id("animation_event"))
-        # else:
-        #     layout.label(text=' ', icon='BLANK1')
-        # anim_type_display = f"[{(item.frame_end + 1) - item.frame_start}] {item.animation_type}"
-        # if anim_type_display == 'base' and item.animation_movement_data != 'none':
-        #     anim_type_display += f'[{item.animation_movement_data}]'
-        # elif anim_type_display == 'replacement':
-        #     anim_type_display += f'[{item.animation_space}]'
-            
-        # col = layout.column()
-        # col.alignment = 'RIGHT'
-        # col.label(text=anim_type_display)
-
         layout.prop(item, 'export_this', text="", icon='CHECKBOX_HLT' if item.export_this else 'CHECKBOX_DEHLT', emboss=False)
+        
+    def draw_filter(self, context, layout):
+        if self.use_filter_show:
+            row = layout.row(align=True)
+            row.prop(self, "filter_name", text="")
+            row.prop(self, "use_filter_sort_alpha", text="")
+            row.prop(self, "use_filter_invert", text="", icon='ARROW_LEFTRIGHT')
+            row.separator()
+            row.prop(self, "use_filter_sort_frame", text="", icon='KEYFRAME_HLT')
+            row.separator()
+            row.prop(self, "use_filter_event", text="", icon_value=get_icon_id("animation_event"))
+            row.prop(self, "use_filter_rename", text="", icon_value=get_icon_id("animation_rename"))
+            row.separator()
+            row.prop(self, "use_filter_sort_reverse", text="", icon="SORT_ASC")
+            layout.separator()
+            row = layout.row(align=True, heading="Types Filter")
+            row.prop(self, "use_filter_base_none", text="", icon_value=get_icon_id("anim_base"))
+            row.prop(self, "use_filter_base_xy", text="", icon_value=get_icon_id("anim_base_xy"))
+            row.prop(self, "use_filter_base_xyyaw", text="", icon_value=get_icon_id("anim_base_xyyaw"))
+            row.prop(self, "use_filter_base_xyzyaw", text="", icon_value=get_icon_id("anim_base_xyzyaw"))
+            row.prop(self, "use_filter_base_full", text="", icon_value=get_icon_id("anim_base_full"))
+            row.prop(self, "use_filter_world", text="", icon_value=get_icon_id("anim_world"))
+            row.separator()
+            row.prop(self, "use_filter_overlay", text="", icon_value=get_icon_id("anim_overlay"))
+            row.prop(self, "use_filter_replacement_local", text="", icon_value=get_icon_id("anim_replacement_local"))
+            row.prop(self, "use_filter_replacement_object", text="", icon_value=get_icon_id("anim_replacement_object"))
+            row.separator()
+            row.prop(self, "use_filter_composite", text="", icon_value=get_icon_id("anim_composite"))
+            row.separator()
+
+    def filter_items(self, context, data, propname):
+        items = getattr(data, propname)
+        bit = self.bitflag_filter_item
+
+        if self.filter_name:
+            name_flags = bpy.types.UI_UL_list.filter_items_by_name(
+                self.filter_name, bit, items, "name", reverse=False
+            )
+            visible_by_name = [(f & bit) != 0 for f in name_flags]
+        else:
+            visible_by_name = [True] * len(items)
+
+        visible_by_custom = [True] * len(items)
+        for i, item in enumerate(items):
+            ok = True
+            if self.use_filter_event:
+                ok = ok and bool(item.animation_events)
+            if self.use_filter_rename:
+                ok = ok and bool(item.animation_renames)
+            if self.use_filter_export:
+                ok = ok and item.export_this
+            visible_by_custom[i] = ok
+
+        visible_by_type = [True] * len(items)
+        for i, item in enumerate(items):
+            anim_type = item.animation_type
+            move_data = item.animation_movement_data
+            space = item.animation_space
+
+            ok = False
+
+            if anim_type == "base":
+                match move_data:
+                    case "none":
+                        ok = self.use_filter_base_none
+                    case "xy":
+                        ok = self.use_filter_base_xy
+                    case "xyyaw":
+                        ok = self.use_filter_base_xyyaw
+                    case "xyzyaw":
+                        ok = self.use_filter_base_xyzyaw
+                    case "full":
+                        ok = self.use_filter_base_full
+            elif anim_type == "world":
+                ok = self.use_filter_world
+            elif anim_type == "overlay":
+                ok = self.use_filter_overlay
+            elif anim_type == "replacement":
+                if space == "local":
+                    ok = self.use_filter_replacement_local
+                elif space == "object":
+                    ok = self.use_filter_replacement_object
+            elif anim_type == "composite":
+                ok = self.use_filter_composite
+
+            visible_by_type[i] = ok
+
+        flt_flags = [0] * len(items)
+        for i in range(len(items)):
+            final_visible = visible_by_name[i] and visible_by_custom[i] and visible_by_type[i]
+
+            if self.use_filter_invert:
+                final_visible = not final_visible
+
+            base_flag = name_flags[i] if self.filter_name else bit
+            base_flag &= ~bit
+            if final_visible:
+                base_flag |= bit
+
+            flt_flags[i] = base_flag
+
+        order = []
+        if self.use_filter_sort_frame:
+            sort = [(idx, item.frame_end - item.frame_start) for idx, item in enumerate(items)]
+            order = bpy.types.UI_UL_list.sort_items_helper(sort, key=lambda i: i[1], reverse=True)
+            return flt_flags, order
+        elif self.use_filter_sort_alpha:
+            sort = [(idx, item.name.lower()) for idx, item in enumerate(items)]
+            order = bpy.types.UI_UL_list.sort_items_helper(sort, key=lambda i: i[1])
+
+        return flt_flags, order
     
 class NWO_OT_AnimationEventSetFrame(bpy.types.Operator):
     bl_idname = "nwo.animation_event_set_frame"
