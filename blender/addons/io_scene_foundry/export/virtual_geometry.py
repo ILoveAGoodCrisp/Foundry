@@ -149,8 +149,8 @@ class VirtualShot:
         self.shot_actors = [VirtualShotActor(actor, scene) for actor in actors]
         self.camera = camera
         self.frame_start = frame_start
-        self.frame_end = frame_end
-        self.frame_count = frame_end - frame_start + 1
+        self.frame_end = frame_end + 1
+        self.frame_count = frame_end - frame_start + 2
         self.frames: list[Frame] = []
         self.index = index
         self.actor_animation = {}
@@ -162,7 +162,7 @@ class VirtualShot:
     
     def perform(self, scene: 'VirtualScene'):
         if scene.cinematic_scope != 'OBJECT' and self.in_scope:
-            for frame in range(self.frame_start, self.frame_end + 1):
+            for frame in range(self.frame_start, self.frame_end + 2):
                 scene.context.scene.frame_set(frame)
                 # Camera Animation
                 self.frames.append(Frame(self.camera, scene.corinth))
@@ -316,8 +316,8 @@ class VirtualAnimation:
             self.movement = None
             self.space = None
             self.overlay = False
-            self.frame_count: int = animation.id_data.frame_end - animation.id_data.frame_start + 1
-            self.frame_range: tuple[int, int] = (animation.id_data.frame_start, animation.id_data.frame_end)
+            self.frame_count: int = animation.id_data.frame_end - animation.id_data.frame_start + 2
+            self.frame_range: tuple[int, int] = (animation.id_data.frame_start, animation.id_data.frame_end + 1)
         else:
             self.name = animation.name
             
@@ -330,9 +330,10 @@ class VirtualAnimation:
             self.movement = animation.animation_movement_data
             self.space = animation.animation_space
             self.overlay = animation.animation_type == 'overlay'
+            non_overlay = int(not self.overlay)
             
-            self.frame_count: int = animation.frame_end - animation.frame_start + 1
-            self.frame_range: tuple[int, int] = (animation.frame_start, animation.frame_end)
+            self.frame_count: int = animation.frame_end - animation.frame_start + 1 + non_overlay
+            self.frame_range: tuple[int, int] = (animation.frame_start, animation.frame_end + non_overlay)
         
         self.pose_overlay = False # Now calculating this rather than this being user defined
         self.anim = animation
@@ -434,7 +435,7 @@ class VirtualAnimation:
         suspension_compression_height = 0.0
         suspension_destroyed_extension_height = 0.0
         suspension_destroyed_compression_height = 0.0
-        
+
         for frame in range(self.frame_range[0], self.frame_range[1] + 1):
             scene.context.scene.frame_set(frame)
             
@@ -505,7 +506,6 @@ class VirtualAnimation:
                 data_map[data].append(idx)
             
             duplicate_data = {key: indexes for key, indexes in data_map.items() if len(indexes) > 1}
-            
             if len(duplicate_data) != len(data_map):
                 # This must be a pose overlay if aim bones don't have same rotation on every frame
                 # Even if duplicate frame data is found, keep this as pose overlay so the user is also warned of the issue by Tool

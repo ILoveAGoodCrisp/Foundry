@@ -615,7 +615,7 @@ class NWO_HaloLauncher_Granny(bpy.types.Operator):
     )
 
     def execute(self, context):
-        os.startfile(Path(get_prefs().granny_viewer_path.strip("""'\" """)).with_suffix(".exe"), arguments=self.filepath)
+        os.startfile(Path(get_prefs().granny_viewer_path.strip("""'\" """)).with_suffix(".exe"), arguments=f'"{self.filepath}"')
         return {'FINISHED'}
     
     def invoke(self, context, _):
