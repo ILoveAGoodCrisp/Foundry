@@ -8,7 +8,7 @@ import bpy
 
 from ...managed_blam.animation import AnimationTag
 
-from ...props.scene import NWO_AnimationBlendAxisItems, NWO_AnimationGroupItems, NWO_AnimationLeavesItems, NWO_AnimationPhaseSetsItems, NWO_AnimationPropertiesGroup, NWO_AnimationSubBlendAxisItems
+from ...props.scene import NWO_AnimationBlendAxisItems, NWO_AnimationGroupItems, NWO_AnimationLeavesItems, NWO_AnimationPhaseSetsItems, NWO_AnimationPropertiesGroup
 from ... import utils
 from ...icons import get_icon_id
 
@@ -1184,7 +1184,7 @@ class NWO_OT_NewAnimation(bpy.types.Operator):
         vertical_blend_axis.name = "vertical"
         vertical_blend_axis.adjusted = 'on_start'
         
-        horizontal_blend_axis = cast(NWO_AnimationSubBlendAxisItems, vertical_blend_axis.blend_axis.add())
+        horizontal_blend_axis = cast(NWO_AnimationBlendAxisItems, composite.blend_axis.add())
         
         horizontal_blend_axis.name = "horizontal"
         horizontal_blend_axis.adjusted = 'on_start'
@@ -1301,7 +1301,7 @@ class NWO_OT_NewAnimation(bpy.types.Operator):
         angle_blend_axis.runtime_source_bounds = 0, 360
         angle_blend_axis.runtime_source_clamped = False
         
-        speed_blend_axis = cast(NWO_AnimationSubBlendAxisItems, angle_blend_axis.blend_axis.add())
+        speed_blend_axis = cast(NWO_AnimationBlendAxisItems, composite.blend_axis.add())
         speed_blend_axis.name = "movement_speed"
         speed_blend_axis.animation_source_bounds_manual = True
         speed_blend_axis.animation_source_bounds = 0, 1
@@ -1414,7 +1414,7 @@ class NWO_OT_NewAnimation(bpy.types.Operator):
         # dead_zone_1.bounds = 225, 270
         # dead_zone_1.rate = 90
         
-        speed_blend_axis = cast(NWO_AnimationSubBlendAxisItems, angle_blend_axis.blend_axis.add())
+        speed_blend_axis = cast(NWO_AnimationBlendAxisItems, composite.blend_axis.add())
         speed_blend_axis.name = "movement_speed"
         speed_blend_axis.runtime_source_bounds_manual = True
         speed_blend_axis.runtime_source_bounds = 0, 1

@@ -71,80 +71,6 @@ keys = ("primary_keyframe",
 #         context.area.tag_redraw()
 #         return {'FINISHED'}
             
-class NWO_UL_AnimationSubBlendAxis(bpy.types.UIList):
-    def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
-        if item:
-            # row.alignment = 'LEFT'
-            layout.label(text=utils.formalise_string(item.name), icon='INDIRECT_ONLY_OFF')
-        else:
-            layout.label(text="", translate=False, icon_value=icon)
-            
-class NWO_OT_AnimationSubBlendAxisAdd(bpy.types.Operator):
-    bl_label = "Add Blend Axis"
-    bl_idname = "nwo.animation_sub_blend_axis_add"
-    bl_options = {'UNDO'}
-    
-    blend_axis: bpy.props.EnumProperty(
-        name="Blend Axis",
-        items=[
-            ("movement_angles", "Movement Angles", ""), # linear_movement_angle get_move_angle
-            ("movement_speed", "Movement Speed", ""), # linear_movement_speed get_move_speed
-            ("turn_rate", "Turn Rate", ""), # average_angular_rate get_turn_rate
-            ("turn_angle", "Turn Angle", ""), # total_angular_offset get_turn_angle
-            ("vertical", "Vertical", ""), # translation_offset_z get_destination_vertical
-            ("horizontal", "Horizontal", ""), # translation_offset_horizontal get_destination_forward
-        ]
-    )
-    
-    def execute(self, context):
-        composite = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
-        blend_axis = composite.blend_axis[composite.blend_axis_active_index]
-        table = blend_axis.blend_axis
-        entry = table.add()
-        entry.name = self.blend_axis
-        blend_axis.blend_axis_active_index = len(table) - 1
-        context.area.tag_redraw()
-        return {'FINISHED'}
-    
-    def invoke(self, context, event):
-        return context.window_manager.invoke_props_dialog(self)
-    
-    def draw(self, context):
-        self.layout.prop(self, 'blend_axis')
-        
-class NWO_OT_AnimationSubBlendAxisRemove(bpy.types.Operator):
-    bl_label = "Remove Blend Axis"
-    bl_idname = "nwo.animation_sub_blend_axis_remove"
-    bl_options = {'UNDO'}
-
-    def execute(self, context):
-        composite = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
-        blend_axis = composite.blend_axis[composite.blend_axis_active_index]
-        table = blend_axis.blend_axis
-        table.remove(blend_axis.blend_axis_active_index)
-        if blend_axis.blend_axis_active_index > len(table) - 1:
-            blend_axis.blend_axis_active_index -= 1
-        context.area.tag_redraw()
-        return {'FINISHED'}
-    
-class NWO_OT_AnimationSubBlendAxisMove(bpy.types.Operator):
-    bl_label = "Move Blend Axis"
-    bl_idname = "nwo.animation_sub_blend_axis_move"
-    bl_options = {'UNDO'}
-    
-    direction: bpy.props.StringProperty()
-
-    def execute(self, context):
-        composite = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
-        blend_axis = composite.blend_axis[composite.blend_axis_active_index]
-        table = blend_axis.blend_axis
-        delta = {"down": 1, "up": -1,}[self.direction]
-        current_index = blend_axis.blend_axis_active_index
-        to_index = (current_index + delta) % len(table)
-        table.move(current_index, to_index)
-        blend_axis.blend_axis_active_index = to_index
-        context.area.tag_redraw()
-        return {'FINISHED'}
     
 class NWO_UL_AnimationBlendAxis(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
@@ -541,8 +467,24 @@ class CompositeXML:
         element_composite = ET.Element("composite")
         timing_name = utils.space_partition(self.data.timing_source.replace(":", " "), True)
         ET.SubElement(element_composite, "timing", source=timing_name)
-        for blend_axis in self.data.blend_axis:
-            self.write_blend_axis_entry(element_composite, blend_axis)
+        
+        parent_stack = []
+        for idx, blend_axis in enumerate(self.data.blend_axis):
+            rel = blend_axis.relationship
+
+            if idx == 0 or rel == 'PARENT':
+                parent_blend_axis = None
+                parent_stack = [blend_axis]
+            elif rel == 'CHILD':
+                parent_blend_axis = parent_stack[-1] if parent_stack else None
+                parent_stack.append(blend_axis)
+            elif rel == 'SIBLING':
+                if len(parent_stack) > 1:
+                    parent_stack.pop()
+                parent_blend_axis = parent_stack[-1] if parent_stack else None
+                parent_stack.append(blend_axis)
+
+            self.write_blend_axis_entry(element_composite, blend_axis, parent_blend_axis=parent_blend_axis)
             
         dom = xml.dom.minidom.parseString(ET.tostring(element_composite))
         xml_string = dom.toprettyxml(indent="  ")
@@ -609,10 +551,6 @@ class CompositeXML:
             
         for group in blend_axis.groups:
             self.write_group_entry(element_blend_axis, group, parent_runtime_source_name, runtime_source_name)
-        
-        if hasattr(blend_axis, "blend_axis"):
-            for sub_blend_axis in blend_axis.blend_axis:
-                self.write_blend_axis_entry(element_blend_axis, sub_blend_axis, blend_axis)
             
     def write_phase_set_entry(self, element_blend_axis, phase_set, parent_function_name, function_name):
         element_phase_set = ET.SubElement(element_blend_axis, "phase_set", name=phase_set.name)

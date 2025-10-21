@@ -189,52 +189,6 @@ class NWO_AnimationDeadZonesItems(PropertyGroup):
     bounds: bpy.props.FloatVectorProperty(name="Dead Zone Bounds", options=set(), size=2, subtype='COORDINATES', min=0)
     rate: bpy.props.FloatProperty(name="Dead Zone Rate", options=set(), min=0, default=90)
 
-class NWO_AnimationSubBlendAxisItems(PropertyGroup):
-    name: bpy.props.EnumProperty(
-        name="Type",
-        options=set(),
-        description="What kind of data this composite relies on",
-        items=[
-            ("movement_angles", "Movement Angles", ""), # linear_movement_angle get_move_angle
-            ("movement_speed", "Movement Speed", ""), # linear_movement_speed get_move_speed
-            ("turn_rate", "Turn Rate", ""), # average_angular_rate get_turn_rate
-            ("turn_angle", "Turn Angle", ""), # total_angular_offset get_turn_angle
-            ("vertical", "Vertical", ""), # translation_offset_z get_destination_vertical
-            ("horizontal", "Horizontal", ""), # translation_offset_horizontal get_destination_forward
-        ]
-    )
-    
-    animation_source_bounds_manual: bpy.props.BoolProperty(name="Animation Manual Bounds", options=set(), description="Manually define the bounds of the animation axis")
-    animation_source_bounds: bpy.props.FloatVectorProperty(name="Animation Source Bounds", options=set(), size=2, subtype='COORDINATES', description="Manual animation bounds")
-    animation_source_limit: bpy.props.FloatProperty(name="Animation Source Limit", options=set(), description="The limit between each animation on an axis. For example on an angle axis with animtions for every 90 degrees, you'd use 90")
-    
-    runtime_source_bounds_manual: bpy.props.BoolProperty(name="Input Manual Bounds", options=set(), description="Define the input bounds manually")
-    runtime_source_bounds: bpy.props.FloatVectorProperty(name="Input Source Bounds", options=set(), size=2, subtype='COORDINATES', description="Manual input bounds")
-    runtime_source_clamped: bpy.props.BoolProperty(name="Input Source Clamped", options=set(), description="Clamps input to within this range")
-    
-    adjusted: bpy.props.EnumProperty(
-        name="Adjustment",
-        options=set(),
-        items=[
-            ("none", "None", ""),
-            ("on_start", "On Start", ""),
-            ("on_loop", "On Loop", ""),
-            ("continuous", "Continuous", ""),
-        ]
-    )
-
-    leaves_active_index: bpy.props.IntProperty(options=set(), update=animation_from_leaf)
-    leaves: bpy.props.CollectionProperty(name="Animations", options=set(), type=NWO_AnimationLeavesItems)
-    
-    dead_zones_active_index: bpy.props.IntProperty(options=set())
-    dead_zones: bpy.props.CollectionProperty(name="Blend Axis Dead Zones", options=set(), type=NWO_AnimationDeadZonesItems)
-    
-    phase_sets_active_index: bpy.props.IntProperty(options=set(), update=animation_from_phase_set)
-    phase_sets: bpy.props.CollectionProperty(name="Animation Sets", options=set(), type=NWO_AnimationPhaseSetsItems)
-    
-    groups_active_index: bpy.props.IntProperty(options=set(), update=animation_from_group)
-    groups: bpy.props.CollectionProperty(name="Animation Groups", options=set(), type=NWO_AnimationGroupItems)
-
 class NWO_AnimationBlendAxisItems(PropertyGroup):
     name: bpy.props.EnumProperty(
         name="Type",
@@ -280,8 +234,16 @@ class NWO_AnimationBlendAxisItems(PropertyGroup):
     groups_active_index: bpy.props.IntProperty(options=set(), update=animation_from_group)
     groups: bpy.props.CollectionProperty(name="Animation Groups", options=set(), type=NWO_AnimationGroupItems)
     
-    blend_axis_active_index: bpy.props.IntProperty(options=set(), update=animation_from_blend_axis)
-    blend_axis: bpy.props.CollectionProperty(name="Blend Axis", options=set(), type=NWO_AnimationSubBlendAxisItems)
+    relationship: bpy.props.EnumProperty(
+        name="Relationship",
+        description="The relationship of this axis to the preceeding axis",
+        options=set(),
+        items=[
+            ('CHILD', "Child", "Inherits the properties of the blend axis above"),
+            ('SIBLING', "Sibling", "Inherits the properties of its siblings parent axis"),
+            ('PARENT', "Parent", "Inherits from no axis, but an axis proceeding this one may inherit from it")
+        ]
+    )
 
 # class NWO_AnimationCompositesItems(PropertyGroup):
 #     name: bpy.props.StringProperty(name="Name", options=set())

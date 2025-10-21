@@ -1039,6 +1039,9 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         blend_axis = item.blend_axis[item.blend_axis_active_index]
         col = box.column()
         col.use_property_split = True
+        if item.blend_axis_active_index > 0:
+            col.prop(blend_axis, "relationship")
+        
         col.prop(blend_axis, "animation_source_bounds_manual")
         if blend_axis.animation_source_bounds_manual:
             col.prop(blend_axis, "animation_source_bounds")
@@ -1163,174 +1166,32 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 
             self.draw_animation_leaves(col, group, in_group=True, blend_axis=blend_axis)
         
-        if blend_axis.blend_axis:
-            sub_blend_axis = blend_axis.blend_axis[blend_axis.blend_axis_active_index]
-            col = box.column()
-            col.use_property_split = True
-            box = col.box()
-            box.label(text="Sub Blend Axes")
-            row = box.row()
+        col.separator()
+        row = col.row()
+        if not item.animation_renames:
+            row.operator("nwo.animation_rename_add", text="New Rename", icon_value=get_icon_id('animation_rename'))
+        else:
+            rename_box = box.box()
+            col = rename_box.column()
+            row = col.row()
+            row.label(text="Animation Renames")
+            row = col.row()
+            rows = 3
             row.template_list(
-                "NWO_UL_AnimationSubBlendAxis",
+                "NWO_UL_AnimationRename",
                 "",
-                blend_axis,
-                "blend_axis",
-                blend_axis,
-                "blend_axis_active_index",
+                item,
+                "animation_renames",
+                item,
+                "active_animation_rename_index",
+                rows=rows,
             )
             col = row.column(align=True)
-            col.operator("nwo.animation_sub_blend_axis_add", text="", icon="ADD")
-            col.operator("nwo.animation_sub_blend_axis_remove", icon="REMOVE", text="")
+            col.operator("nwo.animation_rename_add", text="", icon="ADD")
+            col.operator("nwo.animation_rename_remove", icon="REMOVE", text="")
             col.separator()
-            col.operator("nwo.animation_sub_blend_axis_move", text="", icon="TRIA_UP").direction = 'up'
-            col.operator("nwo.animation_sub_blend_axis_move", icon="TRIA_DOWN", text="").direction = 'down'
-
-            col = box.column()
-            col.use_property_split = True
-            col.prop(sub_blend_axis, "animation_source_bounds_manual")
-            if sub_blend_axis.animation_source_bounds_manual:
-                col.prop(sub_blend_axis, "animation_source_bounds")
-            col.prop(sub_blend_axis, "animation_source_limit")
-            col.separator()
-            col.prop(sub_blend_axis, "runtime_source_bounds_manual")
-            if sub_blend_axis.runtime_source_bounds_manual:
-                col.prop(sub_blend_axis, "runtime_source_bounds")
-            col.prop(sub_blend_axis, "runtime_source_clamped")
-            col.prop(sub_blend_axis, "adjusted")
-            if not sub_blend_axis.dead_zones:
-                col.operator("nwo.animation_dead_zone_add", text="Add Dead Zone", icon='CON_OBJECTSOLVER').sub_axis = True
-            else:
-                box = col.box()
-                box.label(text="Dead Zones")
-                row = box.row()
-                row.template_list(
-                    "NWO_UL_AnimationDeadZone",
-                    "",
-                    sub_blend_axis,
-                    "dead_zones",
-                    sub_blend_axis,
-                    "dead_zones_active_index",
-                )
-                col = row.column(align=True)
-                col.operator("nwo.animation_dead_zone_add", text="", icon="ADD").sub_axis = True
-                col.operator("nwo.animation_dead_zone_remove", icon="REMOVE", text="").sub_axis = True
-                col.separator()
-                op = col.operator("nwo.animation_dead_zone_move", text="", icon="TRIA_UP")
-                op.direction = 'up'
-                op.sub_axis = True
-                op = col.operator("nwo.animation_dead_zone_move", text="", icon="TRIA_DOWN")
-                op.direction = 'down'
-                op.sub_axis = True
-                if sub_blend_axis.dead_zones and sub_blend_axis.dead_zones_active_index > -1:
-                    dead_zone = sub_blend_axis.dead_zones[sub_blend_axis.dead_zones_active_index]
-                    col = box.column()
-                    col.use_property_split = True
-                    col.prop(dead_zone, "bounds")
-                    col.prop(dead_zone, "rate")
-                
-            self.draw_animation_leaves(col, sub_blend_axis, False, blend_axis=blend_axis, sub_axis=sub_blend_axis)
-            if not sub_blend_axis.phase_sets:
-                col.operator("nwo.animation_phase_set_add", text="Add Animation Set", icon='PRESET').sub_axis = True
-            else:
-                box = col.box()
-                box.label(text="Sets")
-                row = box.row()
-                row.template_list(
-                    "NWO_UL_AnimationPhaseSet",
-                    "",
-                    sub_blend_axis,
-                    "phase_sets",
-                    sub_blend_axis,
-                    "phase_sets_active_index",
-                )
-                col = row.column(align=True)
-                col.operator("nwo.animation_phase_set_add", text="", icon="ADD").sub_axis = True
-                col.operator("nwo.animation_phase_set_remove", icon="REMOVE", text="").sub_axis = True
-                col.separator()
-                op = col.operator("nwo.animation_phase_set_move", text="", icon="TRIA_UP")
-                op.direction = 'up'
-                op.sub_axis = True
-                op = col.operator("nwo.animation_phase_set_move", text="", icon="TRIA_DOWN")
-                op.direction = 'down'
-                op.sub_axis = True
-                if sub_blend_axis.phase_sets and sub_blend_axis.phase_sets_active_index > -1:
-                    phase_set = sub_blend_axis.phase_sets[sub_blend_axis.phase_sets_active_index]
-                    col = box.column()
-                    col.use_property_split = True
-                    col.prop(phase_set, "name")
-                    col.prop(phase_set, "priority")
-                    col.label(text="Keys")
-                    grid = col.grid_flow()
-                    grid.prop(phase_set, 'key_primary_keyframe')
-                    grid.prop(phase_set, 'key_secondary_keyframe')
-                    grid.prop(phase_set, 'key_tertiary_keyframe')
-                    grid.prop(phase_set, 'key_left_foot')
-                    grid.prop(phase_set, 'key_right_foot')
-                    grid.prop(phase_set, 'key_body_impact')
-                    grid.prop(phase_set, 'key_left_foot_lock')
-                    grid.prop(phase_set, 'key_left_foot_unlock')
-                    grid.prop(phase_set, 'key_right_foot_lock')
-                    grid.prop(phase_set, 'key_right_foot_unlock')
-                    grid.prop(phase_set, 'key_blend_range_marker')
-                    grid.prop(phase_set, 'key_stride_expansion')
-                    grid.prop(phase_set, 'key_stride_contraction')
-                    grid.prop(phase_set, 'key_ragdoll_keyframe')
-                    grid.prop(phase_set, 'key_drop_weapon_keyframe')
-                    grid.prop(phase_set, 'key_match_a')
-                    grid.prop(phase_set, 'key_match_b')
-                    grid.prop(phase_set, 'key_match_c')
-                    grid.prop(phase_set, 'key_match_d')
-                    grid.prop(phase_set, 'key_jetpack_closed')
-                    grid.prop(phase_set, 'key_jetpack_open')
-                    grid.prop(phase_set, 'key_sound_event')
-                    grid.prop(phase_set, 'key_effect_event')
-                    
-                    self.draw_animation_leaves(col, phase_set, True, sub_axis=sub_blend_axis, blend_axis=blend_axis)
-                    
-            if not sub_blend_axis.groups:
-                col.operator("nwo.animation_group_add", text="Add Animation Group", icon='GROUP_VERTEX').sub_axis = True
-            else:
-                box = col.box()
-                box.label(text="Groups")
-                row = box.row()
-                row.template_list(
-                    "NWO_UL_AnimationGroup",
-                    "",
-                    sub_blend_axis,
-                    "groups",
-                    sub_blend_axis,
-                    "groups_active_index",
-                )
-                col = row.column(align=True)
-                col.operator("nwo.animation_group_add", text="", icon="ADD").sub_axis = True
-                col.operator("nwo.animation_group_remove", icon="REMOVE", text="").sub_axis = True
-                col.separator()
-                op = col.operator("nwo.animation_group_move", text="", icon="TRIA_UP")
-                op.direction = 'up'
-                op.sub_axis = True
-                op = col.operator("nwo.animation_group_move", text="", icon="TRIA_DOWN")
-                op.direction = 'down'
-                op.sub_axis = True
-                
-                group = sub_blend_axis.groups[sub_blend_axis.groups_active_index]
-                col = box.column()
-                col.use_property_split = True
-                blend_axis_1_name, blend_axis_1_function = blend_axis_name(blend_axis.name)
-
-                col.prop(group, "manual_blend_axis_1", text=f"Manual {blend_axis_1_name}")
-                if group.manual_blend_axis_1:
-                    col.prop(group, "blend_axis_1", text=f"{blend_axis_1_function} value")
-                if sub_blend_axis:
-                    blend_axis_2_name, blend_axis_2_function = blend_axis_name(sub_blend_axis.name)
-                    
-                    col.prop(group, "manual_blend_axis_2", text=f"Manual {blend_axis_2_name}")
-                    if group.manual_blend_axis_2:
-                        col.prop(group, "blend_axis_2", text=f"{blend_axis_2_function} value")
-                        
-                    self.draw_animation_leaves(col, group, in_group=True, blend_axis=blend_axis, sub_axis=sub_blend_axis)
-                    
-        else:
-            col.operator("nwo.animation_sub_blend_axis_add", text="Add Sub Blend Axis", icon="ADD")
+            col.operator("nwo.animation_rename_move", text="", icon="TRIA_UP").direction = 'up'
+            col.operator("nwo.animation_rename_move", icon="TRIA_DOWN", text="").direction = 'down'
                 
             
     def draw_animation_leaves(self, col: bpy.types.UILayout, parent, in_set=False, in_group=False, blend_axis=None, sub_axis=None):
@@ -3040,9 +2901,9 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         
         if is_composite:
             if self.h4:
-                self.draw_animation_composites(box, animation)
+                return self.draw_animation_composites(box, animation)
             else:
-                col.label(text="Composite animations not valid for Reach")
+                return col.label(text="Composite animations not valid for Reach")
         
         elif animation.animation_type != 'world':
             row = col.row()
@@ -3086,47 +2947,46 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 col.operator('nwo.generate_poses', text='Generate Poses', icon='ANIM')
                 
         col.separator()
-        if not is_composite:
-            if animation.external:
-                col.prop(animation, "external")
-                col.prop(animation, "pose_overlay")
-                col.prop(animation, "gr2_path")
-                col.operator("nwo.open_external_animation_blend", icon='BLENDER')
-            else:
-                row = col.row()
-                row.label(text="Action Tracks")
-                row = col.row()
-                rows = 3
-                row.template_list(
-                    "NWO_UL_ActionTrack",
-                    "",
-                    animation,
-                    "action_tracks",
-                    animation,
-                    "active_action_group_index",
-                    rows=rows,
-                )
-                if ob is not None:
-                    col.label(text=f"Current Action: {ob.name} -> {ob.animation_data.action.name if ob.animation_data and ob.animation_data.action else 'NONE'}")
-                    if ob.type == 'MESH' and ob.data.shape_keys:
-                        col.label(text=f"Current Shape Key Action: {ob.name} -> {ob.data.shape_keys.animation_data.action.name if ob.data.shape_keys.animation_data and ob.data.shape_keys.animation_data.action else 'NONE'}")
-                col = row.column(align=True)
-                col.operator("nwo.action_track_add", text="", icon="ADD")
-                col.operator("nwo.action_track_remove", icon="REMOVE", text="")
-                col.separator()
-                col.operator("nwo.action_track_move", text="", icon="TRIA_UP").direction = 'up'
-                col.operator("nwo.action_track_move", icon="TRIA_DOWN", text="").direction = 'down'
-                
-                col = box.column(align=True)
-                col.separator()
-                row = col.row()
-                row.operator("nwo.animation_move_to_own_blend", icon='BLENDER')
-                row.operator("nwo.animation_link_to_gr2", icon='LINKED')
-                col.separator()
-                row = col.row()
-                row.operator("nwo.animation_frames_sync_to_keyframes", text="Sync Frame Range to Keyframes", icon='FILE_REFRESH', depress=scene_nwo.keyframe_sync_active)
-                row.operator("nwo.action_tracks_set_active", icon='ACTION_TWEAK')
-                col.separator()
+        if animation.external:
+            col.prop(animation, "external")
+            col.prop(animation, "pose_overlay")
+            col.prop(animation, "gr2_path")
+            col.operator("nwo.open_external_animation_blend", icon='BLENDER')
+        else:
+            row = col.row()
+            row.label(text="Action Tracks")
+            row = col.row()
+            rows = 3
+            row.template_list(
+                "NWO_UL_ActionTrack",
+                "",
+                animation,
+                "action_tracks",
+                animation,
+                "active_action_group_index",
+                rows=rows,
+            )
+            if ob is not None:
+                col.label(text=f"Current Action: {ob.name} -> {ob.animation_data.action.name if ob.animation_data and ob.animation_data.action else 'NONE'}")
+                if ob.type == 'MESH' and ob.data.shape_keys:
+                    col.label(text=f"Current Shape Key Action: {ob.name} -> {ob.data.shape_keys.animation_data.action.name if ob.data.shape_keys.animation_data and ob.data.shape_keys.animation_data.action else 'NONE'}")
+            col = row.column(align=True)
+            col.operator("nwo.action_track_add", text="", icon="ADD")
+            col.operator("nwo.action_track_remove", icon="REMOVE", text="")
+            col.separator()
+            col.operator("nwo.action_track_move", text="", icon="TRIA_UP").direction = 'up'
+            col.operator("nwo.action_track_move", icon="TRIA_DOWN", text="").direction = 'down'
+            
+            col = box.column(align=True)
+            col.separator()
+            row = col.row()
+            row.operator("nwo.animation_move_to_own_blend", icon='BLENDER')
+            row.operator("nwo.animation_link_to_gr2", icon='LINKED')
+            col.separator()
+            row = col.row()
+            row.operator("nwo.animation_frames_sync_to_keyframes", text="Sync Frame Range to Keyframes", icon='FILE_REFRESH', depress=scene_nwo.keyframe_sync_active)
+            row.operator("nwo.action_tracks_set_active", icon='ACTION_TWEAK')
+            col.separator()
             col.separator()
             
         row = col.row()
@@ -3157,8 +3017,6 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col.operator("nwo.animation_rename_move", icon="TRIA_DOWN", text="").direction = 'down'
 
         # ANIMATION EVENTS
-        if is_composite:
-            return
         if not animation.animation_events:
             if animation.animation_renames:
                 row = box.row()

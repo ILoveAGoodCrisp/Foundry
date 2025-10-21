@@ -19,7 +19,6 @@ classes = [
     scene.NWO_AnimationGroupItems,
     scene.NWO_AnimationPhaseSetsItems,
     scene.NWO_AnimationDeadZonesItems,
-    scene.NWO_AnimationSubBlendAxisItems,
     scene.NWO_AnimationBlendAxisItems,
     # scene.NWO_AnimationCompositesItems,
     scene.NWO_ActionGroup,
