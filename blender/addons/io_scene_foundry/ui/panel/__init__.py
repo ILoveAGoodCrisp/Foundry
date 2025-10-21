@@ -3712,13 +3712,13 @@ def blend_axis_name(name):
             blend_axis_name = "Horizontal"
             blend_axis_function = "get_destination_forward"
         case "aim_pitch":
-            blend_axis_name = "none"
+            blend_axis_name = "Aim Pitch"
             blend_axis_function = "get_aim_pitch"
         case "aim_yaw":
-            blend_axis_name = "none"
+            blend_axis_name = "Aim Yaw"
             blend_axis_function = "get_aim_yaw"
         case "aim_yaw_from_start":
-            blend_axis_name = "none"
+            blend_axis_name = "Aim Yaw From Start"
             blend_axis_function = "get_aim_yaw_from_start"
             
     return blend_axis_name, blend_axis_function
