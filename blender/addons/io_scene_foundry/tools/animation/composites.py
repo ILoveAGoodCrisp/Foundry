@@ -94,6 +94,9 @@ class NWO_OT_AnimationBlendAxisAdd(bpy.types.Operator):
             ("turn_angle", "Turn Angle", ""), # total_angular_offset get_turn_angle
             ("vertical", "Vertical", ""), # translation_offset_z get_destination_vertical
             ("horizontal", "Horizontal", ""), # translation_offset_horizontal get_destination_forward
+            ("aim_pitch", "Aim Pitch", ""), # none get_aim_pitch
+            ("aim_yaw", "Aim Yaw", ""), # none get_aim_yaw
+            ("aim_yaw_from_start", "Aim Yaw From Start", ""), # none get_aim_yaw_from_start
         ]
     )
     
@@ -156,14 +159,9 @@ class NWO_OT_AnimationDeadZoneAdd(bpy.types.Operator):
     bl_idname = "nwo.animation_dead_zone_add"
     bl_options = {'UNDO'}
     
-    sub_axis: bpy.props.BoolProperty(options={'SKIP_SAVE', 'HIDDEN'})
-    
     def execute(self, context):
         composite = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
         blend_axis = composite.blend_axis[composite.blend_axis_active_index]
-        
-        if self.sub_axis:
-            blend_axis = blend_axis.blend_axis[blend_axis.blend_axis_active_index]
         
         table = blend_axis.dead_zones
         entry = table.add()
@@ -176,15 +174,10 @@ class NWO_OT_AnimationDeadZoneRemove(bpy.types.Operator):
     bl_label = "Remove Animation Set"
     bl_idname = "nwo.animation_dead_zone_remove"
     bl_options = {'UNDO'}
-    
-    sub_axis: bpy.props.BoolProperty(options={'SKIP_SAVE', 'HIDDEN'})
 
     def execute(self, context):
         composite = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
         blend_axis = composite.blend_axis[composite.blend_axis_active_index]
-        
-        if self.sub_axis:
-            blend_axis = blend_axis.blend_axis[blend_axis.blend_axis_active_index]
         
         table = blend_axis.dead_zones
         table.remove(blend_axis.dead_zones_active_index)
@@ -199,14 +192,10 @@ class NWO_OT_AnimationDeadZoneMove(bpy.types.Operator):
     bl_options = {'UNDO'}
     
     direction: bpy.props.StringProperty()
-    sub_axis: bpy.props.BoolProperty(options={'SKIP_SAVE', 'HIDDEN'})
 
     def execute(self, context):
         composite = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
         blend_axis = composite.blend_axis[composite.blend_axis_active_index]
-        
-        if self.sub_axis:
-            blend_axis = blend_axis.blend_axis[blend_axis.blend_axis_active_index]
         
         table = blend_axis.dead_zones
         delta = {"down": 1, "up": -1,}[self.direction]
@@ -229,14 +218,9 @@ class NWO_OT_AnimationGroupAdd(bpy.types.Operator):
     bl_idname = "nwo.animation_group_add"
     bl_options = {'UNDO'}
     
-    sub_axis: bpy.props.BoolProperty(options={'SKIP_SAVE', 'HIDDEN'})
-    
     def execute(self, context):
         composite = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
         blend_axis = composite.blend_axis[composite.blend_axis_active_index]
-        
-        if self.sub_axis:
-            blend_axis = blend_axis.blend_axis[blend_axis.blend_axis_active_index]
         
         table = blend_axis.groups
         entry = table.add()
@@ -249,15 +233,10 @@ class NWO_OT_AnimationGroupRemove(bpy.types.Operator):
     bl_label = "Remove Animation Group"
     bl_idname = "nwo.animation_group_remove"
     bl_options = {'UNDO'}
-    
-    sub_axis: bpy.props.BoolProperty(options={'SKIP_SAVE', 'HIDDEN'})
 
     def execute(self, context):
         composite = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
         blend_axis = composite.blend_axis[composite.blend_axis_active_index]
-        
-        if self.sub_axis:
-            blend_axis = blend_axis.blend_axis[blend_axis.blend_axis_active_index]
         
         table = blend_axis.groups
         table.remove(blend_axis.groups_active_index)
@@ -272,14 +251,10 @@ class NWO_OT_AnimationGroupMove(bpy.types.Operator):
     bl_options = {'UNDO'}
     
     direction: bpy.props.StringProperty()
-    sub_axis: bpy.props.BoolProperty(options={'SKIP_SAVE', 'HIDDEN'})
 
     def execute(self, context):
         composite = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
         blend_axis = composite.blend_axis[composite.blend_axis_active_index]
-        
-        if self.sub_axis:
-            blend_axis = blend_axis.blend_axis[blend_axis.blend_axis_active_index]
         
         table = blend_axis.groups
         delta = {"down": 1, "up": -1,}[self.direction]
@@ -302,14 +277,9 @@ class NWO_OT_AnimationPhaseSetAdd(bpy.types.Operator):
     bl_idname = "nwo.animation_phase_set_add"
     bl_options = {'UNDO'}
     
-    sub_axis: bpy.props.BoolProperty(options={'SKIP_SAVE', 'HIDDEN'})
-    
     def execute(self, context):
         composite = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
         blend_axis = composite.blend_axis[composite.blend_axis_active_index]
-        
-        if self.sub_axis:
-            blend_axis = blend_axis.blend_axis[blend_axis.blend_axis_active_index]
         
         table = blend_axis.phase_sets
         entry = table.add()
@@ -322,15 +292,10 @@ class NWO_OT_AnimationPhaseSetRemove(bpy.types.Operator):
     bl_label = "Remove Animation Set"
     bl_idname = "nwo.animation_phase_set_remove"
     bl_options = {'UNDO'}
-    
-    sub_axis: bpy.props.BoolProperty(options={'SKIP_SAVE', 'HIDDEN'})
 
     def execute(self, context):
         composite = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
         blend_axis = composite.blend_axis[composite.blend_axis_active_index]
-        
-        if self.sub_axis:
-            blend_axis = blend_axis.blend_axis[blend_axis.blend_axis_active_index]
         
         table = blend_axis.phase_sets
         table.remove(blend_axis.phase_sets_active_index)
@@ -345,14 +310,10 @@ class NWO_OT_AnimationPhaseSetMove(bpy.types.Operator):
     bl_options = {'UNDO'}
     
     direction: bpy.props.StringProperty()
-    sub_axis: bpy.props.BoolProperty(options={'SKIP_SAVE', 'HIDDEN'})
 
     def execute(self, context):
         composite = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
         blend_axis = composite.blend_axis[composite.blend_axis_active_index]
-        
-        if self.sub_axis:
-            blend_axis = blend_axis.blend_axis[blend_axis.blend_axis_active_index]
         
         table = blend_axis.phase_sets
         delta = {"down": 1, "up": -1,}[self.direction]
@@ -380,13 +341,10 @@ class NWO_OT_AnimationLeafAdd(bpy.types.Operator):
     
     phase_set: bpy.props.BoolProperty(options={'SKIP_SAVE', 'HIDDEN'})
     group: bpy.props.BoolProperty(options={'SKIP_SAVE', 'HIDDEN'})
-    sub_axis: bpy.props.BoolProperty(options={'SKIP_SAVE', 'HIDDEN'})
     
     def execute(self, context):
         composite = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
         blend_axis = composite.blend_axis[composite.blend_axis_active_index]
-        if self.sub_axis:
-            blend_axis = blend_axis.blend_axis[blend_axis.blend_axis_active_index]
         
         if self.phase_set:
             parent = blend_axis.phase_sets[blend_axis.phase_sets_active_index]
@@ -407,13 +365,10 @@ class NWO_OT_AnimationLeafRemove(bpy.types.Operator):
     
     phase_set: bpy.props.BoolProperty(options={'SKIP_SAVE', 'HIDDEN'})
     group: bpy.props.BoolProperty(options={'SKIP_SAVE', 'HIDDEN'})
-    sub_axis: bpy.props.BoolProperty(options={'SKIP_SAVE', 'HIDDEN'})
 
     def execute(self, context):
         composite = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
         blend_axis = composite.blend_axis[composite.blend_axis_active_index]
-        if self.sub_axis:
-            blend_axis = blend_axis.blend_axis[blend_axis.blend_axis_active_index]
         
         if self.phase_set:
             parent = blend_axis.phase_sets[blend_axis.phase_sets_active_index]
@@ -436,13 +391,10 @@ class NWO_OT_AnimationLeafMove(bpy.types.Operator):
     direction: bpy.props.StringProperty()
     phase_set: bpy.props.BoolProperty(options={'SKIP_SAVE', 'HIDDEN'})
     group: bpy.props.BoolProperty(options={'SKIP_SAVE', 'HIDDEN'})
-    sub_axis: bpy.props.BoolProperty(options={'SKIP_SAVE', 'HIDDEN'})
 
     def execute(self, context):
         composite = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
         blend_axis = composite.blend_axis[composite.blend_axis_active_index]
-        if self.sub_axis:
-            blend_axis = blend_axis.blend_axis[blend_axis.blend_axis_active_index]
         
         if self.phase_set:
             parent = blend_axis.phase_sets[blend_axis.phase_sets_active_index]
@@ -469,22 +421,27 @@ class CompositeXML:
         ET.SubElement(element_composite, "timing", source=timing_name)
         
         parent_stack = []
+        element_stack = []
         for idx, blend_axis in enumerate(self.data.blend_axis):
             rel = blend_axis.relationship
 
             if idx == 0 or rel == 'PARENT':
-                parent_blend_axis = None
+                parent_element = element_composite
                 parent_stack = [blend_axis]
+                element_stack = [element_composite]
             elif rel == 'CHILD':
-                parent_blend_axis = parent_stack[-1] if parent_stack else None
+                parent_element = element_stack[-1] if element_stack else element_composite
                 parent_stack.append(blend_axis)
+                element_stack.append(parent_element)
             elif rel == 'SIBLING':
                 if len(parent_stack) > 1:
                     parent_stack.pop()
-                parent_blend_axis = parent_stack[-1] if parent_stack else None
+                    element_stack.pop()
+                parent_element = element_stack[-1] if element_stack else element_composite
                 parent_stack.append(blend_axis)
+                element_stack.append(parent_element)
 
-            self.write_blend_axis_entry(element_composite, blend_axis, parent_blend_axis=parent_blend_axis)
+            element_stack[-1] = self.write_blend_axis_entry(blend_axis, element=parent_element, parent_stack=parent_stack)
             
         dom = xml.dom.minidom.parseString(ET.tostring(element_composite))
         xml_string = dom.toprettyxml(indent="  ")
@@ -507,11 +464,10 @@ class CompositeXML:
             
         return str(relative_path)
         
-    def write_blend_axis_entry(self, element_composite, blend_axis, parent_blend_axis=None):
-        element_blend_axis = ET.SubElement(element_composite, "blend_axis", name=blend_axis.name)
+    def write_blend_axis_entry(self, blend_axis, element=None, parent_stack=[]):
+        element_blend_axis = ET.SubElement(element, "blend_axis", name=blend_axis.name)
         animation_source_name = ""
         runtime_source_name = ""
-        parent_runtime_source_name = ""
         match blend_axis.name:
             case "movement_angles":
                 animation_source_name = "linear_movement_angle"
@@ -531,9 +487,15 @@ class CompositeXML:
             case "horizontal":
                 animation_source_name = "translation_offset_horizontal"
                 runtime_source_name = "get_destination_forward"
-                
-        if parent_blend_axis:
-            parent_runtime_source_name = function_from_name(parent_blend_axis.name)
+            case "aim_pitch":
+                animation_source_name = "none"
+                runtime_source_name = "get_aim_pitch"
+            case "aim_yaw":
+                animation_source_name = "none"
+                runtime_source_name = "get_aim_yaw"
+            case "aim_yaw_from_start":
+                animation_source_name = "none"
+                runtime_source_name = "get_aim_yaw_from_start"
                 
         ET.SubElement(element_blend_axis, "animation", source=animation_source_name, bounds=self.two_vector_string(blend_axis.animation_source_bounds) if blend_axis.animation_source_bounds_manual else "auto", limit=str(int(blend_axis.animation_source_limit)))
         ET.SubElement(element_blend_axis, "runtime", source=runtime_source_name, bounds=self.two_vector_string(blend_axis.runtime_source_bounds) if blend_axis.runtime_source_bounds_manual else "auto", clamped=str(blend_axis.runtime_source_clamped).lower())
@@ -544,49 +506,45 @@ class CompositeXML:
             ET.SubElement(element_blend_axis, "dead_zone", bounds=self.two_vector_string(dead_zone.bounds), rate=str(int(dead_zone.rate)))
         
         for leaf in blend_axis.leaves:
-            self.write_leaf_entry(element_blend_axis, leaf, parent_runtime_source_name, runtime_source_name)
+            self.write_leaf_entry(element_blend_axis, leaf, parent_stack)
         
         for phase_set in blend_axis.phase_sets:
-            self.write_phase_set_entry(element_blend_axis, phase_set, parent_runtime_source_name, runtime_source_name)
+            self.write_phase_set_entry(element_blend_axis, phase_set, parent_stack)
             
         for group in blend_axis.groups:
-            self.write_group_entry(element_blend_axis, group, parent_runtime_source_name, runtime_source_name)
+            self.write_group_entry(element_blend_axis, group, parent_stack)
             
-    def write_phase_set_entry(self, element_blend_axis, phase_set, parent_function_name, function_name):
+        return element_blend_axis
+            
+    def write_phase_set_entry(self, element_blend_axis, phase_set, parent_stack):
         element_phase_set = ET.SubElement(element_blend_axis, "phase_set", name=phase_set.name)
         for k in keys:
             if getattr(phase_set, f"key_{k}"):
                 ET.SubElement(element_phase_set, "sync", key=k.replace("_", " "))
                 
         for leaf in phase_set.leaves:
-            self.write_leaf_entry(element_phase_set, leaf, parent_function_name, function_name)
+            self.write_leaf_entry(element_phase_set, leaf, parent_stack)
             
-    def write_group_entry(self, element_blend_axis, group, parent_function_name, function_name):
+    def write_group_entry(self, element_blend_axis, group, parent_stack):
         props = {}
-        if parent_function_name:
-            if group.manual_blend_axis_1:
-                props[parent_function_name] = str(round(group.blend_axis_1, 6))
-            if group.manual_blend_axis_2:
-                props[function_name] = str(round(group.blend_axis_2, 6))
-        else:
-            if group.manual_blend_axis_1:
-                props[function_name] = str(round(group.blend_axis_1, 6))
+        for idx, item in enumerate(parent_stack):
+            if idx > 9:
+                break
+            if getattr(group, f"manual_blend_axis_{idx}"):
+                props[function_from_name(item.name)] = str(round(getattr(group, f"blend_axis_{idx}"), 6))
             
         element_group = ET.SubElement(element_blend_axis, "group", props)
             
         for leaf in group.leaves:
-            self.write_leaf_entry(element_group, leaf, parent_function_name, function_name)
+            self.write_leaf_entry(element_group, leaf, parent_stack)
             
-    def write_leaf_entry(self, element, leaf, parent_function_name, function_name):
+    def write_leaf_entry(self, element, leaf, parent_stack):
         props = {"source": utils.space_partition(leaf.animation.replace(":", " "), True)}
-        if parent_function_name:
-            if leaf.manual_blend_axis_1:
-                props[parent_function_name] = str(round(leaf.blend_axis_1, 6))
-            if leaf.manual_blend_axis_2:
-                props[function_name] = str(round(leaf.blend_axis_2, 6))
-        else:
-            if leaf.manual_blend_axis_1:
-                props[function_name] = str(round(leaf.blend_axis_1, 6))
+        for idx, item in enumerate(parent_stack):
+            if idx > 9:
+                break
+            if getattr(leaf, f"manual_blend_axis_{idx}"):
+                props[function_from_name(item.name)] = str(round(getattr(leaf, f"blend_axis_{idx}"), 6))
                 
         ET.SubElement(element, "leaf", props)
     
@@ -609,6 +567,12 @@ def function_from_name(name):
             return "get_destination_vertical"
         case 'horizontal':
             return "get_destination_forward"
+        case 'aim_pitch':
+            return "get_aim_pitch"
+        case 'aim_yaw':
+            return "get_aim_yaw"
+        case 'aim_yaw_from_start':
+            return "get_aim_yaw_from_start"
             
     return "function_unknown"
             

@@ -98,46 +98,206 @@ class NWO_AnimationLeavesItems(PropertyGroup):
     animation: bpy.props.StringProperty(name="Animation", update=animation_from_composite)
     # animation: bpy.props.PointerProperty(name="Animation", type=bpy.types.Action)
     
+    manual_blend_axis_0: bpy.props.BoolProperty(
+        name="Manual Blend Axis",
+        description="Manually assign a value to this blend axix instead of allowing it to be calculated",
+        options=set(),
+    )
     manual_blend_axis_1: bpy.props.BoolProperty(
-        name="Manual Blend Axis 1",
+        name="Manual Blend Axis",
         description="Manually assign a value to this blend axix instead of allowing it to be calculated",
         options=set(),
     )
     manual_blend_axis_2: bpy.props.BoolProperty(
-        name="Manual Blend Axis 2",
+        name="Manual Blend Axis",
         description="Manually assign a value to this blend axix instead of allowing it to be calculated",
         options=set(),
     )
+    manual_blend_axis_3: bpy.props.BoolProperty(
+        name="Manual Blend Axis",
+        description="Manually assign a value to this blend axix instead of allowing it to be calculated",
+        options=set(),
+    )
+    manual_blend_axis_4: bpy.props.BoolProperty(
+        name="Manual Blend Axis",
+        description="Manually assign a value to this blend axix instead of allowing it to be calculated",
+        options=set(),
+    )
+    manual_blend_axis_5: bpy.props.BoolProperty(
+        name="Manual Blend Axis",
+        description="Manually assign a value to this blend axix instead of allowing it to be calculated",
+        options=set(),
+    )
+    manual_blend_axis_6: bpy.props.BoolProperty(
+        name="Manual Blend Axis",
+        description="Manually assign a value to this blend axix instead of allowing it to be calculated",
+        options=set(),
+    )
+    manual_blend_axis_7: bpy.props.BoolProperty(
+        name="Manual Blend Axis",
+        description="Manually assign a value to this blend axix instead of allowing it to be calculated",
+        options=set(),
+    )
+    manual_blend_axis_8: bpy.props.BoolProperty(
+        name="Manual Blend Axis",
+        description="Manually assign a value to this blend axix instead of allowing it to be calculated",
+        options=set(),
+    )
+    manual_blend_axis_9: bpy.props.BoolProperty(
+        name="Manual Blend Axis",
+        description="Manually assign a value to this blend axix instead of allowing it to be calculated",
+        options=set(),
+    )
+    blend_axis_0: bpy.props.FloatProperty(
+        name="Blend Axis Value",
+        description="Value of this blend axis",
+        options=set(),
+    )
     blend_axis_1: bpy.props.FloatProperty(
-        name="Blend Axis Value 1",
+        name="Blend Axis Value",
         description="Value of this blend axis",
         options=set(),
     )
     blend_axis_2: bpy.props.FloatProperty(
-        name="Blend Axis Value 2",
+        name="Blend Axis Value",
+        description="Value of this blend axis",
+        options=set(),
+    )
+    blend_axis_3: bpy.props.FloatProperty(
+        name="Blend Axis Value",
+        description="Value of this blend axis",
+        options=set(),
+    )
+    blend_axis_4: bpy.props.FloatProperty(
+        name="Blend Axis Value",
+        description="Value of this blend axis",
+        options=set(),
+    )
+    blend_axis_5: bpy.props.FloatProperty(
+        name="Blend Axis Value",
+        description="Value of this blend axis",
+        options=set(),
+    )
+    blend_axis_6: bpy.props.FloatProperty(
+        name="Blend Axis Value",
+        description="Value of this blend axis",
+        options=set(),
+    )
+    blend_axis_7: bpy.props.FloatProperty(
+        name="Blend Axis Value",
+        description="Value of this blend axis",
+        options=set(),
+    )
+    blend_axis_8: bpy.props.FloatProperty(
+        name="Blend Axis Value",
+        description="Value of this blend axis",
+        options=set(),
+    )
+    blend_axis_9: bpy.props.FloatProperty(
+        name="Blend Axis Value",
         description="Value of this blend axis",
         options=set(),
     )
     
 class NWO_AnimationGroupItems(PropertyGroup):
     name: bpy.props.StringProperty(name="Name", options=set())
+    manual_blend_axis_0: bpy.props.BoolProperty(
+        name="Manual Blend Axis",
+        description="Manually assign a value to this blend axix instead of allowing it to be calculated",
+        options=set(),
+    )
     manual_blend_axis_1: bpy.props.BoolProperty(
-        name="Manual Blend Axis 1",
+        name="Manual Blend Axis",
         description="Manually assign a value to this blend axix instead of allowing it to be calculated",
         options=set(),
     )
     manual_blend_axis_2: bpy.props.BoolProperty(
-        name="Manual Blend Axis 2",
+        name="Manual Blend Axis",
         description="Manually assign a value to this blend axix instead of allowing it to be calculated",
         options=set(),
     )
+    manual_blend_axis_3: bpy.props.BoolProperty(
+        name="Manual Blend Axis",
+        description="Manually assign a value to this blend axix instead of allowing it to be calculated",
+        options=set(),
+    )
+    manual_blend_axis_4: bpy.props.BoolProperty(
+        name="Manual Blend Axis",
+        description="Manually assign a value to this blend axix instead of allowing it to be calculated",
+        options=set(),
+    )
+    manual_blend_axis_5: bpy.props.BoolProperty(
+        name="Manual Blend Axis",
+        description="Manually assign a value to this blend axix instead of allowing it to be calculated",
+        options=set(),
+    )
+    manual_blend_axis_6: bpy.props.BoolProperty(
+        name="Manual Blend Axis",
+        description="Manually assign a value to this blend axix instead of allowing it to be calculated",
+        options=set(),
+    )
+    manual_blend_axis_7: bpy.props.BoolProperty(
+        name="Manual Blend Axis",
+        description="Manually assign a value to this blend axix instead of allowing it to be calculated",
+        options=set(),
+    )
+    manual_blend_axis_8: bpy.props.BoolProperty(
+        name="Manual Blend Axis",
+        description="Manually assign a value to this blend axix instead of allowing it to be calculated",
+        options=set(),
+    )
+    manual_blend_axis_9: bpy.props.BoolProperty(
+        name="Manual Blend Axis",
+        description="Manually assign a value to this blend axix instead of allowing it to be calculated",
+        options=set(),
+    )
+    blend_axis_0: bpy.props.FloatProperty(
+        name="Blend Axis Value",
+        description="Value of this blend axis",
+        options=set(),
+    )
     blend_axis_1: bpy.props.FloatProperty(
-        name="Blend Axis Value 1",
+        name="Blend Axis Value",
         description="Value of this blend axis",
         options=set(),
     )
     blend_axis_2: bpy.props.FloatProperty(
-        name="Blend Axis Value 2",
+        name="Blend Axis Value",
+        description="Value of this blend axis",
+        options=set(),
+    )
+    blend_axis_3: bpy.props.FloatProperty(
+        name="Blend Axis Value",
+        description="Value of this blend axis",
+        options=set(),
+    )
+    blend_axis_4: bpy.props.FloatProperty(
+        name="Blend Axis Value",
+        description="Value of this blend axis",
+        options=set(),
+    )
+    blend_axis_5: bpy.props.FloatProperty(
+        name="Blend Axis Value",
+        description="Value of this blend axis",
+        options=set(),
+    )
+    blend_axis_6: bpy.props.FloatProperty(
+        name="Blend Axis Value",
+        description="Value of this blend axis",
+        options=set(),
+    )
+    blend_axis_7: bpy.props.FloatProperty(
+        name="Blend Axis Value",
+        description="Value of this blend axis",
+        options=set(),
+    )
+    blend_axis_8: bpy.props.FloatProperty(
+        name="Blend Axis Value",
+        description="Value of this blend axis",
+        options=set(),
+    )
+    blend_axis_9: bpy.props.FloatProperty(
+        name="Blend Axis Value",
         description="Value of this blend axis",
         options=set(),
     )
@@ -200,6 +360,9 @@ class NWO_AnimationBlendAxisItems(PropertyGroup):
             ("turn_angle", "Turn Angle", ""), # total_angular_offset get_turn_angle
             ("vertical", "Vertical", ""), # translation_offset_z get_destination_vertical
             ("horizontal", "Horizontal", ""), # translation_offset_horizontal get_destination_forward
+            ("aim_pitch", "Aim Pitch", ""), # none get_aim_pitch
+            ("aim_yaw", "Aim Yaw", ""), # none get_aim_yaw
+            ("aim_yaw_from_start", "Aim Yaw From Start", ""), # none get_aim_yaw_from_start
         ]
     )
     
@@ -239,8 +402,8 @@ class NWO_AnimationBlendAxisItems(PropertyGroup):
         description="The relationship of this axis to the preceeding axis",
         options=set(),
         items=[
-            ('CHILD', "Child", "Inherits the properties of the blend axis above"),
-            ('SIBLING', "Sibling", "Inherits the properties of its siblings parent axis"),
+            ('CHILD', "Child", "Inherits the results of the input function of the blend axis above"),
+            ('SIBLING', "Sibling", "Inherits the input function of its siblings parent axis"),
             ('PARENT', "Parent", "Inherits from no axis, but an axis proceeding this one may inherit from it")
         ]
     )
@@ -950,21 +1113,6 @@ class NWO_AnimationPropertiesGroup(bpy.types.PropertyGroup):
                     for leaf in phase_set.leaves:
                         if leaf.animation == old_name:
                             leaf.animation = new_name
-                
-                for sub_axis in axis.blend_axis:
-                    for leaf in sub_axis.leaves:
-                        if leaf.animation == old_name:
-                            leaf.animation = new_name
-                            
-                    for group in sub_axis.groups:
-                        for leaf in group.leaves:
-                            if leaf.animation == old_name:
-                                leaf.animation = new_name
-                                
-                    for phase_set in sub_axis.phase_sets:
-                        for leaf in phase_set.leaves:
-                            if leaf.animation == old_name:
-                                leaf.animation = new_name
     
     name: bpy.props.StringProperty(
         name="Name",
