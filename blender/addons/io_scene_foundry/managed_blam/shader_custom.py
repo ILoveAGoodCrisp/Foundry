@@ -129,6 +129,11 @@ class ShaderCustomTag(ShaderTag):
             old_illum = e_self_illumination.name
             e_self_illumination = SelfIllumination.SIMPLE
             utils.print_warning(f"Unsupported self illumination: {old_illum}. Using {e_self_illumination.name} instead")
+            
+        if e_blend_mode.value > BlendMode.ALPHA_BLEND.value:
+            old_blend = e_blend_mode.name
+            e_blend_mode = BlendMode.ALPHA_BLEND
+            utils.print_warning(f"Unsupported blend mode : {old_blend}. Using {e_blend_mode.name} instead")
         
         self.shader_parameters = {}
         self.shader_parameters.update(self.category_parameters["albedo"][utils.game_str(e_albedo.name)])
@@ -153,10 +158,14 @@ class ShaderCustomTag(ShaderTag):
             node_albedo = self._add_group_node(tree, nodes, f"albedo - {utils.game_str(e_albedo.name)}")
         final_node = node_albedo
         
+        no_material_model = e_material_model == MaterialModel.NONE
+        has_illum = e_self_illumination != SelfIllumination.OFF
+        
         has_bump = e_bump_mapping.value > 0 and e_material_model != MaterialModel.NONE
         mm_supports_glancing_spec = False
         material_model_has_alpha_input = False
         has_material_model = e_material_model != MaterialModel.NONE
+        
         if has_material_model:
             material_model_has_alpha_input = e_material_model != MaterialModel.FOLIAGE
             mm_supports_glancing_spec = e_material_model.value > 0
@@ -225,14 +234,18 @@ class ShaderCustomTag(ShaderTag):
                 if has_bump:
                     tree.links.new(input=node_environment_mapping.inputs["Normal"], output=node_bump_mapping.outputs[0])
             
-        if e_self_illumination.value > 0:
+        if has_illum:
             node_self_illumination = self._add_group_node(tree, nodes, f"self_illumination - {utils.game_str(e_self_illumination.name)}")
-            node_illum_add = nodes.new(type='ShaderNodeAddShader')
-            node_illum_add.location.x = node_self_illumination.location.x + 300
-            node_illum_add.location.y = final_node.location.y
-            tree.links.new(input=node_illum_add.inputs[0], output=final_node.outputs[0])
-            tree.links.new(input=node_illum_add.inputs[1], output=node_self_illumination.outputs[0])
-            final_node = node_illum_add
+            if e_self_illumination in {SelfIllumination.FROM_DIFFUSE, SelfIllumination.SELF_ILLUM_TIMES_DIFFUSE}:
+                tree.links.new(input=node_self_illumination.inputs[0], output=node_albedo.outputs[0])
+            
+            if final_node is None or no_material_model:
+                final_node = node_self_illumination
+            else:
+                node_illum_add = nodes.new(type='ShaderNodeAddShader')
+                tree.links.new(input=node_illum_add.inputs[0], output=node_self_illumination.outputs[0])
+                tree.links.new(input=node_illum_add.inputs[1], output=final_node.outputs[0])
+                final_node = node_illum_add
             
         if e_blend_mode in {BlendMode.ADDITIVE, BlendMode.ALPHA_BLEND}:
             blender_material.surface_render_method = 'BLENDED'

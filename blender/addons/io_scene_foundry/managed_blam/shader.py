@@ -1095,6 +1095,11 @@ class ShaderTag(Tag):
             old_env = e_environment_mapping.name
             e_environment_mapping = EnvironmentMapping.DYNAMIC
             utils.print_warning(f"Unsupported environment mapping : {old_env}. Using {e_environment_mapping.name} instead")
+            
+        if e_blend_mode.value > BlendMode.ALPHA_BLEND.value:
+            old_blend = e_blend_mode.name
+            e_blend_mode = BlendMode.MULTIPLY
+            utils.print_warning(f"Unsupported blend mode : {old_blend}. Using {e_blend_mode.name} instead")
         
         self.shader_parameters = {}
         self.shader_parameters.update(self.category_parameters["albedo"][utils.game_str(e_albedo.name)])
@@ -1212,7 +1217,7 @@ class ShaderTag(Tag):
                 tree.links.new(input=node_illum_add.inputs[1], output=final_node.outputs[0])
                 final_node = node_illum_add
             
-        if e_blend_mode in {BlendMode.ADDITIVE, BlendMode.ALPHA_BLEND}:
+        if e_blend_mode in {BlendMode.ADDITIVE, BlendMode.ALPHA_BLEND, BlendMode.MULTIPLY}:
             blender_material.surface_render_method = 'BLENDED'
             node_blend_mode = self._add_group_node(tree, nodes, f"blend_mode - {utils.game_str(e_blend_mode.name)}")
             for input in node_blend_mode.inputs:
@@ -1227,8 +1232,13 @@ class ShaderTag(Tag):
                     tree.links.new(input=node_blend_mode.inputs[1], output=node_alpha_blend_source.outputs[0])
                     if has_bump:
                         tree.links.new(input=node_alpha_blend_source.inputs["Normal"], output=node_bump_mapping.outputs[0])
+                    
                 elif has_albedo:
                     tree.links.new(input=node_blend_mode.inputs[1], output=node_albedo.outputs[1])
+                    
+            elif e_blend_mode == BlendMode.MULTIPLY:
+                tree.links.new(input=node_blend_mode.inputs[1], output=node_albedo.outputs[0])
+                tree.links.new(input=node_blend_mode.inputs[2], output=node_albedo.outputs[1])
             
         if e_alpha_test.value > 0:
             node_alpha_test = self._add_group_node(tree, nodes, f"alpha_test - {utils.game_str(e_alpha_test.name)}")

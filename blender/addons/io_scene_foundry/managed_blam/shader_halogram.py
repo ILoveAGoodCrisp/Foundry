@@ -84,6 +84,11 @@ class ShaderHalogramTag(ShaderTag):
             old_illum = e_self_illumination.name
             e_self_illumination = SelfIllumination.PALETTIZED_PLASMA
             utils.print_warning(f"Unsupported self-illumination : {old_illum}. Using {e_self_illumination.name} instead")
+            
+        if e_blend_mode.value > BlendMode.ALPHA_BLEND.value:
+            old_blend = e_blend_mode.name
+            e_blend_mode = BlendMode.ALPHA_BLEND
+            utils.print_warning(f"Unsupported blend mode : {old_blend}. Using {e_blend_mode.name} instead")
         
         self.shader_parameters = {}
         self.shader_parameters.update(self.category_parameters["albedo"][utils.game_str(e_albedo.name)])
