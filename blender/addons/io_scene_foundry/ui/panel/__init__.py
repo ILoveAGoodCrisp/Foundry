@@ -3036,13 +3036,15 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         row.use_property_split = True
         row.prop(animation, "animation_type")
         
-        if animation.animation_type == 'composite':
+        is_composite = animation.animation_type == 'composite'
+        
+        if is_composite:
             if self.h4:
-                return self.draw_animation_composites(box, animation)
+                self.draw_animation_composites(box, animation)
             else:
                 col.label(text="Composite animations not valid for Reach")
         
-        if animation.animation_type != 'world':
+        elif animation.animation_type != 'world':
             row = col.row()
             row.use_property_split = True
             if animation.animation_type == 'base':
@@ -3084,47 +3086,48 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 col.operator('nwo.generate_poses', text='Generate Poses', icon='ANIM')
                 
         col.separator()
-        if animation.external:
-            col.prop(animation, "external")
-            col.prop(animation, "pose_overlay")
-            col.prop(animation, "gr2_path")
-            col.operator("nwo.open_external_animation_blend", icon='BLENDER')
-        else:
-            row = col.row()
-            row.label(text="Action Tracks")
-            row = col.row()
-            rows = 3
-            row.template_list(
-                "NWO_UL_ActionTrack",
-                "",
-                animation,
-                "action_tracks",
-                animation,
-                "active_action_group_index",
-                rows=rows,
-            )
-            if ob is not None:
-                col.label(text=f"Current Action: {ob.name} -> {ob.animation_data.action.name if ob.animation_data and ob.animation_data.action else 'NONE'}")
-                if ob.type == 'MESH' and ob.data.shape_keys:
-                    col.label(text=f"Current Shape Key Action: {ob.name} -> {ob.data.shape_keys.animation_data.action.name if ob.data.shape_keys.animation_data and ob.data.shape_keys.animation_data.action else 'NONE'}")
-            col = row.column(align=True)
-            col.operator("nwo.action_track_add", text="", icon="ADD")
-            col.operator("nwo.action_track_remove", icon="REMOVE", text="")
+        if not is_composite:
+            if animation.external:
+                col.prop(animation, "external")
+                col.prop(animation, "pose_overlay")
+                col.prop(animation, "gr2_path")
+                col.operator("nwo.open_external_animation_blend", icon='BLENDER')
+            else:
+                row = col.row()
+                row.label(text="Action Tracks")
+                row = col.row()
+                rows = 3
+                row.template_list(
+                    "NWO_UL_ActionTrack",
+                    "",
+                    animation,
+                    "action_tracks",
+                    animation,
+                    "active_action_group_index",
+                    rows=rows,
+                )
+                if ob is not None:
+                    col.label(text=f"Current Action: {ob.name} -> {ob.animation_data.action.name if ob.animation_data and ob.animation_data.action else 'NONE'}")
+                    if ob.type == 'MESH' and ob.data.shape_keys:
+                        col.label(text=f"Current Shape Key Action: {ob.name} -> {ob.data.shape_keys.animation_data.action.name if ob.data.shape_keys.animation_data and ob.data.shape_keys.animation_data.action else 'NONE'}")
+                col = row.column(align=True)
+                col.operator("nwo.action_track_add", text="", icon="ADD")
+                col.operator("nwo.action_track_remove", icon="REMOVE", text="")
+                col.separator()
+                col.operator("nwo.action_track_move", text="", icon="TRIA_UP").direction = 'up'
+                col.operator("nwo.action_track_move", icon="TRIA_DOWN", text="").direction = 'down'
+                
+                col = box.column(align=True)
+                col.separator()
+                row = col.row()
+                row.operator("nwo.animation_move_to_own_blend", icon='BLENDER')
+                row.operator("nwo.animation_link_to_gr2", icon='LINKED')
+                col.separator()
+                row = col.row()
+                row.operator("nwo.animation_frames_sync_to_keyframes", text="Sync Frame Range to Keyframes", icon='FILE_REFRESH', depress=scene_nwo.keyframe_sync_active)
+                row.operator("nwo.action_tracks_set_active", icon='ACTION_TWEAK')
+                col.separator()
             col.separator()
-            col.operator("nwo.action_track_move", text="", icon="TRIA_UP").direction = 'up'
-            col.operator("nwo.action_track_move", icon="TRIA_DOWN", text="").direction = 'down'
-            
-            col = box.column(align=True)
-            col.separator()
-            row = col.row()
-            row.operator("nwo.animation_move_to_own_blend", icon='BLENDER')
-            row.operator("nwo.animation_link_to_gr2", icon='LINKED')
-            col.separator()
-            row = col.row()
-            row.operator("nwo.animation_frames_sync_to_keyframes", text="Sync Frame Range to Keyframes", icon='FILE_REFRESH', depress=scene_nwo.keyframe_sync_active)
-            row.operator("nwo.action_tracks_set_active", icon='ACTION_TWEAK')
-            col.separator()
-        col.separator()
             
         row = col.row()
         # ANIMATION RENAMES
@@ -3154,6 +3157,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col.operator("nwo.animation_rename_move", icon="TRIA_DOWN", text="").direction = 'down'
 
         # ANIMATION EVENTS
+        if is_composite:
+            return
         if not animation.animation_events:
             if animation.animation_renames:
                 row = box.row()
