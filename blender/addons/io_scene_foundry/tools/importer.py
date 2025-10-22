@@ -17,6 +17,8 @@ from mathutils import Color
 
 import numpy as np
 
+from ..managed_blam.polyart import PolyArtTag
+
 from ..managed_blam.scenario_structure_lighting_info import ScenarioStructureLightingInfoTag
 
 from ..managed_blam.structure_design import StructureDesignTag
@@ -71,7 +73,7 @@ tether_name = "tether_distance"
 # 6. Add an if with conditions for handling this import under NWO_Import.execute
 # 7. Update scope variable to importer calls in other python files where appropriate
 
-formats = "amf", "jms", "jma", "bitmap", "camera_track", "model", "render_model", "scenario", "scenario_structure_bsp", "particle_model", "object", "animation", "prefab", "structure_design"
+formats = "amf", "jms", "jma", "bitmap", "camera_track", "model", "render_model", "scenario", "scenario_structure_bsp", "particle_model", "object", "animation", "prefab", "structure_design", "polyart_asset"
 
 xref_tag_types = (
     ".crate",
@@ -1001,6 +1003,17 @@ class NWO_Import(bpy.types.Operator):
                             utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_prefab_objects, actions=[])
                             
                         imported_objects.extend(imported_prefab_objects)
+                        
+                if 'polyart_asset' in importer.extensions:
+                    polyart_files = importer.sorted_filepaths["polyart_asset"]
+                    imported_polyart_objects = []
+                    for file in polyart_files:
+                        imported_polyart_objects.append(importer.import_polyart(file))
+                        
+                    if importer.needs_scaling:
+                        utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_polyart_objects, actions=[])
+                        
+                    imported_objects.extend(imported_polyart_objects)
                     
                 if 'particle_model' in importer.extensions:
                     particle_model_files = importer.sorted_filepaths["particle_model"]
@@ -1141,6 +1154,8 @@ class NWO_Import(bpy.types.Operator):
                 self.filter_glob += '*.prefab;'
             if 'structure_design' in self.scope:
                 self.filter_glob += '*.stru*_design;'
+            if 'polyart_asset' in self.scope:
+                self.filter_glob += '*.polyart_a*;'
                     
             if utils.amf_addon_installed() and 'amf' in self.scope:
                 self.amf_okay = True
@@ -1547,6 +1562,9 @@ class NWOImporter:
             elif 'structure_design' in valid_exts and path.lower().endswith(".structure_design"):
                 self.extensions.add('structure_design')
                 filetype_dict["structure_design"][path] = None
+            elif 'polyart_asset' in valid_exts and path.lower().endswith(".polyart_asset"):
+                self.extensions.add('polyart_asset')
+                filetype_dict["polyart_asset"][path] = None
             
         # First stored as dict then converted to list. Avoids duplicate files
         for k, v in filetype_dict.items():
@@ -2293,7 +2311,14 @@ class NWOImporter:
                 set_asset(Path(file).suffix)
             return imported_objects
 
-                
+    def import_polyart(self, file):
+        filename = Path(file).with_suffix("").name
+        print(f"Importing Polyart: {filename}")
+        collection = bpy.data.collections.new(f"{filename}_polyart")
+        self.context.scene.collection.children.link(collection)
+        with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
+            with PolyArtTag(path=mover.tag_path) as polyart:
+                return polyart.to_blender(collection)
     
     def import_particle_model(self, file):
         filename = Path(file).with_suffix("").name
@@ -3740,7 +3765,7 @@ class NWO_FH_Import(bpy.types.FileHandler):
     bl_idname = "NWO_FH_Import"
     bl_label = "File handler Foundry Importer"
     bl_import_operator = "nwo.import_from_drop"
-    bl_file_extensions = ".jms;.amf;.ass;.bitmap;.model;.render_model;.scenario;.scenario_structure_bsp;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track;.particle_model;.biped;.crate;.creature;.device_control;.device_dispenser;.effect_scenery;.equipment;.giant;.device_machine;.projectile;.scenery;.spawner;.sound_scenery;.device_terminal;.vehicle;.weapon;.model_animation_graph;.prefab;.structure_design"
+    bl_file_extensions = ".jms;.amf;.ass;.bitmap;.model;.render_model;.scenario;.scenario_structure_bsp;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track;.particle_model;.biped;.crate;.creature;.device_control;.device_dispenser;.effect_scenery;.equipment;.giant;.device_machine;.projectile;.scenery;.spawner;.sound_scenery;.device_terminal;.vehicle;.weapon;.model_animation_graph;.prefab;.structure_design;.polyart_asset"
 
     @classmethod
     def poll_drop(cls, context):
