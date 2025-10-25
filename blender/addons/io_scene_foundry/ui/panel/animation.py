@@ -304,6 +304,7 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
                         ob = track.object
                         if ob is not None:
                             original_name = utils.reduce_suffix(ob.name)
+                            print(original_name)
                             potential_ob = bpy.data.objects.get(original_name)
                             if potential_ob:
                                 track.object = potential_ob
@@ -1758,7 +1759,7 @@ class NWO_UL_AnimationList(bpy.types.UIList):
         default=True,
     )
     use_filter_base_xy: bpy.props.BoolProperty(
-        name="Base Horizonta",
+        name="Base Horizontal",
         default=True,
     )
     use_filter_base_xyyaw: bpy.props.BoolProperty(
