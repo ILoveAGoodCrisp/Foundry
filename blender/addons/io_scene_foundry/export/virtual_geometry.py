@@ -1175,7 +1175,12 @@ class VirtualMesh:
             remapped_indices = np.full_like(bone_indices, 0)
             for old_idx, new_idx in bone_index_remap.items():
                 remapped_indices[bone_indices == old_idx] = new_idx
-
+            
+            # Fallback to pedestal
+            if not used_bones:
+                bone_weights[:] = 255
+                bone_indices[:] = 0
+                used_bones = [0]
 
             self.bone_bindings = [bones[i] for i in used_bones]
             self.bone_weights = bone_weights.astype(np.byte)[loop_vertex_indices]
@@ -1811,7 +1816,6 @@ class VirtualSkeleton:
         if self.node.mesh:
             for proxy in self.node.mesh.proxies:
                 node = scene.add(proxy, *scene.object_halo_data[proxy], self.node)
-                print(node.name, node.props)
                 if not node or node.invalid: continue
                 b = VirtualBone(proxy, node.name)
                 b.parent_index = parent_index
