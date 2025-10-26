@@ -57,10 +57,10 @@ legacy_animation_formats = '.jmm', '.jma', '.jmt', '.jmz', '.jmv', '.jmw', '.jmo
 legacy_poop_prefixes = '%', '+', '-', '?', '!', '>', '*', '&', '^', '<', '|',
 legacy_frame_prefixes = "frame_", "frame ", "bip_", "bip ", "b_", "b "
 
-global variant_items
+variant_items = []
 last_used_variant = ""
 
-global decorator_type_items
+decorator_type_items = []
 last_used_decorator_type = ""
 
 zone_set_items = {"blah": "blah"}
@@ -680,7 +680,10 @@ class NWO_Import(bpy.types.Operator):
                     marker = bpy.data.objects.new(name=Path(tag_path).with_suffix("").name, object_data=None)
                     marker.nwo.marker_type = '_connected_geometry_marker_type_game_instance'
                     marker.nwo.marker_game_instance_tag_name = utils.relative_path(tag_path)
-                    marker.nwo.marker_game_instance_tag_variant_name = self.tag_variant
+                    if 'decorator_set' in importer.extensions:
+                        marker.nwo.marker_game_instance_tag_variant_name = self.decorator_type
+                    else:
+                        marker.nwo.marker_game_instance_tag_variant_name = self.tag_variant
                     
                     marker.matrix_world = utils.matrix_from_mouse(self.mouse_x, self.mouse_y)
                 
@@ -1045,8 +1048,8 @@ class NWO_Import(bpy.types.Operator):
                 if 'decorator_set' in importer.extensions:
                     importer.setup_as_asset = self.setup_as_asset
                     if self.place_at_mouse:
-                        game_object_cache = {c.nwo.game_object_path: c for c in utils.get_foundry_storage_scene().collection.children if c.nwo.game_object_path}
-                        key = marker.nwo.marker_game_instance_tag_name
+                        game_object_cache = {(c.nwo.game_object_path, c.nwo.game_object_variant): c for c in utils.get_foundry_storage_scene().collection.children if c.nwo.game_object_path}
+                        key = marker.nwo.marker_game_instance_tag_name, marker.nwo.marker_game_instance_tag_variant_name
                         game_object_collection = game_object_cache.get(key)
                         imported_object_objects = []
                         if game_object_collection is None:
@@ -1055,7 +1058,7 @@ class NWO_Import(bpy.types.Operator):
                             imported_object_objects = game_object_collection.all_objects
                             context.scene.collection.children.unlink(game_object_collection)
                             utils.get_foundry_storage_scene().collection.children.link(game_object_collection)
-                            game_object_collection.nwo.game_object_path = key
+                            game_object_collection.nwo.game_object_path, game_object_collection.nwo.game_object_variant = key
                             
                         marker.instance_type = 'COLLECTION'
                         marker.instance_collection = game_object_collection
@@ -3594,6 +3597,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     )
     
     def items_tag_variant(self, context):
+        global variant_items
         var_match = False
         if context.scene.nwo.asset_type in {"cinematic", "scenario"}:
             items = []
@@ -3608,9 +3612,13 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         if var_match:
             items.insert(0, (last_used_variant, last_used_variant, ""))
             
+        if not items:
+            return [("all_variants", "All Variants", "Includes the full model geometry")]
+            
         return items
     
     def items_decorator_type(self, context):
+        global decorator_type_items
         dec_match = False
         if context.scene.nwo.asset_type in {"cinematic", "scenario"}:
             items = []
@@ -3624,6 +3632,9 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 
         if dec_match:
             items.insert(0, (last_used_decorator_type, last_used_decorator_type, ""))
+            
+        if not items:
+            return [("all_types", "All Types", "Includes the full model geometry")]
             
         return items
         
