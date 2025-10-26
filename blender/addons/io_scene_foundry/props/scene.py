@@ -2567,6 +2567,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     # model_overrides_expanded: bpy.props.BoolProperty(default=False, options=set())
     scenario_expanded: bpy.props.BoolProperty(default=False, options=set())
     lighting_expanded: bpy.props.BoolProperty(default=False, options=set())
+    decorators_expanded: bpy.props.BoolProperty(default=False, options=set())
     # zone_sets_expanded: bpy.props.BoolProperty(default=False, options=set())
     objects_expanded: bpy.props.BoolProperty(default=False, options=set())
     prefabs_expanded: bpy.props.BoolProperty(default=False, options=set())
@@ -2746,6 +2747,11 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     prefabs_export_on_save : bpy.props.BoolProperty(
         name="Export Prefabs on Blender Save",
         description="Exports all prefabs from Blender whenever the Blend file is saved",
+    )
+    
+    decorators_export_on_save : bpy.props.BoolProperty(
+        name="Export Decorators on Blender Save",
+        description="Exports all decorators from Blender whenever the Blend file is saved",
     )
     
     # object_sync_active : bpy.props.BoolProperty(
@@ -3183,4 +3189,14 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         default=0,
         min=0,
         options=set(),
+    )
+    
+    decorators_from_blender: bpy.props.BoolProperty(
+        name="Decorators Authored From Blender",
+        description="On export the scenario decorators block will be overwritten and generated using the decorators present in Blender. Don't enable this if you intend to paint decorators in Sapien"
+    )
+    
+    decorators_from_blender_child_scenario: bpy.props.StringProperty(
+        name="Decorators Child Scenario",
+        description="The name (not path) of the child scenario to write decorators to. If empty, defaults to the main asset scenario"
     )

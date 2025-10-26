@@ -80,11 +80,11 @@ class ScenarioObject:
         return ob
     
 class ScenarioDecorator:
-    def __init__(self, element: TagFieldBlockElement, path: str, name: str, types: list):
-        self.position = Vector([n * 100 for n in element.SelectField("RealPoint3d:position").Data])
-        self.rotation = utils.ijkw_to_wxyz([n for n in element.SelectField("RealQuaternion:rotation").Data])
-        self.scale = element.SelectField("Real:scale").Data
-        type_index = element.SelectField("CharInteger:type index").Data
+    def __init__(self, element: TagFieldBlockElement, path: str, name: str, types: list, corinth: bool):
+        self.position = Vector([n * 100 for n in element.SelectField("position").Data])
+        self.rotation = utils.ijkw_to_wxyz([n for n in element.SelectField("rotation").Data])
+        self.scale = element.SelectField("scale").Data
+        type_index = element.SelectField("type index").Data
         if type_index > -1 and type_index < len(types):
             self.type = types[type_index]
         else:
@@ -95,6 +95,13 @@ class ScenarioDecorator:
             self.name = name
         self.path = path
         
+        self.motion_scale = element.SelectField("motion scale").Data
+        self.ground_tint = element.SelectField("ground tint").Data
+        
+        if not corinth:
+            self.motion_scale = utils.unsigned_int8(self.motion_scale)
+            self.ground_tint = utils.unsigned_int8(self.ground_tint)
+        
     def to_object(self):
         ob = bpy.data.objects.new(name=self.name, object_data=None)
         ob.matrix_world = Matrix.LocRotScale(self.position, self.rotation, Vector.Fill(3, self.scale))
@@ -102,6 +109,9 @@ class ScenarioDecorator:
         ob.nwo.marker_type = '_connected_geometry_marker_type_game_instance'
         ob.nwo.marker_game_instance_tag_name = self.path
         ob.nwo.marker_game_instance_tag_variant_name = self.type
+        
+        ob.nwo.decorator_motion_scale = float(self.motion_scale / 255)
+        ob.nwo.decorator_ground_tint = float(self.ground_tint / 255)
         
         return ob
     
@@ -427,7 +437,7 @@ class ScenarioTag(Tag):
                     with DecoratorSetTag(path=decorator_set_path) as decorator_set:
                         decorator_types = decorator_set.get_type_names()
                         for placement in element.SelectField("Block:placements").Elements:
-                            decorator = ScenarioDecorator(placement, decorator_set.tag_path.RelativePathWithExtension, decorator_set.tag_path.ShortName, decorator_types)
+                            decorator = ScenarioDecorator(placement, decorator_set.tag_path.RelativePathWithExtension, decorator_set.tag_path.ShortName, decorator_types, decorator_set.corinth)
                             ob = decorator.to_object()
                             if ob is not None:
                                 objects_collection.objects.link(ob)

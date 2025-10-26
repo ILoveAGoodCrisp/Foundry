@@ -16,8 +16,6 @@ def calc_attenutation(power: float, intensity_threshold=0.5, cutoff_intensity=0.
     cutoff = math.sqrt(power / (4 * math.pi * cutoff_intensity))
     return falloff, cutoff
 
-import math
-
 class BlamLightInstance:
     def __init__(self, ob, bsp=None, scale=None, rotation=None) -> None:
         # self.data = ob.data

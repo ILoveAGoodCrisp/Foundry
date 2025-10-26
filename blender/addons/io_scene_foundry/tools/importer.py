@@ -4233,7 +4233,7 @@ class NWO_ImportGameInstanceTag(bpy.types.Operator):
         
         suffix = Path(ob.nwo.marker_game_instance_tag_name).suffix.lower()
         
-        return suffix == ".prefab" or suffix in OBJECT_TAG_EXTS
+        return suffix == ".prefab" or suffix or '.decorator_set' in suffix in OBJECT_TAG_EXTS
     
     always_extract_bitmaps: bpy.props.BoolProperty(
         name="Always Extract Bitmaps",
@@ -4268,6 +4268,8 @@ class NWO_ImportGameInstanceTag(bpy.types.Operator):
             
             if tag_path_full.suffix.lower() == ".prefab":
                 collection = importer.import_prefab(ob)
+            elif tag_path_full.suffix.lower() == ".decorator_set":
+                collection = importer.import_decorator_set(ob, self.build_blender_materials, self.always_extract_bitmaps, single_type=variant, highest_lod_only=True, only_single_type=True)
             else:
                 collection = importer.import_object(ob, None)
             if importer.needs_scaling:

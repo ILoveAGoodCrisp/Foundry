@@ -657,6 +657,28 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         default=True,
     )
     
+    # Decorators
+    
+    decorator_motion_scale: bpy.props.FloatProperty(
+        name="Motion Scale",
+        description="How much this decorator sways in the wind. Limited by the decorator type",
+        default=0,
+        subtype='FACTOR',
+        min=0,
+        max=1,
+        options=set(),
+    )
+    
+    decorator_ground_tint: bpy.props.FloatProperty(
+        name="Ground Tint",
+        description="How much tint this decorator takes from its decorator type color",
+        subtype='FACTOR',
+        min=0,
+        max=1,
+        default=1,
+        options=set(),
+    )
+    
     # Prefab marker specific props
     
     prefab_lightmap_res: bpy.props.FloatProperty(

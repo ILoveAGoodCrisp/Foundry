@@ -246,6 +246,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 self.draw_expandable_box(self.box.box(), nwo, 'scenario')
                 # self.draw_expandable_box(self.box.box(), nwo, 'zone_sets')
                 self.draw_expandable_box(self.box.box(), nwo, 'lighting')
+                self.draw_expandable_box(self.box.box(), nwo, 'decorators')
                 # self.draw_expandable_box(self.box.box(), nwo, 'objects')
                 if self.h4:
                     self.draw_expandable_box(self.box.box(), nwo, 'prefabs')
@@ -480,6 +481,17 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         col = box.column()
         col.use_property_split = True
         col.operator("nwo.new_sky", text="Add New Sky to Scenario", icon_value=get_icon_id('sky'))
+        
+    def draw_decorators(self, box: bpy.types.UILayout, nwo):
+        box_decorators = box.box()
+        box_decorators.label(text="Decorators")
+        box_decorators.prop(nwo, "decorators_from_blender")
+        if self.h4:
+            box_decorators.prop(nwo, "decorators_from_blender_child_scenario")
+        if not nwo.decorators_from_blender:
+            return
+        box_decorators.operator("nwo.export_decorators", icon='EXPORT')
+        box_decorators.prop(nwo, "decorators_export_on_save")
         
     def draw_lighting(self, box: bpy.types.UILayout, nwo):
         box_lights = box.box()
@@ -2117,11 +2129,17 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     row.operator("nwo.open_foundation_tag", text="", icon_value=get_icon_id("foundation")).tag_path = nwo.marker_game_instance_tag_name
                 tag_name = Path(nwo.marker_game_instance_tag_name).suffix.lower()
                 if tag_name == ".decorator_set":
-                    col.prop(
+                    row = col.row(align=True)
+                    row.prop(
                         nwo,
                         "marker_game_instance_tag_variant_name",
                         text="Decorator Type",
                     )
+                    if bpy.ops.nwo.get_decorator_types.poll():
+                        row.operator_menu_enum("nwo.get_decorator_types", "decorator_type", icon="DOWNARROW_HLT", text="")
+                    col.separator()
+                    col.prop(nwo, "decorator_motion_scale")
+                    col.prop(nwo, "decorator_ground_tint")
                 elif not tag_name in (".prefab", ".cheap_light", ".light", ".leaf"):
                     row = col.row(align=True)
                     row.prop(

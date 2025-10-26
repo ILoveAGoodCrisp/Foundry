@@ -2,6 +2,8 @@
 
 import bpy
 
+from .decorator_exporter import NWO_OT_ExportDecorators, NWO_OT_GetDecoratorTypes
+
 from .scenario.wetness import NWO_OT_GenerateWetnessData
 
 from .animation.transforms_lock import NWO_OT_LockChildBoneLocation, NWO_OT_LockChildBoneRotation, NWO_OT_LockChildBoneScale
@@ -215,7 +217,9 @@ classes = (
     NWO_OT_FileSplit,
     NWO_OT_OpenLinkedCollection,
     NWO_OT_FileAggregate,
-    NWO_OT_GenerateWetnessData
+    NWO_OT_GenerateWetnessData,
+    NWO_OT_ExportDecorators,
+    NWO_OT_GetDecoratorTypes,
 )
 
 def register():

@@ -26,6 +26,7 @@ from ..props.scene import NWO_Animation_ListItems
 from ..tools.scenario.lightmap import run_lightmapper
 
 from ..tools.light_exporter import calc_attenutation, export_lights
+from ..tools.decorator_exporter import export_decorators
 
 # from ..tools.scenario.zone_sets import write_zone_sets_to_scenario
 
@@ -198,6 +199,8 @@ class ExportScene:
         
         self.external_animations = {}
         self.local_views = set()
+        
+        self.decorators = []
         
     def _get_export_tag_types(self):
         tag_types = set()
@@ -770,7 +773,9 @@ class ExportScene:
         elif is_marker:
             marker_type = nwo.marker_type or '_connected_geometry_marker_type_model' 
             if not self.type_is_relevant or _type_valid_cached(marker_type, asset_name_lower, game_version):
-                self._setup_marker_properties(ob, nwo, props, region)
+                result = self._setup_marker_properties(ob, nwo, props, region)
+                if result is None:
+                    return
             elif self.type_is_relevant:
                 warnings_append(f"{ob.name} has invalid marker type [{marker_type}] for asset [{asset_type}]. Skipped")
                 return
@@ -1077,6 +1082,11 @@ class ExportScene:
                 props["bungie_object_ID"] = str(uuid.UUID(int=rnd.getrandbits(128)))
                 tag_name = nwo.marker_game_instance_tag_name.lower()
                 props["bungie_marker_game_instance_tag_name"] = tag_name
+                
+                if tag_name.endswith(".decorator_set"):
+                    self.decorators.append(ob)
+                    return # Decorators handled through MB
+                
                 if self.corinth and tag_name.endswith(
                     ".prefab"
                 ):
@@ -1149,6 +1159,8 @@ class ExportScene:
                 props["bungie_marker_light_color_alpha"] = nwo.marker_light_cone_color.a
                 props["bungie_marker_light_cone_intensity"] = nwo.marker_light_cone_intensity
                 props["bungie_marker_light_cone_curve"] = nwo.marker_light_cone_curve
+                
+        return True
     
     def _setup_mesh_level_props(self, ob: bpy.types.Object, region: str, mesh_props: dict, mesh_type_value: int, props: dict):
         mesh = ob.data
@@ -2362,24 +2374,30 @@ class ExportScene:
                             with ScenarioStructureBspTag(path=bsp_path.RelativePathWithExtension) as bsp:
                                 bsp.fix_collision_render_surface_mapping()
 
-        if self.export_settings.update_lighting_info and self.export_settings.export_structure:
-            light_asset = self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB} or (self.corinth and self.asset_type in {AssetType.MODEL, AssetType.SKY})
-            if light_asset:
-                if self.limit_bsps_to_selection:
-                    bsps = [bsp for bsp in self.selected_bsps if bsp.lower() != "shared"]
-                else:
-                    bsps = [bsp for bsp in self.regions if bsp.lower() != "shared"]
-                if self.lights or (not self.corinth and self.lightmap_regions):
-                    self.print_post(f"--- Writing lighting data from {len(self.lights)} light{'s' if len(self.lights) > 1 else ''}")
-                    # if self.is_child_asset:
-                    #     export_lights(str(self.parent_asset_path_relative), self.parent_asset_name, self.lights, bsps, self.lightmap_regions)
-                    # else:
-                    export_lights(self.asset_path_relative, self.asset_name, self.lights, bsps, self.lightmap_regions)
-                else:
-                    # if self.is_child_asset:
-                    #     export_lights(str(self.parent_asset_path_relative), self.parent_asset_name, [], bsps, self.lightmap_regions) # this will clear the lighting info tag
-                    # else:
-                    export_lights(self.asset_path_relative, self.asset_name, {}, bsps, self.lightmap_regions)
+        if self.export_settings.export_structure:
+            if self.export_settings.update_lighting_info:
+                light_asset = self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB} or (self.corinth and self.asset_type in {AssetType.MODEL, AssetType.SKY})
+                if light_asset:
+                    if self.limit_bsps_to_selection:
+                        bsps = [bsp for bsp in self.selected_bsps if bsp.lower() != "shared"]
+                    else:
+                        bsps = [bsp for bsp in self.regions if bsp.lower() != "shared"]
+                    if self.lights or (not self.corinth and self.lightmap_regions):
+                        self.print_post(f"--- Writing lighting data from {len(self.lights)} light{'s' if len(self.lights) > 1 else ''}")
+                        # if self.is_child_asset:
+                        #     export_lights(str(self.parent_asset_path_relative), self.parent_asset_name, self.lights, bsps, self.lightmap_regions)
+                        # else:
+                        export_lights(self.asset_path_relative, self.asset_name, self.lights, bsps, self.lightmap_regions)
+                    else:
+                        # if self.is_child_asset:
+                        #     export_lights(str(self.parent_asset_path_relative), self.parent_asset_name, [], bsps, self.lightmap_regions) # this will clear the lighting info tag
+                        # else:
+                        export_lights(self.asset_path_relative, self.asset_name, {}, bsps, self.lightmap_regions)
+                        
+            if self.scene_settings.decorators_from_blender and self.asset_type == AssetType.SCENARIO:
+                if self.decorators:
+                    self.print_post(f"--- Writing {len(self.decorators)} decorator placement{'s' if len(self.lights) > 1 else ''}")
+                    export_decorators(self.corinth, self.decorators)
                     
         if self.asset_type == AssetType.CINEMATIC:
             self.print_post(f"--- Writing cinematic scene: {self.cinematic_scene.name}")

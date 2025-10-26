@@ -4101,6 +4101,11 @@ def unsigned_int8(n: int) -> int:
         return 256 + n
     return n
 
+def signed_int8(value):
+    if not 0 <= value <= 255:
+        raise ValueError("Value must be between 0 and 255")
+    return value - 256 if value > 127 else value
+
 class BoundsDisplay(Enum):
     BOX = auto()
     PILL = auto()
