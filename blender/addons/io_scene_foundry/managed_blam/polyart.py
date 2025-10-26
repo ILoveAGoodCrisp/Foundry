@@ -103,6 +103,7 @@ class PolyArtTag(Tag):
             tree.links.new(input=node_shader.inputs["Alpha"], output=node_attribute.outputs["Alpha"])
             node_output = tree.nodes.new(type='ShaderNodeOutputMaterial')
             tree.links.new(input=node_output.inputs[0], output=node_shader.outputs[0])
+            mat.surface_render_method = 'BLENDED'
               
         mesh.materials.append(mat)
         
