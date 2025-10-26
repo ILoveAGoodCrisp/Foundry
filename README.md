@@ -35,13 +35,14 @@ Foundry only needs to be installed once. Thereafter, you can use Blender to down
 
 ## Credits
 - [Crisp](https://github.com/ILoveAGoodCrisp) - Addon Developer
-- [Alexis Jonsson | WyvernZu](https://github.com/AlexisJonsson) - UI/UX/Icon Design
+- [Alexis Jonsson | WyvernZu](https://github.com/AlexisJonsson) - UI/UX/Icon Design and debugging
 - [General Heed](https://github.com/Generalkidd) - Early Foundry work
 - [Krevil](https://github.com/Krevil) - Guidance on editing GR2 files, research into Cubemap checksum calculation, providing offsets for Tool patches
 - [Gravemind2401](https://github.com/Gravemind2401) - Advice on tag extraction
-- [Matthew](https://github.com/matty45) - GR2 Research
-- [Chiefster](https://github.com/chiefster-4014) - Creation of Blender Material Nodes for Halo models
+- [Matthew](https://github.com/matty45) - GR2 Research and assistance with developing Blender to GR2 exporting
+- [Chiefster](https://github.com/chiefster-4014) - Creation of Blender Material Nodes for Halo models and general blender shader advice
 - Soul - Creation of Blender Material Nodes for Halo models
+- [Abstract Ingenuity](https://github.com/Abstract-Ingenuity) - Insight into Halo animation data and debugging numerous Foundry bugs (and likely many more bugs to come...)
 
 ## Special Thanks
 Testing and reporting bugs:
