@@ -20,6 +20,20 @@ class DecoratorSetTag(Tag):
         self.reference_lod3 = self.tag.SelectField("Reference:Lod3")
         self.reference_lod4 = self.tag.SelectField("Reference:Lod4")
         self.reference_texture = self.tag.SelectField("Reference:texture")
+        self.decorator_types = self.tag.SelectField("Block:decorator types")
+        self.model_instances = self.tag.SelectField("Block:render model instance names")
+        
+    def get_type_names(self):
+        type_names = []
+        instance_count = self.model_instances.Elements.Count
+        for element in self.decorator_types.Elements:
+            value = element.SelectField("LongBlockIndex:mesh").Value
+            if value > -1 and value < instance_count:
+                name = self.model_instances.Elements[value].Fields[0].GetStringData()
+                if name:
+                    type_names.append(name)
+                    
+        return type_names
         
     def to_blender(self, collection, get_material=False, always_extract_bitmaps=False):
         base = self.get_path_str(self.reference_base.Path, True)

@@ -4,6 +4,8 @@ from pathlib import Path
 import bmesh
 from mathutils import Euler, Matrix, Quaternion, Vector
 
+from .decorator_set import DecoratorSetTag
+
 from .decal_system import DecalSystemTag
 
 from .Tags import TagFieldBlockElement
@@ -74,6 +76,32 @@ class ScenarioObject:
         ob.nwo.marker_type = '_connected_geometry_marker_type_game_instance'
         ob.nwo.marker_game_instance_tag_name = self.reference.definition
         ob.nwo.marker_game_instance_tag_variant_name = self.variant
+        
+        return ob
+    
+class ScenarioDecorator:
+    def __init__(self, element: TagFieldBlockElement, path: str, name: str, types: list):
+        self.position = Vector([n * 100 for n in element.SelectField("RealPoint3d:position").Data])
+        self.rotation = utils.ijkw_to_wxyz([n for n in element.SelectField("RealQuaternion:rotation").Data])
+        self.scale = element.SelectField("Real:scale").Data
+        type_index = element.SelectField("CharInteger:type index").Data
+        if type_index > -1 and type_index < len(types):
+            self.type = types[type_index]
+        else:
+            self.type = ""
+        if self.type:
+            self.name = f"{name}_{self.type}"
+        else:
+            self.name = name
+        self.path = path
+        
+    def to_object(self):
+        ob = bpy.data.objects.new(name=self.name, object_data=None)
+        ob.matrix_world = Matrix.LocRotScale(self.position, self.rotation, Vector.Fill(3, self.scale))
+
+        ob.nwo.marker_type = '_connected_geometry_marker_type_game_instance'
+        ob.nwo.marker_game_instance_tag_name = self.path
+        ob.nwo.marker_game_instance_tag_variant_name = self.type
         
         return ob
     
@@ -379,6 +407,33 @@ class ScenarioTag(Tag):
             if not item.IsSet:
                 self.tag_has_changes = True
                 item.IsSet = True
+                
+    def decorators_to_blender(self, parent_collection=None):
+        objects = []
+        
+        block = self.tag.SelectField("Block:decorators[0]/Block:sets")
+        if block.Elements.Count > 0:
+            print(f"Creating Scenario Decorators")
+            objects_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_decorators")
+            
+            if parent_collection is None:
+                bpy.context.scene.collection.children.link(objects_collection)
+            else:
+                parent_collection.children.link(objects_collection)
+                
+            for element in block.Elements:
+                decorator_set_path = self.get_path_str(element.SelectField("Reference:decorator set").Path, True)
+                if decorator_set_path and Path(decorator_set_path).exists():
+                    with DecoratorSetTag(path=decorator_set_path) as decorator_set:
+                        decorator_types = decorator_set.get_type_names()
+                        for placement in element.SelectField("Block:placements").Elements:
+                            decorator = ScenarioDecorator(placement, decorator_set.tag_path.RelativePathWithExtension, decorator_set.tag_path.ShortName, decorator_types)
+                            ob = decorator.to_object()
+                            if ob is not None:
+                                objects_collection.objects.link(ob)
+                                objects.append(ob)
+        
+        return objects
                 
     def decals_to_blender(self, parent_collection=None):
         objects = []
