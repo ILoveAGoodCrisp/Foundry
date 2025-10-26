@@ -92,7 +92,7 @@ class RenderModelTag(Tag):
         print("#"*50 + '\n')
         print([i for i in tex_coords])
         
-    def to_blend_objects(self, collection, render: bool, markers: bool, model_collection: bpy.types.Collection, existing_armature=None, allowed_region_permutations=set(), from_vert_normals=False, no_io=False):
+    def to_blend_objects(self, collection, render: bool, markers: bool, model_collection: bpy.types.Collection, existing_armature=None, allowed_region_permutations=set(), from_vert_normals=False, no_io=False, no_armature=False):
         self.collection = collection
         self.model_collection = model_collection
         objects = []
@@ -117,6 +117,13 @@ class RenderModelTag(Tag):
         meshes = {ob.data for ob in objects if ob.data is not None and ob.type == 'MESH'}
         for me in meshes:
             utils.consolidate_face_attributes(me)
+        
+        if no_armature:
+            objects.pop(0)
+            data = self.armature.data
+            bpy.data.objects.remove(self.armature)
+            bpy.data.armatures.remove(data)
+            return objects
         
         return objects, self.armature
     

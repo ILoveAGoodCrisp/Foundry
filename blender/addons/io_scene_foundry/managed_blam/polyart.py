@@ -94,6 +94,7 @@ class PolyArtTag(Tag):
         mat = bpy.data.materials.get("polyart")
         if mat is None:
             mat = bpy.data.materials.new("polyart")
+            mat.use_nodes = True
             tree = cast(bpy.types.NodeTree, mat.node_tree)
             tree.nodes.clear()
             node_attribute = tree.nodes.new(type="ShaderNodeAttribute")

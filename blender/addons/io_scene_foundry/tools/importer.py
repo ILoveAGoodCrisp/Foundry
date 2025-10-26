@@ -17,6 +17,8 @@ from mathutils import Color
 
 import numpy as np
 
+from ..managed_blam.decorator_set import DecoratorSetTag
+
 from ..managed_blam.polyart import PolyArtTag
 
 from ..managed_blam.scenario_structure_lighting_info import ScenarioStructureLightingInfoTag
@@ -73,7 +75,7 @@ tether_name = "tether_distance"
 # 6. Add an if with conditions for handling this import under NWO_Import.execute
 # 7. Update scope variable to importer calls in other python files where appropriate
 
-formats = "amf", "jms", "jma", "bitmap", "camera_track", "model", "render_model", "scenario", "scenario_structure_bsp", "particle_model", "object", "animation", "prefab", "structure_design", "polyart_asset"
+formats = "amf", "jms", "jma", "bitmap", "camera_track", "model", "render_model", "scenario", "scenario_structure_bsp", "particle_model", "object", "animation", "prefab", "structure_design", "polyart_asset", "decorator_set"
 
 xref_tag_types = (
     ".crate",
@@ -157,6 +159,8 @@ def set_asset(tag_ext: str, ob: bpy.types.Object=None, is_sky=False):
                 scene_nwo.asset_type = 'decorator_set'
             case '.camera_track':
                 scene_nwo.asset_type = 'camera_track_set'
+            case '.decorator_set':
+                scene_nwo.asset_type = 'decorator_set'
 
 def add_function(scene: bpy.types.Scene, name: str, ob: bpy.types.Object, armature: bpy.types.Object=None) -> bool:
     func = game_functions.get(name)
@@ -1015,6 +1019,18 @@ class NWO_Import(bpy.types.Operator):
                         
                     imported_objects.extend(imported_polyart_objects)
                     
+                if 'decorator_set' in importer.extensions:
+                    importer.setup_as_asset = self.setup_as_asset
+                    decorator_files = importer.sorted_filepaths["decorator_set"]
+                    imported_decorator_objects = []
+                    for file in decorator_files:
+                        imported_decorator_objects.extend(importer.import_decorator_set(file, self.build_blender_materials, self.always_extract_bitmaps))
+                        
+                    if importer.needs_scaling:
+                        utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_decorator_objects, actions=[])
+                        
+                    imported_objects.extend(imported_decorator_objects)
+                    
                 if 'particle_model' in importer.extensions:
                     particle_model_files = importer.sorted_filepaths["particle_model"]
                     imported_particle_model_objects = []
@@ -1156,6 +1172,8 @@ class NWO_Import(bpy.types.Operator):
                 self.filter_glob += '*.stru*_design;'
             if 'polyart_asset' in self.scope:
                 self.filter_glob += '*.polyart_a*;'
+            if 'decorator_set' in self.scope:
+                self.filter_glob += '*.decor*_set;'
                     
             if utils.amf_addon_installed() and 'amf' in self.scope:
                 self.amf_okay = True
@@ -1184,7 +1202,7 @@ class NWO_Import(bpy.types.Operator):
             # box.prop(self, 'find_shader_paths', text=f"Find {tag_type.capitalize()} Tag Paths")
             box.prop(self, 'build_blender_materials', text=f"Blender Materials from {tag_type.capitalize()} Tags")
             box.prop(self, 'always_extract_bitmaps')
-                
+            
         if not self.scope or ('model' in self.scope) or ('object' in self.scope):
             box = layout.box()
             box.label(text='Model Tag Settings')
@@ -1246,6 +1264,13 @@ class NWO_Import(bpy.types.Operator):
             box = layout.box()
             box.label(text='Camera Track Settings')
             box.prop(self, 'camera_track_animation_scale')
+            box.prop(self, "setup_as_asset")
+            
+        if not self.scope or ('decorator_set' in self.scope):
+            box = layout.box()
+            box.label(text='Decorator Set Settings')
+            box.prop(self, 'build_blender_materials', text="Build Blender Material")
+            box.prop(self, 'always_extract_bitmaps')
             box.prop(self, "setup_as_asset")
             
 class JMSMaterialSlot:
@@ -1565,6 +1590,9 @@ class NWOImporter:
             elif 'polyart_asset' in valid_exts and path.lower().endswith(".polyart_asset"):
                 self.extensions.add('polyart_asset')
                 filetype_dict["polyart_asset"][path] = None
+            elif 'decorator_set' in valid_exts and path.lower().endswith(".decorator_set"):
+                self.extensions.add('decorator_set')
+                filetype_dict["decorator_set"][path] = None
             
         # First stored as dict then converted to list. Avoids duplicate files
         for k, v in filetype_dict.items():
@@ -2329,8 +2357,25 @@ class NWOImporter:
         with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
             with ParticleModelTag(path=mover.tag_path) as particle_model:
                 particle_model_objects = particle_model.to_blend_objects(collection, filename)
+                
+        if self.setup_as_asset:
+            set_asset(Path(file).suffix)
             
         return particle_model_objects
+    
+    def import_decorator_set(self, file, build_materials, extract_bitmaps):
+        print("Importing Decorator Set")
+        decorator_objects = []
+        collection = bpy.data.collections.new(str(Path(file).with_suffix("").name))
+        self.context.scene.collection.children.link(collection)
+        with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
+            with DecoratorSetTag(path=mover.tag_path) as decorator:
+                decorator_objects = decorator.to_blender(collection, build_materials, extract_bitmaps)
+                
+        if self.setup_as_asset:
+            set_asset(Path(file).suffix)
+            
+        return decorator_objects
         
     # Bitmap Import
     def extract_bitmaps(self, bitmap_files, image_format):
@@ -3664,7 +3709,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 self.report({'WARNING'}, "Blender Toolset not installed, cannot import JMS/ASS/JMA")
                 return {'CANCELLED'}
             
-        if self.import_type in {"camera_track", "jms", "ass", "model", "render_model", "scenario", "scenario_structure_bsp", "model_animation_graph", "biped", "crate", "creature", "device_control", "device_dispenser", "effect_scenery", "equipment", "giant", "device_machine", "projectile", "scenery", "spawner", "sound_scenery", "device_terminal", "vehicle", "weapon", "prefab"}:
+        if self.import_type in {"camera_track", "jms", "ass", "model", "render_model", "scenario", "scenario_structure_bsp", "model_animation_graph", "biped", "crate", "creature", "device_control", "device_dispenser", "effect_scenery", "equipment", "giant", "device_machine", "projectile", "scenery", "spawner", "sound_scenery", "device_terminal", "vehicle", "weapon", "prefab", "decorator_set"}:
             if self.import_type == "scenario":
                 global zone_set_items
                 with ScenarioTag(path=self.filepath) as scenario:
@@ -3723,6 +3768,10 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                         layout.prop(self, "import_biped_weapon")
                 layout.prop(self, "build_blender_materials")
                 layout.prop(self, "always_extract_bitmaps")
+            case 'decorator_set':
+                layout.prop(self, "setup_as_asset")
+                layout.prop(self, "build_blender_materials")
+                layout.prop(self, "always_extract_bitmaps")
             case "render_model":
                 if self.has_variants:
                     layout.prop(self, "tag_variant")
@@ -3765,7 +3814,7 @@ class NWO_FH_Import(bpy.types.FileHandler):
     bl_idname = "NWO_FH_Import"
     bl_label = "File handler Foundry Importer"
     bl_import_operator = "nwo.import_from_drop"
-    bl_file_extensions = ".jms;.amf;.ass;.bitmap;.model;.render_model;.scenario;.scenario_structure_bsp;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track;.particle_model;.biped;.crate;.creature;.device_control;.device_dispenser;.effect_scenery;.equipment;.giant;.device_machine;.projectile;.scenery;.spawner;.sound_scenery;.device_terminal;.vehicle;.weapon;.model_animation_graph;.prefab;.structure_design;.polyart_asset"
+    bl_file_extensions = ".jms;.amf;.ass;.bitmap;.model;.render_model;.scenario;.scenario_structure_bsp;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track;.particle_model;.biped;.crate;.creature;.device_control;.device_dispenser;.effect_scenery;.equipment;.giant;.device_machine;.projectile;.scenery;.spawner;.sound_scenery;.device_terminal;.vehicle;.weapon;.model_animation_graph;.prefab;.structure_design;.polyart_asset;.decorator_set"
 
     @classmethod
     def poll_drop(cls, context):
