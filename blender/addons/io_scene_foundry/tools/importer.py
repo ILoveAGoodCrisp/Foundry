@@ -378,16 +378,8 @@ class NWO_Import(bpy.types.Operator):
         options={"HIDDEN", "SKIP_SAVE"},
     )
 
-    files: bpy.props.CollectionProperty(
-        type=bpy.types.OperatorFileListElement,
-        options={"HIDDEN", "SKIP_SAVE"},
-    )
-    
-    directory: bpy.props.StringProperty(
-        name='Directory',
-        subtype='DIR_PATH',
-        options={"HIDDEN"},
-    )
+    directory: bpy.props.StringProperty(subtype='DIR_PATH', options={'SKIP_SAVE', 'HIDDEN'})
+    files: bpy.props.CollectionProperty(type=bpy.types.OperatorFileListElement, options={'SKIP_SAVE', 'HIDDEN'})
     
     filepath: bpy.props.StringProperty(
         name='Filepath',
@@ -3523,6 +3515,9 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     bl_description = "Imports from drag n drop"
     bl_options = {'REGISTER', 'UNDO'}
     
+    directory: bpy.props.StringProperty(subtype='DIR_PATH', options={'SKIP_SAVE', 'HIDDEN'})
+    files: bpy.props.CollectionProperty(type=bpy.types.OperatorFileListElement, options={'SKIP_SAVE', 'HIDDEN'})
+    
     filepath: bpy.props.StringProperty(subtype='FILE_PATH', options={'SKIP_SAVE'})
     # filename: bpy.props.StringProperty(options={'SKIP_SAVE'})
     # filter_glob: bpy.props.StringProperty(
@@ -3809,7 +3804,9 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         return utils.current_project_valid()
     
     def execute(self, context):
-        bpy.ops.nwo.foundry_import(**self.as_keywords())
+        keywords = self.as_keywords()
+        keywords['files'] = [{'name': f.name} for f in self.files]
+        bpy.ops.nwo.foundry_import(**keywords)
         return {'FINISHED'}
     
     def invoke(self, context, event):
