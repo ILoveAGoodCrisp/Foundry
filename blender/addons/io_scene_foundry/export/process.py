@@ -202,6 +202,9 @@ class ExportScene:
         
         self.decorators = []
         
+        self.current_selection = context.selected_objects[:]
+        self.active_object = context.object
+        
     def _get_export_tag_types(self):
         tag_types = set()
         match self.asset_type:
@@ -810,6 +813,23 @@ class ExportScene:
                         self._setup_instanced_object_props(nwo, props, region)
                     
             case AssetType.SCENARIO:
+                
+                if self.scene_settings.decorators_from_blender:
+                    for mod in ob.modifiers:
+                        if mod.type == 'NODES' and mod.node_group.name.lower().startswith("decorator"):
+                            before = set(self.context.view_layer.objects)
+                            utils.deselect_all_objects()
+                            ob.select_set(True)
+                            self.context.view_layer.objects.active = ob
+                            bpy.ops.object.duplicates_make_real()
+                            after = set(self.context.view_layer.objects)
+                            created = after - before
+                            for obj in created:
+                                if obj.type == 'EMPTY':
+                                    self.decorators.append(obj)
+
+                                self.temp_objects.add(obj)
+                
                 # Foundry stores instances as the default mesh type, so switch them back to poops and structure to default
                 match mesh_type:
                     case '_connected_geometry_mesh_type_default':
@@ -2092,13 +2112,7 @@ class ExportScene:
             
         bpy.data.batch_remove(self.temp_objects)
         
-        # for ob in self.temp_objects:
-        #     bpy.data.objects.remove(ob)
-        
         bpy.data.batch_remove(self.temp_meshes)
-            
-        # for mesh in self.temp_meshes:
-        #     bpy.data.meshes.remove(mesh)
         
         for armature, pose in self.armature_poses.items():
             armature.pose_position = pose
@@ -2133,6 +2147,11 @@ class ExportScene:
         utils.restore_mode(self.current_mode)
         
         utils.set_local_view(self.context, self.local_views)
+        
+        for ob in self.current_selection:
+            ob.select_set(True)
+            
+        self.context.view_layer.objects.active = self.active_object
             
         self.context.view_layer.update()
         

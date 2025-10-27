@@ -65,23 +65,45 @@ class NWO_OT_ExportDecorators(bpy.types.Operator):
         return utils.valid_nwo_asset(context)
 
     def execute(self, context):
+        current_selection = context.selected_objects[:]
+        current_object = context.object
         export_decorators(utils.is_corinth(context))
+        for ob in current_selection:
+            ob.select_set(True)
+        context.view_layer.objects.active = current_object
         return {"FINISHED"}
     
 def gather_decorators(context):
-    return [ob for ob in context.scene.objects if ob.type == 'EMPTY' and ob.nwo.marker_type == '_connected_geometry_marker_type_game_instance' and ob.nwo.marker_game_instance_tag_name.lower().endswith(".decorator_set") and not ob.nwo.ignore_for_export]
-
-def export_decorators(corinth, decorator_objects = None):
+    decorators = [ob for ob in context.view_layer.objects if ob.type == 'EMPTY' and ob.nwo.marker_type == '_connected_geometry_marker_type_game_instance' and ob.nwo.marker_game_instance_tag_name.lower().endswith(".decorator_set") and not ob.nwo.ignore_for_export]
+    temp_objects = set()
+    for ob in context.view_layer.objects:
+        for mod in ob.modifiers:
+            if mod.type == 'NODES' and mod.node_group.name.lower().startswith("decorator"):
+                before = set(context.view_layer.objects)
+                utils.deselect_all_objects()
+                ob.select_set(True)
+                context.view_layer.objects.active = ob
+                bpy.ops.object.duplicates_make_real()
+                after = set(context.view_layer.objects)
+                created = after - before
+                for obj in created:
+                    if obj.type == 'EMPTY':
+                        decorators.append(obj)
+                        
+                    temp_objects.add(obj)
     
+    return decorators, temp_objects
+    
+def export_decorators(corinth, decorator_objects = None):
     scenario_path = utils.get_asset_tag(".scenario", True)
     if corinth and bpy.context.scene.nwo.decorators_from_blender_child_scenario.strip():
         scenario_path = str(Path(scenario_path).with_name(bpy.context.scene.nwo.decorators_from_blender_child_scenario).with_suffix(".scenario"))
     
     tags_dir = utils.get_tags_path()
     context = bpy.context
-    
+    temp_objects=set()
     if decorator_objects is None:
-        decorator_objects = gather_decorators(context)
+        decorator_objects, temp_objects = gather_decorators(context)
     
     decorator_sets = {}
     for ob in decorator_objects:
@@ -138,5 +160,8 @@ def export_decorators(corinth, decorator_objects = None):
                     
                     
         scenario.tag_has_changes = True
+        
+    if temp_objects:
+        bpy.data.batch_remove(temp_objects)
                             
                     

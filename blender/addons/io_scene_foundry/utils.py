@@ -242,10 +242,8 @@ def set_active_object(ob: bpy.types.Object):
     ob.hide_set(False)
     bpy.context.view_layer.objects.active = ob
 
-
 def get_active_object():
     return bpy.context.view_layer.objects.active
-
 
 def get_asset_info(filepath=""):
     if not filepath:
