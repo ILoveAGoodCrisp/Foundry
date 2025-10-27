@@ -1,4 +1,5 @@
 from pathlib import Path
+import time
 import bpy
 
 from ..constants import WU_SCALAR
@@ -74,11 +75,15 @@ class NWO_OT_ExportDecorators(bpy.types.Operator):
         return {"FINISHED"}
     
 def gather_decorators(context):
+    print("--- Start decorator gather")
+    start = time.perf_counter()
     decorators = [ob for ob in context.view_layer.objects if ob.type == 'EMPTY' and ob.nwo.marker_type == '_connected_geometry_marker_type_game_instance' and ob.nwo.marker_game_instance_tag_name.lower().endswith(".decorator_set") and not ob.nwo.ignore_for_export]
     temp_objects = set()
     for ob in context.view_layer.objects:
         for mod in ob.modifiers:
             if mod.type == 'NODES' and mod.node_group.name.lower().startswith("decorator"):
+                print(f"--- Start make instances real for {ob.name}")
+                start_dupes = time.perf_counter()
                 before = set(context.view_layer.objects)
                 utils.deselect_all_objects()
                 ob.select_set(True)
@@ -91,6 +96,10 @@ def gather_decorators(context):
                         decorators.append(obj)
                         
                     temp_objects.add(obj)
+                    
+                print("--- Made instances real in : ", utils.human_time(time.perf_counter() - start_dupes, True))
+                    
+    print("--- Gathered decorators in: ", utils.human_time(time.perf_counter() - start, True))
     
     return decorators, temp_objects
     
@@ -109,6 +118,8 @@ def export_decorators(corinth, decorator_objects = None):
     for ob in decorator_objects:
         decorator_sets.setdefault(utils.relative_path(ob.nwo.marker_game_instance_tag_name.lower()), []).append(ob)
     
+    print("--- Writing decorators to Tag")
+    start = time.perf_counter()
     with ScenarioTag(path=scenario_path) as scenario:
         decorator_block = scenario.tag.SelectField("Block:decorators")
         if decorator_block.Elements.Count < 1:
@@ -160,6 +171,7 @@ def export_decorators(corinth, decorator_objects = None):
                     
                     
         scenario.tag_has_changes = True
+    print("--- Completed decorators tag write in", utils.human_time(time.perf_counter() - start, True))
         
     if temp_objects:
         bpy.data.batch_remove(temp_objects)
