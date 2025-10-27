@@ -1,6 +1,7 @@
 from pathlib import Path
 import time
 import bpy
+import types
 
 from ..constants import WU_SCALAR
 
@@ -74,34 +75,54 @@ class NWO_OT_ExportDecorators(bpy.types.Operator):
         context.view_layer.objects.active = current_object
         return {"FINISHED"}
     
+import bpy
+import time
+from mathutils import Matrix
+
 def gather_decorators(context):
-    print("--- Start decorator gather")
+    print("--- Start decorator gather (depsgraph, proxy objects)")
     start = time.perf_counter()
-    decorators = [ob for ob in context.view_layer.objects if ob.type == 'EMPTY' and ob.nwo.marker_type == '_connected_geometry_marker_type_game_instance' and ob.nwo.marker_game_instance_tag_name.lower().endswith(".decorator_set") and not ob.nwo.ignore_for_export]
+
+    def matches_nwo(obj):
+        try:
+            mt = obj.nwo.marker_type
+            name = obj.nwo.marker_game_instance_tag_name
+            ign = obj.nwo.ignore_for_export
+        except Exception:
+            return False
+        if mt != '_connected_geometry_marker_type_game_instance':
+            return False
+        if not (isinstance(name, str) and name.lower().endswith(".decorator_set")):
+            return False
+        if getattr(obj.nwo, "ignore_for_export", False):
+            return False
+        return True
+
+    depsgraph = context.evaluated_depsgraph_get()
+    proxies = []
     temp_objects = set()
-    for ob in context.view_layer.objects:
-        for mod in ob.modifiers:
-            if mod.type == 'NODES' and mod.node_group.name.lower().startswith("decorator"):
-                print(f"--- Start make instances real for {ob.name}")
-                start_dupes = time.perf_counter()
-                before = set(context.view_layer.objects)
-                utils.deselect_all_objects()
-                ob.select_set(True)
-                context.view_layer.objects.active = ob
-                bpy.ops.object.duplicates_make_real()
-                after = set(context.view_layer.objects)
-                created = after - before
-                for obj in created:
-                    if obj.type == 'EMPTY':
-                        decorators.append(obj)
-                        
-                    temp_objects.add(obj)
-                    
-                print("--- Made instances real in : ", utils.human_time(time.perf_counter() - start_dupes, True))
-                    
-    print("--- Gathered decorators in: ", utils.human_time(time.perf_counter() - start, True))
-    
-    return decorators, temp_objects
+
+    for inst in depsgraph.object_instances:
+        eval_obj = inst.instance_object
+        if eval_obj is None:
+            continue
+
+        inst_mat = inst.matrix_world.copy()
+
+        src = bpy.data.objects.get(eval_obj.name, None)
+        if src is None:
+            src = eval_obj
+
+        if src.type == 'EMPTY' and matches_nwo(src):
+            proxy = types.SimpleNamespace()
+            proxy.name = src.name
+            proxy.type = 'EMPTY'
+            proxy.nwo = src.nwo
+            proxy.matrix_world = inst_mat
+            proxies.append(proxy)
+
+    print("--- Gathered decorators in: {:.3f}s".format(time.perf_counter() - start))
+    return proxies, temp_objects
     
 def export_decorators(corinth, decorator_objects = None):
     scenario_path = utils.get_asset_tag(".scenario", True)

@@ -5,6 +5,7 @@ from math import degrees, radians
 import os
 from pathlib import Path
 import random
+import types
 import uuid
 import bmesh
 import bpy
@@ -813,22 +814,36 @@ class ExportScene:
                         self._setup_instanced_object_props(nwo, props, region)
                     
             case AssetType.SCENARIO:
-                
                 if self.scene_settings.decorators_from_blender:
+                    depsgraph = self.context.evaluated_depsgraph_get()
+
                     for mod in ob.modifiers:
                         if mod.type == 'NODES' and mod.node_group.name.lower().startswith("decorator"):
-                            before = set(self.context.view_layer.objects)
-                            utils.deselect_all_objects()
-                            ob.select_set(True)
-                            self.context.view_layer.objects.active = ob
-                            bpy.ops.object.duplicates_make_real()
-                            after = set(self.context.view_layer.objects)
-                            created = after - before
-                            for obj in created:
-                                if obj.type == 'EMPTY':
-                                    self.decorators.append(obj)
+                            print(f"--- Gathering decorator instances for {ob.name}")
 
-                                self.temp_objects.add(obj)
+                            eval_obj = ob.evaluated_get(depsgraph)
+
+                            for inst in depsgraph.object_instances:
+                                if inst.parent and inst.parent.original != eval_obj.original:
+                                    continue
+
+                                inst_obj = inst.instance_object
+                                if inst_obj is None:
+                                    continue
+
+                                src = bpy.data.objects.get(inst_obj.name, None)
+                                if not src or src.type != 'EMPTY':
+                                    continue
+
+                                mat = inst.matrix_world.copy()
+
+                                proxy = types.SimpleNamespace()
+                                proxy.name = src.name
+                                proxy.type = 'EMPTY'
+                                proxy.nwo = src.nwo
+                                proxy.matrix_world = mat
+
+                                self.decorators.append(proxy)
                 
                 # Foundry stores instances as the default mesh type, so switch them back to poops and structure to default
                 match mesh_type:
