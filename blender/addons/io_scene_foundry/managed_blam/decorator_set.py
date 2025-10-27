@@ -157,12 +157,15 @@ class DecoratorSetTag(Tag):
                     
                     if image:
                         node_image.image = image
-                    node_shader = tree.nodes.new(type='ShaderNodeBsdfPrincipled')
-                    tree.links.new(input=node_shader.inputs[0], output=node_image.outputs[0])
-                    tree.links.new(input=node_shader.inputs["Alpha"], output=node_image.outputs[1])
+                    node_group = tree.nodes.new(type='ShaderNodeGroup')
+                    node_group.node_tree = utils.add_node_from_resources("shared_nodes", "Decorator")
+                    tree.links.new(input=node_group.inputs[0], output=node_image.outputs[0])
+                    tree.links.new(input=node_group.inputs[1], output=node_image.outputs[1])
                     node_output = tree.nodes.new(type='ShaderNodeOutputMaterial')
-                    tree.links.new(input=node_output.inputs[0], output=node_shader.outputs[0])
-                    mat.surface_render_method = 'BLENDED'
+                    tree.links.new(input=node_output.inputs[0], output=node_group.outputs[0])
+                    render_shader = self.tag.SelectField("CharEnum:render shader").Value
+                    if render_shader < 2 or render_shader > 3:
+                        mat.surface_render_method = 'BLENDED'
             
             for ob in all_obs:
                 ob.data.materials.clear()

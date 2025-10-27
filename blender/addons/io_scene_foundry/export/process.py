@@ -2396,7 +2396,7 @@ class ExportScene:
                         
             if self.scene_settings.decorators_from_blender and self.asset_type == AssetType.SCENARIO:
                 if self.decorators:
-                    self.print_post(f"--- Writing {len(self.decorators)} decorator placement{'s' if len(self.lights) > 1 else ''}")
+                    self.print_post(f"--- Writing {len(self.decorators)} decorator placement{'s' if len(self.decorators) > 1 else ''}")
                     export_decorators(self.corinth, self.decorators)
                     
         if self.asset_type == AssetType.CINEMATIC:

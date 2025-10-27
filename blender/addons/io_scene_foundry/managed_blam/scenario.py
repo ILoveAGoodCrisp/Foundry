@@ -1,5 +1,6 @@
 from math import radians
 from pathlib import Path
+import time
 
 import bmesh
 from mathutils import Euler, Matrix, Quaternion, Vector
@@ -97,6 +98,7 @@ class ScenarioDecorator:
         
         self.motion_scale = element.SelectField("motion scale").Data
         self.ground_tint = element.SelectField("ground tint").Data
+        self.tint = element.SelectField("tint color").Data
         
         if not corinth:
             self.motion_scale = utils.unsigned_int8(self.motion_scale)
@@ -112,6 +114,7 @@ class ScenarioDecorator:
         
         ob.nwo.decorator_motion_scale = float(self.motion_scale / 255)
         ob.nwo.decorator_ground_tint = float(self.ground_tint / 255)
+        ob.nwo.decorator_tint = [utils.srgb_to_linear(c) for c in self.tint]
         
         return ob
     
@@ -419,6 +422,7 @@ class ScenarioTag(Tag):
                 item.IsSet = True
                 
     def decorators_to_blender(self, parent_collection=None):
+        start_time = time.perf_counter()
         objects = []
         
         block = self.tag.SelectField("Block:decorators[0]/Block:sets")
@@ -430,19 +434,33 @@ class ScenarioTag(Tag):
                 bpy.context.scene.collection.children.link(objects_collection)
             else:
                 parent_collection.children.link(objects_collection)
-                
-            for element in block.Elements:
+            
+            for i, element in enumerate(block.Elements):
+                set_start = time.perf_counter()
                 decorator_set_path = self.get_path_str(element.SelectField("Reference:decorator set").Path, True)
+                
                 if decorator_set_path and Path(decorator_set_path).exists():
                     with DecoratorSetTag(path=decorator_set_path) as decorator_set:
                         decorator_types = decorator_set.get_type_names()
-                        for placement in element.SelectField("Block:placements").Elements:
-                            decorator = ScenarioDecorator(placement, decorator_set.tag_path.RelativePathWithExtension, decorator_set.tag_path.ShortName, decorator_types, decorator_set.corinth)
-                            ob = decorator.to_object()
-                            if ob is not None:
-                                objects_collection.objects.link(ob)
-                                objects.append(ob)
-        
+                        dec_rel_path = decorator_set.tag_path.RelativePathWithExtension
+                        dec_short_name = decorator_set.tag_path.ShortName
+                        corinth = decorator_set.corinth
+                    
+                    placements = element.SelectField("Block:placements")
+                    print(f"  Processing {dec_rel_path} - {placements.Elements.Count} placed in scenario")
+                    for placement in placements.Elements:
+                        decorator = ScenarioDecorator(placement, dec_rel_path, dec_short_name, decorator_types, corinth)
+                        ob = decorator.to_object()
+                        if ob is not None:
+                            objects_collection.objects.link(ob)
+                            objects.append(ob)
+                
+                set_elapsed = time.perf_counter() - set_start
+                print(f"  Decorator set {i + 1}/{block.Elements.Count} processed in {set_elapsed:.3f}s")
+
+        total_elapsed = time.perf_counter() - start_time
+        print(f"Finished creating {len(objects)} decorators in {total_elapsed:.3f}s total")
+
         return objects
                 
     def decals_to_blender(self, parent_collection=None):

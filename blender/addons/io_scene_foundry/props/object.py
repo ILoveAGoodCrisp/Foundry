@@ -670,12 +670,22 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     )
     
     decorator_ground_tint: bpy.props.FloatProperty(
-        name="Ground Tint",
-        description="How much tint this decorator takes from its decorator type color",
+        name="Ground Tint Influence",
+        description="How much tint this decorator takes from the diffuse color of the surface its on. The higher this is, the less influence taken from the decorator tint color",
         subtype='FACTOR',
         min=0,
         max=1,
-        default=1,
+        default=0,
+        options=set(),
+    )
+    
+    decorator_tint: bpy.props.FloatVectorProperty(
+        name="Tint",
+        subtype='COLOR',
+        size=3,
+        default=(1.0, 1.0, 1.0),
+        min=0,
+        max=1,
         options=set(),
     )
     

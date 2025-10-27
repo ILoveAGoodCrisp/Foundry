@@ -539,7 +539,12 @@ class CompositeXML:
             self.write_leaf_entry(element_group, leaf, parent_stack)
             
     def write_leaf_entry(self, element, leaf, parent_stack):
-        props = {"source": utils.space_partition(leaf.animation.replace(":", " "), True)}
+        tokens = utils.tokenise(leaf.animation)
+        state = tokens[-1]
+        if state.startswith("var") and len(tokens) > 1:
+            state = tokens[-2]
+            
+        props = {"source": state}
         for idx, item in enumerate(parent_stack):
             if idx > 9:
                 break

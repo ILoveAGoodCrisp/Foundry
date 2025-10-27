@@ -128,6 +128,9 @@ def export_decorators(corinth, decorator_objects = None):
                         
                     placement.SelectField("motion scale").Data = motion_scale
                     placement.SelectField("ground tint").Data = ground_tint
+                    
+                    placement.SelectField("tint color").Data = [utils.linear_to_srgb(c) for c in ob.nwo.decorator_tint]
+                    
                     placement.SelectField("bsp index").Data = -1
                     placement.SelectField("cluster index").Data = -1
                     if corinth:

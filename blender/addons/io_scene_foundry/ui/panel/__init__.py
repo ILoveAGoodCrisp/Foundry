@@ -2140,6 +2140,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     col.separator()
                     col.prop(nwo, "decorator_motion_scale")
                     col.prop(nwo, "decorator_ground_tint")
+                    col.prop(nwo, "decorator_tint")
                 elif not tag_name in (".prefab", ".cheap_light", ".light", ".leaf"):
                     row = col.row(align=True)
                     row.prop(
