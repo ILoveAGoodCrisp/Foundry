@@ -28,7 +28,7 @@ import numpy as np
 from ctypes import c_float, c_int
 
 from .tools.node_tree_arrange import arrange
-from .constants import COLLISION_MESH_TYPES, OBJECT_TAG_EXTS, PROTECTED_MATERIALS, VALID_MESHES, WU_SCALAR, css_colors
+from .constants import COLLISION_MESH_TYPES, OBJECT_TAG_EXTS, PROTECTED_MATERIALS, VALID_MESHES, VALID_OBJECTS, WU_SCALAR, css_colors
 from .tools.materials import special_materials, convention_materials
 from .icons import get_icon_id, get_icon_id_in_directory
 import requests
@@ -5196,3 +5196,25 @@ def reduce_suffix(name: str) -> str:
     if num <= 1:
         return base  # .001 → base
     return f"{base}.{num-1:03d}"
+
+def recursive_parentage(ob, collection_map):
+    if ob.parent:
+        return recursive_parentage(ob.parent, collection_map)
+        
+    return ignore_for_export_fast(ob, collection_map)
+
+def ignore_for_export_fast(ob, collection_map):
+    nwo = ob.nwo
+    if not nwo.export_this:
+        return True
+    
+    if ob.type not in VALID_OBJECTS:
+        return True
+
+    if ob.parent and recursive_parentage(ob, collection_map):
+        return True
+    
+    if nwo.export_collection:
+        return collection_map[nwo.export_collection].non_export
+    
+    return False

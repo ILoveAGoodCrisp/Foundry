@@ -42,7 +42,7 @@ from .build_sidecar import Sidecar, get_cinematic_scenes
 from .export_info import AdditionalCompression, BoundarySurfaceType, ExportInfo, FaceDrawDistance, FaceMode, FaceSides, FaceType, LightmapType, MeshObbVolumeType, PoopCollisionType, PoopInstanceImposterPolicy, PoopLighting, PoopInstancePathfindingPolicy, MeshTessellationDensity, MeshType, ObjectType
 from ..props.mesh import NWO_MeshPropertiesGroup
 from ..props.object import NWO_ObjectPropertiesGroup
-from .virtual_geometry import AnimatedBone, VectorEvent, VirtualAnimation, VirtualNode, VirtualScene
+from .virtual_geometry import AnimatedBone, ExportObject, VectorEvent, VirtualAnimation, VirtualNode, VirtualScene
 from ..granny import Granny
 from .. import utils
 from ..constants import VALID_MESHES, VALID_OBJECTS, WU_SCALAR
@@ -163,6 +163,7 @@ class ExportScene:
         self.selected_actors = set()
         self.type_is_relevant = self.asset_type in {AssetType.MODEL, AssetType.SCENARIO, AssetType.SKY, AssetType.PARTICLE_MODEL, AssetType.PREFAB}
         self.main_armature = None
+        self.support_armatures = []
         self.uses_main_armature = self.asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.ANIMATION, AssetType.SINGLE_ANIMATION}
         # self.is_child_asset = scene_settings.is_child_asset
         # self.parent_asset_path = None
@@ -202,9 +203,6 @@ class ExportScene:
         self.local_views = set()
         
         self.decorators = []
-        
-        self.current_selection = context.selected_objects[:]
-        self.active_object = context.object
         
     def _get_export_tag_types(self):
         tag_types = set()
@@ -246,103 +244,102 @@ class ExportScene:
         self.local_views = utils.exit_local_view(self.context)
         self.context.view_layer.update()
         utils.set_object_mode(self.context)
-        # self.disabled_collections = utils.disable_excluded_collections(self.context)
         if self.asset_type in {AssetType.MODEL, AssetType.ANIMATION}:
             animation_index = self.context.scene.nwo.active_animation_index
             if animation_index > -1:
                 self.current_animation = self.context.scene.nwo.animations[animation_index]
-                
-    def setup_instancers(self, instancers, collection_ob=None, parent_matrix=None):
-        for ob in instancers:
-            child_instancers = []
-            ob: bpy.types.Object
-            self.skip_obs.add(ob)
-            lookup_dict = {}
-            if collection_ob is None:
-                users_collection = ob.users_collection
-            else:
-                users_collection = collection_ob.users_collection
-            for source_ob in ob.instance_collection.all_objects:
-                source_ob: bpy.types.Object
-                if source_ob.is_instancer and source_ob.instance_collection and source_ob.instance_collection.all_objects and not source_ob.nwo.marker_instance:
-                    child_instancers.append(source_ob)
-                    continue
-                temp_ob = source_ob.copy()
-                coll_nwo = ob.instance_collection.nwo
-                if coll_nwo.type == 'region' and coll_nwo.region:
-                    utils.set_region(temp_ob, coll_nwo.region)
-                    temp_ob.nwo.region_name = coll_nwo.region
-                elif coll_nwo.type == 'permutation' and coll_nwo.permutation:
-                    utils.set_permutation(temp_ob, coll_nwo.permutation)
-                lookup_dict[source_ob] = temp_ob
-                for collection in users_collection:
-                    collection.objects.link(temp_ob)
-                
-                self.temp_objects.add(temp_ob)
-
-            if parent_matrix is None:
-                matrix = ob.matrix_world.copy()
-                for value in lookup_dict.values():
-                    if value.parent:
-                        new_parent = lookup_dict.get(value.parent)
-                        if new_parent is None:
-                            value.matrix_world = ob.matrix_world @ value.matrix_world
-                        else:
-                            old_local = value.matrix_local.copy()
-                            value.parent = new_parent
-                            value.matrix_local = old_local
-                    else:
-                        value.matrix_world = ob.matrix_world @ value.matrix_world
-            else:
-                matrix = parent_matrix @ ob.matrix_world
-                for value in lookup_dict.values():
-                    if value.parent:
-                        new_parent = lookup_dict.get(value.parent)
-                        if new_parent is None:
-                            value.matrix_world = parent_matrix @ ob.matrix_world @ value.matrix_world
-                        else:
-                            old_local = value.matrix_local.copy()
-                            value.parent = new_parent
-                            value.matrix_local = old_local
-                    else:
-                        value.matrix_world = parent_matrix @ ob.matrix_world @ value.matrix_world
-
-            if child_instancers:
-                self.setup_instancers(child_instancers, ob if collection_ob is None else collection_ob, matrix)
         
     def get_initial_export_objects(self):
         self.temp_objects = set()
+        main_armature = None
         if self.uses_main_armature:
-            self.main_armature = self.context.scene.nwo.main_armature
-        self.support_armatures = {}
+            main_armature = self.context.scene.nwo.main_armature
+        support_armatures = []
         self.export_objects = []
-        
-        instancers = [ob for ob in self.context.view_layer.objects if ob.is_instancer and ob.instance_collection and ob.instance_collection.all_objects and not ob.nwo.marker_instance and utils.can_export_check_parent(ob)]
-        self.skip_obs = set()
-        if instancers:
-            self.collections_to_hide = set()
-            self.setup_instancers(instancers)
             
-        if self.uses_main_armature and not self.main_armature:
-            self.main_armature = utils.get_rig_prioritize_active(self.context)
+        if self.uses_main_armature and not main_armature:
+            main_armature = utils.get_rig_prioritize_active(self.context)
                     
-        if self.main_armature:
-            self.support_armatures = [ob for ob in self.main_armature.children if ob.type == 'ARMATURE' and not ob.nwo.ignore_for_export]
-            
+        if main_armature:
+            support_armatures = [ob for ob in main_armature.children if ob.type == 'ARMATURE']
+        
+        self.collection_map = utils.create_parent_mapping(self.context)
+        
         self.depsgraph = self.context.evaluated_depsgraph_get()
         
+        proxy_export_objects = []
+        for inst in self.depsgraph.object_instances:
+            obj = inst.object
+            original = obj.original
+            nwo = original.nwo
+            
+            if inst.is_instance:
+                if inst.parent.nwo.marker_instance:
+                    continue
+                
+                obj = inst.instance_object
+                original = obj.original
+                nwo = original.nwo
+            
+            elif original.is_instancer and original.instance_collection and original.instance_collection.all_objects and not nwo.marker_instance:
+                continue
+            
+            if utils.ignore_for_export_fast(original, self.collection_map):
+                continue
+            
+            export_collection = nwo.export_collection
+            has_export_collection = bool(nwo.export_collection)
+            if has_export_collection:
+                collection = self.collection_map[export_collection]
+            
+            proxy = ExportObject()
+            proxy.name = original.name
+            proxy.type = original.type
+            proxy.nwo = nwo
+            proxy.data = original.data
+            proxy.ob = original
+            proxy.parent = original.parent
+            proxy.parent_type = "" if proxy.parent is None else original.parent_type
+            proxy.parent_bone = "" if proxy.parent is None else original.parent_bone
+            proxy.matrix_world = inst.matrix_world.copy()
+            proxy.material_slots = original.material_slots
+            proxy.vertex_groups = original.vertex_groups
+            proxy.eval_ob = obj
+            proxy.empty_display_type = original.empty_display_type
+            proxy.pose = original.pose
+            proxy.empty_display_size = original.empty_display_size
+            
+            nwo.collection_region = ""
+            nwo.collection_permutation = ""
+            if has_export_collection:
+                if collection.region is not None:
+                    nwo.collection_region = collection.region
+                if collection.permutation is not None:
+                    nwo.collection_permutation = collection.permutation
+            
+            if proxy.type == 'ARMATURE':
+                # Easier to just use the actual object for armatures
+                proxy = obj.original
+                if proxy == main_armature:
+                    self.main_armature = proxy
+                elif proxy in support_armatures:
+                    self.support_armatures.append(proxy)
+            
+            proxy_export_objects.append(proxy)
+        
         if self.asset_type == AssetType.ANIMATION and not self.granny_animations_mesh:
-            self.export_objects = [ob for ob in self.context.view_layer.objects if ob.nwo.export_this and not (ob.type == 'ARMATURE' and ob != self.main_armature) and ob not in self.skip_obs and utils.can_export_check_parent(ob)]
+            self.export_objects = [self.main_armature] + self.support_armatures
             null_ob = make_default_render()
             self.temp_objects.add(null_ob)
             self.temp_meshes.add(null_ob.data)
             self.export_objects.append(null_ob)
         elif self.asset_type == AssetType.CINEMATIC:
-            self.export_objects = [ob for ob in self.context.view_layer.objects if ob.nwo.export_this and ob.type == "ARMATURE" and ob not in self.skip_obs and utils.can_export_check_parent(ob)]
+            self.export_objects = [ob for ob in proxy_export_objects if ob.type == "ARMATURE"]
         else:    
-            self.export_objects = [ob for ob in self.context.view_layer.objects if ob.nwo.export_this and ob.type in VALID_OBJECTS and not (ob.type == 'ARMATURE' and ob != self.main_armature) and ob not in self.skip_obs and utils.can_export_check_parent(ob)]
+            self.export_objects = [ob for ob in proxy_export_objects if ob.nwo.export_this and ob.type in VALID_OBJECTS]
         
         self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir, self.granny, self.export_settings, utils.time_step(), self.scene_settings.default_animation_compression, utils.blender_halo_rotation_diff(self.forward), self.scene_settings.maintain_marker_axis, self.granny_textures, utils.get_project(self.context.scene.nwo.scene_project), self.to_halo_scale, self.unit_factor, self.atten_scalar, self.context)
+        
         
     def create_instance_proxies(self, ob: bpy.types.Object, ob_halo_data: dict, region: str, permutation: str):
         self.processed_poop_meshes.add(ob.data)
@@ -424,7 +421,6 @@ class ExportScene:
         process = "--- Mapping Halo Properties"
         num_export_objects = len(self.export_objects)
         # use_action_map = self.asset_type in {AssetType.MODEL, AssetType.ANIMATION}
-        self.collection_map = utils.create_parent_mapping(self.context)
         object_parent_dict = {}
         support_armatures = set()
         for ob in self.support_armatures:
@@ -473,14 +469,14 @@ class ExportScene:
                 is_armature = ob.type == 'ARMATURE'
                 
                 if is_armature:
-                    if self.asset_type == AssetType.CINEMATIC and self.export_settings.selected_cinematic_objects_only and ob.select_get():
+                    if self.asset_type == AssetType.CINEMATIC and self.export_settings.selected_cinematic_objects_only and ob.ob.select_get():
                         self.selected_actors.add(ob)
                 else:
                     if self.limit_perms_to_selection:
-                        if ob.select_get():
+                        if ob.ob.select_get():
                             self.selected_permutations.add(permutation)
                     if self.limit_bsps_to_selection:
-                        if ob.select_get():
+                        if ob.ob.select_get():
                             self.selected_bsps.add(region)
                 
                 parent = ob.parent
@@ -502,7 +498,7 @@ class ExportScene:
                 
                 if is_pca:
                     # pre triangulate the mesh for PCA
-                    eval_ob = ob.evaluated_get(self.depsgraph)
+                    eval_ob = ob.eval_ob
                     eval_mesh = eval_ob.to_mesh(preserve_all_data_layers=True, depsgraph=self.depsgraph)
                     # copy_ob.data = ob.data.copy()
                     bm = bmesh.new()
@@ -518,7 +514,7 @@ class ExportScene:
                 copy_only = False
                 if copy is not None:
                     copy_props = props.copy()
-                    copy_ob = ob.copy()
+                    copy_ob = ob.ob.copy()
                     self.temp_objects.add(copy_ob)
                     copy_region = region
                     # for coll in ob.users_collection:
@@ -648,7 +644,6 @@ class ExportScene:
         reg_name  = self.reg_name
         perm_name = self.perm_name
 
-        collection_map = self.collection_map
         warnings_append = self.warnings.append
 
         object_type = self._get_object_type(ob)
@@ -667,25 +662,14 @@ class ExportScene:
         tmp_region = region = default_region
         tmp_perm = permutation = default_perm
 
-        if nwo.export_collection:
-            export_coll = collection_map.get(nwo.export_collection)
-            if export_coll is None:
-                tmp_region = ob.nwo.region_name
-                tmp_perm = ob.nwo.permutation_name
-            else:
-                if export_coll.non_export:
-                    return
-                if export_coll.region is None:
-                    tmp_region = ob.nwo.region_name
-                else:
-                    tmp_region = export_coll.region
-                if export_coll.permutation is None:
-                    tmp_perm = ob.nwo.permutation_name
-                else:
-                    tmp_perm = export_coll.permutation
+        if ob.nwo.collection_region:
+            tmp_region = ob.nwo.collection_region
         else:
             tmp_region = ob.nwo.region_name
-            tmp_perm   = ob.nwo.permutation_name
+        if ob.nwo.collection_permutation:
+            tmp_perm = ob.nwo.collection_permutation
+        else:
+            tmp_perm = ob.nwo.permutation_name
 
         if object_type == ObjectType.light:
             self.lights[ob] = tmp_region
@@ -814,37 +798,6 @@ class ExportScene:
                         self._setup_instanced_object_props(nwo, props, region)
                     
             case AssetType.SCENARIO:
-                if self.scene_settings.decorators_from_blender:
-                    depsgraph = self.context.evaluated_depsgraph_get()
-
-                    for mod in ob.modifiers:
-                        if mod.type == 'NODES' and mod.node_group.name.lower().startswith("decorator"):
-                            print(f"--- Gathering decorator instances for {ob.name}")
-
-                            eval_obj = ob.evaluated_get(depsgraph)
-
-                            for inst in depsgraph.object_instances:
-                                if inst.parent and inst.parent.original != eval_obj.original:
-                                    continue
-
-                                inst_obj = inst.instance_object
-                                if inst_obj is None:
-                                    continue
-
-                                src = bpy.data.objects.get(inst_obj.name, None)
-                                if not src or src.type != 'EMPTY':
-                                    continue
-
-                                mat = inst.matrix_world.copy()
-
-                                proxy = types.SimpleNamespace()
-                                proxy.name = src.name
-                                proxy.type = 'EMPTY'
-                                proxy.nwo = src.nwo
-                                proxy.matrix_world = mat
-
-                                self.decorators.append(proxy)
-                
                 # Foundry stores instances as the default mesh type, so switch them back to poops and structure to default
                 match mesh_type:
                     case '_connected_geometry_mesh_type_default':
@@ -2131,42 +2084,15 @@ class ExportScene:
         
         for armature, pose in self.armature_poses.items():
             armature.pose_position = pose
-            
-        # for collection in self.disabled_collections:
-        #     collection.exclude = False
 
         self.context.scene.frame_set(self.current_frame)
         
-        # if self.action_map:
-        #     for id, (matrix, action) in self.action_map.items():
-        #         if action
-        #         if isinstance(id, bpy.types.Object):
-        #             if id.type == 'ARMATURE':
-        #                 for bone in id.pose.bones:
-        #                     bone.matrix_basis = Matrix.Identity(4)
-        #             id.matrix_basis = matrix
-                
-        #         if action:
-        #             if action.slots:
-        #                 slot_id = ""
-        #                 if action.slots.active:
-        #                     slot_id = action.slots.active.identifier
-        #                 else:
-        #                     slot_id = action.slots[0].identifier
-        #                 id.animation_data.last_slot_identifier = slot_id
-                    
-        #             id.animation_data.action = action
         if self.asset_type in {AssetType.MODEL, AssetType.ANIMATION} and self.scene_settings.animations and self.scene_settings.active_animation_index > -1:
             self.scene_settings.active_animation_index = self.scene_settings.active_animation_index
                 
         utils.restore_mode(self.current_mode)
         
         utils.set_local_view(self.context, self.local_views)
-        
-        for ob in self.current_selection:
-            ob.select_set(True)
-            
-        self.context.view_layer.objects.active = self.active_object
             
         self.context.view_layer.update()
         

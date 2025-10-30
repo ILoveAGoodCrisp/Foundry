@@ -11,6 +11,8 @@ import bpy
 from mathutils import Euler, Matrix, Vector
 import numpy as np
 
+from ..props.object import NWO_ObjectPropertiesGroup
+
 from ..props.scene import NWO_ScenePropertiesGroup
 
 from ..tools.light_exporter import calc_attenutation
@@ -36,6 +38,24 @@ from .cinematic import Actor, Frame
 from ..constants import IDENTITY_MATRIX, VALID_MESHES, WU_SCALAR
 NORMAL_FIX_MATRIX = Matrix(((1, 0, 0), (0, -1, 0), (0, 0, -1)))
 logging.basicConfig(level=logging.DEBUG)
+
+class ExportObject:
+    def __init__(self):
+        self.name = ""
+        self.type = ""
+        self.nwo: NWO_ObjectPropertiesGroup = None
+        self.data: bpy.types.Mesh = None
+        self.ob: bpy.types.Object = None
+        self.parent: bpy.types.Object = None
+        self.parent_type = ""
+        self.parent_bone = ""
+        self.matrix_world: Matrix = None
+        self.material_slots = None
+        self.vertex_groups = None
+        self.eval_ob = None
+        self.empty_display_type = ""
+        self.pose = None
+        self.empty_display_size = 1
 
 
 face_prop_defaults = {
@@ -1025,7 +1045,7 @@ class VirtualMesh:
                     shape_key_unmutes.append(key_block)
                     key_block.mute = True
                 
-        eval_ob = ob.evaluated_get(scene.depsgraph)
+        eval_ob = ob.eval_ob
         
         true_mesh = ob.type == 'MESH'
         
@@ -1396,9 +1416,9 @@ class VirtualMesh:
                 ob.active_shape_key_index = old_shape_key_index
     
 class VirtualNode:
-    def __init__(self, id: bpy.types.Object | bpy.types.PoseBone, props: dict, region: str = None, permutation: str = None, scene: 'VirtualScene' = None, proxies = [], template_node: 'VirtualNode' = None, bones: list[str] = [], parent_matrix: Matrix = IDENTITY_MATRIX, animation_owner=None):
+    def __init__(self, id: ExportObject | bpy.types.PoseBone, props: dict, region: str = None, permutation: str = None, scene: 'VirtualScene' = None, proxies = [], template_node: 'VirtualNode' = None, bones: list[str] = [], parent_matrix: Matrix = IDENTITY_MATRIX, animation_owner=None):
         self.name: str = id.name
-        if isinstance(id, bpy.types.Object) and id.nwo.export_name:
+        if isinstance(id, ExportObject) and id.nwo.export_name:
             self.name = id.nwo.export_name
         self.ob = id
         self.id = id
@@ -1425,8 +1445,8 @@ class VirtualNode:
             if scene.limit_permutations and permutation not in scene.selected_permutations: return
             self._setup(id, scene, proxies, template_node, bones, parent_matrix)
         
-    def _setup(self, id: bpy.types.Object | bpy.types.PoseBone, scene: 'VirtualScene', proxies: list, template_node: 'VirtualNode', bones: list[str], parent_matrix: Matrix):
-        if isinstance(id, bpy.types.Object):
+    def _setup(self, id: ExportObject | bpy.types.PoseBone, scene: 'VirtualScene', proxies: list, template_node: 'VirtualNode', bones: list[str], parent_matrix: Matrix):
+        if isinstance(id, ExportObject):
             if template_node is None:
                 if id.type == 'ARMATURE' and not id.parent:
                     self.matrix_world = IDENTITY_MATRIX
@@ -1603,7 +1623,7 @@ class VirtualBone:
         return inverse_transform
     
 class AnimatedBone:
-    def __init__(self, ob: bpy.types.Object, pbone, parent_override=None, is_aim_bone=False):
+    def __init__(self, ob: ExportObject, pbone, parent_override=None, is_aim_bone=False):
         self.name = pbone.name
         self.ob = ob
         self.parent_matrix_rest_inverted = ob.matrix_world.inverted_safe()
@@ -1611,7 +1631,7 @@ class AnimatedBone:
         self.parent = None
         self.is_object = False
         self.is_aim_bone = is_aim_bone
-        if isinstance(pbone, bpy.types.Object):
+        if isinstance(pbone, ExportObject):
             self.is_object = True
         else:
             if parent_override is None:
@@ -2050,7 +2070,7 @@ class VirtualScene:
             for node in nodes:
                 # inverse the rotation matrix otherwise this will be rotated incorrectly
                 if node.id.type == 'MESH':
-                    bbox = node.id.bound_box
+                    bbox = node.id.ob.bound_box
                     for co in bbox:
                         bounds = self.rotation_matrix.inverted_safe() @ node.matrix_world @ Vector((co[0], co[1], co[2]))
                         min_x = min(min_x, bounds.x - padding)
@@ -2149,8 +2169,8 @@ class VirtualScene:
     #     for model in self.models:
     #         del model
                 
-def has_armature_deform_mod(ob: bpy.types.Object):
-    for mod in ob.modifiers:
+def has_armature_deform_mod(ob: ExportObject):
+    for mod in ob.ob.modifiers:
         if mod.type == 'ARMATURE' and mod.object and mod.use_vertex_groups:
             return True
             
