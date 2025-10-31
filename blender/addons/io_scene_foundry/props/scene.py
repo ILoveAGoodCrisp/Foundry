@@ -2109,8 +2109,12 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
                                 
                 else:
                     return animation_from_composite(last_used, context)
-                    
-                utils.clear_animation(previous_animation)
+                
+                if self.previous_active_animation_index > -1:
+                    if len(self.animations) > self.previous_active_animation_index:
+                        previous_animation = self.animations[self.previous_active_animation_index]
+                    if previous_animation:
+                        utils.clear_animation(previous_animation)
                 last_used_compo_leaf[animation] = None
                 return
                     

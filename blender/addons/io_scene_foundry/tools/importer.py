@@ -1712,7 +1712,10 @@ class NWOImporter:
                     render, collision, animation, physics = model.get_model_paths(optional_tag_root=source_tag_root)
                     
                     allowed_region_permutations = model.get_variant_regions_and_permutations(self.tag_variant, self.tag_state)
-                    model_collection = bpy.data.collections.new(model.tag_path.ShortName)
+                    if self.tag_variant:
+                        model_collection = bpy.data.collections.new(f"{model.tag_path.ShortName} [{self.tag_variant}]")
+                    else:
+                        model_collection = bpy.data.collections.new(model.tag_path.ShortName)
                     self.context.scene.collection.children.link(model_collection)
                     if render:
                         render_objects, armature = self.import_render_model(render, model_collection, existing_armature, allowed_region_permutations)
@@ -1800,7 +1803,10 @@ class NWOImporter:
                                     temp_variant = model.block_variants.Elements[0].Fields[0].GetStringData()
                             
                             allowed_region_permutations = model.get_variant_regions_and_permutations(temp_variant, self.tag_state)
-                            model_collection = bpy.data.collections.new(model.tag_path.ShortName)
+                            if temp_variant:
+                                model_collection = bpy.data.collections.new(f"{model.tag_path.ShortName} [{temp_variant}]")
+                            else:
+                                model_collection = bpy.data.collections.new(model.tag_path.ShortName)
                             self.context.scene.collection.children.link(model_collection)
                                 
                             # possible compass driver = abs(var/pi / (2*pi))
@@ -2035,7 +2041,10 @@ class NWOImporter:
                         temp_variant = model.block_variants.Elements[0].Fields[0].GetStringData()
                 
                 allowed_region_permutations = model.get_variant_regions_and_permutations(temp_variant, self.tag_state)
-                model_collection = bpy.data.collections.new(model.tag_path.ShortName)
+                if temp_variant:
+                    model_collection = bpy.data.collections.new(f"{model.tag_path.ShortName} [{temp_variant}]")
+                else:
+                    model_collection = bpy.data.collections.new(model.tag_path.ShortName)
                 child_collection.children.link(model_collection)
 
                 if has_change_colors:
