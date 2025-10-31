@@ -645,11 +645,11 @@ class NWO_OT_SetTimeline(bpy.types.Operator):
     bl_label = "Sync Timeline"
     bl_idname = "nwo.set_timeline"
     bl_description = "Sets the scene timeline to match the current animation's frame range"
-    bl_options = {'REGISTER', 'UNDO'}
+    bl_options = {'UNDO'}
     
-    exclude_first_frame: bpy.props.BoolProperty()
-    exclude_last_frame: bpy.props.BoolProperty()
-    use_self_props: bpy.props.BoolProperty(options={'HIDDEN', 'SKIP_SAVE'})
+    # exclude_first_frame: bpy.props.BoolProperty()
+    # exclude_last_frame: bpy.props.BoolProperty()
+    # use_self_props: bpy.props.BoolProperty(options={'HIDDEN', 'SKIP_SAVE'})
     
     @classmethod
     def poll(cls, context):
@@ -663,36 +663,24 @@ class NWO_OT_SetTimeline(bpy.types.Operator):
         if animation.animation_type == 'composite':
             return {'FINISHED'}
         
-        actions = []
         start_frame = animation.frame_start
-        if self.use_self_props:
-            final_start_frame = start_frame + self.exclude_first_frame
-            scene_nwo.exclude_first_frame = self.exclude_first_frame
-        else:
-            final_start_frame = start_frame + scene_nwo.exclude_first_frame
-            
-        end_frame = animation.frame_end
-        if self.use_self_props:
-            final_end_frame = end_frame + self.exclude_last_frame
-            scene_nwo.exclude_last_frame = self.exclude_last_frame
-        else:
-            final_end_frame = end_frame + scene_nwo.exclude_last_frame
+        end_frame = animation.frame_end - int(animation.animation_type in ('base', 'replacement', 'world'))
         
         if (end_frame - start_frame) > 0:
-            scene.frame_start = final_start_frame
-            scene.frame_end = final_end_frame
-            scene.frame_current = final_start_frame
+            scene.frame_start = start_frame
+            scene.frame_end = end_frame
+            scene.frame_current = start_frame
             
         return {'FINISHED'}
     
-    def invoke(self, context, _):
-        self.use_self_props = True
-        return self.execute(context)
+    # def invoke(self, context, _):
+    #     self.use_self_props = True
+    #     return self.execute(context)
         
-    def draw(self, context):
-        layout = self.layout
-        layout.prop(self, 'exclude_first_frame', text="Exclude First Frame")
-        layout.prop(self, 'exclude_last_frame', text="Exclude Last Frame")
+    # def draw(self, context):
+    #     layout = self.layout
+    #     layout.prop(self, 'exclude_first_frame', text="Exclude First Frame")
+    #     layout.prop(self, 'exclude_last_frame', text="Exclude Last Frame")
 
 class NWO_OT_NewAnimation(bpy.types.Operator):
     bl_label = "New Animation"

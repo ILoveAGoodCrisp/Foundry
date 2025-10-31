@@ -245,7 +245,7 @@ class FoundryPreferences(AddonPreferences):
     
     sync_timeline_range: BoolProperty(
         name="Update Timeline Range on Switching Animation",
-        description="Sets the scene timeline to match the start and end frame range of the current animation if using the Foundry Animation Panel to switch animations",
+        description="Sets the scene timeline to match the start and end frame range of the current animation if using the Foundry Animation Panel to switch animations. On switching to a base, replacement, or world animation the timeline range is purposely set 1 frame short of the animation's final frame. This is to mimic how the game will slice off the final frame of a base, replacement, or world animation",
         default=True,
     )
     

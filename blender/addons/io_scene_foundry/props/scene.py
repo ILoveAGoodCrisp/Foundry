@@ -77,7 +77,10 @@ def animation_from_composite(self, context):
                             
             if utils.get_prefs().sync_timeline_range:
                 self.id_data.frame_start = animation.frame_start
-                self.id_data.frame_end = animation.frame_end
+                if animation.animation_type in ('base', 'replacement', 'world'):
+                    self.id_data.frame_end = animation.frame_end - 1
+                else:
+                    self.id_data.frame_end = animation.frame_end
                 self.id_data.frame_current = animation.frame_start
 
         
@@ -2114,8 +2117,8 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     
     animations: bpy.props.CollectionProperty(type=NWO_AnimationPropertiesGroup)
     
-    exclude_first_frame: bpy.props.BoolProperty(options=set())
-    exclude_last_frame: bpy.props.BoolProperty(options=set())
+    # exclude_first_frame: bpy.props.BoolProperty(options=set())
+    # exclude_last_frame: bpy.props.BoolProperty(options=set())
     
     animation_copies_active_index: bpy.props.IntProperty(options=set())
     animation_copies: bpy.props.CollectionProperty(type=NWO_AnimationCopiesItems, options=set())

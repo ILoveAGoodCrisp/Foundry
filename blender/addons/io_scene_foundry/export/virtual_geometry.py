@@ -2,13 +2,13 @@
 
 from collections import defaultdict
 import csv
-from ctypes import Array, Structure, c_char_p, c_float, c_int, POINTER, c_int16, c_ubyte, c_void_p, cast, create_string_buffer, memmove, pointer, sizeof
+from ctypes import Array, Structure, c_char_p, c_float, c_int, POINTER, c_ubyte, c_void_p, cast, create_string_buffer, memmove, pointer, sizeof
 import logging
 from math import degrees, inf, nextafter
 from pathlib import Path
 import bmesh
 import bpy
-from mathutils import Euler, Matrix, Vector
+from mathutils import Matrix, Vector
 import numpy as np
 
 from ..props.object import NWO_ObjectPropertiesGroup
@@ -170,7 +170,7 @@ class VirtualShot:
         self.camera = camera
         self.frame_start = frame_start
         self.frame_end = frame_end + 1
-        self.frame_count = frame_end - frame_start + 2
+        self.frame_count = frame_end - frame_start + 1
         self.frames: list[Frame] = []
         self.index = index
         self.actor_animation = {}
@@ -182,7 +182,7 @@ class VirtualShot:
     
     def perform(self, scene: 'VirtualScene'):
         if scene.cinematic_scope != 'OBJECT' and self.in_scope:
-            for frame in range(self.frame_start, self.frame_end + 2):
+            for frame in range(self.frame_start, self.frame_end + 1):
                 scene.context.scene.frame_set(frame)
                 # Camera Animation
                 self.frames.append(Frame(self.camera, scene.corinth))
@@ -336,8 +336,8 @@ class VirtualAnimation:
             self.movement = None
             self.space = None
             self.overlay = False
-            self.frame_count: int = animation.id_data.frame_end - animation.id_data.frame_start + 2
-            self.frame_range: tuple[int, int] = (animation.id_data.frame_start, animation.id_data.frame_end + 1)
+            self.frame_count: int = animation.id_data.frame_end - animation.id_data.frame_start + 1
+            self.frame_range: tuple[int, int] = (animation.id_data.frame_start, animation.id_data.frame_end)
         else:
             self.name = animation.name
             
@@ -350,10 +350,9 @@ class VirtualAnimation:
             self.movement = animation.animation_movement_data
             self.space = animation.animation_space
             self.overlay = animation.animation_type == 'overlay'
-            non_overlay = int(not self.overlay)
             
-            self.frame_count: int = animation.frame_end - animation.frame_start + 1 + non_overlay
-            self.frame_range: tuple[int, int] = (animation.frame_start, animation.frame_end + non_overlay)
+            self.frame_count: int = animation.frame_end - animation.frame_start + 1
+            self.frame_range: tuple[int, int] = (animation.frame_start, animation.frame_end)
         
         self.pose_overlay = False # Now calculating this rather than this being user defined
         self.anim = animation
