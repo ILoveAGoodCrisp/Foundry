@@ -335,9 +335,7 @@ class ExportScene:
         
         if self.asset_type == AssetType.ANIMATION and not self.granny_animations_mesh:
             self.export_objects = [self.main_armature] + self.support_armatures
-            null_ob = make_default_render()
-            self.temp_objects.add(null_ob)
-            self.temp_meshes.add(null_ob.data)
+            null_ob = self.make_default_render()
             self.export_objects.append(null_ob)
         elif self.asset_type == AssetType.CINEMATIC:
             self.export_objects = [ob for ob in proxy_export_objects if ob.type == "ARMATURE"]
@@ -520,14 +518,13 @@ class ExportScene:
                 copy_only = False
                 if copy is not None:
                     copy_props = props.copy()
-                    copy_ob = ob.ob.copy()
-                    self.temp_objects.add(copy_ob)
+                    copy_ob = ob.copy()
                     copy_region = region
                     # for coll in ob.users_collection:
                     #     coll.objects.link(copy_ob)
                     match copy:
                         case ObjectCopy.SEAM:
-                            copy_ob.nwo.invert_topology = True
+                            copy_ob.invert_topology = True
                             back_ui = ob.nwo.seam_back
                             if (not back_ui or back_ui == region or back_ui not in self.regions_set):
                                 self.warnings.append(f"{ob.name} has bad back facing bsp reference. Removing Seam from export")
@@ -550,12 +547,12 @@ class ExportScene:
                             copy_ob.data = copy_ob.data.copy()
                             copy_props["bungie_mesh_type"] = MeshType.water_physics_volume.value
                             self._setup_water_physics_props(copy_ob.nwo, copy_props)
+                            self.temp_meshes.add(copy_ob.data)
                             
                         case ObjectCopy.PHYSICS:
                             copy_ob.data = ob.data.copy()
                             self.temp_meshes.add(copy_ob.data)
                             self._set_primitive_props(copy_ob, copy_ob.nwo.mesh_primitive_type, copy_props)
-                            copy_ob.nwo.export_name = ob.name
                             loc, rot, sca = copy_ob.matrix_world.decompose()
                             scale = list(sca)
                             scale.append(1)
@@ -1447,7 +1444,10 @@ class ExportScene:
             utils.update_job_count(process, "", num_no_parents, num_no_parents)
 
         if self.asset_type == AssetType.SCENARIO:
-            self.virtual_scene.add_automatic_structure(self.default_region, self.default_permutation, 1 if self.scene_settings.scale == 'blender' else 1 / 0.03048)
+            obs = self.virtual_scene.add_automatic_structure(self.default_region, self.default_permutation, 1 if self.scene_settings.scale == 'blender' else 1 / 0.03048)
+            for ob in obs:
+                self.temp_objects.add(ob)
+                self.temp_meshes.add(ob.data)
             
     def sample_shots(self):
         process = "--- Sampling Cinematic Shots"
@@ -2495,6 +2495,27 @@ class ExportScene:
         props['sky_light_bounce_ratio'] = self.scene_settings.skylight_bounce_scale
         
         return props
+    
+    def make_default_render(self):
+        mesh = bpy.data.meshes.new("default_render")
+        mesh.from_pydata(vertices=[(1, 0, 0), (0, 1, 0), (0, 0, 1)], edges=[], faces=[[0, 1, 2]])
+        real_ob = bpy.data.objects.new(mesh.name, mesh)
+        self.temp_objects.add(real_ob)
+        ob = ExportObject()
+        ob.ob = real_ob
+        ob.eval_ob = real_ob.evaluated_get(self.depsgraph)
+        ob.data = mesh
+        ob.material_slots = real_ob.material_slots
+        ob.name = "default_render"
+        ob.matrix_world = Matrix.Identity(4)
+        ob.type = 'MESH'
+        ob.nwo = real_ob.nwo
+        ob.nwo.collection_region = self.default_region
+        ob.nwo.collection_permutation = self.default_permutation
+        ob.parent = self.main_armature
+        ob.parent_type = 'OBJECT'
+        self.temp_meshes.add(ob.data)
+        return ob
 
 def decorator_int(ob):
     match ob.nwo.decorator_lod:
@@ -2506,11 +2527,6 @@ def decorator_int(ob):
             return 3
         case _:
             return 4
-
-def make_default_render():
-    mesh = bpy.data.meshes.new("default_render")
-    mesh.from_pydata(vertices=[(1, 0, 0), (0, 1, 0), (0, 0, 1)], edges=[], faces=[[0, 1, 2]])
-    return bpy.data.objects.new(mesh.name, mesh)
 
 def any_render_materials(mesh: bpy.types.Mesh):
     for mat in mesh.materials:

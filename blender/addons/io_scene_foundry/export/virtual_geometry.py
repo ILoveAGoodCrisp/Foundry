@@ -1,6 +1,7 @@
 '''Classes to store intermediate geometry data to be passed to granny files'''
 
 from collections import defaultdict
+import copy
 import csv
 from ctypes import Array, Structure, c_char_p, c_float, c_int, POINTER, c_ubyte, c_void_p, cast, create_string_buffer, memmove, pointer, sizeof
 import logging
@@ -56,7 +57,10 @@ class ExportObject:
         self.empty_display_type = ""
         self.pose = None
         self.empty_display_size = 1
-
+        self.invert_topology = False
+        
+    def copy(self):
+        return copy.copy(self)
 
 face_prop_defaults = {
     "bungie_face_region": 0,
@@ -1057,11 +1061,16 @@ class VirtualMesh:
             tri_mod.quad_method = scene.quad_method
             tri_mod.ngon_method = scene.ngon_method
             tri_mod.keep_custom_normals = True
-        
-        if true_mesh:
-            add_triangle_mod(eval_ob)
+            
+        evaluated = eval_ob is not None
+            
+        if evaluated:
+            if true_mesh:
+                add_triangle_mod(eval_ob)
 
-        mesh = eval_ob.to_mesh(preserve_all_data_layers=True, depsgraph=scene.depsgraph)
+            mesh = eval_ob.to_mesh(preserve_all_data_layers=True, depsgraph=scene.depsgraph)
+        else:
+            mesh = ob.data
         
         self.name = mesh.name
         if not mesh.polygons:
@@ -1405,8 +1414,9 @@ class VirtualMesh:
                     if not np.array_equal(face_set.array, new_array):
                         scene.warnings.append(f"Object '{ob.name}' has different mesh properties per face, this is not allowed for instanced objects. Forcing {prop_name} to {face_set.array[0]}")
                         face_set.array = new_array
-            
-        eval_ob.to_mesh_clear()
+        
+        if evaluated:
+            eval_ob.to_mesh_clear()
         
         if has_shape_keys:
             for key_block in shape_key_unmutes:
@@ -1417,8 +1427,6 @@ class VirtualMesh:
 class VirtualNode:
     def __init__(self, id: ExportObject | bpy.types.PoseBone, props: dict, region: str = None, permutation: str = None, scene: 'VirtualScene' = None, proxies = [], template_node: 'VirtualNode' = None, bones: list[str] = [], parent_matrix: Matrix = IDENTITY_MATRIX, animation_owner=None):
         self.name: str = id.name
-        if isinstance(id, ExportObject) and id.nwo.export_name:
-            self.name = id.nwo.export_name
         self.ob = id
         self.id = id
         self.matrix_world: Matrix = IDENTITY_MATRIX
@@ -1461,12 +1469,12 @@ class VirtualNode:
                 self.matrix_world = template_node.matrix_world.copy()
                 # self.matrix_local = IDENTITY_MATRIX
                 if template_node.negative_scaling:
-                    id.nwo.invert_topology = not id.nwo.invert_topology
+                    id.invert_topology = not id.invert_topology
                 
             if id.type in VALID_MESHES:
                 default_bone_bindings = [self.name]
                 self.negative_scaling = id.matrix_world.is_negative
-                if id.nwo.invert_topology:
+                if id.invert_topology:
                     self.negative_scaling = not self.negative_scaling
 
                 materials = tuple(slot.material for slot in id.material_slots)
@@ -1664,8 +1672,6 @@ class VirtualSkeleton:
     '''Describes a list of bones'''
     def __init__(self, ob: bpy.types.Object, scene: 'VirtualScene', node: VirtualNode, is_main_armature = False):
         self.name: str = ob.name
-        if ob.nwo.export_name:
-            self.name = ob.nwo.export_name
         self.ob = ob
         self.node = node
         self.pbones = {}
@@ -1871,8 +1877,6 @@ class VirtualModel:
     '''Describes a blender object which has no parent'''
     def __init__(self, ob: bpy.types.Object, scene: 'VirtualScene', props=None, region=None, permutation=None, animation_owner=None):
         self.name: str = ob.name
-        if ob.nwo.export_name:
-            self.name = ob.nwo.export_name
         self.ob = ob
         self.node = None
         self.skeleton = None
@@ -2012,7 +2016,7 @@ class VirtualScene:
             if node.new_mesh:
                 # This is a tuple containing whether the object has a negative scale. This because we need to create separate mesh data for negatively scaled objects
                 negative_scaling = id.matrix_world.is_negative
-                if id.nwo.invert_topology:
+                if id.invert_topology:
                     negative_scaling = not negative_scaling
                 self.meshes[(node.mesh.mesh, negative_scaling, node.mesh.bpy_materials)] = node.mesh
                 self.meshes_linked[node.mesh.mesh] = node.mesh
@@ -2064,15 +2068,13 @@ class VirtualScene:
         return virtual_mat
         
     def add_automatic_structure(self, default_region, default_permutation, scalar):
+        obs = set()
         def wrap_bounding_box(nodes, padding):
             min_x, min_y, min_z, max_x, max_y, max_z = (i * scalar for i in (-10, -10, 0, 10, 10, 30))
             for node in nodes:
                 # inverse the rotation matrix otherwise this will be rotated incorrectly
                 if node.id.type == 'MESH':
-                    if isinstance(node.id, ExportObject):
-                        bbox = node.id.ob.bound_box
-                    else:
-                        bbox = node.id.bound_box
+                    bbox = node.id.ob.bound_box
                     for co in bbox:
                         bounds = self.rotation_matrix.inverted_safe() @ node.matrix_world @ Vector((co[0], co[1], co[2]))
                         min_x = min(min_x, bounds.x - padding)
@@ -2121,7 +2123,16 @@ class VirtualScene:
             # Create the mesh and object
             structure_mesh = bpy.data.meshes.new('autogenerated_structure')
             bm.to_mesh(structure_mesh)
-            structure_ob = bpy.data.objects.new('autogenerated_structure', structure_mesh)
+            real_structure_ob = bpy.data.objects.new(structure_mesh.name, structure_mesh)
+            structure_ob = ExportObject()
+            structure_ob.name = 'autogenerated_structure'
+            structure_ob.data = structure_mesh
+            structure_ob.matrix_world = Matrix.Identity(4)
+            structure_ob.ob = real_structure_ob
+            structure_ob.eval_ob = real_structure_ob.evaluated_get(self.depsgraph)
+            structure_ob.material_slots = real_structure_ob.material_slots
+            structure_ob.type = 'MESH'
+            structure_ob.nwo = real_structure_ob.nwo
             props = {}
             props["bungie_object_type"] = ObjectType.mesh.value
             props["bungie_mesh_type"] = MeshType.default.value
@@ -2133,12 +2144,16 @@ class VirtualScene:
             self.structure.add(default_region)
 
         if self.no_structure_export or self.structure == self.bsps_with_structure:
-            return
+            return obs
         no_bsp_structure = self.structure.difference(self.bsps_with_structure)
         print(f"--- Adding Structure Geometry For BSPs: {[bsp for bsp in no_bsp_structure]}")
+        
         for bsp in no_bsp_structure:
             ob, props = wrap_bounding_box([node for node in self.nodes.values() if node.region == bsp], 0 if self.corinth else 1 * scalar)
+            obs.add(ob.ob)
             self.models[ob] = VirtualModel(ob, self, props, bsp, default_permutation)
+            
+        return obs
 
     def supports_multiple_materials(self, ob: bpy.types.Object, props: dict, mesh_type: int) -> bool:
         if mesh_type in {
