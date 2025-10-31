@@ -12,6 +12,7 @@ from .. import utils
 
 script_object_types = ('WEAPON_TRIGGER_START', 'WEAPON_TRIGGER_STOP', 'SET_VARIANT', 'SET_PERMUTATION', 'SET_REGION_STATE', 'SET_MODEL_STATE_PROPERTY', 'HIDE', 'UNHIDE', 'DESTROY', 'OBJECT_CANNOT_DIE', 'OBJECT_CAN_DIE', 'OBJECT_PROJECTILE_COLLISION_ON', 'OBJECT_PROJECTILE_COLLISION_OFF', 'DAMAGE_OBJECT')
 
+last_used_compo_leaf = {}
 
 def poll_armature(self, object: bpy.types.Object):
     return object.type == 'ARMATURE'
@@ -41,6 +42,8 @@ def animation_from_composite(self, context):
         current_animation = self.id_data.nwo.animations[self.id_data.nwo.active_animation_index]
         if current_animation.animation_type != 'composite':
             return
+        global last_used_compo_leaf
+        last_used_compo_leaf[current_animation] = self
         animation_name = self.animation
         previous_active_animation_index = self.id_data.nwo.previous_active_animation_index
         animations = self.id_data.nwo.animations
@@ -2075,6 +2078,42 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         if self.active_animation_index > -1:
             animation = self.animations[self.active_animation_index]
             is_composite = animation.animation_type == 'composite'
+            if is_composite:
+                global last_used_compo_leaf
+                last_used = last_used_compo_leaf.get(animation)
+                if last_used is None:
+                    blend_axis_index = animation.blend_axis_active_index
+                    if blend_axis_index > -1 and blend_axis_index < len(animation.blend_axis):
+                        axis = animation.blend_axis[blend_axis_index]
+                        if axis.leaves:
+                            leaf_index = axis.leaves_active_index
+                            if leaf_index > -1 and leaf_index < len(axis.leaves):
+                                return animation_from_composite(axis.leaves[leaf_index], context)
+                        elif axis.groups:
+                            group_index = axis.groups_active_index
+                            if group_index > -1 and group_index < len(axis.groups):
+                                group = axis.groups[group_index]
+                                if group.leaves:
+                                    leaf_index = group.leaves_active_index
+                                    if leaf_index > -1 and leaf_index < len(group.leaves):
+                                        return animation_from_composite(group.leaves[leaf_index], context)
+                                        
+                        elif axis.phase_sets:
+                            phase_set_index = axis.phase_sets_active_index
+                            if phase_set_index > -1 and phase_set_index < len(axis.phase_sets):
+                                phase_set = axis.phase_sets[phase_set_index]
+                                if phase_set.leaves:
+                                    leaf_index = phase_set.leaves_active_index
+                                    if leaf_index > -1 and leaf_index < len(phase_set.leaves):
+                                        return animation_from_composite(phase_set.leaves[leaf_index], context)
+                                
+                else:
+                    return animation_from_composite(last_used, context)
+                    
+                utils.clear_animation(previous_animation)
+                last_used_compo_leaf[animation] = None
+                return
+                    
             if self.previous_active_animation_index > -1:
                 if len(self.animations) > self.previous_active_animation_index:
                     previous_animation = self.animations[self.previous_active_animation_index]
