@@ -2069,7 +2069,10 @@ class VirtualScene:
             for node in nodes:
                 # inverse the rotation matrix otherwise this will be rotated incorrectly
                 if node.id.type == 'MESH':
-                    bbox = node.id.ob.bound_box
+                    if isinstance(node.id, ExportObject):
+                        bbox = node.id.ob.bound_box
+                    else:
+                        bbox = node.id.bound_box
                     for co in bbox:
                         bounds = self.rotation_matrix.inverted_safe() @ node.matrix_world @ Vector((co[0], co[1], co[2]))
                         min_x = min(min_x, bounds.x - padding)

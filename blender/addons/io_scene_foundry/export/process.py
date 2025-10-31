@@ -203,6 +203,7 @@ class ExportScene:
         self.local_views = set()
         
         self.decorators = []
+        self.hidden_objects = set()
         
     def _get_export_tag_types(self):
         tag_types = set()
@@ -248,6 +249,11 @@ class ExportScene:
             animation_index = self.context.scene.nwo.active_animation_index
             if animation_index > -1:
                 self.current_animation = self.context.scene.nwo.animations[animation_index]
+        
+        for ob in self.context.view_layer.objects:
+            if ob.hide_get():
+                self.hidden_objects.add(ob)
+                ob.hide_set(False)
         
     def get_initial_export_objects(self):
         self.temp_objects = set()
@@ -2084,6 +2090,9 @@ class ExportScene:
         
         for armature, pose in self.armature_poses.items():
             armature.pose_position = pose
+            
+        for ob in self.hidden_objects:
+            ob.hide_set(True)
 
         self.context.scene.frame_set(self.current_frame)
         
