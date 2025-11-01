@@ -5218,3 +5218,82 @@ def ignore_for_export_fast(ob, collection_map):
         return collection_map[nwo.export_collection].non_export
     
     return False
+
+damage_states = "h_ping", "s_ping", "h_kill", "s_kill"
+directions = "front", "left", "right", "back"
+regions = "gut", "chest", "head", "l_arm", "l_hand", "l_leg", "l_foot", "r_arm", "r_hand", "r_leg", "r_foot"
+
+class AnimationStateType(Enum):
+    ACTION = 0
+    DAMAGE = 1
+    TRANSITION = 2
+
+class AnimationName:
+    def __init__(self, name: str):
+        self.valid = False
+        self.mode = "any"
+        self.weapon_class = "any"
+        self.weapon_type = "any"
+        self.set = "any"
+        self.state = "any"
+        self.direction = "any"
+        self.region = "any"
+        self.destination_mode = "any"
+        self.destination_state = "any"
+        self.variant = ""
+        self.type = AnimationStateType.ACTION
+        
+        tokens = list(tokenise(name))
+        if not tokens:
+            return
+        
+        if tokens[-1].startswith("var"):
+            self.variant = tokens[-1]
+            tokens.pop()
+            
+        self.state = tokens[-1]
+        
+        if len(tokens) > 2 and self.state in regions:
+            if tokens[-2] in directions and tokens[-3] in damage_states:
+                self.type = AnimationStateType.DAMAGE
+                self.state = tokens[-3]
+                self.direction = tokens[-2]
+                self.region = tokens[-1]
+                tokens.pop()
+                tokens.pop()
+                
+        elif len(tokens) > 2 and "2" in tokens:
+            index_2 = tokens.index("2")
+            if index_2 > 0 and index_2 < (len(tokens) - 1):
+                self.type = AnimationStateType.TRANSITION
+                self.destination_state = tokens[-1]
+                tokens.pop()
+                if tokens[-1] == "2":
+                    tokens.pop()
+                else:
+                    self.destination_mode = tokens[index_2 + 1]
+                    while tokens[-1] != "2":
+                        tokens.pop()
+                    tokens.pop()
+                    
+                self.state = tokens[-1]
+        
+        tokens.pop()
+        
+        if tokens:
+            self.mode = tokens[0]
+            tokens.pop(0)
+        if tokens:
+            self.weapon_class = tokens[0]
+            tokens.pop(0)
+        if tokens:
+            self.weapon_type = tokens[0]
+            tokens.pop(0)
+        if tokens:
+            self.set = tokens[0]
+            tokens.pop(0)
+            
+        if tokens:
+            print_warning("Bad animation name?", name, tokens)
+            
+        self.valid = True
