@@ -26,7 +26,7 @@ from ..managed_blam.shader_decal import ShaderDecalTag
 from ..granny.formats import GrannyAnimation, GrannyBone, GrannyCurveDataDaKeyframes32f, GrannyDataTypeDefinition, GrannyMaterial, GrannyMaterialMap, GrannyMemberType, GrannyMorphTarget, GrannyTrackGroup, GrannyTransform, GrannyTransformTrack, GrannyTriAnnotationSet, GrannyTriMaterialGroup, GrannyTriTopology, GrannyVectorTrack, GrannyVertexData
 from ..granny import Granny
 
-from .export_info import AdditionalCompression, ExportInfo, FaceDrawDistance, FaceMode, FaceSides, FaceType, LightmapType, MeshTessellationDensity, MeshType, ObjectType, PoopCollisionType
+from .export_info import AdditionalCompression, ExportInfo, FaceDrawDistance, FaceMode, FaceType, LightmapType, MeshTessellationDensity, MeshType, ObjectType, PoopCollisionType
 
 from ..props.mesh import NWO_MeshPropertiesGroup
 

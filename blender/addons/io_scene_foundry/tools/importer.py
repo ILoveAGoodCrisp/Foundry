@@ -1030,7 +1030,7 @@ class NWO_Import(bpy.types.Operator):
                     polyart_files = importer.sorted_filepaths["polyart_asset"]
                     imported_polyart_objects = []
                     for file in polyart_files:
-                        imported_polyart_objects.append(importer.import_polyart(file))
+                        imported_polyart_objects.extend(importer.import_polyart(file))
                         
                     if importer.needs_scaling:
                         utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_polyart_objects, actions=[])
@@ -2421,8 +2421,16 @@ class NWOImporter:
     def import_polyart(self, file):
         filename = Path(file).with_suffix("").name
         print(f"Importing Polyart: {filename}")
+        main_collection = bpy.data.collections.get("polyart")
+        if main_collection is None:
+            main_collection = bpy.data.collections.new("polyart")
+            self.context.scene.collection.children.link(main_collection)
+            
         collection = bpy.data.collections.new(f"{filename}_polyart")
-        self.context.scene.collection.children.link(collection)
+        collection.nwo.type = "region"
+        collection.nwo.region = utils.add_region(filename)
+        main_collection.children.link(collection)
+        
         with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
             with PolyArtTag(path=mover.tag_path) as polyart:
                 return polyart.to_blender(collection)

@@ -53,6 +53,7 @@ class PolyArtTag(Tag):
     def _read_fields(self):
         self.block_vertices = self.tag.SelectField('Block:vertices')
         self.block_indices = self.tag.SelectField('Block:indices')
+        self.placement_data = self.tag.SelectField('Block:placement data')
         
     def from_blender(self):
         pass
@@ -62,6 +63,7 @@ class PolyArtTag(Tag):
         verts = []
         alphas = []
         uvs = []
+        objects = []
         
         for element in self.block_vertices.Elements:
             vert_int16 = np.array([element.Fields[0].Data, element.Fields[1].Data, element.Fields[2].Data], dtype=np.int16)
@@ -114,4 +116,25 @@ class PolyArtTag(Tag):
         else:
             collection.objects.link(ob)
             
-        return ob
+        objects.append(ob)
+            
+        camera_ob = bpy.data.objects.get("polyart_camera")
+        
+        if camera_ob is None:
+            for element in self.placement_data.Elements:
+                camera = bpy.data.cameras.new("polyart_camera")
+                camera.lens_unit = 'FOV'
+                camera.angle = radians(56)
+                
+                camera.display_size /= 0.03048
+                
+                camera_ob = bpy.data.objects.new("polyart_camera", camera)
+                camera_ob.location.z = 13.6678 / 0.03048
+                if collection is None:
+                    bpy.context.scene.collection.objects.link(camera_ob)
+                else:
+                    collection.objects.link(camera_ob)
+                    
+                objects.append(camera_ob)
+            
+        return objects

@@ -34,19 +34,6 @@ class CinematicScene:
             self.anchor_yaw_pitch_roll = yaw - 180, pitch, 0.0
         
 def calculate_focal_depths(focus_distance, aperture, coc=0.03, focal_length=50):
-    """
-    Calculate near and far focal depths based on depth of field parameters.
-
-    Parameters:
-    - focus_distance (float): The focus distance in Blender units.
-    - aperture (float): The f-stop value.
-    - coc (float): Circle of confusion size (default is a typical value for full-frame).
-    - focal_length (float): Focal length of the camera lens in mm (default 50mm).
-
-    Returns:
-    - near_depth (float): Near focal depth.
-    - far_depth (float): Far focal depth.
-    """
     hyperfocal = (focal_length ** 2) / (aperture * coc)
     near_depth = (hyperfocal * focus_distance) / (hyperfocal + (focus_distance - focal_length))
     far_depth = (hyperfocal * focus_distance) / (hyperfocal - (focus_distance - focal_length))
@@ -57,19 +44,6 @@ def calculate_focal_depths(focus_distance, aperture, coc=0.03, focal_length=50):
     return utils.halo_scale(near_depth), utils.halo_scale(far_depth)
 
 def calculate_blur_amount(focal_length, focus_distance, aperture, object_distance, sensor_width):
-    """
-    Calculate the blur amount (CoC size) for a given object distance.
-
-    Parameters:
-    - focal_length (float): Focal length of the camera lens (mm).
-    - focus_distance (float): Focus distance (Blender units).
-    - aperture (float): Aperture f-stop value.
-    - object_distance (float): Distance to the object (Blender units).
-    - sensor_width (float): Sensor width (mm).
-
-    Returns:
-    - blur_amount (float): Circle of confusion (CoC) size.
-    """
     hyperfocal = (focal_length ** 2) / (aperture * (sensor_width / 43.27))
     coc = abs(
         (focal_length * (object_distance - focus_distance)) /
@@ -86,10 +60,10 @@ def calculate_focal_distances(camera):
     cam_data = camera.data
     if not cam_data.dof.use_dof:
         return 0, 0, 0
-    lens_mm = cam_data.lens  # Focal length in millimeters
-    aperture = cam_data.dof.aperture_fstop  # F-Stop value
-    sensor_width = cam_data.sensor_width    # Sensor width in mm
-    coc = 0.029  # Circle of confusion for 35mm equivalent (adjust as needed)
+    lens_mm = cam_data.lens
+    aperture = cam_data.dof.aperture_fstop 
+    sensor_width = cam_data.sensor_width
+    coc = 0.029
 
     # Determine the focus distance
     if cam_data.dof.focus_object:
