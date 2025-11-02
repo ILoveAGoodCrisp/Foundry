@@ -28,6 +28,7 @@ soft_transition = (
     "land",
     "put_away",
     "ready",
+    "ejection",
 )
 
 need_final_frame = (
@@ -65,11 +66,15 @@ class FrameGenerator:
         
     def generate(self):
         print("Generating Missing Frames for Base and Replacement animations")
+        replacements = {}
         for animation, name in self.animations.items():
             if animation.animation_type in need_final_frame:
                 self._apply_final_frame(animation, name)
-            # if animation.animation_type == 'replacement':
-            #     self._apply_first_frame()
+            if animation.animation_type == 'replacement':
+                replacements[animation] = name
+                
+        for animation, name in replacements.items():
+            self._apply_first_frame(animation, name)
         
     def _apply_final_frame(self, animation: NWO_AnimationPropertiesGroup, name: utils.AnimationName):
         if name.type == utils.AnimationStateType.TRANSITION:
@@ -82,7 +87,7 @@ class FrameGenerator:
             if looper or movement:
                 self._copy_frame(animation, ignore_root=True, assume_movement=movement)
     
-    def _copy_frame(self, target_animation: NWO_AnimationPropertiesGroup, source_animation: NWO_AnimationPropertiesGroup = None, target_frame=None, source_frame=None, ignore_root=False, assume_movement=False):
+    def _copy_frame(self, target_animation: NWO_AnimationPropertiesGroup, source_animation: NWO_AnimationPropertiesGroup = None, target_frame=None, source_frame=None, ignore_root=False, assume_movement=False, shift_frames_by_one=False):
         
         if assume_movement:
             ignore_root = True
@@ -110,6 +115,11 @@ class FrameGenerator:
         
         if source_animation is None:
             source_animation = target_animation
+            
+        if shift_frames_by_one:
+            for fcurve in target_fcurves.values():
+                for kp in fcurve.keyframe_points:
+                    kp.co.x += 1
         
         if ignore_root:
             for key, source_fc in source_fcurves_no_root.items():
@@ -293,7 +303,7 @@ class FrameGenerator:
             idle_name.state = "idle"
             next_animation = self._seek_best_matching_animation(animation, idle_name)
         
-        elif "enter" in name.state: # mode/state enter from combat idle
+        elif "enter" in name.state: # mode/state enter from combat idle 
             idle_name = name.copy()
             idle_name.state = "idle"
             next_animation = self._seek_best_matching_animation(animation, idle_name)
@@ -302,12 +312,18 @@ class FrameGenerator:
                     boarding_name = idle_name.copy()
                     boarding_name.mode = idle_name.mode.replace("_b_", "_")
                     next_animation = self._seek_best_matching_animation(animation, boarding_name)
+                    
+        elif "ejection" in name.state: # vehicle ejection
+            next_animation = animation
+            assume_movement = True
                 
         elif "exit" in name.state: # mode/state exit to idle
-            idle_name = name.copy()
-            idle_name.state = "idle"
-            idle_name.mode = "combat"
-            next_animation = self._seek_best_matching_animation(animation, idle_name)
+            if name.mode.endswith(("_b", "_d", "_p")):
+                next_animation = animation # vehicles don't seem to exit to a particular animation
+            else:
+                idle_name = name.copy()
+                idle_name.state = "idle"
+                next_animation = self._seek_best_matching_animation(animation, idle_name)
             assume_movement = True
             
         elif "put_away" in name.state: # weapon put away to idle
@@ -332,10 +348,13 @@ class FrameGenerator:
         if next_animation is not None:
             self._copy_frame(animation, next_animation, ignore_root=ignore_root, assume_movement=assume_movement)
 
-            
-
-    def _apply_first_frame(self, animation: NWO_AnimationPropertiesGroup):
-        pass
+    def _apply_first_frame(self, animation: NWO_AnimationPropertiesGroup, name: utils.AnimationName):
+        idle_name = name.copy()
+        idle_name.state = "idle"
+        next_animation = self._seek_best_matching_animation(animation, idle_name)
+        if next_animation is not None:
+            self._copy_frame(animation, next_animation, target_frame=animation.frame_start, source_frame=next_animation.frame_start, shift_frames_by_one=True)
+        
     
     def _get_animation_fcurves(self, animation: NWO_AnimationPropertiesGroup, ignore_root=False):
         fcurves = {}
