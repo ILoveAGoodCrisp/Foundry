@@ -249,6 +249,12 @@ class FoundryPreferences(AddonPreferences):
         default=True,
     )
     
+    ignore_final_frame: BoolProperty(
+        name="Update Timeline Range Ignore Last Frame",
+        description="Sets the timeline range 1 frame less than the frame count for base, world and replacement animations. This is to mimic the game import behavior for animations where the final frame is cut",
+        default=True,
+    )
+    
     debug_menu_on_export: BoolProperty(
         name="Update Debug Menu on Export",
         description="Updates the debug menu at export with the current scene asset (if it is a model)",

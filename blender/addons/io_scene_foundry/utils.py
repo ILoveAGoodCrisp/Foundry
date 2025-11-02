@@ -1,4 +1,5 @@
 from collections import Counter, defaultdict
+import copy
 import ctypes
 from enum import Enum, auto
 import itertools
@@ -5236,10 +5237,10 @@ class AnimationName:
         self.weapon_type = "any"
         self.set = "any"
         self.state = "any"
-        self.direction = "any"
-        self.region = "any"
-        self.destination_mode = "any"
-        self.destination_state = "any"
+        self.direction = ""
+        self.region = ""
+        self.destination_mode = ""
+        self.destination_state = ""
         self.variant = ""
         self.type = AnimationStateType.ACTION
         
@@ -5248,26 +5249,19 @@ class AnimationName:
             return
         
         if tokens[-1].startswith("var"):
-            self.variant = tokens[-1]
-            tokens.pop()
-            
-        self.state = tokens[-1]
+            self.variant = tokens.pop()
         
-        if len(tokens) > 2 and self.state in regions:
+        if len(tokens) > 2 and tokens[-1] in regions:
             if tokens[-2] in directions and tokens[-3] in damage_states:
                 self.type = AnimationStateType.DAMAGE
-                self.state = tokens[-3]
-                self.direction = tokens[-2]
-                self.region = tokens[-1]
-                tokens.pop()
-                tokens.pop()
+                self.region = tokens.pop()
+                self.direction = tokens.pop()
                 
         elif len(tokens) > 2 and "2" in tokens:
             index_2 = tokens.index("2")
             if index_2 > 0 and index_2 < (len(tokens) - 1):
                 self.type = AnimationStateType.TRANSITION
-                self.destination_state = tokens[-1]
-                tokens.pop()
+                self.destination_state = tokens.pop()
                 if tokens[-1] == "2":
                     tokens.pop()
                 else:
@@ -5276,24 +5270,49 @@ class AnimationName:
                         tokens.pop()
                     tokens.pop()
                     
-                self.state = tokens[-1]
-        
-        tokens.pop()
-        
+        self.state = tokens.pop()
+
         if tokens:
-            self.mode = tokens[0]
-            tokens.pop(0)
+            self.mode = tokens.pop(0)
+            
         if tokens:
-            self.weapon_class = tokens[0]
-            tokens.pop(0)
+            self.weapon_class = tokens.pop(0)
+            
         if tokens:
-            self.weapon_type = tokens[0]
-            tokens.pop(0)
+            self.weapon_type = tokens.pop(0)
+            
         if tokens:
-            self.set = tokens[0]
-            tokens.pop(0)
+            self.set = tokens.pop(0)
             
         if tokens:
             print_warning("Bad animation name?", name, tokens)
             
         self.valid = True
+        
+    def copy(self):
+        return copy.copy(self)
+    
+    def __eq__(self, value):
+        if not isinstance(value, AnimationName):
+            return False
+        
+        return all(
+            self.mode == value.mode,
+            self.weapon_class == value.weapon_class,
+            self.weapon_type == value.weapon_type,
+            self.set == value.set,
+            self.state == value.state,
+            self.direction == value.direction,
+            self.region == value.region,
+            self.destination_mode == value.destination_mode,
+            self.destination_state == value.destination_state,
+        )
+        
+    def __repr__(self):
+        match self.type:
+            case AnimationStateType.ACTION:
+                return f"ACTION, MODE:{self.mode}, CLASS:{self.weapon_class}, TYPE:{self.weapon_type}, SET:{self.set}, STATE:{self.state}"
+            case AnimationStateType.DAMAGE:
+                return f"DAMAGE, MODE:{self.mode}, CLASS:{self.weapon_class}, TYPE:{self.weapon_type}, SET:{self.set}, STATE:{self.state}, DIRECTION:{self.direction}, REGION:{self.region}"
+            case AnimationStateType.TRANSITION:
+                return f"TRANSITION, MODE:{self.mode}, CLASS:{self.weapon_class}, TYPE:{self.weapon_type}, SET:{self.set}, STATE:{self.state}, DEST_MODE:{self.destination_mode}, DEST_STATE:{self.destination_state}"

@@ -657,7 +657,6 @@ class NWO_OT_SetTimeline(bpy.types.Operator):
     
     def execute(self, context):
         scene = context.scene
-        scene_nwo = scene.nwo
         animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
         
         if animation.animation_type == 'composite':
@@ -666,10 +665,9 @@ class NWO_OT_SetTimeline(bpy.types.Operator):
         start_frame = animation.frame_start
         end_frame = animation.frame_end - int(animation.animation_type in ('base', 'replacement', 'world'))
         
-        if (end_frame - start_frame) > 0:
-            scene.frame_start = start_frame
-            scene.frame_end = end_frame
-            scene.frame_current = start_frame
+        scene.frame_start = start_frame
+        scene.frame_end = end_frame
+        scene.frame_current = start_frame
             
         return {'FINISHED'}
     
