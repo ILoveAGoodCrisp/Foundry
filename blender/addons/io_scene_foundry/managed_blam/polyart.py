@@ -12,6 +12,9 @@ from ..constants import WU_SCALAR
 from .Tags import TagFieldElement
 from ..managed_blam import Tag
 from .. import utils
+
+POLYART_SCALE_FROM = 0.001
+POLYART_SCALE_TO = 1000
         
 def decode_triangle_strip(indices):
     tris = []
@@ -68,7 +71,7 @@ class PolyArtTag(Tag):
         for element in self.block_vertices.Elements:
             vert_int16 = np.array([element.Fields[0].Data, element.Fields[1].Data, element.Fields[2].Data], dtype=np.int16)
             vert_uint16 = vert_int16.view(np.uint16)
-            verts.append(vert_uint16.view(np.float16) * WU_SCALAR)
+            verts.append(vert_uint16.view(np.float16) * POLYART_SCALE_FROM * 100)
             
             alpha_int16 = np.array([element.Fields[3].Data])
             alpha_uint16 = alpha_int16.view(np.uint16)
@@ -92,6 +95,7 @@ class PolyArtTag(Tag):
         vcolor_attribute = mesh.color_attributes.new("Color", 'FLOAT_COLOR', 'POINT')
         rgba = np.repeat(np.array(alphas)[:, None], 4, axis=1)
         vcolor_attribute.data.foreach_set("color", rgba.ravel())
+
         
         mat = bpy.data.materials.get("polyart")
         if mat is None:
@@ -108,7 +112,6 @@ class PolyArtTag(Tag):
             mat.surface_render_method = 'BLENDED'
               
         mesh.materials.append(mat)
-        
         ob = bpy.data.objects.new(mesh.name, mesh)
         
         if collection is None:
@@ -124,12 +127,11 @@ class PolyArtTag(Tag):
             for element in self.placement_data.Elements:
                 camera = bpy.data.cameras.new("polyart_camera")
                 camera.lens_unit = 'FOV'
-                camera.angle = radians(56)
-                
+                camera.angle = radians(45)
                 camera.display_size /= 0.03048
                 
                 camera_ob = bpy.data.objects.new("polyart_camera", camera)
-                camera_ob.location.z = 13.6678 / 0.03048
+                camera_ob.location.z = 5 / 0.03048
                 if collection is None:
                     bpy.context.scene.collection.objects.link(camera_ob)
                 else:
