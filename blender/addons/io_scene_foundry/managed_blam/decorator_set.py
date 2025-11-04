@@ -24,14 +24,14 @@ class DecoratorSetTag(Tag):
         self.model_instances = self.tag.SelectField("Block:render model instance names")
         
     def get_type_names(self):
-        type_names = []
+        type_names = {}
         instance_count = self.model_instances.Elements.Count
         for element in self.decorator_types.Elements:
             value = element.SelectField("LongBlockIndex:mesh").Value
             if value > -1 and value < instance_count:
                 name = self.model_instances.Elements[value].Fields[0].GetStringData()
                 if name:
-                    type_names.append(name)
+                    type_names[value] = name
                     
         return type_names
         
@@ -49,14 +49,18 @@ class DecoratorSetTag(Tag):
         types = self.get_type_names()
         
         if single_type:
-            
-            for idx, t in enumerate(types):
+            for idx, t in types.items():
                 if t == single_type:
                     single_type_index = idx
                     break
                 
         if single_type_index is None and only_single_type and types:
-            single_type_index = 0
+            single_type_index = list(types)[0]
+        
+        
+        print("iusehfweuhfhewoue9hfshfuoeshfshfueshfesh")
+        
+        print(single_type, single_type_index)
         
         if base and Path(base).exists():
             base_collection = bpy.data.collections.new(f"{self.tag_path.ShortName}_high")

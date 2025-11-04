@@ -37,7 +37,7 @@ class NWO_OT_GetDecoratorTypes(bpy.types.Operator):
                 return [("default", "default", "")]
             
         items = []
-        for v in decorator_type_items:
+        for v in decorator_type_items.values():
             items.append((v, v, ""))
 
         return items
@@ -167,14 +167,14 @@ def export_decorators(corinth, decorator_objects = None):
                 # print("Max placements size", placements.MaximumElementCount)
                 for ob in value:
                     placement = placements.AddElement()
-                    matrix = utils.halo_transform_matrix(ob.matrix_world)
+                    matrix = utils.halo_transforms_matrix(ob.matrix_world)
                     placement.SelectField("position").Data = matrix.translation
                     q = matrix.to_quaternion()
                     placement.SelectField("rotation").Data = q[1], q[2], q[3], q[0]
-                    placement.SelectField("scale").Data = max(matrix.to_scale().to_tuple()) / WU_SCALAR
+                    placement.SelectField("scale").Data = max(ob.scale.to_tuple())
                     
                     if ob.nwo.marker_game_instance_tag_variant_name.strip():
-                        for idx, dec_type in enumerate(decorator_types):
+                        for idx, dec_type in decorator_types.items():
                             if ob.nwo.marker_game_instance_tag_variant_name.lower() == dec_type.lower():
                                 placement.SelectField("type index").Data = idx
                                 break
