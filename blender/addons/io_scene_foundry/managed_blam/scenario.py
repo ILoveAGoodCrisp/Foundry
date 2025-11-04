@@ -89,10 +89,7 @@ class ScenarioDecorator:
         self.rotation = utils.ijkw_to_wxyz([n for n in element.SelectField("rotation").Data])
         self.scale = element.SelectField("scale").Data
         type_index = element.SelectField("type index").Data
-        if type_index > -1 and type_index < len(types):
-            self.type = types[type_index]
-        else:
-            self.type = ""
+        self.type = types.get(type_index, "")
         if self.type:
             self.name = f"{name}_{self.type}"
         else:
@@ -424,7 +421,7 @@ class ScenarioTag(Tag):
                 self.tag_has_changes = True
                 item.IsSet = True
                 
-    def decorators_to_blender(self, parent_collection=None):
+    def decorators_to_blender(self, parent_collection=None, bvh=None):
         start_time = time.perf_counter()
         objects = []
         
@@ -453,6 +450,11 @@ class ScenarioTag(Tag):
                     print(f"  Processing {dec_rel_path} - {placements.Elements.Count} placed in scenario")
                     for placement in placements.Elements:
                         decorator = ScenarioDecorator(placement, dec_rel_path, dec_short_name, decorator_types, corinth)
+                        
+                        if bvh is not None:
+                            if not utils.test_point_bvh(bvh, decorator.position):
+                                continue
+                        
                         ob = decorator.to_object()
                         if ob is not None:
                             objects_collection.objects.link(ob)
@@ -466,7 +468,7 @@ class ScenarioTag(Tag):
 
         return objects
                 
-    def decals_to_blender(self, parent_collection=None):
+    def decals_to_blender(self, parent_collection=None, bvh=None):
         objects = []
             
         block = self.tag.SelectField(f"Block:decals")
@@ -485,6 +487,11 @@ class ScenarioTag(Tag):
                 decal = ScenarioDecal(element, palette)
                 if not decal.valid:
                     continue
+                
+                if bvh is not None:
+                    if not utils.test_point_bvh(bvh, decal.position):
+                        continue
+                
                 ob = decal.to_object()
                 if ob is not None:
                     objects_collection.objects.link(ob)
@@ -493,7 +500,7 @@ class ScenarioTag(Tag):
         return objects
                 
                 
-    def objects_to_blender(self, parent_collection=None):
+    def objects_to_blender(self, parent_collection=None, bvh=None):
         
         objects = []
         child_objects = {}
@@ -529,6 +536,11 @@ class ScenarioTag(Tag):
                     scenario_object = ScenarioObject(element, palette, object_names)
                     if not scenario_object.valid:
                         continue
+                    
+                    if bvh is not None:
+                        if not utils.test_point_bvh(bvh, scenario_object.position):
+                            continue
+                    
                     ob = scenario_object.to_object()
                     if ob is not None:
                         if scenario_object.name_index > -1 and scenario_object.name_index < len(object_names):

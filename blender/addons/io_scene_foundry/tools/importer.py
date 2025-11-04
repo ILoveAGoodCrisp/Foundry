@@ -13,7 +13,7 @@ import addon_utils
 import bmesh
 import bpy
 import bpy.props
-from mathutils import Color
+from mathutils import Color, bvhtree
 
 import numpy as np
 
@@ -2259,8 +2259,33 @@ class NWOImporter:
                             design_objects = self.import_structure_design(design, scenario_collection)
                             imported_objects.extend(design_objects)
                             
+                    
+                    bvh = None
+                    if len(bsps) != len(all_bsps) and (self.tag_scenario_import_decals or self.tag_scenario_import_decorators or self.tag_scenario_import_objects):
+                        structure = [o for o in bsp_objects if o.type == 'MESH' and o.data.nwo.mesh_type == '_connected_geometry_mesh_type_structure']
+                        depsgraph = bpy.context.evaluated_depsgraph_get()
+                        
+                        all_verts = []
+                        all_polys = []
+                        vert_offset = 0
+                        
+                        for obj in structure:
+                            eval_obj = obj.evaluated_get(depsgraph)
+                            mesh = eval_obj.to_mesh()
+                            
+                            verts = [obj.matrix_world @ v.co for v in mesh.vertices]
+                            polys = [tuple(v_i + vert_offset for v_i in p.vertices) for p in mesh.polygons]
+                            
+                            all_verts.extend(verts)
+                            all_polys.extend(polys)
+                            vert_offset += len(mesh.vertices)
+                            
+                            eval_obj.to_mesh_clear()
+                            
+                        bvh = bvhtree.BVHTree.FromPolygons(all_verts, all_polys)
+                            
                     if self.tag_scenario_import_objects:
-                        game_objects = scenario.objects_to_blender(scenario_collection)
+                        game_objects = scenario.objects_to_blender(scenario_collection, bvh)
                         if game_objects:
                             print("Importing Game Object Geometry")
                             imported_objects.extend(game_objects)
@@ -2286,10 +2311,10 @@ class NWOImporter:
                                 ob.nwo.marker_instance = True
                                 
                     if self.tag_scenario_import_decals:
-                        imported_objects.extend(scenario.decals_to_blender(scenario_collection))
+                        imported_objects.extend(scenario.decals_to_blender(scenario_collection, bvh))
                         
                     if self.tag_scenario_import_decorators:
-                        decorator_objects = scenario.decorators_to_blender(scenario_collection)
+                        decorator_objects = scenario.decorators_to_blender(scenario_collection, bvh)
                         if decorator_objects:
                             print("Importing Decorator Set Geometry")
                             imported_objects.extend(decorator_objects)
@@ -3646,7 +3671,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
             items = []
         else:
             items = [("all_types", "All Types", "Includes the full model geometry")]
-        for dec in decorator_type_items:
+        for dec in decorator_type_items.values():
             if dec == last_used_decorator_type:
                 dec_match = True
             else:
