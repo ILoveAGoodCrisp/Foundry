@@ -369,7 +369,7 @@ class ExportScene:
             proxy_collision.nwo = original_proxy_collision.nwo
             proxy_collision.type = original_proxy_collision.type
             proxy_collision.ob = proxy_collision
-            proxy_collision.name = f"{ob.name} [collision]"
+            proxy_collision.name = original_proxy_collision.name
             proxy_collision.eval_ob = original_proxy_collision.evaluated_get(self.depsgraph)
             proxy_collision.matrix_world = Matrix.Identity(4)
             
@@ -406,7 +406,7 @@ class ExportScene:
                 proxy_physics.nwo = original_proxy_physics.nwo
                 proxy_physics.type = original_proxy_physics.type
                 proxy_physics.ob = original_proxy_physics
-                proxy_physics.name = f"{ob.name} [physics {idx}]"
+                proxy_physics.name = original_proxy_physics.name
                 proxy_physics.eval_ob = original_proxy_physics.evaluated_get(self.depsgraph)
                 proxy_physics.matrix_world = Matrix.Identity(4)
                 
@@ -436,7 +436,7 @@ class ExportScene:
             proxy_cookie_cutter.nwo = original_proxy_cookie_cutter.nwo
             proxy_cookie_cutter.type = original_proxy_cookie_cutter.type
             proxy_cookie_cutter.ob = original_proxy_cookie_cutter
-            proxy_cookie_cutter.name = f"{ob.name} [cookie_cutter]"
+            proxy_cookie_cutter.name = original_proxy_cookie_cutter.name
             proxy_cookie_cutter.eval_ob = original_proxy_cookie_cutter.evaluated_get(self.depsgraph)
             proxy_cookie_cutter.matrix_world = Matrix.Identity(4)
             
