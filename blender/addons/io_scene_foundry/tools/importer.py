@@ -272,8 +272,8 @@ class NWO_OT_ConvertScene(bpy.types.Operator):
         name="Current Type",
         description="The type of format objects are currently in",
         items=[
-            ('amf', "AMF", ""),
             ('jms', "JMS/ASS", ""),
+            ('amf', "AMF", ""),
         ]
     )
     
@@ -329,24 +329,34 @@ class NWO_OT_ConvertScene(bpy.types.Operator):
                         if not utils.blender_toolset_installed():
                             self.report({'WARNING'}, "Cannot convert scene from JMS/ASS format, Halo Blender Toolset is not installed")
                             return {'CANCELLED'}
-                        converter.jms_marker_objects = []
-                        converter.jms_mesh_objects = []
-                        converter.jms_other_objects = []
+                        
+                        converter.jms_file_marker_objects = []
+                        converter.jms_file_mesh_objects = []
+                        converter.jms_file_frame_objects = []
+                        converter.jms_file_light_objects = []
+                        converter.jms_file_proxy_objects = []
                         converter.process_jms_objects(objects_in_scope, "", self.jms_type == 'model')
                 
             except KeyboardInterrupt:
-                utils.print_warning("\nCANCELLED BY USER")
-                user_cancelled = True
+                utils.print_warning("\nIMPORT CANCELLED BY USER")
+                self.user_cancelled = True
                 failed = True
-            except:
-                print("FOUNDRY VERSION: ", utils.get_version_string())
-                utils.print_warning(
-                    "\ Import failed spectacularly. Please let the developer know: https://github.com/ILoveAGoodCrisp/Foundry/issues\n"
-                )
-                utils.print_error(
-                    "\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
-                )
+            except Exception as e:
                 failed = True
+                if isinstance(e, RuntimeError):
+                    # logging.error(traceback.format_exc())
+                    utils.print_warning(traceback.format_exception_only(e)[0][14:])
+                else:
+                    utils.print_error("\n\nException hit. Please include in report\n")
+                    logging.error(traceback.format_exc())
+                    print("FOUNDRY VERSION: ", utils.get_version_string())
+                    utils.print_warning(
+                        "\ Import failed spectacularly. Please let the developer know: https://github.com/ILoveAGoodCrisp/Foundry/issues\n"
+                    )
+                    utils.print_error(
+                        "\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
+                    )
+                    failed = True
                 
         end = time.perf_counter()
         if user_cancelled:
