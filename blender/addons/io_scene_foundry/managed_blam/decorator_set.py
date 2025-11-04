@@ -57,11 +57,6 @@ class DecoratorSetTag(Tag):
         if single_type_index is None and only_single_type and types:
             single_type_index = list(types)[0]
         
-        
-        print("iusehfweuhfhewoue9hfshfuoeshfshfueshfesh")
-        
-        print(single_type, single_type_index)
-        
         if base and Path(base).exists():
             base_collection = bpy.data.collections.new(f"{self.tag_path.ShortName}_high")
             collection.children.link(base_collection)
