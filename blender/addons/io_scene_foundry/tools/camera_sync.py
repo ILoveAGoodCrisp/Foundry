@@ -142,6 +142,10 @@ def sync_camera_to_game(context: bpy.types.Context):
     matrix = utils.halo_transform_matrix(r3d.view_matrix.inverted_safe())
     location = [round(t, 3) for t in matrix.translation]
     yaw, pitch, roll = utils.quaternion_to_ypr(matrix.to_quaternion())
+    
+    SAFE_EPSILON = 1e-5
+    pitch = max(min(pitch, math.pi/2 - SAFE_EPSILON), -math.pi/2 + SAFE_EPSILON)
+
     in_camera = r3d.view_perspective == 'CAMERA' and context.scene.camera
     if not in_camera:
         roll = 0
