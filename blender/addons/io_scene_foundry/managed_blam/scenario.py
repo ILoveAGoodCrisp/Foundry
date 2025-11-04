@@ -82,6 +82,9 @@ class ScenarioObject:
     
 class ScenarioDecorator:
     def __init__(self, element: TagFieldBlockElement, path: str, name: str, types: list, corinth: bool):
+        
+        # NOTE Due to the volume of decorators, pre-processing their final transforms so they don't go through the transform_scene function
+        
         self.position = Vector([n * 100 for n in element.SelectField("position").Data])
         self.rotation = utils.ijkw_to_wxyz([n for n in element.SelectField("rotation").Data])
         self.scale = element.SelectField("scale").Data

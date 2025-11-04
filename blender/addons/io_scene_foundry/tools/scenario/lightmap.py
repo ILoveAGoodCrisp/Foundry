@@ -6,12 +6,9 @@ from ...patches import ToolPatcher
 
 from ...managed_blam.lightmapper_globals import LightmapperGlobalsTag
 
-from ...managed_blam import Tag
-
 from ...managed_blam.scenario import ScenarioTag
 from ... import utils
 import os
-import random
 
 def scenario_exists() -> bool:
     asset_dir, asset_name = utils.get_asset_info()
@@ -230,7 +227,12 @@ class LightMapper:
             "-------------------------------------------------------------------------\n"
         )
         # self.print_exec_time()
-        utils.run_tool(["faux_data_sync", self.scenario, self.bsp], force_tool_fast=True)
+        try:
+            utils.run_tool(["faux_data_sync", self.scenario, self.bsp], force_tool_fast=True)
+        except:
+            self.lightmap_failed = True
+            self.lightmap_message = "Lightmapping failed during faux_data_sync"
+            return False
 
         print("\nFaux Farm")
         print(

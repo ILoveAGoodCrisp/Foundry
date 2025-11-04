@@ -3853,7 +3853,6 @@ def apply_armature_scale(context, arm: bpy.types.Object):
     for ob, world in arm_children.items():
         ob.matrix_world = world
 
-    
     # scale the armature bones
     should_be_hidden = False
     should_be_unlinked = False
