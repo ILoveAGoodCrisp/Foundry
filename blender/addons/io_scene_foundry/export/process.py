@@ -348,19 +348,31 @@ class ExportScene:
     def create_instance_proxies(self, ob: bpy.types.Object, ob_halo_data: dict, region: str, permutation: str):
         self.processed_poop_meshes.add(ob.data)
         data_nwo = ob.data.nwo
-        proxy_physics_list = [getattr(data_nwo, f"proxy_physics{i}", None) for i in range(200) if getattr(data_nwo, f"proxy_physics{i}") is not None]
-        proxy_collision = data_nwo.proxy_collision
-        proxy_cookie_cutter = data_nwo.proxy_cookie_cutter
+        original_proxy_physics_list = [getattr(data_nwo, f"proxy_physics{i}", None) for i in range(200) if getattr(data_nwo, f"proxy_physics{i}") is not None]
+        original_proxy_collision = data_nwo.proxy_collision
+        original_proxy_cookie_cutter = data_nwo.proxy_cookie_cutter
+        
 
-        has_coll = proxy_collision is not None
-        has_phys = bool(proxy_physics_list)
-        has_cookie = proxy_cookie_cutter is not None and not self.corinth
+        has_coll = original_proxy_collision is not None
+        has_phys = bool(original_proxy_physics_list)
+        has_cookie = original_proxy_cookie_cutter is not None and not self.corinth
         
         proxies = []
         
         new_default_coll = None
         
         if has_coll:
+            
+            proxy_collision = ExportObject()
+            proxy_collision.data = original_proxy_collision.data
+            proxy_collision.material_slots = original_proxy_collision.material_slots
+            proxy_collision.nwo = original_proxy_collision.nwo
+            proxy_collision.type = original_proxy_collision.type
+            proxy_collision.ob = proxy_collision
+            proxy_collision.name = f"{ob.name} [collision]"
+            proxy_collision.eval_ob = original_proxy_collision.evaluated_get(self.depsgraph)
+            proxy_collision.matrix_world = Matrix.Identity(4)
+            
             coll_props = {}
             coll_props["bungie_object_type"] = ObjectType.mesh.value
                     
@@ -386,10 +398,20 @@ class ExportScene:
             self.any_collision_proxies = True
             
         if has_phys:
-            for proxy_physics in proxy_physics_list:
+            for idx, original_proxy_physics in enumerate(original_proxy_physics_list):
+                
+                proxy_physics = ExportObject()
+                proxy_physics.data = original_proxy_physics.data
+                proxy_physics.material_slots = original_proxy_physics.material_slots
+                proxy_physics.nwo = original_proxy_physics.nwo
+                proxy_physics.type = original_proxy_physics.type
+                proxy_physics.ob = original_proxy_physics
+                proxy_physics.name = f"{ob.name} [physics {idx}]"
+                proxy_physics.eval_ob = original_proxy_physics.evaluated_get(self.depsgraph)
+                proxy_physics.matrix_world = Matrix.Identity(4)
+                
                 phys_props = {}
                 phys_props["bungie_object_type"] = ObjectType.mesh.value
-
                         
                 mesh_props = self.processed_meshes.get(proxy_physics.data)
                 if mesh_props is None:
@@ -407,6 +429,17 @@ class ExportScene:
                 proxies.append(proxy_physics)
             
         if has_cookie:
+            
+            proxy_cookie_cutter = ExportObject()
+            proxy_cookie_cutter.data = original_proxy_cookie_cutter.data
+            proxy_cookie_cutter.material_slots = original_proxy_cookie_cutter.material_slots
+            proxy_cookie_cutter.nwo = original_proxy_cookie_cutter.nwo
+            proxy_cookie_cutter.type = original_proxy_cookie_cutter.type
+            proxy_cookie_cutter.ob = original_proxy_cookie_cutter
+            proxy_cookie_cutter.name = f"{ob.name} [cookie_cutter]"
+            proxy_cookie_cutter.eval_ob = original_proxy_cookie_cutter.evaluated_get(self.depsgraph)
+            proxy_cookie_cutter.matrix_world = Matrix.Identity(4)
+            
             cookie_props = {}
             cookie_props["bungie_object_type"] = ObjectType.mesh.value
             mesh_props = self.processed_meshes.get(proxy_cookie_cutter.data)

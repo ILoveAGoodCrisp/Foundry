@@ -152,7 +152,7 @@ class Granny:
         valid_siblings = {n.name for n in nodes.values() if n.mesh}
         for model in scene.models.values():
             node = nodes.get(model.ob)
-            if not node: continue
+            if node is None: continue
             self.export_skeletons.append(Skeleton(model.skeleton, node, nodes))
             mesh_binding_indices = []
             for bone in model.skeleton.bones:
@@ -164,6 +164,8 @@ class Granny:
                     materials.update(bone.node.mesh.materials)
                     meshes.add(bone.node.mesh)
                     mesh_binding_indices.append(len(self.export_meshes) - 1)
+                else:
+                    print(bone.name, bool(bone.node), bool(nodes.get(bone.bone)), bool(bone.node.mesh))
                     
             self.export_models.append(Model(model, len(self.export_skeletons) - 1, mesh_binding_indices))
             
