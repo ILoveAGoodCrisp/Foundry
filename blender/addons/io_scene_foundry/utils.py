@@ -2466,7 +2466,7 @@ class TransformObject:
 
 def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forward, new_forward, keep_marker_axis=None, objects=None, actions=None, apply_rotation=False, exclude_scale_models=False, skip_data=False):
     """Transform blender objects by the given scale factor and rotation. Optionally this can be scoped to a set of objects and animations rather than all"""
-    print("--- Transforming Scene")
+    print("\nTransforming Scene\n")
     all_objects = False
     with TransformManager():
         # armatures = [ob for ob in bpy.data.objects if ob.type == 'ARMATURE']
@@ -5317,19 +5317,21 @@ class AnimationName:
             case AnimationStateType.TRANSITION:
                 return f"TRANSITION, MODE:{self.mode}, CLASS:{self.weapon_class}, TYPE:{self.weapon_type}, SET:{self.set}, STATE:{self.state}, DEST_MODE:{self.destination_mode}, DEST_STATE:{self.destination_state}"
             
-def test_point_bvh(bvh, point, direction=Vector((0,0,-1)), max_dist=1e6):
-    """Return True if point is inside the combined BVH mesh."""
-    hits = 0
-    step = 1e-4
+def test_point_bvh(bvhs, point):
     origin = Vector(point)
-    for _ in range(128):
-        loc, normal, index, dist = bvh.ray_cast(origin, direction, max_dist)
-        if loc is None:
-            break
-        hits += 1
-        origin = loc + (direction + normal).normalized() * step
+    origin.z += 0.1 # nudge point up a little in case object is directly on bsp floor
+    direction = Vector((0, 0, -1)) # raycast down
 
-    return hits % 2 == 1
+    for bvh in bvhs:
+        hit = bvh.ray_cast(origin, direction)
+        if hit[0] is None:
+            return False
+        
+        loc, normal, index, dist = hit
+        if direction.dot(normal) < 0:
+            return True
+    
+    return False
 
 class DepsgraphRead:
     def __init__(self):

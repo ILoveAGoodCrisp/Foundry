@@ -135,7 +135,7 @@ class ScenarioStructureBspTag(Tag):
             
         self.tag_has_changes = True
         
-    def to_blend_objects(self, collection: bpy.types.Collection, for_cinematic: bool, lighting_info_path: Path = None, import_geometry=True, import_lights=True):
+    def to_blend_objects(self, collection: bpy.types.Collection, for_cinematic: bool, lighting_info_path: Path = None, import_geometry=True, import_lights=True, always_get_structure_collision=False):
         
         objects = []
         game_objects = []
@@ -233,19 +233,8 @@ class ScenarioStructureBspTag(Tag):
         # if poops:
         #     with bpy.context.temp_override(selected_editable_objects=poops, object=poops[0]):
         #         bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY')
-            
-        # Create structure
-        structure_objects = []
-        print("Creating Structure")
-        collision = None
-        layer = utils.add_permutation("structure")
-        structure_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_structure")
-        structure_collection.nwo.type = "permutation"
-        structure_collection.nwo.permutation = layer
-        self.collection.children.link(structure_collection)
-        if for_cinematic:
-            structure_surface_triangle_mapping = []
-        else:
+        
+        def get_collision():
             raw_resources = self.tag.SelectField("Struct:resource interface[0]/Block:raw_resources")
             if raw_resources.Elements.Count > 0:
                 collision_bsp = raw_resources.Elements[0].SelectField("Struct:raw_items[0]/Block:collision bsp")
@@ -255,6 +244,23 @@ class ScenarioStructureBspTag(Tag):
                 elif large_collision_bsp.Elements.Count > 0:
                     collision = StructureCollision(large_collision_bsp.Elements[0], "structure_collision", collision_materials)
                     
+            return collision
+            
+        # Create structure
+        structure_objects = []
+        print("Creating Structure")
+        collision = None
+        bvh = None
+        layer = utils.add_permutation("structure")
+        structure_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_structure")
+        structure_collection.nwo.type = "permutation"
+        structure_collection.nwo.permutation = layer
+        self.collection.children.link(structure_collection)
+        if for_cinematic:
+            structure_surface_triangle_mapping = []
+        else:
+            collision = get_collision()
+            if collision is not None:
                 structure_surface_triangle_mapping = [SurfaceMapping(e.Fields[0].Data, e.Fields[1].Data, collision.surfaces[e.ElementIndex], self.tag.SelectField("Block:structure surface to triangle mapping")) for e in self.tag.SelectField("Block:large structure surfaces").Elements]
         
         for element in self.tag.SelectField("Block:clusters").Elements:
@@ -297,6 +303,12 @@ class ScenarioStructureBspTag(Tag):
                 elif not collision.sphere_collision_only:
                     utils.add_face_prop(collision_mesh, "face_mode").face_mode = 'collision_only'
                 structure_objects.append(ob)
+                
+        if always_get_structure_collision:
+            if collision is None:
+                collision = get_collision()
+                        
+            bvh = collision.to_bvh()
                         
         # Merge all structure objects
         main_structure_ob = None
@@ -435,7 +447,7 @@ class ScenarioStructureBspTag(Tag):
                         objects.append(ob)
                         game_objects.append(ob)
             
-        return objects, game_objects
+        return objects, game_objects, bvh
     
     def _import_prefabs(self, parent_collection):
         objects = []

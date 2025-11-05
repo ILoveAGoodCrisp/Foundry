@@ -10,7 +10,7 @@ from statistics import mean
 from typing import Iterable
 import bmesh
 import bpy
-from mathutils import Matrix, Quaternion, Vector, geometry
+from mathutils import Matrix, Quaternion, Vector, geometry, bvhtree
 import numpy as np
 
 from ..constants import LIGHTMAP_ADDITIVE_TRANSPARENCY_COLOR, LIGHTMAP_ANALYTICAL_LIGHT_ABSORB, LIGHTMAP_CHART_GROUP_INDEX, LIGHTMAP_IGNORE_DEFAULT_RESOLUTION_SCALE, LIGHTMAP_LIGHTING_FROM_BOTH_SIDES, LIGHTMAP_NORMAL_LIGHT_ABSORD, LIGHTMAP_RESOLUTION_SCALE, LIGHTMAP_TRANSLUCENCY_TINT_COLOR, LIGHTMAP_TRANSPARENCY_OVERRIDE, WU_SCALAR
@@ -25,6 +25,7 @@ from ..tools import materials as special_materials
 
 from .. import utils
 from .Tags import TagFieldBlock, TagFieldBlockElement, TagPath
+from mathutils.geometry import tessellate_polygon
 
 mat_props_cache = {}
 
@@ -1063,32 +1064,51 @@ class BSP:
         
         self.sphere_collision_only = all(surf.invisible for surf in self.surfaces)
         self.some_sphere_collision = any(surf.invisible for surf in self.surfaces)
+        
+    def yield_indices(self):
+        surfaces = self.surfaces
+        for surface in surfaces:
+            first_edge = self.edges[surface.first_edge]
+            edge = first_edge
+            polygon = []
+            
+            while True:
+                if edge.left_surface == surface.index:
+                    polygon.append(edge.start_vertex)
+                    next_edge_index = edge.forward_edge
+                else:
+                    polygon.append(edge.end_vertex)
+                    next_edge_index = edge.reverse_edge
+                
+                if next_edge_index == surface.first_edge:
+                    break
+                
+                edge = self.edges[next_edge_index]
+            
+            yield polygon
+        
+    def to_bvh(self):
+        verts = [Vector(v.position) for v in self.vertices]
+        tris = []
 
+        for poly in self.yield_indices():
+            if len(poly) == 3:
+                tris.append(tuple(poly))
+            elif len(poly) > 3:
+                # face_verts is a list of vertex indices
+                face_verts = [verts[i] for i in poly]
+                # tessellate_polygon returns triangles as tuples of indices (0..len(poly)-1)
+                tri_indices = tessellate_polygon([face_verts])
+                for tri in tri_indices:
+                    tris.append(tuple(poly[i] for i in tri))
+            # ignore degenerate faces (<3 verts)
+
+        if tris:
+            return bvhtree.BVHTree.FromPolygons(verts, tris)
         
     def to_object(self, mesh_only=False, surface_indices=[], cookie_cutter=False) -> bpy.types.Object:
-        def yield_indices():
-            surfaces = self.surfaces
-            for surface in surfaces:
-                first_edge = self.edges[surface.first_edge]
-                edge = first_edge
-                polygon = []
                 
-                while True:
-                    if edge.left_surface == surface.index:
-                        polygon.append(edge.start_vertex)
-                        next_edge_index = edge.forward_edge
-                    else:
-                        polygon.append(edge.end_vertex)
-                        next_edge_index = edge.reverse_edge
-                    
-                    if next_edge_index == surface.first_edge:
-                        break
-                    
-                    edge = self.edges[next_edge_index]
-                
-                yield polygon
-                
-        indices = yield_indices()
+        indices = self.yield_indices()
         # Create the bpy mesh
         mesh = bpy.data.meshes.new(self.name)
         mesh.from_pydata(vertices=[v.position for v in self.vertices], edges=[], faces=list(indices))

@@ -13,7 +13,7 @@ import addon_utils
 import bmesh
 import bpy
 import bpy.props
-from mathutils import Color, bvhtree
+from mathutils import Color, Vector, bvhtree
 
 import numpy as np
 
@@ -2239,19 +2239,23 @@ class NWOImporter:
         imported_objects = []
         for file in paths:
             print(f'Importing Scenario Tag: {Path(file).with_suffix("").name} ')
+            structure_collision = []
             with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
                 with ScenarioTag(path=mover.tag_path, raise_on_error=False) as scenario:
                     if not scenario.valid: continue
                     bsps = scenario.get_bsp_paths(self.tag_zone_set)
                     all_bsps = scenario.get_bsp_paths()
+                    do_raycasting = len(bsps) != len(all_bsps) and (self.tag_scenario_import_decals or self.tag_scenario_import_decorators or self.tag_scenario_import_objects)
                     scenario_name = f"scenario_{scenario.tag_path.ShortName}"
                     scenario_collection = bpy.data.collections.get(scenario_name)
                     if scenario_collection is None:
                         scenario_collection = bpy.data.collections.new(scenario_name)
                         self.context.scene.collection.children.link(scenario_collection)
                     for bsp in bsps:
-                        bsp_objects = self.import_bsp(bsp, scenario_collection, None if self.corinth else scenario.get_info(all_bsps.index(bsp)))
+                        bsp_objects, bvh = self.import_bsp(bsp, scenario_collection, None if self.corinth else scenario.get_info(all_bsps.index(bsp)), do_raycasting)
                         imported_objects.extend(bsp_objects)
+                        if bvh:
+                            structure_collision.append(bvh)
                     
                     if self.tag_import_design and not self.tag_bsp_render_only:
                         designs = scenario.get_design_paths(self.tag_zone_set)
@@ -2259,33 +2263,8 @@ class NWOImporter:
                             design_objects = self.import_structure_design(design, scenario_collection)
                             imported_objects.extend(design_objects)
                             
-                    
-                    bvh = None
-                    if len(bsps) != len(all_bsps) and (self.tag_scenario_import_decals or self.tag_scenario_import_decorators or self.tag_scenario_import_objects):
-                        structure = [o for o in bsp_objects if o.type == 'MESH' and o.data.nwo.mesh_type == '_connected_geometry_mesh_type_structure']
-                        depsgraph = bpy.context.evaluated_depsgraph_get()
-                        
-                        all_verts = []
-                        all_polys = []
-                        vert_offset = 0
-                        
-                        for obj in structure:
-                            eval_obj = obj.evaluated_get(depsgraph)
-                            mesh = eval_obj.to_mesh()
-                            
-                            verts = [obj.matrix_world @ v.co for v in mesh.vertices]
-                            polys = [tuple(v_i + vert_offset for v_i in p.vertices) for p in mesh.polygons]
-                            
-                            all_verts.extend(verts)
-                            all_polys.extend(polys)
-                            vert_offset += len(mesh.vertices)
-                            
-                            eval_obj.to_mesh_clear()
-                            
-                        bvh = bvhtree.BVHTree.FromPolygons(all_verts, all_polys)
-                            
                     if self.tag_scenario_import_objects:
-                        game_objects = scenario.objects_to_blender(scenario_collection, bvh)
+                        game_objects = scenario.objects_to_blender(scenario_collection, structure_collision)
                         if game_objects:
                             print("Importing Game Object Geometry")
                             imported_objects.extend(game_objects)
@@ -2311,10 +2290,10 @@ class NWOImporter:
                                 ob.nwo.marker_instance = True
                                 
                     if self.tag_scenario_import_decals:
-                        imported_objects.extend(scenario.decals_to_blender(scenario_collection, bvh))
+                        imported_objects.extend(scenario.decals_to_blender(scenario_collection, structure_collision))
                         
                     if self.tag_scenario_import_decorators:
-                        decorator_objects = scenario.decorators_to_blender(scenario_collection, bvh)
+                        decorator_objects = scenario.decorators_to_blender(scenario_collection, structure_collision)
                         if decorator_objects:
                             print("Importing Decorator Set Geometry")
                             imported_objects.extend(decorator_objects)
@@ -2343,8 +2322,9 @@ class NWOImporter:
         
         return imported_objects
     
-    def import_bsp(self, file, scenario_collection=None, info_path=None):
+    def import_bsp(self, file, scenario_collection=None, info_path=None, always_get_structure_collision=False):
         bsp_name = Path(file).with_suffix("").name
+        bvh = None
         print(f"Importing BSP {bsp_name}")
         bsp_objects = []
         collection = bpy.data.collections.get(bsp_name)
@@ -2358,7 +2338,7 @@ class NWOImporter:
                 scenario_collection.children.link(collection)
         with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
             with ScenarioStructureBspTag(path=mover.tag_path) as bsp:
-                bsp_objects, game_objects = bsp.to_blend_objects(collection, self.tag_bsp_render_only, info_path, self.tag_bsp_import_geometry, self.tag_import_lights)
+                bsp_objects, game_objects, bvh = bsp.to_blend_objects(collection, self.tag_bsp_render_only, info_path, self.tag_bsp_import_geometry, self.tag_import_lights, always_get_structure_collision)
                 
                 meshes = {ob.data for ob in bsp_objects if ob.type == 'MESH'}
                 self.emissive_meshes.update({me for me in meshes if any(p.type == 'emissive' for p in me.nwo.face_props)})
@@ -2393,7 +2373,7 @@ class NWOImporter:
         collection.nwo.type = "region"
         collection.nwo.region = bsp_name
         
-        return bsp_objects
+        return bsp_objects, bvh
     
     def import_structure_design(self, file, scenario_collection=None):
         design_name = Path(file).with_suffix("").name
@@ -2441,7 +2421,7 @@ class NWOImporter:
                 return
             
         with ScenarioStructureBspTag(path=bsp_ref) as bsp:
-            bsp_objects, _ = bsp.to_blend_objects(collection, self.tag_bsp_render_only)
+            bsp_objects, _, _ = bsp.to_blend_objects(collection, self.tag_bsp_render_only)
             imported_objects.extend(bsp_objects)
             meshes = {ob.data for ob in bsp_objects if ob.type == 'MESH'}
             self.emissive_meshes.update({me for me in meshes if any(p.type == 'emissive' for p in me.nwo.face_props)})
