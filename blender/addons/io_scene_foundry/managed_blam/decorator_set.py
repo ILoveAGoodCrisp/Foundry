@@ -45,7 +45,7 @@ class DecoratorSetTag(Tag):
                     
         return decorator_types
         
-    def to_blender(self, collection, get_material=False, always_extract_bitmaps=False, single_type=None, highest_lod_only=False, only_single_type=False):
+    def to_blender(self, collection, get_material=False, always_extract_bitmaps=False, single_type=None, lod=0, only_single_type=False):
         base = self.get_path_str(self.reference_base.Path, True)
         lod2 = self.get_path_str(self.reference_lod2.Path, True)
         lod3 = self.get_path_str(self.reference_lod3.Path, True)
@@ -67,8 +67,24 @@ class DecoratorSetTag(Tag):
                 
         if single_type_instance_index is None and only_single_type and types:
             single_type_instance_index = types[0].decorator_type_index
+            
+        ignore_lods = lod < 1
+        continue_getting_lods = True
         
-        if base and Path(base).exists():
+        base_exists = base and Path(base).exists()
+        lod2_exists = lod2 and Path(lod2).exists()
+        lod3_exists = lod3 and Path(lod3).exists()
+        lod4_exists = lod4 and Path(lod4).exists()
+        
+        if not ignore_lods:
+            if lod > 3 and not lod4_exists:
+                lod = 3
+            if lod > 2 and not lod3_exists:
+                lod = 2
+            if lod > 1 and not lod2_exists:
+                lod = 1
+        
+        if base_exists and lod < 2:
             base_collection = bpy.data.collections.new(f"{self.tag_path.ShortName}_high")
             collection.children.link(base_collection)
             with RenderModelTag(path=base) as base_render:
@@ -79,49 +95,45 @@ class DecoratorSetTag(Tag):
                     base_collection.objects.link(ob)
                     
                 all_obs.extend(base_obs)
-                found_highest_lod = True
+                continue_getting_lods = ignore_lods
         
-        if not highest_lod_only or not found_highest_lod:
-            if lod2 and Path(lod2).exists():
-                lod2_collection = bpy.data.collections.new(f"{self.tag_path.ShortName}_medium")
-                collection.children.link(lod2_collection)
-                with RenderModelTag(path=lod2) as lod2_render:
-                    lod2_obs = lod2_render.to_blend_objects(collection, True, False, lod2_collection, no_armature=True, specific_io_index=single_type_instance_index)
-                    for ob in lod2_obs:
-                        ob.nwo.decorator_lod = 'medium'
-                        utils.unlink(ob)
-                        lod2_collection.objects.link(ob)
-                        
-                    all_obs.extend(lod2_obs)
-                    found_highest_lod = True
-        
-        if not highest_lod_only or not found_highest_lod:
-            if lod3 and Path(lod3).exists():
-                lod3_collection = bpy.data.collections.new(f"{self.tag_path.ShortName}_low")
-                collection.children.link(lod3_collection)
-                with RenderModelTag(path=lod3) as lod3_render:
-                    lod3_obs = lod3_render.to_blend_objects(collection, True, False, lod3_collection, no_armature=True, specific_io_index=single_type_instance_index)
-                    for ob in lod3_obs:
-                        ob.nwo.decorator_lod = 'low'
-                        utils.unlink(ob)
-                        lod3_collection.objects.link(ob)
+        if lod2_exists and continue_getting_lods and lod < 3:
+            lod2_collection = bpy.data.collections.new(f"{self.tag_path.ShortName}_medium")
+            collection.children.link(lod2_collection)
+            with RenderModelTag(path=lod2) as lod2_render:
+                lod2_obs = lod2_render.to_blend_objects(collection, True, False, lod2_collection, no_armature=True, specific_io_index=single_type_instance_index)
+                for ob in lod2_obs:
+                    ob.nwo.decorator_lod = 'medium'
+                    utils.unlink(ob)
+                    lod2_collection.objects.link(ob)
                     
-                    all_obs.extend(lod3_obs)
-                    found_highest_lod = True
+                all_obs.extend(lod2_obs)
+                continue_getting_lods = ignore_lods
         
-        if not highest_lod_only or not found_highest_lod:
-            if lod4 and Path(lod4).exists():
-                lod4_collection = bpy.data.collections.new(f"{self.tag_path.ShortName}_ver_low")
-                collection.children.link(lod4_collection)
-                with RenderModelTag(path=lod4) as lod4_render:
-                    lod4_obs = lod4_render.to_blend_objects(collection, True, False, lod4_collection, no_armature=True, specific_io_index=single_type_instance_index)
-                    for ob in lod4_obs:
-                        ob.nwo.decorator_lod = 'very_low'
-                        utils.unlink(ob)
-                        lod4_collection.objects.link(ob)
-                        
-                    all_obs.extend(lod4_obs)
-                    found_highest_lod = True
+        if lod3_exists and continue_getting_lods and lod < 4:
+            lod3_collection = bpy.data.collections.new(f"{self.tag_path.ShortName}_low")
+            collection.children.link(lod3_collection)
+            with RenderModelTag(path=lod3) as lod3_render:
+                lod3_obs = lod3_render.to_blend_objects(collection, True, False, lod3_collection, no_armature=True, specific_io_index=single_type_instance_index)
+                for ob in lod3_obs:
+                    ob.nwo.decorator_lod = 'low'
+                    utils.unlink(ob)
+                    lod3_collection.objects.link(ob)
+                
+                all_obs.extend(lod3_obs)
+                continue_getting_lods = ignore_lods
+        
+        if lod4_exists and continue_getting_lods:
+            lod4_collection = bpy.data.collections.new(f"{self.tag_path.ShortName}_very_low")
+            collection.children.link(lod4_collection)
+            with RenderModelTag(path=lod4) as lod4_render:
+                lod4_obs = lod4_render.to_blend_objects(collection, True, False, lod4_collection, no_armature=True, specific_io_index=single_type_instance_index)
+                for ob in lod4_obs:
+                    ob.nwo.decorator_lod = 'very_low'
+                    utils.unlink(ob)
+                    lod4_collection.objects.link(ob)
+                    
+                all_obs.extend(lod4_obs)
         
         if texture and Path(texture).exists():
             
@@ -174,7 +186,7 @@ class DecoratorSetTag(Tag):
                     node_output = tree.nodes.new(type='ShaderNodeOutputMaterial')
                     tree.links.new(input=node_output.inputs[0], output=node_group.outputs[0])
                     render_shader = self.tag.SelectField("CharEnum:render shader").Value
-                    if render_shader < 2 or render_shader > 3:
+                    if render_shader < 2:
                         mat.surface_render_method = 'BLENDED'
             
             for ob in all_obs:

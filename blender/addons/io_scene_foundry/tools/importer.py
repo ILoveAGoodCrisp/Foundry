@@ -541,9 +541,20 @@ class NWO_Import(bpy.types.Operator):
         default=False,
     )
     
-    decorator_highest_lod_only: bpy.props.BoolProperty(
-        name="Import Highest LOD only",
-        description="Imports only the highest level of detail mesh for this decorator set, ignoring all others"
+    decorator_single_lod: bpy.props.BoolProperty(
+        name="Only single LOD",
+        description="Import only a single level of detail for this decorator"
+    )
+    
+    decorator_lod: bpy.props.EnumProperty(
+        name="Decorator LOD",
+        description="Level of detail for imported decorators",
+        items=[
+            ("1", "Highest", ""),
+            ("2", "Medium", ""),
+            ("3", "Low", ""),
+            ("4", "Lowest", ""),
+        ]
     )
     
     decorator_type: bpy.props.StringProperty(
@@ -1055,7 +1066,7 @@ class NWO_Import(bpy.types.Operator):
                         game_object_collection = game_object_cache.get(key)
                         imported_object_objects = []
                         if game_object_collection is None:
-                            game_object_collection = importer.import_decorator_set(marker, self.build_blender_materials, self.always_extract_bitmaps, self.decorator_type.lower() if self.decorator_type.strip() else None, True, True)
+                            game_object_collection = importer.import_decorator_set(marker, self.build_blender_materials, self.always_extract_bitmaps, self.decorator_type.lower() if self.decorator_type.strip() else None, int(self.decorator_lod), True)
                             merge_collection(game_object_collection)
                             imported_object_objects = game_object_collection.all_objects
                             context.scene.collection.children.unlink(game_object_collection)
@@ -1076,8 +1087,9 @@ class NWO_Import(bpy.types.Operator):
                     else:
                         decorator_files = importer.sorted_filepaths["decorator_set"]
                         imported_decorator_objects = []
+                        lod = int(self.decorator_lod) if self.decorator_single_lod else 0
                         for file in decorator_files:
-                            imported_decorator_objects.extend(importer.import_decorator_set(file, self.build_blender_materials, self.always_extract_bitmaps, self.decorator_type.lower() if self.decorator_type.strip() else None, self.decorator_highest_lod_only))
+                            imported_decorator_objects.extend(importer.import_decorator_set(file, self.build_blender_materials, self.always_extract_bitmaps, self.decorator_type.lower() if self.decorator_type.strip() else None, lod))
                         
                         if importer.needs_scaling:
                             utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_decorator_objects, actions=[])
@@ -1295,6 +1307,8 @@ class NWO_Import(bpy.types.Operator):
             box.prop(self, "tag_scenario_import_objects")
             box.prop(self, "tag_scenario_import_decals")
             box.prop(self, "tag_scenario_import_decorators")
+            if self.tag_scenario_import_decorators:
+                box.prop(self, "decorator_lod")
             box.prop(self, 'build_blender_materials', text=f"Blender Materials from {tag_type.capitalize()} Tags")
             box.prop(self, 'always_extract_bitmaps')
             if not self.scope or ('scenario' in self.scope):
@@ -1323,8 +1337,10 @@ class NWO_Import(bpy.types.Operator):
         if not self.scope or ('decorator_set' in self.scope):
             box = layout.box()
             box.label(text='Decorator Set Settings')
-            box.prop(self, "decorator_highest_lod_only")
             box.prop(self, "decorator_type")
+            box.prop(self, "decorator_single_lod")
+            if self.decorator_single_lod:
+                box.prop(self, "decorator_lod")
             box.prop(self, 'build_blender_materials', text="Build Blender Material")
             box.prop(self, 'always_extract_bitmaps')
             box.prop(self, "setup_as_asset")
@@ -2465,7 +2481,7 @@ class NWOImporter:
             
         return particle_model_objects
     
-    def import_decorator_set(self, file, build_materials, extract_bitmaps, single_type=None, highest_lod_only=False, only_single_type=False):
+    def import_decorator_set(self, file, build_materials, extract_bitmaps, single_type=None, lod=0, only_single_type=False):
         print("Importing Decorator Set")
         
         is_game_object = isinstance(file, bpy.types.Object)
@@ -2482,7 +2498,7 @@ class NWOImporter:
         self.context.scene.collection.children.link(collection)
         with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
             with DecoratorSetTag(path=mover.tag_path) as decorator:
-                decorator_objects = decorator.to_blender(collection, build_materials, extract_bitmaps, single_type, highest_lod_only, only_single_type)
+                decorator_objects = decorator.to_blender(collection, build_materials, extract_bitmaps, single_type, lod, only_single_type)
 
         if is_game_object:
             return collection
@@ -3731,9 +3747,20 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         default=False,
     )
     
-    decorator_highest_lod_only: bpy.props.BoolProperty(
-        name="Import Highest LOD only",
-        description="Imports only the highest level of detail mesh for this decorator set, ignoring all others"
+    decorator_single_lod: bpy.props.BoolProperty(
+        name="Only single LOD",
+        description="Import only a single level of detail for this decorator"
+    )
+    
+    decorator_lod: bpy.props.EnumProperty(
+        name="Decorator LOD",
+        description="Level of detail for imported decorators",
+        items=[
+            ("1", "Highest", ""),
+            ("2", "Medium", ""),
+            ("3", "Low", ""),
+            ("4", "Lowest", ""),
+        ]
     )
     
     decorator_type: bpy.props.EnumProperty(
@@ -3939,8 +3966,12 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 layout.prop(self, "always_extract_bitmaps")
             case 'decorator_set':
                 layout.prop(self, "decorator_type")
-                if not self.place_at_mouse:
-                    layout.prop(self, "decorator_highest_lod_only")
+                if self.place_at_mouse:
+                    layout.prop(self, "decorator_lod")
+                else:
+                    layout.prop(self, "decorator_single_lod")
+                    if self.decorator_single_lod:
+                        layout.prop(self, "decorator_lod")
                     layout.prop(self, "setup_as_asset")
                 layout.prop(self, "build_blender_materials")
                 layout.prop(self, "always_extract_bitmaps")
@@ -3960,6 +3991,8 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 layout.prop(self, "tag_scenario_import_objects")
                 layout.prop(self, "tag_scenario_import_decals")
                 layout.prop(self, "tag_scenario_import_decorators")
+                if self.tag_scenario_import_decorators:
+                    layout.prop(self, "decorator_lod")
                 layout.prop(self, "setup_as_asset")
                 layout.prop(self, "build_blender_materials")
                 layout.prop(self, "always_extract_bitmaps")
