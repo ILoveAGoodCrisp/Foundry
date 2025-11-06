@@ -451,7 +451,7 @@ class ScenarioTag(Tag):
                     for placement in placements.Elements:
                         decorator = ScenarioDecorator(placement, dec_rel_path, dec_short_name, decorator_types, corinth)
                         
-                        if decorator is None:
+                        if decorator.type is None:
                             continue
                         
                         if bvh is not None:
