@@ -11,14 +11,12 @@ import bpy
 # OPTIONS
 
 def approximate_spline_segment(segment, sample_count=4):
-    """Approximate the spline segment by sampling points along it."""
     cp0, cp1 = segment.control_points
     if not segment.spline_control_points:
         return [(cp0.x, cp0.y), (cp1.x, cp1.y)]
 
     scp0, scp1 = segment.spline_control_points
 
-    # Use Bezier formula to sample between cp0 and cp1
     def bezier(t, p0, p1, p2, p3):
         return (
             (1 - t)**3 * p0 +

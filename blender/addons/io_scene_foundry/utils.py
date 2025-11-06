@@ -5357,3 +5357,10 @@ class DepsgraphRead:
             ob.hide_set(True)
             
         set_local_view(bpy.context, self.local_views)
+        
+def hide_from_rays(ob: bpy.types.Object):
+    ob.visible_diffuse = False
+    ob.visible_glossy = False
+    ob.visible_transmission = False
+    ob.visible_volume_scatter = False
+    ob.visible_shadow = False

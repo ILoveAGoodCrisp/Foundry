@@ -63,6 +63,9 @@ last_used_variant = ""
 decorator_type_items = []
 last_used_decorator_type = ""
 
+sky_items = []
+last_used_sky = ""
+
 zone_set_items = {"blah": "blah"}
 
 ammo_names = "primary_ammunition", "airstrike_launch_count", "secondary_ammunition"
@@ -523,6 +526,11 @@ class NWO_Import(bpy.types.Operator):
         default=True,
     )
     
+    tag_sky: bpy.props.StringProperty(
+        name="Sky",
+        description="Enter the tag relative path to the sky to import with this Scenario",
+    )
+    
     tag_scenario_import_objects: bpy.props.BoolProperty(
         name="Import Scenario Objects",
         description="Imports scenario objects. Added to an exclude collection by default",
@@ -661,6 +669,8 @@ class NWO_Import(bpy.types.Operator):
             self.tag_zone_set = ""
         if self.decorator_type == "all_types":
             self.decorator_type = ""
+        if self.tag_sky == "none":
+            self.tag_sky = ""
             
         if self.always_extract_bitmaps:
             clear_path_cache()
@@ -965,6 +975,7 @@ class NWO_Import(bpy.types.Operator):
                     importer.tag_scenario_import_decorators = self.tag_scenario_import_decorators
                     importer.decorator_lod = int(self.decorator_lod)
                     importer.setup_as_asset = self.setup_as_asset
+                    importer.tag_sky = self.tag_sky
                     scenario_files = importer.sorted_filepaths["scenario"]
                     imported_scenario_objects = importer.import_scenarios(scenario_files, self.build_blender_materials, self.always_extract_bitmaps)
                     if importer.needs_scaling:
@@ -1305,6 +1316,7 @@ class NWO_Import(bpy.types.Operator):
             box.prop(self, "tag_bsp_render_only")
             box.prop(self, "tag_import_design")
             box.prop(self, "tag_import_lights")
+            box.prop(self, "tag_sky")
             box.prop(self, "tag_scenario_import_objects")
             box.prop(self, "tag_scenario_import_decals")
             box.prop(self, "tag_scenario_import_decorators")
@@ -1589,6 +1601,7 @@ class NWOImporter:
         self.import_variant_children = False
         self.import_biped_weapon = False
         self.setup_as_asset = False
+        self.tag_sky = ""
         self.for_cinematic = context.scene.nwo.asset_type == "cinematic"
         self.obs_for_props = {}
         self.fp_arms_imported = False
@@ -2280,6 +2293,47 @@ class NWOImporter:
                         for idx, design in enumerate(designs):
                             design_objects = self.import_structure_design(design, scenario_collection)
                             imported_objects.extend(design_objects)
+                            
+                    if self.tag_sky:
+                        sky_name = Path(self.tag_sky).with_suffix("").name
+                        print(f"Importing Sky - {sky_name}")
+                        sky = bpy.data.objects.new("sky_name", None)
+                        sky.nwo.marker_type = '_connected_geometry_marker_type_game_instance'
+                        sky.nwo.marker_game_instance_tag_name = self.tag_sky
+                        sky.nwo.export_this = False
+                        
+                        scenario_collection.objects.link(sky)
+                        imported_objects.append(sky)
+                        game_object_cache = {(c.nwo.game_object_path, c.nwo.game_object_variant): c for c in utils.get_foundry_storage_scene().collection.children if c.nwo.game_object_path}
+                        key = sky.nwo.marker_game_instance_tag_name, sky.nwo.marker_game_instance_tag_variant_name
+                        game_object_collection = game_object_cache.get(key)
+                        
+                        if game_object_collection is None:
+                            game_object_collection = self.import_object(sky, None)
+                            merge_collection(game_object_collection)
+                            imported_objects.extend(game_object_collection.all_objects)
+                            self.context.scene.collection.children.unlink(game_object_collection)
+                            utils.get_foundry_storage_scene().collection.children.link(game_object_collection)
+                            game_object_collection.nwo.game_object_path, game_object_collection.nwo.game_object_variant = key
+                            game_object_cache[key] = game_object_collection
+                                
+                            sky.instance_type = 'COLLECTION'
+                            sky.instance_collection = game_object_collection
+                            sky.nwo.marker_instance = True
+                            
+                        factor = 1
+                        if bpy.context.scene.nwo.scale == 'max':
+                            factor = 1 / 0.03048
+                        
+                        sky_view = 50_000 * factor
+                        
+                        for area in bpy.context.screen.areas:
+                            if area.type == "VIEW_3D":
+                                for space in area.spaces:
+                                    if space.type == "VIEW_3D":
+                                        if space.clip_end < sky_view:
+                                            space.clip_start = 1 * factor
+                                            space.clip_end = sky_view
                             
                     if self.tag_scenario_import_objects:
                         game_objects = scenario.objects_to_blender(scenario_collection, structure_collision)
@@ -3685,6 +3739,14 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
             return [("all_types", "All Types", "Includes the full model geometry")]
             
         return items
+    
+    def items_sky(self, context):
+        global sky_items
+        items = [("none", "None", "")]
+        for sky in sky_items:
+            items.append((sky, Path(sky).with_suffix("").name, ""))
+            
+        return items
         
     
     tag_variant: bpy.props.EnumProperty(
@@ -3729,6 +3791,12 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         name="Import Structure Design",
         description="Imports geometry from scenario structure design tags. Ignored if render only is set",
         default=True,
+    )
+    
+    tag_sky: bpy.props.EnumProperty(
+        name="Sky",
+        description="Select the sky to import with this scenario",
+        items=items_sky
     )
     
     tag_scenario_import_objects: bpy.props.BoolProperty(
@@ -3904,10 +3972,17 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         if self.import_type in {"camera_track", "jms", "ass", "model", "render_model", "scenario", "scenario_structure_bsp", "model_animation_graph", "biped", "crate", "creature", "device_control", "device_dispenser", "effect_scenery", "equipment", "giant", "device_machine", "projectile", "scenery", "spawner", "sound_scenery", "device_terminal", "vehicle", "weapon", "prefab", "decorator_set"}:
             if self.import_type == "scenario":
                 global zone_set_items
+                global sky_items
                 with ScenarioTag(path=self.filepath) as scenario:
                     zone_set_items = scenario.get_zone_sets_dict()
                     if zone_set_items:
                         self.has_zone_sets = True
+                        
+                    for element in scenario.tag.SelectField("skies").Elements:
+                        sky = element.SelectField("Reference:sky").Path
+                        sky_path = scenario.get_path_str(sky, True)
+                        if sky_path and Path(sky_path).exists():
+                            sky_items.append(sky.RelativePathWithExtension)
                         
             elif self.import_type == 'decorator_set':
                 global decorator_type_items
@@ -3990,6 +4065,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 layout.prop(self, "tag_bsp_render_only")
                 layout.prop(self, "tag_import_design")
                 layout.prop(self, "tag_import_lights")
+                layout.prop(self, "tag_sky")
                 layout.prop(self, "tag_scenario_import_objects")
                 layout.prop(self, "tag_scenario_import_decals")
                 layout.prop(self, "tag_scenario_import_decorators")

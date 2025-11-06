@@ -352,6 +352,10 @@ class RenderModelTag(Tag):
                             override.destination_material = destination_material.blender_material
                             print(f"--- Material Override added for clone {clone.name}: {override.source_material.name} --> {override.destination_material.name}")
                     break
+                
+        if "sky" in self.tag_path.ShortName:
+            for ob in objects:
+                utils.hide_from_rays(ob)
         
         return objects
     
