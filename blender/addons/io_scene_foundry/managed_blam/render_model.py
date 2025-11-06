@@ -104,14 +104,14 @@ class RenderModelTag(Tag):
             self.regions.append(Region(element))
         
         if render:
-            print("Creating Render Geometry")
+            # print("Creating Render Geometry")
             result = self._create_render_geometry(allowed_region_permutations, from_vert_normals, no_io, specific_io_index)
             if result:
                 objects.extend(result)
             else:
                 return objects, self.armature
         if markers:
-            print("Creating Markers")
+            # print("Creating Markers")
             objects.extend(self._create_markers(allowed_region_permutations))
             
         meshes = {ob.data for ob in objects if ob.data is not None and ob.type == 'MESH'}
@@ -128,7 +128,7 @@ class RenderModelTag(Tag):
         return objects, self.armature
     
     def _create_armature(self, existing_armature=None):
-        print("Creating Armature")
+        # print("Creating Armature")
         arm = RenderArmature(f"{self.tag.Path.ShortName}", existing_armature)
         self.nodes: list[Node] = []
         for element in self.block_nodes.Elements:

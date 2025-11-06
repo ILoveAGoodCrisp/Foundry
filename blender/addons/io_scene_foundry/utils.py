@@ -5325,7 +5325,7 @@ def test_point_bvh(bvhs, point):
     for bvh in bvhs:
         hit = bvh.ray_cast(origin, direction)
         if hit[0] is None:
-            return False
+            continue
         
         loc, normal, index, dist = hit
         if direction.dot(normal) < 0:
