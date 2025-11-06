@@ -963,6 +963,7 @@ class NWO_Import(bpy.types.Operator):
                     importer.tag_scenario_import_objects = self.tag_scenario_import_objects
                     importer.tag_scenario_import_decals = self.tag_scenario_import_decals
                     importer.tag_scenario_import_decorators = self.tag_scenario_import_decorators
+                    importer.decorator_lod = int(self.decorator_lod)
                     importer.setup_as_asset = self.setup_as_asset
                     scenario_files = importer.sorted_filepaths["scenario"]
                     imported_scenario_objects = importer.import_scenarios(scenario_files, self.build_blender_materials, self.always_extract_bitmaps)
@@ -1583,6 +1584,7 @@ class NWOImporter:
         self.tag_scenario_import_objects = False
         self.tag_scenario_import_decals = False
         self.tag_scenario_import_decorators = False
+        self.decorator_lod = 0
         self.tag_animation_filter = ""
         self.import_variant_children = False
         self.import_biped_weapon = False
@@ -2319,7 +2321,7 @@ class NWOImporter:
                                 game_object_collection = game_object_cache.get(key)
                                 
                                 if game_object_collection is None:
-                                    game_object_collection = self.import_decorator_set(ob, build_blender_materials, always_extract_bitmaps, single_type=ob.nwo.marker_game_instance_tag_variant_name, highest_lod_only=True, only_single_type=True)
+                                    game_object_collection = self.import_decorator_set(ob, build_blender_materials, always_extract_bitmaps, single_type=ob.nwo.marker_game_instance_tag_variant_name, lod=self.decorator_lod, only_single_type=True)
                                     merge_collection(game_object_collection)
                                     imported_objects.extend(game_object_collection.all_objects)
                                     self.context.scene.collection.children.unlink(game_object_collection)
@@ -4311,6 +4313,17 @@ class NWO_ImportGameInstanceTag(bpy.types.Operator):
         description="Builds Blender material nodes for materials based off their shader/material tags (if found)",
         default=True,
     )
+    
+    decorator_lod: bpy.props.EnumProperty(
+        name="Decorator LOD",
+        description="Level of detail for imported decorators",
+        items=[
+            ("1", "Highest", ""),
+            ("2", "Medium", ""),
+            ("3", "Low", ""),
+            ("4", "Lowest", ""),
+        ]
+    )
 
     def execute(self, context):
         ob = context.object
@@ -4334,7 +4347,7 @@ class NWO_ImportGameInstanceTag(bpy.types.Operator):
             if tag_path_full.suffix.lower() == ".prefab":
                 collection = importer.import_prefab(ob)
             elif tag_path_full.suffix.lower() == ".decorator_set":
-                collection = importer.import_decorator_set(ob, self.build_blender_materials, self.always_extract_bitmaps, single_type=variant, highest_lod_only=True, only_single_type=True)
+                collection = importer.import_decorator_set(ob, self.build_blender_materials, self.always_extract_bitmaps, single_type=variant, lod=int(self.decorator_lod), only_single_type=True)
             else:
                 collection = importer.import_object(ob, None)
             if importer.needs_scaling:
@@ -4361,3 +4374,5 @@ class NWO_ImportGameInstanceTag(bpy.types.Operator):
         layout = self.layout
         layout.prop(self, "build_blender_materials")
         layout.prop(self, "always_extract_bitmaps")
+        if context.object.nwo.marker_game_instance_tag_name.lower().endswith(".decorator_set"):
+            layout.prop(self, "decorator_lod")

@@ -110,7 +110,7 @@ class ScenarioDecorator:
 
         ob.nwo.marker_type = '_connected_geometry_marker_type_game_instance'
         ob.nwo.marker_game_instance_tag_name = self.path
-        ob.nwo.marker_game_instance_tag_variant_name = self.type
+        ob.nwo.marker_game_instance_tag_variant_name = self.type.decorator_type_name
         
         ob.nwo.decorator_motion_scale = float(self.motion_scale / 255)
         ob.nwo.decorator_ground_tint = float(self.ground_tint / 255)

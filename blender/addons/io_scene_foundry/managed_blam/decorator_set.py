@@ -53,12 +53,10 @@ class DecoratorSetTag(Tag):
         texture = self.get_path_str(self.reference_texture.Path, True)
         
         all_obs = []
-        found_highest_lod = False
         single_type_instance_index = None
         
         types = self.get_decorator_types()
-        for t in types:
-            print(t.decorator_type_name, t.decorator_type_index, t.render_model_instance_index)
+
         if single_type is not None:
             for t in types:
                 if t.decorator_type_name == single_type:
