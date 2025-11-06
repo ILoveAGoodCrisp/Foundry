@@ -11,6 +11,12 @@ from .render_model import RenderModelTag
 
 from ..managed_blam import Tag
 
+class DecoratorType:
+    def __init__(self):
+        self.render_model_instance_index = -1
+        self.decorator_type_index = -1
+        self.decorator_type_name = ""
+
 class DecoratorSetTag(Tag):
     tag_ext = 'decorator_set'
     
@@ -23,17 +29,21 @@ class DecoratorSetTag(Tag):
         self.decorator_types = self.tag.SelectField("Block:decorator types")
         self.model_instances = self.tag.SelectField("Block:render model instance names")
         
-    def get_type_names(self):
-        type_names = {}
+    def get_decorator_types(self) -> list[DecoratorType]:
+        decorator_types = []
         instance_count = self.model_instances.Elements.Count
         for element in self.decorator_types.Elements:
             value = element.SelectField("LongBlockIndex:mesh").Value
             if value > -1 and value < instance_count:
                 name = self.model_instances.Elements[value].Fields[0].GetStringData()
                 if name:
-                    type_names[value] = name
+                    dec_type = DecoratorType()
+                    dec_type.render_model_instance_index = value
+                    dec_type.decorator_type_index = element.ElementIndex
+                    dec_type.decorator_type_name = name
+                    decorator_types.append(dec_type)
                     
-        return type_names
+        return decorator_types
         
     def to_blender(self, collection, get_material=False, always_extract_bitmaps=False, single_type=None, highest_lod_only=False, only_single_type=False):
         base = self.get_path_str(self.reference_base.Path, True)
@@ -44,24 +54,25 @@ class DecoratorSetTag(Tag):
         
         all_obs = []
         found_highest_lod = False
-        single_type_index = None
+        single_type_instance_index = None
         
-        types = self.get_type_names()
-        
-        if single_type:
-            for idx, t in types.items():
-                if t == single_type:
-                    single_type_index = idx
+        types = self.get_decorator_types()
+        for t in types:
+            print(t.decorator_type_name, t.decorator_type_index, t.render_model_instance_index)
+        if single_type is not None:
+            for t in types:
+                if t.decorator_type_name == single_type:
+                    single_type_instance_index = t.render_model_instance_index
                     break
                 
-        if single_type_index is None and only_single_type and types:
-            single_type_index = list(types)[0]
+        if single_type_instance_index is None and only_single_type and types:
+            single_type_instance_index = types[0].decorator_type_index
         
         if base and Path(base).exists():
             base_collection = bpy.data.collections.new(f"{self.tag_path.ShortName}_high")
             collection.children.link(base_collection)
             with RenderModelTag(path=base) as base_render:
-                base_obs = base_render.to_blend_objects(collection, True, False, base_collection, no_armature=True, specific_io_index=single_type_index)
+                base_obs = base_render.to_blend_objects(collection, True, False, base_collection, no_armature=True, specific_io_index=single_type_instance_index)
                 for ob in base_obs:
                     ob.nwo.decorator_lod = 'high'
                     utils.unlink(ob)
@@ -75,7 +86,7 @@ class DecoratorSetTag(Tag):
                 lod2_collection = bpy.data.collections.new(f"{self.tag_path.ShortName}_medium")
                 collection.children.link(lod2_collection)
                 with RenderModelTag(path=lod2) as lod2_render:
-                    lod2_obs = lod2_render.to_blend_objects(collection, True, False, lod2_collection, no_armature=True, specific_io_index=single_type_index)
+                    lod2_obs = lod2_render.to_blend_objects(collection, True, False, lod2_collection, no_armature=True, specific_io_index=single_type_instance_index)
                     for ob in lod2_obs:
                         ob.nwo.decorator_lod = 'medium'
                         utils.unlink(ob)
@@ -89,7 +100,7 @@ class DecoratorSetTag(Tag):
                 lod3_collection = bpy.data.collections.new(f"{self.tag_path.ShortName}_low")
                 collection.children.link(lod3_collection)
                 with RenderModelTag(path=lod3) as lod3_render:
-                    lod3_obs = lod3_render.to_blend_objects(collection, True, False, lod3_collection, no_armature=True, specific_io_index=single_type_index)
+                    lod3_obs = lod3_render.to_blend_objects(collection, True, False, lod3_collection, no_armature=True, specific_io_index=single_type_instance_index)
                     for ob in lod3_obs:
                         ob.nwo.decorator_lod = 'low'
                         utils.unlink(ob)
@@ -103,7 +114,7 @@ class DecoratorSetTag(Tag):
                 lod4_collection = bpy.data.collections.new(f"{self.tag_path.ShortName}_ver_low")
                 collection.children.link(lod4_collection)
                 with RenderModelTag(path=lod4) as lod4_render:
-                    lod4_obs = lod4_render.to_blend_objects(collection, True, False, lod4_collection, no_armature=True, specific_io_index=single_type_index)
+                    lod4_obs = lod4_render.to_blend_objects(collection, True, False, lod4_collection, no_armature=True, specific_io_index=single_type_instance_index)
                     for ob in lod4_obs:
                         ob.nwo.decorator_lod = 'very_low'
                         utils.unlink(ob)

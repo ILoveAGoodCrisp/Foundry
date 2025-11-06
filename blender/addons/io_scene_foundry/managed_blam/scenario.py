@@ -89,11 +89,11 @@ class ScenarioDecorator:
         self.rotation = utils.ijkw_to_wxyz([n for n in element.SelectField("rotation").Data])
         self.scale = element.SelectField("scale").Data
         type_index = element.SelectField("type index").Data
-        self.type = types.get(type_index, "")
-        if self.type:
-            self.name = f"{name}_{self.type}"
-        else:
-            self.name = name
+        self.type = next((t for t in types if t.decorator_type_index == type_index), None)
+        if self.type is None:
+            return
+        
+        self.name = f"{name}_{self.type}"
         self.path = path
         
         self.motion_scale = element.SelectField("motion scale").Data
@@ -441,7 +441,7 @@ class ScenarioTag(Tag):
                 
                 if decorator_set_path and Path(decorator_set_path).exists():
                     with DecoratorSetTag(path=decorator_set_path) as decorator_set:
-                        decorator_types = decorator_set.get_type_names()
+                        decorator_types = decorator_set.get_decorator_types()
                         dec_rel_path = decorator_set.tag_path.RelativePathWithExtension
                         dec_short_name = decorator_set.tag_path.ShortName
                         corinth = decorator_set.corinth
@@ -450,6 +450,9 @@ class ScenarioTag(Tag):
                     print(f"  Processing {dec_rel_path} - {placements.Elements.Count} placed in scenario")
                     for placement in placements.Elements:
                         decorator = ScenarioDecorator(placement, dec_rel_path, dec_short_name, decorator_types, corinth)
+                        
+                        if decorator is None:
+                            continue
                         
                         if bvh is not None:
                             if not utils.test_point_bvh(bvh, decorator.position):

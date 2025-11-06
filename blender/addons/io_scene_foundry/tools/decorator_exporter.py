@@ -32,13 +32,13 @@ class NWO_OT_GetDecoratorTypes(bpy.types.Operator):
     
     def type_items(self, context):
         with DecoratorSetTag(path=context.object.nwo.marker_game_instance_tag_name) as decorator:
-            decorator_type_items = decorator.get_type_names()
+            decorator_type_items = decorator.get_decorator_types()
             if not decorator_type_items:
                 return [("default", "default", "")]
             
         items = []
-        for v in decorator_type_items.values():
-            items.append((v, v, ""))
+        for v in decorator_type_items:
+            items.append((v.decorator_type_name, v.decorator_type_name, ""))
 
         return items
     
@@ -160,7 +160,7 @@ def export_decorators(corinth, decorator_objects = None):
             path = key[0]
             if path and Path(tags_dir, path).exists():
                 with DecoratorSetTag(path=path) as decorator_set:
-                    decorator_types = decorator_set.get_type_names()
+                    decorator_types = decorator_set.get_decorator_types()
                     decorator_path = decorator_set.tag_path
                 element = sets_block.AddElement()
                 element.SelectField("Reference:decorator set").Path = decorator_path
@@ -175,9 +175,9 @@ def export_decorators(corinth, decorator_objects = None):
                     placement.SelectField("scale").Data = max(ob.matrix_world.to_scale().to_tuple())
                     
                     if ob.nwo.marker_game_instance_tag_variant_name.strip():
-                        for idx, dec_type in enumerate(decorator_types.values()):
-                            if ob.nwo.marker_game_instance_tag_variant_name.lower() == dec_type.lower():
-                                placement.SelectField("type index").Data = idx
+                        for dec_type in decorator_types:
+                            if ob.nwo.marker_game_instance_tag_variant_name.lower() == dec_type.decorator_type_name:
+                                placement.SelectField("type index").Data = dec_type.decorator_type_index
                                 break
                             
                     motion_scale = int(ob.nwo.decorator_motion_scale * 255)

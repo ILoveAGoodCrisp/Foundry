@@ -2474,6 +2474,9 @@ class NWOImporter:
         if is_game_object:
             game_object = file
             file = str(Path(utils.get_tags_path(), game_object.nwo.marker_game_instance_tag_name))
+            if only_single_type is not None:
+                global last_used_decorator_type
+                last_used_decorator_type = single_type
             
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name))
         self.context.scene.collection.children.link(collection)
@@ -3651,11 +3654,11 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
             items = []
         else:
             items = [("all_types", "All Types", "Includes the full model geometry")]
-        for dec in decorator_type_items.values():
-            if dec == last_used_decorator_type:
+        for dec in decorator_type_items:
+            if dec.decorator_type_name == last_used_decorator_type:
                 dec_match = True
             else:
-                items.append((dec, dec, ""))
+                items.append((dec.decorator_type_name, dec.decorator_type_name, ""))
                 
         if dec_match:
             items.insert(0, (last_used_decorator_type, last_used_decorator_type, ""))
@@ -3880,7 +3883,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
             elif self.import_type == 'decorator_set':
                 global decorator_type_items
                 with DecoratorSetTag(path=self.filepath) as decorator_Set:
-                    decorator_type_items = decorator_Set.get_type_names()
+                    decorator_type_items = decorator_Set.get_decorator_types()
                         
             elif self.import_type in {"model", "biped", "crate", "creature", "device_control", "device_dispenser", "effect_scenery", "equipment", "giant", "device_machine", "projectile", "scenery", "spawner", "sound_scenery", "device_terminal", "vehicle", "weapon"}:
                 global variant_items
