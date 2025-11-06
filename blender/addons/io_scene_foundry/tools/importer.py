@@ -3997,7 +3997,7 @@ class NWO_OT_ImportBitmap(bpy.types.Operator):
     bl_options = {"UNDO"}
     
     filepath: bpy.props.StringProperty(subtype='FILE_PATH', options={'SKIP_SAVE'})
-    filename: bpy.props.StringProperty(options={'SKIP_SAVE'})
+    filename: bpy.props.StringProperty(options={'SKIP_SAVE'}, subtype='FILE_NAME')
     filter_glob: bpy.props.StringProperty(
         default="*.bitmap",
         options={"HIDDEN"},
@@ -4061,7 +4061,7 @@ class NWO_OT_ImportShader(bpy.types.Operator):
     bl_options = {"UNDO"}
     
     filepath: bpy.props.StringProperty(subtype='FILE_PATH', options={'SKIP_SAVE'})
-    filename: bpy.props.StringProperty(options={'SKIP_SAVE'})
+    filename: bpy.props.StringProperty(options={'SKIP_SAVE'}, subtype='FILE_NAME')
     filter_glob: bpy.props.StringProperty(
         default="*.shader;*.shader_decal;*.shader_terrain;",
         options={"HIDDEN"},

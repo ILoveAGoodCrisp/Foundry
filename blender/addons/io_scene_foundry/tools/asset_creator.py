@@ -158,7 +158,7 @@ class NWO_OT_NewAsset(bpy.types.Operator):
         subtype="FILE_PATH",
     )
     
-    filename: bpy.props.StringProperty()
+    filename: bpy.props.StringProperty(subtype='FILE_NAME')
 
     # work_dir: bpy.props.BoolProperty( # Removed 08/01/2025. Asset philosophy is that the blend exists in the asset root as it IS the asset. Work dir should be for files that contribute to the asset
     #     description="Set whether blend file should be saved to a work directory within the asset folder"

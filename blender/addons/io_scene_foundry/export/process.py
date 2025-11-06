@@ -585,7 +585,7 @@ class ExportScene:
                         case ObjectCopy.PHYSICS:
                             copy_ob.data = ob.data.copy()
                             self.temp_meshes.add(copy_ob.data)
-                            self._set_primitive_props(copy_ob, copy_ob.nwo.mesh_primitive_type, copy_props)
+                            self._set_primitive_props(copy_ob.ob, copy_ob.nwo.mesh_primitive_type, copy_props)
                             loc, rot, sca = copy_ob.matrix_world.decompose()
                             scale = list(sca)
                             scale.append(1)
