@@ -4845,13 +4845,18 @@ def set_two_sided(mesh, is_io=False):
     for face in mesh.polygons:
         vert_set = frozenset(verts[v].co.to_tuple() for v in face.vertices)
         face_dict.setdefault(vert_set, []).append(face)
+        
+    vert_to_faces = defaultdict(list)
+    for f in mesh.polygons:
+        for v in f.vertices:
+            vert_to_faces[v].append(f.index)
 
     to_remove = set()
     two_sided = np.zeros(len(mesh.polygons), dtype=np.int8)
     for faces in face_dict.values():
         for i, f1 in enumerate(faces):
             for f2 in faces[i+1:]:
-                if {verts[v].co.to_tuple() for v in f1.vertices} == {verts[v].co.to_tuple() for v in reversed(f2.vertices)}:
+                if f1.material_index == f2.material_index and {verts[v].co.to_tuple() for v in f1.vertices} == {verts[v].co.to_tuple() for v in reversed(f2.vertices)}:
                     to_remove.add(f2.index)
                     two_sided[f1.index] = True
                     break
