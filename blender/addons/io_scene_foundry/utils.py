@@ -5342,8 +5342,13 @@ class DepsgraphRead:
     def __init__(self):
         self.hidden_objects = set()
         self.local_view = None
+        self.marker_instancers = []
     
     def __enter__(self):
+        self.marker_instancers = [ob for ob in bpy.data.objects if ob.type == 'EMPTY' and ob.instance_type == 'COLLECTION' and ob.nwo.marker_instance]
+        for ob in self.marker_instancers:
+            ob.instance_type = 'NONE'
+        
         self.local_views = exit_local_view(bpy.context)
         bpy.context.view_layer.update()
         
@@ -5351,12 +5356,18 @@ class DepsgraphRead:
             if ob.hide_get():
                 self.hidden_objects.add(ob)
                 ob.hide_set(False)
+                
         
     def __exit__(self, exc_type, exc_value, traceback):
+        
+        
         for ob in self.hidden_objects:
             ob.hide_set(True)
             
         set_local_view(bpy.context, self.local_views)
+        
+        for ob in self.marker_instancers:
+            ob.instance_type = 'COLLECTION'
         
 def hide_from_rays(ob: bpy.types.Object):
     ob.visible_diffuse = False

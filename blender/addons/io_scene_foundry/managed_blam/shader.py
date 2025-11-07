@@ -11,7 +11,7 @@ from .render_method_option import OptionParameter
 
 from ..constants import NormalType
 from ..managed_blam import Tag
-from ..managed_blam.Tags import TagFieldBlockElement, TagPath, TagsNameSpace
+from ..managed_blam.Tags import TagPath, TagsNameSpace
 import os
 from ..managed_blam.bitmap import BitmapTag
 from ..tools.export_bitmaps import export_bitmap

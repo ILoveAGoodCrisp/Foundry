@@ -204,6 +204,7 @@ class ExportScene:
         
         self.decorators = []
         self.hidden_objects = set()
+        self.marker_instancers = []
         
     def _get_export_tag_types(self):
         tag_types = set()
@@ -242,6 +243,11 @@ class ExportScene:
         return tag_types
         
     def ready_scene(self):
+        # Annoying but need to loop all instancers and set them to not instance if they are intended as markers
+        self.marker_instancers = [ob for ob in bpy.data.objects if ob.type == 'EMPTY' and ob.instance_type == 'COLLECTION' and ob.nwo.marker_instance]
+        for ob in self.marker_instancers:
+            ob.instance_type = 'NONE'
+        
         self.local_views = utils.exit_local_view(self.context)
         self.context.view_layer.update()
         utils.set_object_mode(self.context)
@@ -249,7 +255,7 @@ class ExportScene:
             animation_index = self.context.scene.nwo.active_animation_index
             if animation_index > -1:
                 self.current_animation = self.context.scene.nwo.animations[animation_index]
-        
+
         for ob in self.context.view_layer.objects:
             if ob.hide_get():
                 self.hidden_objects.add(ob)
@@ -2135,6 +2141,9 @@ class ExportScene:
         utils.restore_mode(self.current_mode)
         
         utils.set_local_view(self.context, self.local_views)
+        
+        for ob in self.marker_instancers:
+            ob.instance_type = 'COLLECTION'
             
         self.context.view_layer.update()
         
