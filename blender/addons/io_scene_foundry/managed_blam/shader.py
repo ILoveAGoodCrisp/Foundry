@@ -169,6 +169,19 @@ class ShaderTag(Tag):
                 return
             with RenderMethodDefinitionTag(path=def_path) as render_method_definition:
                 cls.category_parameters = render_method_definition.get_defaults()
+                
+    def get_albedo_bitmap(self):
+        for element in self.block_parameters.Elements:
+            if element.Fields[0].GetStringData() == 'base_map':
+                bitmap = element.SelectField("Reference:bitmap").Path
+                if self.path_exists(bitmap):
+                    return bitmap
+                
+    def is_opaque(self):
+        e_alpha_test = AlphaTest(self._option_value_from_index(2))
+        e_blend_mode = BlendMode(self._option_value_from_index(7))
+        
+        return e_alpha_test.value == 0 and e_blend_mode.value == 0
     
     def write_tag(self, blender_material, linked_to_blender, material_shader=''):
         self.blender_material = blender_material

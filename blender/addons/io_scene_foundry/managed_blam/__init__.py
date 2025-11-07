@@ -273,8 +273,11 @@ class Tag():
             return ""
         
         return path.Filename if full_path else path.RelativePathWithExtension
-        
     
+    def path_exists(self, path: TagPath):
+        path_str = self.get_path_str(path, True)
+        return path_str and Path(path_str).exists()
+        
     def _AnimationExporter(self) -> AnimationExporter:
         return Animation.AnimationExporter()
     

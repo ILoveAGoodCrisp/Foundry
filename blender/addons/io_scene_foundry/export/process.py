@@ -12,6 +12,11 @@ import bpy
 from mathutils import Color, Matrix, Vector
 import numpy as np
 
+from ..managed_blam.material import MaterialTag
+from ..managed_blam.shader import ShaderTag
+
+from ..managed_blam.decorator_set import DecoratorSetTag
+
 from ..patches import ToolPatcher
 
 from ..managed_blam.scenario_structure_bsp import ScenarioStructureBspTag
@@ -350,7 +355,6 @@ class ExportScene:
             self.export_objects = [ob for ob in proxy_export_objects if ob.nwo.export_this and ob.type in valid_objects]
         
         self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir, self.granny, self.export_settings, utils.time_step(), self.scene_settings.default_animation_compression, utils.blender_halo_rotation_diff(self.forward), self.scene_settings.maintain_marker_axis, self.granny_textures, utils.get_project(self.context.scene.nwo.scene_project), self.to_halo_scale, self.unit_factor, self.atten_scalar, self.context)
-        
         
     def create_instance_proxies(self, ob: bpy.types.Object, ob_halo_data: dict, region: str, permutation: str):
         self.processed_poop_meshes.add(ob.data)
@@ -2410,6 +2414,50 @@ class ExportScene:
                 if self.decorators:
                     self.print_post(f"--- Writing {len(self.decorators)} decorator placement{'s' if len(self.decorators) > 1 else ''}")
                     export_decorators(self.corinth, self.decorators)
+                    
+        if self.asset_type == AssetType.DECORATOR_SET:
+            with DecoratorSetTag() as decorator_set:
+                if decorator_set.decorator_types.Elements.Count == 0:
+                    if decorator_set.model_instances.Elements.Count == 0:
+                        utils.print_warning("Decorator set has not render model instances. Ensure your export contained geometry")
+                    else:
+                        self.print_post(f"--- Adding default decorator set type")
+                        element = decorator_set.decorator_types.AddElement()
+                        element.SelectField("mesh").Value = 0
+                        decorator_set.tag_has_changes = True
+                
+                albedo_bitmap = None
+                render_model_path = decorator_set.get_first_valid_render_model()
+                no_texture = decorator_set.reference_texture.Path is None
+                use_mesh_shader = False
+                if render_model_path is not None:
+                    with RenderModelTag(path=render_model_path) as render_model:
+                        render_method = render_model.tag.SelectField("Block:materials[0]/Reference:render method")
+                        if render_method is not None:
+                            render_method_path = render_model.get_path_str(render_method.Path, True)
+                            if render_method_path:
+                                if render_method.Path.ShortName not in {'invalid', 'missing', 'deprecated', '_invalid'}:
+                                    if self.corinth:
+                                        with MaterialTag(path=render_method_path) as shader:
+                                            albedo_bitmap = shader.get_albedo_bitmap()
+                                            
+                                    else:
+                                        with ShaderTag(path=render_method_path) as shader:
+                                            albedo_bitmap = shader.get_albedo_bitmap()
+                                            if no_texture:
+                                                use_mesh_shader = shader.is_opaque()
+                                            
+                if albedo_bitmap is not None:
+                    self.print_post(f"--- Setting decorator set texture to: {albedo_bitmap.RelativePathWithExtension}")
+                    decorator_set.reference_texture.Path = albedo_bitmap
+                    decorator_set.tag_has_changes = True
+                    
+                    if use_mesh_shader:
+                        self.print_post(f"--- Setting decorator set render shader to solid mesh")
+                        decorator_set.tag.SelectField("render shader").Value = 2
+                    
+                if decorator_set.reference_texture.Path is None:
+                    utils.print_warning("Decorator set has no texture set in the tag. Please ensure the appropriate bitmap tag is set in the tag")
                     
         if self.asset_type == AssetType.CINEMATIC:
             self.print_post(f"--- Writing cinematic scene: {self.cinematic_scene.name}")

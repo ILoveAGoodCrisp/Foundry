@@ -44,6 +44,27 @@ class DecoratorSetTag(Tag):
                     decorator_types.append(dec_type)
                     
         return decorator_types
+    
+    def get_first_valid_render_model(self):
+        base = self.get_path_str(self.reference_base.Path, True)
+        lod2 = self.get_path_str(self.reference_lod2.Path, True)
+        lod3 = self.get_path_str(self.reference_lod3.Path, True)
+        lod4 = self.get_path_str(self.reference_lod4.Path, True)
+        base_exists = base and Path(base).exists()
+        lod2_exists = lod2 and Path(lod2).exists()
+        lod3_exists = lod3 and Path(lod3).exists()
+        lod4_exists = lod4 and Path(lod4).exists()
+        
+        if base_exists:
+            return self.reference_base.Path
+        if lod2_exists:
+            return self.reference_lod2.Path
+        if lod3_exists:
+            return self.reference_lod3.Path
+        if lod4_exists:
+            return self.reference_lod4.Path
+        
+        return None
         
     def to_blender(self, collection, get_material=False, always_extract_bitmaps=False, single_type=None, lod=0, only_single_type=False):
         base = self.get_path_str(self.reference_base.Path, True)

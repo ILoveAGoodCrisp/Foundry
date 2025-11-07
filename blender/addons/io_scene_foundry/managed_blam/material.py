@@ -100,6 +100,13 @@ class MaterialTag(ShaderTag):
         #         cls.material_shader_data[material_shader.tag_path.RelativePath] = material_shader.read_parameters()
         
         return material_parameters
+    
+    def get_albedo_bitmap(self):
+        for element in self.block_parameters.Elements:
+            if element.Fields[0].GetStringData() == 'color_map':
+                bitmap = element.SelectField("Reference:bitmap").Path
+                if self.path_exists(bitmap):
+                    return bitmap
 
     def _material_shader_path_from_group_node(self, group_node_name):
         filename = group_node_name + '.material_shader'
