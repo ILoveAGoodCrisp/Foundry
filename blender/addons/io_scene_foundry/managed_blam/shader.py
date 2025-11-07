@@ -477,6 +477,11 @@ class ShaderTag(Tag):
             self._to_nodes_group(blender_material)
         else:
             self._to_nodes_bsdf(blender_material)
+        
+        if not self.corinth:
+            flags = self.tag.SelectField("Struct:render_method[0]/WordFlags:shader flags")
+            if flags.TestBit("only render for shields"):
+                utils.material_add_shield(blender_material)
             
     def _option_value_from_index(self, index):
         option_enum = self.block_options.Elements[index].Fields[0].Data

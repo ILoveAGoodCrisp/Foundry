@@ -4972,6 +4972,45 @@ def human_number(num: int | float):
     '''Converts an int or float to a string and adds commas'''
     return f"{num:,}"
 
+def material_add_shield(material: bpy.types.Material):
+    if not material.use_nodes:
+        material.use_nodes = True
+        
+    node_tree = material.node_tree
+    
+    if any(n.type == 'GROUP' and n.node_tree and n.node_tree.name == "Shield" for n in node_tree.nodes):
+        return
+
+    output_node = next((n for n in node_tree.nodes if n.type == 'OUTPUT_MATERIAL'), None)
+    if output_node is None:
+        output_node = node_tree.nodes.new('ShaderNodeOutputMaterial')
+
+    surf_in = output_node.inputs[0]
+    old_link = surf_in.links[0] if surf_in and surf_in.is_linked else None
+    from_socket = old_link.from_socket if old_link else None
+
+    shield_node = node_tree.nodes.new('ShaderNodeGroup')
+    shield_node.node_tree = add_node_from_resources("shared_nodes", 'Shield')
+
+    def first_socket(sockets, kind):
+        for s in sockets:
+            if s.type == kind:
+                return s
+        return sockets[0] if sockets else None
+
+    new_in = first_socket(shield_node.inputs,  from_socket.type if from_socket else 'SHADER')
+    new_out = (shield_node.outputs.get('Shader') or first_socket(shield_node.outputs, surf_in.type))
+
+    if old_link:
+        node_tree.links.remove(old_link)
+    # if from_socket and new_in:
+    #     node_tree.links.new(from_socket, new_in)
+
+    if surf_in and new_out:
+        node_tree.links.new(new_out, surf_in)
+        
+    arrange(node_tree)
+
 def material_add_emissive(material: bpy.types.Material):
     if not material.use_nodes:
         material.use_nodes = True
@@ -4999,9 +5038,8 @@ def material_add_emissive(material: bpy.types.Material):
                 return s
         return sockets[0] if sockets else None
 
-    new_in  = first_socket(emissive_node.inputs,  from_socket.type if from_socket else 'SHADER')
-    new_out = (emissive_node.outputs.get('Shader') or
-               first_socket(emissive_node.outputs, surf_in.type))
+    new_in = first_socket(emissive_node.inputs,  from_socket.type if from_socket else 'SHADER')
+    new_out = (emissive_node.outputs.get('Shader') or first_socket(emissive_node.outputs, surf_in.type))
 
     if old_link:
         node_tree.links.remove(old_link)
