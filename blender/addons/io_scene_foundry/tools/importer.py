@@ -500,6 +500,7 @@ class NWO_Import(bpy.types.Operator):
     
     setup_as_asset: bpy.props.BoolProperty(
         name="Setup as Asset",
+        default=True,
         description="Updates the scene asset settings so that this object can be immediately reimported into the game"
     )
     
@@ -2276,8 +2277,12 @@ class NWOImporter:
                     if not scenario.valid: continue
                     bsps = scenario.get_bsp_paths(self.tag_zone_set)
                     all_bsps = scenario.get_bsp_paths()
+                    bsp_sky_indices = scenario.get_sky_indices()
                     index_map = {b: i for i, b in enumerate(all_bsps)}
-                    bsp_indices = {index_map[b] for b in bsps}
+                    sky_index_map = {i: b for i, b in enumerate(bsp_sky_indices)}
+                    bsp_indices_list = [index_map[b] for b in bsps]
+                    bsp_indices = set(bsp_indices_list)
+                    sky_indices = [sky_index_map[b] for b in bsp_indices_list]
                     
                     do_raycasting = len(bsps) != len(all_bsps) and (self.tag_scenario_import_decals or self.tag_scenario_import_decorators or self.tag_scenario_import_objects)
                     scenario_name = f"scenario_{scenario.tag_path.ShortName}"
@@ -2285,8 +2290,8 @@ class NWOImporter:
                     if scenario_collection is None:
                         scenario_collection = bpy.data.collections.new(scenario_name)
                         self.context.scene.collection.children.link(scenario_collection)
-                    for bsp in bsps:
-                        bsp_objects, bvh = self.import_bsp(bsp, scenario_collection, None if self.corinth else scenario.get_info(all_bsps.index(bsp)), do_raycasting)
+                    for bsp, sky_index in zip(bsps, sky_indices):
+                        bsp_objects, bvh = self.import_bsp(bsp, scenario_collection, None if self.corinth else scenario.get_info(all_bsps.index(bsp)), do_raycasting, sky_index)
                         imported_objects.extend(bsp_objects)
                         if bvh:
                             structure_collision.append(bvh)
@@ -2397,7 +2402,7 @@ class NWOImporter:
         
         return imported_objects
     
-    def import_bsp(self, file, scenario_collection=None, info_path=None, always_get_structure_collision=False):
+    def import_bsp(self, file, scenario_collection=None, info_path=None, always_get_structure_collision=False, sky_index=-1):
         bsp_name = Path(file).with_suffix("").name
         bvh = None
         print(f"Importing BSP {bsp_name}")
@@ -2413,7 +2418,7 @@ class NWOImporter:
                 scenario_collection.children.link(collection)
         with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
             with ScenarioStructureBspTag(path=mover.tag_path) as bsp:
-                bsp_objects, game_objects, bvh = bsp.to_blend_objects(collection, self.tag_bsp_render_only, info_path, self.tag_bsp_import_geometry, self.tag_import_lights, always_get_structure_collision)
+                bsp_objects, game_objects, bvh = bsp.to_blend_objects(collection, self.tag_bsp_render_only, info_path, self.tag_bsp_import_geometry, self.tag_import_lights, always_get_structure_collision, sky_index)
                 
                 meshes = {ob.data for ob in bsp_objects if ob.type == 'MESH'}
                 self.emissive_meshes.update({me for me in meshes if any(p.type == 'emissive' for p in me.nwo.face_props)})
@@ -3761,6 +3766,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     
     setup_as_asset: bpy.props.BoolProperty(
         name="Setup as Asset",
+        default=True,
         description="Updates the scene asset settings so that this object can be immediately reimported into the game"
     )
     

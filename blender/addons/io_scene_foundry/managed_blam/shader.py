@@ -650,6 +650,16 @@ class ShaderTag(Tag):
                 bitmap_path = parameter.default_bitmap
                 element = None
         elif element is not None and element.SelectField("bitmap flags").Data > 1:
+            match element.SelectField("bitmap address mode x").Data:
+                case 1 | 3: # clamp | black border
+                    wrap_mode = 'CLIP'
+                case 2 | 4 | 5: # Mirror
+                    wrap_mode = 'MIRROR'
+            match element.SelectField("bitmap address mode y").Data:
+                case 1 | 3: # clamp | black border
+                    wrap_mode = 'CLIP'
+                case 2 | 4 | 5: # Mirror
+                    wrap_mode = 'MIRROR'
             match element.SelectField("bitmap address mode").Data:
                 case 1 | 3: # clamp | black border
                     wrap_mode = 'CLIP'

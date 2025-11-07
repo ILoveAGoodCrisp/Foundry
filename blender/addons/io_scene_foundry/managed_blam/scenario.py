@@ -298,6 +298,9 @@ class ScenarioTag(Tag):
     def survival_mode(self) -> bool:
         return self.read_scenario_type() == 0 and self.tag.SelectField('flags').TestBit('survival')
     
+    def get_sky_indices(self):
+        return [e.SelectField("default sky").Value for e in self.block_bsps.Elements]
+    
     def get_bsp_paths(self, zone_set=""):
         bsps = []
         zone_set_bsp_names = set()

@@ -135,7 +135,7 @@ class ScenarioStructureBspTag(Tag):
             
         self.tag_has_changes = True
         
-    def to_blend_objects(self, collection: bpy.types.Collection, for_cinematic: bool, lighting_info_path: Path = None, import_geometry=True, import_lights=True, always_get_structure_collision=False):
+    def to_blend_objects(self, collection: bpy.types.Collection, for_cinematic: bool, lighting_info_path: Path = None, import_geometry=True, import_lights=True, always_get_structure_collision=False, sky_index=-1):
         
         objects = []
         game_objects = []
@@ -241,9 +241,9 @@ class ScenarioStructureBspTag(Tag):
                 collision_bsp = raw_resources.Elements[0].SelectField("Struct:raw_items[0]/Block:collision bsp")
                 large_collision_bsp = raw_resources.Elements[0].SelectField("Struct:raw_items[0]/Block:large collision bsp")
                 if collision_bsp.Elements.Count > 0:
-                    collision = StructureCollision(collision_bsp.Elements[0], "structure_collision", collision_materials)
+                    collision = StructureCollision(collision_bsp.Elements[0], "structure_collision", collision_materials, sky_index)
                 elif large_collision_bsp.Elements.Count > 0:
-                    collision = StructureCollision(large_collision_bsp.Elements[0], "structure_collision", collision_materials)
+                    collision = StructureCollision(large_collision_bsp.Elements[0], "structure_collision", collision_materials, sky_index)
                     
             return collision
             

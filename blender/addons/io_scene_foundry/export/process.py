@@ -1398,8 +1398,8 @@ class ExportScene:
                 if len(sky_indices) < 2:
                     if sky_indices:
                         mesh_props["bungie_sky_permutation_index"] = list(sky_indices)[0]
-                    else:
-                        mesh_props["bungie_sky_permutation_index"] = 0
+                    # else:
+                    #     mesh_props["bungie_sky_permutation_index"] = 0
                     
             elif materials_count == len(seamsealer_materials):
                 mesh_props["bungie_face_type"] = FaceType.seam_sealer.value

@@ -1065,6 +1065,8 @@ class BSP:
         self.sphere_collision_only = all(surf.invisible for surf in self.surfaces)
         self.some_sphere_collision = any(surf.invisible for surf in self.surfaces)
         
+        self.sky_index = -1
+        
     def yield_indices(self):
         surfaces = self.surfaces
         for surface in surfaces:
@@ -1168,7 +1170,8 @@ class BSP:
                 for idx, mat in enumerate(sorted(materials_set, key=lambda x: x.name if x is not None else "+")):
                     if mat is None:
                         if isinstance(self, StructureCollision):
-                            bmat = get_blender_material("+sky")
+                            sky_suffix = self.sky_index if self.sky_index > -1 else ""
+                            bmat = get_blender_material(f"+sky{sky_suffix}")
                         else:
                             bmat = get_blender_material("+seamsealer")
                             
@@ -1276,9 +1279,10 @@ class InstancePhysics():
             self.polyhedra.append(Polyhedron(poly_element, physics_materials, four_vectors_block, four_vectors_map, True))
         
 class StructureCollision(BSP):
-    def __init__(self, element: TagFieldBlockElement, name, collision_materials: list[CollisionMaterial]):
+    def __init__(self, element: TagFieldBlockElement, name, collision_materials: list[CollisionMaterial], sky_index: int):
         super().__init__(element, name, collision_materials)
         self.uses_materials = True
+        self.sky_index = sky_index
     
 class PathfindingSphere:
     def __init__(self, element: TagFieldBlockElement, nodes: list[str] = None):
