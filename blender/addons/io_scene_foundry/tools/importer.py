@@ -2276,6 +2276,9 @@ class NWOImporter:
                     if not scenario.valid: continue
                     bsps = scenario.get_bsp_paths(self.tag_zone_set)
                     all_bsps = scenario.get_bsp_paths()
+                    index_map = {b: i for i, b in enumerate(all_bsps)}
+                    bsp_indices = {index_map[b] for b in bsps}
+                    
                     do_raycasting = len(bsps) != len(all_bsps) and (self.tag_scenario_import_decals or self.tag_scenario_import_decorators or self.tag_scenario_import_objects)
                     scenario_name = f"scenario_{scenario.tag_path.ShortName}"
                     scenario_collection = bpy.data.collections.get(scenario_name)
@@ -2336,7 +2339,7 @@ class NWOImporter:
                                             space.clip_end = sky_view
                             
                     if self.tag_scenario_import_objects:
-                        game_objects = scenario.objects_to_blender(scenario_collection, structure_collision)
+                        game_objects = scenario.objects_to_blender(scenario_collection, structure_collision, bsp_indices)
                         if game_objects:
                             print("Importing Game Object Geometry")
                             imported_objects.extend(game_objects)
@@ -2362,7 +2365,7 @@ class NWOImporter:
                                 ob.nwo.marker_instance = True
                                 
                     if self.tag_scenario_import_decals:
-                        imported_objects.extend(scenario.decals_to_blender(scenario_collection, structure_collision))
+                        imported_objects.extend(scenario.decals_to_blender(scenario_collection, structure_collision, bsp_indices))
                         
                     if self.tag_scenario_import_decorators:
                         decorator_objects = scenario.decorators_to_blender(scenario_collection, structure_collision)

@@ -66,6 +66,26 @@ class ScenarioObject:
         elif self.reference is not None:
             self.name = f"{self.reference.name}:{element.ElementIndex}"
             
+        self.bsps = set()
+        
+        origin_bsp = element.SelectField("object data[0]/object id[0]/origin bsp index")
+        if origin_bsp is not None:
+            if origin_bsp.Value > -1:
+                self.bsps.add(origin_bsp.Value)
+                
+        if not self.bsps:
+            manual_bsp_flags = element.SelectField("object data[0]/manual bsp flags")
+            if manual_bsp_flags is not None:
+                for flag in manual_bsp_flags.Items:
+                    if flag.IsSet:
+                        self.bsps.add(flag.FlagIndex)
+                        
+            attach_bsp_flags = element.SelectField("object data[0]/can attach to bsp flags")
+            if attach_bsp_flags is not None:
+                for flag in attach_bsp_flags.Items:
+                    if flag.IsSet:
+                        self.bsps.add(flag.FlagIndex)
+            
     def to_object(self):
         if self.reference is None or self.reference.definition is None:
             return print(f"Found scenario object named {self.name} but it has no valid tag reference")
@@ -130,6 +150,14 @@ class ScenarioDecal:
         self.valid = self.reference is not None and self.reference.definition is not None
         if self.valid:
             self.name = self.reference.name
+            
+        self.bsps = set()
+                
+        manual_bsp_flags = element.SelectField("manual bsp flags")
+        if manual_bsp_flags is not None:
+            for flag in manual_bsp_flags.Items:
+                if flag.IsSet:
+                    self.bsps.add(flag.FlagIndex)
         
     def to_object(self):
         if self.reference is None or self.reference.definition is None:
@@ -471,7 +499,7 @@ class ScenarioTag(Tag):
 
         return objects
                 
-    def decals_to_blender(self, parent_collection=None, bvh=None):
+    def decals_to_blender(self, parent_collection=None, bvh=None, bsp_indices=None):
         objects = []
             
         block = self.tag.SelectField(f"Block:decals")
@@ -491,7 +519,11 @@ class ScenarioTag(Tag):
                 if not decal.valid:
                     continue
                 
-                if bvh is not None:
+                if bsp_indices is not None and decal.bsps:
+                    if not decal.bsps.intersection(bsp_indices):
+                        continue
+                
+                elif bvh is not None:
                     if not utils.test_point_bvh(bvh, decal.position):
                         continue
                 
@@ -503,7 +535,7 @@ class ScenarioTag(Tag):
         return objects
                 
                 
-    def objects_to_blender(self, parent_collection=None, bvh=None):
+    def objects_to_blender(self, parent_collection=None, bvh=None, bsp_indices=None):
         
         objects = []
         child_objects = {}
@@ -526,6 +558,8 @@ class ScenarioTag(Tag):
                 objects_collection.children.link(collection)
             else:
                 folders[parent_index].children.link(collection)
+                
+        used_folders = set()
         
         def process_object_block(block_name: str, palette_name: str):
             block = self.tag.SelectField(f"Block:{block_name}")
@@ -540,7 +574,11 @@ class ScenarioTag(Tag):
                     if not scenario_object.valid:
                         continue
                     
-                    if bvh is not None:
+                    if bsp_indices is not None and scenario_object.bsps:
+                        if not scenario_object.bsps.intersection(bsp_indices):
+                            continue
+                        
+                    elif bvh is not None:
                         if not utils.test_point_bvh(bvh, scenario_object.position):
                             continue
                     
@@ -555,6 +593,7 @@ class ScenarioTag(Tag):
                         if scenario_object.folder_index > -1 and scenario_object.folder_index < len(folders):
                             folder = folders[scenario_object.folder_index]
                             folder.objects.link(ob)
+                            used_folders.add(folder)
                         else:
                             collection.objects.link(ob)
                             used_collection = True
@@ -581,5 +620,9 @@ class ScenarioTag(Tag):
                 parent = named_objects[parent_index]
                 if parent is not None:
                     ob.parent = parent
+                    
+        # for folder in folders:
+        #     if folder not in used_folders:
+                
                     
         return objects
