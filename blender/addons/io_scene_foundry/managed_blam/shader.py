@@ -480,7 +480,7 @@ class ShaderTag(Tag):
         
         if not self.corinth:
             flags = self.tag.SelectField("Struct:render_method[0]/WordFlags:shader flags")
-            if flags.TestBit("only render for shields"):
+            if flags is not None and flags.TestBit("only render for shields"):
                 utils.material_add_shield(blender_material)
             
     def _option_value_from_index(self, index):
