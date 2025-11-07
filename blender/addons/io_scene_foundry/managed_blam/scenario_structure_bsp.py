@@ -139,9 +139,10 @@ class ScenarioStructureBspTag(Tag):
         
         objects = []
         game_objects = []
+        bvh = None
         
         if not import_geometry and not import_lights:
-            return objects, game_objects
+            return objects, game_objects, bvh
         
         self.collection = collection
         # Get all collision materials
@@ -184,7 +185,7 @@ class ScenarioStructureBspTag(Tag):
                         objects.extend(light_objects)
                             
         if not import_geometry:
-            return objects, game_objects
+            return objects, game_objects, bvh
                     
         # Get all render materials
         render_materials = []
@@ -250,7 +251,7 @@ class ScenarioStructureBspTag(Tag):
         structure_objects = []
         print("Creating Structure")
         collision = None
-        bvh = None
+        
         layer = utils.add_permutation("structure")
         structure_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_structure")
         structure_collection.nwo.type = "permutation"

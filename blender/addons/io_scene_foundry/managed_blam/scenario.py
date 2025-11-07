@@ -76,15 +76,15 @@ class ScenarioObject:
         if not self.bsps:
             manual_bsp_flags = element.SelectField("object data[0]/manual bsp flags")
             if manual_bsp_flags is not None:
-                for flag in manual_bsp_flags.Items:
+                for idx, flag in enumerate(manual_bsp_flags.Items):
                     if flag.IsSet:
-                        self.bsps.add(flag.FlagIndex)
+                        self.bsps.add(idx)
                         
             attach_bsp_flags = element.SelectField("object data[0]/can attach to bsp flags")
             if attach_bsp_flags is not None:
-                for flag in attach_bsp_flags.Items:
+                for idx, flag in enumerate(attach_bsp_flags.Items):
                     if flag.IsSet:
-                        self.bsps.add(flag.FlagIndex)
+                        self.bsps.add(idx)
             
     def to_object(self):
         if self.reference is None or self.reference.definition is None:
@@ -155,9 +155,9 @@ class ScenarioDecal:
                 
         manual_bsp_flags = element.SelectField("manual bsp flags")
         if manual_bsp_flags is not None:
-            for flag in manual_bsp_flags.Items:
+            for idx, flag in enumerate(manual_bsp_flags.Items):
                 if flag.IsSet:
-                    self.bsps.add(flag.FlagIndex)
+                    self.bsps.add(idx)
         
     def to_object(self):
         if self.reference is None or self.reference.definition is None:
@@ -566,7 +566,7 @@ class ScenarioTag(Tag):
             if block.Elements.Count > 0:
                 used_collection = False
                 print(f"Creating Scenario {block_name.capitalize()} Objects")
-                collection = bpy.data.collections.new(name="scenery")
+                collection = bpy.data.collections.new(name=block_name)
                 objects_collection.children.link(collection)
                 palette = [ScenarioObjectReference(e) for e in self.tag.SelectField(f"Block:{palette_name} palette").Elements]
                 for element in block.Elements:
@@ -621,8 +621,12 @@ class ScenarioTag(Tag):
                 if parent is not None:
                     ob.parent = parent
                     
-        # for folder in folders:
-        #     if folder not in used_folders:
-                
+        for folder in folders:
+            if folder not in used_folders:
+                for child_folder in folder.children_recursive:
+                    if child_folder in used_folders:
+                        break
+                else:
+                    bpy.data.collections.remove(folder)
                     
         return objects
