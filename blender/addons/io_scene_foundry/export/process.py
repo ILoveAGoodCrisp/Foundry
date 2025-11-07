@@ -45,7 +45,7 @@ from ..props.object import NWO_ObjectPropertiesGroup
 from .virtual_geometry import AnimatedBone, ExportObject, VectorEvent, VirtualAnimation, VirtualNode, VirtualScene
 from ..granny import Granny
 from .. import utils
-from ..constants import VALID_MESHES, VALID_OBJECTS, WU_SCALAR
+from ..constants import GENERAL_OBJECTS, VALID_MESHES, VALID_OBJECTS, WU_SCALAR
 from ..tools.asset_types import AssetType
 
 MAXIMUM_CINEMATIC_SHOTS = 64
@@ -279,6 +279,10 @@ class ExportScene:
         
         self.depsgraph = self.context.evaluated_depsgraph_get()
         
+        valid_objects = GENERAL_OBJECTS
+        if self.asset_type in {AssetType.MODEL, AssetType.ANIMATION, AssetType.SINGLE_ANIMATION, AssetType.CINEMATIC}:
+            valid_objects.add('ARMATURE')
+        
         proxy_export_objects = []
         for inst in self.depsgraph.object_instances:
             obj = inst.object
@@ -286,9 +290,6 @@ class ExportScene:
             nwo = original.nwo
             
             if inst.is_instance:
-                if inst.parent.nwo.marker_instance:
-                    continue
-                
                 obj = inst.instance_object
                 original = obj.original
                 nwo = original.nwo
@@ -346,7 +347,7 @@ class ExportScene:
         elif self.asset_type == AssetType.CINEMATIC:
             self.export_objects = [ob for ob in proxy_export_objects if ob.type == "ARMATURE"]
         else:    
-            self.export_objects = [ob for ob in proxy_export_objects if ob.nwo.export_this and ob.type in VALID_OBJECTS]
+            self.export_objects = [ob for ob in proxy_export_objects if ob.nwo.export_this and ob.type in valid_objects]
         
         self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir, self.granny, self.export_settings, utils.time_step(), self.scene_settings.default_animation_compression, utils.blender_halo_rotation_diff(self.forward), self.scene_settings.maintain_marker_axis, self.granny_textures, utils.get_project(self.context.scene.nwo.scene_project), self.to_halo_scale, self.unit_factor, self.atten_scalar, self.context)
         

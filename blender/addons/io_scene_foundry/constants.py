@@ -13,6 +13,7 @@ TWO_SIDED_MESH_TYPES = ("_connected_geometry_mesh_type_structure", "_connected_g
 VALID_MESHES = {'MESH', 'CURVE', 'META', 'SURFACE', 'FONT'}
 # Object types that we export
 VALID_OBJECTS = {'MESH', 'CURVE', 'META', 'SURFACE', 'FONT', 'EMPTY', 'CAMERA', 'LIGHT', 'ARMATURE'}
+GENERAL_OBJECTS = {'MESH', 'CURVE', 'META', 'SURFACE', 'FONT', 'EMPTY', 'LIGHT'}
 
 CG_PROP_PREFIX = "bungie_"
 
