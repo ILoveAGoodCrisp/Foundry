@@ -64,7 +64,6 @@ decorator_type_items = []
 last_used_decorator_type = ""
 
 sky_items = []
-last_used_sky = ""
 
 zone_set_items = {"blah": "blah"}
 
@@ -1788,7 +1787,7 @@ class NWOImporter:
         
         return imported_objects, imported_animations
     
-    def import_object(self, paths, existing_armature, pose=None) -> tuple[list[bpy.types.Object], list] | bpy.types.Collection:
+    def import_object(self, paths, existing_armature, pose=None, make_non_export=False) -> tuple[list[bpy.types.Object], list] | bpy.types.Collection:
         imported_objects = []
         imported_animations = []
         is_game_object = isinstance(paths, bpy.types.Object)
@@ -1850,6 +1849,9 @@ class NWOImporter:
                             else:
                                 model_collection = bpy.data.collections.new(model.tag_path.ShortName)
                             self.context.scene.collection.children.link(model_collection)
+                            
+                            if make_non_export:
+                                model_collection.nwo.type = 'exclude'
                                 
                             # possible compass driver = abs(var/pi / (2*pi))
                             if render:
@@ -2316,35 +2318,15 @@ class NWOImporter:
                     if self.tag_sky:
                         sky_name = Path(self.tag_sky).with_suffix("").name
                         print(f"Importing Sky - {sky_name}")
-                        sky = bpy.data.objects.new("sky_name", None)
-                        sky.nwo.marker_type = '_connected_geometry_marker_type_game_instance'
-                        sky.nwo.marker_game_instance_tag_name = self.tag_sky
-                        sky.nwo.export_this = False
-                        
-                        scenario_collection.objects.link(sky)
-                        imported_objects.append(sky)
-                        game_object_cache = {(c.nwo.game_object_path, c.nwo.game_object_variant): c for c in utils.get_foundry_storage_scene().collection.children if c.nwo.game_object_path}
-                        key = sky.nwo.marker_game_instance_tag_name, sky.nwo.marker_game_instance_tag_variant_name
-                        game_object_collection = game_object_cache.get(key)
-                        
-                        if game_object_collection is None:
-                            game_object_collection = self.import_object(sky, None)
-                            merge_collection(game_object_collection)
-                            imported_objects.extend(game_object_collection.all_objects)
-                            self.context.scene.collection.children.unlink(game_object_collection)
-                            utils.get_foundry_storage_scene().collection.children.link(game_object_collection)
-                            game_object_collection.nwo.game_object_path, game_object_collection.nwo.game_object_variant = key
-                            game_object_cache[key] = game_object_collection
-                                
-                            sky.instance_type = 'COLLECTION'
-                            sky.instance_collection = game_object_collection
-                            sky.nwo.marker_instance = True
+                        self.tag_render = True
+                        sky_objects, _ = self.import_object([str(Path(utils.get_tags_path(), self.tag_sky))], None, make_non_export=True)
+                        imported_objects.extend(sky_objects)
                             
                         factor = 1
                         if bpy.context.scene.nwo.scale == 'max':
                             factor = 1 / 0.03048
                         
-                        sky_view = 50_000 * factor
+                        sky_view = 100_000 * factor
                         
                         for area in bpy.context.screen.areas:
                             if area.type == "VIEW_3D":
@@ -4020,7 +4002,8 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                     zone_set_items = scenario.get_zone_sets_dict()
                     if zone_set_items:
                         self.has_zone_sets = True
-                        
+                    
+                    sky_items = []
                     for element in scenario.tag.SelectField("skies").Elements:
                         sky = element.SelectField("Reference:sky").Path
                         sky_path = scenario.get_path_str(sky, True)

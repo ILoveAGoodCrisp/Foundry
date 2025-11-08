@@ -28,6 +28,7 @@ class ScenarioObjectReference:
                 self.definition = def_path.RelativePathWithExtension
                 self.name = def_path.ShortName
                 if for_decal:
+                    print(self.definition)
                     with DecalSystemTag(path=self.definition) as decal:
                         for element in decal.tag.SelectField("Block:decals").Elements:
                             decal_name = f'{decal.tag_path.ShortName}_{element.SelectField("StringId:decal name").GetStringData()}'
@@ -40,7 +41,7 @@ class ScenarioObjectReference:
                             self.decal_material = mat
     
 class ScenarioObject:
-    def __init__(self, element: TagFieldBlockElement, palette: list[ScenarioObjectReference], object_names: list[str]):
+    def __init__(self, element: TagFieldBlockElement, palette: list[ScenarioObjectReference], object_names: list[str], corinth: bool):
         self.name_index = element.SelectField("ShortBlockIndex:name").Value
         self.name = "object"
         self.position = Vector([n * 100 for n in element.SelectField("Struct:object data[0]/RealPoint3d:position").Data])
@@ -74,18 +75,19 @@ class ScenarioObject:
             if origin_bsp.Value > -1:
                 self.bsps.add(origin_bsp.Value)
                 
-        if not self.bsps:
-            manual_bsp_flags = element.SelectField("object data[0]/manual bsp flags")
-            if manual_bsp_flags is not None:
-                for idx, flag in enumerate(manual_bsp_flags.Items):
-                    if flag.IsSet:
-                        self.bsps.add(idx)
-                        
-            attach_bsp_flags = element.SelectField("object data[0]/can attach to bsp flags")
-            if attach_bsp_flags is not None:
-                for idx, flag in enumerate(attach_bsp_flags.Items):
-                    if flag.IsSet:
-                        self.bsps.add(idx)
+        if not corinth:
+            if not self.bsps:
+                manual_bsp_flags = element.SelectField("object data[0]/manual bsp flags")
+                if manual_bsp_flags is not None:
+                    for idx, flag in enumerate(manual_bsp_flags.Items):
+                        if flag.IsSet:
+                            self.bsps.add(idx)
+                            
+                attach_bsp_flags = element.SelectField("object data[0]/can attach to bsp flags")
+                if attach_bsp_flags is not None:
+                    for idx, flag in enumerate(attach_bsp_flags.Items):
+                        if flag.IsSet:
+                            self.bsps.add(idx)
                         
         def decode_node_bitvector(signed_bytes, node_count):
             result = [False] * node_count
@@ -176,7 +178,7 @@ class ScenarioDecorator:
         return ob
     
 class ScenarioDecal:
-    def __init__(self, element: TagFieldBlockElement, palette: list[ScenarioObjectReference]):
+    def __init__(self, element: TagFieldBlockElement, palette: list[ScenarioObjectReference], corinth: bool):
         self.rotation = utils.ijkw_to_wxyz([n for n in element.SelectField("RealQuaternion:rotation").Data])
         self.position = Vector([n * 100 for n in element.SelectField("RealPoint3d:position").Data])
         self.scale_x = element.SelectField("Real:scale x").Data * 100
@@ -189,12 +191,13 @@ class ScenarioDecal:
             self.name = self.reference.name
             
         self.bsps = set()
-                
-        manual_bsp_flags = element.SelectField("manual bsp flags")
-        if manual_bsp_flags is not None:
-            for idx, flag in enumerate(manual_bsp_flags.Items):
-                if flag.IsSet:
-                    self.bsps.add(idx)
+        
+        if not corinth:
+            manual_bsp_flags = element.SelectField("manual bsp flags")
+            if manual_bsp_flags is not None:
+                for idx, flag in enumerate(manual_bsp_flags.Items):
+                    if flag.IsSet:
+                        self.bsps.add(idx)
         
     def to_object(self):
         if self.reference is None or self.reference.definition is None:
@@ -555,7 +558,7 @@ class ScenarioTag(Tag):
             
             palette = [ScenarioObjectReference(e, True) for e in self.tag.SelectField("Block:decal palette").Elements]
             for element in block.Elements:
-                decal = ScenarioDecal(element, palette)
+                decal = ScenarioDecal(element, palette, self.corinth)
                 if not decal.valid:
                     continue
                 
@@ -611,7 +614,7 @@ class ScenarioTag(Tag):
                 objects_collection.children.link(collection)
                 palette = [ScenarioObjectReference(e) for e in self.tag.SelectField(f"Block:{palette_name} palette").Elements]
                 for element in block.Elements:
-                    scenario_object = ScenarioObject(element, palette, object_names)
+                    scenario_object = ScenarioObject(element, palette, object_names, self.corinth)
                     if not scenario_object.valid:
                         continue
                     

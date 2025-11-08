@@ -30,7 +30,7 @@ class BlendMode(Enum):
     ADDITIVE = 1
     MULTIPLY = 2
     ALPHA_BLEND = 3
-    DOUDBLE_MULTIPLY = 4
+    DOUBLE_MULTIPLY = 4
     MAXIMUM = 5
     MULTIPLY_ADD = 6
     ADD_SRC_TIMES_DSTALPHA = 7

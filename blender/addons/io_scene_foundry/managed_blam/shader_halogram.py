@@ -42,7 +42,7 @@ class BlendMode(Enum):
     ADDITIVE = 1
     MULTIPLY = 2
     ALPHA_BLEND = 3
-    DOUDBLE_MULTIPLY = 4
+    DOUBLE_MULTIPLY = 4
     
 class Misc(Enum):
     FIRST_PERSON_NEVER = 0
