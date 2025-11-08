@@ -78,7 +78,7 @@ class Tag():
                 self.tag_is_new = True
             
             if not self.tag_path:
-                raise RuntimeError(f"Failed to load Tag: {str(self.path)}")
+                raise RuntimeError(f"Failed to get tag path: {str(self.path)}")
             
             elif not self.tag_path.IsTagFileAccessible():
                 raise RuntimeError(f"TagFile not accessible: {self.tag_path.RelativePathWithExtension}")

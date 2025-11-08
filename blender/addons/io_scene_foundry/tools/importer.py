@@ -2408,7 +2408,7 @@ class NWOImporter:
                                 with ScenarioTag(path=child_path) as child_scen:
                                     import_scenario_data(child_scen, child_coll)
                                     
-                                if not child_coll.objects:
+                                if not child_coll.all_objects:
                                     bpy.data.collections.remove(child_coll)
 
                     if self.setup_as_asset:

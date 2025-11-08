@@ -8,7 +8,7 @@ import numpy as np
 
 from .decorator_set import DecoratorSetTag
 
-from .decal_system import DecalSystemTag
+from .decal_system import DecalSystemCorinthTag, DecalSystemTag
 
 from .Tags import TagFieldBlockElement
 
@@ -18,7 +18,7 @@ from .. import utils
 import bpy
 
 class ScenarioObjectReference:
-    def __init__(self, element: TagFieldBlockElement, for_decal=False):
+    def __init__(self, element: TagFieldBlockElement, for_decal=False, corinth=False):
         self.definition = None
         self.name = "object"
         self.decal_material = None
@@ -28,17 +28,28 @@ class ScenarioObjectReference:
                 self.definition = def_path.RelativePathWithExtension
                 self.name = def_path.ShortName
                 if for_decal:
-                    print(self.definition)
-                    with DecalSystemTag(path=self.definition) as decal:
-                        for element in decal.tag.SelectField("Block:decals").Elements:
-                            decal_name = f'{decal.tag_path.ShortName}_{element.SelectField("StringId:decal name").GetStringData()}'
-                            mat = bpy.data.materials.get(decal_name)
-                            if mat is None:
-                                decal.reread_fields(element.ElementIndex)
-                                mat = bpy.data.materials.new(decal_name)
-                                decal.to_nodes(mat, generated_uvs=True)
-                                
-                            self.decal_material = mat
+                    if corinth:
+                        with DecalSystemCorinthTag(path=self.definition) as decal:
+                            for element in decal.tag.SelectField("Block:decals").Elements:
+                                decal_name = f'{decal.tag_path.ShortName}_{element.SelectField("StringId:decal name").GetStringData()}'
+                                mat = bpy.data.materials.get(decal_name)
+                                if mat is None:
+                                    decal.reread_fields(element.ElementIndex)
+                                    mat = bpy.data.materials.new(decal_name)
+                                    decal.to_nodes(mat, generated_uvs=True)
+                                    
+                                self.decal_material = mat
+                    else:
+                        with DecalSystemTag(path=self.definition) as decal:
+                            for element in decal.tag.SelectField("Block:decals").Elements:
+                                decal_name = f'{decal.tag_path.ShortName}_{element.SelectField("StringId:decal name").GetStringData()}'
+                                mat = bpy.data.materials.get(decal_name)
+                                if mat is None:
+                                    decal.reread_fields(element.ElementIndex)
+                                    mat = bpy.data.materials.new(decal_name)
+                                    decal.to_nodes(mat, generated_uvs=True)
+                                    
+                                self.decal_material = mat
     
 class ScenarioObject:
     def __init__(self, element: TagFieldBlockElement, palette: list[ScenarioObjectReference], object_names: list[str], corinth: bool):
@@ -525,7 +536,7 @@ class ScenarioTag(Tag):
                         if decorator.type is None:
                             continue
                         
-                        if bvh is not None:
+                        if bvh:
                             if not utils.test_point_bvh(bvh, decorator.position):
                                 continue
                         
@@ -556,9 +567,10 @@ class ScenarioTag(Tag):
             else:
                 parent_collection.children.link(objects_collection)
             
-            palette = [ScenarioObjectReference(e, True) for e in self.tag.SelectField("Block:decal palette").Elements]
+            palette = [ScenarioObjectReference(e, True, self.corinth) for e in self.tag.SelectField("Block:decal palette").Elements]
             for element in block.Elements:
                 decal = ScenarioDecal(element, palette, self.corinth)
+                
                 if not decal.valid:
                     continue
                 
@@ -566,7 +578,7 @@ class ScenarioTag(Tag):
                     if not decal.bsps.intersection(bsp_indices):
                         continue
                 
-                elif bvh is not None:
+                elif bvh:
                     if not utils.test_point_bvh(bvh, decal.position):
                         continue
                 
@@ -622,7 +634,7 @@ class ScenarioTag(Tag):
                         if not scenario_object.bsps.intersection(bsp_indices):
                             continue
                         
-                    elif bvh is not None:
+                    elif bvh:
                         if not utils.test_point_bvh(bvh, scenario_object.position):
                             continue
                     
