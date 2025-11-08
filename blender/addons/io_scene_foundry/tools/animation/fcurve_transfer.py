@@ -619,7 +619,7 @@ class NWO_OT_FcurveTransfer(bpy.types.Operator):
             ("0:rotation_euler", "X Euler", ""),
             ("1:rotation_euler", "Y Euler", ""),
             ("2:rotation_euler", "Z Euler", ""),
-            ("0:rotation_quaternion", "W Quarternion", ""),
+            ("0:rotation_quaternion", "W Quaternion", ""),
             ("1:rotation_quaternion", "X Quaternion", ""),
             ("2:rotation_quaternion", "Y Quaternion", ""),
             ("3:rotation_quaternion", "Z Quaternion", ""),

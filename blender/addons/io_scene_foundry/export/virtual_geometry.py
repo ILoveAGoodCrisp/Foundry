@@ -2627,7 +2627,7 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
             # case 'QUATERNION':
             #     array = np.zeros((num_faces, 4), dtype=np.int32)
             #     attribute.data.foreach_get("value", array)
-            #     array[:, [0, 3]] = array[:, [3, 0]] # WXYZ Quarternion to IJKW
+            #     array[:, [0, 3]] = array[:, [3, 0]] # WXYZ Quaternion to IJKW
             #     face_properties[attribute.name] = FaceSet(array)
             # case 'FLOAT4X4':
             #     array = np.zeros((num_faces, 16), dtype=np.int32)

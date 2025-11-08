@@ -4,6 +4,7 @@ import time
 
 import bmesh
 from mathutils import Euler, Matrix, Quaternion, Vector
+import numpy as np
 
 from .decorator_set import DecoratorSetTag
 
@@ -85,6 +86,42 @@ class ScenarioObject:
                 for idx, flag in enumerate(attach_bsp_flags.Items):
                     if flag.IsSet:
                         self.bsps.add(idx)
+                        
+        def decode_node_bitvector(signed_bytes, node_count):
+            result = [False] * node_count
+            idx = 0
+
+            for b in signed_bytes:
+                u = b & 0xFF
+
+                for bit in range(8):
+                    if idx >= node_count:
+                        return result
+
+                    result[idx] = bool((u >> bit) & 1)
+                    idx += 1
+
+            return result
+        
+        def decode_orientation(v):
+            if v == -32768:
+                return -1.0
+            else:
+                return v / 32767.0
+        
+        self.orientations = []
+        self.node_mask = []
+        return # NOTE skipping this until it is implemented correctly
+        node_orientations = element.SelectField("object data[0]/node orientations")
+        if node_orientations.Elements.Count > 0:
+            noe = node_orientations.Elements[0]
+            n_count = noe.SelectField("node count").Data
+            bit_vectors = [e.Fields[0].Data for e in noe.SelectField("bit vector").Elements]
+            orientations = [e.Fields[0].Data for e in noe.SelectField("orientations").Elements]
+            o = orientations[:len(orientations) - (len(orientations) % 4)]
+            self.orientations = ((decode_orientation(o[i+3]), decode_orientation(o[i]), decode_orientation(o[i+1]), decode_orientation(o[i+2])) for i in range(0, len(o), 4))
+            
+            self.node_mask = decode_node_bitvector(bit_vectors, n_count)
             
     def to_object(self):
         if self.reference is None or self.reference.definition is None:
@@ -563,6 +600,7 @@ class ScenarioTag(Tag):
                 folders[parent_index].children.link(collection)
                 
         used_folders = set()
+        skeleton_poses = []
         
         def process_object_block(block_name: str, palette_name: str):
             block = self.tag.SelectField(f"Block:{block_name}")
@@ -602,6 +640,10 @@ class ScenarioTag(Tag):
                             used_collection = True
                             
                         objects.append(ob)
+                        if scenario_object.orientations and scenario_object.node_mask:
+                            skeleton_poses.append((scenario_object.node_mask, scenario_object.orientations))
+                        else:
+                            skeleton_poses.append(None)
                         
                 if not used_collection:
                     bpy.data.collections.remove(collection)
@@ -632,4 +674,4 @@ class ScenarioTag(Tag):
                 else:
                     bpy.data.collections.remove(folder)
                     
-        return objects
+        return objects, skeleton_poses

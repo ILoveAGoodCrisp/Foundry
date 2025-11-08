@@ -13,7 +13,7 @@ import addon_utils
 import bmesh
 import bpy
 import bpy.props
-from mathutils import Color, Vector, bvhtree
+from mathutils import Color, Quaternion, Vector, bvhtree
 
 import numpy as np
 
@@ -1788,7 +1788,7 @@ class NWOImporter:
         
         return imported_objects, imported_animations
     
-    def import_object(self, paths, existing_armature) -> tuple[list[bpy.types.Object], list] | bpy.types.Collection:
+    def import_object(self, paths, existing_armature, pose=None) -> tuple[list[bpy.types.Object], list] | bpy.types.Collection:
         imported_objects = []
         imported_animations = []
         is_game_object = isinstance(paths, bpy.types.Object)
@@ -1854,6 +1854,14 @@ class NWOImporter:
                             # possible compass driver = abs(var/pi / (2*pi))
                             if render:
                                 render_objects, armature = self.import_render_model(render, model_collection, existing_armature, allowed_region_permutations)
+                                
+                                if pose:
+                                    print(f"--- Posing {obj.tag_path.ShortName}")
+                                    self.context.view_layer.update()
+                                    node_mask, orientations = pose
+                                    for idx, bone in enumerate(armature.pose.bones):
+                                        if node_mask[idx]:
+                                            bone.rotation_quaternion = bone.rotation_quaternion @ Quaternion(next(orientations))
                                 
                                 # FP Stuff
                                 if not is_game_object and self.import_fp_arms.value and not self.fp_arms_imported and obj.tag_path.Extension == "weapon":
@@ -2267,6 +2275,9 @@ class NWOImporter:
 
         return actions
     
+    def import_scenario_data(self):
+        pass
+    
     def import_scenarios(self, paths, build_blender_materials, always_extract_bitmaps):
         imported_objects = []
         for file in paths:
@@ -2342,58 +2353,81 @@ class NWOImporter:
                                         if space.clip_end < sky_view:
                                             space.clip_start = 1 * factor
                                             space.clip_end = sky_view
-                            
-                    if self.tag_scenario_import_objects:
-                        game_objects = scenario.objects_to_blender(scenario_collection, structure_collision, bsp_indices)
-                        if game_objects:
-                            print("Importing Game Object Geometry")
-                            imported_objects.extend(game_objects)
-                            game_object_cache = {(c.nwo.game_object_path, c.nwo.game_object_variant): c for c in utils.get_foundry_storage_scene().collection.children if c.nwo.game_object_path}
-                            for ob in game_objects:
-                                key = ob.nwo.marker_game_instance_tag_name, ob.nwo.marker_game_instance_tag_variant_name
-                                game_object_collection = game_object_cache.get(key)
-                                
-                                if game_object_collection is None:
-                                    if ob.nwo.marker_game_instance_tag_name.endswith(".prefab"):
-                                        game_object_collection = self.import_prefab(ob)
+                                            
+                    def import_scenario_data(child_scenario, child_collection):
+                        if self.tag_scenario_import_objects:
+                            game_objects, skeleton_poses = child_scenario.objects_to_blender(child_collection, structure_collision, bsp_indices)
+                            if game_objects:
+                                print("Importing Game Object Geometry")
+                                imported_objects.extend(game_objects)
+                                game_object_cache = {(c.nwo.game_object_path, c.nwo.game_object_variant): c for c in utils.get_foundry_storage_scene().collection.children if c.nwo.game_object_path}
+                                for ob, skeleton_pose in zip(game_objects, skeleton_poses):
+                                    has_skeleton_pose = bool(skeleton_pose)
+
+                                    if has_skeleton_pose:
+                                        game_object_collection = None
                                     else:
-                                        game_object_collection = self.import_object(ob, None)
-                                    merge_collection(game_object_collection)
-                                    imported_objects.extend(game_object_collection.all_objects)
-                                    self.context.scene.collection.children.unlink(game_object_collection)
-                                    utils.get_foundry_storage_scene().collection.children.link(game_object_collection)
-                                    game_object_collection.nwo.game_object_path, game_object_collection.nwo.game_object_variant = key
-                                    game_object_cache[key] = game_object_collection
+                                        key = ob.nwo.marker_game_instance_tag_name, ob.nwo.marker_game_instance_tag_variant_name
+                                        game_object_collection = game_object_cache.get(key)
                                     
-                                ob.instance_type = 'COLLECTION'
-                                ob.instance_collection = game_object_collection
-                                ob.nwo.marker_instance = True
-                                
-                    if self.tag_scenario_import_decals:
-                        imported_objects.extend(scenario.decals_to_blender(scenario_collection, structure_collision, bsp_indices))
-                        
-                    if self.tag_scenario_import_decorators:
-                        decorator_objects = scenario.decorators_to_blender(scenario_collection, structure_collision)
-                        if decorator_objects:
-                            print("Importing Decorator Set Geometry")
-                            imported_objects.extend(decorator_objects)
-                            game_object_cache = {(c.nwo.game_object_path, c.nwo.game_object_variant): c for c in utils.get_foundry_storage_scene().collection.children if c.nwo.game_object_path}
-                            for ob in decorator_objects:
-                                key = ob.nwo.marker_game_instance_tag_name, ob.nwo.marker_game_instance_tag_variant_name
-                                game_object_collection = game_object_cache.get(key)
-                                
-                                if game_object_collection is None:
-                                    game_object_collection = self.import_decorator_set(ob, build_blender_materials, always_extract_bitmaps, single_type=ob.nwo.marker_game_instance_tag_variant_name, lod=self.decorator_lod, only_single_type=True)
-                                    merge_collection(game_object_collection)
-                                    imported_objects.extend(game_object_collection.all_objects)
-                                    self.context.scene.collection.children.unlink(game_object_collection)
-                                    utils.get_foundry_storage_scene().collection.children.link(game_object_collection)
-                                    game_object_collection.nwo.game_object_path, game_object_collection.nwo.game_object_variant = key
-                                    game_object_cache[key] = game_object_collection
+                                    if game_object_collection is None:
+                                        if ob.nwo.marker_game_instance_tag_name.endswith(".prefab"):
+                                            game_object_collection = self.import_prefab(ob)
+                                        else:
+                                            game_object_collection = self.import_object(ob, None, skeleton_pose)
+                                            
+                                        merge_collection(game_object_collection, has_skeleton_pose)
+                                        imported_objects.extend(game_object_collection.all_objects)
+                                        self.context.scene.collection.children.unlink(game_object_collection)
+                                        utils.get_foundry_storage_scene().collection.children.link(game_object_collection)
+                                        if not has_skeleton_pose:
+                                            game_object_collection.nwo.game_object_path, game_object_collection.nwo.game_object_variant = key
+                                            game_object_cache[key] = game_object_collection
+                                        
+                                    ob.instance_type = 'COLLECTION'
+                                    ob.instance_collection = game_object_collection
+                                    ob.nwo.marker_instance = True
                                     
-                                ob.instance_type = 'COLLECTION'
-                                ob.instance_collection = game_object_collection
-                                ob.nwo.marker_instance = True
+                        if self.tag_scenario_import_decals:
+                            imported_objects.extend(child_scenario.decals_to_blender(child_collection, structure_collision, bsp_indices))
+                            
+                        if self.tag_scenario_import_decorators:
+                            decorator_objects = child_scenario.decorators_to_blender(child_collection, structure_collision)
+                            if decorator_objects:
+                                print("Importing Decorator Set Geometry")
+                                imported_objects.extend(decorator_objects)
+                                game_object_cache = {(c.nwo.game_object_path, c.nwo.game_object_variant): c for c in utils.get_foundry_storage_scene().collection.children if c.nwo.game_object_path}
+                                for ob in decorator_objects:
+                                    key = ob.nwo.marker_game_instance_tag_name, ob.nwo.marker_game_instance_tag_variant_name
+                                    game_object_collection = game_object_cache.get(key)
+                                    
+                                    if game_object_collection is None:
+                                        game_object_collection = self.import_decorator_set(ob, build_blender_materials, always_extract_bitmaps, single_type=ob.nwo.marker_game_instance_tag_variant_name, lod=self.decorator_lod, only_single_type=True)
+                                        merge_collection(game_object_collection)
+                                        imported_objects.extend(game_object_collection.all_objects)
+                                        self.context.scene.collection.children.unlink(game_object_collection)
+                                        utils.get_foundry_storage_scene().collection.children.link(game_object_collection)
+                                        game_object_collection.nwo.game_object_path, game_object_collection.nwo.game_object_variant = key
+                                        game_object_cache[key] = game_object_collection
+                                        
+                                    ob.instance_type = 'COLLECTION'
+                                    ob.instance_collection = game_object_collection
+                                    ob.nwo.marker_instance = True
+                                            
+                    import_scenario_data(scenario, scenario_collection)
+                    
+                    if self.corinth:
+                        for child in scenario.tag.SelectField("Block:child scenarios").Elements:
+                            child_path = child.Fields[0].Path
+                            if scenario.path_exists(child_path):
+                                print(f"--- Importing objects from child scenario: {child_path.ShortName}")
+                                child_coll = bpy.data.collections.new(child_path.ShortName)
+                                scenario_collection.children.link(child_coll)
+                                with ScenarioTag(path=child_path) as child_scen:
+                                    import_scenario_data(child_scen, child_coll)
+                                    
+                                if not child_coll.objects:
+                                    bpy.data.collections.remove(child_coll)
 
                     if self.setup_as_asset:
                         set_asset(Path(file).suffix)
@@ -4243,22 +4277,33 @@ class NWO_FH_ImportShaderAsMaterial(bpy.types.FileHandler):
     def poll_drop(cls, context):
         return (context.area and context.area.type in {'NODE_EDITOR', 'VIEW_3D', 'PROPERTIES'})
     
-def merge_collection(collection: bpy.types.Collection):
+def merge_collection(collection: bpy.types.Collection, keep_armature=False):
     """Reduces a collection down to just the meshes. Clearing markers and armatures"""
     utils.deselect_all_objects()
-    mesh_found = False
+    any_parents = False
     to_remove_objects = []
+    to_remove_data = []
+    allowed_types = {'MESH', 'LIGHT'}
+    if keep_armature:
+        allowed_types.add('ARMATURE')
     for ob in collection.all_objects:
-        if ob.type == 'MESH':
-            ob.select_set(True)
-            if not mesh_found:
-                mesh_found = True
+        if ob.type in allowed_types:
+            has_parent = ob.parent is not None
+            if has_parent:
+                any_parents = True
+                ob.select_set(True)
                 bpy.context.view_layer.objects.active = ob
         else:
             to_remove_objects.append(ob)
+            if ob.data is not None:
+                to_remove_data.append(ob.data)
     
-    bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
-    bpy.data.batch_remove(to_remove_objects)
+    if any_parents:
+        bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
+    if to_remove_objects:
+        bpy.data.batch_remove(to_remove_objects)
+        if to_remove_data:
+            bpy.data.batch_remove(to_remove_data)
     
     # for ob in to_remove_objects:
     #     bpy.data.objects.remove(ob)

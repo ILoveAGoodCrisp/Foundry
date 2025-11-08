@@ -569,7 +569,7 @@ class AnimationTag(Tag):
         
         for frame_idx, nodes_transforms in transforms.items():
             for node in valid_nodes:
-                bind_inv    = bone_base_matrices[node.pose_bone].inverted_safe()
+                bind_inv = bone_base_matrices[node.pose_bone].inverted_safe()
                 repl_matrix = nodes_transforms[node]
                 transform_matrix = bind_inv @ repl_matrix
                 base_matrix = Matrix.Identity(4)
@@ -583,10 +583,9 @@ class AnimationTag(Tag):
                         if node not in nodes_with_animations:
                             base_matrix = base_nodes_transforms[node]
                             
-                            delta_base  = bind_inv @ base_matrix
+                            delta_base = bind_inv @ base_matrix
 
                             transform_matrix = delta_base @ transform_matrix
-                            
 
                 # decompose the orthogonal result
                 loc, rot, sca = transform_matrix.decompose()
