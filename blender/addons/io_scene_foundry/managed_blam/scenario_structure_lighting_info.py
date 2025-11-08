@@ -436,6 +436,8 @@ class ScenarioStructureLightingInfoTag(Tag):
             
             definitions[element.ElementIndex] = blender_light
             
+            utils.make_halo_light(blender_light)
+            
         return definitions
             
     def _from_reach_light_instances(self, definitions: dict[int: bpy.types.Light]):

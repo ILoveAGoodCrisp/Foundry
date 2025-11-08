@@ -5413,3 +5413,15 @@ def hide_from_rays(ob: bpy.types.Object):
     ob.visible_transmission = False
     ob.visible_volume_scatter = False
     ob.visible_shadow = False
+    
+def make_halo_light(data: bpy.types.Light):
+    data.use_nodes = True
+    tree = data.node_tree
+    tree.nodes.clear()
+    light_node = tree.nodes.new('ShaderNodeGroup')
+    light_node.node_tree = add_node_from_resources("shared_nodes", 'Halo Light')
+    
+    output_node = tree.nodes.new('ShaderNodeOutputLight')
+    output_node.location.x += 200
+    
+    tree.links.new(input=output_node.inputs[0], output=light_node.outputs[0])

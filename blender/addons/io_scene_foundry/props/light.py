@@ -399,6 +399,23 @@ class NWO_LightPropertiesGroup(bpy.types.PropertyGroup):
         default=0,
         min=0,
     )
+    
+    def get_light_strength(self):
+        value = 1.0
+        if not utils.is_corinth() or self.id_data.type == 'SUN':
+            return 1.0
+        
+        if self.light_cinema_objects_only:
+            return 0.0
+        
+        elif self.light_indirect_only:
+            value = 0.01
+        
+        return min(value * self.light_amplification_factor, 0.001)
+    
+    light_strength: bpy.props.FloatProperty(
+        get=get_light_strength,
+    )
 
     light_cinema: bpy.props.EnumProperty(
         name="Cinematic Render",
