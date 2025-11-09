@@ -125,23 +125,22 @@ class CinematicTag(Tag):
                         self.zone_set.Data = zone_set_index
                         
                 # Add cinematic anchor object to scenario
-                if cinematic_scene.anchor is not None:
-                    cutscene_flags = scenario.tag.SelectField("Block:cutscene flags")
-                    for element in cutscene_flags.Elements:
-                        if cinematic_scene.anchor_name == element.Fields[0].GetStringData():
-                            element.Fields[1].Data = cinematic_scene.anchor_location
-                            if self.corinth:
-                                element.Fields[2].Data = cinematic_scene.anchor_yaw_pitch_roll
-                            else:
-                                # Reach only uses yaw and pitch for cutscene flags
-                                element.Fields[2].Data = cinematic_scene.anchor_yaw_pitch_roll[:2]
-                            break
-                                
-                    else:
-                        element = cutscene_flags.AddElement()
-                        element.Fields[0].SetStringData(cinematic_scene.anchor_name)
+                cutscene_flags = scenario.tag.SelectField("Block:cutscene flags")
+                for element in cutscene_flags.Elements:
+                    if cinematic_scene.anchor_name == element.Fields[0].GetStringData():
                         element.Fields[1].Data = cinematic_scene.anchor_location
-                        element.Fields[2].Data = cinematic_scene.anchor_yaw_pitch
+                        if self.corinth:
+                            element.Fields[2].Data = cinematic_scene.anchor_ypr
+                        else:
+                            # Reach only uses yaw and pitch for cutscene flags
+                            element.Fields[2].Data = cinematic_scene.anchor_ypr[:2]
+                        break
+                            
+                else:
+                    element = cutscene_flags.AddElement()
+                    element.Fields[0].SetStringData(cinematic_scene.anchor_name)
+                    element.Fields[1].Data = cinematic_scene.anchor_location
+                    element.Fields[2].Data = cinematic_scene.anchor_ypr
                         
                 if not self.corinth:
                     scenario.update_cinematic_resource()

@@ -1,3 +1,4 @@
+from math import degrees
 from pathlib import Path
 import bpy
 
@@ -22,7 +23,7 @@ class CinematicScene:
         self.anchor = scene.nwo.cinematic_anchor
         self.anchor_name = f"{self.name}_anchor"
         self.anchor_location = 0.0, 0.0, 0.0
-        self.anchor_yaw_pitch = 0.0, 0.0, 0.0
+        self.anchor_ypr = 0.0, 0.0, 0.0
         if self.anchor is not None:
             anchor_matrix = utils.halo_transforms_matrix(self.anchor.matrix_world.inverted_safe())
             self.anchor_location = anchor_matrix.translation.to_tuple()
@@ -31,7 +32,7 @@ class CinematicScene:
             left = matrix_3x3.col[1]
             up = matrix_3x3.col[2]
             yaw, pitch, roll = utils.ypr_from_flu(forward, left, up)
-            self.anchor_yaw_pitch_roll = yaw - 180, pitch, 0.0
+            self.anchor_ypr = yaw - 180, pitch, 0.0
         
 def calculate_focal_depths(focus_distance, aperture, coc=0.03, focal_length=50):
     hyperfocal = (focal_length ** 2) / (aperture * coc)
@@ -54,7 +55,6 @@ def calculate_blur_amount(focal_length, focus_distance, aperture, object_distanc
 
 def calculate_focal_distances(camera):
     if not isinstance(camera.data, bpy.types.Camera):
-        print("Selected object is not a camera.")
         return None
 
     cam_data = camera.data
@@ -65,19 +65,14 @@ def calculate_focal_distances(camera):
     sensor_width = cam_data.sensor_width
     coc = 0.029
 
-    # Determine the focus distance
     if cam_data.dof.focus_object:
-        # Focus object exists, calculate distance from camera to object
         focus_object = cam_data.dof.focus_object
         focus_distance = (camera.matrix_world.translation - focus_object.location).length
     else:
-        # Fallback to manually set focus distance
         focus_distance = cam_data.dof.focus_distance
 
-    # Hyperfocal Distance
     hyperfocal_distance = (lens_mm**2) / (aperture * coc)
 
-    # Near and Far Focus Limits
     if focus_distance > 0:
         near_focus = (hyperfocal_distance * focus_distance) / (hyperfocal_distance + (focus_distance - lens_mm))
         far_focus = (hyperfocal_distance * focus_distance) / (hyperfocal_distance - (focus_distance - lens_mm))

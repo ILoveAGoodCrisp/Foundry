@@ -266,7 +266,7 @@ class NWO_ExportScene(Operator, ExportHelper):
         try:
             try:
                 process_results = None
-                export_asset(context, sidecar_path_full, sidecar_path, self.asset_name, self.asset_path, scene_nwo, scene_nwo_export, is_corinth(context), single_animation)
+                export_asset(context, sidecar_path_full, sidecar_path, self.asset_name, self.asset_path, scene_nwo, scene_nwo_export, is_corinth(context), single_animation, self.for_cache_build)
             
             except Exception as e:
                 if isinstance(e, RuntimeError):
@@ -591,7 +591,7 @@ def unregister():
     bpy.types.TOPBAR_MT_file_export.remove(menu_func_export)
     bpy.utils.unregister_class(NWO_ExportScene)
 
-def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_path, scene_settings, export_settings, corinth, single_animation):
+def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_path, scene_settings, export_settings, corinth, single_animation, for_cache_build):
     asset_type = scene_settings.asset_type
     if asset_type == 'camera_track_set':
         return export_current_action_as_camera_track(context,asset_path) # Return early if this is a camera track export
@@ -636,6 +636,7 @@ def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_pat
                 export_scene.invoke_tool_import()
                 
             export_scene.postprocess_tags()
-            export_scene.lightmap()
+            if not for_cache_build:
+                export_scene.lightmap()
     finally:
         export_scene.restore_scene()
