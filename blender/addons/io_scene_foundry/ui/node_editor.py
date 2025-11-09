@@ -15,7 +15,6 @@ def node_context_menu(self, context):
         entry_name = 'Halo Material Shaders'
     else:
         entry_name = 'Halo Shaders'
-        return # temp as Reach custom shaders not implemented
     layout.operator_menu_enum('nwo.halo_material_nodes', 'node', text=entry_name)
 
 class NWO_OT_HaloMaterialTilingNode(bpy.types.Operator):

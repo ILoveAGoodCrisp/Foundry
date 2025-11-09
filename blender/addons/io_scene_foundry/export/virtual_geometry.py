@@ -173,7 +173,7 @@ class VirtualShot:
         self.shot_actors = [VirtualShotActor(actor, scene) for actor in actors]
         self.camera = camera
         self.frame_start = frame_start
-        self.frame_end = frame_end + 1
+        self.frame_end = frame_end
         self.frame_count = frame_end - frame_start + 1
         self.frames: list[Frame] = []
         self.index = index
