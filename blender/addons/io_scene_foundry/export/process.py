@@ -47,7 +47,7 @@ from .build_sidecar import Sidecar, get_cinematic_scenes
 from .export_info import AdditionalCompression, BoundarySurfaceType, ExportInfo, FaceDrawDistance, FaceMode, FaceSides, FaceType, LightmapType, MeshObbVolumeType, PoopCollisionType, PoopInstanceImposterPolicy, PoopLighting, PoopInstancePathfindingPolicy, MeshTessellationDensity, MeshType, ObjectType
 from ..props.mesh import NWO_MeshPropertiesGroup
 from ..props.object import NWO_ObjectPropertiesGroup
-from .virtual_geometry import AnimatedBone, ExportObject, VectorEvent, VirtualAnimation, VirtualNode, VirtualScene
+from .virtual_geometry import AnimatedBone, VectorEvent, VirtualAnimation, VirtualNode, VirtualScene
 from ..granny import Granny
 from .. import utils
 from ..constants import GENERAL_OBJECTS, VALID_MESHES, VALID_OBJECTS, WU_SCALAR
@@ -310,7 +310,7 @@ class ExportScene:
             if has_export_collection:
                 collection = self.collection_map[export_collection]
             
-            proxy = ExportObject()
+            proxy = utils.ExportObject()
             proxy.name = original.name
             proxy.type = original.type
             proxy.nwo = nwo
@@ -374,7 +374,7 @@ class ExportScene:
         
         if has_coll:
             
-            proxy_collision = ExportObject()
+            proxy_collision = utils.ExportObject()
             proxy_collision.data = original_proxy_collision.data
             proxy_collision.material_slots = original_proxy_collision.material_slots
             proxy_collision.nwo = original_proxy_collision.nwo
@@ -411,7 +411,7 @@ class ExportScene:
         if has_phys:
             for idx, original_proxy_physics in enumerate(original_proxy_physics_list):
                 
-                proxy_physics = ExportObject()
+                proxy_physics = utils.ExportObject()
                 proxy_physics.data = original_proxy_physics.data
                 proxy_physics.material_slots = original_proxy_physics.material_slots
                 proxy_physics.nwo = original_proxy_physics.nwo
@@ -441,7 +441,7 @@ class ExportScene:
             
         if has_cookie:
             
-            proxy_cookie_cutter = ExportObject()
+            proxy_cookie_cutter = utils.ExportObject()
             proxy_cookie_cutter.data = original_proxy_cookie_cutter.data
             proxy_cookie_cutter.material_slots = original_proxy_cookie_cutter.material_slots
             proxy_cookie_cutter.nwo = original_proxy_cookie_cutter.nwo
@@ -2592,7 +2592,7 @@ class ExportScene:
         mesh.from_pydata(vertices=[(1, 0, 0), (0, 1, 0), (0, 0, 1)], edges=[], faces=[[0, 1, 2]])
         real_ob = bpy.data.objects.new(mesh.name, mesh)
         self.temp_objects.add(real_ob)
-        ob = ExportObject()
+        ob = utils.ExportObject()
         ob.ob = real_ob
         ob.eval_ob = real_ob.evaluated_get(self.depsgraph)
         ob.data = mesh

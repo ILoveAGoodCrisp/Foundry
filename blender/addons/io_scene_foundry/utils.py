@@ -5425,3 +5425,25 @@ def make_halo_light(data: bpy.types.Light):
     output_node.location.x += 200
     
     tree.links.new(input=output_node.inputs[0], output=light_node.outputs[0])
+    
+class ExportObject:
+    def __init__(self):
+        self.name = ""
+        self.type = ""
+        self.nwo = None
+        self.data: bpy.types.Mesh = None
+        self.ob: bpy.types.Object = None
+        self.parent: bpy.types.Object = None
+        self.parent_type = ""
+        self.parent_bone = ""
+        self.matrix_world: Matrix = None
+        self.material_slots = None
+        self.vertex_groups = None
+        self.eval_ob = None
+        self.empty_display_type = ""
+        self.pose = None
+        self.empty_display_size = 1
+        self.invert_topology = False
+        
+    def copy(self):
+        return copy.copy(self)

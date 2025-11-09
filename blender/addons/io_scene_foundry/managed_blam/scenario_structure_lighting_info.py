@@ -266,9 +266,9 @@ class ScenarioStructureLightingInfoTag(Tag):
         if start_count > 0:
             regions.RemoveAllElements()
         
-        for ob in region_objects:
-            matrix = utils.halo_transforms(ob)
-            mesh = ob.to_mesh()
+        for proxy in region_objects:
+            matrix = utils.halo_transforms(proxy)
+            mesh = proxy.ob.to_mesh()
             mesh.transform(matrix)
             mesh.calc_loop_triangles()
             
@@ -276,7 +276,7 @@ class ScenarioStructureLightingInfoTag(Tag):
                 continue
             
             region = regions.AddElement()
-            region.Fields[0].SetStringData(ob.name.lower())
+            region.Fields[0].SetStringData(proxy.name.lower())
             triangles = region.Fields[1]
             
             loop_tris = mesh.loop_triangles
@@ -293,7 +293,7 @@ class ScenarioStructureLightingInfoTag(Tag):
                     vert = mesh.vertices[mesh.loops[i].vertex_index]
                     element.Fields[idx].Data = vert.co
             
-            ob.to_mesh_clear()
+            proxy.ob.to_mesh_clear()
             
         self.tag_has_changes = start_count > 0 or region_objects
 

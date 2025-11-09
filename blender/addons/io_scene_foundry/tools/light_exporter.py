@@ -3,6 +3,7 @@
 from math import degrees
 import math
 from pathlib import Path
+import time
 import bpy
 
 from ..managed_blam.model import ModelTag
@@ -202,10 +203,87 @@ class NWO_OT_ExportLights(bpy.types.Operator):
         return {"FINISHED"}
     
 def gather_lights(context, collection_map):
-    return {ob: ob.nwo.region_name if collection_map[ob.nwo.export_collection].region is None else collection_map[ob.nwo.export_collection].region for ob in context.scene.objects if ob.type == 'LIGHT' and ob.data.type != 'AREA' and not ob.nwo.ignore_for_export}
+    print("--- Start light gather")
+    start = time.perf_counter()
+    
+    collection_map = utils.create_parent_mapping(context)
+    proxies = {}
+    with utils.DepsgraphRead():
+        depsgraph = context.evaluated_depsgraph_get()
+
+        for inst in depsgraph.object_instances:
+            ob = inst.object.original
+            nwo = ob.nwo
+            
+            if ob.type != 'LIGHT' or ob.data.type == 'AREA':
+                continue
+            
+            if utils.ignore_for_export_fast(ob, collection_map):
+                continue
+            
+            export_collection = nwo.export_collection
+            has_export_collection = bool(nwo.export_collection)
+            if has_export_collection:
+                if collection_map[export_collection].non_export:
+                    continue
+
+            proxy = utils.ExportObject()
+            proxy.name = ob.name
+            proxy.data = ob.data
+            proxy.type = 'LIGHT'
+            proxy.nwo = nwo
+            proxy.matrix_world = inst.matrix_world.copy()
+            if has_export_collection:
+                proxies[proxy] = collection_map[export_collection].region
+            else:
+                proxies[proxy] = nwo.region_name
+
+    print(len(proxies), "lights found")
+    print("--- Gathered lights in: {:.3f}s".format(time.perf_counter() - start))
+        
+    return proxies
 
 def gather_lightmap_regions(context, collection_map):
-    return {ob: ob.nwo.region_name if collection_map[ob.nwo.export_collection].region is None else collection_map[ob.nwo.export_collection].region for ob in context.scene.objects if ob.type in VALID_MESHES and ob.data.nwo.mesh_type == '_connected_geometry_mesh_type_lightmap_region' and not ob.nwo.ignore_for_export}
+    print("--- Start lightmap regions gather")
+    start = time.perf_counter()
+    
+    collection_map = utils.create_parent_mapping(context)
+    proxies = {}
+    with utils.DepsgraphRead():
+        depsgraph = context.evaluated_depsgraph_get()
+
+        for inst in depsgraph.object_instances:
+            ob = inst.object.original
+            nwo = ob.nwo
+            
+            if ob.type not in VALID_MESHES or ob.data.nwo.mesh_type != '_connected_geometry_mesh_type_lightmap_region':
+                continue
+            
+            if utils.ignore_for_export_fast(ob, collection_map):
+                continue
+            
+            export_collection = nwo.export_collection
+            has_export_collection = bool(nwo.export_collection)
+            if has_export_collection:
+                if collection_map[export_collection].non_export:
+                    continue
+
+            proxy = utils.ExportObject()
+            proxy.name = ob.name
+            proxy.ob = ob
+            proxy.data = ob.data
+            proxy.type = ob.type
+            proxy.nwo = nwo
+            proxy.matrix_world = inst.matrix_world.copy()
+            if has_export_collection:
+                proxies[proxy] = collection_map[export_collection].region
+            else:
+                proxies[proxy] = nwo.region_name
+
+    print(len(proxies), "lightmap regions found")
+    print("--- Gathered lightmap regions in: {:.3f}s".format(time.perf_counter() - start))
+        
+    return proxies
 
 def export_lights(asset_path, asset_name, light_objects = None, bsps = None, lightmap_regions=None):
     tags_dir = utils.get_tags_path()
@@ -233,7 +311,6 @@ def export_lights(asset_path, asset_name, light_objects = None, bsps = None, lig
                 light_instances = [light for light in lights_list]
                 light_data = {bpy.data.lights.get(light.data_name) for light in lights_list}
                 light_definitions = [BlamLightDefinition(data) for data in light_data]
-                print(info_path)
                 with ScenarioStructureLightingInfoTag(path=info_path) as tag:tag.build_tag(light_instances, light_definitions)
                 
             if lightmap_regions is None:
