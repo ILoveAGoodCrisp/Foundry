@@ -1,6 +1,7 @@
 
 
 from pathlib import Path
+import time
 import bpy
 from ..managed_blam.scenario_structure_bsp import ScenarioStructureBspTag
 from .. import utils
@@ -11,7 +12,9 @@ class BlamPrefab:
         self.name = ob.name
         self.bsp = bsp
         self.reference = nwo.marker_game_instance_tag_name
-        self.scale = str(max(ob.scale[0], ob.scale[1], ob.scale[2]))
+        matrix = ob.matrix_world
+        mscale = matrix.to_scale()
+        self.scale = str(max(mscale[0], mscale[1], mscale[2]))
         matrix = utils.halo_transforms(ob, scale, rotation, True)
         matrix_3x3 = matrix.to_3x3().normalized()
         # forward = -matrix_3x3.col[1]
@@ -45,11 +48,51 @@ class NWO_OT_ExportPrefabs(bpy.types.Operator):
         return {"FINISHED"}
     
 def gather_prefabs(context):
-    return [ob for ob in context.scene.objects if utils.is_marker(ob) and not ob.nwo.ignore_for_export and ob.nwo.marker_type == '_connected_geometry_marker_type_game_instance' and ob.nwo.marker_game_instance_tag_name.lower().endswith(".prefab")]
+    print("--- Start prefab gather")
+    start = time.perf_counter()
+
+    def is_prefab_instance(nwo):
+        return nwo.marker_type == '_connected_geometry_marker_type_game_instance' and nwo.marker_game_instance_tag_name.lower().endswith(".prefab")
+    
+    collection_map = utils.create_parent_mapping(context)
+    proxies = {}
+    with utils.DepsgraphRead():
+        depsgraph = context.evaluated_depsgraph_get()
+
+        for inst in depsgraph.object_instances:
+            ob = inst.object.original
+            nwo = ob.nwo
+            
+            if not (ob.type == 'EMPTY' and is_prefab_instance(nwo)):
+                continue
+
+            if utils.ignore_for_export_fast(ob, collection_map):
+                continue
+            
+            export_collection = nwo.export_collection
+            has_export_collection = bool(nwo.export_collection)
+            if has_export_collection:
+                if collection_map[export_collection].non_export:
+                    continue
+
+            proxy = utils.ExportObject()
+            proxy.name = ob.name
+            proxy.type = ob.type
+            proxy.nwo = nwo
+            proxy.matrix_world = inst.matrix_world.copy()
+            if has_export_collection:
+                proxies[proxy] = collection_map[export_collection].region
+            else:
+                proxies[proxy] = nwo.region_name
+
+    print(len(proxies), "prefabs found")
+    print("--- Gathered prefabs in: {:.3f}s".format(time.perf_counter() - start))
+        
+    return proxies
 
 def export_prefabs():
     asset_path = utils.get_asset_path()
-    prefabs = [BlamPrefab(ob, utils.true_region(ob.nwo)) for ob in gather_prefabs(bpy.context)]
+    prefabs = [BlamPrefab(ob, region) for ob, region in gather_prefabs(bpy.context).items()]
     bsps = [r.name for r in bpy.context.scene.nwo.regions_table if r.name.lower() != 'shared']
     structure_bsp_paths = [str(Path(asset_path, f'{b}.scenario_structure_bsp')) for b in bsps]
     for idx, bsp_path in enumerate(structure_bsp_paths):
