@@ -637,9 +637,14 @@ class NWO_Import(bpy.types.Operator):
         description="Stores a models vertex normals so that it can be reimported in game with the exact same vertex order. This is done automatically for PCA meshes, this option just applies the same to everything. Any edits to meshes with this setting will probably break normals on export"
     )
     
-    place_at_mouse : bpy.props.BoolProperty(options={"HIDDEN", "SKIP_SAVE"})
-    mouse_x : bpy.props.FloatProperty(options={"HIDDEN", "SKIP_SAVE"})
-    mouse_y : bpy.props.FloatProperty(options={"HIDDEN", "SKIP_SAVE"})
+    place_at_mouse: bpy.props.BoolProperty(options={"HIDDEN", "SKIP_SAVE"})
+    mouse_x: bpy.props.FloatProperty(options={"HIDDEN", "SKIP_SAVE"})
+    mouse_y: bpy.props.FloatProperty(options={"HIDDEN", "SKIP_SAVE"})
+    
+    convert_to_instance: bpy.props.BoolProperty(
+        name="Convert to Instance Geometry",
+        description="Converts a model to instanced geometry",
+    )
     
     def execute(self, context):
         failed = False
@@ -698,7 +703,7 @@ class NWO_Import(bpy.types.Operator):
                     
                 importer = NWOImporter(context, filepaths, scope_list)
                 
-                if self.place_at_mouse:
+                if self.place_at_mouse and not self.convert_to_instance:
                     tag_path = filepaths[0]
                     marker = bpy.data.objects.new(name=Path(tag_path).with_suffix("").name, object_data=None)
                     marker.nwo.marker_type = '_connected_geometry_marker_type_game_instance'
