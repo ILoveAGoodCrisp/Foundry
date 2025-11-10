@@ -251,7 +251,7 @@ class ModelInstance:
             self._global_materials_to_shaders_mesh(materials_shaders, collision_mesh)
             
         else:
-            render_ob.poop_render_only = True
+            render_ob.nwo.poop_render_only = True
             
         for idx, ob in enumerate(self.physics_objects):
             if ob.nwo.global_material in phantom_materials:
