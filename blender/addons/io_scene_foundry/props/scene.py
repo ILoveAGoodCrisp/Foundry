@@ -10,7 +10,7 @@ from ..managed_blam.scenario import ScenarioTag
 from ..icons import get_icon_id
 from .. import utils
 
-script_object_types = ('WEAPON_TRIGGER_START', 'WEAPON_TRIGGER_STOP', 'SET_VARIANT', 'SET_PERMUTATION', 'SET_REGION_STATE', 'SET_MODEL_STATE_PROPERTY', 'HIDE', 'UNHIDE', 'DESTROY', 'OBJECT_CANNOT_DIE', 'OBJECT_CAN_DIE', 'OBJECT_PROJECTILE_COLLISION_ON', 'OBJECT_PROJECTILE_COLLISION_OFF', 'DAMAGE_OBJECT')
+script_object_types = ('WEAPON_TRIGGER_START', 'WEAPON_TRIGGER_STOP', 'SET_VARIANT', 'SET_PERMUTATION', 'SET_REGION_STATE', 'SET_MODEL_STATE_PROPERTY', 'HIDE', 'UNHIDE', 'DESTROY', 'OBJECT_CANNOT_DIE', 'OBJECT_CAN_DIE', 'OBJECT_PROJECTILE_COLLISION_ON', 'OBJECT_PROJECTILE_COLLISION_OFF', 'DAMAGE_OBJECT', 'PLAY_SOUND')
 
 last_used_compo_leaf = {}
 
@@ -1860,6 +1860,7 @@ class NWO_CinematicEvent(PropertyGroup):
             ('OBJECT_PROJECTILE_COLLISION_ON', "Projectiles Collide With Object", ""),
             ('OBJECT_PROJECTILE_COLLISION_OFF', "Projectiles Pass Through Object", ""),
             ('DAMAGE_OBJECT', "Damage Object", ""),
+            ('PLAY_SOUND', "Play Sound", ""),
         ]
     )
     
@@ -1924,6 +1925,15 @@ class NWO_CinematicEvent(PropertyGroup):
     )
     
     script_bool: bpy.props.BoolProperty(options=set(),)
+    
+    script_factor: bpy.props.FloatProperty(
+        name="Factor",
+        min=0,
+        max=1,
+        default=1,
+        subtype='FACTOR',
+        options=set(),
+    )
 
 class NWO_ScenePropertiesGroup(PropertyGroup):
     # CINEMATIC EVENTS

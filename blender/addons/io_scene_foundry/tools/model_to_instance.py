@@ -5,7 +5,7 @@ from .. import utils
 
 class ModelInstance:
     def __init__(self, model_tag):
-        self.model_tag = None
+        self.model_tag = model_tag
         self.armature = None
         self.render_objects = []
         self.collision_objects = []
@@ -45,23 +45,40 @@ class ModelInstance:
         
         render_ob = bpy.data.objects.new(render_name, render_mesh)
         
-        render_ob.users_collection = self.armature.users_collection
+        for collection in self.armature.users_collection:
+            collection.objects.link(render_ob)
         
-        collision_name = f"{self.armature.name}_collision"
-        collision_mesh = bpy.data.meshes.new(collision_name)
-        
-        bm = bmesh.new()
-        for ob in self.collision_objects:
-            bm.from_mesh(ob.data)
+        collision_ob = None
+        if self.collision_objects:
+            collision_name = f"{self.armature.name}_collision"
+            collision_mesh = bpy.data.meshes.new(collision_name)
+            
+            bm = bmesh.new()
+            for ob in self.collision_objects:
+                bm.from_mesh(ob.data)
 
-        bm.to_mesh(collision_mesh)
-        bm.free()
+            bm.to_mesh(collision_mesh)
+            bm.free()
+            
+            collision_ob = bpy.data.objects.new(collision_name, render_mesh)
+            
+            collision_ob.nwo.proxy_parent = render_ob.data
+            collision_ob.nwo.proxy_type = 'collision'
+            proxy_scene = utils.get_foundry_storage_scene()
+            proxy_scene.collection.objects.link(ob)
+            
+            render_mesh.nwo.proxy_collision = collision_ob
         
-        collision_ob = bpy.data.objects.new(collision_name, render_mesh)
+        self.instance = render_ob
         
-        collision_ob.nwo.proxy_parent = render_ob.parent.data
-        collision_ob.nwo.proxy_type = 'collision'
-        proxy_scene = utils.get_foundry_storage_scene()
-        proxy_scene.collection.objects.link(ob)
+        obs = [render_ob]
         
-        render_mesh.nwo.proxy_collision = collision_ob
+        if collision_ob is not None:
+            obs.append(collision_ob)
+        
+        return obs
+    
+    def clean_up(self):
+        bpy.data.batch_remove(self.render_objects)
+        bpy.data.batch_remove(self.collision_objects)
+        bpy.data.objects.remove(self.armature)

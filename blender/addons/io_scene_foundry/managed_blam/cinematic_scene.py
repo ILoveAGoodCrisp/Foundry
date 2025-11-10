@@ -299,6 +299,8 @@ class CinematicCustomScript:
         
     def from_event(self, event: NWO_CinematicEvent, object_tag_weapon_names: dict, actor_objects: set):
         self.use_maya_value = True
+        valid_object = event.script_object is not None and event.script_object in actor_objects
+        obj_text = f'(cinematic_object_get "{event.script_object.name}")' if valid_object else 'None'
         match event.script_type:
             case 'CUSTOM':
                 if event.text is None:
@@ -306,28 +308,28 @@ class CinematicCustomScript:
                 else:
                     self.script = event.text.as_string()
             case 'WEAPON_TRIGGER_START' | 'WEAPON_TRIGGER_STOP':
-                if event.script_object is not None and event.script_object in actor_objects:
+                if valid_object:
                     weapon_name = object_tag_weapon_names.get(utils.relative_path(event.script_object.nwo.cinematic_object))
                     if weapon_name is not None:
                         self.script = f'weapon_set_primary_barrel_firing (cinematic_weapon_get "{weapon_name}") {int(event.script_type == "WEAPON_TRIGGER_START")}'
             case 'SET_VARIANT':
-                if event.script_object is not None and event.script_object in actor_objects:
-                    self.script = f'object_set_variant (cinematic_object_get "{event.script_object.name}") {event.script_variant}'
+                if valid_object:
+                    self.script = f'object_set_variant {obj_text} {event.script_variant}'
             case 'SET_PERMUTATION':
-                if event.script_object is not None and event.script_object in actor_objects:
-                    self.script = f'object_set_permutation (cinematic_object_get "{event.script_object.name}") {event.script_region} {event.script_permutation}'
+                if valid_object:
+                    self.script = f'object_set_permutation {obj_text} {event.script_region} {event.script_permutation}'
             case 'SET_REGION_STATE':
-                if event.script_object is not None and event.script_object in actor_objects:
-                    self.script = f'object_set_region_state (cinematic_object_get "{event.script_object.name}") {event.script_region} {event.script_state}'
+                if valid_object:
+                    self.script = f'object_set_region_state {obj_text} {event.script_region} {event.script_state}'
             case 'SET_MODEL_STATE_PROPERTY':
-                if event.script_object is not None and event.script_object in actor_objects:
-                    self.script = f'object_set_model_state_property (cinematic_object_get "{event.script_object.name}") {int(event.script_state_property)} {event.script_bool}'
+                if valid_object:
+                    self.script = f'object_set_model_state_property {obj_text} {int(event.script_state_property)} {event.script_bool}'
             case 'HIDE' | 'UNHIDE':
-                if event.script_object is not None and event.script_object in actor_objects:
-                    self.script = f'object_hide (cinematic_object_get "{event.script_object.name}") {int(event.script_type == "HIDE")}'
+                if valid_object:
+                    self.script = f'object_hide {obj_text} {int(event.script_type == "HIDE")}'
             case 'DESTROY':
-                if event.script_object is not None and event.script_object in actor_objects:
-                    self.script = f'object_destroy (cinematic_object_get "{event.script_object.name}")'
+                if valid_object:
+                    self.script = f'object_destroy {obj_text}'
             case 'FADE_IN':
                 red, green, blue = event.script_color
                 self.script = f'fade_in {red} {green} {blue} {int(event.script_seconds * 30)}'
@@ -341,15 +343,17 @@ class CinematicCustomScript:
             case 'HIDE_HUD':
                 self.script = f'chud_cinematic_fade 1 0\nchud_show_cinematics 0'
             case 'OBJECT_CANNOT_DIE' | 'OBJECT_CAN_DIE':
-                if event.script_object is not None and event.script_object in actor_objects:
-                    self.script = f'object_cannot_die (cinematic_object_get "{event.script_object.name}") {int(event.script_type == "OBJECT_CANNOT_DIE")}'
+                if valid_object:
+                    self.script = f'object_cannot_die {obj_text} {int(event.script_type == "OBJECT_CANNOT_DIE")}'
             case 'OBJECT_PROJECTILE_COLLISION_ON' | 'OBJECT_PROJECTILE_COLLISION_OFF':
-                if event.script_object is not None and event.script_object in actor_objects:
+                if valid_object:
                     # weird script function, setting this to false makes the object had projectile collision
-                    self.script = f'object_cinematic_visibility (cinematic_object_get "{event.script_object.name}") {int(event.script_type == "OBJECT_PROJECTILE_COLLISION_OFF")}'
+                    self.script = f'object_cinematic_visibility {obj_text} {int(event.script_type == "OBJECT_PROJECTILE_COLLISION_OFF")}'
             case 'DAMAGE_OBJECT':
-                if event.script_object is not None and event.script_object in actor_objects:
-                    self.script = f'damage_object (cinematic_object_get "{event.script_object.name}") {event.script_region} {event.script_damage}'
+                if valid_object:
+                    self.script = f'damage_object {obj_text} {event.script_region} {event.script_damage}'
+            case 'PLAY_SOUND':
+                self.script = f'sound_impulse_start {event.sound_tag} {obj_text} {event.script_factor}'
         
 class CinematicUserInputConstraints:
     def __init__(self):

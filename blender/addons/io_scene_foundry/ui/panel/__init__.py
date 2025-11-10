@@ -2872,6 +2872,13 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                         col.prop(event, "script_seconds", text="Seconds")
                     case 'SET_TITLE':
                         col.prop(event, "script_text", text="Title String ID")
+                    case 'PLAY_SOUND':
+                        row = col.row()
+                        row.prop(event, "sound_tag", text="Sound Tag")
+                        row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "sound_tag"
+                        row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'sound_tag'
+                        col.prop(event, "script_object", text="Object")
+                        col.prop(event, "script_factor", text="Sound Scale")
 
     def draw_animation_manager(self):
         box = self.box
