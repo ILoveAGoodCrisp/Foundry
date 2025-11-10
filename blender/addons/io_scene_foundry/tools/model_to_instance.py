@@ -257,7 +257,6 @@ class ModelInstance:
             if ob.nwo.global_material in phantom_materials:
                 continue
             
-            box_pill = ob.nwo.mesh_primitive_type in '_connected_geometry_primitive_type_box', '_connected_geometry_primitive_type_pill'
             physics_name = f"{self.name}_physics{idx}"
             physics_mesh = bpy.data.meshes.new(physics_name)
             physics_ob = bpy.data.objects.new(physics_name, physics_mesh)
@@ -266,11 +265,7 @@ class ModelInstance:
             bm.to_mesh(physics_mesh)
             bm.free()
             
-            if box_pill:
-                scale = ob.scale
-                bounding_box_corners = [Vector(corner) for corner in ob.bound_box]
-                min_z = min([corner.z for corner in bounding_box_corners])
-                physics_mesh.transform(Matrix.LocRotScale(Vector((0, 0, ob.location.z - min_z)), Euler((0, 0, 0)), scale))
+            physics_mesh.transform(ob.matrix_world)
                     
             physics_ob.nwo.proxy_parent = render_ob.data
             physics_ob.nwo.proxy_type = 'physics'
