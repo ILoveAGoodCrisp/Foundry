@@ -1019,8 +1019,8 @@ class VirtualMesh:
         mesh_type_value = props.get("bungie_mesh_type")
         has_shape_keys = ob.type == 'MESH' and ob.data.shape_keys
         if has_shape_keys:
-            old_shape_key_index = ob.active_shape_key_index
-            ob.active_shape_key_index = 0
+            old_shape_key_index = ob.ob.active_shape_key_index
+            ob.ob.active_shape_key_index = 0
             for key_block in ob.data.shape_keys.key_blocks[1:]:
                 if not key_block.mute:
                     shape_key_unmutes.append(key_block)
