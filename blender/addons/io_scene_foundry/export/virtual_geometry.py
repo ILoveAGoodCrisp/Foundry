@@ -1406,7 +1406,6 @@ class VirtualNode:
     def __init__(self, id: utils.ExportObject | bpy.types.PoseBone, props: dict, region: str = None, permutation: str = None, scene: 'VirtualScene' = None, proxies = [], template_node: 'VirtualNode' = None, bones: list[str] = [], parent_matrix: Matrix = IDENTITY_MATRIX, animation_owner=None):
         self.name: str = id.name
         self.ob = id
-        self.id = id
         self.matrix_world: Matrix = IDENTITY_MATRIX
         self.matrix_local: Matrix = IDENTITY_MATRIX
         self.mesh: VirtualMesh | None = None
@@ -2050,9 +2049,10 @@ class VirtualScene:
         def wrap_bounding_box(nodes, padding):
             min_x, min_y, min_z, max_x, max_y, max_z = (i * scalar for i in (-10, -10, 0, 10, 10, 30))
             for node in nodes:
+                print(node.name)
                 # inverse the rotation matrix otherwise this will be rotated incorrectly
-                if node.id.type == 'MESH':
-                    bbox = node.id.ob.bound_box
+                if node.ob.type == 'MESH':
+                    bbox = node.ob.ob.bound_box
                     for co in bbox:
                         bounds = self.rotation_matrix.inverted_safe() @ node.matrix_world @ Vector((co[0], co[1], co[2]))
                         min_x = min(min_x, bounds.x - padding)

@@ -379,7 +379,7 @@ class ExportScene:
             proxy_collision.material_slots = original_proxy_collision.material_slots
             proxy_collision.nwo = original_proxy_collision.nwo
             proxy_collision.type = original_proxy_collision.type
-            proxy_collision.ob = proxy_collision
+            proxy_collision.ob = original_proxy_collision
             proxy_collision.name = original_proxy_collision.name
             proxy_collision.eval_ob = original_proxy_collision.evaluated_get(self.depsgraph)
             proxy_collision.matrix_world = Matrix.Identity(4)
