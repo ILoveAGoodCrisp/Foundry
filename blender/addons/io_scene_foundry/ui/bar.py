@@ -600,6 +600,8 @@ class NWO_HaloExportSettingsFlags(bpy.types.Panel):
             col.prop(scene_nwo_export, "force_imposter_policy_never")
             if scenario:
                 col.prop(scene_nwo_export, "create_debug_zone_set")
+                if not h4:
+                    col.prop(scene_nwo_export, "allow_proxy_decals")
         if model or animation:
             col.prop(scene_nwo_export, "disable_automatic_suspension_computation")
             if h4:
@@ -1201,6 +1203,12 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
         name="Precise Meshes",
         description="Adds the precise position face property to all meshes at export provided provided they don't already use the property",
         default=True,
+    )
+    
+    allow_proxy_decals: bpy.props.BoolProperty(
+        name="Allow Proxy Decals",
+        description="Updates BSP tags post export to allow decals (like bullet impacts) to draw on proxy instance collision",
+        default=False,
     )
 
     import_force: bpy.props.BoolProperty(

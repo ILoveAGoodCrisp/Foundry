@@ -2378,7 +2378,7 @@ class ExportScene:
                         self.print_post(f"--- Adding debug zone set")
                         scenario.write_foundry_zone_set()
                 
-            if False and not self.corinth and self.any_collision_proxies:
+            if self.export_settings.allow_proxy_decals and not self.corinth and self.any_collision_proxies:
                 self.print_post(f"--- Fixing Up collision proxy surface mapping")
                 with ScenarioTag() as scenario:
                     for element in scenario.block_bsps.Elements:

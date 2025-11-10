@@ -491,6 +491,8 @@ class NWO_ExportScene(Operator, ExportHelper):
             col.prop(scene_nwo_export, "force_imposter_policy_never")
             if scenario:
                 col.prop(scene_nwo_export, "create_debug_zone_set")
+                if not h4:
+                    col.prop(scene_nwo_export, "allow_proxy_decals")
         if model or animation:
             col.prop(scene_nwo_export, "disable_automatic_suspension_computation")
             if h4:

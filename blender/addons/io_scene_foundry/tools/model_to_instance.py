@@ -2,7 +2,10 @@ from collections import defaultdict
 from pathlib import Path
 import bpy
 import bmesh
+from mathutils import Euler, Matrix, Vector
 import numpy as np
+
+from ..constants import WU_SCALAR
 
 from ..managed_blam.physics_model import PhysicsTag
 
@@ -176,7 +179,6 @@ class ModelInstance:
         
     def _global_materials_to_shaders_object(self, materials_shaders: dict, ob: bpy.types.Object, global_material: str):
         blender_material = materials_shaders.get(global_material)
-        print(ob.name, global_material, blender_material)
         if blender_material is None:
             if self.corinth:
                 prop = utils.add_face_prop(ob.data, "global_material")
@@ -254,13 +256,22 @@ class ModelInstance:
         for idx, ob in enumerate(self.physics_objects):
             if ob.nwo.global_material in phantom_materials:
                 continue
+            
+            box_pill = ob.nwo.mesh_primitive_type in '_connected_geometry_primitive_type_box', '_connected_geometry_primitive_type_pill'
             physics_name = f"{self.name}_physics{idx}"
             physics_mesh = bpy.data.meshes.new(physics_name)
+            physics_ob = bpy.data.objects.new(physics_name, physics_mesh)
             bm = bmesh.new()
             bm.from_mesh(ob.data)
             bm.to_mesh(physics_mesh)
             bm.free()
-            physics_ob = bpy.data.objects.new(physics_name, physics_mesh)
+            
+            if box_pill:
+                scale = ob.scale
+                bounding_box_corners = [Vector(corner) for corner in ob.bound_box]
+                min_z = min([corner.z for corner in bounding_box_corners])
+                physics_mesh.transform(Matrix.LocRotScale(Vector((0, 0, ob.location.z - min_z)), Euler((0, 0, 0)), scale))
+                    
             physics_ob.nwo.proxy_parent = render_ob.data
             physics_ob.nwo.proxy_type = 'physics'
             proxy_scene.collection.objects.link(physics_ob)
@@ -274,4 +285,7 @@ class ModelInstance:
     
     def clean_up(self):
         to_remove = self.render_objects + self.collision_objects + self.physics_objects + self.other_objects
+        redundant_collections = {coll for ob in to_remove for coll in ob.users_collection if coll}
         bpy.data.batch_remove(to_remove)
+        redundant_collections = {coll for coll in redundant_collections if not coll.all_objects}
+        bpy.data.batch_remove(redundant_collections)
