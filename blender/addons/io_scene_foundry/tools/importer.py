@@ -2934,7 +2934,7 @@ class NWOImporter:
                 
             elif ob.name.lower().startswith(legacy_frame_prefixes) or utils.is_frame(ob):
                 ob = self.setup_jms_frame(ob)
-                if not ob.parent and ob.type == 'EMPTY' and not ob.name.lower().startswith(legacy_frame_prefixes):
+                if not ob.parent and ob.type == 'EMPTY' and not (ob.name.lower().startswith(legacy_frame_prefixes) or "root" in ob.name):
                     ob.nwo.export_this = False
             elif ob.name.startswith('#') or (is_model and ob.type =='EMPTY' and ob.name.startswith('$')):
                 self.setup_jms_marker(ob, is_model)

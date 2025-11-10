@@ -2049,7 +2049,6 @@ class VirtualScene:
         def wrap_bounding_box(nodes, padding):
             min_x, min_y, min_z, max_x, max_y, max_z = (i * scalar for i in (-10, -10, 0, 10, 10, 30))
             for node in nodes:
-                print(node.name)
                 # inverse the rotation matrix otherwise this will be rotated incorrectly
                 if node.ob.type == 'MESH':
                     bbox = node.ob.ob.bound_box
