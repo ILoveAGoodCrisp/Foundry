@@ -71,6 +71,9 @@ class MaterialTag(ShaderTag):
     
     material_shaders = {}
     
+    def get_global_material(self):
+        return self.tag.SelectField("StringId:physics material name").GetStringData()
+    
     def _read_fields(self):
         self.block_parameters = self.tag.SelectField("Block:material parameters")
         self.reference_material_shader = self.tag.SelectField("Reference:material shader")

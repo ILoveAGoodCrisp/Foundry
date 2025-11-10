@@ -13,7 +13,7 @@ import addon_utils
 import bmesh
 import bpy
 import bpy.props
-from mathutils import Color, Quaternion, Vector, bvhtree
+from mathutils import Color, Quaternion, Vector, bvhtree, Matrix
 
 import numpy as np
 
@@ -704,6 +704,8 @@ class NWO_Import(bpy.types.Operator):
                     
                 importer = NWOImporter(context, filepaths, scope_list)
                 
+                mouse_matrix = utils.matrix_from_mouse(self.mouse_x, self.mouse_y)
+                
                 if self.place_at_mouse and not self.convert_to_instance:
                     tag_path = filepaths[0]
                     marker = bpy.data.objects.new(name=Path(tag_path).with_suffix("").name, object_data=None)
@@ -714,7 +716,7 @@ class NWO_Import(bpy.types.Operator):
                     else:
                         marker.nwo.marker_game_instance_tag_variant_name = self.tag_variant
                     
-                    marker.matrix_world = utils.matrix_from_mouse(self.mouse_x, self.mouse_y)
+                    marker.matrix_world = mouse_matrix
                 
                 
                 if 'amf' in importer.extensions and self.amf_okay:
@@ -834,16 +836,17 @@ class NWO_Import(bpy.types.Operator):
                     if self.place_at_mouse:
                         if self.convert_to_instance:
                             object_files = [importer.sorted_filepaths["object"][0]]
-                            ob_arm = importer.import_object(object_files, None, for_instance_conversion=True)
-                            if ob_arm:
-                                converter = ModelInstance(object_files[0])
-                                converter.from_armature(ob_arm)
-                                to_instance_objects = converter.to_instance()
+                            model_objects, variant = importer.import_object(object_files, None, for_instance_conversion=True)
+                            if model_objects:
+                                converter = ModelInstance(object_files[0], variant, utils.is_corinth(context))
+                                converter.from_objects(model_objects)
+                                to_instance_objects = converter.to_instance(context.collection if context.collection else context.scene.collection)
                                 imported_objects.extend(to_instance_objects)
                                 converter.clean_up()
-                                converter.instance.matrix_world = utils.matrix_from_mouse(self.mouse_x, self.mouse_y)
                                 if to_instance_objects and importer.needs_scaling:
-                                    utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=to_instance_objects, actions=[])
+                                    utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, context.scene.nwo.forward_direction, context.scene.nwo.forward_direction, objects=to_instance_objects, actions=[])
+                                    
+                                converter.instance.matrix_world = mouse_matrix @ Matrix.Rotation(importer.from_x_rot, 4, 'Z')
                                 
                         else:
                             game_object_cache = {(c.nwo.game_object_path, c.nwo.game_object_variant): c for c in utils.get_foundry_storage_scene().collection.children if c.nwo.game_object_path}
@@ -2092,7 +2095,7 @@ class NWOImporter:
         if is_game_object:
             return model_collection
         elif for_instance_conversion:
-            return armature
+            return imported_objects, self.tag_variant
         else:
             return imported_objects, imported_animations
     

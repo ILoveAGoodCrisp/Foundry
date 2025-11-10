@@ -159,6 +159,15 @@ class ShaderTag(Tag):
         if self.reference.Path and self.reference.Path == self.tag_path: # prevent recursion issues
             self.reference.Path = None
         self.definition = self.render_method.SelectField('definition')
+        
+    def get_global_material(self):
+        global_material = self.tag.SelectField("StringId:material name").GetStringData()
+        
+        if not global_material and self.reference.Path is not None and self.path_exists(self.reference.Path):
+            with ShaderTag(path=self.reference.Path) as ref_shader:
+                return ref_shader.get_global_material()
+        
+        return global_material
     
     @classmethod
     def _get_info(cls, definition_path: TagPath):

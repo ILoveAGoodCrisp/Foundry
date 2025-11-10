@@ -22,7 +22,7 @@ class ObjectTag(Tag):
         self.block_change_colors = self.tag.SelectField(f"{object_struct.FieldPath}/Block:change colors")
         self.block_functions = self.tag.SelectField(f"{object_struct.FieldPath}/Block:functions")
         self.runtime_object_type = self.tag.SelectField(f"{object_struct.FieldPath}/ShortInteger:runtime object type")
-            
+
     def get_model_tag_path(self):
         model_path = self.reference_model.Path
         if model_path:

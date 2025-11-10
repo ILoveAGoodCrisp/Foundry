@@ -50,7 +50,6 @@ class BumpMapping(Enum):
     LEAVE = 0
     STANDARD = 1
     STANDARD_MASK = 2
-    
 
 class ShaderDecalTag(ShaderTag):
     tag_ext = 'shader_decal'
@@ -58,6 +57,9 @@ class ShaderDecalTag(ShaderTag):
     
     default_parameter_bitmaps = None
     category_parameters = None
+    
+    def get_global_material(self):
+        return None
     
     def _to_nodes_group(self, blender_material: bpy.types.Material):
         # Get options

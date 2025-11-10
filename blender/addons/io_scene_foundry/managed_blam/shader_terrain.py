@@ -46,6 +46,15 @@ class ShaderTerrainTag(ShaderTag):
     default_parameter_bitmaps = None
     category_parameters = None
     
+    def get_global_material(self):
+        global_material = self.tag.SelectField("StringId:material name 0").GetStringData()
+        
+        if not global_material and self.reference.Path is not None and self.path_exists(self.reference.Path):
+            with ShaderTerrainTag(path=self.reference.Path) as ref_shader:
+                return ref_shader.get_global_material()
+            
+        return global_material
+    
     def _to_nodes_group(self, blender_material: bpy.types.Material):
         # Get options
         e_blending = TerrainBlending(self._option_value_from_index(0))

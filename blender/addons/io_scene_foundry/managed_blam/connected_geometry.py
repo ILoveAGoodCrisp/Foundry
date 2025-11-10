@@ -970,8 +970,7 @@ class RigidBody:
                 
             shape.ob.data.materials.append(render_mat)
             shape.ob.data.nwo.mesh_type = "_connected_geometry_mesh_type_physics"
-            if shape.material.name != "default":
-                shape.ob.data.nwo.face_global_material = shape.material.name
+            shape.ob.nwo.global_material = shape.material.name
         
             
 class CollisionMaterial:
