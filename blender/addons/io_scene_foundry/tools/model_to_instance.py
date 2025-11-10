@@ -26,9 +26,6 @@ class ModelInstance:
         self.other_objects = []
         self.instance = None
         self.corinth = corinth
-        self.marker = None
-        self.clean_all = False
-        self.clean_marker = False
         
     def _collect_objects(self, objects: list[bpy.types.Object]):
         for ob in objects:
@@ -49,11 +46,7 @@ class ModelInstance:
                     self.other_objects.append(ob)
         
     def from_objects(self, objects: list[bpy.types.Object]):
-        self.clean_all = True
         self._collect_objects(objects)
-        
-    def from_instancer(self, isntancer: bpy.types.Object):
-        self.clean_marker = True
                     
     def _map_materials_to_shaders(self):
         model_materials_map = {}
@@ -280,9 +273,5 @@ class ModelInstance:
         return objects
     
     def clean_up(self):
-        if self.clean_marker:
-            bpy.data.objects.remove(self.marker)
-        
-        if self.clean_all:
-            to_remove = self.render_objects + self.collision_objects + self.physics_objects + self.other_objects
-            bpy.data.batch_remove(to_remove)
+        to_remove = self.render_objects + self.collision_objects + self.physics_objects + self.other_objects
+        bpy.data.batch_remove(to_remove)

@@ -5447,3 +5447,7 @@ class ExportObject:
         
     def copy(self):
         return copy.copy(self)
+    
+    
+def is_instancer(ob):
+    return ob and ob.type == 'EMPTY' and ob.instance_type == 'COLLECTION' and ob.nwo.marker_instance

@@ -845,8 +845,11 @@ class NWO_Import(bpy.types.Operator):
                                 converter.clean_up()
                                 if to_instance_objects and importer.needs_scaling:
                                     utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, context.scene.nwo.forward_direction, context.scene.nwo.forward_direction, objects=to_instance_objects, actions=[])
-                                    
-                                converter.instance.matrix_world = mouse_matrix @ Matrix.Rotation(importer.from_x_rot, 4, 'Z')
+                                
+                                if context.scene.nwo.maintain_marker_axis:
+                                    converter.instance.matrix_world = mouse_matrix @ Matrix.Rotation(importer.from_x_rot, 4, 'Z')
+                                else:
+                                    converter.instance.matrix_world = mouse_matrix
                                 
                         else:
                             game_object_cache = {(c.nwo.game_object_path, c.nwo.game_object_variant): c for c in utils.get_foundry_storage_scene().collection.children if c.nwo.game_object_path}
@@ -4535,3 +4538,64 @@ class NWO_ImportGameInstanceTag(bpy.types.Operator):
         layout.prop(self, "always_extract_bitmaps")
         if context.object.nwo.marker_game_instance_tag_name.lower().endswith(".decorator_set"):
             layout.prop(self, "decorator_lod")
+            
+class NWO_OT_InstancerToInstance(bpy.types.Operator):
+    bl_idname = "nwo.instancer_to_instance"
+    bl_label = "Convert Game Object to Instance Geometry"
+    bl_description = "Converts the referenced object tags of selected marker instances into instanced geometry. Collision and physics are made into proxies"
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        return utils.is_instancer(context.object)
+
+    def execute(self, context):
+        cache = {}
+        corinth = utils.is_corinth(context)
+        collection = context.scene.collection
+        count = 0
+        rotation_matrix = Matrix.Identity(4)
+        for ob in context.selected_objects:
+            if not utils.is_instancer(ob):
+                continue
+            
+            if not ob.nwo.marker_game_instance_tag_name.lower().endswith(utils.object_exts):
+                continue
+            
+            linked_instance = cache.get((ob.nwo.marker_game_instance_tag_name, ob.nwo.marker_game_instance_tag_variant_name))
+            if linked_instance is None:
+                object_tag = utils.relative_path(ob.nwo.marker_game_instance_tag_name)
+                
+                full_object_tag = Path(utils.get_tags_path(), object_tag)
+                if not full_object_tag.exists():
+                    continue
+                
+                importer = NWOImporter(context, [str(full_object_tag)])
+                importer.tag_variant = ob.nwo.marker_game_instance_tag_variant_name
+                imported_objects, variant = importer.import_object([str(full_object_tag)], None, for_instance_conversion=True)
+                
+                collection = ob.users_collection[0] if ob.users_collection else collection
+                converter = ModelInstance(object_tag, variant, corinth)
+                converter.from_objects(imported_objects)
+                new_objects = converter.to_instance(collection)
+                cache[(ob.nwo.marker_game_instance_tag_name, ob.nwo.marker_game_instance_tag_variant_name)] = converter.instance
+                
+                if importer.needs_scaling:
+                    utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=new_objects, actions=[])
+                
+                if context.scene.nwo.maintain_marker_axis:
+                    rotation_matrix = Matrix.Rotation(importer.from_x_rot, 4, 'Z')
+                
+                converter.instance.matrix_world = ob.matrix_world @ rotation_matrix
+                converter.clean_up()
+                
+            else:
+                new_instance = linked_instance.copy()
+                collection.objects.link(new_instance)
+                new_instance.matrix_world = ob.matrix_world @ rotation_matrix
+
+            count += 1 
+            bpy.data.objects.remove(ob)
+        
+        self.report({'INFO'}, f"Created {count} instanced geometries")
+        return {"FINISHED"}

@@ -577,6 +577,8 @@ def object_context_apply_types(self, context):
                 layout.operator_menu_enum("nwo.mesh_to_marker", property="marker_type", text="Convert to Marker", icon='EMPTY_AXIS').called_once = False
         elif markers_valid:
             layout.operator_menu_enum("nwo.mesh_to_marker", property="marker_type", text="Set Marker Type", icon='EMPTY_AXIS').called_once = False
+        if utils.is_instancer(context.object):
+            layout.operator("nwo.instancer_to_instance", icon='MESH_DATA')
             
 def object_context_sets(self, context):
     asset_type = context.scene.nwo.asset_type
