@@ -71,6 +71,8 @@ zone_set_items = {"blah": "blah"}
 ammo_names = "primary_ammunition", "airstrike_launch_count", "secondary_ammunition"
 tether_name = "tether_distance"
 
+checked_asset_once = False
+
 ### Steps for adding a new file type ###
 ########################################
 # 1. Add the name of the file extension to formats
@@ -500,7 +502,7 @@ class NWO_Import(bpy.types.Operator):
     
     setup_as_asset: bpy.props.BoolProperty(
         name="Setup as Asset",
-        default=True,
+        default=False,
         description="Updates the scene asset settings so that this object can be immediately reimported into the game"
     )
     
@@ -1234,6 +1236,12 @@ class NWO_Import(bpy.types.Operator):
         #     skip_fileselect = True
         #     self.filter_glob = "*.bitmap;*.camera_track;*.model;*.scenario;*.scen*_bsp;*.render_model"
         # else:
+        
+        global checked_asset_once
+        if not self.setup_as_asset and not utils.valid_nwo_asset(context) and not checked_asset_once:
+            checked_asset_once = True
+            self.setup_as_asset = True
+        
         if 'bitmap' in self.scope:
             self.directory = utils.get_tags_path()
         elif 'camera_track' in self.scope:
@@ -3824,7 +3832,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     
     setup_as_asset: bpy.props.BoolProperty(
         name="Setup as Asset",
-        default=True,
+        default=False,
         description="Updates the scene asset settings so that this object can be immediately reimported into the game"
     )
     
@@ -4014,6 +4022,10 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         return {'FINISHED'}
     
     def invoke(self, context, event):
+        global checked_asset_once
+        if not self.setup_as_asset and not utils.valid_nwo_asset(context) and not checked_asset_once:
+            checked_asset_once = True
+            self.setup_as_asset = True
         self.mouse_x = event.mouse_region_x
         self.mouse_y = event.mouse_region_y
         suffix = Path(self.filepath).suffix.lower()
