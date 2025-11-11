@@ -187,7 +187,7 @@ class DecoratorSetTag(Tag):
                         image.nwo.filepath = utils.relative_path(image_path)
                         image.nwo.shader_type = bitmap.get_shader_type()
 
-                        if for_normal or bitmap.tag_path.RelativePathWithExtension == r"shaders\default_bitmaps\bitmaps\default_detail.bitmap":
+                        if for_normal:
                             image.colorspace_settings.name = 'Non-Color'
                         elif curve == 3:
                             image.colorspace_settings.name = 'Linear Rec.709'

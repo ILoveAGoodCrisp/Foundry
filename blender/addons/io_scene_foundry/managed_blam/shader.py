@@ -725,7 +725,7 @@ class ShaderTag(Tag):
             image.nwo.filepath = utils.relative_path(image_path)
             image.nwo.shader_type = bitmap.get_shader_type()
 
-            if for_normal or bitmap.tag_path.RelativePathWithExtension == r"shaders\default_bitmaps\bitmaps\default_detail.bitmap":
+            if for_normal:
                 image.colorspace_settings.name = 'Non-Color'
             elif curve == 3:
                 image.colorspace_settings.name = 'Linear Rec.709'
@@ -765,16 +765,23 @@ class ShaderTag(Tag):
             return NormalType.OPENGL
                 
     def _value_from_parameter(self, parameter: OptionParameter, value_type: AnimatedParameterType):
+        default_value = parameter.default
         for element in self.block_parameters.Elements:
-            # print(element.Fields[0].GetStringData(), parameter.name)
             if element.Fields[0].GetStringData() == parameter.name:
+                match parameter.type:
+                    case 2:
+                        default_value = element.SelectField("real").Data
+                    case 3:
+                        default_value = element.SelectField(r"int\bool").Data
+                    case 4:
+                        default_value = bool(element.SelectField(r"int\bool").Data)
                 break
         else:
             if not self.corinth and self.reference.Path:
                 with ShaderTag(path=self.reference.Path) as shader:
                     return shader._value_from_parameter(parameter, value_type)
             else:
-                return parameter.default
+                return default_value
             
         for element in element.SelectField(self.function_parameters).Elements:
             if element.Fields[0].Value != value_type.value:
@@ -787,7 +794,7 @@ class ShaderTag(Tag):
             with ShaderTag(path=self.reference.Path) as shader:
                 return shader._value_from_parameter(parameter, value_type)
         else:
-            return parameter.default
+            return default_value
     
     def _set_alpha(self, alpha_type, blender_material):
         if alpha_type == 'blend':
@@ -1304,7 +1311,7 @@ class ShaderTag(Tag):
                 match end_input.type:
                     case 'FLOAT' | 'ROTATION' | 'VALUE':
                         end_input.default_value = float(data)
-                    case 'BOOL':
+                    case 'BOOLEAN':
                         end_input.default_value = bool(data)
                     case 'INT':
                         end_input.default_value = int(data)

@@ -98,16 +98,19 @@ class BitmapTag(Tag):
         source_gamma_value = self._source_gamma_from_color_space(color_space)
         source_gamma.Data = source_gamma_value
         bitmap_curve = override.SelectField("bitmap curve")
-        if source_gamma_value == 2.2:
+        if source_gamma_value > 2.0:
             bitmap_curve.SetValue("sRGB (gamma 2.2)")
-        elif source_gamma_value == 1:
+        elif source_gamma_value > 1:
+            bitmap_curve.SetValue("xRGB (gamma about 2.0)")
+        else:
             bitmap_curve.SetValue("linear")
             
         flags = override.SelectField("flags")
         flags.SetBit("Ignore Curve Override", True)
         bitmap_format = override.SelectField('bitmap format')
         if bitmap_type in ("Material Map", "Diffuse Map", "Blend Map (linear for terrains)", "Self-Illum Map", "Cube Map (Reflection Map)", "Detail Map"):
-            bitmap_format.SetValue('DXT5 (Compressed Color + Compressed 8-bit Alpha)')
+            # bitmap_format.SetValue('DXT5 (Compressed Color + Compressed 8-bit Alpha)')
+            bitmap_format.SetValue('Best Uncompressed Color Format')
             if bitmap_type == 'Material Map':
                 override.SelectField('mipmap limit').Data = -1
         elif bitmap_type in ("ZBrush Bump Map (from Bump Map)", "Normal Map (aka zbump)", "Normal Map (from Standard Orientation of Maya, Modo, Zbrush)"):
@@ -353,8 +356,10 @@ class BitmapTag(Tag):
         
         from System.Drawing import Rectangle # type: ignore
         from System.Drawing.Imaging import ImageLockMode, ImageFormat, PixelFormat # type: ignore
+        
+        single_pixel = (game_bitmap.Height == 1 and game_bitmap.Width == 1)
 
-        if bitmap.PixelFormat == PixelFormat.Format32bppArgb and blue_channel_fix:
+        if bitmap.PixelFormat == PixelFormat.Format32bppArgb and (blue_channel_fix or self.curve.Value != 5):
             rectangle = Rectangle(0, 0, bitmap.Width, bitmap.Height)
             data = bitmap.LockBits(rectangle, ImageLockMode.ReadWrite, bitmap.PixelFormat)
             try:
@@ -377,8 +382,14 @@ class BitmapTag(Tag):
                 B = array[..., 0]
                 G = array[..., 1]
                 R = array[..., 2]
-
-                lookup_table = (np.round(((np.arange(256) / 255.0) ** 2.2) * 255)).astype(np.uint8)
+                
+                if single_pixel or blue_channel_fix or self.curve.Value == 3:
+                    lookup_table = (np.round(((np.arange(256) / 255.0) ** 2.2) * 255)).astype(np.uint8)
+                elif self.curve.Value == 1:
+                    lookup_table = (np.round(((np.arange(256) / 255.0)) * 255)).astype(np.uint8)
+                else:
+                    lookup_table = (np.round(((np.arange(256) / 255.0) ** (2.2/2.0)) * 255)).astype(np.uint8)
+                    
                 r_linear = lookup_table[R]
                 g_linear = lookup_table[G]
 
@@ -387,10 +398,16 @@ class BitmapTag(Tag):
                     g = g_linear.astype(np.float32) / 255.0
 
                     b = np.sqrt(np.clip(1.0 - r*r - g*g, 0.0, 1.0))
+                    R[:] = r_linear
+                    G[:] = g_linear
                     B[:] = (b * 255.0 + 0.5).astype(np.uint8)
+                else:
+                    b_linear = lookup_table[B]
+                    
+                    R[:] = r_linear
+                    G[:] = g_linear
+                    B[:] = b_linear
 
-                R[:] = r_linear
-                G[:] = g_linear
             finally:
                 bitmap.UnlockBits(data)
         
@@ -451,8 +468,9 @@ class BitmapTag(Tag):
         if self.block_bitmaps.Elements.Count <= 0:
             return
         gamma = self.get_gamma_value()
-        if not blue_channel_fix and gamma != 2.2 and self.tag_path.RelativePathWithExtension != r"shaders\default_bitmaps\bitmaps\default_detail.bitmap": #dxt5
-            self.block_bitmaps.Elements[0].SelectField("CharEnum:curve").Value = 5
+        self.curve = self.block_bitmaps.Elements[0].SelectField("CharEnum:curve")
+        # if not blue_channel_fix and self.curve.Value != 3: #dxt5
+        #     self.curve.Value = 5
         bitmap_elements = self.block_bitmaps.Elements
         if bitmap_elements.Count > 1:
             # array_length = bitmap_elements.Count
@@ -520,7 +538,7 @@ class BitmapTag(Tag):
             case 'sRGB':
                 return 2.2
         
-        return 1.0
+        return 1.0 # NOTE keeping this 1.0 as 0.96 seems dangerous and needs further testing. 0.96 produces more accurate colors than 1.0
     
     def get_shader_type(self):
         items = [i.DisplayName for i in self.longenum_usage.Items]
