@@ -1229,6 +1229,7 @@ class NWO_Import(bpy.types.Operator):
         for ob in objects:
             if not ob.parent:
                 ob.parent = self.anchor
+                ob.parent_type = 'OBJECT'
     
     def invoke(self, context, event):
         # skip_fileselect = False
