@@ -1024,7 +1024,7 @@ class NWO_Import(bpy.types.Operator):
                     bsp_files = importer.sorted_filepaths["scenario_structure_bsp"]
                     imported_bsp_objects = []
                     for bsp in bsp_files:
-                        bsp_objects = importer.import_bsp(bsp)
+                        bsp_objects, _ = importer.import_bsp(bsp)
                         imported_bsp_objects.extend(bsp_objects)
                         set_asset(Path(bsp).suffix)
                     if importer.needs_scaling:
