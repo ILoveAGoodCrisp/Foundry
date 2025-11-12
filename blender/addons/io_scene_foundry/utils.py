@@ -4941,7 +4941,7 @@ def intersect_ray_plane(origin, direction, plane_co, plane_no):
     return origin + direction * t
             
 def matrix_from_mouse(mouse_x, mouse_y):
-    region, rv3d = bpy.context.region
+    region = bpy.context.region
     space = bpy.context.space_data
     if not hasattr(space, "region_3d"):
         return Matrix.Identity(4)

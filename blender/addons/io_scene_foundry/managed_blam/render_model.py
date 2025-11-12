@@ -109,7 +109,14 @@ class RenderModelTag(Tag):
             if result:
                 objects.extend(result)
             else:
-                return objects, self.armature
+                if no_armature:
+                    objects.pop(0)
+                    data = self.armature.data
+                    bpy.data.objects.remove(self.armature)
+                    bpy.data.armatures.remove(data)
+                    return objects
+                else:
+                    return objects, self.armature
         if markers:
             # print("Creating Markers")
             objects.extend(self._create_markers(allowed_region_permutations))
