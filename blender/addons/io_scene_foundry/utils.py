@@ -4941,7 +4941,11 @@ def intersect_ray_plane(origin, direction, plane_co, plane_no):
     return origin + direction * t
             
 def matrix_from_mouse(mouse_x, mouse_y):
-    region, rv3d = bpy.context.region, bpy.context.space_data.region_3d
+    region, rv3d = bpy.context.region
+    space = bpy.context.space_data
+    if not hasattr(space, "region_3d"):
+        return Matrix.Identity(4)
+    rv3d = space.region_3d
     coord = (mouse_x, mouse_y)
     origin_loc = view3d_utils.region_2d_to_origin_3d(region, rv3d, coord)
     origin_vec = view3d_utils.region_2d_to_vector_3d(region, rv3d, coord)
