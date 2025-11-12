@@ -17,7 +17,7 @@ from .. import utils
 
 class NWO_OT_BuildShaderTemplates(bpy.types.Operator):
     bl_idname = "nwo.build_shader_templates"
-    bl_label = "Convert all Shaders to Blender Material Nodes"
+    bl_label = "Generate Missing Shader Templates"
     bl_description = "Checks the in scope shaders for existing shader templates, where these are missing this tool will generate them"
     bl_options = {"UNDO"}
     
