@@ -193,7 +193,8 @@ class NWO_MeshToMarker(bpy.types.Operator):
                 case '_connected_geometry_marker_type_effects':
                     ob.nwo.marker_type = '_connected_geometry_marker_type_effects'
                     ob.empty_display_type = 'ARROWS'
-                    ob.name = 'fx_' + ob.name
+                    if not ob.name.lower().startswith("fx_"):
+                        ob.name = 'fx_' + ob.name
                 case '_connected_geometry_marker_type_garbage':
                     ob.nwo.marker_type = '_connected_geometry_marker_type_garbage'
                     ob.empty_display_type = 'ARROWS'

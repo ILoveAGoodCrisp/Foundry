@@ -1115,6 +1115,10 @@ class VirtualMesh:
         is_physics = props.get("bungie_mesh_type") == MeshType.physics.value
 
         if self.vertex_weighted:
+            default_bone_index = 0
+            if ob.parent_type == 'BONE' and ob.parent_bone in bones:
+                default_bone_index = bones.index(ob.parent_bone)
+            
             vgroup_bone_names = {vg.name: idx for idx, vg in enumerate(ob.vertex_groups)}
 
             bone_weights = np.zeros((num_loops, 4), dtype=np.single)
@@ -1133,8 +1137,8 @@ class VirtualMesh:
                 if not groups:
                     continue
 
-                weights = np.empty(len(groups), dtype=np.single)
-                indices = np.empty(len(groups), dtype=np.int32)
+                weights = np.zeros(len(groups), dtype=np.single)
+                indices = np.full(len(groups), fill_value=default_bone_index, dtype=np.int32)
                 groups.foreach_get("weight", weights)
                 groups.foreach_get("group", indices)
 
@@ -1173,7 +1177,7 @@ class VirtualMesh:
                 if bone_use_counter:
                     most_used_bone = max(bone_use_counter, key=bone_use_counter.get)
                 else:
-                    most_used_bone = 0
+                    most_used_bone = default_bone_index
 
                 bone_weights[:, :] = 255
                 bone_indices[:, :] = most_used_bone
@@ -1183,17 +1187,16 @@ class VirtualMesh:
 
             # assign everything to root bone if no vertex weights
             if not used_bones:
-                fallback = 0
-                used_bones = [fallback]
+                used_bones = [default_bone_index]
                 bone_weights[:, :] = 255
-                bone_indices[:, :] = fallback
+                bone_indices[:, :] = default_bone_index
 
             max_bone_index = len(bones) - 1
             used_bones = [i for i in used_bones if 0 <= i <= max_bone_index]
             if not used_bones:
-                used_bones = [0]
+                used_bones = [default_bone_index]
                 bone_weights[:, :] = 255
-                bone_indices[:, :] = 0
+                bone_indices[:, :] = default_bone_index
 
             bone_index_remap = {orig_idx: new_idx for new_idx, orig_idx in enumerate(used_bones)}
 
@@ -1463,7 +1466,7 @@ class VirtualNode:
                     self.mesh = existing_mesh
                     self.mesh.siblings.append(self.name)
                 else:
-                    vertex_weighted = id.vertex_groups and id.parent and id.parent.type == 'ARMATURE' and id.parent_type != "BONE" and has_armature_deform_mod(id)
+                    vertex_weighted = id.vertex_groups and id.parent and id.parent.type == 'ARMATURE' and has_armature_deform_mod(id)
                     mesh = VirtualMesh(vertex_weighted, scene, default_bone_bindings, id, is_rendered(self.props), proxies if existing_linked_mesh is None else existing_linked_mesh.proxies, self.props, self.negative_scaling, bones, materials)
                     self.mesh = mesh
                     self.new_mesh = True
