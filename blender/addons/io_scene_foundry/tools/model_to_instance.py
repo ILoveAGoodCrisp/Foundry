@@ -223,8 +223,8 @@ class ModelInstance:
         
         objects.append(render_ob)
         
-        if self.collision_objects or self.physics_objects:
-            proxy_scene = utils.get_foundry_storage_scene()
+        # if self.collision_objects or self.physics_objects:
+        #     proxy_scene = utils.get_foundry_storage_scene()
         
         collision_ob = None
         if self.collision_objects:
@@ -242,8 +242,8 @@ class ModelInstance:
             
             # collision_ob.nwo.proxy_parent = render_ob.data
             collision_ob.nwo.proxy_type = 'collision'
-            proxy_scene = utils.get_foundry_storage_scene()
-            proxy_scene.collection.objects.link(collision_ob)
+            # proxy_scene = utils.get_foundry_storage_scene()
+            # proxy_scene.collection.objects.link(collision_ob)
             
             render_mesh.nwo.proxy_collision = collision_ob
             objects.append(collision_ob)
@@ -269,7 +269,7 @@ class ModelInstance:
                     
             # physics_ob.nwo.proxy_parent = render_ob.data
             physics_ob.nwo.proxy_type = 'physics'
-            proxy_scene.collection.objects.link(physics_ob)
+            # proxy_scene.collection.objects.link(physics_ob)
             setattr(render_ob.data.nwo, f"proxy_physics{idx}", physics_ob)
             objects.append(physics_ob)
             self._global_materials_to_shaders_object(materials_shaders, physics_ob, ob.nwo.global_material)

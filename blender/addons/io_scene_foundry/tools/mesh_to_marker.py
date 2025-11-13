@@ -286,7 +286,7 @@ def convert_to_marker(ob: bpy.types.Object, maintain_mesh=False) -> bpy.types.Ob
         ob.matrix_world = Matrix()
         # mesh_ob = bpy.data.objects.new(original_name + '_TEMP', ob.data)
         secret_coll = bpy.data.collections.new(original_name)
-        utils.get_foundry_storage_scene().collection.children.link(secret_coll)
+        # utils.get_foundry_storage_scene().collection.children.link(secret_coll)
         secret_coll.objects.link(ob)
         marker.instance_type = 'COLLECTION'
         marker.instance_collection = secret_coll
