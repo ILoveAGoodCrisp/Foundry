@@ -214,7 +214,7 @@ class InstanceDefinition:
                         self.blender_collision = self.collision_info.to_object()
                         if self.blender_render and self.blender_render.type == 'MESH':
                             self.blender_collision.name = f"{self.blender_render.name}_proxy_collision"
-                            self.blender_collision.nwo.proxy_parent = self.blender_render.data
+                            # self.blender_collision.nwo.proxy_parent = self.blender_render.data
                             self.blender_collision.nwo.proxy_type = "collision"
                             self.blender_render.data.nwo.proxy_collision = self.blender_collision
                     elif self.collision_only_surface_indices:
@@ -285,13 +285,13 @@ class InstanceDefinition:
                     phys.data.materials.append(polyhedra.material.blender_material)
                     if self.blender_render and self.blender_render.type == 'MESH':
                         phys.name = f"{self.blender_render.name}_proxy_physics{idx}"
-                        phys.nwo.proxy_parent = self.blender_render.data
+                        # phys.nwo.proxy_parent = self.blender_render.data
                         phys.nwo.proxy_type = "physics"
                         setattr(self.blender_render.data.nwo, f"proxy_physics{idx}", phys)
                         
                     elif self.blender_collision and (utils.test_face_prop_all(self.blender_collision.data, "Collision Only") or utils.test_face_prop_all(self.blender_collision.data, "Sphere Collision Only")):
                         phys.name = f"{self.blender_collision.name}_proxy_physics{idx}"
-                        phys.nwo.proxy_parent = self.blender_collision.data
+                        # phys.nwo.proxy_parent = self.blender_collision.data
                         phys.nwo.proxy_type = "physics"
                         setattr(self.blender_collision.data.nwo, f"proxy_physics{idx}", phys)
                     else:
@@ -301,7 +301,7 @@ class InstanceDefinition:
             if self.has_cookie:
                 self.blender_cookie = self.cookie_info.to_object()
                 self.blender_cookie.name = f"{self.blender_render.name}_proxy_cookie_cutter"
-                self.blender_cookie.nwo.proxy_parent = self.blender_render.data
+                # self.blender_cookie.nwo.proxy_parent = self.blender_render.data
                 self.blender_cookie.nwo.proxy_type = "cookie_cutter"
                 self.blender_render.data.nwo.proxy_cookie_cutter = self.blender_cookie
 

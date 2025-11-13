@@ -60,7 +60,7 @@ def import_handler(import_context):
                             if prop.region_name:
                                 utils.add_region(prop.region_name)
                                 
-                    if id.nwo.proxy_parent is not None:
+                    if id.nwo.proxy_type:
                         proxies.append(item.id)
                             
                     
@@ -132,7 +132,7 @@ def load_handler(dummy):
         proxy_left_active = context.scene.nwo.instance_proxy_running
         if proxy_left_active:
             for ob in context.view_layer.objects:
-                if ob.nwo.proxy_parent:
+                if ob.nwo.proxy_type:
                     utils.unlink(ob)
 
             context.scene.nwo.instance_proxy_running = False

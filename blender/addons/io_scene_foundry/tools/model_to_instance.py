@@ -240,7 +240,7 @@ class ModelInstance:
             bm.to_mesh(collision_mesh)
             bm.free()
             
-            collision_ob.nwo.proxy_parent = render_ob.data
+            # collision_ob.nwo.proxy_parent = render_ob.data
             collision_ob.nwo.proxy_type = 'collision'
             proxy_scene = utils.get_foundry_storage_scene()
             proxy_scene.collection.objects.link(collision_ob)
@@ -267,7 +267,7 @@ class ModelInstance:
             
             physics_mesh.transform(ob.matrix_world)
                     
-            physics_ob.nwo.proxy_parent = render_ob.data
+            # physics_ob.nwo.proxy_parent = render_ob.data
             physics_ob.nwo.proxy_type = 'physics'
             proxy_scene.collection.objects.link(physics_ob)
             setattr(render_ob.data.nwo, f"proxy_physics{idx}", physics_ob)

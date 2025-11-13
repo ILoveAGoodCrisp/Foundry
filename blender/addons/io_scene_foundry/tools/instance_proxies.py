@@ -45,13 +45,13 @@ class NWO_ProxyInstanceEdit(bpy.types.Operator):
         self.proxy_ob = bpy.data.objects[self.proxy]
         self.scene_coll = context.scene.collection.objects
         old_ob = None
-        if self.proxy_ob.nwo.proxy_parent != self.parent.data:
-            old_ob = self.proxy_ob
-            self.proxy_ob = self.proxy_ob.copy()
-            self.proxy_ob.data = self.proxy_ob.data.copy()
-            self.proxy_ob.nwo.proxy_parent = self.parent.data
-            for collection in old_ob.users_collection:
-                collection.objects.link(self.proxy_ob)
+        # if self.proxy_ob.nwo.proxy_parent != self.parent.data:
+        #     old_ob = self.proxy_ob
+        #     self.proxy_ob = self.proxy_ob.copy()
+        #     self.proxy_ob.data = self.proxy_ob.data.copy()
+        #     self.proxy_ob.nwo.proxy_parent = self.parent.data
+        #     for collection in old_ob.users_collection:
+        #         collection.objects.link(self.proxy_ob)
                 
         data_nwo = self.parent.data.nwo
         if data_nwo.proxy_collision is not None:
@@ -284,7 +284,7 @@ class NWO_ProxyInstanceNew(bpy.types.Operator):
             return {'CANCELLED'}
 
         # self.scene_coll.link(ob)
-        ob.nwo.proxy_parent = self.parent.data
+        # ob.nwo.proxy_parent = self.parent.data
         ob.nwo.proxy_type = proxy_type
         proxy_scene = get_foundry_storage_scene()
         proxy_scene.collection.objects.link(ob)
@@ -332,8 +332,8 @@ class NWO_ProxyInstanceNew(bpy.types.Operator):
     
 class NWO_ProxyInstanceDelete(bpy.types.Operator):
     bl_idname = "nwo.proxy_instance_delete"
-    bl_description = "Deletes a proxy object"
-    bl_label = "Instance Proxy Delete"
+    bl_description = "Unlinks a proxy object"
+    bl_label = "Instance Proxy Unlink"
     bl_options = {'UNDO'}
 
     proxy : bpy.props.StringProperty()
@@ -343,8 +343,29 @@ class NWO_ProxyInstanceDelete(bpy.types.Operator):
         return bpy.ops.object.mode_set.poll()
 
     def execute(self, context):
-        proxy_ob = bpy.data.objects[self.proxy]
-        bpy.data.objects.remove(proxy_ob)
+        proxy_ob = bpy.data.objects.get(self.proxy)
+        if proxy_ob is None:
+            return {'CANCELLED'}
+        
+        parent_ob = context.object
+        
+        if proxy_ob.data is None:
+            return {'CANCELLED'}
+        
+        nwo = parent_ob.data.nwo
+        
+        if nwo is None:
+            return {'CANCELLED'}
+        
+        if nwo.proxy_collision == proxy_ob:
+            nwo.proxy_collision = None
+        elif nwo.proxy_cookie_cutter == proxy_ob:
+            nwo.proxy_collision = None
+        else:
+            for i in range(200):
+                if getattr(nwo, f"proxy_physics{i}") == proxy_ob:
+                    setattr(nwo, f"proxy_physics{i}", None)
+        
         return {'FINISHED'}
     
 class NWO_ProxyInstanceCancel(bpy.types.Operator):

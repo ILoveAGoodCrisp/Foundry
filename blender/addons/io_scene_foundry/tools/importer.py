@@ -3148,7 +3148,7 @@ class NWOImporter:
                                 
                 elif ob.parent and mesh_type_legacy == 'collision' and (ob.parent.name[0] == "%" and ob.parent.type == 'MESH'):
                     # setup poop proxy
-                    ob.nwo.proxy_parent = ob.parent.data
+                    # ob.nwo.proxy_parent = ob.parent.data
                     ob.nwo.proxy_type = "collision"
                     ob.parent.data.nwo.proxy_collision = ob
                     utils.unlink(ob)

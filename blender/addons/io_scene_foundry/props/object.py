@@ -78,7 +78,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     )
     
     ### PROXY
-    proxy_parent: bpy.props.PointerProperty(type=bpy.types.Mesh)
+    # proxy_parent: bpy.props.PointerProperty(type=bpy.types.Mesh)
     proxy_type : bpy.props.StringProperty()
     #### MARKER PERM
     marker_permutations: bpy.props.CollectionProperty(
