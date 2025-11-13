@@ -363,7 +363,7 @@ class NWO_MT_PIE_ApplyTypeMarker(bpy.types.Menu):
         layout = self.layout
 
         pie = layout.menu_pie()
-        pie.operator_enum("nwo.apply_type_marker", "m_type")
+        pie.operator_enum("nwo.mesh_to_marker", "marker_type")
 
 
 class NWO_PIE_ApplyTypeMarker(bpy.types.Operator):

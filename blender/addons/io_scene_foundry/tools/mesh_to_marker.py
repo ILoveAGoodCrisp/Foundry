@@ -236,7 +236,7 @@ class NWO_MeshToMarker(bpy.types.Operator):
         return {'FINISHED'}
     
     def invoke(self, context, event):
-        if self.mesh_selected and self.marker_type == '_connected_geometry_marker_type_game_instance':
+        if self.meshes_selected and self.marker_type == '_connected_geometry_marker_type_game_instance':
             self.maintain_mesh = True
         return self.execute(context)
     
