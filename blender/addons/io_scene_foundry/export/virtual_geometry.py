@@ -1118,7 +1118,7 @@ class VirtualMesh:
             default_bone_index = 0
             if ob.parent_type == 'BONE' and ob.parent_bone in bones:
                 default_bone_index = bones.index(ob.parent_bone)
-            
+
             vgroup_bone_names = {vg.name: idx for idx, vg in enumerate(ob.vertex_groups)}
 
             bone_weights = np.zeros((num_loops, 4), dtype=np.single)
@@ -1132,46 +1132,63 @@ class VirtualMesh:
                 if vg_bone_index is not None:
                     vgroup_remap[vg_bone_index] = idx
 
+            def remap(vg_idx):
+                return vgroup_remap.get(int(vg_idx), -1)
+
             for v_idx, vertex in enumerate(mesh.vertices):
                 groups = vertex.groups
                 if not groups:
                     continue
 
                 weights = np.zeros(len(groups), dtype=np.single)
-                indices = np.full(len(groups), fill_value=default_bone_index, dtype=np.int32)
+                indices = np.zeros(len(groups), dtype=np.int32)
+
                 groups.foreach_get("weight", weights)
                 groups.foreach_get("group", indices)
 
-                indices = np.vectorize(remap)(indices)
+                bone_ids = np.array([remap(g) for g in indices], dtype=np.int32)
 
-                order = np.argsort(-weights)
-                weights = weights[order]
-                indices = indices[order]
+                valid_mask = bone_ids >= 0
+                bone_ids = bone_ids[valid_mask]
+                weights = weights[valid_mask]
 
-                if is_collision:
-                    weights = weights[:1]
-                    indices = indices[:1]
+                if len(weights) == 0:
+                    bone_ids = np.array([default_bone_index], dtype=np.int32)
+                    weights = np.array([1.0], dtype=np.single)
                 else:
-                    weights = weights[:4]
-                    indices = indices[:4]
+                    order = np.argsort(-weights)
+                    bone_ids = bone_ids[order]
+                    weights = weights[order]
 
-                # Normalize positive weights
+                    if is_collision:
+                        bone_ids = bone_ids[:1]
+                        weights = weights[:1]
+                    else:
+                        bone_ids = bone_ids[:4]
+                        weights = weights[:4]
+
+                    total = weights.sum()
+                    if total > 0:
+                        weights = weights / total
+                    else:
+                        bone_ids = np.array([default_bone_index], dtype=np.int32)
+                        weights = np.array([1.0], dtype=np.single)
+
+                # pad to 4
+                pad = 4 - len(weights)
+                if pad > 0:
+                    bone_ids = np.pad(bone_ids, (0, pad), constant_values=default_bone_index)
+                    weights = np.pad(weights, (0, pad), constant_values=0.0)
+
+                bone_weights[v_idx] = (weights * 255.0)
+                bone_indices[v_idx] = bone_ids
+
+                # track used bones
                 positive_mask = weights > 0.0
-                if weights.sum() > 0.0:
-                    weights = weights / weights.sum()
-                else:
-                    positive_mask = weights > 0.0
-
-                indices[~positive_mask] = 0
-
-                bone_weights[v_idx] = np.pad((weights * 255.0), (0, 4 - len(weights)))
-                bone_indices[v_idx] = np.pad(indices, (0, 4 - len(indices)))
-
                 if positive_mask.any():
-                    unique_bone_indices.update(indices[positive_mask])
-
-                for b in indices[positive_mask]:
-                    bone_use_counter[b] = bone_use_counter.get(b, 0) + 1
+                    unique_bone_indices.update(bone_ids[positive_mask])
+                    for b in bone_ids[positive_mask]:
+                        bone_use_counter[b] = bone_use_counter.get(b, 0) + 1
 
             if is_physics:
                 if bone_use_counter:
@@ -1185,7 +1202,6 @@ class VirtualMesh:
 
             used_bones = sorted(unique_bone_indices)
 
-            # assign everything to root bone if no vertex weights
             if not used_bones:
                 used_bones = [default_bone_index]
                 bone_weights[:, :] = 255
@@ -1207,6 +1223,7 @@ class VirtualMesh:
             self.bone_bindings = [bones[i] for i in used_bones]
             self.bone_weights = bone_weights.astype(np.byte)[loop_vertex_indices]
             self.bone_indices = remapped_indices.astype(np.byte)[loop_vertex_indices]
+
         
         if render_mesh:
             # We only care about writing this data if the in game mesh will have a render definition
@@ -1472,7 +1489,7 @@ class VirtualNode:
                     self.new_mesh = True
                     
                 self.bone_bindings = self.mesh.bone_bindings
-                if self.mesh.vertex_weighted:
+                if self.mesh.vertex_weighted and not (id.parent_type == 'BONE' and id.parent_bone):
                     self.matrix_local = IDENTITY_MATRIX
                     
                 if self.mesh.invalid:
