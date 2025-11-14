@@ -350,9 +350,12 @@ class TableEntryHideSelect(bpy.types.Operator):
         permutations_table = getattr(nwo, 'permutations_table')
         for ob in entry_objects:
             if should_hide_select == False:
-                ecoll = collection_map[ob.nwo.export_collection]
-                region = ecoll.region
-                permutation = ecoll.permutation
+                region = None
+                permutation = None
+                ecoll = collection_map.get(ob.nwo.export_collection)
+                if ecoll:
+                    region = ecoll.region
+                    permutation = ecoll.permutation
                 if region is None:
                     region = ob.nwo.region_name
                 if permutation is None:
@@ -903,9 +906,12 @@ def get_entry(table, entry_name):
             return entry
         
 def true_table_entry(ob, ob_prop_str, entry_name, collection_map) -> bool:
-    ecoll = collection_map[ob.nwo.export_collection]
-    region = ecoll.region
-    permutation = ecoll.permutation
+    region = None
+    permutation = None
+    ecoll = collection_map.get(ob.nwo.export_collection)
+    if ecoll:
+        region = ecoll.region
+        permutation = ecoll.permutation
     if region is None:
         region = ob.nwo.region_name
     if permutation is None:
@@ -1054,9 +1060,12 @@ def unhide_objects(objects, nwo, collection_map):
 
     # Only unhide objects if both region and permutation are set to unhidden
     for ob in objects:
-        ecoll = collection_map[ob.nwo.export_collection]
-        region = ecoll.region
-        permutation = ecoll.permutation
+        region = None
+        permutation = None
+        ecoll = collection_map.get(ob.nwo.export_collection)
+        if ecoll:
+            region = ecoll.region
+            permutation = ecoll.permutation
         if not region:
             region = ob.nwo.region_name
         if not permutation:
