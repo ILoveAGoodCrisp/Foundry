@@ -854,7 +854,7 @@ class NWO_Import(bpy.types.Operator):
                                     converter.instance.matrix_world = mouse_matrix
                                 
                         else:
-                            game_object_cache = {(c.nwo.game_object_path, c.nwo.game_object_variant): c for c in utils.get_foundry_storage_scene().collection.children if c.nwo.game_object_path}
+                            game_object_cache = {(c.nwo.game_object_path, c.nwo.game_object_variant): c for c in bpy.data.collections if c.nwo.game_object_path}
                             key = marker.nwo.marker_game_instance_tag_name, marker.nwo.marker_game_instance_tag_variant_name
                             game_object_collection = game_object_cache.get(key)
                             imported_object_objects = []
@@ -863,7 +863,7 @@ class NWO_Import(bpy.types.Operator):
                                 merge_collection(game_object_collection)
                                 imported_object_objects = game_object_collection.all_objects
                                 context.scene.collection.children.unlink(game_object_collection)
-                                # utils.get_foundry_storage_scene().collection.children.link(game_object_collection)
+                                # bpy.data.collections.link(game_object_collection)
                                 game_object_collection.nwo.game_object_path, game_object_collection.nwo.game_object_variant = key
                                 
                             marker.instance_type = 'COLLECTION'
@@ -1054,7 +1054,7 @@ class NWO_Import(bpy.types.Operator):
                 elif 'prefab' in importer.extensions:
                     importer.setup_as_asset = self.setup_as_asset
                     if self.place_at_mouse:
-                        game_object_cache = {c.nwo.game_object_path: c for c in utils.get_foundry_storage_scene().collection.children if c.nwo.game_object_path}
+                        game_object_cache = {c.nwo.game_object_path: c for c in bpy.data.collections if c.nwo.game_object_path}
                         key = marker.nwo.marker_game_instance_tag_name
                         game_object_collection = game_object_cache.get(key)
                         imported_object_objects = []
@@ -1063,7 +1063,7 @@ class NWO_Import(bpy.types.Operator):
                             merge_collection(game_object_collection)
                             imported_object_objects = game_object_collection.all_objects
                             context.scene.collection.children.unlink(game_object_collection)
-                            # utils.get_foundry_storage_scene().collection.children.link(game_object_collection)
+                            # bpy.data.collections.link(game_object_collection)
                             game_object_collection.nwo.game_object_path = key
                             
                         marker.instance_type = 'COLLECTION'
@@ -1101,7 +1101,7 @@ class NWO_Import(bpy.types.Operator):
                 if 'decorator_set' in importer.extensions:
                     importer.setup_as_asset = self.setup_as_asset
                     if self.place_at_mouse:
-                        game_object_cache = {(c.nwo.game_object_path, c.nwo.game_object_variant): c for c in utils.get_foundry_storage_scene().collection.children if c.nwo.game_object_path}
+                        game_object_cache = {(c.nwo.game_object_path, c.nwo.game_object_variant): c for c in bpy.data.collections if c.nwo.game_object_path}
                         key = marker.nwo.marker_game_instance_tag_name, marker.nwo.marker_game_instance_tag_variant_name
                         game_object_collection = game_object_cache.get(key)
                         imported_object_objects = []
@@ -1110,7 +1110,7 @@ class NWO_Import(bpy.types.Operator):
                             merge_collection(game_object_collection)
                             imported_object_objects = game_object_collection.all_objects
                             context.scene.collection.children.unlink(game_object_collection)
-                            # utils.get_foundry_storage_scene().collection.children.link(game_object_collection)
+                            # bpy.data.collections.link(game_object_collection)
                             game_object_collection.nwo.game_object_path, game_object_collection.nwo.game_object_variant = key
                             
                         marker.instance_type = 'COLLECTION'
@@ -2393,7 +2393,7 @@ class NWOImporter:
                             if game_objects:
                                 print("Importing Game Object Geometry")
                                 imported_objects.extend(game_objects)
-                                game_object_cache = {(c.nwo.game_object_path, c.nwo.game_object_variant): c for c in utils.get_foundry_storage_scene().collection.children if c.nwo.game_object_path}
+                                game_object_cache = {(c.nwo.game_object_path, c.nwo.game_object_variant): c for c in bpy.data.collections if c.nwo.game_object_path}
                                 for ob, skeleton_pose in zip(game_objects, skeleton_poses):
                                     has_skeleton_pose = bool(skeleton_pose)
 
@@ -2412,7 +2412,7 @@ class NWOImporter:
                                         merge_collection(game_object_collection, has_skeleton_pose)
                                         imported_objects.extend(game_object_collection.all_objects)
                                         self.context.scene.collection.children.unlink(game_object_collection)
-                                        # utils.get_foundry_storage_scene().collection.children.link(game_object_collection)
+                                        # bpy.data.collections.link(game_object_collection)
                                         if not has_skeleton_pose:
                                             game_object_collection.nwo.game_object_path, game_object_collection.nwo.game_object_variant = key
                                             game_object_cache[key] = game_object_collection
@@ -2429,7 +2429,7 @@ class NWOImporter:
                             if decorator_objects:
                                 print("Importing Decorator Set Geometry")
                                 imported_objects.extend(decorator_objects)
-                                game_object_cache = {(c.nwo.game_object_path, c.nwo.game_object_variant): c for c in utils.get_foundry_storage_scene().collection.children if c.nwo.game_object_path}
+                                game_object_cache = {(c.nwo.game_object_path, c.nwo.game_object_variant): c for c in bpy.data.collections if c.nwo.game_object_path}
                                 for ob in decorator_objects:
                                     key = ob.nwo.marker_game_instance_tag_name, ob.nwo.marker_game_instance_tag_variant_name
                                     game_object_collection = game_object_cache.get(key)
@@ -2439,7 +2439,7 @@ class NWOImporter:
                                         merge_collection(game_object_collection)
                                         imported_objects.extend(game_object_collection.all_objects)
                                         self.context.scene.collection.children.unlink(game_object_collection)
-                                        # utils.get_foundry_storage_scene().collection.children.link(game_object_collection)
+                                        # bpy.data.collections.link(game_object_collection)
                                         game_object_collection.nwo.game_object_path, game_object_collection.nwo.game_object_variant = key
                                         game_object_cache[key] = game_object_collection
                                         
@@ -2492,7 +2492,7 @@ class NWOImporter:
                 
                 if game_objects:
                     print("Importing Game Object Geometry")
-                    game_object_cache = {(c.nwo.game_object_path, c.nwo.game_object_variant): c for c in utils.get_foundry_storage_scene().collection.children if c.nwo.game_object_path}
+                    game_object_cache = {(c.nwo.game_object_path, c.nwo.game_object_variant): c for c in bpy.data.collections if c.nwo.game_object_path}
                     for ob in game_objects:
                         
                         key = ob.nwo.marker_game_instance_tag_name, ob.nwo.marker_game_instance_tag_variant_name
@@ -2506,7 +2506,7 @@ class NWOImporter:
                             merge_collection(game_object_collection)
                             bsp_objects.extend(game_object_collection.all_objects)
                             self.context.scene.collection.children.unlink(game_object_collection)
-                            # utils.get_foundry_storage_scene().collection.children.link(game_object_collection)
+                            # bpy.data.collections.link(game_object_collection)
                             game_object_collection.nwo.game_object_path, game_object_collection.nwo.game_object_variant = key
                             game_object_cache[key] = game_object_collection
                             
@@ -3152,7 +3152,7 @@ class NWOImporter:
                     ob.nwo.proxy_type = "collision"
                     ob.parent.data.nwo.proxy_collision = ob
                     utils.unlink(ob)
-                    utils.get_foundry_storage_scene().collection.objects.link(ob)
+                    # utils.get_foundry_storage_scene().collection.objects.link(ob)
                     self.jms_file_proxy_objects.append(ob)
                     return
                     
@@ -4512,7 +4512,7 @@ class NWO_ImportGameInstanceTag(bpy.types.Operator):
             self.report({'WARNING'}, f"Tag does not exist: {tag_path_full}")
             return {'CANCELLED'}
         
-        game_object_collections = {(c.nwo.game_object_path, c.nwo.game_object_variant): c for c in utils.get_foundry_storage_scene().collection.children if c.nwo.game_object_path}
+        game_object_collections = {(c.nwo.game_object_path, c.nwo.game_object_variant): c for c in bpy.data.collections if c.nwo.game_object_path}
         
         collection = game_object_collections.get((tag_path_rel, variant))
         if collection is None:
@@ -4530,7 +4530,7 @@ class NWO_ImportGameInstanceTag(bpy.types.Operator):
                 
             merge_collection(collection)
             context.scene.collection.children.unlink(collection)
-            utils.get_foundry_storage_scene().collection.children.link(collection)
+            bpy.data.collections.link(collection)
             collection.nwo.game_object_path = tag_path_rel
             collection.nwo.game_object_variant = variant
             
