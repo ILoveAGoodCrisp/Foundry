@@ -211,6 +211,8 @@ class ExportScene:
         self.hidden_objects = set()
         self.marker_instancers = []
         
+        self.used_game_object_names = set()
+        
     def _get_export_tag_types(self):
         tag_types = set()
         match self.asset_type:
@@ -1113,7 +1115,9 @@ class ExportScene:
         elif self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB}:
             if marker_type == "_connected_geometry_marker_type_game_instance":
                 rnd = random.Random()
-                rnd.seed(ob.name)
+                unique_name = self.make_unique_name(ob.name)
+                rnd.seed(unique_name)
+                ob.name = unique_name
                 props["bungie_object_ID"] = str(uuid.UUID(int=rnd.getrandbits(128)))
                 tag_name = nwo.marker_game_instance_tag_name.lower()
                 props["bungie_marker_game_instance_tag_name"] = tag_name
@@ -2607,6 +2611,26 @@ class ExportScene:
         ob.parent_type = 'OBJECT'
         self.temp_meshes.add(ob.data)
         return ob
+    
+    def make_unique_name(self, base_name: str):
+        base = base_name[:32]
+
+        if base not in self.used_game_object_names:
+            self.used_game_object_names.add(base)
+            return base
+
+        counter = 1
+        while True:
+            suffix = f"_{counter}"
+            trunc_len = 32 - len(suffix)
+
+            candidate = base_name[:trunc_len] + suffix
+
+            if candidate not in self.used_game_object_names:
+                self.used_game_object_names.add(candidate)
+                return candidate
+
+            counter += 1
 
 def decorator_int(ob):
     match ob.nwo.decorator_lod:
