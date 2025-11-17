@@ -289,6 +289,16 @@ class ExportScene:
         valid_objects = GENERAL_OBJECTS
         if self.asset_type in {AssetType.MODEL, AssetType.ANIMATION, AssetType.SINGLE_ANIMATION, AssetType.CINEMATIC}:
             valid_objects.add('ARMATURE')
+            
+            if main_armature:
+                self.armature_poses[main_armature.data] = main_armature.data.pose_position
+                main_armature.data.pose_position = 'REST'
+                
+            for support_arm in support_armatures:
+                self.armature_poses[support_arm.data] = support_arm.data.pose_position
+                support_arm.data.pose_position = 'REST'
+                
+            self.context.view_layer.update()
         
         proxy_export_objects = []
         for inst in self.depsgraph.object_instances:
@@ -490,8 +500,6 @@ class ExportScene:
                 #         self.action_map[ob.data.shape_keys] = (ob.matrix_basis.copy(), ob.data.shape_keys.animation_data.action)
                 ob: bpy.types.Object
                 if ob.type == 'ARMATURE' and self.asset_type in {AssetType.MODEL, AssetType.ANIMATION, AssetType.CINEMATIC}:
-                    self.armature_poses[ob.data] = ob.data.pose_position
-                    ob.data.pose_position = 'REST'
                     if self.asset_type == AssetType.CINEMATIC:
                         warning = utils.actor_validation(ob)
                         if warning is None:
