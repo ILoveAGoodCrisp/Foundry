@@ -98,7 +98,6 @@ class ShaderHalogramTag(ShaderTag):
         self.shader_parameters.update(self.category_parameters["edge_fade"][utils.game_str(e_edge_fade.name)])
         self.true_parameters = {option.ui_name: option for option in self.shader_parameters.values()}
         
-        blender_material.use_nodes = True
         tree = blender_material.node_tree
         nodes = tree.nodes
         # Clear it out

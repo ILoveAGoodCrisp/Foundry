@@ -2272,7 +2272,6 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
     #     if invis_mat is None:
     #         invis_mat = bpy.data.materials.new("Invisible")
     #         invis_mat.diffuse_color = [0.4, 1.0, 0.4, 0.6]
-    #         invis_mat.use_nodes = True
     #         bsdf = invis_mat.node_tree.nodes[0]
     #         bsdf.inputs[0].default_value = invis_mat.diffuse_color
     #         bsdf.inputs[4].default_value = invis_mat.diffuse_color[3]

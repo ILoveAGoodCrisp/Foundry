@@ -4220,7 +4220,7 @@ class NWO_OT_ImportBitmap(bpy.types.Operator):
         if images:
             if context.area.type == 'IMAGE_EDITOR':
                 context.area.spaces.active.image = images[0]
-            elif context.area.type == 'NODE_EDITOR' and context.material and context.material.use_nodes:
+            elif context.area.type == 'NODE_EDITOR' and context.material:
                 tree = context.material.node_tree
                 node = tree.nodes.new("ShaderNodeTexImage")
                 node.image = images[0]

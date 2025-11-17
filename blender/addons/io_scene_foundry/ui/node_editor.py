@@ -24,7 +24,7 @@ class NWO_OT_HaloMaterialTilingNode(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return context.space_data.type == 'NODE_EDITOR' and context.material and context.material.use_nodes
+        return context.space_data.type == 'NODE_EDITOR' and context.material
 
     def execute(self, context):
         tiling_node = 'Texture Tiling'
@@ -44,7 +44,7 @@ class NWO_OT_HaloMaterialNodes(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.space_data.type == 'NODE_EDITOR' and context.material and context.material.use_nodes
+        return context.space_data.type == 'NODE_EDITOR' and context.material
 
     def nodes_items(self, context):
         items = []

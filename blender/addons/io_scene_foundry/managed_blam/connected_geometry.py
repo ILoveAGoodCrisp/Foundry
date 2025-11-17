@@ -962,7 +962,6 @@ class RigidBody:
                 render_mat = bpy.data.materials.new("Physics")
                 render_mat.use_fake_user = True
                 render_mat.diffuse_color = special_materials.Physics.color
-                render_mat.use_nodes = True
                 bsdf = render_mat.node_tree.nodes[0]
                 bsdf.inputs[0].default_value = special_materials.Physics.color
                 bsdf.inputs[4].default_value = special_materials.Physics.color[3]

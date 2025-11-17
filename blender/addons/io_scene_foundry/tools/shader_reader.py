@@ -266,7 +266,6 @@ def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str, always_e
                 with ShaderGlassTag(path=tag_path) as shader:
                     shader.to_nodes(mat, always_extract_bitmaps)
             case 'shader_water':
-                mat.use_nodes = True
                 mat.node_tree.nodes.clear()
                 output = mat.node_tree.nodes.new("ShaderNodeOutputMaterial")
                 group = mat.node_tree.nodes.new("ShaderNodeGroup")

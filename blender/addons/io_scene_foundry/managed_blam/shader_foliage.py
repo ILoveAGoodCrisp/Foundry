@@ -47,7 +47,6 @@ class ShaderFoliageTag(ShaderTag):
         self.shader_parameters.update(self.category_parameters["material_model"][utils.game_str(e_material_model.name)])
         self.true_parameters = {option.ui_name: option for option in self.shader_parameters.values()}
         
-        blender_material.use_nodes = True
         tree = blender_material.node_tree
         nodes = tree.nodes
         # Clear it out

@@ -48,7 +48,6 @@ def append_grid_materials():
 def setup_grid_material(filepath):
     material_name = Path(filepath).with_suffix("").name
     material = bpy.data.materials.new(material_name)
-    material.use_nodes = True
     material.use_fake_user = True
     tree = material.node_tree
     nodes = tree.nodes

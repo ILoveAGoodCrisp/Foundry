@@ -3246,7 +3246,6 @@ def area_light_to_emissive(light_ob: bpy.types.Object, corinth: bool):
         if invis_mat is None:
             invis_mat = bpy.data.materials.new("Invisible")
             invis_mat.diffuse_color = [0.4, 1.0, 0.4, 0.6]
-            invis_mat.use_nodes = True
             bsdf = invis_mat.node_tree.nodes[0]
             bsdf.inputs[0].default_value = invis_mat.diffuse_color
             bsdf.inputs[4].default_value = invis_mat.diffuse_color[3]
@@ -4981,9 +4980,6 @@ def human_number(num: int | float):
     return f"{num:,}"
 
 def material_add_shield(material: bpy.types.Material):
-    if not material.use_nodes:
-        material.use_nodes = True
-        
     node_tree = material.node_tree
     
     if any(n.type == 'GROUP' and n.node_tree and n.node_tree.name == "Shield" for n in node_tree.nodes):
@@ -5020,9 +5016,6 @@ def material_add_shield(material: bpy.types.Material):
     arrange(node_tree)
 
 def material_add_emissive(material: bpy.types.Material):
-    if not material.use_nodes:
-        material.use_nodes = True
-        
     node_tree = material.node_tree
     
     if any(n.type == 'GROUP' and n.node_tree and n.node_tree.name == "Halo Emissive" for n in node_tree.nodes):

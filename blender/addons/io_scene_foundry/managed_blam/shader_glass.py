@@ -62,7 +62,6 @@ class ShaderGlassTag(ShaderTag):
         self.shader_parameters.update(self.category_parameters["alpha_blend_source"][utils.game_str(e_alpha_blend_source.name)])
         self.true_parameters = {option.ui_name: option for option in self.shader_parameters.values()}
 
-        blender_material.use_nodes = True
         tree = blender_material.node_tree
         nodes = tree.nodes
         # Clear it out

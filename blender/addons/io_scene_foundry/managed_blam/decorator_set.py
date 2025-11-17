@@ -160,7 +160,6 @@ class DecoratorSetTag(Tag):
             mat = bpy.data.materials.get(name)
             if mat is None:
                 mat = bpy.data.materials.new(name)
-                mat.use_nodes = True
                 if get_material:
                     tree = cast(bpy.types.NodeTree, mat.node_tree)
                     tree.nodes.clear()

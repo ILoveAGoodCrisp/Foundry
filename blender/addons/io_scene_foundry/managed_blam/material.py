@@ -291,7 +291,6 @@ class MaterialTag(ShaderTag):
         
     
     def _to_nodes_bsdf(self, blender_material: bpy.types.Material):
-        blender_material.use_nodes = True
         tree = blender_material.node_tree
         nodes = tree.nodes
         # Clear it out
@@ -450,7 +449,6 @@ class MaterialTag(ShaderTag):
         elif actual_material_shader_name != node_tree.name:
             utils.print_warning(f"Failed to find node group for {material_shader_name}, using {node_tree.name} instead")
         
-        blender_material.use_nodes = True
         tree = blender_material.node_tree
         nodes = tree.nodes
         nodes.clear()

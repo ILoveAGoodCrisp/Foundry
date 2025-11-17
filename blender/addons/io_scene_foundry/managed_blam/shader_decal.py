@@ -86,7 +86,6 @@ class ShaderDecalTag(ShaderTag):
         self.shader_parameters.update(self.category_parameters["bump_mapping"][utils.game_str(e_bump_mapping.name)])
         self.true_parameters = {option.ui_name: option for option in self.shader_parameters.values()}
         
-        blender_material.use_nodes = True
         tree = blender_material.node_tree
         nodes = tree.nodes
         # Clear it out
@@ -142,7 +141,6 @@ class ShaderDecalTag(ShaderTag):
         tree.links.new(input=node_output.inputs[0], output=final_node.outputs[0])
 
     def _to_nodes_bsdf(self, blender_material: bpy.types.Material):
-        blender_material.use_nodes = True
         tree = blender_material.node_tree
         nodes = tree.nodes
         # Clear it out

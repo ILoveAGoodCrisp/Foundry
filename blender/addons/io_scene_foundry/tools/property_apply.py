@@ -94,7 +94,6 @@ def halo_material(mat_name):
     
     new_material = bpy.data.materials.new(mat_name)
     new_material.diffuse_color = convention.color
-    new_material.use_nodes = True
     bsdf = new_material.node_tree.nodes[0]
     bsdf.inputs[0].default_value = convention.color
     bsdf.inputs[4].default_value = convention.color[3]

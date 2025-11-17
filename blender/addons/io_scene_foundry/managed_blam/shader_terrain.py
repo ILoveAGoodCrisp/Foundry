@@ -77,7 +77,6 @@ class ShaderTerrainTag(ShaderTag):
             self.shader_parameters.update(self.category_parameters["material_3"][f"{utils.game_str(e_material_3.name)}_(four_material_shaders_disable_detail_bump)"])
         self.true_parameters = {option.ui_name: option for option in self.shader_parameters.values()}
         
-        blender_material.use_nodes = True
         tree = blender_material.node_tree
         nodes = tree.nodes
         # Clear it out

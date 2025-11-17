@@ -197,8 +197,6 @@ class ShaderTag(Tag):
         self.material_shader = material_shader
         def _get_group_node(blender_material):
             """Gets a group node from a blender material node tree if one exists and it plugged into the output node"""
-            if not blender_material.use_nodes:
-                return None
             tree = self.blender_material.node_tree
             if tree is None:
                 return None
@@ -218,7 +216,7 @@ class ShaderTag(Tag):
             return None
         self.group_node = _get_group_node(blender_material)
         self.custom = True if self.group_node and self.corinth else False
-        if linked_to_blender and blender_material.use_nodes:
+        if linked_to_blender:
             self._edit_tag()
         elif self.corinth and self.material_shader:
             self.tag.SelectField("Reference:material shader").Path = self._TagPath_from_string(self.material_shader)
@@ -811,7 +809,6 @@ class ShaderTag(Tag):
             return ''
     
     def _to_nodes_bsdf(self, blender_material: bpy.types.Material):
-        blender_material.use_nodes = True
         tree = blender_material.node_tree
         nodes = tree.nodes
         # Clear it out
@@ -1160,7 +1157,6 @@ class ShaderTag(Tag):
         self.shader_parameters.update(self.category_parameters["alpha_blend_source"][utils.game_str(e_alpha_blend_source.name)])
         self.true_parameters = {option.ui_name: option for option in self.shader_parameters.values()}
 
-        blender_material.use_nodes = True
         tree = blender_material.node_tree
         nodes = tree.nodes
         # Clear it out

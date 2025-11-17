@@ -34,7 +34,6 @@ def add_special_materials(game, asset_type):
             mat = blender_materials.new(m.name)
             mat.use_fake_user = True
             mat.diffuse_color = m.color
-            mat.use_nodes = True
             bsdf = mat.node_tree.nodes[0]
             bsdf.inputs[0].default_value = m.color
             bsdf.inputs[4].default_value = m.color[3]
