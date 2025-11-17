@@ -327,22 +327,23 @@ class PoseBuilder:
         self.uses_pitch = pitch is not None
         self.uses_yaw = yaw is not None
         
-    def _pre_build(self, scene: bpy.types.Scene, frame_start: int,  action: bpy.types.Action):
+    def _pre_build(self, scene: bpy.types.Scene, frame_start: int,  action: bpy.types.Action, slot):
         # Clear any existing keyframe data on aim bones
-        fcurves = action.fcurves
-        fc_bone_names = []
-        if self.uses_control:
-            fc_bone_names.append(f'pose.bones["{self.control.name}"].')
-        if self.uses_pitch:
-            fc_bone_names.append(f'pose.bones["{self.pitch.name}"].')
-        if self.uses_yaw:
-            fc_bone_names.append(f'pose.bones["{self.yaw.name}"].')
-            
-        fc_bone_names = tuple(fc_bone_names)
+        for slot in action.slots:
+            fcurves = utils.get_fcurves(action, slot)
+            fc_bone_names = []
+            if self.uses_control:
+                fc_bone_names.append(f'pose.bones["{self.control.name}"].')
+            if self.uses_pitch:
+                fc_bone_names.append(f'pose.bones["{self.pitch.name}"].')
+            if self.uses_yaw:
+                fc_bone_names.append(f'pose.bones["{self.yaw.name}"].')
+                
+            fc_bone_names = tuple(fc_bone_names)
 
-        for fc in fcurves:
-            if fc.data_path.startswith(fc_bone_names):
-                fcurves.remove(fc)
+            for fc in fcurves:
+                if fc.data_path.startswith(fc_bone_names):
+                    fcurves.remove(fc)
                     
         # Set the current frame to the first frame of animation and ensure transform matches pedestal
         scene.frame_set(frame_start)
@@ -390,17 +391,17 @@ class PoseBuilder:
                 if wrap_events and wrap:
                     self._add_wrap_event(scene.frame_current, animation, wrap)
         
-    def build_from_preset(self, scene: bpy.types.Scene, animation, action: bpy.types.Action, wrap_events: bool, preset: str) -> int:
+    def build_from_preset(self, scene: bpy.types.Scene, animation, action: bpy.types.Action, wrap_events: bool, preset: str, slot) -> int:
         """Keyframes a pose overlay based on the input preset. Returns the last frame keyframed"""
         self._clear_wrap_events(animation)
-        self._pre_build(scene, animation.frame_start, action)
+        self._pre_build(scene, animation.frame_start, action, slot)
         self._build_poses(scene, animation, wrap_events, preset_transforms[preset])
         return scene.frame_current
     
-    def build_from_blend_screen(self, scene: bpy.types.Scene, animation, action: bpy.types.Action, wrap_events: bool, blend_screen: BlendScreen) -> int:
+    def build_from_blend_screen(self, scene: bpy.types.Scene, animation, action: bpy.types.Action, wrap_events: bool, blend_screen: BlendScreen, slot) -> int:
         """Keyframes a pose overlay based on the input blend screen. Returns the last frame keyframed"""
         self._clear_wrap_events(animation)
-        self._pre_build(scene, animation.frame_start, action)
+        self._pre_build(scene, animation.frame_start, action, slot)
         self._build_poses(scene, animation, wrap_events, blend_screen.transforms)
         return scene.frame_current
     
@@ -598,6 +599,11 @@ class NWO_OT_GeneratePoses(bpy.types.Operator):
             self.report({'WARNING'}, f"Armature {armature.name} does not have aim bones. Cannot build poses")
             return {'CANCELLED'}
         
+        if not armature.animation_data:
+            armature.animation_data_create()
+            
+        slot_name = armature.animation_data.last_slot_indentifier
+        
         current_frame = scene.frame_current
         
         use_blend_screen_info = self.pose_type == 'legacy'
@@ -618,10 +624,11 @@ class NWO_OT_GeneratePoses(bpy.types.Operator):
         with utils.ArmatureDeformMute():
             for track in animation.action_tracks:
                 if track.object == armature and track.action:
+                    slot = utils.get_slot_from_id(track.action, slot_name)
                     if use_blend_screen_info:
-                        animation.frame_end = builder.build_from_blend_screen(scene, animation, track.action, self.add_wrap_events and for_biped, blend_screen)
+                        animation.frame_end = builder.build_from_blend_screen(scene, animation, track.action, self.add_wrap_events and for_biped, blend_screen, slot)
                     else:
-                        animation.frame_end = builder.build_from_preset(scene, animation, track.action, self.add_wrap_events and for_biped, self.biped_preset if for_biped else self.vehicle_preset)
+                        animation.frame_end = builder.build_from_preset(scene, animation, track.action, self.add_wrap_events and for_biped, self.biped_preset if for_biped else self.vehicle_preset, slot)
                     break
 
         scene.frame_start = animation.frame_start

@@ -1966,9 +1966,10 @@ class NWO_OT_AnimationFramesSyncToKeyFrames(bpy.types.Operator):
             self.report({'WARNING'}, "Cannot update frame range, animation has no action tracks")
         frames = set()
         for action in actions:
-            for fcurve in action.fcurves:
-                for kfp in fcurve.keyframe_points:
-                    frames.add(kfp.co[0])
+            for slot in action.slots:
+                for fcurve in utils.get_fcurves(action, slot):
+                    for kfp in fcurve.keyframe_points:
+                        frames.add(kfp.co[0])
                 
         if len(frames) > 1:
             animation.frame_start = int(min(*frames))

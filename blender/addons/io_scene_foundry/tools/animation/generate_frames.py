@@ -371,7 +371,7 @@ class FrameGenerator:
                 if root_bone is not None:
                     root_bone_name = root_bone.name
 
-            fcurves = {(fc.data_path, fc.array_index): fc for fc in action.fcurves}
+            fcurves = {(fc.data_path, fc.array_index): fc for fc in utils.get_fcurves(action, ob)}
             if ignore_root:
                 fcurves_no_root = {k: v for k, v in fcurves.items() if not f'["{root_bone_name}"]' in k[0]}
                 fcurves_root_only = {k: v for k, v in fcurves.items() if f'["{root_bone_name}"]' in k[0]}

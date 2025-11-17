@@ -32,8 +32,8 @@ from .tools.node_tree_arrange import arrange
 from .constants import COLLISION_MESH_TYPES, OBJECT_TAG_EXTS, PROTECTED_MATERIALS, VALID_MESHES, VALID_OBJECTS, WU_SCALAR, css_colors
 from .tools.materials import special_materials, convention_materials
 from .icons import get_icon_id, get_icon_id_in_directory
-import requests
-from bpy_extras import view3d_utils
+# import requests
+from bpy_extras import view3d_utils, anim_utils
 
 from .constants import object_asset_validation, object_game_validation
 
@@ -1178,20 +1178,20 @@ def validate_ek() -> str | None:
                 return f'{p.name} project path does not exist'
         return 'Please select a project in Foundry Scene Properties'
     
-def foundry_update_check(current_version):
-    update_url = 'https://api.github.com/repos/iloveagoodcrisp/foundry-halo-blender-creation-kit/releases'
-    if not bpy.app.background:
-        try:
-            response = requests.get(update_url, timeout=1)
-            releases = response.json()
-            latest_release = releases[0]
-            latest_version = latest_release['tag_name']
-            if current_version < latest_version:
-                return f"New Foundry version available: {latest_version}", True
-        except:
-            pass
+# def foundry_update_check(current_version):
+#     update_url = 'https://api.github.com/repos/iloveagoodcrisp/foundry-halo-blender-creation-kit/releases'
+#     if not bpy.app.background:
+#         try:
+#             response = requests.get(update_url, timeout=1)
+#             releases = response.json()
+#             latest_release = releases[0]
+#             latest_version = latest_release['tag_name']
+#             if current_version < latest_version:
+#                 return f"New Foundry version available: {latest_version}", True
+#         except:
+#             pass
 
-    return "Foundry is up to date", False
+#     return "Foundry is up to date", False
 
 def unlink(ob):
     if ob.library is None:
@@ -2739,69 +2739,71 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                         coll.objects.link(arm)
 
         for action in actions:
-            fc_quaternions: list[bpy.types.FCurve] = []
-            fc_locations: list[bpy.types.FCurve] = []
-            for fcurve in action.fcurves:
-                if fcurve.data_path == 'location':
-                    fc_locations.append(fcurve)
-                if fcurve.data_path.endswith('location'):
-                    for mod in fcurve.modifiers:
-                        if mod.type == 'NOISE':
-                            mod.strength *= scale_factor
-                    for keyframe_point in fcurve.keyframe_points:
-                        keyframe_point.co_ui[1] *= scale_factor
+            for slot in action.slots:
+                fc_quaternions: list[bpy.types.FCurve] = []
+                fc_locations: list[bpy.types.FCurve] = []
+                fcurves = get_fcurves(action, slot)
+                for fcurve in fcurves:
+                    if fcurve.data_path == 'location':
+                        fc_locations.append(fcurve)
+                    if fcurve.data_path.endswith('location'):
+                        for mod in fcurve.modifiers:
+                            if mod.type == 'NOISE':
+                                mod.strength *= scale_factor
+                        for keyframe_point in fcurve.keyframe_points:
+                            keyframe_point.co_ui[1] *= scale_factor
+                            
+                    elif fcurve.data_path.startswith('rotation_euler') and fcurve.array_index == 2:
+                        for kfp in fcurve.keyframe_points:
+                            kfp.co_ui[1] += rotation
+                    elif fcurve.data_path.startswith('rotation_quaternion'):
+                        fc_quaternions.append(fcurve)
                         
-                elif fcurve.data_path.startswith('rotation_euler') and fcurve.array_index == 2:
-                    for kfp in fcurve.keyframe_points:
-                        kfp.co_ui[1] += rotation
-                elif fcurve.data_path.startswith('rotation_quaternion'):
-                    fc_quaternions.append(fcurve)
+                if fc_locations:
+                    assert(len(fc_locations) == 3)
+                    keyframes_x = []
+                    keyframes_y = []
+                    keyframes_z = []
+                    for fc in fc_locations:
+                        if fc.array_index == 0:
+                            keyframes_x.append(fc.keyframe_points)
+                        elif fc.array_index == 1:
+                            keyframes_y.append(fc.keyframe_points)
+                        elif fc.array_index == 2:
+                            keyframes_z.append(fc.keyframe_points)
+                            
+                    for i in range(len(keyframes_x)):
+                        for kfpx, kfpy, kfpz in zip(keyframes_x[i], keyframes_y[i], keyframes_z[i]):
+                            v = Vector((kfpx.co[1], kfpy.co[1], kfpz.co[1]))
+                            mat = Matrix.Translation(v)
+                            loc = rotation_matrix @ mat
+                            vloc = loc.to_translation()
+                            kfpx.co_ui[1], kfpy.co_ui[1], kfpz.co_ui[1] = vloc[0], vloc[1], vloc[2]
                     
-            if fc_locations:
-                assert(len(fc_locations) == 3)
-                keyframes_x = []
-                keyframes_y = []
-                keyframes_z = []
-                for fc in fc_locations:
-                    if fc.array_index == 0:
-                        keyframes_x.append(fc.keyframe_points)
-                    elif fc.array_index == 1:
-                        keyframes_y.append(fc.keyframe_points)
-                    elif fc.array_index == 2:
-                        keyframes_z.append(fc.keyframe_points)
-                        
-                for i in range(len(keyframes_x)):
-                    for kfpx, kfpy, kfpz in zip(keyframes_x[i], keyframes_y[i], keyframes_z[i]):
-                        v = Vector((kfpx.co[1], kfpy.co[1], kfpz.co[1]))
-                        mat = Matrix.Translation(v)
-                        loc = rotation_matrix @ mat
-                        vloc = loc.to_translation()
-                        kfpx.co_ui[1], kfpy.co_ui[1], kfpz.co_ui[1] = vloc[0], vloc[1], vloc[2]
-                
-            if fc_quaternions:
-                assert(len(fc_quaternions) == 4)
-                keyframes_w = []
-                keyframes_x = []
-                keyframes_y = []
-                keyframes_z = []
-                for fc in fc_quaternions:
-                    if fc.array_index == 0:
-                        keyframes_w.append(fc.keyframe_points)
-                    elif fc.array_index == 1:
-                        keyframes_x.append(fc.keyframe_points)
-                    elif fc.array_index == 2:
-                        keyframes_y.append(fc.keyframe_points)
-                    elif fc.array_index == 3:
-                        keyframes_z.append(fc.keyframe_points)
-                        
-                for i in range(len(keyframes_w)):
-                    for kfpw, kfpx, kfpy, kfpz in zip(keyframes_w[i], keyframes_x[i], keyframes_y[i], keyframes_z[i]):
-                        q = Quaternion((kfpw.co[1], kfpx.co[1], kfpy.co[1], kfpz.co[1]))
-                        q.rotate(rotation_matrix)
-                        kfpw.co_ui[1], kfpx.co_ui[1], kfpy.co_ui[1], kfpz.co_ui[1] = q[0], q[1], q[2], q[3]
+                if fc_quaternions:
+                    assert(len(fc_quaternions) == 4)
+                    keyframes_w = []
+                    keyframes_x = []
+                    keyframes_y = []
+                    keyframes_z = []
+                    for fc in fc_quaternions:
+                        if fc.array_index == 0:
+                            keyframes_w.append(fc.keyframe_points)
+                        elif fc.array_index == 1:
+                            keyframes_x.append(fc.keyframe_points)
+                        elif fc.array_index == 2:
+                            keyframes_y.append(fc.keyframe_points)
+                        elif fc.array_index == 3:
+                            keyframes_z.append(fc.keyframe_points)
+                            
+                    for i in range(len(keyframes_w)):
+                        for kfpw, kfpx, kfpy, kfpz in zip(keyframes_w[i], keyframes_x[i], keyframes_y[i], keyframes_z[i]):
+                            q = Quaternion((kfpw.co[1], kfpx.co[1], kfpy.co[1], kfpz.co[1]))
+                            q.rotate(rotation_matrix)
+                            kfpw.co_ui[1], kfpx.co_ui[1], kfpy.co_ui[1], kfpz.co_ui[1] = q[0], q[1], q[2], q[3]
 
-            for fc in action.fcurves:
-                fc.keyframe_points.handles_recalc()
+                for fc in fcurves:
+                    fc.keyframe_points.handles_recalc()
                 
         for transform_ob in transform_objects:
             transform_ob.apply()
@@ -3893,13 +3895,15 @@ def apply_armature_scale(context, arm: bpy.types.Object):
     
     # Scale the animations
     for action in bpy.data.actions:
-        for fcurve in action.fcurves:
-            if fcurve.data_path.endswith('location'):
-                for keyframe_point in fcurve.keyframe_points: keyframe_point.co_ui[1] *= scale_factor
+        for slot in action.slots:
+            fcurves = get_fcurves(action, slot)
+            for fcurve in fcurves:
+                if fcurve.data_path.endswith('location'):
+                    for keyframe_point in fcurve.keyframe_points: keyframe_point.co_ui[1] *= scale_factor
 
-        for fc in action.fcurves:
-            if fcurve.data_path.endswith('location'):
-                fc.keyframe_points.handles_recalc()
+            for fc in fcurves:
+                if fcurve.data_path.endswith('location'):
+                    fc.keyframe_points.handles_recalc()
                 
 def project_game_icon(context, project=None):
     if project is None:
@@ -5452,6 +5456,38 @@ class ExportObject:
     def copy(self):
         return copy.copy(self)
     
-    
 def is_instancer(ob):
     return ob and ob.type == 'EMPTY' and ob.instance_type == 'COLLECTION' and ob.nwo.marker_instance
+
+def get_slot_from_id(action: bpy.types.Action, ob_slot: bpy.types.Object = None):
+    if ob_slot is None:
+        return
+    
+    if isinstance(ob_slot, bpy.types.Object):
+        if ob_slot.animation_data is None:
+            return
+        else:
+            slot_name = ob_slot.animation_data.last_slot_identifier
+    else:
+        slot_name = ob_slot
+
+    return action.slots.get(slot_name)
+
+def get_fcurves(action: bpy.types.Action, ob_slot: bpy.types.Object = None):
+    if ob_slot is None:
+        return
+    
+    if isinstance(ob_slot, bpy.types.Object) or isinstance(ob_slot, str):
+        slot = get_slot_from_id(action, ob_slot)
+    else:
+        slot = ob_slot
+        
+    if slot is None:
+        return
+    
+    
+    channelbag = anim_utils.action_ensure_channelbag_for_slot(action, slot)
+    if channelbag is None:
+        return
+    else:
+        return channelbag.fcurves

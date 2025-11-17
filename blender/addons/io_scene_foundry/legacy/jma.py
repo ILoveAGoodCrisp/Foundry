@@ -140,7 +140,7 @@ class JMA:
         armature.animation_data.last_slot_identifier = slot.identifier
         armature.animation_data.action = action
             
-        fcurves = cast(bpy.types.ActionFCurves, action.fcurves)
+        fcurves = utils.get_fcurves(action, slot)
         fcurves.clear()
         
         armature_bone_names = {utils.remove_node_prefix(bone.name): bone for bone in armature.pose.bones}

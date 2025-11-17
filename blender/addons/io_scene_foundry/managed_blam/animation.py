@@ -526,7 +526,7 @@ class AnimationTag(Tag):
         return actions
     
     def _to_armature_action(self, transforms, armature: bpy.types.Object, action: bpy.types.Action, nodes: list[Node], base_transforms: dict, nodes_with_animations):
-        fcurves = cast(bpy.types.ActionFCurves, action.fcurves)
+        fcurves = utils.get_fcurves(action, armature.animation_data.last_slot_indentifier)
         fcurves.clear()
         
         armature_bone_names = {utils.remove_node_prefix(bone.name): bone for bone in armature.pose.bones}

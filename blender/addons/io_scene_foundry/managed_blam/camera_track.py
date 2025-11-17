@@ -89,7 +89,8 @@ class CameraTrackTag(Tag):
         action.frame_end = (idx + 1) * animation_scale - animation_scale + 1 
             
         if animation_scale > 1:
-            for idx, fcurve in enumerate(action.fcurves):
+            fcurves = utils.get_fcurves(action, camera_ob)
+            for idx, fcurve in enumerate(fcurves):
                 for kfp in fcurve.keyframe_points:
                     kfp.co_ui.x *= animation_scale
                     kfp.co_ui.x  -= animation_scale - 1 

@@ -541,10 +541,11 @@ class FCurveTransfer:
     source_fcurve: bpy.types.FCurve
     target_fcurve: bpy.types.FCurve
     
-    def __init__(self, action: bpy.types.Action, source_bone: str, target_bone: str, source_channel: str, target_channel: str) -> None:
+    def __init__(self, action: bpy.types.Action, source_bone: str, target_bone: str, source_channel: str, target_channel: str, slot_name: str) -> None:
         source_channel_array_index, source_channel_name = source_channel.split(':')
         target_channel_array_index, target_channel_name = target_channel.split(':')
         self.action = action
+        self.fcurves = utils.get_fcurves(self.action, slot_name)
         self.source_bone = source_bone
         self.target_bone = target_bone
         self.source_channel = source_channel_name
@@ -557,8 +558,7 @@ class FCurveTransfer:
     def get_fcurves(self):
         source_data_path = f'pose.bones["{self.source_bone}"].{self.source_channel}'
         target_data_path = f'pose.bones["{self.target_bone}"].{self.target_channel}'
-        for fc in self.action.fcurves:
-            fc: bpy.types.FCurve
+        for fc in self.fcurves:
             if fc.data_path == source_data_path and fc.array_index == self.source_channel_index:
                 self.source_fcurve = fc
             elif fc.data_path == target_data_path and fc.array_index == self.target_channel_index:
@@ -568,7 +568,7 @@ class FCurveTransfer:
             return
         
         if not self.target_fcurve:
-            self.target_fcurve = self.action.fcurves.new(data_path=f'pose.bones["{self.target_bone}"].{self.target_channel}', index=self.target_channel_index)
+            self.target_fcurve = self.fcurves.new(data_path=f'pose.bones["{self.target_bone}"].{self.target_channel}', index=self.target_channel_index)
             
     def transfer_data(self):
         source_coordinates = []
@@ -580,7 +580,7 @@ class FCurveTransfer:
             target_kfps.insert(index, coordinates, options={'REPLACE'})
             
     def remove_source_fcurve(self):
-        self.action.fcurves.remove(self.source_fcurve)
+        self.fcurves.remove(self.source_fcurve)
             
 class NWO_OT_FcurveTransfer(bpy.types.Operator):
     bl_idname = "nwo.fcurve_transfer"
@@ -663,9 +663,15 @@ class NWO_OT_FcurveTransfer(bpy.types.Operator):
         else:
             actions = {track.action for track in animation.action_tracks}
             
+        armature = context.object
+        if not armature.animation_data:
+            armature.animation_data_create()
+            
+        slot_name = armature.animation_data.last_slot_identifier
+            
         utils.clear_animation(animation)
         for action in actions:
-            fcurve_transfer = FCurveTransfer(action, self.source_bone, self.target_bone, self.source_channel, self.target_channel)
+            fcurve_transfer = FCurveTransfer(action, self.source_bone, self.target_bone, self.source_channel, self.target_channel, slot_name)
             fcurve_transfer.get_fcurves()
             if fcurve_transfer.source_fcurve:
                 fcurve_transfer.transfer_data()
