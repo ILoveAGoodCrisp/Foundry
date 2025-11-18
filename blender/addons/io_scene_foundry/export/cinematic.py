@@ -1,6 +1,7 @@
-from math import degrees
+from math import degrees, radians
 from pathlib import Path
 import bpy
+from mathutils import Euler
 
 from ..managed_blam.object import ObjectTag
 from ..managed_blam.model import ModelTag
@@ -25,14 +26,12 @@ class CinematicScene:
         self.anchor_location = 0.0, 0.0, 0.0
         self.anchor_ypr = 0.0, 0.0, 0.0
         if self.anchor is not None:
-            anchor_matrix = utils.halo_transforms_matrix(self.anchor.matrix_world.inverted_safe())
+            anchor_matrix = utils.halo_transform_matrix(self.anchor.matrix_world.inverted_safe())
+            rotation_offset = utils.blender_halo_rotation_diff(bpy.context.scene.nwo.forward_direction)
             self.anchor_location = anchor_matrix.translation.to_tuple()
-            matrix_3x3 = anchor_matrix.normalized().to_3x3()
-            forward = matrix_3x3.col[0]
-            left = matrix_3x3.col[1]
-            up = matrix_3x3.col[2]
-            yaw, pitch, roll = utils.ypr_from_flu(forward, left, up)
-            self.anchor_ypr = yaw - 180, pitch, 0.0
+            rot = anchor_matrix.to_euler()
+            rotation = Euler((rot.z, -rot.y, rot.x), 'ZYX')
+            self.anchor_ypr = degrees(rotation.x - rotation_offset), degrees(rotation.y), degrees(rotation.z)
         
 def calculate_focal_depths(focus_distance, aperture, coc=0.03, focal_length=50):
     hyperfocal = (focal_length ** 2) / (aperture * coc)

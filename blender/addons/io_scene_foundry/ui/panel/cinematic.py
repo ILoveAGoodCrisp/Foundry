@@ -54,7 +54,9 @@ class NWO_OT_CinematicAnchorOffset(bpy.types.Operator):
             matrix = Matrix.LocRotScale(Vector.Fill(3, 0), Euler((0, 0, euler.z)), csca)
             
         if hasattr(context.space_data, "region_3d"):
-            context.space_data.region_3d.view_matrix = context.space_data.region_3d.view_matrix @ matrix
+            r3d = context.space_data.region_3d
+            r3d.view_matrix = r3d.view_matrix @ matrix
+            r3d.view_location = r3d.view_location @ matrix
             
         matrix.invert_safe()
         
