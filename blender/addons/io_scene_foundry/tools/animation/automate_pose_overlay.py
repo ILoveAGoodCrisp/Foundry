@@ -593,8 +593,6 @@ class NWO_OT_GeneratePoses(bpy.types.Operator):
         
         pedestal, pitch, yaw, aim = pose_overlay_armature_validate(armature, nwo, self.report)
         
-        print(pedestal, pitch, yaw, aim)
-        
         if not aim and (not yaw and not pitch):
             self.report({'WARNING'}, f"Armature {armature.name} does not have aim bones. Cannot build poses")
             return {'CANCELLED'}
@@ -602,7 +600,7 @@ class NWO_OT_GeneratePoses(bpy.types.Operator):
         if not armature.animation_data:
             armature.animation_data_create()
             
-        slot_name = armature.animation_data.last_slot_indentifier
+        slot_name = armature.animation_data.last_slot_identifier
         
         current_frame = scene.frame_current
         
@@ -804,6 +802,10 @@ def parse_xml_for_blend_screens(xml_path: Path) -> dict | None:
 def convert_legacy_pose_overlays(armature: bpy.types.Object, scene: bpy.types.Scene, builder: PoseBuilder, data: dict):
     animations = {a.name.strip().replace(" ", ":").lower(): a for a in scene.nwo.animations}
     animation_indexes = {a: idx for idx, a in enumerate(list(animations.values()))}
+    
+    if not armature.animation_data:
+        armature.animation_data_create()
+    
     with utils.ArmatureDeformMute():
         for animation_name, blend_screen in data.items():
             animation = animations.get(animation_name)
@@ -814,7 +816,8 @@ def convert_legacy_pose_overlays(armature: bpy.types.Object, scene: bpy.types.Sc
             scene.nwo.active_animation_index = animation_indexes[animation]
             for track in animation.action_tracks:
                 if track.object == armature and track.action:
-                    animation.frame_end = builder.build_from_blend_screen(scene, animation, track.action, add_wrap_events, blend_screen)
+                    slot = utils.get_slot_from_id(track.action, armature.animation_data.last_slot_identifier)
+                    animation.frame_end = builder.build_from_blend_screen(scene, animation, track.action, add_wrap_events, blend_screen, slot)
                     break
             
 class NWO_OT_ConvertLegacyPoseOverlays(bpy.types.Operator):
