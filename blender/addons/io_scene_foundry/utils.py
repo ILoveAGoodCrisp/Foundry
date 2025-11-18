@@ -5484,3 +5484,36 @@ def get_fcurves(action: bpy.types.Action, ob_slot: bpy.types.Object = None):
         return
     else:
         return channelbag.fcurves
+    
+def clear_directory(dir: Path | str):
+    if not isinstance(dir, Path):
+        dir = Path(dir)
+        
+    if not dir.exists():
+        return print_warning(f"Tried to delete a directory which does not exist: {dir}")
+    
+    try:
+        shutil.rmtree(dir)
+        return
+    except Exception as e:
+        print_warning(f"Failed to remove directory: {dir}\nReason: {e}\nClearing files instead")
+        
+    for path in dir.rglob("*"):
+        try:
+            if path.is_file() or path.is_symlink():
+                path.unlink()
+        except Exception as e:
+            print_warning(f"Failed to delete file: {path} ({e})")
+            
+    for path in sorted(dir.rglob("*"), reverse=True):
+        try:
+            if path.is_dir():
+                path.rmdir()
+        except Exception:
+            pass
+        
+    try:
+        dir.rmdir()
+    except Exception as e:
+        print_warning(f"Failed to remove directory root: {dir} ({e})")
+        

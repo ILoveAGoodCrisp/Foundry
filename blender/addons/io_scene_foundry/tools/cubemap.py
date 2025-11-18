@@ -95,10 +95,7 @@ class CubemapFarm:
         utils.update_debug_menu(update_type=utils.DebugMenuType.CUBEMAP)
         
         if self.cubemaps_dir.exists():
-            try:
-                shutil.rmtree(self.cubemaps_dir)
-            except:
-                utils.print_warning(f"Failed to remove existing cubemaps directory: {self.cubemaps_dir}")
+            utils.clear_directory(self.cubemaps_dir)
                 
         print("Loading game...")
         use_instructions = "1. Once the game has loaded press HOME on your keyboard to open the debug menu\n2. Scroll to the bottom of the menu and press enter on the Generate Dynamic Cubemaps command\n3. Wait for the process to complete\n4. Exit the game using SHIFT+ESC\n"
