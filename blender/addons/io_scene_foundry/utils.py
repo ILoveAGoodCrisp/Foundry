@@ -3553,7 +3553,7 @@ def new_face_prop(data, attribute_name, display_name, override_prop, other_props
     face_props = data.nwo.face_props
     layer = face_props.add()
     layer.attribute_name = attribute_name
-    layer.name = display_name
+    # layer.name = display_name
     layer.color = random_color()
     setattr(layer, override_prop, True)
     for prop, value in other_props.items():

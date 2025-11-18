@@ -3507,7 +3507,7 @@ class NWOImporter:
                 if not slot.material:
                     continue
                 layer = face_props.add()
-                layer.name = slot.material.name
+                # layer.name = slot.material.name
                 layer.attribute_name = 'face_global_material'
                 layer.face_global_material = slot.material.name
                 layer.face_global_material_override = True
