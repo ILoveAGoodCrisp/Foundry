@@ -5478,7 +5478,6 @@ def get_fcurves(action: bpy.types.Action, ob_slot: bpy.types.Object = None):
     if slot is None:
         return
     
-    
     channelbag = anim_utils.action_ensure_channelbag_for_slot(action, slot)
     if channelbag is None:
         return

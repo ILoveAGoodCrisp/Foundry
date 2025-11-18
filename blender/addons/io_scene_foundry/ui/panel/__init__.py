@@ -208,6 +208,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 box.label(text="Cinematic Scene")
                 box.operator("nwo.refresh_cinematic_controls", icon='FILE_REFRESH')
                 box.prop(nwo, 'cinematic_anchor')
+                box.operator('nwo.cinematic_anchor_offset', icon='PIVOT_CURSOR')
             elif nwo.asset_type == 'single_animation':
                 self.draw_rig_ui(self.context, nwo)
                 self.draw_single_animation_events(nwo, box)
@@ -282,6 +283,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 row.operator_menu_enum("nwo.get_zone_sets", "zone_set", icon="DOWNARROW_HLT", text="")
                 col.separator()
                 col.prop(nwo, 'cinematic_anchor')
+                col.operator('nwo.cinematic_anchor_offset', icon='PIVOT_CURSOR')
             
             # if nwo.asset_type in {'model', 'sky', 'scenario', 'animation', 'cinematic'}:
             #     self.draw_expandable_box(self.box.box(), nwo, "child_assets", panel_display_name="Child Assets" if nwo.asset_type != 'cinematic' else "Other Cinematic Scenes")

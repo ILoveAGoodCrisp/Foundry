@@ -1,5 +1,7 @@
 from pathlib import Path
+from typing import cast
 import bpy
+from mathutils import Euler, Matrix, Vector
 
 from ...managed_blam.render_model import RenderModelTag
 from ...managed_blam.model import ModelTag
@@ -13,6 +15,64 @@ SOUND_FX_TAG = r"sound\global_fx.sound_effect_collection"
 variants = {}
 regions = {}
 permutations = {}
+
+class NWO_OT_CinematicAnchorOffset(bpy.types.Operator):
+    bl_idname = "nwo.cinematic_anchor_offset"
+    bl_label = "Offset Anchor from 3D Cursor"
+    bl_description = "Offsets the cinematic anchor by the current position of the 3D cursor. The effect of this means the level geometry (assuming it is parented to the anchor) will be moved in such a way that the position of the 3D cursor becomes the new center of the blender scene. For example if you had your characters animated in the middle of your blender scene, and you wanted them to animate on a platform in your level using the anchor, this would move the platform to your characters"
+    bl_options = {'UNDO'}
+    
+    use_location: bpy.props.BoolProperty(
+        name="Use 3D Cursor Location",
+        default=True,
+    )
+    use_rotation: bpy.props.BoolProperty(
+        name="Use 3D Cursor Rotation",
+        default=False,
+    )
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene.nwo.asset_type == 'cinematic' and utils.pointer_ob_valid(context.scene.nwo.cinematic_anchor)
+
+    def execute(self, context):
+        if not self.use_location and not self.use_rotation:
+            self.report({'WARNING'}, "Location and/or rotation must be used")
+            return {'CANCELLED'}
+        
+        cursor = context.scene.cursor
+        
+        cloc, crot, csca = cast(Matrix, context.scene.cursor.matrix).decompose()
+        
+        euler = cast(Euler, crot.to_euler())
+        
+        if self.use_location and self.use_rotation:
+            matrix = Matrix.LocRotScale(cloc, Euler((0, 0, euler.z)), csca)
+        elif self.use_location:
+            matrix = Matrix.LocRotScale(cloc, Euler((0, 0, 0)), csca)
+        else:
+            matrix = Matrix.LocRotScale(Vector.Fill(3, 0), Euler((0, 0, euler.z)), csca)
+            
+        if hasattr(context.space_data, "region_3d"):
+            context.space_data.region_3d.view_matrix = context.space_data.region_3d.view_matrix @ matrix
+            
+        matrix.invert_safe()
+        
+        anchor = context.scene.nwo.cinematic_anchor
+        anchor.matrix_world = matrix @ anchor.matrix_world
+        
+        cursor.location = 0, 0, 0
+
+        return {"FINISHED"}
+    
+    def invoke(self, context, _):
+        return context.window_manager.invoke_props_dialog(self)
+    
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "use_location")
+        layout.prop(self, "use_rotation")
+
 
 # CINEMATIC EVENTS
 class NWO_UL_CinematicEvents(bpy.types.UIList):
