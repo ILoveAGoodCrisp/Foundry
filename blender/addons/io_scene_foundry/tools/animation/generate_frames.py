@@ -58,11 +58,12 @@ loopers = (
 )
 
 class FrameGenerator:
-    def __init__(self):
-        self.animations = {anim: utils.AnimationName(anim.name) for anim in bpy.context.scene.nwo.animations if anim.export_this}
+    def __init__(self, animations=None):
         
-        for k, v in self.animations.items():
-            print(k.name, v)
+        if animations is None:
+            self.animations = {anim: utils.AnimationName(anim.name) for anim in bpy.context.scene.nwo.animations if anim.export_this}
+        else:
+            self.animations = {anim: utils.AnimationName(anim.name) for anim in animations if anim.export_this}
         
     def generate(self):
         print("Generating Missing Frames for Base and Replacement animations")
@@ -87,7 +88,7 @@ class FrameGenerator:
             if looper or movement:
                 self._copy_frame(animation, ignore_root=True, assume_movement=movement)
     
-    def _copy_frame(self, target_animation: NWO_AnimationPropertiesGroup, source_animation: NWO_AnimationPropertiesGroup = None, target_frame=None, source_frame=None, ignore_root=False, assume_movement=False, shift_frames_by_one=False):
+    def _copy_frame(self, target_animation: NWO_AnimationPropertiesGroup, source_animation: NWO_AnimationPropertiesGroup = None, target_frame=None, source_frame=None, ignore_root=False, assume_movement=False, shift_frames_by_one=False, ignore_pose=False):
         
         if assume_movement:
             ignore_root = True
@@ -121,20 +122,21 @@ class FrameGenerator:
                 for kp in fcurve.keyframe_points:
                     kp.co.x += 1
         
-        if ignore_root:
-            for key, source_fc in source_fcurves_no_root.items():
-                first_key = next((kp for kp in source_fc.keyframe_points if int(kp.co.x) == source_frame), None)
-                if not first_key:
-                    continue
+        if not ignore_pose:
+            if ignore_root:
+                for key, source_fc in source_fcurves_no_root.items():
+                    first_key = next((kp for kp in source_fc.keyframe_points if int(kp.co.x) == source_frame), None)
+                    if not first_key:
+                        continue
 
-                target_fcurves[key].keyframe_points.insert(target_frame, first_key.co.y, options={'FAST'})
-        else:
-            for key, source_fc in source_fcurves.items():
-                first_key = next((kp for kp in source_fc.keyframe_points if int(kp.co.x) == source_frame), None)
-                if not first_key:
-                    continue
+                    target_fcurves[key].keyframe_points.insert(target_frame, first_key.co.y, options={'FAST'})
+            else:
+                for key, source_fc in source_fcurves.items():
+                    first_key = next((kp for kp in source_fc.keyframe_points if int(kp.co.x) == source_frame), None)
+                    if not first_key:
+                        continue
 
-                target_fcurves[key].keyframe_points.insert(target_frame, first_key.co.y, options={'FAST'})
+                    target_fcurves[key].keyframe_points.insert(target_frame, first_key.co.y, options={'FAST'})
             
         if assume_movement:
             
@@ -255,6 +257,7 @@ class FrameGenerator:
         next_animation = None
         ignore_root = False
         assume_movement = False
+        ignore_pose = False
         
         if name.mode == "bunker":
             if name.state == "open": # to bunker open idle from closed
@@ -318,8 +321,9 @@ class FrameGenerator:
             assume_movement = True
                 
         elif "exit" in name.state: # mode/state exit to idle
-            if name.mode.endswith(("_b", "_d", "_p")):
+            if name.mode.endswith(("_b", "_d", "_p")) or "_p_" in name.mode:
                 next_animation = animation # vehicles don't seem to exit to a particular animation
+                ignore_pose = True
             else:
                 idle_name = name.copy()
                 idle_name.state = "idle"
@@ -344,9 +348,8 @@ class FrameGenerator:
             next_animation = self._seek_best_matching_animation(animation, idle_name)
             ignore_root = True
                 
-                
         if next_animation is not None:
-            self._copy_frame(animation, next_animation, ignore_root=ignore_root, assume_movement=assume_movement)
+            self._copy_frame(animation, next_animation, ignore_root=ignore_root, assume_movement=assume_movement, ignore_pose=ignore_pose)
 
     def _apply_first_frame(self, animation: NWO_AnimationPropertiesGroup, name: utils.AnimationName):
         idle_name = name.copy()

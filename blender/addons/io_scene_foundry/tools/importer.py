@@ -29,6 +29,8 @@ from ..managed_blam.globals import FPARMS, GlobalsTag
 
 from ..managed_blam import Tag, start_mb_for_import
 
+from .animation.generate_frames import FrameGenerator
+
 from ..legacy.jma import JMA
 
 from ..managed_blam.object import ObjectTag
@@ -649,6 +651,11 @@ class NWO_Import(bpy.types.Operator):
         description="Converts a model to instanced geometry",
     )
     
+    generate_frames: bpy.props.BoolProperty(
+        name="Generate Missing Frames",
+        description="Generates frames where possible for tag imported animations. This is needed because base and replacement animations are missing a final frame which would have been present in their source file",
+    )
+    
     def execute(self, context):
         failed = False
         filepaths = [self.directory + f.name for f in self.files]
@@ -707,6 +714,9 @@ class NWO_Import(bpy.types.Operator):
                 importer = NWOImporter(context, filepaths, scope_list)
                 
                 mouse_matrix = utils.matrix_from_mouse(self.mouse_x, self.mouse_y)
+                
+                imported_animations = []
+                current_animations = set(context.scene.nwo.animations[:])
                 
                 if self.place_at_mouse and not self.convert_to_instance:
                     tag_path = filepaths[0]
@@ -783,14 +793,14 @@ class NWO_Import(bpy.types.Operator):
                     else:
                         if importer.needs_scaling:
                             utils.transform_scene(context, (1 / importer.scale_factor), importer.to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[arm], actions=[])
-                        imported_jma_animations = importer.import_jma_files(jma_files, arm)
-                        if imported_jma_animations:
-                            imported_actions.extend(imported_jma_animations)
+                        imported_animations = importer.import_jma_files(jma_files, arm)
+                        if imported_animations:
+                            imported_actions.extend(imported_animations)
                             
                         if importer.needs_scaling:
-                            utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=[arm], actions=imported_jma_animations)
+                            utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=[arm], actions=imported_animations)
                             
-                        if imported_jma_animations and set_animation_index:
+                        if imported_animations and set_animation_index:
                             context.scene.nwo.active_animation_index = len(context.scene.nwo.animations) - 1
                         
                 if 'model' in importer.extensions:
@@ -1172,6 +1182,10 @@ class NWO_Import(bpy.types.Operator):
                     if context.scene.nwo.animations:
                         context.scene.nwo.active_animation_index = len(context.scene.nwo.animations) - 1
                         
+                if self.generate_frames and imported_animations:
+                    generator = FrameGenerator(a for a in context.scene.nwo.animations if a not in current_animations)
+                    generator.generate()
+                        
             except KeyboardInterrupt:
                 utils.print_warning("\nIMPORT CANCELLED BY USER")
                 self.user_cancelled = True
@@ -1330,6 +1344,7 @@ class NWO_Import(bpy.types.Operator):
                 box.prop(self, "graph_generate_renames")
                 box.prop(self, "graph_import_events")
                 box.prop(self, "graph_import_ik_chains")
+                box.prop(self, "generate_frames")
             if utils.is_corinth(context):
                 layout.prop(self, "tag_import_lights")
             box.prop(self, 'tag_variant')
@@ -4012,6 +4027,11 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     mouse_x : bpy.props.FloatProperty(options={"HIDDEN", "SKIP_SAVE"})
     mouse_y : bpy.props.FloatProperty(options={"HIDDEN", "SKIP_SAVE"})
     
+    generate_frames: bpy.props.BoolProperty(
+        name="Generate Missing Frames",
+        description="Generates frames where possible for tag imported animations. This is needed because base and replacement animations are missing a final frame which would have been present in their source file",
+    )
+    
     @classmethod
     def poll(cls, context):
         return utils.current_project_valid()
@@ -4054,7 +4074,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 self.report({'WARNING'}, "Blender Toolset not installed, cannot import JMS/ASS/JMA")
                 return {'CANCELLED'}
             
-        if self.import_type in {"camera_track", "jms", "ass", "model", "render_model", "scenario", "scenario_structure_bsp", "model_animation_graph", "biped", "crate", "creature", "device_control", "device_dispenser", "effect_scenery", "equipment", "giant", "device_machine", "projectile", "scenery", "spawner", "sound_scenery", "device_terminal", "vehicle", "weapon", "prefab", "decorator_set"}:
+        if self.import_type in {"camera_track", "jms", "ass", "model", "render_model", "scenario", "scenario_structure_bsp", "model_animation_graph", "biped", "crate", "creature", "device_control", "device_dispenser", "effect_scenery", "equipment", "giant", "device_machine", "projectile", "scenery", "spawner", "sound_scenery", "device_terminal", "vehicle", "weapon", "prefab", "decorator_set", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx"}:
             if self.import_type == "scenario":
                 global zone_set_items
                 global sky_items
@@ -4119,6 +4139,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                         layout.prop(self, "graph_generate_renames")
                         layout.prop(self, "graph_import_events")
                         layout.prop(self, "graph_import_ik_chains")
+                        layout.prop(self, "generate_frames")
                     if utils.is_corinth(context):
                         layout.prop(self, "tag_import_lights")
                     layout.prop(self, "setup_as_asset")
@@ -4175,11 +4196,14 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 layout.prop(self, "graph_generate_renames")
                 layout.prop(self, "graph_import_events")
                 layout.prop(self, "graph_import_ik_chains")
+                layout.prop(self, "generate_frames")
             case "camera_track":
                 layout.prop(self, "camera_track_animation_scale")
                 layout.prop(self, "setup_as_asset")
             case "ass" | "jms":
                 layout.prop(self, "legacy_type", expand=True)
+            case "jmm" | "jma" | "jmt" | "jmz" | "jmv" | "jmw" | "jmo" | "jmr" | "jmrx":
+                layout.prop(self, "generate_frames")
             
 
 class NWO_FH_Import(bpy.types.FileHandler):
