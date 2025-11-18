@@ -134,7 +134,7 @@ class NWO_UL_CinematicEvents(bpy.types.UIList):
 
         order = []
         sequences = getattr(context.scene, "sequence_editor", None)
-        sequences_all = getattr(sequences, "sequences_all", None) if sequences else None
+        sequences_all = getattr(sequences, "strips_all", None) if sequences else None
 
         if self.use_filter_sort_frame:
             sort = []

@@ -2800,7 +2800,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     event,
                     "sound_strip",
                     self.scene.sequence_editor,
-                    "sequences_all",
+                    "strips_all",
                     text="Sound Strip",
                     icon='PLAY_SOUND'
                 )

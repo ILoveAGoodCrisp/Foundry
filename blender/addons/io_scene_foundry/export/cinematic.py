@@ -761,7 +761,7 @@ class QUA:
         
         # Add cinematic events
         frame_start = int(bpy.context.scene.frame_start)
-        sound_sequences = bpy.context.scene.sequence_editor.sequences_all
+        sound_sequences = bpy.context.scene.sequence_editor.strips_all
         for event in bpy.context.scene.nwo.cinematic_events:
             match event.type:
                 case 'DIALOGUE':

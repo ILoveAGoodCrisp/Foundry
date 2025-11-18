@@ -837,7 +837,7 @@ class Sidecar:
         contents = ET.SubElement(metadata, "Contents")
         content = ET.SubElement(contents, "Content", Name=self.cinematic_scene.name, Type="scene")
         
-        # sound_sequences = [sequence for sequence in self.context.scene.sequence_editor.sequences if sequence.type == 'SOUND']
+        # sound_sequences = [sequence for sequence in self.context.scene.sequence_editor.strips if sequence.type == 'SOUND']
         # audio_content_object = ET.SubElement(content, "ContentObject", Name="", Type="cinematic_audio")
         # for sequence in sound_sequences:
         #     sound = sequence.sound
