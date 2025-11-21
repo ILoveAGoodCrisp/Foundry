@@ -16,64 +16,80 @@ variants = {}
 regions = {}
 permutations = {}
 
+nudge = Vector.Fill(3, 0)
+rotation = 0
+
+def run_anchor_offset():
+    bpy.ops.nwo.cinematic_anchor_offset_main()
+
 class NWO_OT_CinematicAnchorOffset(bpy.types.Operator):
     bl_idname = "nwo.cinematic_anchor_offset"
     bl_label = "Offset Anchor from 3D Cursor"
     bl_description = "Offsets the cinematic anchor by the current position of the 3D cursor. The effect of this means the level geometry (assuming it is parented to the anchor) will be moved in such a way that the position of the 3D cursor becomes the new center of the blender scene. For example if you had your characters animated in the middle of your blender scene, and you wanted them to animate on a platform in your level using the anchor, this would move the platform to your characters"
-    bl_options = {'UNDO'}
+    bl_options = {'UNDO' , 'REGISTER'}
     
-    use_location: bpy.props.BoolProperty(
-        name="Use 3D Cursor Location",
-        default=True,
+    nudge: bpy.props.FloatVectorProperty(
+        name="Nudge",
+        size=3,
+        subtype='TRANSLATION'
     )
-    use_rotation: bpy.props.BoolProperty(
-        name="Use 3D Cursor Rotation",
-        default=False,
+    rotation: bpy.props.FloatProperty(
+        name="Rotation",
+        subtype='ANGLE'
     )
-
+    
     @classmethod
     def poll(cls, context):
         return context.scene.nwo.asset_type == 'cinematic' and utils.pointer_ob_valid(context.scene.nwo.cinematic_anchor)
-
+    
     def execute(self, context):
-        if not self.use_location and not self.use_rotation:
-            self.report({'WARNING'}, "Location and/or rotation must be used")
-            return {'CANCELLED'}
+        global nudge
+        global rotation
+        nudge = Vector(self.nudge)
+
+        rotation = self.rotation
         
-        cursor = context.scene.cursor
-        
-        cloc, crot, csca = cast(Matrix, context.scene.cursor.matrix).decompose()
-        
-        euler = cast(Euler, crot.to_euler())
-        
-        if self.use_location and self.use_rotation:
-            matrix = Matrix.LocRotScale(cloc, Euler((0, 0, euler.z)), csca)
-        elif self.use_location:
-            matrix = Matrix.LocRotScale(cloc, Euler((0, 0, 0)), csca)
-        else:
-            matrix = Matrix.LocRotScale(Vector.Fill(3, 0), Euler((0, 0, euler.z)), csca)
+        loc, rot, sca = cast(Matrix, context.scene.cursor.matrix).decompose()
+        matrix = Matrix.LocRotScale(loc + nudge, Euler((0, 0, 0)), sca)
             
         if hasattr(context.space_data, "region_3d"):
             r3d = context.space_data.region_3d
             r3d.view_matrix = r3d.view_matrix @ matrix
             r3d.view_location = r3d.view_location @ matrix
             
+        bpy.app.timers.register(run_anchor_offset, first_interval=0.02)
+        return {"FINISHED"}
+    
+    def invoke(self, context, _):
+        return context.window_manager.invoke_props_dialog(self, width=500)
+    
+    def draw(self, context):
+        layout = self.layout
+        layout.use_property_split = True
+        layout.prop(self, "nudge")
+        layout.prop(self, "rotation")
+
+class NWO_OT_CinematicAnchorOffsetMain(bpy.types.Operator):
+    bl_idname = "nwo.cinematic_anchor_offset_main"
+    bl_label = "Offset Anchor from 3D Cursor"
+    bl_description = "Offsets the cinematic anchor by the current position of the 3D cursor. The effect of this means the level geometry (assuming it is parented to the anchor) will be moved in such a way that the position of the 3D cursor becomes the new center of the blender scene. For example if you had your characters animated in the middle of your blender scene, and you wanted them to animate on a platform in your level using the anchor, this would move the platform to your characters"
+    bl_options = {'UNDO', 'INTERNAL'}
+
+    def execute(self, context):
+        cursor = context.scene.cursor
+        
+        loc, rot, sca = cast(Matrix, context.scene.cursor.matrix).decompose()
+
+        matrix = Matrix.LocRotScale(loc + nudge, Euler((0, 0, rotation)), sca)
+            
         matrix.invert_safe()
         
         anchor = context.scene.nwo.cinematic_anchor
         anchor.matrix_world = matrix @ anchor.matrix_world
         
-        cursor.location = 0, 0, 0
+        cursor.location = -nudge
 
         return {"FINISHED"}
-    
-    def invoke(self, context, _):
-        return context.window_manager.invoke_props_dialog(self)
-    
-    def draw(self, context):
-        layout = self.layout
-        layout.prop(self, "use_location")
-        layout.prop(self, "use_rotation")
 
 
 # CINEMATIC EVENTS
