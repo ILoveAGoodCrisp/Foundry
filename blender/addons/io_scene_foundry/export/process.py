@@ -1876,6 +1876,7 @@ class ExportScene:
                         constraint = effector.constraints.new('COPY_TRANSFORMS')
                         constraint.target = self.virtual_scene.skeleton_object
                         constraint.subtarget = chain.effector_node
+                                
                         vector_events.append(VectorEvent(effector.name, event, "bungie_animation_control_ik_effect"))
                         # constraint.target_space = 'LOCAL'
                         # constraint.owner_space = 'LOCAL'

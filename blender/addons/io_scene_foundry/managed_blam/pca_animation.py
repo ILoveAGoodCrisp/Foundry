@@ -24,7 +24,7 @@ class PCAAnimationTag(Tag):
         return raw_verts * scale
 
     # ------------------------------------------------------------ #
-    def import_animation(self,ob: bpy.types.Object, mesh_data_index: int, bounds: CompressionBounds, offset=0, count=1, shape_count= 16, shape_offset=0):
+    def import_animation(self,ob: bpy.types.Object, mesh_data_index: int, bounds: CompressionBounds, offset=0, count=1, shape_count=16, shape_offset=0):
         mesh_data = self.block_mesh_data.Elements[mesh_data_index]
         vertices_per_shape = int(mesh_data.Fields[1].Data)
 
@@ -48,9 +48,6 @@ class PCAAnimationTag(Tag):
             count = row_length - offset
             
         coefficient = coefficient[offset:offset+count]
-
-        # span = np.percentile(np.abs(coefficient), percentile, axis=0) * fudge
-        # span[span < 1e-6] = 1.0
 
         me = cast(bpy.types.Mesh, ob.data)
         if not me.shape_keys:

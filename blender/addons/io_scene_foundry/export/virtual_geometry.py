@@ -302,7 +302,7 @@ class VectorEvent:
         self.event = event
         self.effect_name = effect_name
         self.effect_data: list[float] = []
-        
+                    
 class VectorTrack:
     def __init__(self, granny_vector_track, bone_name: c_char_p):
         self.granny_vector_track = granny_vector_track
@@ -1635,7 +1635,7 @@ class AnimatedBone:
         self.parent = None
         self.is_object = False
         self.is_aim_bone = is_aim_bone
-        if isinstance(pbone, utils.ExportObject):
+        if isinstance(pbone, bpy.types.Object):
             self.is_object = True
         else:
             if parent_override is None:
