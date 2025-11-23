@@ -72,11 +72,11 @@ class ShaderDecalTag(ShaderTag):
         # e_parallax = Parallax(self._option_value_from_index(6))
         # e_interier = Interier(self._option_value_from_index(7))
         
-        if e_albedo in {Albedo.EMBLEM_CHANGE_COLOR, Albedo.DIFFUSE_PLUS_ALPHA_MASK, Albedo.VECTOR_ALPHA, Albedo.VECTOR_ALPHA_DROP_SHADOW, Albedo.PATCHY_EMBLEM}:
+        if e_albedo in {Albedo.EMBLEM_CHANGE_COLOR, Albedo.VECTOR_ALPHA, Albedo.VECTOR_ALPHA_DROP_SHADOW, Albedo.PATCHY_EMBLEM}:
             utils.print_warning(f"Albedo not supported: {e_albedo.name}. Using {Albedo.DIFFUSE_ONLY.name}")
             e_albedo = Albedo.DIFFUSE_ONLY
             
-        if e_blend_mode not in {BlendMode.OPAQUE, BlendMode.ADDITIVE, BlendMode.ALPHA_BLEND, BlendMode.MULTIPLY}:
+        if e_blend_mode not in {BlendMode.OPAQUE, BlendMode.ADDITIVE, BlendMode.ALPHA_BLEND, BlendMode.MULTIPLY, BlendMode.DOUBLE_MULTIPLY, BlendMode.PRE_MULTIPLIED_ALPHA}:
             utils.print_warning(f"Blend Mode not supported: {e_blend_mode.name}. Using {BlendMode.MULTIPLY.name}")
             e_blend_mode = BlendMode.MULTIPLY
             
@@ -93,52 +93,36 @@ class ShaderDecalTag(ShaderTag):
         
         has_bump = e_bump_mapping.value > 0
         
-        node_albedo = self._add_group_node(tree, nodes, f"shader_decal albedo - {utils.game_str(e_albedo.name)}")
-        final_node = node_albedo
+        group_node = self._add_group_node(tree, nodes, f"foundry_reach.shader_decal")
+        
+        group_node.inputs[0].default_value = e_albedo.name.lower()
+        group_node.inputs[1].default_value = e_blend_mode.name.lower()
+        
+        self.populate_chiefster_node(tree, group_node, 2)
         
         if e_albedo == Albedo.CHANGE_COLOR:
             node_cc_primary = nodes.new(type="ShaderNodeAttribute")
             node_cc_primary.attribute_name = "nwo.cc_primary"
             node_cc_primary.attribute_type = 'OBJECT'
-            node_cc_primary.location.x = node_albedo.location.x - 300
-            node_cc_primary.location.y = node_albedo.location.y + 200
-            tree.links.new(input=node_albedo.inputs["Primary Color"], output=node_cc_primary.outputs[0])
+            tree.links.new(input=group_node.inputs["Primary Color"], output=node_cc_primary.outputs[0])
             node_cc_secondary = nodes.new(type="ShaderNodeAttribute")
             node_cc_secondary.attribute_name = "nwo.cc_secondary"
             node_cc_secondary.attribute_type = 'OBJECT'
-            node_cc_secondary.location.x = node_albedo.location.x - 300
-            node_cc_secondary.location.y = node_albedo.location.y
-            tree.links.new(input=node_albedo.inputs["Secondary Color"], output=node_cc_secondary.outputs[0])
+            tree.links.new(input=group_node.inputs["Secondary Color"], output=node_cc_secondary.outputs[0])
             node_cc_tertiary = nodes.new(type="ShaderNodeAttribute")
             node_cc_tertiary.attribute_name = "nwo.cc_tertiary"
             node_cc_tertiary.attribute_type = 'OBJECT'
-            node_cc_tertiary.location.x = node_albedo.location.x - 300
-            node_cc_tertiary.location.y = node_albedo.location.y - 200
-            tree.links.new(input=node_albedo.inputs["Tertiary Color"], output=node_cc_tertiary.outputs[0])
+            tree.links.new(input=group_node.inputs["Tertiary Color"], output=node_cc_tertiary.outputs[0])
             
-        if has_bump:
-            node_bump_mapping = self._add_group_node(tree, nodes, f"bump_mapping - {utils.game_str(e_bump_mapping.name)}")
-            tree.links.new(input=node_albedo.inputs["Normal"], output=node_bump_mapping.outputs[0])
-            
-            
-        if e_blend_mode in {BlendMode.ADDITIVE, BlendMode.ALPHA_BLEND, BlendMode.MULTIPLY}:
-            blender_material.surface_render_method = 'BLENDED'
-            node_blend_mode = self._add_group_node(tree, nodes, f"blend_mode - {utils.game_str(e_blend_mode.name)}")
-            tree.links.new(input=node_blend_mode.inputs[0], output=final_node.outputs[0])
-            final_node = node_blend_mode
-            if e_blend_mode == BlendMode.ALPHA_BLEND:
-                tree.links.new(input=node_blend_mode.inputs[1], output=node_albedo.outputs[2])
-            elif e_blend_mode == BlendMode.MULTIPLY:
-                tree.links.new(input=node_blend_mode.inputs[1], output=node_albedo.outputs[1])
-                tree.links.new(input=node_blend_mode.inputs[2], output=node_albedo.outputs[2])
+        # if e_blend_mode in {BlendMode.ADDITIVE, BlendMode.ALPHA_BLEND, BlendMode.MULTIPLY}:
+        #     blender_material.surface_render_method = 'BLENDED'
+        #     group_node.inputs["material is two-sided"].default_value = True
                 
         # Make the Output
         node_output = nodes.new(type='ShaderNodeOutputMaterial')
-        node_output.location.x = final_node.location.x + 300
-        node_output.location.y = final_node.location.y
         
         # Link to output
-        tree.links.new(input=node_output.inputs[0], output=final_node.outputs[0])
+        tree.links.new(input=node_output.inputs[0], output=group_node.outputs[0])
 
     def _to_nodes_bsdf(self, blender_material: bpy.types.Material):
         tree = blender_material.node_tree

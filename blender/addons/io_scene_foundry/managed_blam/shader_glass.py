@@ -67,54 +67,21 @@ class ShaderGlassTag(ShaderTag):
         # Clear it out
         nodes.clear()
         
-        node_albedo = self._add_group_node(tree, nodes, f"albedo - default")
-        final_node = node_albedo
+        group_node = self._add_group_node(tree, nodes, f"foundry_reach.shader_glass")
         
-        has_bump = e_bump_mapping.value > 0
-        node_material_model = self._add_group_material_model(tree, nodes, utils.game_str(e_material_model.name), True, False)
-        final_node = node_material_model
-        
-        tree.links.new(input=node_material_model.inputs[0], output=node_albedo.outputs[0])
-            
-        if has_bump:
-            node_bump_mapping = self._add_group_node(tree, nodes, f"bump_mapping - {utils.game_str(e_bump_mapping.name)}")
-            tree.links.new(input=node_material_model.inputs["Normal"], output=node_bump_mapping.outputs[0])
-            
-        if e_environment_mapping.value > 0:
-            node_environment_mapping = self._add_group_node(tree, nodes, f"environment_mapping - {utils.game_str(e_environment_mapping.name)}")
-            tree.links.new(input=node_environment_mapping.inputs[0], output=node_material_model.outputs[1])
-            if e_environment_mapping == EnvironmentMapping.DYNAMIC:
-                tree.links.new(input=node_environment_mapping.inputs[1], output=node_material_model.outputs[2])
-                
-            node_model_environment_add = nodes.new(type='ShaderNodeAddShader')
-            node_model_environment_add.location.x = node_environment_mapping.location.x + 300
-            node_model_environment_add.location.y = node_material_model.location.y
-            tree.links.new(input=node_model_environment_add.inputs[0], output=node_material_model.outputs[0])
-            tree.links.new(input=node_model_environment_add.inputs[1], output=node_environment_mapping.outputs[0])
-            final_node = node_model_environment_add
-            if has_bump:
-                tree.links.new(input=node_environment_mapping.inputs["Normal"], output=node_bump_mapping.outputs[0])
-                
+        group_node.inputs[0].default_value = e_albedo.name.lower()
+        group_node.inputs[1].default_value = e_bump_mapping.name.lower()
+        group_node.inputs[2].default_value = e_material_model.name.lower()
+        group_node.inputs[3].default_value = e_environment_mapping.name.lower()
+        group_node.inputs[4].default_value = e_alpha_blend_source.name.lower()
+
+        self.populate_chiefster_node(tree, group_node, 5)
+
         blender_material.surface_render_method = 'BLENDED'
-        node_blend_mode = self._add_group_node(tree, nodes, f"blend_mode - alpha_blend")
-        for input in node_blend_mode.inputs:
-            if input.name == "material is two-sided":
-                input.default_value = True
-                break
-        tree.links.new(input=node_blend_mode.inputs[0], output=final_node.outputs[0])
-        final_node = node_blend_mode
-        if e_alpha_blend_source.value > 0:
-            node_alpha_blend_source = self._add_group_node(tree, nodes, f"alpha_blend_source - {utils.game_str(e_alpha_blend_source.name)}")
-            tree.links.new(input=node_blend_mode.inputs[1], output=node_alpha_blend_source.outputs[0])
-            if has_bump:
-                tree.links.new(input=node_alpha_blend_source.inputs["Normal"], output=node_bump_mapping.outputs[0])
-        else:
-            tree.links.new(input=node_blend_mode.inputs[1], output=node_albedo.outputs[1])
+        group_node.inputs["material is two-sided"].default_value = True
             
         # Make the Output
         node_output = nodes.new(type='ShaderNodeOutputMaterial')
-        node_output.location.x = final_node.location.x + 300
-        node_output.location.y = final_node.location.y
         
         # Link to output
-        tree.links.new(input=node_output.inputs[0], output=final_node.outputs[0])
+        tree.links.new(input=node_output.inputs[0], output=group_node.outputs[0])

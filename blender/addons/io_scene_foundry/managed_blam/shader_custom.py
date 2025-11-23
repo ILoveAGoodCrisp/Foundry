@@ -130,10 +130,10 @@ class ShaderCustomTag(ShaderTag):
             e_self_illumination = SelfIllumination.SIMPLE
             utils.print_warning(f"Unsupported self illumination: {old_illum}. Using {e_self_illumination.name} instead")
             
-        if e_blend_mode.value > BlendMode.ALPHA_BLEND.value:
-            old_blend = e_blend_mode.name
-            e_blend_mode = BlendMode.ALPHA_BLEND
-            utils.print_warning(f"Unsupported blend mode : {old_blend}. Using {e_blend_mode.name} instead")
+        # if e_blend_mode.value > BlendMode.DOUBLE_MULTIPLY.value:
+        #     old_blend = e_blend_mode.name
+        #     e_blend_mode = BlendMode.ALPHA_BLEND
+        #     utils.print_warning(f"Unsupported blend mode : {old_blend}. Using {e_blend_mode.name} instead")
         
         self.shader_parameters = {}
         self.shader_parameters.update(self.category_parameters["albedo"][utils.game_str(e_albedo.name)])
@@ -151,121 +151,49 @@ class ShaderCustomTag(ShaderTag):
         # Clear it out
         nodes.clear()
         
-        if Albedo == Albedo.WATERFALL:
-            node_albedo = self._add_group_node(tree, nodes, f"shader_custom albedo - waterfall")
-        else:
-            node_albedo = self._add_group_node(tree, nodes, f"albedo - {utils.game_str(e_albedo.name)}")
-        final_node = node_albedo
+        group_node = self._add_group_node(tree, nodes, f"foundry_reach.shader_custom")
         
-        no_material_model = e_material_model == MaterialModel.NONE
-        has_illum = e_self_illumination != SelfIllumination.OFF
+        group_node.inputs[0].default_value = e_albedo.name.lower()
+        group_node.inputs[1].default_value = e_bump_mapping.name.lower()
+        group_node.inputs[2].default_value = e_alpha_test.name.lower()
+        group_node.inputs[3].default_value = e_specular_mask.name.lower()
+        group_node.inputs[4].default_value = e_material_model.name.lower()
+        group_node.inputs[5].default_value = e_environment_mapping.name.lower()
+        group_node.inputs[6].default_value = e_self_illumination.name.lower()
+        group_node.inputs[7].default_value = e_blend_mode.name.lower()
         
-        has_bump = e_bump_mapping.value > 0 and e_material_model != MaterialModel.NONE
-        mm_supports_glancing_spec = False
-        material_model_has_alpha_input = False
-        has_material_model = e_material_model != MaterialModel.NONE
-        
-        if has_material_model:
-            material_model_has_alpha_input = e_material_model != MaterialModel.FOLIAGE
-            mm_supports_glancing_spec = e_material_model.value > 0
-            node_material_model = self._add_group_material_model(tree, nodes, utils.game_str(e_material_model.name), mm_supports_glancing_spec, False)
-            final_node = node_material_model
-        
+        self.populate_chiefster_node(tree, group_node, 8)
+
         if e_albedo in {Albedo.FOUR_CHANGE_COLOR, Albedo.TWO_CHANGE_COLOR}:
             node_cc_primary = nodes.new(type="ShaderNodeAttribute")
             node_cc_primary.attribute_name = "Primary Color"
             node_cc_primary.attribute_type = 'INSTANCER'
-            node_cc_primary.location.x = node_albedo.location.x - 300
-            node_cc_primary.location.y = node_albedo.location.y + 200
-            tree.links.new(input=node_albedo.inputs["Primary Color"], output=node_cc_primary.outputs[0])
+            tree.links.new(input=group_node.inputs["Primary Color"], output=node_cc_primary.outputs[0])
             self.game_functions.add("Primary Color")
             node_cc_secondary = nodes.new(type="ShaderNodeAttribute")
             node_cc_secondary.attribute_name = "Secondary Color"
             node_cc_secondary.attribute_type = 'INSTANCER'
-            node_cc_secondary.location.x = node_albedo.location.x - 300
-            node_cc_secondary.location.y = node_albedo.location.y
-            tree.links.new(input=node_albedo.inputs["Secondary Color"], output=node_cc_secondary.outputs[0])
+            tree.links.new(input=group_node.inputs["Secondary Color"], output=node_cc_secondary.outputs[0])
             self.game_functions.add("Secondary Color")
 
             if e_albedo != Albedo.TWO_CHANGE_COLOR:
                 node_cc_tertiary = nodes.new(type="ShaderNodeAttribute")
                 node_cc_tertiary.attribute_name = "Tertiary Color"
                 node_cc_tertiary.attribute_type = 'INSTANCER'
-                node_cc_tertiary.location.x = node_albedo.location.x - 300
-                node_cc_tertiary.location.y = node_albedo.location.y - 200
-                tree.links.new(input=node_albedo.inputs["Tertiary Color"], output=node_cc_tertiary.outputs[0])
+                tree.links.new(input=group_node.inputs["Tertiary Color"], output=node_cc_tertiary.outputs[0])
                 self.game_functions.add("Tertiary Color")
                 node_cc_quaternary = nodes.new(type="ShaderNodeAttribute")
                 node_cc_quaternary.attribute_name = "Quaternary Color"
                 node_cc_quaternary.attribute_type = 'INSTANCER'
-                node_cc_quaternary.location.x = node_albedo.location.x - 300
-                node_cc_quaternary.location.y = node_albedo.location.y - 400
-                tree.links.new(input=node_albedo.inputs["Quaternary Color"], output=node_cc_quaternary.outputs[0])
+                tree.links.new(input=group_node.inputs["Quaternary Color"], output=node_cc_quaternary.outputs[0])
                 self.game_functions.add("Quaternary Color")
-        
-        if has_material_model:
-            tree.links.new(input=node_material_model.inputs[0], output=node_albedo.outputs[0])
-            if material_model_has_alpha_input: # Diffuse only does not have alpha input
-                match e_specular_mask:
-                    case SpecularMask.SPECULAR_MASK_FROM_DIFFUSE:
-                        tree.links.new(input=node_material_model.inputs[1], output=node_albedo.outputs[1])
-                    case SpecularMask.SPECULAR_MASK_FROM_TEXTURE | SpecularMask.SPECULAR_MASK_MULT_DIFFUSE:
-                        spec_param = self.true_parameters.get("specular_mask_texture")
-                        if spec_param is not None:
-                            self.group_set_image(tree, node_material_model, spec_param, ChannelType.ALPHA, specified_input=1)
-        
-            if has_bump:
-                node_bump_mapping = self._add_group_node(tree, nodes, f"bump_mapping - {utils.game_str(e_bump_mapping.name)}")
-                tree.links.new(input=node_material_model.inputs["Normal"], output=node_bump_mapping.outputs[0])
             
-            if e_environment_mapping.value > 0:
-                node_environment_mapping = self._add_group_node(tree, nodes, f"environment_mapping - {utils.game_str(e_environment_mapping.name)}")
-                tree.links.new(input=node_environment_mapping.inputs[0], output=node_material_model.outputs[1])
-                if e_environment_mapping == EnvironmentMapping.DYNAMIC:
-                    tree.links.new(input=node_environment_mapping.inputs[1], output=node_material_model.outputs[2])
-                
-                node_model_environment_add = nodes.new(type='ShaderNodeAddShader')
-                node_model_environment_add.location.x = node_environment_mapping.location.x + 300
-                node_model_environment_add.location.y = node_material_model.location.y
-                tree.links.new(input=node_model_environment_add.inputs[0], output=node_material_model.outputs[0])
-                tree.links.new(input=node_model_environment_add.inputs[1], output=node_environment_mapping.outputs[0])
-                final_node = node_model_environment_add
-                if has_bump:
-                    tree.links.new(input=node_environment_mapping.inputs["Normal"], output=node_bump_mapping.outputs[0])
-            
-        if has_illum:
-            node_self_illumination = self._add_group_node(tree, nodes, f"self_illumination - {utils.game_str(e_self_illumination.name)}")
-            if e_self_illumination in {SelfIllumination.FROM_DIFFUSE, SelfIllumination.SELF_ILLUM_TIMES_DIFFUSE}:
-                tree.links.new(input=node_self_illumination.inputs[0], output=node_albedo.outputs[0])
-            
-            if final_node is None or no_material_model:
-                final_node = node_self_illumination
-            else:
-                node_illum_add = nodes.new(type='ShaderNodeAddShader')
-                tree.links.new(input=node_illum_add.inputs[0], output=node_self_illumination.outputs[0])
-                tree.links.new(input=node_illum_add.inputs[1], output=final_node.outputs[0])
-                final_node = node_illum_add
-            
-        if e_blend_mode in {BlendMode.ADDITIVE, BlendMode.ALPHA_BLEND}:
+        if e_blend_mode in {BlendMode.ADDITIVE, BlendMode.ALPHA_BLEND} or e_alpha_test.value > 0:
             blender_material.surface_render_method = 'BLENDED'
-            node_blend_mode = self._add_group_node(tree, nodes, f"blend_mode - {utils.game_str(e_blend_mode.name)}")
-            for input in node_blend_mode.inputs:
-                if input.name == "material is two-sided":
-                    input.default_value = True
-                    break
-            tree.links.new(input=node_blend_mode.inputs[0], output=final_node.outputs[0])
-            final_node = node_blend_mode
-            
-        if e_alpha_test.value > 0:
-            node_alpha_test = self._add_group_node(tree, nodes, f"alpha_test - {utils.game_str(e_alpha_test.name)}")
-            node_alpha_test.inputs["two-sided material"].default_value = True
-            tree.links.new(input=node_alpha_test.inputs[1], output=final_node.outputs[0])
-            final_node = node_alpha_test
+            group_node.inputs["material is two-sided"].default_value = True
             
         # Make the Output
         node_output = nodes.new(type='ShaderNodeOutputMaterial')
-        node_output.location.x = final_node.location.x + 300
-        node_output.location.y = final_node.location.y
         
         # Link to output
-        tree.links.new(input=node_output.inputs[0], output=final_node.outputs[0])
+        tree.links.new(input=node_output.inputs[0], output=group_node.outputs[0])

@@ -52,23 +52,20 @@ class ShaderFoliageTag(ShaderTag):
         # Clear it out
         nodes.clear()
         
-        node_albedo = self._add_group_node(tree, nodes, f"albedo - {utils.game_str(e_albedo.name)}")
-        node_material_model = self._add_group_node(tree, nodes, f"shader_foliage material_model - {utils.game_str(e_material_model.name)}")
-        final_node = node_material_model
+        group_node = self._add_group_node(tree, nodes, f"foundry_reach.shader_foliage")
         
-        tree.links.new(input=node_material_model.inputs[0], output=node_albedo.outputs[0])
+        group_node.inputs[0].default_value = e_albedo.name.lower()
+        group_node.inputs[1].default_value = e_alpha_test.name.lower()
+        group_node.inputs[2].default_value = e_material_model.name.lower()
+
+        self.populate_chiefster_node(tree, group_node, 3)
         
         if e_alpha_test.value > 0:
-            node_alpha_test = self._add_group_node(tree, nodes, f"alpha_test - simple")
-            node_alpha_test.inputs["two-sided material"].default_value = True
-            if e_alpha_test == AlphaTest.FROM_ALBEDO_ALPHA:
-                tree.links.new(input=node_alpha_test.inputs[0], output=node_albedo.outputs[1])
-                
-            tree.links.new(input=node_alpha_test.inputs[1], output=final_node.outputs[0])
-            final_node = node_alpha_test
+            blender_material.surface_render_method = 'BLENDED'
+            group_node.inputs["material is two-sided"].default_value = True
                 
         # Make the Output
         node_output = nodes.new(type='ShaderNodeOutputMaterial')
         
         # Link to output
-        tree.links.new(input=node_output.inputs[0], output=final_node.outputs[0])
+        tree.links.new(input=node_output.inputs[0], output=group_node.outputs[0])
