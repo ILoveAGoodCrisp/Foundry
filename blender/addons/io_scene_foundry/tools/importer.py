@@ -1185,6 +1185,10 @@ class NWO_Import(bpy.types.Operator):
                 if self.generate_frames and imported_animations:
                     generator = FrameGenerator(a for a in context.scene.nwo.animations if a not in current_animations)
                     generator.generate()
+                    
+                if importer.deferred_parenting:
+                    for ob, parent in importer.deferred_parenting.items():
+                        ob.parent = parent
                         
             except KeyboardInterrupt:
                 utils.print_warning("\nIMPORT CANCELLED BY USER")
@@ -1655,6 +1659,7 @@ class NWOImporter:
         self.for_cinematic = context.scene.nwo.asset_type == "cinematic"
         self.obs_for_props = {}
         self.fp_arms_imported = False
+        self.deferred_parenting = {}
         if filepaths:
             self.sorted_filepaths = self.group_filetypes(scope)
         else:
@@ -2273,7 +2278,7 @@ class NWOImporter:
                             attach_point.parent = marker_parents[0]
                             attach_point.matrix_world = marker_parents[0].matrix_world
                         else:
-                            armature.parent = marker_parents[0]
+                            self.deferred_parenting[armature] = marker_parents[0]
                     else:
                         if marker_children:
                             attach_point.parent = parent_armature

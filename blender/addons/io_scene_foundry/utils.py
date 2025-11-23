@@ -2629,7 +2629,6 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
             for mesh in meshes:
                 mesh.transform(scale_matrix)
                 
-                
             for camera in cameras:
                 camera.display_size *= scale_factor
                 
