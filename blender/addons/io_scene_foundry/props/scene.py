@@ -2507,8 +2507,8 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         ).strip('"')
     def template_weapon_clean_tag_path(self, context):
         self["template_weapon"] = utils.clean_tag_path(self["template_weapon"], "weapon").strip('"')
-        if utils.get_asset_tag('.weapon'):
-            bpy.ops.nwo.update_template().tag_type = 'vehicle'
+    def template_scenario_clean_tag_path(self, context):
+        self["template_scenario"] = utils.clean_tag_path(self["template_scenario"], "scenario").strip('"')
             
     
     template_model: bpy.props.StringProperty(
@@ -2594,6 +2594,19 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         description="Tag relative path to the weapon tag to use as a base if this asset does not already have one",
         update=template_weapon_clean_tag_path,
         options=set(),
+    )
+    template_scenario: bpy.props.StringProperty(
+        name="Scenario Palettes Template",
+        description="Tag relative path to the scenario tag to use as a base if this asset does not already have one. Only palettes and camera effects/globals will be copied from the referenced scenario",
+        update=template_scenario_clean_tag_path,
+        options=set(),
+    )
+    
+    scenario_add_globals: bpy.props.BoolProperty(
+        name="Add Camera/Atmosphere Globals",
+        default=True,
+        options=set(),
+        description="Adds empty camera and atmosphere globals to the scenario if they do not exist. If a scenario template is in use then these will first be instead copied from the template scenario"
     )
 
     light_tools_active: bpy.props.BoolProperty(options=set())

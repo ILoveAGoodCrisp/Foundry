@@ -482,6 +482,12 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             box.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text="Open Scenario Tag").tag_path = tag_path
         col = box.column()
         col.use_property_split = True
+        row = col.row(align=True)
+        row.prop(nwo, "template_scenario", text="Scenario Palette Template", icon_value=get_icon_id("tags"))
+        row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_scenario"
+        row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_scenario'
+        col.prop(nwo, "scenario_add_globals")
+        col.separator()
         col.operator("nwo.new_sky", text="Add New Sky to Scenario", icon_value=get_icon_id('sky'))
         
     def draw_decorators(self, box: bpy.types.UILayout, nwo):

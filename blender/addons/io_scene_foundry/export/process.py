@@ -2437,6 +2437,288 @@ class ExportScene:
                     if self.export_settings.create_debug_zone_set:
                         self.print_post(f"--- Adding debug zone set")
                         scenario.write_foundry_zone_set()
+                    
+                    scenario_path = Path(scenario.tag_path.Filename)
+                    
+                    if self.scene_settings.template_scenario:
+                        template_scenario_path = Path(self.tags_dir, utils.relative_path(self.scene_settings.template_scenario))
+                        if template_scenario_path.exists():
+                            self.print_pre(f"--- Copying palettes from {self.scene_settings.template_scenario}")
+                            with ScenarioTag(path=template_scenario_path) as template_scenario:
+                                
+                                scenario_skies = scenario.tag.SelectField("Block:skies")
+                                if scenario_skies.Elements.Count <= 0:
+                                    template_scenario.tag.SelectField("Block:skies").CopyEntireTagBlock()
+                                    scenario_skies.PasteReplaceEntireBlock()
+                                    scenario.tag_has_changes = True
+                                    
+                                    template_object_names = template_scenario.tag.SelectField("Block:object names")
+                                    object_names = scenario.tag.SelectField("Block:object names")
+                                    
+                                    for e in template_scenario.tag.SelectField("Block:skies").Elements:
+                                        name_index = e.SelectField("name").Value
+                                        if name_index > -1 and name_index < template_object_names.Elements.Count:
+                                            template_object_names.CopyElement(name_index)
+                                            object_names.PasteAppendElement()
+                                            scenario_skies.Elements[e.ElementIndex].SelectField("name").Value = object_names.Elements.Count - 1
+                                        else:
+                                            scenario_skies.Elements[e.ElementIndex].SelectField("name").Value = -1
+                                
+                                if scenario.tag.SelectField("Block:scenery palette").Elements.Count <= 0:
+                                    template_scenario.tag.SelectField("Block:scenery palette").CopyEntireTagBlock()
+                                    scenario.tag.SelectField("Block:scenery palette").PasteReplaceEntireBlock()
+                                    scenario.tag_has_changes = True
+                                
+                                if scenario.tag.SelectField("Block:biped palette").Elements.Count <= 0:
+                                    template_scenario.tag.SelectField("Block:biped palette").CopyEntireTagBlock()
+                                    scenario.tag.SelectField("Block:biped palette").PasteReplaceEntireBlock()
+                                    scenario.tag_has_changes = True
+                                
+                                if scenario.tag.SelectField("Block:vehicle palette").Elements.Count <= 0:
+                                    template_scenario.tag.SelectField("Block:vehicle palette").CopyEntireTagBlock()
+                                    scenario.tag.SelectField("Block:vehicle palette").PasteReplaceEntireBlock()
+                                    scenario.tag_has_changes = True
+                                
+                                if scenario.tag.SelectField("Block:equipment palette").Elements.Count <= 0:
+                                    template_scenario.tag.SelectField("Block:equipment palette").CopyEntireTagBlock()
+                                    scenario.tag.SelectField("Block:equipment palette").PasteReplaceEntireBlock()
+                                    scenario.tag_has_changes = True
+                                
+                                if scenario.tag.SelectField("Block:weapon palette").Elements.Count <= 0:
+                                    template_scenario.tag.SelectField("Block:weapon palette").CopyEntireTagBlock()
+                                    scenario.tag.SelectField("Block:weapon palette").PasteReplaceEntireBlock()
+                                    scenario.tag_has_changes = True
+                                
+                                if scenario.tag.SelectField("Block:machine palette").Elements.Count <= 0:
+                                    template_scenario.tag.SelectField("Block:machine palette").CopyEntireTagBlock()
+                                    scenario.tag.SelectField("Block:machine palette").PasteReplaceEntireBlock()
+                                    scenario.tag_has_changes = True
+                                
+                                if scenario.tag.SelectField("Block:terminal palette").Elements.Count <= 0:
+                                    template_scenario.tag.SelectField("Block:terminal palette").CopyEntireTagBlock()
+                                    scenario.tag.SelectField("Block:terminal palette").PasteReplaceEntireBlock()
+                                    scenario.tag_has_changes = True
+                                
+                                if scenario.tag.SelectField("Block:control palette").Elements.Count <= 0:
+                                    template_scenario.tag.SelectField("Block:control palette").CopyEntireTagBlock()
+                                    scenario.tag.SelectField("Block:control palette").PasteReplaceEntireBlock()
+                                    scenario.tag_has_changes = True
+                                
+                                if self.corinth:
+                                    if scenario.tag.SelectField("Block:dispenser palette").Elements.Count <= 0:
+                                        template_scenario.tag.SelectField("Block:dispenser palette").CopyEntireTagBlock()
+                                        scenario.tag.SelectField("Block:dispenser palette").PasteReplaceEntireBlock()
+                                        scenario.tag_has_changes = True
+                                    
+                                    if scenario.tag.SelectField("Block:spawner palette").Elements.Count <= 0:
+                                        template_scenario.tag.SelectField("Block:spawner palette").CopyEntireTagBlock()
+                                        scenario.tag.SelectField("Block:spawner palette").PasteReplaceEntireBlock()
+                                        scenario.tag_has_changes = True
+                                    
+                                    if scenario.tag.SelectField("Block:bink palette").Elements.Count <= 0:
+                                        template_scenario.tag.SelectField("Block:bink palette").CopyEntireTagBlock()
+                                        scenario.tag.SelectField("Block:bink palette").PasteReplaceEntireBlock()
+                                        scenario.tag_has_changes = True
+                                        
+                                if scenario.tag.SelectField("Block:sound scenery palette").Elements.Count <= 0:    
+                                    template_scenario.tag.SelectField("Block:sound scenery palette").CopyEntireTagBlock()
+                                    scenario.tag.SelectField("Block:sound scenery palette").PasteReplaceEntireBlock()
+                                    scenario.tag_has_changes = True
+                                
+                                if scenario.tag.SelectField("Block:giant palette").Elements.Count <= 0:
+                                    template_scenario.tag.SelectField("Block:giant palette").CopyEntireTagBlock()
+                                    scenario.tag.SelectField("Block:giant palette").PasteReplaceEntireBlock()
+                                    scenario.tag_has_changes = True
+                                
+                                if scenario.tag.SelectField("Block:effect scenery palette").Elements.Count <= 0:
+                                    template_scenario.tag.SelectField("Block:effect scenery palette").CopyEntireTagBlock()
+                                    scenario.tag.SelectField("Block:effect scenery palette").PasteReplaceEntireBlock()
+                                    scenario.tag_has_changes = True
+                                
+                                if scenario.tag.SelectField("Block:map variant palettes").Elements.Count <= 0:
+                                    template_scenario.tag.SelectField("Block:map variant palettes").CopyEntireTagBlock()
+                                    scenario.tag.SelectField("Block:map variant palettes").PasteReplaceEntireBlock()
+                                    scenario.tag_has_changes = True
+                                
+                                if scenario.tag.SelectField("Block:map variant palettes compatibility").Elements.Count <= 0:
+                                    template_scenario.tag.SelectField("Block:map variant palettes compatibility").CopyEntireTagBlock()
+                                    scenario.tag.SelectField("Block:map variant palettes compatibility").PasteReplaceEntireBlock()
+                                    scenario.tag_has_changes = True
+                                
+                                if scenario.tag.SelectField("Block:Playtest req palette").Elements.Count <= 0:
+                                    template_scenario.tag.SelectField("Block:Playtest req palette").CopyEntireTagBlock()
+                                    scenario.tag.SelectField("Block:Playtest req palette").PasteReplaceEntireBlock()
+                                    scenario.tag_has_changes = True
+                                
+                                if scenario.tag.SelectField("Block:decal palette").Elements.Count <= 0:
+                                    template_scenario.tag.SelectField("Block:decal palette").CopyEntireTagBlock()
+                                    scenario.tag.SelectField("Block:decal palette").PasteReplaceEntireBlock()
+                                    scenario.tag_has_changes = True
+                                
+                                if scenario.tag.SelectField("Block:detail object collection palette").Elements.Count <= 0:
+                                    template_scenario.tag.SelectField("Block:detail object collection palette").CopyEntireTagBlock()
+                                    scenario.tag.SelectField("Block:detail object collection palette").PasteReplaceEntireBlock()
+                                    scenario.tag_has_changes = True
+                                
+                                if scenario.tag.SelectField("Block:style pallette").Elements.Count <= 0:
+                                    template_scenario.tag.SelectField("Block:style pallette").CopyEntireTagBlock()
+                                    scenario.tag.SelectField("Block:style pallette").PasteReplaceEntireBlock()
+                                    scenario.tag_has_changes = True
+                                
+                                if scenario.tag.SelectField("Block:character palette").Elements.Count <= 0:
+                                    template_scenario.tag.SelectField("Block:character palette").CopyEntireTagBlock()
+                                    scenario.tag.SelectField("Block:character palette").PasteReplaceEntireBlock()
+                                    scenario.tag_has_changes = True
+                                
+                                if scenario.tag.SelectField("Block:character palette").Elements.Count <= 0:
+                                    template_scenario.tag.SelectField("Block:character palette").CopyEntireTagBlock()
+                                    scenario.tag.SelectField("Block:character palette").PasteReplaceEntireBlock()
+                                    scenario.tag_has_changes = True
+                                
+                                if scenario.tag.SelectField("Block:acoustics palette").Elements.Count <= 0:
+                                    template_scenario.tag.SelectField("Block:acoustics palette").CopyEntireTagBlock()
+                                    scenario.tag.SelectField("Block:acoustics palette").PasteReplaceEntireBlock()
+                                    scenario.tag_has_changes = True
+                                
+                                if scenario.tag.SelectField("Block:atmosphere").Elements.Count <= 0:
+                                    template_scenario.tag.SelectField("Block:atmosphere").CopyEntireTagBlock()
+                                    scenario.tag.SelectField("Block:atmosphere").PasteReplaceEntireBlock()
+                                    scenario.tag_has_changes = True
+                                
+                                if scenario.tag.SelectField("Block:camera fx palette").Elements.Count <= 0:
+                                    template_scenario.tag.SelectField("Block:camera fx palette").CopyEntireTagBlock()
+                                    scenario.tag.SelectField("Block:camera fx palette").PasteReplaceEntireBlock()
+                                    scenario.tag_has_changes = True
+                                
+                                if scenario.tag.SelectField("Block:weather palette").Elements.Count <= 0:
+                                    template_scenario.tag.SelectField("Block:weather palette").CopyEntireTagBlock()
+                                    scenario.tag.SelectField("Block:weather palette").PasteReplaceEntireBlock()
+                                    scenario.tag_has_changes = True
+                                
+                                if scenario.tag.SelectField("Block:crate palette").Elements.Count <= 0:
+                                    template_scenario.tag.SelectField("Block:crate palette").CopyEntireTagBlock()
+                                    scenario.tag.SelectField("Block:crate palette").PasteReplaceEntireBlock()
+                                    scenario.tag_has_changes = True
+                                
+                                if scenario.tag.SelectField("Block:flock palette").Elements.Count <= 0:
+                                    template_scenario.tag.SelectField("Block:flock palette").CopyEntireTagBlock()
+                                    scenario.tag.SelectField("Block:flock palette").PasteReplaceEntireBlock()
+                                    scenario.tag_has_changes = True
+                                
+                                if scenario.tag.SelectField("Block:creature palette").Elements.Count <= 0:
+                                    template_scenario.tag.SelectField("Block:creature palette").CopyEntireTagBlock()
+                                    scenario.tag.SelectField("Block:creature palette").PasteReplaceEntireBlock()
+                                    scenario.tag_has_changes = True
+                                
+                                if scenario.tag.SelectField("Block:big battle creature palette").Elements.Count <= 0:
+                                    template_scenario.tag.SelectField("Block:big battle creature palette").CopyEntireTagBlock()
+                                    scenario.tag.SelectField("Block:big battle creature palette").PasteReplaceEntireBlock()
+                                    scenario.tag_has_changes = True
+                                
+                                if scenario.tag.SelectField("Block:neuticle palette").Elements.Count <= 0:
+                                    template_scenario.tag.SelectField("Block:neuticle palette").CopyEntireTagBlock()
+                                    scenario.tag.SelectField("Block:neuticle palette").PasteReplaceEntireBlock()
+                                    scenario.tag_has_changes = True
+                                
+                                if scenario.tag.SelectField("Block:cinematic lighting palette").Elements.Count <= 0:
+                                    template_scenario.tag.SelectField("Block:cinematic lighting palette").CopyEntireTagBlock()
+                                    scenario.tag.SelectField("Block:cinematic lighting palette").PasteReplaceEntireBlock()
+                                    scenario.tag_has_changes = True
+                                
+                                # Decorators
+                                if scenario.tag.SelectField("Block:decorators").Elements.Count <= 0:
+                                    if template_scenario.tag.SelectField("Block:decorators").Elements.Count > 0:
+                                        scenario.tag_has_changes = True
+                                        template_dec_element = template_scenario.tag.SelectField("Block:decorators").Elements[0]
+                                        dec_element = scenario.tag.SelectField("Block:decorators").AddElement()
+                                        dec_sets = dec_element.SelectField("Block:sets")
+                                        for e in template_dec_element.SelectField("Block:sets").Elements:
+                                            dec_sets.AddElement().SelectField("Reference:decorator set").Path = e.SelectField("Reference:decorator set").Path
+                                        
+                                # Globals
+                                
+                                if self.scene_settings.scenario_add_globals:
+                                    camera_effects = template_scenario.tag.SelectField("Reference:camera effects").Path
+                                    camera_effects_new = scenario.tag.SelectField("Reference:camera effects")
+                                    if template_scenario.path_exists(camera_effects) and not scenario.path_exists(camera_effects_new.Path):
+                                        scenario.tag_has_changes = True
+                                        camera_effects_new.Path = scenario._TagPath_from_string(utils.copy_file(camera_effects.Filename, scenario_path.with_suffix(".camera_fx_settings")))
+                                    
+                                    global_screen_effect = template_scenario.tag.SelectField("Reference:global screen effect").Path
+                                    global_screen_effect_new = scenario.tag.SelectField("Reference:global screen effect")
+                                    if template_scenario.path_exists(global_screen_effect) and not scenario.path_exists(global_screen_effect_new.Path):
+                                        scenario.tag_has_changes = True
+                                        global_screen_effect_new.Path = scenario._TagPath_from_string(utils.copy_file(global_screen_effect.Filename, scenario_path.with_suffix(".area_screen_effect")))
+                                    
+                                    global_ssao = template_scenario.tag.SelectField("Reference:global ssao").Path
+                                    global_ssao_new = scenario.tag.SelectField("Reference:global ssao")
+                                    if template_scenario.path_exists(global_ssao) and not scenario.path_exists(global_ssao_new.Path):
+                                        scenario.tag_has_changes = True
+                                        global_ssao_new.Path = scenario._TagPath_from_string(utils.copy_file(global_ssao.Filename, scenario_path.with_suffix(".ssao_definition")))
+                                    
+                                    atmosphere_globals = template_scenario.tag.SelectField("Reference:atmosphere globals").Path
+                                    atmosphere_globals_new = template_scenario.tag.SelectField("Reference:atmosphere globals")
+                                    if template_scenario.path_exists(atmosphere_globals) and not scenario.path_exists(atmosphere_globals_new.Path):
+                                        scenario.tag_has_changes = True
+                                        atmosphere_globals_new.Path = scenario._TagPath_from_string(utils.copy_file(atmosphere_globals.Filename, scenario_path.with_suffix(".atmosphere_globals")))
+                                    
+                                    if not self.corinth:
+                                        old_atmosphere = template_scenario.tag.SelectField("Reference:old atmosphere").Path
+                                        old_atmosphere_new = template_scenario.tag.SelectField("Reference:old atmosphere")
+                                        if template_scenario.path_exists(old_atmosphere) and not scenario.path_exists(old_atmosphere_new.Path):
+                                            scenario.tag_has_changes = True
+                                            old_atmosphere_new.Path = scenario._TagPath_from_string(utils.copy_file(old_atmosphere.Filename, scenario_path.with_suffix(".sky_atm_parameters")))
+                        
+                                        chocolate_mountain = template_scenario.tag.SelectField("Reference:chocalate mountain").Path
+                                        chocolate_mountain_new = template_scenario.tag.SelectField("Reference:chocalate mountain")
+                                        if template_scenario.path_exists(chocolate_mountain) and not scenario.path_exists(chocolate_mountain_new.Path):
+                                            scenario.tag_has_changes = True
+                                            chocolate_mountain_new.Path = scenario._TagPath_from_string(utils.copy_file(chocolate_mountain.Filename, scenario_path.with_suffix(".chocolate_mountain_new")))
+                        
+                    if self.scene_settings.scenario_add_globals:
+                        camera_effects_new = scenario.tag.SelectField("Reference:camera effects")
+                        if not scenario.path_exists(camera_effects_new.Path):
+                            scenario.tag_has_changes = True
+                            with Tag(path=scenario_path.with_suffix(".camera_fx_settings")) as camera_fx_tag:
+                                camera_fx_tag.tag_has_changes = True
+                                camera_effects_new.Path = camera_fx_tag.tag_path
+                                
+                        global_screen_effect_new = scenario.tag.SelectField("Reference:global screen effect")
+                        if not scenario.path_exists(global_screen_effect_new.Path):
+                            scenario.tag_has_changes = True
+                            with Tag(path=scenario_path.with_suffix(".area_screen_effect")) as global_screen_effect_tag:
+                                global_screen_effect_tag.tag_has_changes = True
+                                global_screen_effect_new.Path = global_screen_effect_tag.tag_path
+                                
+                        global_ssao_new = scenario.tag.SelectField("Reference:global ssao")
+                        if not scenario.path_exists(global_ssao_new.Path):
+                            scenario.tag_has_changes = True
+                            with Tag(path=scenario_path.with_suffix(".ssao_definition")) as global_ssao_tag:
+                                global_ssao_tag.tag_has_changes = True
+                                global_ssao_new.Path = global_ssao_tag.tag_path
+                                
+                        atmosphere_globals_new = scenario.tag.SelectField("Reference:atmosphere globals")
+                        if not scenario.path_exists(atmosphere_globals_new.Path):
+                            scenario.tag_has_changes = True
+                            with Tag(path=scenario_path.with_suffix(".atmosphere_globals")) as atmosphere_globals_tag:
+                                atmosphere_globals_tag.tag_has_changes = True
+                                atmosphere_globals_new.Path = atmosphere_globals_tag.tag_path
+                                
+                        if not self.corinth:
+                            old_atmosphere_new = scenario.tag.SelectField("Reference:old atmosphere")
+                            if not scenario.path_exists(old_atmosphere_new.Path):
+                                scenario.tag_has_changes = True
+                                with Tag(path=scenario_path.with_suffix(".sky_atm_parameters")) as old_atmosphere_tag:
+                                    old_atmosphere_tag.tag_has_changes = True
+                                    old_atmosphere_new.Path = old_atmosphere_tag.tag_path
+                                    
+                            chocolate_mountain_new = scenario.tag.SelectField("Reference:chocalate mountain")
+                            if not scenario.path_exists(chocolate_mountain_new.Path):
+                                scenario.tag_has_changes = True
+                                with Tag(path=scenario_path.with_suffix(".chocolate_mountain_new")) as chocolate_mountain_tag:
+                                    chocolate_mountain_tag.tag_has_changes = True
+                                    chocolate_mountain_new.Path = chocolate_mountain_tag.tag_path
+                            
                 
             if self.export_settings.allow_proxy_decals and not self.corinth and self.any_collision_proxies:
                 self.print_post(f"--- Fixing Up collision proxy surface mapping")

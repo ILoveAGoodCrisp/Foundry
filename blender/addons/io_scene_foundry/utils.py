@@ -2107,7 +2107,7 @@ def rgb_to_float_list(red, green, blue):
     return [red / 255, green / 255, blue / 255]
 
 def copy_file(from_path, to_path):
-    shutil.copyfile(from_path, to_path)
+    return shutil.copyfile(from_path, to_path)
     
 # def get_foundry_storage_scene() -> bpy.types.Scene:
 #     """Returns the Foundry storage scene, creating it if it does not exist"""
