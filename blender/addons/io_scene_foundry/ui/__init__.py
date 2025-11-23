@@ -186,6 +186,7 @@ classes = [
     cinematic.NWO_OT_GetCinematicVariant,
     cinematic.NWO_OT_GetCinematicRegion,
     cinematic.NWO_OT_GetCinematicPermutation,
+    cinematic.NWO_OT_CinematicAnchorOffsetMain,
     cinematic.NWO_OT_CinematicAnchorOffset,
 ]
 

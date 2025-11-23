@@ -1714,13 +1714,20 @@ class VirtualSkeleton:
                             support_armature_bone_parent_names.add(root)
 
             start_bones_dict = {}
+            root_fb = None
             
             def create_fake_bone(arm, pb, parent_fb=None, parent_arm=None) -> FakeBone:
+                nonlocal root_fb
+                
                 if parent_fb is None:
                     parent = pb.parent
                     if parent:
                         parent_fb = start_bones_dict.get(parent)
+                    elif root_fb is not None:
+                        parent_fb = root_fb
                 fb = FakeBone(arm, pb, parent_fb, special_bone_names, parent_arm)
+                if not fb.parent:
+                    root_fb = fb
                 start_bones_dict[pb] = fb
                 if fb.export and parent_fb is not None and not parent_fb.export: # Ensure parents of deform bones are themselves deform
                     scene.warnings.append(f"Bone {parent_fb.name} is marked non-deform but has deforming children. Including {parent_fb.name} in export")
