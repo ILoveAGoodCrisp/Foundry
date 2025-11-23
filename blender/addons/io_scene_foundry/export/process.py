@@ -213,6 +213,8 @@ class ExportScene:
         
         self.used_game_object_names = set()
         
+        self.pretend_object_instances = {}
+        
     def _get_export_tag_types(self):
         tag_types = set()
         match self.asset_type:
@@ -568,6 +570,18 @@ class ExportScene:
                     ob.data = eval_mesh.copy()
                     eval_ob.to_mesh_clear()
                     self.temp_meshes.add(ob.data)
+                    
+                def set_parent(obj: utils.ExportObject):
+                    # Write object as if it has no parent if it is a poop. This solves an issue where instancing fails in Reach
+                    if self.is_model and (not is_armature and (has_parent or (self.main_armature and not is_armature))):
+                        if parent in support_armatures:
+                            object_parent_dict[obj] = self.main_armature
+                        elif not has_parent:
+                            object_parent_dict[obj] = self.main_armature
+                        else:
+                            object_parent_dict[obj] = parent
+                    else:
+                        self.no_parent_objects.append(obj)
                 
                 copy_only = False
                 if copy is not None:
@@ -616,31 +630,61 @@ class ExportScene:
                             copy_only = True
                     
                     self.ob_halo_data[copy_ob] = [copy_props, copy_region, permutation, proxies]
-                    if self.is_model and (not is_armature and (has_parent or (self.main_armature and not is_armature))):
-                        if parent in support_armatures:
-                            object_parent_dict[copy_ob] = self.main_armature
-                        elif not has_parent:
-                            object_parent_dict[copy_ob] = self.main_armature
-                        else:
-                            object_parent_dict[copy_ob] = parent
-                    else:
-                        self.no_parent_objects.append(copy_ob)
-                
-                if not copy_only:
+                    set_parent(copy_ob)
+                        
+                def set_parent(obj: utils.ExportObject):
                     # Write object as if it has no parent if it is a poop. This solves an issue where instancing fails in Reach
                     if self.is_model and (not is_armature and (has_parent or (self.main_armature and not is_armature))):
                         if parent in support_armatures:
-                            object_parent_dict[ob] = self.main_armature
+                            object_parent_dict[obj] = self.main_armature
                         elif not has_parent:
-                            object_parent_dict[ob] = self.main_armature
+                            object_parent_dict[obj] = self.main_armature
                         else:
-                            object_parent_dict[ob] = parent
+                            object_parent_dict[obj] = parent
                     else:
-                        self.no_parent_objects.append(ob)
+                        self.no_parent_objects.append(obj)
+                
+                if not copy_only:
+                    set_parent(ob)
                     self.ob_halo_data[ob] = [props, region, permutation, proxies]
                     
                 utils.update_job_count(process, "", idx, num_export_objects)
             utils.update_job_count(process, "", num_export_objects, num_export_objects)
+        
+        for export_ob, region in self.pretend_object_instances.items():
+            if not export_ob.nwo.marker_uses_regions:
+                for region in self.regions:
+                    for permutation in self.permutations:
+                        new_export_ob = export_ob.copy()
+                        v = self.ob_halo_data[export_ob].copy()
+                        v[1] = region
+                        v[2] = permutation
+                        self.ob_halo_data[new_export_ob] = v
+                        set_parent(new_export_ob)
+                    
+            else:
+                is_exclude = export_ob.nwo.marker_permutation_type == "exclude"
+                marker_permutations = export_ob.nwo.marker_permutations
+                for permutation in self.permutations:
+                    if is_exclude:
+                        if permutation in marker_permutations:
+                            continue
+                    else:
+                        if permutation not in marker_permutations:
+                            continue
+
+                    new_export_ob = export_ob.copy()
+                    v = self.ob_halo_data[export_ob].copy()
+                    v[1] = region
+                    v[2] = permutation
+                    self.ob_halo_data[new_export_ob] = v
+                    set_parent(new_export_ob)
+                    
+            self.ob_halo_data.pop(export_ob)
+            if export_ob in self.no_parent_objects:
+                self.no_parent_objects.remove(export_ob)
+            else:
+                object_parent_dict.pop(export_ob)
 
         if self.current_animation:
             utils.clear_animation(self.current_animation)
@@ -853,6 +897,10 @@ class ExportScene:
                             props["bungie_havok_isshape"] = 1
                     case '_connected_geometry_mesh_type_object_instance':
                         self._setup_instanced_object_props(nwo, props, region)
+                        # Corinth does not support object instances
+                        if self.corinth:
+                            mesh_type = '_connected_geometry_mesh_type_default'
+                            self.pretend_object_instances[ob] = region
                     
             case AssetType.SCENARIO:
                 # Foundry stores instances as the default mesh type, so switch them back to poops and structure to default
