@@ -9,7 +9,7 @@ global_items = {}
 cinematic_event_props = ("sound_tag", "female_sound_tag", "effect")
 scene_props = ('template_render_model', 'template_collision_model', 'template_physics_model', 'template_model_animation_graph', 'parent_animation_graph', 'render_model_path', 
                'template_model', 'template_biped', 'template_crate', 'template_creature', 'template_device_control', 'template_device_dispenser', 'template_device_machine',
-               'template_device_terminal', 'template_effect_scenery', 'template_equipment', 'template_giant', 'template_scenery', 'template_vehicle', 'template_weapon', 'cinematic_scenario', 'animation_cmd_path')
+               'template_device_terminal', 'template_effect_scenery', 'template_equipment', 'template_giant', 'template_scenery', 'template_vehicle', 'template_weapon', 'template_scenario', 'cinematic_scenario', 'animation_cmd_path')
 
 event_data_props = 'event_sound_tag', 'event_effect_tag', 'event_model'
 
@@ -145,6 +145,8 @@ def extensions_from_type(list_type):
             return ('.weapon')
         case 'template_weapon':
             return ('.weapon')
+        case 'template_scenario':
+            return ('.scenario')
         case 'cinematic_object':
             return (".crate", ".scenery", ".effect_scenery", ".device_control", ".device_machine", ".device_terminal",
                         ".device_dispenser", ".biped", ".creature", ".giant", ".vehicle", ".weapon", ".equipment")
@@ -298,6 +300,8 @@ def get_glob_from_prop(prop):
             return '*.vehicle'
         case 'template_weapon':
             return '*.weapon'
+        case 'template_scenario':
+            return '*.scenario'
         case 'cinematic_object':
             return "*.biped;*.crate;*.creature;*.device_*;*.effect_sc*;*.equipment;*.giant;*.scenery;*.vehicle;*.weapon"
         case 'cinematic_scenario':
