@@ -395,6 +395,7 @@ class CacheBuilder:
         # Use existing guid if available
         existing_mod_info_guid = None
         steam_guid = None
+        hosted_mod_ids = None
         if mod_info.exists():
             try:
                 with open(mod_info, "r") as file:
@@ -406,9 +407,15 @@ class CacheBuilder:
             except: ...
         
         # Write json data as dict
+        if hosted_mod_ids is not None:
+            id_info = {
+                    "ModGuid": existing_mod_info_guid if existing_mod_info_guid is not None else str(uuid4()),
+                    "HostedModIds": {"SteamWorkshopId": steam_guid}}
+        else:
+            id_info = {"ModGuid": existing_mod_info_guid if existing_mod_info_guid is not None else str(uuid4())}
         mod_info_dict = {
             "ModIdentifier": {
-                "ModGuid": existing_mod_info_guid if existing_mod_info_guid is not None else str(uuid4())
+                **id_info
             },
             "ModVersion": {
                 "Major": 0,
@@ -441,9 +448,6 @@ class CacheBuilder:
                 "HasController": False
             }
         }
-        
-        if steam_guid is not None:
-            mod_info_dict["ModIdentifier"]["HostedModIds"]["SteamWorkshopId"] = steam_guid
         
         match self.scenario_type:
             case ScenarioType.CAMPAIGN:
