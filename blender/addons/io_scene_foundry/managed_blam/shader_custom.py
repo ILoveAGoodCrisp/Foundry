@@ -153,14 +153,14 @@ class ShaderCustomTag(ShaderTag):
         
         group_node = self._add_group_node(tree, nodes, f"foundry_reach.shader_custom")
         
-        group_node.inputs[0].default_value = e_albedo.name.lower()
-        group_node.inputs[1].default_value = e_bump_mapping.name.lower()
-        group_node.inputs[2].default_value = e_alpha_test.name.lower()
-        group_node.inputs[3].default_value = e_specular_mask.name.lower()
-        group_node.inputs[4].default_value = e_material_model.name.lower()
-        group_node.inputs[5].default_value = e_environment_mapping.name.lower()
-        group_node.inputs[6].default_value = e_self_illumination.name.lower()
-        group_node.inputs[7].default_value = e_blend_mode.name.lower()
+        group_node.inputs[0].default_value = e_albedo.name.lower().strip('_')
+        group_node.inputs[1].default_value = e_bump_mapping.name.lower().strip('_')
+        group_node.inputs[2].default_value = e_alpha_test.name.lower().strip('_')
+        group_node.inputs[3].default_value = e_specular_mask.name.lower().strip('_')
+        group_node.inputs[4].default_value = e_material_model.name.lower().strip('_')
+        group_node.inputs[5].default_value = e_environment_mapping.name.lower().strip('_')
+        group_node.inputs[6].default_value = e_self_illumination.name.lower().strip('_')
+        group_node.inputs[7].default_value = e_blend_mode.name.lower().strip('_')
         
         self.populate_chiefster_node(tree, group_node, 8)
 

@@ -83,6 +83,7 @@ class ShaderTerrainTag(ShaderTag):
         nodes.clear()
         
         node_group = self._add_group_node(tree, nodes, "Master Terrain Material")
+        self.populate_chiefster_node(tree, node_group)
         final_node = node_group
         
         if e_material_0 != TerrainMaterial.OFF:

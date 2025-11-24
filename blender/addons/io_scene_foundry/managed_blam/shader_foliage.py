@@ -54,15 +54,14 @@ class ShaderFoliageTag(ShaderTag):
         
         group_node = self._add_group_node(tree, nodes, f"foundry_reach.shader_foliage")
         
-        group_node.inputs[0].default_value = e_albedo.name.lower()
-        group_node.inputs[1].default_value = e_alpha_test.name.lower()
-        group_node.inputs[2].default_value = e_material_model.name.lower()
+        group_node.inputs[0].default_value = e_albedo.name.lower().strip('_')
+        group_node.inputs[1].default_value = e_alpha_test.name.lower().strip('_')
+        group_node.inputs[2].default_value = e_material_model.name.lower().strip('_')
 
         self.populate_chiefster_node(tree, group_node, 3)
         
         if e_alpha_test.value > 0:
             blender_material.surface_render_method = 'BLENDED'
-            group_node.inputs["material is two-sided"].default_value = True
                 
         # Make the Output
         node_output = nodes.new(type='ShaderNodeOutputMaterial')

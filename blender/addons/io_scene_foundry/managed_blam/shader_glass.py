@@ -69,11 +69,11 @@ class ShaderGlassTag(ShaderTag):
         
         group_node = self._add_group_node(tree, nodes, f"foundry_reach.shader_glass")
         
-        group_node.inputs[0].default_value = e_albedo.name.lower()
-        group_node.inputs[1].default_value = e_bump_mapping.name.lower()
-        group_node.inputs[2].default_value = e_material_model.name.lower()
-        group_node.inputs[3].default_value = e_environment_mapping.name.lower()
-        group_node.inputs[4].default_value = e_alpha_blend_source.name.lower()
+        group_node.inputs[0].default_value = e_albedo.name.lower().strip('_')
+        group_node.inputs[1].default_value = e_bump_mapping.name.lower().strip('_')
+        group_node.inputs[2].default_value = e_material_model.name.lower().strip('_')
+        group_node.inputs[3].default_value = e_environment_mapping.name.lower().strip('_')
+        group_node.inputs[4].default_value = e_alpha_blend_source.name.lower().strip('_')
 
         self.populate_chiefster_node(tree, group_node, 5)
 

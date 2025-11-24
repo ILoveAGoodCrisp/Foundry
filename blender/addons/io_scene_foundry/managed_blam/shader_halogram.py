@@ -105,11 +105,11 @@ class ShaderHalogramTag(ShaderTag):
         
         group_node = self._add_group_node(tree, nodes, f"foundry_reach.shader_halogram")
         
-        group_node.inputs[0].default_value = e_albedo.name.lower()
-        group_node.inputs[1].default_value = e_self_illumination.name.lower()
-        group_node.inputs[2].default_value = e_blend_mode.name.lower()
-        group_node.inputs[3].default_value = e_overlay.name.lower()
-        group_node.inputs[4].default_value = e_edge_fade.name.lower()
+        group_node.inputs[0].default_value = e_albedo.name.lower().strip('_')
+        group_node.inputs[1].default_value = e_self_illumination.name.lower().strip('_')
+        group_node.inputs[2].default_value = e_blend_mode.name.lower().strip('_')
+        group_node.inputs[3].default_value = e_overlay.name.lower().strip('_')
+        group_node.inputs[4].default_value = e_edge_fade.name.lower().strip('_')
         
         self.populate_chiefster_node(tree, group_node, 5)
         

@@ -95,8 +95,8 @@ class ShaderDecalTag(ShaderTag):
         
         group_node = self._add_group_node(tree, nodes, f"foundry_reach.shader_decal")
         
-        group_node.inputs[0].default_value = e_albedo.name.lower()
-        group_node.inputs[1].default_value = e_blend_mode.name.lower()
+        group_node.inputs[0].default_value = e_albedo.name.lower().strip('_')
+        group_node.inputs[1].default_value = e_blend_mode.name.lower().strip('_')
         
         self.populate_chiefster_node(tree, group_node, 2)
         
