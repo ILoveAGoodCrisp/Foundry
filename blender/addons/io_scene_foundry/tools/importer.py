@@ -4559,7 +4559,6 @@ class NWO_ImportGameInstanceTag(bpy.types.Operator):
                 
             merge_collection(collection)
             context.scene.collection.children.unlink(collection)
-            bpy.data.collections.link(collection)
             collection.nwo.game_object_path = tag_path_rel
             collection.nwo.game_object_variant = variant
             
