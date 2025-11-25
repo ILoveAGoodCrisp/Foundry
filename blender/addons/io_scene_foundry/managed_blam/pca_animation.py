@@ -24,7 +24,7 @@ class PCAAnimationTag(Tag):
         return raw_verts * scale
 
     # ------------------------------------------------------------ #
-    def import_animation(self,ob: bpy.types.Object, mesh_data_index: int, bounds: CompressionBounds, offset=0, count=1, shape_count=16, shape_offset=0):
+    def import_animation(self, ob: bpy.types.Object, mesh_data_index: int, bounds: CompressionBounds, offset=0, count=1, shape_count=16, shape_offset=0):
         mesh_data = self.block_mesh_data.Elements[mesh_data_index]
         vertices_per_shape = int(mesh_data.Fields[1].Data)
 
@@ -59,7 +59,7 @@ class PCAAnimationTag(Tag):
 
         keys = []
         for k in range(K):
-            kb = ob.shape_key_add(name=f"PC_{k+1}", from_mix=False)
+            kb = ob.shape_key_add(name=f"{animation_name}_{k+1}", from_mix=False)
             mesh_delta = shape_vertices[k]
             kb.data.foreach_set("co", (basis + mesh_delta).astype(np.single).ravel())
             kb.slider_min, kb.slider_max = min(coefficient[:, k]), max(coefficient[:, k])
