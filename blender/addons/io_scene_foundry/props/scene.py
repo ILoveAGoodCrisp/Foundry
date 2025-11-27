@@ -3262,10 +3262,19 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     
     decorators_from_blender: bpy.props.BoolProperty(
         name="Decorators Authored From Blender",
+        options=set(),
         description="On export the scenario decorators block will be overwritten and generated using the decorators present in Blender. Don't enable this if you intend to paint decorators in Sapien"
     )
     
     decorators_from_blender_child_scenario: bpy.props.StringProperty(
         name="Decorators Child Scenario",
+        options=set(),
         description="The name (not path) of the child scenario to write decorators to. If empty, defaults to the main asset scenario"
+    )
+    
+    frame_events_from_blender: bpy.props.BoolProperty(
+        name="Frame Events Authored From Blender",
+        options=set(),
+        description="On export the frame event list will be cleared and rebuilt from Blender",
+        default=True,
     )

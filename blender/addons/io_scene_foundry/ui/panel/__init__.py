@@ -849,6 +849,9 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         row = col.row()
         row.use_property_split = True
         row.prop(nwo, "default_animation_compression", text="Default Animation Compression")
+        row = col.row()
+        row.use_property_split = True
+        row.prop(nwo, "frame_events_from_blender")
         tag_path = utils.get_asset_animation_graph()
         if tag_path:
             col.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text="Open Animation Graph Tag").tag_path = tag_path

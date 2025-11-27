@@ -12,6 +12,8 @@ import bpy
 from mathutils import Color, Matrix, Vector
 import numpy as np
 
+from ..managed_blam.frame_event_list import FrameEventListTag
+
 from ..managed_blam.material import MaterialTag
 from ..managed_blam.shader import ShaderTag
 
@@ -1773,8 +1775,8 @@ class ExportScene:
             event_type = event.event_type
             if event_type == '_connected_geometry_animation_event_type_frame':
                 self.has_frame_events = True
-                # continue # Handling frame events via Managedblam now 12/07/2025
-                # 19/07/2025 Add these so tool doesn't throw warnings about orphaned frame events
+                if self.scene_settings.frame_events_from_blender:
+                    continue
             elif event_type.startswith('_connected_geometry_animation_event_type_ik') and event.ik_chain == 'none':
                 self.warnings.append(f"Animation event [{event.name}] has no ik chain defined. Skipping")
                 continue
@@ -2220,6 +2222,11 @@ class ExportScene:
         # Skip pre processing the graph if this is a first time export and the user has specified a template animation graph
         # This is done to ensure the templating is not skipped
         # NOTE Always writing this animation data first now as it prevents a tool crash for invalid nodes usages
+        if self.has_animations and self.scene_settings.frame_events_from_blender:
+            with FrameEventListTag() as events:
+                events.clear()
+                events.tag_has_changes = True
+        
         if self.node_usage_set or self.scene_settings.ik_chains or self.has_animations:
             has_skeleton = self.virtual_scene.skeleton_model is not None and self.virtual_scene.skeleton_model.skeleton is not None
             with AnimationTag() as animation:
@@ -2397,9 +2404,9 @@ class ExportScene:
         
         if self.has_frame_events or self.sidecar.reach_world_animations or self.sidecar.pose_overlays or self.suspension_animations:
             with AnimationTag() as animation:
-                if self.has_frame_events:
+                if self.has_frame_events and self.scene_settings.frame_events_from_blender:
                     self.print_post("--- Adding Frame Events")
-                animation.events_from_blender() # outside of if so it clears events if there are none
+                    animation.events_from_blender()
                 if self.sidecar.reach_world_animations:
                     self.print_post(f"--- Setting up {len(self.sidecar.reach_world_animations)} world relative animation{'s' if len(self.sidecar.reach_world_animations) > 1 else ''}")
                     animation.set_world_animations(self.sidecar.reach_world_animations)
