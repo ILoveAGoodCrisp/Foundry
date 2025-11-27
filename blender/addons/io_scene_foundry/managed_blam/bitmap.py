@@ -29,7 +29,7 @@ class BitmapInfo:
         self.image: bpy.types.Image = None
         self.image_path = ""
         self.curve = 0
-        self.for_normal = False
+        self.for_normal = True
         self.cubemap = False
         self.sequence_length = 1
         self.shader_type = "default"
