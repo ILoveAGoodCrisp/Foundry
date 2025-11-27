@@ -506,7 +506,7 @@ def run_tool(tool_args: list, in_background=False, null_output=False, event_leve
         command = f"""tool_fast {' '.join(f'"{arg}"' for arg in tool_args)}"""
     else:
         command = f"""{get_tool_type()} {' '.join(f'"{arg}"' for arg in tool_args)}"""
-    print(command)
+    # print(command)
     
     log_warnings = event_level == 'LOG'
     tmp_log = None

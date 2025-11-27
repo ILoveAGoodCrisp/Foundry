@@ -1128,7 +1128,7 @@ class ShaderTag(Tag):
             node_cc_primary = nodes.new(type="ShaderNodeAttribute")
             node_cc_primary.attribute_name = "Primary Color"
             node_cc_primary.attribute_type = 'INSTANCER'
-            tree.links.new(input=group_node.inputs["primary_change_color"], output=node_cc_primary.outputs[0])
+            tree.links.new(input=group_node.inputs["Primary Color"], output=node_cc_primary.outputs[0])
             
         if e_blend_mode.value > 0 or e_alpha_test.value > 0:
             blender_material.surface_render_method = 'BLENDED'
