@@ -970,7 +970,7 @@ class AnimationTag(Tag):
             ref.from_element(element, self.corinth)
             unique_effects.append(ref)
         
-        blender_animations = self.context.scene.nwo.animations
+        blender_animations = {a.name.replace(":", " "): a for a in self.context.scene.nwo.animations if a.export_this}
         blender_markers = {ob.nwo.marker_model_group: ob for ob in bpy.data.objects if ob.type == 'EMPTY'}
         event_count = 0
         
