@@ -423,8 +423,11 @@ class MaterialTag(ShaderTag):
                 continue
             
             bitmap_path = element.SelectField("bitmap").Path.RelativePathWithExtension
-            with BitmapTag(path=bitmap_path) as bitmap:
-                return bitmap.get_granny_data(fill_alpha, calc_blue)
+            try:
+                with BitmapTag(path=bitmap_path) as bitmap:
+                    return bitmap.get_granny_data(fill_alpha, calc_blue)
+            except:
+                pass
             
             
     def _to_nodes_group(self, blender_material: bpy.types.Material):

@@ -4,6 +4,7 @@ from math import sqrt
 import math
 import os
 import sys
+import traceback
 import clr
 from pathlib import Path
 import ctypes
@@ -13,6 +14,7 @@ import numpy as np
 from ..constants import NormalType
 from ..managed_blam import Tag
 from .. import utils
+import bpy
 
 clr.AddReference('System.Drawing')
 
@@ -21,6 +23,138 @@ path_cache = set()
 def clear_path_cache():
     global path_cache
     path_cache.clear()
+    
+class BitmapInfo:
+    def __init__(self):
+        self.image: bpy.types.Image = None
+        self.image_path = ""
+        self.curve = 0
+        self.for_normal = False
+        self.cubemap = False
+        self.sequence_length = 1
+        self.shader_type = "default"
+        
+used_plate_paths = []
+    
+def bitmap_to_image(path: str | Path, always_extract_bitmaps=False) -> BitmapInfo:
+    
+    image = None
+    
+    data_dir = utils.get_data_path()
+    tags_dir = utils.get_tags_path()
+    
+    rel_path = utils.relative_path(path)
+    
+    tag_path = Path(tags_dir, rel_path)
+    
+    info = BitmapInfo()
+    
+    if not tag_path.exists():
+        return info
+        
+    system_tiff_path = Path(utils.get_data_path(), rel_path).with_suffix('.tiff')
+    alt_system_tiff_path = system_tiff_path.with_suffix(".tif")
+    
+    try:
+        with BitmapTag(path=rel_path) as bitmap:
+            if not bitmap.has_bitmap_data(): return info
+            if bitmap.is_cubemap:
+                info.cubemap = True
+                rel_path = f"{bitmap.tag_path.RelativePath}_equirectangular"
+                system_tiff_path = Path(data_dir, rel_path).with_suffix('.tiff')
+                alt_system_tiff_path = system_tiff_path.with_suffix(".tif")
+            
+            info.curve = bitmap.tag.SelectField("Block:bitmaps[0]/CharEnum:curve").Value
+            info.for_normal = bitmap.used_as_normal_map()
+            info.shader_type = bitmap.get_shader_type()
+            if always_extract_bitmaps:
+                info.image_path = bitmap.save_to_tiff(info.for_normal)
+            else:
+                if system_tiff_path.exists():
+                    info.image_path = str(system_tiff_path)
+                elif alt_system_tiff_path.exists():
+                    info.image_path = str(alt_system_tiff_path)
+                else:
+                    info.image_path = bitmap.save_to_tiff(info.for_normal)
+    except Exception as e:
+        # Tool will save the day
+        utils.print_error(traceback.format_exception_only(e)[0])
+        utils.print_warning(f"Failed to read bitmap {rel_path} with ManagedBlam. Using Tool instead\n")
+        system_tga_path = Path(system_tiff_path.parent, system_tiff_path.with_suffix("").name, system_tiff_path.with_suffix("").name).with_suffix(".tga")
+        system_tga_path_array_processed = system_tga_path.with_name(f'{system_tga_path.with_suffix("").name}_00001.tga')
+        system_tga_path_suffix = system_tga_path.with_name(f'{system_tga_path.with_suffix("").name}_00_00.tga')
+        system_tga_path_array = system_tga_path.with_name(f'{system_tga_path.with_suffix("").name}_00_01.tga')
+        
+        suffix_less = str(Path(rel_path).with_suffix(""))
+        
+        if always_extract_bitmaps:
+            if not system_tga_path.parent.exists():
+                system_tga_path.parent.mkdir(parents=True)
+            utils.run_tool(["export-bitmap-tga", suffix_less, str(system_tga_path_suffix.parent) + os.sep + os.sep])
+        elif not system_tga_path_suffix.exists() and not system_tga_path_array_processed.exists():
+            if not system_tga_path.parent.exists():
+                system_tga_path.parent.mkdir(parents=True)
+            utils.run_tool(["export-bitmap-tga", suffix_less, str(system_tga_path_suffix.parent) + os.sep + os.sep])
+            
+        if system_tga_path_array_processed.exists():
+            info.image_path = str(system_tga_path.parent)
+        elif system_tga_path_suffix.exists():
+            if system_tga_path_array.exists():
+                info.image_path = str(system_tga_path.parent)
+                files = sorted(system_tga_path.parent.iterdir(), reverse=True)
+                for f in files:
+                    if f.is_file():
+                        name, _, stem = f.stem.rpartition("_")
+                        suffix = f.suffix
+                        print(stem, stem.isdigit())
+                        if stem.isdigit():
+                            new_number = int(stem) + 1
+                            new_stem = f"{new_number:05d}"
+                            new_name = f"{name.rpartition('_')[0]}_{new_stem}{suffix}"
+                            f.rename(system_tga_path.parent / new_name)
+            else:
+                info.image_path = str(system_tga_path_suffix)
+            
+        else:
+            utils.print_warning("Failed to extract bitmap using Tool")
+            
+    if not info.image_path:
+        return info
+    
+    # Check if this image is a plate
+    plate_dir = Path(info.image_path).with_suffix("")
+    if plate_dir.exists() and plate_dir.is_dir():
+        tifs = list(plate_dir.iterdir())
+        if len(tifs) > info.sequence_length:
+            info.sequence_length = len(tifs)
+            for tif in tifs:
+                if tif in used_plate_paths:
+                    continue
+                used_plate_paths.append(tif)
+                info.image_path = str(tif)
+                break
+            else:
+                info.image_path = str(tifs[0])
+            
+    image = bpy.data.images.load(filepath=info.image_path, check_existing=True)
+    image.nwo.filepath = utils.relative_path(info.image_path)
+    image.nwo.shader_type = info.shader_type
+
+    if info.for_normal:
+        image.colorspace_settings.name = 'Non-Color'
+    elif info.curve == 3:
+        image.colorspace_settings.name = 'Linear Rec.709'
+        image.alpha_mode = 'CHANNEL_PACKED'
+    else:
+        image.colorspace_settings.name = 'sRGB'
+        image.alpha_mode = 'CHANNEL_PACKED'
+
+    if info.sequence_length > 1:
+        image.source = 'SEQUENCE'
+        
+    info.image = image
+            
+    return info
 
 class BitmapTag(Tag):
     tag_ext = 'bitmap'

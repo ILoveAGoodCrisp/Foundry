@@ -7,7 +7,6 @@ import os
 import time
 import shutil
 from ..managed_blam.scenario import ScenarioTag
-from ..managed_blam.bitmap import BitmapTag
 from .. import utils
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed

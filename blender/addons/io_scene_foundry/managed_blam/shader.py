@@ -13,7 +13,7 @@ from ..constants import NormalType
 from ..managed_blam import Tag
 from ..managed_blam.Tags import TagPath, TagsNameSpace
 import os
-from ..managed_blam.bitmap import BitmapTag
+from ..managed_blam.bitmap import BitmapTag, bitmap_to_image
 from ..tools.export_bitmaps import export_bitmap
 from .. import utils
 import bpy
@@ -23,7 +23,7 @@ from ..managed_blam.render_method_definition import RenderMethodDefinitionTag
 global_render_method_definition = None
 last_group_node = None
 
-used_plate_paths = []
+
 
 # supports_time_period = {"shader": ("self_illum_color", "self_illum_intensity"),
 #                         "shader_terrain": tuple(),
@@ -557,28 +557,8 @@ class ShaderTag(Tag):
         bitmap_path = element.SelectField('bitmap').Path
         if not bitmap_path:
             return
-        system_bitmap_path = str(Path(self.tags_dir, bitmap_path.RelativePathWithExtension))
-        image_path = ''
-        if not os.path.exists(system_bitmap_path):
-            return
-        system_tiff_path = Path(self.data_dir, bitmap_path.RelativePath).with_suffix('.tiff')
-        with BitmapTag(path=bitmap_path) as bitmap:
-            is_non_color = bitmap.is_linear()
-            if not self.always_extract_bitmaps and system_tiff_path.exists():
-                image_path = str(system_tiff_path)
-            else:
-                image_path = bitmap.save_to_tiff(blue_channel_fix)
-                
-            if Path(image_path).exists():    
-                image = bpy.data.images.load(filepath=image_path, check_existing=True)
-                image.nwo.filepath = utils.relative_path(image_path)
-                image.nwo.shader_type = bitmap.get_shader_type()
-                if is_non_color:
-                    image.colorspace_settings.name = 'Non-Color'
-                else:
-                    image.alpha_mode = 'CHANNEL_PACKED'
-                
-                return image
+        
+        return bitmap_to_image(bitmap_path, self.always_extract_bitmaps)
         
     def _mapping_from_parameter_name(self, name):
         if type(name) == str:
@@ -680,66 +660,9 @@ class ShaderTag(Tag):
         if not os.path.exists(bitmap_path.Filename):
             return
         
-        rel_path = bitmap_path.RelativePath
-        
-        system_tiff_path = Path(self.data_dir, rel_path).with_suffix('.tiff')
-        alt_system_tiff_path = system_tiff_path.with_suffix(".tif")
-        with BitmapTag(path=bitmap_path) as bitmap:
-            # is_non_color = bitmap.is_linear()
-            if bitmap.is_cubemap:
-                rel_path = f"{bitmap_path.RelativePath}_equirectangular"
-                system_tiff_path = Path(self.data_dir, rel_path).with_suffix('.tiff')
-                alt_system_tiff_path = system_tiff_path.with_suffix(".tif")
+        info = bitmap_to_image(bitmap_path.Filename, self.always_extract_bitmaps)
                 
-            curve = bitmap.tag.SelectField("Block:bitmaps[0]/CharEnum:curve").Value
-            for_normal = bitmap.used_as_normal_map()
-            if self.always_extract_bitmaps:
-                image_path = bitmap.save_to_tiff(for_normal)
-            else:
-                if system_tiff_path.exists():
-                    image_path = str(system_tiff_path)
-                elif alt_system_tiff_path.exists():
-                    image_path = str(alt_system_tiff_path)
-                else:
-                    image_path = bitmap.save_to_tiff(for_normal)
-                    
-            # Check if this image is a plate
-            plate_dir = Path(image_path).with_suffix("")
-            sequence_length = 1
-            if plate_dir.exists() and plate_dir.is_dir():
-                tifs = list(plate_dir.iterdir())
-                if len(tifs) > sequence_length:
-                    sequence_length = len(tifs)
-                    for tif in tifs:
-                        if tif in used_plate_paths:
-                            continue
-                        used_plate_paths.append(tif)
-                        image_path = str(tif)
-                        break
-                    else:
-                        image_path = str(tifs[0])
-                
-            image = bpy.data.images.load(filepath=image_path, check_existing=True)
-            image.nwo.filepath = utils.relative_path(image_path)
-            image.nwo.shader_type = bitmap.get_shader_type()
-
-            if for_normal:
-                image.colorspace_settings.name = 'Non-Color'
-            elif curve == 3:
-                image.colorspace_settings.name = 'Linear Rec.709'
-                image.alpha_mode = 'CHANNEL_PACKED'
-            else:
-                image.colorspace_settings.name = 'sRGB'
-                image.alpha_mode = 'CHANNEL_PACKED'
-            # if bitmap.uses_srgb():
-            #     image.alpha_mode = 'CHANNEL_PACKED'
-            # else:
-            #     image.colorspace_settings.name = 'Non-Color'
-            
-            if sequence_length > 1:
-                image.source = 'SEQUENCE'
-                
-            return image, wrap_mode, sequence_length
+        return info.image, wrap_mode, info.sequence_length
     
     def _normal_type_from_parameter_name(self, name):
         if not self.corinth:
@@ -757,8 +680,11 @@ class ShaderTag(Tag):
             system_bitmap_path = Path(self.tags_dir, bitmap_path.RelativePathWithExtension)
             if not os.path.exists(system_bitmap_path):
                 return NormalType.OPENGL
-            with BitmapTag(path=bitmap_path) as bitmap:
-                return bitmap.normal_type()
+            try:
+                with BitmapTag(path=bitmap_path) as bitmap:
+                    return bitmap.normal_type()
+            except:
+                return NormalType.OPENGL
         else:
             return NormalType.OPENGL
                 

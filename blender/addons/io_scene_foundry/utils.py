@@ -506,7 +506,7 @@ def run_tool(tool_args: list, in_background=False, null_output=False, event_leve
         command = f"""tool_fast {' '.join(f'"{arg}"' for arg in tool_args)}"""
     else:
         command = f"""{get_tool_type()} {' '.join(f'"{arg}"' for arg in tool_args)}"""
-    # print(command)
+    print(command)
     
     log_warnings = event_level == 'LOG'
     tmp_log = None
@@ -2843,7 +2843,6 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                 
         for arm, pose_pos in armatures.items():
             arm.data.pose_position = pose_pos
-        
         
         if armatures_to_reparent:
             context.view_layer.update()
@@ -5550,4 +5549,3 @@ def clear_directory(dir: Path | str):
         dir.rmdir()
     except Exception as e:
         print_warning(f"Failed to remove directory root: {dir} ({e})")
-        

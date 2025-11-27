@@ -42,7 +42,7 @@ from ..managed_blam.render_model import RenderModelTag
 from ..managed_blam.physics_model import PhysicsTag
 from ..managed_blam.model import ChildObject, ModelTag
 from ..tools.mesh_to_marker import convert_to_marker
-from ..managed_blam.bitmap import BitmapTag, clear_path_cache
+from ..managed_blam.bitmap import bitmap_to_image, clear_path_cache
 from ..managed_blam.camera_track import CameraTrackTag
 from ..managed_blam.collision_model import CollisionTag
 from ..tools.clear_duplicate_materials import clear_duplicate_materials
@@ -2672,16 +2672,12 @@ class NWOImporter:
         bitmap_count = len(bitmap_files)
         for idx, fp in enumerate(bitmap_files):
             utils.update_progress(job, idx / bitmap_count)
-            bitmap_name = utils.dot_partition(os.path.basename(fp))
-            if 'lp_array' in bitmap_name or 'global_render_texture' in bitmap_name: continue # Filter out the bitmaps that crash ManagedBlam
+            # bitmap_name = utils.dot_partition(os.path.basename(fp))
+            # if 'lp_array' in bitmap_name or 'global_render_texture' in bitmap_name: continue # Filter out the bitmaps that crash ManagedBlam
             with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, fp) as mover:
-                with BitmapTag(path=mover.tag_path) as bitmap:
-                    if not bitmap.has_bitmap_data(): continue
-                    is_non_color = bitmap.is_linear()
-                    image_path = bitmap.save_to_tiff(blue_channel_fix=bitmap.used_as_normal_map(), format=image_format)
-                    if image_path:
-                        # print(f"--- Extracted {os.path.basename(fp)} to {relative_path(image_path)}")
-                        extracted_bitmaps[image_path] = is_non_color
+                info = bitmap_to_image(mover.tag_path, True)
+                if info.image:
+                    extracted_bitmaps[info.image_path] = info.for_normal
         utils.update_progress(job, 1)
         print(f"\nExtracted {len(extracted_bitmaps)} bitmaps")
         

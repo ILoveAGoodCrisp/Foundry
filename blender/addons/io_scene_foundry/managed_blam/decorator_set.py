@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import cast
 import bpy
 
-from .bitmap import BitmapTag
+from .bitmap import bitmap_to_image
 from .. import utils
 
 from .render_model import RenderModelTag
@@ -165,38 +165,10 @@ class DecoratorSetTag(Tag):
                     tree.nodes.clear()
                     node_image = tree.nodes.new(type="ShaderNodeTexImage")
                     
-                    rel_path = utils.relative_path(texture)
+                    info = bitmap_to_image(texture, always_extract_bitmaps)
                     
-                    system_tiff_path = Path(self.data_dir, rel_path).with_suffix('.tiff')
-                    alt_system_tiff_path = system_tiff_path.with_suffix(".tif")
-                    with BitmapTag(path=texture) as bitmap:
-                        curve = bitmap.tag.SelectField("Block:bitmaps[0]/CharEnum:curve").Value
-                        for_normal = bitmap.used_as_normal_map()
-                        if always_extract_bitmaps:
-                            image_path = bitmap.save_to_tiff(for_normal)
-                        else:
-                            if system_tiff_path.exists():
-                                image_path = str(system_tiff_path)
-                            elif alt_system_tiff_path.exists():
-                                image_path = str(alt_system_tiff_path)
-                            else:
-                                image_path = bitmap.save_to_tiff(for_normal)
-                                
-                        image = bpy.data.images.load(filepath=image_path, check_existing=True)
-                        image.nwo.filepath = utils.relative_path(image_path)
-                        image.nwo.shader_type = bitmap.get_shader_type()
-
-                        if for_normal:
-                            image.colorspace_settings.name = 'Non-Color'
-                        elif curve == 3:
-                            image.colorspace_settings.name = 'Linear Rec.709'
-                            image.alpha_mode = 'CHANNEL_PACKED'
-                        else:
-                            image.colorspace_settings.name = 'sRGB'
-                            image.alpha_mode = 'CHANNEL_PACKED'
-                    
-                    if image:
-                        node_image.image = image
+                    if info.image:
+                        node_image.image = info.image
                     node_group = tree.nodes.new(type='ShaderNodeGroup')
                     node_group.node_tree = utils.add_node_from_resources("shared_nodes", "Decorator")
                     tree.links.new(input=node_group.inputs[0], output=node_image.outputs[0])
