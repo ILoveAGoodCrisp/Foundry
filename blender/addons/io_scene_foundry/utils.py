@@ -1655,13 +1655,32 @@ def is_mesh(ob):
     return ob.type in VALID_MESHES
 
 def is_marker(ob):
-    return ob.type == 'EMPTY' and not ob.children and ob.empty_display_type != "IMAGE"
+    if ob.type != 'EMPTY':
+        return False
+    
+    if ob.empty_display_type == "IMAGE":
+        return False
+    
+    children = ob.children
+    if not children:
+        return True
+    
+    return all((o.nwo.ignore_for_export) for o in children)
 
 def is_marker_quick(ob):
     return ob.type == 'EMPTY' and ob.empty_display_type != "IMAGE"
 
 def is_frame(ob):
-    return (ob.type == 'EMPTY' and ob.children) or ob.type == 'ARMATURE'
+    if ob.type == 'ARMATURE':
+        return True
+    if ob.type != 'EMPTY':
+        return False
+    
+    children = ob.children
+    if not children:
+        return False
+    
+    return any((not o.nwo.ignore_for_export) for o in children)
 
 def is_light(ob):
     return ob.type == 'LIGHT'
@@ -2468,6 +2487,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
     """Transform blender objects by the given scale factor and rotation. Optionally this can be scoped to a set of objects and animations rather than all"""
     print("\nTransforming Scene\n")
     all_objects = False
+    armatures_to_reparent = {}
     with TransformManager():
         # armatures = [ob for ob in bpy.data.objects if ob.type == 'ARMATURE']
         light_intensities = {}
@@ -2508,7 +2528,14 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
         armatures = {ob: ob.data.pose_position for ob in objects if ob.type == 'ARMATURE'}
         for ob in armatures.keys():
             ob.data.pose_position = 'REST'
-        context.view_layer.update()
+            if ob.parent is not None:
+                m = ob.matrix_world.copy()
+                armatures_to_reparent[ob] = ob.parent
+                ob.parent = None
+                ob.matrix_world = m
+                
+        if armatures:
+            context.view_layer.update()
         
         for ob in objects:
             match ob.type:
@@ -2816,6 +2843,15 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                 
         for arm, pose_pos in armatures.items():
             arm.data.pose_position = pose_pos
+        
+        
+        if armatures_to_reparent:
+            context.view_layer.update()
+        
+        for arm, parent in armatures_to_reparent.items():
+            m = arm.matrix_world.copy()
+            arm.parent = parent
+            arm.matrix_world = m
         
         for light, intensity in light_intensities.items():
             light.energy = calc_light_energy(light, intensity, 1 / scale_factor)

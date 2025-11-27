@@ -313,7 +313,7 @@ class ScenarioStructureBspTag(Tag):
                         
         # Merge all structure objects
         main_structure_ob = None
-        print("Merging Structure (Can take a while)")
+        print("Merging Structure")
         if len(structure_objects) > 1:
             main_structure_ob, remaining_structure_obs = structure_objects[0], structure_objects[1:]
             main_structure_ob.name = f"{self.tag_path.ShortName}_structure"

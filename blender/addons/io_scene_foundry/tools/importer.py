@@ -1186,9 +1186,10 @@ class NWO_Import(bpy.types.Operator):
                     generator = FrameGenerator(a for a in context.scene.nwo.animations if a not in current_animations)
                     generator.generate()
                     
-                if importer.deferred_parenting:
-                    for ob, parent in importer.deferred_parenting.items():
-                        ob.parent = parent
+                # if importer.deferred_parenting:
+                #     for ob, parent in importer.deferred_parenting.items():
+                #         if ob.name in bpy.data.objects and parent.name in bpy.data.objects:
+                #             ob.parent = parent
                         
             except KeyboardInterrupt:
                 utils.print_warning("\nIMPORT CANCELLED BY USER")
@@ -2260,6 +2261,7 @@ class NWOImporter:
                         attach_point_matrix = attach_point.matrix_world.copy()
                         attach_point.parent = None
                         attach_point.matrix_world = attach_point_matrix
+                        attach_point.nwo.export_this = False
                         child_collection.objects.link(attach_point)
                         imported_objects.append(attach_point)
                         arm_matrix = armature.matrix_world.copy()
@@ -2278,7 +2280,7 @@ class NWOImporter:
                             attach_point.parent = marker_parents[0]
                             attach_point.matrix_world = marker_parents[0].matrix_world
                         else:
-                            self.deferred_parenting[armature] = marker_parents[0]
+                            armature.parent = marker_parents[0]
                     else:
                         if marker_children:
                             attach_point.parent = parent_armature
