@@ -38,6 +38,7 @@ from ..managed_blam.particle_model import ParticleModelTag
 from ..managed_blam.scenario_structure_bsp import ScenarioStructureBspTag
 from ..managed_blam.scenario import ScenarioTag
 from ..managed_blam.animation import AnimationTag
+from ..managed_blam.pca_animation import PCAAnimationTag
 from ..managed_blam.render_model import RenderModelTag
 from ..managed_blam.physics_model import PhysicsTag
 from ..managed_blam.model import ChildObject, ModelTag
@@ -592,6 +593,10 @@ class NWO_Import(bpy.types.Operator):
         name="Import Animations",
         description="Imports animations from the graph. Currently the root movement element of base movement animations is unsupported and overlay rotations do not import correctly"
     )
+    graph_import_pca_data: bpy.props.BoolProperty(
+        name="Import PCA Data",
+        description="Imports animations with their PCA (face animation) data"
+    )
     graph_generate_renames: bpy.props.BoolProperty(
         name="Generate Animation Renames",
         description="Parses the animation mode n state graph to work out which graph elements were imported as renames and adds these to relevant animations in this blend scene"
@@ -813,6 +818,7 @@ class NWO_Import(bpy.types.Operator):
                     importer.tag_state = State[self.tag_state].value
                     importer.tag_animation_filter = self.tag_animation_filter
                     importer.graph_import_animations = self.graph_import_animations
+                    importer.graph_import_pca_data = self.graph_import_pca_data
                     importer.graph_generate_renames = self.graph_generate_renames
                     importer.graph_import_events = self.graph_import_events
                     importer.graph_import_ik_chains = self.graph_import_ik_chains
@@ -898,6 +904,7 @@ class NWO_Import(bpy.types.Operator):
                         importer.tag_state = State[self.tag_state].value
                         importer.tag_animation_filter = self.tag_animation_filter
                         importer.graph_import_animations = self.graph_import_animations
+                        importer.graph_import_pca_data = self.graph_import_pca_data
                         importer.graph_generate_renames = self.graph_generate_renames
                         importer.graph_import_events = self.graph_import_events
                         importer.graph_import_ik_chains = self.graph_import_ik_chains
@@ -956,6 +963,7 @@ class NWO_Import(bpy.types.Operator):
                     context.scene.render.fps = 30
                     importer.tag_animation_filter = self.tag_animation_filter
                     importer.graph_import_animations = self.graph_import_animations
+                    importer.graph_import_pca_data = self.graph_import_pca_data
                     importer.graph_generate_renames = self.graph_generate_renames
                     importer.graph_import_events = self.graph_import_events
                     importer.graph_import_ik_chains = self.graph_import_ik_chains
@@ -1159,6 +1167,10 @@ class NWO_Import(bpy.types.Operator):
                     
                 # for ob in importer.to_cursor_objects:
                 #     ob.matrix_world = context.scene.cursor.matrix
+
+                if importer.pca_animations:
+                    with PCAAnimationTag(path=importer.pca_path) as pca:
+                        pca.to_blender(importer.pca_animations, importer.pca_groups)
                 
                 setup_materials(context, importer, starting_materials, imported_objects, self.build_blender_materials, self.always_extract_bitmaps, importer.emissive_meshes)
                         
@@ -1346,6 +1358,8 @@ class NWO_Import(bpy.types.Operator):
             if self.tag_animation:
                 box.prop(self, "tag_animation_filter")
                 box.prop(self, "graph_import_animations")
+                if self.graph_import_animations and utils.is_corinth(context):
+                    box.prop(self, "graph_import_pca_data")
                 box.prop(self, "graph_generate_renames")
                 box.prop(self, "graph_import_events")
                 box.prop(self, "graph_import_ik_chains")
@@ -1636,6 +1650,7 @@ class NWOImporter:
         self.tag_physics = False
         self.tag_animation = False
         self.graph_import_animations = False
+        self.graph_import_pca_data = False
         self.graph_generate_renames = False
         self.graph_import_events = False
         self.graph_import_ik_chains = False
@@ -1673,6 +1688,10 @@ class NWOImporter:
         self.from_vert_normals = False
         
         self.emissive_meshes = set()
+        
+        self.pca_animations = {}
+        self.pca_groups = {}
+        self.pca_path = None
     
     def group_filetypes(self, scope):
         if scope:
@@ -2335,7 +2354,13 @@ class NWOImporter:
             with AnimationTag(path=mover.tag_path) as graph:
                 if self.graph_import_animations:
                     print("Importing Animations")
-                    actions = graph.to_blender(render, armature, filter)
+                    if self.corinth and self.graph_import_pca_data:
+                        result = graph.to_blender(render, armature, filter, True)
+                        if result is not None:
+                            actions, self.pca_animations, self.pca_groups, self.pca_path = result
+                    else:
+                        actions = graph.to_blender(render, armature, filter, False)
+
                 if self.graph_generate_renames:
                     print("Generating Animation Renames")
                     graph.generate_renames(filter)
@@ -2347,7 +2372,7 @@ class NWOImporter:
                 if self.graph_import_ik_chains:
                     print("Importing IK Chains")
                     graph.ik_chains_to_blender(armature)
-
+                    
         return actions
     
     def import_scenario_data(self):
@@ -3954,7 +3979,13 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     )
     
     graph_import_animations: bpy.props.BoolProperty(
-        name="Import Animations"
+        name="Import Animations",
+        description="Imports animations from the graph. Currently the root movement element of base movement animations is unsupported and overlay rotations do not import correctly"
+    )
+    graph_import_pca_data: bpy.props.BoolProperty(
+        name="Import PCA Data",
+        description="Imports animations with their PCA (face animation) data",
+        default=True,
     )
     graph_generate_renames: bpy.props.BoolProperty(
         name="Generate Renames",
@@ -4140,6 +4171,8 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                     if self.tag_animation:
                         layout.prop(self, "tag_animation_filter")
                         layout.prop(self, "graph_import_animations")
+                        if self.graph_import_animations and utils.is_corinth(context):
+                            layout.prop(self, "graph_import_pca_data")
                         layout.prop(self, "graph_generate_renames")
                         layout.prop(self, "graph_import_events")
                         layout.prop(self, "graph_import_ik_chains")
@@ -4197,6 +4230,8 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
             case "model_animation_graph":
                 layout.prop(self, "tag_animation_filter")
                 layout.prop(self, "graph_import_animations")
+                if self.graph_import_animations and utils.is_corinth(context):
+                    layout.prop(self, "graph_import_pca_data")
                 layout.prop(self, "graph_generate_renames")
                 layout.prop(self, "graph_import_events")
                 layout.prop(self, "graph_import_ik_chains")

@@ -7,8 +7,6 @@ from typing import cast
 import bpy
 from mathutils import Matrix, Quaternion, Vector
 
-from .pca_animation import PCAAnimationTag
-
 from .frame_event_list import AnimationEvent, DialogueEvent, EffectEvent, FrameEventListTag, Reference, SoundEvent
 
 from .Tags import TagFieldBlockElement
@@ -395,7 +393,7 @@ class AnimationTag(Tag):
                 
                 self.tag_has_changes = True
                 
-    def to_blender(self, render_model: str, armature, filter: str, import_pca=True):
+    def to_blender(self, render_model: str, armature, filter: str, import_pca=False):
         # Prepare exporter
         print()
         # print(self.resource_info())
@@ -469,8 +467,7 @@ class AnimationTag(Tag):
                         self._import_composite(animation, element.SelectField("ShortBlockIndex:composite").Value)
                         continue
                     
-                    pca_group_name = element.SelectField("StringId:pca group name").GetStringData()
-                    if pca_group_name:
+                    if shared_data.Elements[0].SelectField("WordFlags:internal flags").TestBit("contains pca data"):
                         pca_animations[name] = animation
                 
                 match anim_type:
@@ -531,11 +528,25 @@ class AnimationTag(Tag):
                     actions.append(action)
                     action.frame_end = frame_count
                     
-        if self.corinth and import_pca and pca_animations:
-            pca_path = self.tag.SelectField("Struct:definitions[0]/Struct:pca data[0]/Reference:pca animation")
-            if pca_path is not None and self.path_exists(pca_path.Path):
-                with PCAAnimationTag(path=pca_path.Path) as pca:
-                    pca.to_blender(pca_animations)
+        if self.corinth and import_pca:
+            pca_groups = []
+            pca_path = None
+            if pca_animations:
+                pca_path = self.tag.SelectField("Struct:definitions[0]/Struct:pca data[0]/Reference:pca animation")
+                if pca_path is not None and self.path_exists(pca_path.Path):
+                    
+                    pca_groups = {}
+                    mesh_count = 0
+                    for element in self.tag.SelectField("Struct:definitions[0]/Struct:pca data[0]/Block:PCA Groups").Elements:
+                        c = element.Fields[1].Data
+                        if c < 1:
+                            continue
+                        pca_groups[mesh_count] = element.Fields[0].GetStringData()
+                        mesh_count += c
+                        
+                    pca_path = pca_path.Path
+                    
+            return actions, pca_animations, pca_groups, pca_path
         
         return actions
     

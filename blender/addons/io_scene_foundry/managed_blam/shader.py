@@ -558,7 +558,7 @@ class ShaderTag(Tag):
         if not bitmap_path:
             return
         
-        return bitmap_to_image(bitmap_path, self.always_extract_bitmaps)
+        return bitmap_to_image(bitmap_path.Filename, self.always_extract_bitmaps).image
         
     def _mapping_from_parameter_name(self, name):
         if type(name) == str:
