@@ -2,18 +2,19 @@
 
 from collections import defaultdict
 from enum import Enum
-from math import radians
 from pathlib import Path
 from typing import cast
 import bpy
-from mathutils import Euler, Matrix, Quaternion, Vector
+from mathutils import Matrix, Quaternion, Vector
 
-from ..managed_blam.frame_event_list import AnimationEvent, DialogueEvent, EffectEvent, FrameEventListTag, Reference, SoundEvent
+from .pca_animation import PCAAnimationTag
 
-from .Tags import TagFieldBlock, TagFieldBlockElement, TagFieldElement
+from .frame_event_list import AnimationEvent, DialogueEvent, EffectEvent, FrameEventListTag, Reference, SoundEvent
 
-from ..managed_blam.render_model import RenderModelTag
-from ..managed_blam import Tag
+from .Tags import TagFieldBlockElement
+
+from .render_model import RenderModelTag
+from . import Tag
 from ..legacy.jma import Node
 from .. import utils
 
@@ -394,7 +395,7 @@ class AnimationTag(Tag):
                 
                 self.tag_has_changes = True
                 
-    def to_blender(self, render_model: str, armature, filter: str):
+    def to_blender(self, render_model: str, armature, filter: str, import_pca=True):
         # Prepare exporter
         print()
         # print(self.resource_info())
@@ -409,6 +410,8 @@ class AnimationTag(Tag):
             return print("No animations found in graph")
         
         graph = self.to_dict()
+        
+        pca_animations = {}
         
         animation_nodes = None
         with RenderModelTag(path=render_model) as model:
@@ -460,10 +463,15 @@ class AnimationTag(Tag):
                 animation.frame_start = 1
                 animation.frame_end = frame_count
                 
-                if self.corinth and element.SelectField("ShortBlockIndex:composite").Value > -1:
-                    animation.animation_type = 'composite'
-                    self._import_composite(animation, element.SelectField("ShortBlockIndex:composite").Value)
-                    continue
+                if self.corinth:
+                    if element.SelectField("ShortBlockIndex:composite").Value > -1:
+                        animation.animation_type = 'composite'
+                        self._import_composite(animation, element.SelectField("ShortBlockIndex:composite").Value)
+                        continue
+                    
+                    pca_group_name = element.SelectField("StringId:pca group name").GetStringData()
+                    if pca_group_name:
+                        pca_animations[name] = animation
                 
                 match anim_type:
                     case 0 | 1:
@@ -522,6 +530,12 @@ class AnimationTag(Tag):
                     self._to_armature_action(transforms, armature, action, nodes, base_transforms, nodes_with_animations)
                     actions.append(action)
                     action.frame_end = frame_count
+                    
+        if self.corinth and import_pca and pca_animations:
+            pca_path = self.tag.SelectField("Struct:definitions[0]/Struct:pca data[0]/Reference:pca animation")
+            if pca_path is not None and self.path_exists(pca_path.Path):
+                with PCAAnimationTag(path=pca_path.Path) as pca:
+                    pca.to_blender(pca_animations)
         
         return actions
     

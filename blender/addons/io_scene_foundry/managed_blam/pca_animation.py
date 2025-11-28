@@ -4,6 +4,8 @@ import struct
 from typing import cast
 from mathutils import Vector
 
+from .render_model import RenderModelTag
+
 from .connected_geometry import CompressionBounds
 from ..managed_blam import Tag
 
@@ -24,7 +26,7 @@ class PCAAnimationTag(Tag):
         return raw_verts * scale
 
     # ------------------------------------------------------------ #
-    def import_animation(self, ob: bpy.types.Object, mesh_data_index: int, bounds: CompressionBounds, offset=0, count=1, shape_count=16, shape_offset=0):
+    def import_animation(self, ob: bpy.types.Object, mesh_data_index: int, bounds: CompressionBounds, offset, count, shape_count, shape_offset, name, blender_animation):
         mesh_data = self.block_mesh_data.Elements[mesh_data_index]
         vertices_per_shape = int(mesh_data.Fields[1].Data)
 
@@ -59,7 +61,7 @@ class PCAAnimationTag(Tag):
 
         keys = []
         for k in range(K):
-            kb = ob.shape_key_add(name=f"{animation_name}_{k+1}", from_mix=False)
+            kb = ob.shape_key_add(name=f"{name}_{k+1}", from_mix=False)
             mesh_delta = shape_vertices[k]
             kb.data.foreach_set("co", (basis + mesh_delta).astype(np.single).ravel())
             kb.slider_min, kb.slider_max = min(coefficient[:, k]), max(coefficient[:, k])
@@ -71,7 +73,49 @@ class PCAAnimationTag(Tag):
                 kb.value = float(row[k])
                 kb.keyframe_insert("value", frame=f)
                 
-                
     def to_blender(self, animations: dict):
         # Animations is a dict with keys of graph animation names and values of blender animations
-        pass
+        render_model_path = self.tag.SelectField("Reference:RenderModel").Path
+        
+        if not self.path_exists(render_model_path):
+            return
+        
+        print("Importing PCA Animations")
+        
+        pca_mesh_vert_counts = []
+        pca_mesh_indices = []
+        pca_objects = {}
+        
+        with RenderModelTag(path=render_model_path) as render_model:
+            mesh_count = render_model.block_per_mesh_temporary.Elements.Count
+            pca_mesh_indices = [element.Fields[0].Value for element in render_model.tag.SelectField("Struct:render geometry[0]/Block:PCA Mesh Indices").Elements if element.Fields[0].Value > -1 and element.Fields[0].Value < mesh_count]
+            
+            if not pca_mesh_indices:
+                return
+            
+            for idx in pca_mesh_indices:
+                mesh_element = render_model.block_per_mesh_temporary.Elements[idx]
+                pca_mesh_vert_counts.append(mesh_element.Fields[0].Elements.Count)
+                
+            compression_bounds = CompressionBounds(render_model.block_compression_info.Elements[0])
+                
+        for ob in bpy.data.objects:
+            if ob.type == 'MESH' and len(ob.data.vertices) in pca_mesh_vert_counts:
+                pca_objects[pca_mesh_vert_counts.index(len(ob.data.vertices))] = ob
+        
+        for name, blender_animation in animations.items():
+            for element in self.block_mesh_data.Elements:
+                mesh_index = element.Fields[0].Data
+                ob = pca_objects.get(mesh_index)
+                if ob is None:
+                    continue
+                for anim_element in element.SelectField("Block:animations").Elements:
+                    if anim_element.Fields[0].GetStringData() != name:
+                        continue
+                    
+                    offset = anim_element.Fields[1].Data
+                    count = anim_element.Fields[2].Data
+                    shape_offset = anim_element.Fields[3].Data
+                    coefficient_count = anim_element.Fields[4].Data
+                    
+                    self.import_animation(ob, mesh_index, compression_bounds, offset, count, coefficient_count, shape_offset, name, blender_animation)
