@@ -163,7 +163,7 @@ class ExportScene:
         self.atten_scalar = 1 if corinth else 100
         self.unit_factor = utils.get_unit_conversion_factor(context)
         
-        # self.data_remap = {}
+        self.data_remap = {}
         
         self.selected_actors = set()
         self.type_is_relevant = self.asset_type in {AssetType.MODEL, AssetType.SCENARIO, AssetType.SKY, AssetType.PARTICLE_MODEL, AssetType.PREFAB}
@@ -214,7 +214,8 @@ class ExportScene:
         self.used_game_object_names = set()
         
         self.pretend_object_instances = {}
-        self.pca_objects = []
+        self.pca_objects = defaultdict(list)
+        self.shape_key_unmutes = []
         
     def _get_export_tag_types(self):
         tag_types = set()
@@ -270,6 +271,13 @@ class ExportScene:
             if ob.hide_get():
                 self.hidden_objects.add(ob)
                 ob.hide_set(False)
+            
+            # if self.asset_type.supports_animations:
+            #     if ob.type == 'MESH':
+            #         for kb in ob.data.shape_keys.key_blocks:
+            #             if not kb.mute:
+            #                 self.shape_key_unmutes.append(kb)
+            #                 kb.mute = True
         
     def get_initial_export_objects(self):
         self.temp_objects = set()
@@ -557,6 +565,43 @@ class ExportScene:
                 
                 props.update(mesh_props)
                 
+                if is_pca:
+                    # pre triangulate the mesh for PCA
+                    ob.for_pca = True
+                    eval_ob = ob.eval_ob
+                    eval_mesh = eval_ob.to_mesh(preserve_all_data_layers=True, depsgraph=self.depsgraph)
+                    # # copy_ob.data = ob.data.copy()
+                    bm = bmesh.new()
+                    bm.from_mesh(eval_mesh)
+                    bmesh.ops.triangulate(bm, faces=bm.faces, quad_method=utils.tri_mod_to_bmesh_tri(self.export_settings.triangulate_quad_method), ngon_method=utils.tri_mod_to_bmesh_tri(self.export_settings.triangulate_ngon_method))
+                    bm.to_mesh(eval_mesh)
+                    bm.free()
+                    self.data_remap[ob.ob] = ob.ob.data
+                    ob.ob.data = eval_mesh.copy()
+                    ob.data = ob.ob.data
+                    eval_ob.to_mesh_clear()
+                    self.temp_meshes.add(ob.data)
+                    
+                    ob.pca_animations = []
+                    
+                    match self.export_settings.export_animations:
+                        case 'ACTIVE':
+                            if self.current_animation and self.current_animation.export_this:
+                                for track in self.current_animation.action_tracks:
+                                    if ob.ob == track.object:
+                                        ob.pca_animations.append(self.current_animation)
+                                        self.pca_objects[self.current_animation].append(ob)
+                                        break
+                        case 'ALL':
+                            for animation in self.scene_settings.animations:
+                                if animation.export_this:
+                                    for track in animation.action_tracks:
+                                        if ob.ob == track.object:
+                                            ob.pca_animations.append(animation)
+                                            self.pca_objects[animation].append(ob)
+                                            break
+                            
+                    
                 def set_parent(obj: utils.ExportObject):
                     # Write object as if it has no parent if it is a poop. This solves an issue where instancing fails in Reach
                     if self.is_model and (not is_armature and (has_parent or (self.main_armature and not is_armature))):
@@ -568,29 +613,6 @@ class ExportScene:
                             object_parent_dict[obj] = parent
                     else:
                         self.no_parent_objects.append(obj)
-                        
-                if is_pca:
-                    print(ob.name)
-                    # pre triangulate the mesh for PCA
-                    eval_ob = ob.eval_ob
-                    eval_mesh = eval_ob.to_mesh(preserve_all_data_layers=True, depsgraph=self.depsgraph)
-                    # copy_ob.data = ob.data.copy()
-                    bm = bmesh.new()
-                    bm.from_mesh(eval_mesh)
-                    bmesh.ops.triangulate(bm, faces=bm.faces, quad_method=utils.tri_mod_to_bmesh_tri(self.export_settings.triangulate_quad_method), ngon_method=utils.tri_mod_to_bmesh_tri(self.export_settings.triangulate_ngon_method))
-                    bm.to_mesh(eval_mesh)
-                    bm.free()
-                    # self.data_remap[ob] = ob.data
-                    ob.data = eval_mesh.copy()
-                    # eval_ob.to_mesh_clear()
-                    self.temp_meshes.add(ob.data)
-                    
-                    # Copy of object for animation files
-                    pca_ob = ob.copy()
-                    pca_ob.for_pca = True
-                    self.ob_halo_data[pca_ob] = [props, region, permutation, proxies]
-                    set_parent(pca_ob)
-                    self.pca_objects.append(pca_ob)
                 
                 copy_only = False
                 if copy is not None:
@@ -1648,6 +1670,11 @@ class ExportScene:
     def sample_animations(self, single_animation=False):
         if self.asset_type not in {AssetType.MODEL, AssetType.ANIMATION, AssetType.SINGLE_ANIMATION} or not self.virtual_scene.skeleton_node:
             return
+
+        if self.shape_key_unmutes:
+            for kb in self.shape_key_unmutes:
+                kb.mute = False
+            
         animation_names = set()
         valid_animations = []
         if not single_animation:
@@ -1688,21 +1715,20 @@ class ExportScene:
         # self.context.view_layer.update()
         self.has_animations = True
         
-        print(self.pca_objects)
-        
         try:
             if single_animation:
                 print("--- Sampling Animation", end="")
                 with utils.Spinner():
                     controls, vector_events = self.create_event_objects(self.scene_settings)
-                    self.virtual_scene.add_animation(self.scene_settings, controls=controls, shape_key_objects=self.pca_objects, vector_events=vector_events)
+                    shape_key_objects = [ob for l in self.pca_objects.values() for ob in l]
+                    self.virtual_scene.add_animation(self.scene_settings, controls=controls, shape_key_objects=shape_key_objects, vector_events=vector_events)
                 print(" ", end="")
 
             elif self.export_settings.export_animations == 'ALL':
                 with utils.Spinner():
                     utils.update_job_count(process, "", 0, num_animations)
                     for idx, animation in enumerate(valid_animations):
-                        shape_key_objects = []
+                        shape_key_objects = [ob for anim, l in self.pca_objects.items() if anim == animation for ob in l]
                         for track in animation.action_tracks:
                             if track.object and track.action:
                                 slot_id = ""
@@ -1716,7 +1742,6 @@ class ExportScene:
                                     if track.object.type == 'MESH' and track.object.data.shape_keys and track.object.data.shape_keys.animation_data:
                                         track.object.data.shape_keys.animation_data.last_slot_identifier = slot_id
                                         track.object.data.shape_keys.animation_data.action = track.action
-                                        shape_key_objects.extend([ob for ob in self.pca_objects if ob.ob == track.object])
                                 else:
                                     if track.object.animation_data:
                                         track.object.animation_data.last_slot_identifier = slot_id
@@ -1736,7 +1761,7 @@ class ExportScene:
                 for animation in valid_animations:
                     if active_only and animation == self.current_animation:
                         self.active_animation = animation.name.strip().lower()
-                        shape_key_objects = []
+                        shape_key_objects = [ob for anim, l in self.pca_objects.items() if anim == animation for ob in l]
                         for track in animation.action_tracks:
                             if track.object and track.action:
                                 slot_id = ""
@@ -1750,7 +1775,6 @@ class ExportScene:
                                     if track.object.type == 'MESH' and track.object.data.shape_keys and track.object.data.shape_keys.animation_data:
                                         track.object.data.shape_keys.animation_data.last_slot_identifier = slot_id
                                         track.object.data.shape_keys.animation_data.action = track.action
-                                        shape_key_objects.extend([ob for ob in self.pca_objects if ob.ob == track.object])
                                 else:
                                     if track.object.animation_data:
                                         track.object.animation_data.last_slot_identifier = slot_id
@@ -2104,9 +2128,9 @@ class ExportScene:
                     job = f"--- {name}"
                     utils.update_job(job, 0)
                     if self.virtual_scene.skeleton_node:
-                        nodes_dict = {node.ob: node for node in nodes + [self.virtual_scene.skeleton_node] if not node.for_pca}
+                        nodes_dict = {node.ob: node for node in nodes + [self.virtual_scene.skeleton_node]}
                     else:
-                        nodes_dict = {node.ob: node for node in nodes if not node.for_pca}
+                        nodes_dict = {node.ob: node for node in nodes}
                     self._export_granny_file(granny_path, nodes_dict)
                     utils.update_job(job, 1)
                     exported_something = True
@@ -2198,8 +2222,11 @@ class ExportScene:
         print(f"--- Saved to: {self.sidecar.sidecar_path}")
         
     def restore_scene(self):
-        # for ob, data in self.data_remap.items():
-        #     ob.data = data
+        for ob, data in self.data_remap.items():
+            ob.data = data
+        
+        for kb in self.shape_key_unmutes:
+            kb.mute = False
             
         bpy.data.batch_remove(self.temp_objects)
         
@@ -2211,10 +2238,11 @@ class ExportScene:
         for ob in self.hidden_objects:
             ob.hide_set(True)
 
-        self.context.scene.frame_set(self.current_frame)
         
         if self.asset_type in {AssetType.MODEL, AssetType.ANIMATION} and self.scene_settings.animations and self.scene_settings.active_animation_index > -1:
             self.scene_settings.active_animation_index = self.scene_settings.active_animation_index
+            
+        self.context.scene.frame_set(self.current_frame)
                 
         utils.restore_mode(self.current_mode)
         

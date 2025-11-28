@@ -5478,6 +5478,7 @@ class ExportObject:
         self.empty_display_size = 1
         self.invert_topology = False
         self.for_pca = False
+        self.pca_animations = []
         
     def copy(self):
         return copy.copy(self)

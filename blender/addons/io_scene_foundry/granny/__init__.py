@@ -19,6 +19,8 @@ GrannyCallbackType = CFUNCTYPE(
     c_void_p
 )
 
+encountered_datas = []
+
 class Granny:
     def __init__(self, granny_dll_path: str | Path, corinth: bool):
         self.dll = cdll.LoadLibrary(str(granny_dll_path))
@@ -157,9 +159,18 @@ class Granny:
             mesh_binding_indices = []
             for bone in model.skeleton.bones:
                 if bone.node and nodes.get(bone.bone) and bone.node.mesh:
-                    self.export_vertex_datas.append(bone.node.granny_vertex_data)
+                    
+                    vertex_data = None
+                    
+                    if bone.node.for_pca and animation is not None:
+                        vertex_data = bone.node.granny_vertex_data_copies.get(animation.anim)
+                        
+                    if vertex_data is None:
+                        vertex_data = bone.node.granny_vertex_data
+                    
+                    self.export_vertex_datas.append(vertex_data)
                     # self.export_tri_topologies.append(bone.node.granny_tri_topology)
-                    export_mesh = Mesh(bone.node, valid_siblings)
+                    export_mesh = Mesh(bone.node, valid_siblings, vertex_data)
                     self.export_meshes.append(export_mesh)
                     materials.update(bone.node.mesh.materials)
                     meshes.add(bone.node.mesh)
@@ -176,7 +187,6 @@ class Granny:
         morph_vert_data = scene.morph_vertex_data.get(animation)
         if morph_vert_data is not None:
             self.export_vertex_datas.extend(morph_vert_data)
-        
         
     def save(self):
         data_tree_writer = self.begin_file_data_tree_writing()

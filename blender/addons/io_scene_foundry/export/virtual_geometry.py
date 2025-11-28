@@ -505,12 +505,8 @@ class VirtualAnimation:
                 event.effect_data.append(event.event.event_value)
             
             if shape_key_data:
-                # scene.skeleton_object.data.pose_position = 'REST'
-                # scene.context.view_layer.update()
                 for ob, node in shape_key_data.items():
                     morph_target_datas[node].append(VirtualMorphTargetData(ob, scene, node))
-                # scene.skeleton_object.data.pose_position = 'POSE'
-                # scene.context.view_layer.update()
             
         self.create_vector_track_groups(scene, vector_events)
             
@@ -765,9 +761,10 @@ class VirtualMorphTargetData:
         self.granny_vertex_data = pointer(self.granny_vertex_data)   
     
     def _setup(self, ob: bpy.types.Object, scene: 'VirtualScene' , node: 'VirtualNode'):
-        eval_ob = ob.eval_ob
-        
-        mesh = ob.data
+        eval_ob = ob.ob.evaluated_get(scene.depsgraph)
+
+        # Get a fully evaluated mesh (preserve data layers so corner_normals / colors exist)
+        mesh = eval_ob.to_mesh(preserve_all_data_layers=True, depsgraph=scene.depsgraph)
         
         self.name = mesh.name
         if not mesh.polygons:
@@ -777,6 +774,8 @@ class VirtualMorphTargetData:
             
         num_loops = len(mesh.loops)
         num_vertices = len(mesh.vertices)
+        
+        # print(mesh.vertices[0].co)
         
         vertex_positions = np.empty((num_vertices, 3), dtype=np.single)
         loop_vertex_indices = np.empty(num_loops, dtype=np.int32)
@@ -824,7 +823,7 @@ class VirtualMorphTargetData:
         if self.tension is not None:
             self.tension = self.tension[new_indices, :]
             
-        eval_ob.to_mesh_clear()
+        # eval_ob.to_mesh_clear()
         
         self.num_vertices = len(self.positions)
 
@@ -1030,17 +1029,7 @@ class VirtualMesh:
         self.vertex_array = (c_ubyte * self.len_vertex_array).from_buffer_copy(vertex_byte_array)
         
     def _setup(self, ob: bpy.types.Object, scene: 'VirtualScene', render_mesh: bool, props: dict, bones: list[str]):
-        old_shape_key_index = 0
-        shape_key_unmutes = []
         mesh_type_value = props.get("bungie_mesh_type")
-        has_shape_keys = ob.type == 'MESH' and ob.data.shape_keys
-        if has_shape_keys:
-            old_shape_key_index = ob.ob.active_shape_key_index
-            ob.ob.active_shape_key_index = 0
-            for key_block in ob.data.shape_keys.key_blocks[1:]:
-                if not key_block.mute:
-                    shape_key_unmutes.append(key_block)
-                    key_block.mute = True
                 
         eval_ob = ob.eval_ob
         
@@ -1415,12 +1404,6 @@ class VirtualMesh:
         
         if evaluated:
             eval_ob.to_mesh_clear()
-        
-        if has_shape_keys:
-            for key_block in shape_key_unmutes:
-                key_block.mute = False
-            if old_shape_key_index:
-                ob.active_shape_key_index = old_shape_key_index
     
 class VirtualNode:
     def __init__(self, id: utils.ExportObject | bpy.types.PoseBone, props: dict, region: str = None, permutation: str = None, scene: 'VirtualScene' = None, proxies = [], template_node: 'VirtualNode' = None, bones: list[str] = [], parent_matrix: Matrix = IDENTITY_MATRIX, animation_owner=None):
@@ -1442,6 +1425,7 @@ class VirtualNode:
         self.parent: VirtualNode = None
         self.bone_bindings: list[str] = []
         self.granny_vertex_data = None
+        self.granny_vertex_data_copies = {}
         self.negative_scaling = False
         
         self.for_pca = isinstance(id, utils.ExportObject) and id.for_pca
@@ -1503,7 +1487,7 @@ class VirtualNode:
                 self.granny_vertex_data.vertex_component_names = self.mesh.vertex_component_names
                 self.granny_vertex_data.vertex_component_name_count = self.mesh.vertex_component_name_count
                 self.granny_vertex_data.vertex_type = self.mesh.vertex_type
-                vertex_array = (c_ubyte * self.mesh.len_vertex_array)()
+                
                 if self.matrix_world == IDENTITY_MATRIX:
                     vertex_array = self.mesh.vertex_array
                 else:
@@ -1520,9 +1504,25 @@ class VirtualNode:
                                                     False,
                                                     )
                 
+                if self.for_pca:
+                    for animation in id.pca_animations:
+                        granny_vertex_data_copy = GrannyVertexData()
+                        granny_vertex_data_copy.vertex_component_names = self.mesh.vertex_component_names
+                        granny_vertex_data_copy.vertex_component_name_count = self.mesh.vertex_component_name_count
+                        granny_vertex_data_copy.vertex_type = self.mesh.vertex_type
+                        
+                        vertex_array_copy = (c_ubyte * self.mesh.len_vertex_array)()
+                        memmove(vertex_array_copy, vertex_array, self.mesh.len_vertex_array)
+                        granny_vertex_data_copy.vertices = cast(vertex_array_copy, POINTER(c_ubyte))
+                        granny_vertex_data_copy.vertex_count = self.mesh.num_vertices
+                        granny_vertex_data_copy = pointer(granny_vertex_data_copy)
+                        
+                        self.granny_vertex_data_copies[animation] = granny_vertex_data_copy 
+                
                 self.granny_vertex_data.vertices = cast(vertex_array, POINTER(c_ubyte))
                 self.granny_vertex_data.vertex_count = self.mesh.num_vertices
                 self.granny_vertex_data = pointer(self.granny_vertex_data)   
+
             
     def _set_group(self, scene: 'VirtualScene', animation: str | None):
         if animation is None:
