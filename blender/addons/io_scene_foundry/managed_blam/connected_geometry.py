@@ -1,16 +1,13 @@
 """Classes to help with importing geometry from tags"""
 
-from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
-from math import radians, sqrt
+from math import radians
 import math
 from pathlib import Path
 import re
-from statistics import mean
-from typing import Iterable
 import bmesh
 import bpy
-from mathutils import Matrix, Quaternion, Vector, geometry, bvhtree
+from mathutils import Matrix, Quaternion, Vector, bvhtree
 import numpy as np
 
 from ..constants import LIGHTMAP_ADDITIVE_TRANSPARENCY_COLOR, LIGHTMAP_ANALYTICAL_LIGHT_ABSORB, LIGHTMAP_CHART_GROUP_INDEX, LIGHTMAP_IGNORE_DEFAULT_RESOLUTION_SCALE, LIGHTMAP_LIGHTING_FROM_BOTH_SIDES, LIGHTMAP_NORMAL_LIGHT_ABSORD, LIGHTMAP_RESOLUTION_SCALE, LIGHTMAP_TRANSLUCENCY_TINT_COLOR, LIGHTMAP_TRANSPARENCY_OVERRIDE, WU_SCALAR
@@ -24,7 +21,7 @@ from .shader import ShaderTag
 from ..tools import materials as special_materials
 
 from .. import utils
-from .Tags import TagFieldBlock, TagFieldBlockElement, TagPath
+from .Tags import TagFieldBlock, TagFieldBlockElement
 from mathutils.geometry import tessellate_polygon
 
 mat_props_cache = {}

@@ -5549,3 +5549,65 @@ def clear_directory(dir: Path | str):
         dir.rmdir()
     except Exception as e:
         print_warning(f"Failed to remove directory root: {dir} ({e})")
+
+def copy_material_nodes(existing_mat: bpy.types.Material, mat: bpy.types.Material):
+    existing_tree = existing_mat.node_tree
+    new_tree = mat.node_tree
+
+    new_tree.nodes.clear()
+
+    node_map = {}
+
+    for node in existing_tree.nodes:
+        new = new_tree.nodes.new(node.bl_idname)
+
+        # Copy simple properties
+        new.location = node.location
+        new.label = node.label
+        new.width = node.width
+        new.height = node.height
+        new.mute = node.mute
+
+        # Copy properties (best effort)
+        for prop in node.bl_rna.properties:
+            if not prop.is_readonly and prop.identifier not in (
+                "name",
+                "location",
+                "width",
+                "height",
+                "parent",
+            ):
+                try:
+                    setattr(new, prop.identifier, getattr(node, prop.identifier))
+                except Exception:
+                    pass
+
+        node_map[node] = new
+        
+    def socket_index(node, socket, is_output=False):
+        sockets = node.outputs if is_output else node.inputs
+        for i, s in enumerate(sockets):
+            if s.identifier == socket.identifier and s.name == socket.name:
+                return i
+        for i, s in enumerate(sockets):
+            if s.name == socket.name:
+                return i
+        return None
+
+    for link in existing_tree.links:
+        from_node = node_map.get(link.from_node)
+        to_node = node_map.get(link.to_node)
+
+        if not from_node or not to_node:
+            continue
+
+        out_i = socket_index(link.from_node, link.from_socket, is_output=True)
+        in_i = socket_index(link.to_node, link.to_socket, is_output=False)
+
+        if out_i is None or in_i is None:
+            continue
+
+        try:
+            new_tree.links.new(from_node.outputs[out_i], to_node.inputs[in_i])
+        except Exception:
+            pass

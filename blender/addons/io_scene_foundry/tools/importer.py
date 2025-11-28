@@ -2902,7 +2902,7 @@ class NWOImporter:
         
         match legacy_type:
             case "auto":
-                is_model =  utils.nwo_asset_type() not in ("scenario", "prefab") and bool([ob for ob in new_objects if ob.type == 'ARMATURE'])
+                is_model =  bool([ob for ob in new_objects if ob.type == 'ARMATURE']) and not (path.lower().endswith(".ass") and file_name.lower() != "brute")
             case "model":
                 is_model = True
             case "bsp":
@@ -3013,9 +3013,10 @@ class NWOImporter:
         perm, region = None, None
         constraint = is_model and ob.name.startswith('$')
         name = ob.name[1:]
-        if ')' in name:
+        if is_model and ')' in name:
             perm_region, name = name.split(')')
-            perm, region = perm_region[1:].split(' ')
+            if " " in perm_region:
+                perm, region = perm_region[1:].split(' ')
         
         if ob.type == 'EMPTY':
             marker = ob
