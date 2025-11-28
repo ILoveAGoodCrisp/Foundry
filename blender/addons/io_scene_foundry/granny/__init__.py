@@ -139,7 +139,7 @@ class Granny:
         
         entity.extended_data.object = data
         
-    def from_tree(self, scene, nodes):
+    def from_tree(self, scene, nodes, animation=None):
         self.export_materials = []
         self.export_textures = []
         self.export_meshes = []
@@ -172,6 +172,11 @@ class Granny:
             self.export_materials = [mat.granny_material for mat in materials]
             if scene.uses_textures:
                 self.export_textures = [mat.granny_texture for mat in materials if mat.granny_texture is not None]
+                
+        morph_vert_data = scene.morph_vertex_data.get(animation)
+        if morph_vert_data is not None:
+            self.export_vertex_datas.extend(morph_vert_data)
+        
         
     def save(self):
         data_tree_writer = self.begin_file_data_tree_writing()
@@ -226,6 +231,11 @@ class Granny:
         self.file_info.art_tool_info.contents.up_vector = halo_up_vector
         self.file_info.art_tool_info.contents.back_vector = halo_back_vector
         self.file_info.art_tool_info.contents.units_per_meter = halo_units_per_meter
+        
+        # self.file_info.art_tool_info.contents.right_vector = (c_float * 3)(1, 0, 0)
+        # self.file_info.art_tool_info.contents.up_vector = (c_float * 3)(0, 1, 0)
+        # self.file_info.art_tool_info.contents.back_vector = (c_float * 3)(0, 0, 1)
+        # self.file_info.art_tool_info.contents.units_per_meter = 100
         
     def write_track_groups(self, export_track_group, export_vector_track_groups):
         if export_vector_track_groups is None:

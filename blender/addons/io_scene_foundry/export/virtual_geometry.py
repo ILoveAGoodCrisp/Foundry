@@ -109,6 +109,16 @@ COLLISION_FACE_MODES = (
     FaceMode.breakable.value,
 )
 
+def add_triangle_mod(scene, ob: bpy.types.Object) -> bpy.types.Modifier:
+    mods = ob.modifiers
+    for m in mods:
+        if m.type == 'TRIANGULATE': return
+        
+    tri_mod = mods.new('Triangulate', 'TRIANGULATE')
+    tri_mod.quad_method = scene.quad_method
+    tri_mod.ngon_method = scene.ngon_method
+    tri_mod.keep_custom_normals = True
+
 def read_frame_id_list() -> list:
     filepath = Path(utils.addon_root(), "export", "frameidlist.csv")
     frame_ids = []
@@ -495,8 +505,12 @@ class VirtualAnimation:
                 event.effect_data.append(event.event.event_value)
             
             if shape_key_data:
+                # scene.skeleton_object.data.pose_position = 'REST'
+                # scene.context.view_layer.update()
                 for ob, node in shape_key_data.items():
                     morph_target_datas[node].append(VirtualMorphTargetData(ob, scene, node))
+                # scene.skeleton_object.data.pose_position = 'POSE'
+                # scene.context.view_layer.update()
             
         self.create_vector_track_groups(scene, vector_events)
             
@@ -605,6 +619,7 @@ class VirtualAnimation:
         
         for node, data in morph_target_datas.items():
             morphs = [morph.granny_morph_target for morph in data]
+            scene.morph_vertex_data[self].extend([m.vertex_data for m in morphs])
             self.granny_morph_targets_counts[node] = len(morphs)
             self.granny_morph_targets[node] = (GrannyMorphTarget * len(morphs))(*morphs)
 
@@ -725,8 +740,8 @@ class VirtualMorphTargetData:
         
     def _write_vertex_position(self, scene, node):
         self.granny_vertex_data = GrannyVertexData()
-        self.granny_vertex_data.vertex_component_names = self.vertex_component_names
-        self.granny_vertex_data.vertex_component_name_count = self.vertex_component_name_count
+        # self.granny_vertex_data.vertex_component_names = self.vertex_component_names
+        # self.granny_vertex_data.vertex_component_name_count = self.vertex_component_name_count
         self.granny_vertex_data.vertex_type = self.vertex_type
         vertex_array = (c_ubyte * self.len_vertex_array)()
         if node.matrix_world == IDENTITY_MATRIX:
@@ -751,7 +766,8 @@ class VirtualMorphTargetData:
     
     def _setup(self, ob: bpy.types.Object, scene: 'VirtualScene' , node: 'VirtualNode'):
         eval_ob = ob.eval_ob
-        mesh = eval_ob.to_mesh(preserve_all_data_layers=False, depsgraph=scene.depsgraph)
+        
+        mesh = ob.data
         
         self.name = mesh.name
         if not mesh.polygons:
@@ -842,8 +858,8 @@ class VirtualMorphTargetData:
         
         num_types = len(type_names)
         names_array = (c_char_p * num_types)(*type_names)
-        self.vertex_component_names = cast(names_array, POINTER(c_char_p))
-        self.vertex_component_name_count = num_types
+        # self.vertex_component_names = cast(names_array, POINTER(c_char_p))
+        # self.vertex_component_name_count = num_types
         
         type_info_array = (GrannyDataTypeDefinition * (num_types + 1))(*types)
         self.vertex_type = cast(type_info_array, POINTER(GrannyDataTypeDefinition))
@@ -1029,22 +1045,12 @@ class VirtualMesh:
         eval_ob = ob.eval_ob
         
         true_mesh = ob.type == 'MESH'
-        
-        def add_triangle_mod(ob: bpy.types.Object) -> bpy.types.Modifier:
-            mods = ob.modifiers
-            for m in mods:
-                if m.type == 'TRIANGULATE': return
-                
-            tri_mod = mods.new('Triangulate', 'TRIANGULATE')
-            tri_mod.quad_method = scene.quad_method
-            tri_mod.ngon_method = scene.ngon_method
-            tri_mod.keep_custom_normals = True
             
         evaluated = eval_ob is not None
             
         if evaluated:
             if true_mesh:
-                add_triangle_mod(eval_ob)
+                add_triangle_mod(scene, eval_ob)
 
             mesh = eval_ob.to_mesh(preserve_all_data_layers=True, depsgraph=scene.depsgraph)
         else:
@@ -1437,7 +1443,10 @@ class VirtualNode:
         self.bone_bindings: list[str] = []
         self.granny_vertex_data = None
         self.negative_scaling = False
-        if not self.invalid and self.tag_type in scene.export_tag_types:
+        
+        self.for_pca = isinstance(id, utils.ExportObject) and id.for_pca
+        
+        if not self.invalid and (self.tag_type in scene.export_tag_types or self.for_pca):
             # Skip writing mesh data for non-selected bsps/permutations
             if scene.limit_bsps and region not in scene.selected_bsps: return
             if scene.limit_permutations and permutation not in scene.selected_permutations: return
@@ -1971,6 +1980,8 @@ class VirtualScene:
         self.vector_tracks = []
         self.poop_obs = {}
         self.no_structure_export = not export_settings.export_structure
+        
+        self.morph_vertex_data = defaultdict(list)
         
         spath = "shaders\invalid"
         stype = "material" if corinth else "shader"

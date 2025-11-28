@@ -2411,19 +2411,17 @@ def maya_transform_matrix(matrix: Matrix) -> Matrix:
         (0.0, 0.1, 0.0),
         (0.0, 0.0, 0.1),
         (0.1, 0.0, 0.0)
-    ))  # Linear transformation matrix
+    ))
 
     inverse_linear3x3 = Matrix((
         (0.0, -0.0, 10.0),
         (10.0, 0.0, -0.0),
         (0.0, 10.0, 0.0)
-    ))  # Inverse of the linear transformation
+    ))
 
-    # Convert linear transformations to 4x4 matrices
     linear_matrix = linear3x3.to_4x4()
     inverse_linear_matrix = inverse_linear3x3.to_4x4()
 
-    # Apply transformations: input_matrix → linear → inverse_linear
     transformed_matrix = inverse_linear_matrix @ linear_matrix @ matrix
     return transformed_matrix
 
@@ -5479,6 +5477,7 @@ class ExportObject:
         self.pose = None
         self.empty_display_size = 1
         self.invert_topology = False
+        self.for_pca = False
         
     def copy(self):
         return copy.copy(self)

@@ -1669,23 +1669,27 @@ class NWO_OT_AddActionTrack(bpy.types.Operator):
         return {"FINISHED"}
 
     def add_track(self, animation, ob):
+        has_shape_key_data = ob.type == 'MESH' and ob.data.shape_keys and ob.data.shape_keys.animation_data and ob.data.shape_keys.animation_data.action
         if ob.animation_data is not None and ob.animation_data.action is not None:
             for track in animation.action_tracks:
                 if track.action == ob.animation_data.action:
-                    return
-            group = animation.action_tracks.add()
-            group.object = ob
-            group.action = ob.animation_data.action
-            # if group.object.animation_data.use_nla and group.object.animation_data.nla_tracks and group.object.animation_data.nla_tracks.active:
-            #     group.nla_uuid = str(uuid4())
-            #     group.object.animation_data.nla_tracks.active
-            animation.active_action_group_index = len(animation.action_tracks) - 1
-        else:
+                    break
+            else:
+                group = animation.action_tracks.add()
+                group.object = ob
+                group.action = ob.animation_data.action
+                # if group.object.animation_data.use_nla and group.object.animation_data.nla_tracks and group.object.animation_data.nla_tracks.active:
+                #     group.nla_uuid = str(uuid4())
+                #     group.object.animation_data.nla_tracks.active
+                animation.active_action_group_index = len(animation.action_tracks) - 1
+        elif not has_shape_key_data:
             return self.report({'WARNING'}, f"No active action for object [{ob.name}], cannot add action track")
-        if ob.type == 'MESH' and ob.data.shape_keys and ob.data.shape_keys.animation_data and ob.data.shape_keys.animation_data.action:
+        
+        if has_shape_key_data:
             for track in animation.action_tracks:
-                if track.action == ob.data.shape_keys.animation_data.action:
+                if track.is_shape_key_action and track.action == ob.data.shape_keys.animation_data.action:
                     return
+                
             group = animation.action_tracks.add()
             group.object = ob
             group.action = ob.data.shape_keys.animation_data.action
