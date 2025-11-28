@@ -750,7 +750,7 @@ class VirtualMorphTargetData:
         self.granny_vertex_data = pointer(self.granny_vertex_data)   
     
     def _setup(self, ob: bpy.types.Object, scene: 'VirtualScene' , node: 'VirtualNode'):
-        eval_ob = ob.evaluated_get(scene.depsgraph)
+        eval_ob = ob.eval_ob
         mesh = eval_ob.to_mesh(preserve_all_data_layers=False, depsgraph=scene.depsgraph)
         
         self.name = mesh.name

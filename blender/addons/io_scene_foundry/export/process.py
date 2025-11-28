@@ -1,16 +1,14 @@
 from collections import defaultdict
 from enum import Enum
 from functools import lru_cache
-from math import degrees, radians
+from math import degrees
 import os
 from pathlib import Path
 import random
-import types
 import uuid
 import bmesh
 import bpy
-from mathutils import Color, Matrix, Vector
-import numpy as np
+from mathutils import Matrix, Vector
 
 from ..managed_blam.frame_event_list import FrameEventListTag
 
@@ -361,7 +359,7 @@ class ExportScene:
             
             proxy_export_objects.append(proxy)
         
-        if self.asset_type == AssetType.ANIMATION and not self.granny_animations_mesh:
+        if self.asset_type in {AssetType.ANIMATION, AssetType.SINGLE_ANIMATION} and not self.granny_animations_mesh:
             self.export_objects = [self.main_armature] + self.support_armatures
             null_ob = self.make_default_render()
             self.export_objects.append(null_ob)
@@ -572,6 +570,7 @@ class ExportScene:
                     ob.data = eval_mesh.copy()
                     eval_ob.to_mesh_clear()
                     self.temp_meshes.add(ob.data)
+                    print("Found a pca MESH!", ob.name)
                     
                 def set_parent(obj: utils.ExportObject):
                     # Write object as if it has no parent if it is a poop. This solves an issue where instancing fails in Reach
@@ -1680,13 +1679,19 @@ class ExportScene:
         armature_mods = utils.mute_armature_mods() if self.export_settings.faster_animation_export else None
         # self.context.view_layer.update()
         self.has_animations = True
+        
+        if self.corinth:
+            all_shape_key_objects = [ob for ob in self.export_objects if ob.type == 'MESH' and ob.data.shape_keys and ob.data.shape_keys.animation_data]
+        else:
+            all_shape_key_objects = []
+        
         try:
             if single_animation:
                 print("--- Sampling Animation", end="")
                 with utils.Spinner():
                     controls, vector_events = self.create_event_objects(self.scene_settings)
-                    shape_key_objects = [ob for ob in self.context.view_layer.objects if ob.type == 'MESH' and ob.data.shape_keys and ob.data.shape_keys.animation_data]
-                    self.virtual_scene.add_animation(self.scene_settings, controls=controls, shape_key_objects=shape_key_objects, vector_events=vector_events)
+                    shape_key_objects = [ob for ob in self.export_objects if ob.type == 'MESH' and ob.data.shape_keys and ob.data.shape_keys.animation_data]
+                    self.virtual_scene.add_animation(self.scene_settings, controls=controls, shape_key_objects=all_shape_key_objects, vector_events=vector_events)
                 print(" ", end="")
 
             elif self.export_settings.export_animations == 'ALL':
@@ -1707,7 +1712,7 @@ class ExportScene:
                                     if track.object.type == 'MESH' and track.object.data.shape_keys and track.object.data.shape_keys.animation_data:
                                         track.object.data.shape_keys.animation_data.last_slot_identifier = slot_id
                                         track.object.data.shape_keys.animation_data.action = track.action
-                                        shape_key_objects.append(track.object)
+                                        shape_key_objects.extend([ob for ob in all_shape_key_objects if ob.ob and ob.ob == track.object])
                                 else:
                                     if track.object.animation_data:
                                         track.object.animation_data.last_slot_identifier = slot_id
@@ -1741,7 +1746,7 @@ class ExportScene:
                                     if track.object.type == 'MESH' and track.object.data.shape_keys and track.object.data.shape_keys.animation_data:
                                         track.object.data.shape_keys.animation_data.last_slot_identifier = slot_id
                                         track.object.data.shape_keys.animation_data.action = track.action
-                                        shape_key_objects.append(track.object)
+                                        shape_key_objects.extend([ob for ob in all_shape_key_objects if ob.ob and ob.ob == track.object])
                                 else:
                                     if track.object.animation_data:
                                         track.object.animation_data.last_slot_identifier = slot_id

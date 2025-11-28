@@ -8,7 +8,6 @@ import traceback
 import clr
 from pathlib import Path
 import ctypes
-import py360convert
 import numpy as np
 
 from ..constants import NormalType
@@ -415,6 +414,7 @@ class BitmapTag(Tag):
         return faces[face].GetPixel(u, v)
 
     def cubemap_to_equirectangular(self, bitmap, mode: str = "bilinear"):
+        import py360convert
         from System.Drawing import Bitmap # type: ignore
         from System import Array, Byte # type: ignore
         from System.Runtime.InteropServices import Marshal # type: ignore
