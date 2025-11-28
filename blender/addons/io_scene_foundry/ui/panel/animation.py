@@ -269,14 +269,28 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
         description="Filter for the animations to import. Animations that don't contain the specified strings (space or colon delimited) will be skipped"
     )
     
+    prioritise_selected_armature: bpy.props.BoolProperty(
+        name="Prioritise Selected Armature",
+        description="Imports animations using armature animation onto the selected armature rather than looking for a matching name"
+    )
+    
     def execute(self, context):
+        
+        armature = None
+        if self.prioritise_selected_armature:
+            armature = utils.get_rig_prioritize_active(context)
+        
         current_scenes = set(bpy.data.scenes)
         current_animations = context.scene.nwo.animations
         with bpy.data.libraries.load(self.filepath, link=False) as (data_from, data_to):
+            
+            scope_objects = set(data_from.objects)
+            scope_actions = set(data_from.actions)
+
             data_to.scenes = data_from.scenes
             
         new_scenes = [s for s in bpy.data.scenes if s not in current_scenes]
-        
+
         new_anim_count = 0
         
         filter = self.animation_filter.replace(" ", ":")
@@ -303,24 +317,48 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
                     for track in new_anim.action_tracks:
                         ob = track.object
                         if ob is not None:
-                            original_name = utils.reduce_suffix(ob.name)
-                            print(original_name)
-                            potential_ob = bpy.data.objects.get(original_name)
-                            if potential_ob:
-                                track.object = potential_ob
-                            else:
-                                track.object = None
-                        
+                            if armature is not None and ob.type == 'ARMATURE':
+                                track.object = armature
+                                continue
+                            last_potential_name = ""
+                            while True:
+                                potential_name = utils.reduce_suffix(ob.name)
+                                if potential_name in scope_objects:
+                                    potential_ob = bpy.data.objects.get(potential_name)
+                                    if potential_ob:
+                                        track.object = potential_ob
+                                    else:
+                                        track.object = None
+                                    break
+                                
+                                if potential_name == last_potential_name:
+                                    break
+
+                                last_potential_name = potential_name
+                                
                         if self.use_existing_actions:
                             action = track.action
                             if action is not None:
-                                original_name = utils.reduce_suffix(action.name)
-                                potential_action = bpy.data.actions.get(original_name)
-                                if potential_action:
-                                    track.action = potential_action
+                                last_potential_name = ""
+                                while True:
+                                    potential_name = utils.reduce_suffix(action.name)
+                                    if potential_name in scope_actions:
+                                        potential_action = bpy.data.objects.get(potential_name)
+                                        if potential_action:
+                                            track.action = potential_action
+                                        else:
+                                            track.action = None
+                                        break
+                                    
+                                    if potential_name == last_potential_name:
+                                        break
+
+                                    last_potential_name = potential_name
                         
         for scene in new_scenes:
             bpy.data.scenes.remove(scene)
+            
+        bpy.ops.outliner.orphans_purge(do_recursive=True)
         
         self.report({'INFO'}, f"Imported {new_anim_count} animations")
         return {'FINISHED'}
@@ -334,6 +372,7 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
         layout.prop(self, "use_existing_actions")
         layout.prop(self, "import_events")
         layout.prop(self, "import_renames")
+        layout.prop(self, "prioritise_selected_armature")
         layout.prop(self, "animation_filter")
 
 class NWO_OT_OpenExternalAnimationBlend(bpy.types.Operator):
