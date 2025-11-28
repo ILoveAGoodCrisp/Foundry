@@ -570,7 +570,6 @@ class ExportScene:
                     ob.data = eval_mesh.copy()
                     eval_ob.to_mesh_clear()
                     self.temp_meshes.add(ob.data)
-                    print("Found a pca MESH!", ob.name)
                     
                 def set_parent(obj: utils.ExportObject):
                     # Write object as if it has no parent if it is a poop. This solves an issue where instancing fails in Reach

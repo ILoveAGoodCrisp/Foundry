@@ -1293,22 +1293,16 @@ class VirtualMesh:
         _, new_indices, face_indices = np.unique(loop_data, axis=0, return_index=True, return_inverse=True)
         
         if scene.corinth:
-            # Extract the start index and number of loops for each face
             loop_starts = np.empty(num_polygons, dtype=np.int32)
             loop_totals = np.empty(num_polygons, dtype=np.int32)
-
             mesh.polygons.foreach_get("loop_start", loop_starts)
             mesh.polygons.foreach_get("loop_total", loop_totals)
 
-            # Compute the loop index within each face
-            loop_in_face_indices = np.arange(num_loops) - np.repeat(loop_starts, loop_totals)
+            face_indices_per_loop = np.repeat(np.arange(num_polygons, dtype=np.int32), loop_totals)
 
-            # Combine face indices and loop indices into a single array
-            self.vertex_ids = np.column_stack((face_indices, loop_in_face_indices))
-            self.vertex_ids.astype(np.single)
-            
-        
-        # self.indices = np.array(range(num_loops))
+            loop_in_face = np.arange(num_loops, dtype=np.int32) - np.repeat(loop_starts, loop_totals)
+
+            self.vertex_ids = np.column_stack((face_indices_per_loop, loop_in_face)).astype(np.single)
 
         self.indices = face_indices.astype(np.int32)
         new_indices = tuple(new_indices)
