@@ -56,28 +56,29 @@ class PCAAnimationTag(Tag):
             
         coefficient = coefficient[offset:offset+count]
 
-        if not ob.data.shape_keys:
-            keys = []
-        else:
-            keys = [kb for kb in ob.data.shape_keys.key_blocks if kb.name.startswith(group_name)]
+        # if not ob.data.shape_keys:
+        #     keys = []
+        # else:
+        #     keys = [kb for kb in ob.data.shape_keys.key_blocks if kb.name.startswith(group_name)]
             
-        if not keys:
-            me = cast(bpy.types.Mesh, ob.data)
-            if not me.shape_keys:
-                ob.shape_key_add(name="Basis", from_mix=False)
+        # if not keys:
+        keys = []
+        me = cast(bpy.types.Mesh, ob.data)
+        if not me.shape_keys:
+            ob.shape_key_add(name="Basis", from_mix=False)
 
-            basis = np.empty(len(me.vertices) * 3, np.single)
-            me.vertices.foreach_get("co", basis)
-            basis = basis.reshape(-1, 3)
+        basis = np.empty(len(me.vertices) * 3, np.single)
+        me.vertices.foreach_get("co", basis)
+        basis = basis.reshape(-1, 3)
 
-            keys = []
-            for k in range(K):
-                kb = ob.shape_key_add(name=f"{group_name}_{k+1}", from_mix=False)
-                mesh_delta = shape_vertices[k]
-                kb.data.foreach_set("co", (basis + mesh_delta).astype(np.single).ravel())
-                kb.slider_min, kb.slider_max = min(coefficient[:, k]), max(coefficient[:, k])
-                kb.value = 0.0
-                keys.append(kb)
+        keys = []
+        for k in range(K):
+            kb = ob.shape_key_add(name=f"{name}_{k+1}", from_mix=False)
+            mesh_delta = shape_vertices[k]
+            kb.data.foreach_set("co", (basis + mesh_delta).astype(np.single).ravel())
+            kb.slider_min, kb.slider_max = min(coefficient[:, k]), max(coefficient[:, k])
+            kb.value = 0.0
+            keys.append(kb)
             
         # New action
         action = bpy.data.actions.new(name=f"{name}_shape_keys")

@@ -1057,17 +1057,21 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
         return {"FINISHED"}
     
     def invoke(self, context, event):
-        if not self.filepath.lower().endswith(".scenario"):
+        start_path = self.filepath.lower()
+        tag_dir = utils.get_tags_path()
+        self.filepath = tag_dir + os.sep
+        if context.scene.nwo.asset_type == 'scenario':
             asset_path = utils.get_asset_path_full(True)
             if asset_path:
                 path = Path(asset_path, f"{utils.get_asset_name()}.scenario")
                 if not path.parent.exists():
                     path.parent.mkdir(parents=True)
                 self.filepath = str(path)
-            else:
-                self.filepath = utils.get_tags_path() + os.sep
-        else:
-            self.filepath = utils.get_tags_path() + os.sep
+        elif context.scene.nwo.asset_type == 'cinematic' and context.scene.nwo.cinematic_scenario:
+            cin_scenario = Path(tag_dir, utils.relative_path(context.scene.nwo.cinematic_scenario))
+            if cin_scenario.exists():
+                self.filepath = str(cin_scenario)
+                
         context.window_manager.fileselect_add(self)
         return {"RUNNING_MODAL"}
     
@@ -1088,7 +1092,8 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
         layout.prop(self, "imposter_farm")
         layout.prop(self, "cubemap_farm")
         layout.prop(self, "launch_mcc")
-        layout.prop(self, "rexport_scenario")
+        if context.scene.nwo.asset_type == 'scenario':
+            layout.prop(self, "rexport_scenario")
         layout.prop(self, "lightmap")
         if self.lightmap:
             export = context.scene.nwo_export

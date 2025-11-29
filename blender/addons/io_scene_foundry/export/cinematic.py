@@ -710,7 +710,7 @@ class QUA:
                 element.SelectField("name").SetStringData(actor.name)
                 element.SelectField("variant name").SetStringData(actor.variant)
             if actor.weapon_tag is not None:
-                print(actor.name, element)
+                # print(actor.name, element)
                 block_attachments = element.SelectField("Block:attachments")
                 for attachment_element in block_attachments.Elements:
                     attachment_path = attachment_element.SelectField("Reference:attachment type").Path

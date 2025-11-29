@@ -144,14 +144,16 @@ class SidecarImport:
 
         if self.asset_type == AssetType.SCENARIO:
             if self.selected_bsps:
-                for bsp in self.selected_bsps:
-                    flags.append(bsp)
-            elif not self.no_virtual_scene and (not self.export_settings.export_design or not self.export_settings.export_structure):
-                if self.export_settings.export_design:
-                    for design in self.designs:
-                        flags.append(design)
-                elif self.export_settings.export_structure:
-                    for bsp in self.structures:
+                if not self.no_virtual_scene and (not self.export_settings.export_design or not self.export_settings.export_structure):
+                    if self.export_settings.export_design:
+                        for design in self.designs:
+                            flags.append(design)
+                    elif self.export_settings.export_structure:
+                        for bsp in self.structures:
+                            flags.append(bsp)
+                            
+                else:
+                    for bsp in self.selected_bsps:
                         flags.append(bsp)
                 
         if self.cinematic_scene is not None:
