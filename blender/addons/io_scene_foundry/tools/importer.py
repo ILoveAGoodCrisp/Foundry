@@ -1231,7 +1231,7 @@ class NWO_Import(bpy.types.Operator):
                                 anchor_matrix = Matrix.LocRotScale(anchor_position, anchor_euler, Vector.Fill(3, 1))
                                 
                                 anchor = bpy.data.objects.new(name=sdata.anchor_name, object_data=None)
-                                anchor.empty_display_size  = (1 / 0.03048)
+                                anchor.empty_display_size = (1 / 0.03048)
                                 anchor.matrix_world = anchor_matrix.inverted_safe()
                                 sdata.blender_scene.collection.objects.link(anchor)
                                 sdata.blender_scene.nwo.cinematic_anchor = anchor
