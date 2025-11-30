@@ -235,7 +235,7 @@ class Frame:
         forward = matrix_3x3.col[0]
         self.up = up.normalized().to_tuple()
         self.forward = forward.normalized().to_tuple()
-        self.focal_length = data.lens * (0.5 if corinth else 1.3)
+        self.focal_length = data.lens * (0.5 if corinth else 1.25)
         self.depth_of_field = int(data.dof.use_dof)
 
         self.near_focal_plane_distance = utils.halo_scale(near_focal_plane) * 100

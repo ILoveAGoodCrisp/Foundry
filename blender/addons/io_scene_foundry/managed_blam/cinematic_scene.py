@@ -474,7 +474,7 @@ class CinematicSceneTag(Tag):
                 
                 cam_frame = CamFrame()
                 cam_frame.matrix = matrix @ camera_correction_matrix.to_4x4()
-                cam_frame.lens = focal_length / (0.5 if self.corinth else 1.2)
+                cam_frame.lens = focal_length / (0.5 if self.corinth else 1.25)
                 cam_frames.append(cam_frame)
                 
             
