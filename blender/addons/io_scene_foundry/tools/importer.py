@@ -1240,45 +1240,7 @@ class NWO_Import(bpy.types.Operator):
                                 cin_object.actions = {action_shot_index(a.name): a for a in cin_actions}
                                 imported_cinematic_actions.extend(cin_actions)
                                 
-                            for idx, shot_frame in enumerate(sdata.shot_frames):
-                                shot_idx = idx + 1
-                                for cin_object in sdata.object_animations:
-                                    action = cin_object.actions.get(shot_idx)
-                                    if action is None:
-                                        continue
-                                    
-                                    arm = cin_object.armature
-                                    
-                                    ad = arm.animation_data
-
-                                    track = None
-                                    for tr in ad.nla_tracks:
-                                        if tr.name == sdata.name:
-                                            track = tr
-                                            break
-
-                                    if track is None:
-                                        track = ad.nla_tracks.new()
-                                        track.name = sdata.name
-
-                                    strip_name = f"{arm.name}_shot{shot_idx}"
-                                    existing_names = {st.name for st in track.strips}
-                                    if strip_name in existing_names:
-                                        i = 1
-                                        base = strip_name
-                                        while f"{base}_{i}" in existing_names:
-                                            i += 1
-                                        strip_name = f"{base}_{i}"
-
-                                    strip = track.strips.new(strip_name, shot_frame, action)
-
-                                    strip.frame_start = shot_frame
-                                    strip.frame_end = shot_frame + action.frame_range[1] - action.frame_range[0]
-                                    strip.action_frame_start = action.frame_range[0]
-                                    strip.action_frame_end = action.frame_range[1]
-
-                                    if ad.action == action:
-                                        ad.action = None
+                            add_sdata_to_nla(sdata)
 
                             if imported_cinematic_scenario_objects:
                                 anchor_position = Vector.Fill(3, 0)
@@ -4877,3 +4839,62 @@ class NWO_OT_InstancerToInstance(bpy.types.Operator):
         
         self.report({'INFO'}, f"Created {count} instanced geometries")
         return {"FINISHED"}
+    
+def find_or_create_free_track(ad, start, end):
+    for track in ad.nla_tracks:
+        conflict = False
+        for st in track.strips:
+            if not (end <= st.frame_start or start >= st.frame_end):
+                conflict = True
+                break
+        if not conflict:
+            return track
+
+    track = ad.nla_tracks.new()
+    track.name = f"Track_{len(ad.nla_tracks)}"
+    return track
+
+def add_sdata_to_nla(sdata):
+    for idx, shot_frame in enumerate(sdata.shot_frames):
+        shot_idx = idx + 1
+
+        for cin_object in sdata.object_animations:
+            arm = cin_object.armature
+            if arm is None:
+                continue
+
+            action = cin_object.actions.get(shot_idx)
+            if action is None:
+                continue
+
+            if arm.animation_data is None:
+                arm.animation_data_create()
+
+            ad = arm.animation_data
+
+            action_start, action_end = action.frame_range
+            start = shot_frame
+            end = shot_frame + (action_end - action_start)
+
+            track = find_or_create_free_track(ad, start, end)
+
+            base_name = f"{arm.name}_shot{shot_idx}"
+            strip_name = base_name
+            existing = {s.name for s in track.strips}
+            if strip_name in existing:
+                i = 1
+                while f"{base_name}_{i}" in existing:
+                    i += 1
+                strip_name = f"{base_name}_{i}"
+
+            strip = track.strips.new(strip_name, start, action)
+
+            strip.frame_start = start
+            strip.frame_end = end
+            strip.action_frame_start = action_start
+            strip.action_frame_end = action_end
+
+            if ad.action == action:
+                ad.action = None
+
+            # print(f"Added {action.name} to {arm.name} at frame {shot_frame}")

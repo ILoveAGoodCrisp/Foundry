@@ -531,5 +531,8 @@ class CinematicSceneTag(Tag):
             shot_frames.append(frame)
             frame += element.SelectField("frame count").Data
             
+        blender_scene.frame_start = 1
+        blender_scene.frame_end = frame
+            
         return self.tag_path.ShortName, blender_scene, camera_objects, object_animations, self.tag.SelectField("anchor").GetStringData(), actions, shot_frames
                     
