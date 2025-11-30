@@ -31,7 +31,7 @@ class PCAAnimationTag(Tag):
 
     # ------------------------------------------------------------ #
     def import_animation(self, ob: bpy.types.Object, mesh_data_index: int, bounds: CompressionBounds, offset, count, shape_count, shape_offset, name, blender_animation, group_name):
-        print(f"--- Adding PCA animation for {blender_animation} to {ob.name}")
+        print(f"--- Adding PCA animation for {name} to {ob.name}")
         mesh_data = self.block_mesh_data.Elements[mesh_data_index]
         vertices_per_shape = int(mesh_data.Fields[1].Data)
 
@@ -75,13 +75,17 @@ class PCAAnimationTag(Tag):
                 kb = ob.shape_key_add(name=f"{group_name}_{k+1}", from_mix=False)
                 mesh_delta = shape_vertices[k]
                 kb.data.foreach_set("co", (basis + mesh_delta).astype(np.single).ravel())
+                
                 kb.slider_min, kb.slider_max = min(coefficient[:, k]), max(coefficient[:, k])
+                
+                kb["pca_min"] = kb.slider_min
+                kb["pca_max"] = kb.slider_max
                 
                 if kb.slider_min > 0:
                     kb.slider_min = 0
                     
-                if kb.slider_max < 0:
-                    kb.slider_max = 0
+                if kb.slider_max < 1:
+                    kb.slider_max = 1
                 
                 kb.value = 0.0
                 keys.append(kb)
@@ -114,14 +118,14 @@ class PCAAnimationTag(Tag):
             for k, kb in enumerate(keys):
                 fcu = fc_map[kb]
                 kp = fcu.keyframe_points[frame_idx - 1]
-                kp.co = (frame_idx, float(row[k]))
+                value = float(row[k])
+                pinned_value = utils.clamp(value, kb["pca_min"], kb["pca_max"])
+                kp.co = (frame_idx, pinned_value)
                 kp.interpolation = 'LINEAR'
                 
     def to_blender(self, animations: dict, groups: dict):
         # Animations is a dict with keys of graph animation names and values of blender animations
         render_model_path = self.tag.SelectField("Reference:RenderModel").Path
-        
-        print(animations)
         
         if not self.path_exists(render_model_path):
             return
@@ -152,8 +156,8 @@ class PCAAnimationTag(Tag):
                 if pca_index is not None:
                     pca_objects[pca_index] = ob
         
-        for name, blender_animation in animations.items():
-            blender_animation = bpy.context.scene.nwo.animations.get(name.replace(":", " "))
+        for name, blender_animation_name in animations.items():
+            blender_animation = bpy.context.scene.nwo.animations.get(blender_animation_name)
             if blender_animation is None:
                 continue
             for element in self.block_mesh_data.Elements:

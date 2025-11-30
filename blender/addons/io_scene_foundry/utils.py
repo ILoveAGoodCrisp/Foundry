@@ -2404,6 +2404,21 @@ def halo_transform_matrix(matrix: Matrix) -> Matrix:
     
     return transform_matrix @ matrix
 
+def blender_transform_matrix(matrix: Matrix) -> Matrix:
+    """Converts a matrix from halo space to blender space."""
+    scale = WU_SCALAR
+    if bpy.context.scene.nwo.scale == 'max':
+        scale = 0.03048 * WU_SCALAR
+
+    rotation = blender_halo_rotation_diff(bpy.context.scene.nwo.forward_direction)
+    rotation_matrix, _ = rotation_and_pivot(rotation)
+
+    inv_scale_matrix = Matrix.Scale(1.0 / scale, 4)
+    inv_rotation_matrix = rotation_matrix.transposed()
+
+    return inv_scale_matrix @ inv_rotation_matrix @ matrix
+
+
 def maya_transform_matrix(matrix: Matrix) -> Matrix:
     matrix = halo_transform_matrix(matrix)
     

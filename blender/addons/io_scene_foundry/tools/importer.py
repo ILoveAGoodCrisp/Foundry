@@ -13,9 +13,11 @@ import addon_utils
 import bmesh
 import bpy
 import bpy.props
-from mathutils import Color, Quaternion, Vector, bvhtree, Matrix
+from mathutils import Color, Quaternion, Vector, Matrix, Euler
 
 import numpy as np
+
+from ..managed_blam.cinematic import CinematicTag
 
 from ..managed_blam.decorator_set import DecoratorSetTag
 
@@ -86,7 +88,7 @@ checked_asset_once = False
 # 6. Add an if with conditions for handling this import under NWO_Import.execute
 # 7. Update scope variable to importer calls in other python files where appropriate
 
-formats = "amf", "jms", "jma", "bitmap", "camera_track", "model", "render_model", "scenario", "scenario_structure_bsp", "particle_model", "object", "animation", "prefab", "structure_design", "polyart_asset", "decorator_set"
+formats = "amf", "jms", "jma", "bitmap", "camera_track", "model", "render_model", "scenario", "scenario_structure_bsp", "particle_model", "object", "animation", "prefab", "structure_design", "polyart_asset", "decorator_set", "cinematic"
 
 xref_tag_types = (
     ".crate",
@@ -535,6 +537,16 @@ class NWO_Import(bpy.types.Operator):
     tag_sky: bpy.props.StringProperty(
         name="Sky",
         description="Enter the tag relative path to the sky to import with this Scenario",
+    )
+    
+    tag_cinematic_import_scenario: bpy.props.BoolProperty(
+        name="Import Scenario",
+        default=True,
+    )
+    
+    tag_cinematic_import_actors: bpy.props.BoolProperty(
+        name="Import Actors",
+        default=True,
     )
     
     tag_scenario_import_objects: bpy.props.BoolProperty(
@@ -1167,6 +1179,79 @@ class NWO_Import(bpy.types.Operator):
                     
                 # for ob in importer.to_cursor_objects:
                 #     ob.matrix_world = context.scene.cursor.matrix
+                
+                if 'cinematic' in importer.extensions:
+                    cinematic_files = importer.sorted_filepaths["cinematic"]
+                    imported_cinematic_objects = []
+                    imported_cinematic_actions = []
+                    importer.tag_cinematic_import_scenario = self.tag_cinematic_import_scenario
+                    anchor_objects = {}
+                    for file in cinematic_files:
+                        scene_datas, scenario, zone_set = importer.import_cinematic(file)
+                        if scenario and zone_set:
+                            importer.tag_zone_set = zone_set
+                            importer.tag_bsp_import_geometry = True
+                            importer.tag_bsp_render_only = True
+                            importer.tag_scenario_import_objects = self.tag_scenario_import_objects
+                            importer.tag_scenario_import_decals = self.tag_scenario_import_decals
+                            importer.tag_scenario_import_decorators = self.tag_scenario_import_decorators
+                            imported_cinematic_scenario_objects = importer.import_scenarios([scenario], self.build_blender_materials, self.always_extract_bitmaps)
+                            
+                            imported_cinematic_objects.extend(imported_cinematic_scenario_objects)
+                            
+                            context.scene.nwo.cinematic_scenario = scenario
+                            context.scene.nwo.cinematic_zone_set = zone_set
+                        
+                        first_scene = True
+                        for sdata in scene_datas:
+                            
+                            if not first_scene:
+                                first_scene = False
+                            
+                            camera_collection = bpy.data.collections.new(sdata.name)
+                            sdata.blender_scene.collection.children.link(camera_collection)
+                            for ob in sdata.camera_objects:
+                                camera_collection.objects.link(ob)
+                                
+                            imported_cinematic_objects.extend(sdata.camera_objects)
+                            imported_cinematic_actions.extend(sdata.actions)
+                            
+                            if imported_cinematic_scenario_objects:
+                                anchor_position = Vector.Fill(3, 0)
+                                anchor_facing = Vector.Fill(3, 0)
+                                with ScenarioTag(path=scenario) as scenario_tag:
+                                    for element in scenario_tag.tag.SelectField("Block:cutscene flags").Elements:
+                                        if element.Fields[0].GetStringData() == sdata.anchor_name:
+                                            anchor_position = Vector([n for n in element.SelectField("position").Data]) * 100
+                                            for idx, n in enumerate(element.SelectField("facing").Data):
+                                                anchor_facing[idx] = n
+                                            break        
+                                
+                                anchor_euler = Euler((anchor_facing[2], -anchor_facing[1], anchor_facing[0]), 'ZYX')
+                                anchor_matrix = Matrix.LocRotScale(anchor_position, anchor_euler, Vector.Fill(3, 1))
+                                
+                                anchor = bpy.data.objects.new(name=sdata.anchor_name, object_data=None)
+                                anchor.empty_display_size  = (1 / 0.03048)
+                                anchor.matrix_world = anchor_matrix.inverted_safe()
+                                sdata.blender_scene.collection.objects.link(anchor)
+                                sdata.blender_scene.nwo.cinematic_anchor = anchor
+                                imported_cinematic_objects.append(anchor)
+                                anchor_objects[anchor] = imported_cinematic_scenario_objects
+                            else:
+                                anchor = bpy.data.objects.new(name=sdata.anchor_name, object_data=None)
+                                sdata.blender_scene.collection.objects.link(anchor)
+                                sdata.blender_scene.nwo.cinematic_anchor = anchor
+                                imported_cinematic_objects.append(anchor)
+                        
+                    if importer.needs_scaling:
+                        utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_cinematic_objects, actions=imported_cinematic_actions)
+
+
+                    for anchor, scen_objects in anchor_objects.items():
+                        for ob in scen_objects:
+                            if not ob.parent:
+                                ob.parent = anchor
+                                ob.parent_type = 'OBJECT'
 
                 if importer.pca_animations:
                     with PCAAnimationTag(path=importer.pca_path) as pca:
@@ -1317,6 +1402,8 @@ class NWO_Import(bpy.types.Operator):
                 self.filter_glob += '*.polyart_a*;'
             if 'decorator_set' in self.scope:
                 self.filter_glob += '*.decor*_set;'
+            if 'cinematic' in self.scope:
+                self.filter_glob += '*.cinematic;'
                     
             if utils.amf_addon_installed() and 'amf' in self.scope:
                 self.amf_okay = True
@@ -1692,6 +1779,9 @@ class NWOImporter:
         self.pca_animations = {}
         self.pca_groups = {}
         self.pca_path = None
+        
+        self.tag_cinematic_import_scenario = False
+        self.tag_cinematic_import_actors = False
     
     def group_filetypes(self, scope):
         if scope:
@@ -1756,6 +1846,9 @@ class NWOImporter:
             elif 'decorator_set' in valid_exts and path.lower().endswith(".decorator_set"):
                 self.extensions.add('decorator_set')
                 filetype_dict["decorator_set"][path] = None
+            elif 'cinematic' in valid_exts and path.lower().endswith(".cinematic"):
+                self.extensions.add('cinematic')
+                filetype_dict["cinematic"][path] = None
             
         # First stored as dict then converted to list. Avoids duplicate files
         for k, v in filetype_dict.items():
@@ -2685,6 +2778,18 @@ class NWOImporter:
                 set_asset(Path(file).suffix)
             
         return decorator_objects
+    
+    def import_cinematic(self, file, import_scenario=False):
+        filename = Path(file).with_suffix("").name
+        print(f"Importing Cinematic: {filename}")
+        with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
+            with CinematicTag(path=mover.tag_path) as cinematic:
+                scene_datas, scenario_path, zone_set = cinematic.to_blender(self.tag_cinematic_import_scenario)
+                
+        # if self.setup_as_asset:
+        #     set_asset(Path(file).suffix)
+        
+        return scene_datas, scenario_path, zone_set
         
     # Bitmap Import
     def extract_bitmaps(self, bitmap_files, image_format):
@@ -3919,6 +4024,16 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         items=items_sky
     )
     
+    tag_cinematic_import_scenario: bpy.props.BoolProperty(
+        name="Import Scenario",
+        default=True,
+    )
+    
+    tag_cinematic_import_actors: bpy.props.BoolProperty(
+        name="Import Actors",
+        default=True,
+    )
+    
     tag_scenario_import_objects: bpy.props.BoolProperty(
         name="Import Objects",
         description="Imports scenario objects. Added to an exclude collection by default",
@@ -4109,7 +4224,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 self.report({'WARNING'}, "Blender Toolset not installed, cannot import JMS/ASS/JMA")
                 return {'CANCELLED'}
             
-        if self.import_type in {"camera_track", "jms", "ass", "model", "render_model", "scenario", "scenario_structure_bsp", "model_animation_graph", "biped", "crate", "creature", "device_control", "device_dispenser", "effect_scenery", "equipment", "giant", "device_machine", "projectile", "scenery", "spawner", "sound_scenery", "device_terminal", "vehicle", "weapon", "prefab", "decorator_set", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx"}:
+        if self.import_type in {"camera_track", "jms", "ass", "model", "render_model", "scenario", "scenario_structure_bsp", "model_animation_graph", "biped", "crate", "creature", "device_control", "device_dispenser", "effect_scenery", "equipment", "giant", "device_machine", "projectile", "scenery", "spawner", "sound_scenery", "device_terminal", "vehicle", "weapon", "prefab", "decorator_set", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx", "cinematic"}:
             if self.import_type == "scenario":
                 global zone_set_items
                 global sky_items
@@ -4124,6 +4239,10 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                         sky_path = scenario.get_path_str(sky, True)
                         if sky_path and Path(sky_path).exists():
                             sky_items.append(sky.RelativePathWithExtension)
+                            
+            elif self.import_type == 'cinematic':
+                # TODO Add scenes enum
+                pass
                         
             elif self.import_type == 'decorator_set':
                 global decorator_type_items
@@ -4239,6 +4358,17 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
             case "camera_track":
                 layout.prop(self, "camera_track_animation_scale")
                 layout.prop(self, "setup_as_asset")
+            case 'cinematic':
+                layout.prop(self, "tag_cinematic_import_scenario")
+                layout.prop(self, "tag_cinematic_import_actors")
+                layout.prop(self, "tag_import_lights")
+                layout.prop(self, "tag_sky")
+                layout.prop(self, "tag_scenario_import_objects")
+                layout.prop(self, "tag_scenario_import_decals")
+                layout.prop(self, "tag_scenario_import_decorators")
+                layout.prop(self, "setup_as_asset")
+                layout.prop(self, "build_blender_materials")
+                layout.prop(self, "always_extract_bitmaps")
             case "ass" | "jms":
                 layout.prop(self, "legacy_type", expand=True)
             case "jmm" | "jma" | "jmt" | "jmz" | "jmv" | "jmw" | "jmo" | "jmr" | "jmrx":
@@ -4249,7 +4379,7 @@ class NWO_FH_Import(bpy.types.FileHandler):
     bl_idname = "NWO_FH_Import"
     bl_label = "File handler Foundry Importer"
     bl_import_operator = "nwo.import_from_drop"
-    bl_file_extensions = ".jms;.amf;.ass;.bitmap;.model;.render_model;.scenario;.scenario_structure_bsp;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track;.particle_model;.biped;.crate;.creature;.device_control;.device_dispenser;.effect_scenery;.equipment;.giant;.device_machine;.projectile;.scenery;.spawner;.sound_scenery;.device_terminal;.vehicle;.weapon;.model_animation_graph;.prefab;.structure_design;.polyart_asset;.decorator_set"
+    bl_file_extensions = ".jms;.amf;.ass;.bitmap;.model;.render_model;.scenario;.scenario_structure_bsp;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track;.particle_model;.biped;.crate;.creature;.device_control;.device_dispenser;.effect_scenery;.equipment;.giant;.device_machine;.projectile;.scenery;.spawner;.sound_scenery;.device_terminal;.vehicle;.weapon;.model_animation_graph;.prefab;.structure_design;.polyart_asset;.decorator_set;.cinematic"
 
     @classmethod
     def poll_drop(cls, context):

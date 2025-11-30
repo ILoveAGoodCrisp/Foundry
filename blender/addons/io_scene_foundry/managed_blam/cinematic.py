@@ -1,6 +1,8 @@
 from enum import Enum
 from pathlib import Path
 
+from .cinematic_scene import CinematicSceneTag
+
 from .. import utils
 
 from .scenario import ScenarioTag
@@ -154,4 +156,42 @@ class CinematicTag(Tag):
                         
                 if scenario.read_scenario_type() == 1:
                     utils.print_warning(f"{scenario.tag_path.RelativePathWithExtension} is set to Multiplayer. Cinematics will crash if you attempt to run them\nSwitch the scenario type to Solo before playing cinematic")
-                        
+    
+    def to_blender(self, import_scenario=False):
+        scenario_path = None
+        zone_set = ""
+        
+        scene_datas = []
+        if import_scenario:
+            scenario_tagpath = self.scenario.Path
+            if self.path_exists(scenario_tagpath):
+                scenario_path = scenario_tagpath.Filename
+                zone_set_index = self.zone_set.Data
+                
+                with ScenarioTag(path=scenario_path) as scenario:
+                    if zone_set_index > -1 and zone_set_index < scenario.block_zone_sets.Elements.Count:
+                        zone_set = scenario.block_zone_sets.Elements[zone_set_index].Fields[0].GetStringData()
+        
+        for element in self.scenes.Elements:
+            if self.corinth:
+                pass
+            
+            scene_tagpath = element.SelectField("Reference:scene").Path
+            if self.path_exists(scene_tagpath):
+                with CinematicSceneTag(path=scene_tagpath) as scene:
+                    scene_data = SceneData(*scene.to_blender())
+                    scene_datas.append(scene_data)
+                    
+                # until we add support for multiple scenes
+                break
+        
+        return scene_datas, scenario_path, zone_set
+    
+class SceneData:
+    def __init__(self, name, scene, camera_objects, object_animations, anchor_name, actions):
+        self.name = name
+        self.blender_scene = scene
+        self.camera_objects = camera_objects
+        self.object_animations = object_animations
+        self.anchor_name = anchor_name
+        self.actions = actions

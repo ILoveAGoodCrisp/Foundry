@@ -207,30 +207,21 @@ class Frame:
         matrix = utils.halo_transforms_matrix(blender_matrix)
             
         if data.dof.use_dof:
-            # Focal distance
             if data.dof.focus_object:
-                # Focus object exists, calculate distance from camera to object
                 focus_object = data.dof.focus_object
                 focal_distance = (ob.matrix_world.translation - focus_object.location).length
             else:
-                # Fallback to manually set focus distance
                 focal_distance = data.dof.focus_distance
 
-            # Aperture (f-stop value)
             aperture = data.dof.aperture_fstop
 
-            # Lens focal length (in mm)
             lens = data.lens
 
-            # Calculate the depth of field region
-            # Hyperfocal distance: the distance beyond which all objects are in acceptable focus
             hyperfocal = (lens ** 2) / (aperture * 5)
 
-            # Near and far focal planes
             near_focal_plane = (hyperfocal * focal_distance) / (hyperfocal + (focal_distance - lens))
             far_focal_plane = (hyperfocal * focal_distance) / (hyperfocal - (focal_distance - lens))
 
-            # Blur amount (relative to aperture)
             blur_amount = 1 / aperture if aperture > 0 else 0
         else:
             focal_distance = 0

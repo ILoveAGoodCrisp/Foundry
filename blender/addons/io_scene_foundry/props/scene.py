@@ -2604,7 +2604,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     
     scenario_add_globals: bpy.props.BoolProperty(
         name="Add Camera/Atmosphere Globals",
-        default=True,
+        default=False,
         options=set(),
         description="Adds empty camera and atmosphere globals to the scenario if they do not exist. If a scenario template is in use then these will first be instead copied from the template scenario"
     )

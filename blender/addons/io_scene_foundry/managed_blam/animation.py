@@ -468,7 +468,7 @@ class AnimationTag(Tag):
                         continue
                     
                     if shared_data.Elements[0].SelectField("WordFlags:internal flags").TestBit("contains pca data"):
-                        pca_animations[name] = animation
+                        pca_animations[name] = new_name
                 
                 match anim_type:
                     case 0 | 1:
