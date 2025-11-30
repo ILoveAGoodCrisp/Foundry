@@ -188,10 +188,11 @@ class CinematicTag(Tag):
         return scene_datas, scenario_path, zone_set
     
 class SceneData:
-    def __init__(self, name, scene, camera_objects, object_animations, anchor_name, actions):
+    def __init__(self, name, scene, camera_objects, object_animations, anchor_name, actions, shot_frames):
         self.name = name
         self.blender_scene = scene
         self.camera_objects = camera_objects
         self.object_animations = object_animations
         self.anchor_name = anchor_name
         self.actions = actions
+        self.shot_frames = shot_frames

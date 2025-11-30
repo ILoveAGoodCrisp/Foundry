@@ -400,7 +400,16 @@ class CamFrame:
     def __init__(self):
         self.matrix = None
         self.lens = 0
-
+        
+class CinObject():
+    def __init__(self):
+        self.name = ""
+        self.variant = ""
+        self.graph_path = ""
+        self.object_path = ""
+        self.armature = None
+        self.actions = None
+    
 class CinematicSceneTag(Tag):
     tag_ext = 'cinematic_scene'
     
@@ -415,10 +424,28 @@ class CinematicSceneTag(Tag):
         object_animations = []
         frame = 1
         actions = []
+        shot_frames = []
         
         blender_scene = bpy.context.scene
         
+        print(f"Importing cinematic scene: {self.tag_path.ShortName}")
+        
+        for element in self.tag.SelectField("Block:objects").Elements:
+            name = element.SelectField("name").GetStringData()
+            variant = element.SelectField("variant name").GetStringData()
+            graph = element.SelectField("model animation graph").Path
+            obj = element.SelectField("object type").Path
+            
+            if self.path_exists(obj) and self.path_exists(graph):
+                cin_object = CinObject()
+                cin_object.name = name
+                cin_object.variant = variant
+                cin_object.graph_path = graph.Filename
+                cin_object.object_path = obj.Filename
+                object_animations.append(cin_object)
+        
         for element in self.tag.SelectField("shots").Elements:
+            print(f"--- Creating camera data for shot: {element.ElementIndex + 1}")
             shot_camera_name = f"{self.tag_path.ShortName}_shot{element.ElementIndex + 1}"
             shot_camera_data = bpy.data.cameras.new(shot_camera_name)
             shot_camera = bpy.data.objects.new(shot_camera_name, shot_camera_data)
@@ -447,7 +474,7 @@ class CinematicSceneTag(Tag):
                 
                 cam_frame = CamFrame()
                 cam_frame.matrix = matrix @ camera_correction_matrix.to_4x4()
-                cam_frame.lens = focal_length / (0.5 if self.corinth else 1.3)
+                cam_frame.lens = focal_length / (0.5 if self.corinth else 1.2)
                 cam_frames.append(cam_frame)
                 
             
@@ -466,7 +493,7 @@ class CinematicSceneTag(Tag):
                 shot_camera.animation_data.last_slot_identifier = slot.identifier
                 
                 camera_fcurves = utils.get_fcurves(camera_action, slot)
-                loc_curves = [camera_fcurves.new(data_path="location", index=i)for i in range(3)]
+                loc_curves = [camera_fcurves.new(data_path="location", index=i) for i in range(3)]
 
                 shot_camera.rotation_mode = 'QUATERNION'
                 rot_curves = [camera_fcurves.new(data_path="rotation_quaternion", index=i) for i in range(4)]
@@ -476,10 +503,10 @@ class CinematicSceneTag(Tag):
             shot_camera_data.lens = fovs[0]
             if keyframe_fovs:
                 camera_data_action = bpy.data.actions.new(f"{shot_camera.name}_data")
-                slot = camera_action.slots.new('CAMERA', shot_camera_data.name)
+                slot = camera_data_action.slots.new('CAMERA', shot_camera_data.name)
                 
                 shot_camera_data.animation_data_create()
-                shot_camera_data.animation_data.action = camera_action
+                shot_camera_data.animation_data.action = camera_data_action
                 shot_camera_data.animation_data.last_slot_identifier = slot.identifier
                 
                 camera_data_fcurves = utils.get_fcurves(camera_data_action, slot)
@@ -491,17 +518,18 @@ class CinematicSceneTag(Tag):
                     if keyframe_matrices:
                         loc, rot, _ = cf.matrix.decompose()
                         for i in range(3):
-                            loc_curves[i].keyframe_points.insert(shot_frame, loc[i], options={'FAST', 'NEEDED'})
+                            loc_curves[i].keyframe_points.insert(shot_frame, loc[i], options={'FAST'})
 
                         for i in range(4):
-                            rot_curves[i].keyframe_points.insert(shot_frame, rot[i], options={'FAST', 'NEEDED'})
+                            rot_curves[i].keyframe_points.insert(shot_frame, rot[i], options={'FAST'})
                         
                     if keyframe_fovs:
-                        lens_curve.keyframe_points.insert(shot_frame, cf.lens, options={'FAST', 'NEEDED'})
+                        lens_curve.keyframe_points.insert(shot_frame, cf.lens, options={'FAST'})
                         
                     shot_frame += 1
 
+            shot_frames.append(frame)
             frame += element.SelectField("frame count").Data
             
-        return self.tag_path.ShortName, blender_scene, camera_objects, object_animations, self.tag.SelectField("anchor").GetStringData(), actions
+        return self.tag_path.ShortName, blender_scene, camera_objects, object_animations, self.tag.SelectField("anchor").GetStringData(), actions, shot_frames
                     

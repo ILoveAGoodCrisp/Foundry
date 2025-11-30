@@ -1186,8 +1186,22 @@ class NWO_Import(bpy.types.Operator):
                     imported_cinematic_actions = []
                     importer.tag_cinematic_import_scenario = self.tag_cinematic_import_scenario
                     anchor_objects = {}
+                    
+                    def action_shot_index(name):
+                        no_dupe = utils.dot_partition(name)
+                        num = utils.any_partition(name, "_", True)
+                        if num.isdigit():
+                            return int(num)
+                    
+                    importer.tag_render = True
+                    importer.tag_markers = True
+                    importer.tag_state = State["default"].value
+                    importer.import_variant_children = True
+                    importer.graph_import_animations = True
+                    
                     for file in cinematic_files:
                         scene_datas, scenario, zone_set = importer.import_cinematic(file)
+                        
                         if scenario and zone_set:
                             importer.tag_zone_set = zone_set
                             importer.tag_bsp_import_geometry = True
@@ -1195,7 +1209,7 @@ class NWO_Import(bpy.types.Operator):
                             importer.tag_scenario_import_objects = self.tag_scenario_import_objects
                             importer.tag_scenario_import_decals = self.tag_scenario_import_decals
                             importer.tag_scenario_import_decorators = self.tag_scenario_import_decorators
-                            imported_cinematic_scenario_objects = importer.import_scenarios([scenario], self.build_blender_materials, self.always_extract_bitmaps)
+                            imported_cinematic_scenario_objects, scenario_collection = importer.import_scenarios([scenario], self.build_blender_materials, self.always_extract_bitmaps, dont_link_collection=True)
                             
                             imported_cinematic_objects.extend(imported_cinematic_scenario_objects)
                             
@@ -1216,6 +1230,56 @@ class NWO_Import(bpy.types.Operator):
                             imported_cinematic_objects.extend(sdata.camera_objects)
                             imported_cinematic_actions.extend(sdata.actions)
                             
+                            for cin_object in sdata.object_animations:
+                                importer.tag_variant = cin_object.variant if cin_object.variant else "default"
+                                imported_cinematic_object_objects, armature, render_path = importer.import_object([cin_object.object_path], None, return_cin_stuff=True)
+                                imported_cinematic_objects.extend(imported_cinematic_object_objects)
+                                cin_object.armature = armature
+                                cin_actions = importer.import_animation_graph(cin_object.graph_path, armature, render_path)
+                                
+                                cin_object.actions = {action_shot_index(a.name): a for a in cin_actions}
+                                imported_cinematic_actions.extend(cin_actions)
+                                
+                            for idx, shot_frame in enumerate(sdata.shot_frames):
+                                shot_idx = idx + 1
+                                for cin_object in sdata.object_animations:
+                                    action = cin_object.actions.get(shot_idx)
+                                    if action is None:
+                                        continue
+                                    
+                                    arm = cin_object.armature
+                                    
+                                    ad = arm.animation_data
+
+                                    track = None
+                                    for tr in ad.nla_tracks:
+                                        if tr.name == sdata.name:
+                                            track = tr
+                                            break
+
+                                    if track is None:
+                                        track = ad.nla_tracks.new()
+                                        track.name = sdata.name
+
+                                    strip_name = f"{arm.name}_shot{shot_idx}"
+                                    existing_names = {st.name for st in track.strips}
+                                    if strip_name in existing_names:
+                                        i = 1
+                                        base = strip_name
+                                        while f"{base}_{i}" in existing_names:
+                                            i += 1
+                                        strip_name = f"{base}_{i}"
+
+                                    strip = track.strips.new(strip_name, shot_frame, action)
+
+                                    strip.frame_start = shot_frame
+                                    strip.frame_end = shot_frame + action.frame_range[1] - action.frame_range[0]
+                                    strip.action_frame_start = action.frame_range[0]
+                                    strip.action_frame_end = action.frame_range[1]
+
+                                    if ad.action == action:
+                                        ad.action = None
+
                             if imported_cinematic_scenario_objects:
                                 anchor_position = Vector.Fill(3, 0)
                                 anchor_facing = Vector.Fill(3, 0)
@@ -1237,8 +1301,12 @@ class NWO_Import(bpy.types.Operator):
                                 sdata.blender_scene.nwo.cinematic_anchor = anchor
                                 imported_cinematic_objects.append(anchor)
                                 anchor_objects[anchor] = imported_cinematic_scenario_objects
+                                anchor.instance_type = 'COLLECTION'
+                                anchor.instance_collection = scenario_collection
+                                anchor.nwo.export_this = False
                             else:
                                 anchor = bpy.data.objects.new(name=sdata.anchor_name, object_data=None)
+                                anchor.nwo.export_this = False
                                 sdata.blender_scene.collection.objects.link(anchor)
                                 sdata.blender_scene.nwo.cinematic_anchor = anchor
                                 imported_cinematic_objects.append(anchor)
@@ -1246,12 +1314,11 @@ class NWO_Import(bpy.types.Operator):
                     if importer.needs_scaling:
                         utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_cinematic_objects, actions=imported_cinematic_actions)
 
-
-                    for anchor, scen_objects in anchor_objects.items():
-                        for ob in scen_objects:
-                            if not ob.parent:
-                                ob.parent = anchor
-                                ob.parent_type = 'OBJECT'
+                    # for anchor, scen_objects in anchor_objects.items():
+                    #     for ob in scen_objects:
+                    #         if not ob.parent:
+                    #             ob.parent = anchor
+                    #             ob.parent_type = 'OBJECT'
 
                 if importer.pca_animations:
                     with PCAAnimationTag(path=importer.pca_path) as pca:
@@ -1955,7 +2022,7 @@ class NWOImporter:
         
         return imported_objects, imported_animations
     
-    def import_object(self, paths, existing_armature, pose=None, make_non_export=False, for_instance_conversion=False) -> tuple[list[bpy.types.Object], list] | bpy.types.Collection:
+    def import_object(self, paths, existing_armature, pose=None, make_non_export=False, for_instance_conversion=False, return_cin_stuff=False) -> tuple[list[bpy.types.Object], list] | bpy.types.Collection:
         imported_objects = []
         imported_animations = []
         is_game_object = isinstance(paths, bpy.types.Object)
@@ -2241,6 +2308,8 @@ class NWOImporter:
             return model_collection
         elif for_instance_conversion:
             return imported_objects, self.tag_variant
+        elif return_cin_stuff:
+            return imported_objects, armature, render
         else:
             return imported_objects, imported_animations
     
@@ -2471,7 +2540,7 @@ class NWOImporter:
     def import_scenario_data(self):
         pass
     
-    def import_scenarios(self, paths, build_blender_materials, always_extract_bitmaps):
+    def import_scenarios(self, paths, build_blender_materials, always_extract_bitmaps, dont_link_collection=False):
         imported_objects = []
         for file in paths:
             print(f'Importing Scenario Tag: {Path(file).with_suffix("").name} ')
@@ -2493,7 +2562,8 @@ class NWOImporter:
                     scenario_collection = bpy.data.collections.get(scenario_name)
                     if scenario_collection is None:
                         scenario_collection = bpy.data.collections.new(scenario_name)
-                        self.context.scene.collection.children.link(scenario_collection)
+                        if not dont_link_collection:
+                            self.context.scene.collection.children.link(scenario_collection)
                     for bsp, sky_index in zip(bsps, sky_indices):
                         bsp_objects, bvh = self.import_bsp(bsp, scenario_collection, None if self.corinth else scenario.get_info(all_bsps.index(bsp)), do_raycasting, sky_index)
                         imported_objects.extend(bsp_objects)
@@ -2607,7 +2677,10 @@ class NWOImporter:
                         self.context.scene.nwo_export.create_debug_zone_set = False
                         # scenario.zone_sets_to_blender(self.tag_zone_set)
         
-        return imported_objects
+        if dont_link_collection:
+            return imported_objects, scenario_collection
+        else:
+            return imported_objects
     
     def import_bsp(self, file, scenario_collection=None, info_path=None, always_get_structure_collision=False, sky_index=-1):
         bsp_name = Path(file).with_suffix("").name
