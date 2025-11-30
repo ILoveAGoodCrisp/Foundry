@@ -30,7 +30,7 @@ class PCAAnimationTag(Tag):
         return raw_verts * scale
 
     # ------------------------------------------------------------ #
-    def import_animation(self, ob: bpy.types.Object, mesh_data_index: int, bounds: CompressionBounds, offset, count, shape_count, shape_offset, name, blender_animation, group_name):
+    def import_animation(self, ob: bpy.types.Object, mesh_data_index: int, bounds: CompressionBounds, offset, count, shape_count, shape_offset, name, blender_animation, group_name, kb_pca_min_max):
         print(f"--- Adding PCA animation for {name} to {ob.name}")
         mesh_data = self.block_mesh_data.Elements[mesh_data_index]
         vertices_per_shape = int(mesh_data.Fields[1].Data)
@@ -78,8 +78,7 @@ class PCAAnimationTag(Tag):
                 
                 kb.slider_min, kb.slider_max = min(coefficient[:, k]), max(coefficient[:, k])
                 
-                kb["pca_min"] = kb.slider_min
-                kb["pca_max"] = kb.slider_max
+                kb_pca_min_max[kb] = kb.slider_min, kb.slider_max
                 
                 if kb.slider_min > 0:
                     kb.slider_min = 0
@@ -119,7 +118,7 @@ class PCAAnimationTag(Tag):
                 fcu = fc_map[kb]
                 kp = fcu.keyframe_points[frame_idx - 1]
                 value = float(row[k])
-                pinned_value = utils.clamp(value, kb["pca_min"], kb["pca_max"])
+                pinned_value = utils.clamp(value, *kb_pca_min_max[kb])
                 kp.co = (frame_idx, pinned_value)
                 kp.interpolation = 'LINEAR'
                 
@@ -136,6 +135,7 @@ class PCAAnimationTag(Tag):
         pca_mesh_indices = []
         pca_objects = {}
         processed_groups = set()
+        kb_pca_min_max = {}
         
         with RenderModelTag(path=render_model_path) as render_model:
             mesh_count = render_model.block_per_mesh_temporary.Elements.Count
@@ -175,5 +175,5 @@ class PCAAnimationTag(Tag):
                     coefficient_count = anim_element.Fields[4].Data
                     
                     group_name = groups[shape_offset]
-                    
-                    self.import_animation(ob, element.ElementIndex, compression_bounds, offset, count, coefficient_count, shape_offset, name, blender_animation, group_name)
+
+                    self.import_animation(ob, element.ElementIndex, compression_bounds, offset, count, coefficient_count, shape_offset, name, blender_animation, group_name, kb_pca_min_max)
