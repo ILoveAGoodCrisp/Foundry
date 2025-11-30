@@ -31,7 +31,7 @@ class PCAAnimationTag(Tag):
 
     # ------------------------------------------------------------ #
     def import_animation(self, ob: bpy.types.Object, mesh_data_index: int, bounds: CompressionBounds, offset, count, shape_count, shape_offset, name, blender_animation, group_name):
-        print(f"--- Adding PCA animation for {blender_animation.name} to {ob.name}")
+        print(f"--- Adding PCA animation for {blender_animation} to {ob.name}")
         mesh_data = self.block_mesh_data.Elements[mesh_data_index]
         vertices_per_shape = int(mesh_data.Fields[1].Data)
 
@@ -56,29 +56,35 @@ class PCAAnimationTag(Tag):
             
         coefficient = coefficient[offset:offset+count]
 
-        # if not ob.data.shape_keys:
-        #     keys = []
-        # else:
-        #     keys = [kb for kb in ob.data.shape_keys.key_blocks if kb.name.startswith(group_name)]
+        if not ob.data.shape_keys:
+            keys = []
+        else:
+            keys = [kb for kb in ob.data.shape_keys.key_blocks if kb.name.startswith(group_name)]
             
-        # if not keys:
-        keys = []
-        me = cast(bpy.types.Mesh, ob.data)
-        if not me.shape_keys:
-            ob.shape_key_add(name="Basis", from_mix=False)
+        if not keys:
+            me = cast(bpy.types.Mesh, ob.data)
+            if not me.shape_keys:
+                ob.shape_key_add(name="Basis", from_mix=False)
 
-        basis = np.empty(len(me.vertices) * 3, np.single)
-        me.vertices.foreach_get("co", basis)
-        basis = basis.reshape(-1, 3)
+            basis = np.empty(len(me.vertices) * 3, np.single)
+            me.vertices.foreach_get("co", basis)
+            basis = basis.reshape(-1, 3)
 
-        keys = []
-        for k in range(K):
-            kb = ob.shape_key_add(name=f"{name}_{k+1}", from_mix=False)
-            mesh_delta = shape_vertices[k]
-            kb.data.foreach_set("co", (basis + mesh_delta).astype(np.single).ravel())
-            kb.slider_min, kb.slider_max = min(coefficient[:, k]), max(coefficient[:, k])
-            kb.value = 0.0
-            keys.append(kb)
+            keys = []
+            for k in range(K):
+                kb = ob.shape_key_add(name=f"{group_name}_{k+1}", from_mix=False)
+                mesh_delta = shape_vertices[k]
+                kb.data.foreach_set("co", (basis + mesh_delta).astype(np.single).ravel())
+                kb.slider_min, kb.slider_max = min(coefficient[:, k]), max(coefficient[:, k])
+                
+                if kb.slider_min > 0:
+                    kb.slider_min = 0
+                    
+                if kb.slider_max < 0:
+                    kb.slider_max = 0
+                
+                kb.value = 0.0
+                keys.append(kb)
             
         # New action
         action = bpy.data.actions.new(name=f"{name}_shape_keys")
@@ -115,6 +121,8 @@ class PCAAnimationTag(Tag):
         # Animations is a dict with keys of graph animation names and values of blender animations
         render_model_path = self.tag.SelectField("Reference:RenderModel").Path
         
+        print(animations)
+        
         if not self.path_exists(render_model_path):
             return
         
@@ -145,6 +153,9 @@ class PCAAnimationTag(Tag):
                     pca_objects[pca_index] = ob
         
         for name, blender_animation in animations.items():
+            blender_animation = bpy.context.scene.nwo.animations.get(name.replace(":", " "))
+            if blender_animation is None:
+                continue
             for element in self.block_mesh_data.Elements:
                 mesh_index = element.Fields[0].Data
                 ob = pca_objects.get(mesh_index)
