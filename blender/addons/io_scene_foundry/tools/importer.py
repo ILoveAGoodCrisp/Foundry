@@ -223,6 +223,7 @@ def add_function(scene: bpy.types.Scene, name: str, ob: bpy.types.Object, armatu
             ob.id_properties_ui(name).update(min=0, max=1, subtype='FACTOR')
     
     if id is not None:
+        id.update_tag(refresh={'DATA'})
         result = ob.driver_add(f'["{name}"]')
         driver = result.driver
         driver.type = 'SCRIPTED'
@@ -4690,7 +4691,7 @@ def setup_materials(context: bpy.types.Context, importer: NWOImporter, starting_
                                             driver.expression = f"(floor({var.name} / 10) - floor({var.name} / 100) * 10) / {sequence_length}"
                                         case "hundreds":
                                             driver.expression = f"(floor({var.name} / 100) - floor({var.name} / 1000) * 10) / {sequence_length}"
-                
+        
         for ob, func_dict in importer.obs_for_props.items():
             for export_name, funcs in func_dict.items():
                 if export_name in validated_funcs:
