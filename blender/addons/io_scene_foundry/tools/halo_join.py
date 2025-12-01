@@ -19,8 +19,9 @@ class NWO_JoinHalo(bpy.types.Operator):
 
     def execute(self, context):
         active = context.object
-        non_active_objects = (ob for ob in context.selected_objects if ob != active and ob.type == 'MESH')
-        face_attributes = yield_face_attributes(non_active_objects)
+        non_active_objects = (ob for ob in context.selected_objects if ob != active and ob.type == 'MESH' and ob.data != active.data)
+        unique_non_active = list({ob.data: ob for ob in non_active_objects}.values())
+        face_attributes = yield_face_attributes(unique_non_active)
         for old_layer in face_attributes:
             new_layer = active.data.nwo.face_props.add()
             update_layer_props(new_layer, old_layer)

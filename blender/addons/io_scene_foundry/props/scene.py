@@ -1934,6 +1934,11 @@ class NWO_CinematicEvent(PropertyGroup):
         subtype='FACTOR',
         options=set(),
     )
+    
+class NWO_CinematicScene(PropertyGroup):
+    scene: bpy.props.PointerProperty(
+        type=bpy.types.Scene,
+    )
 
 class NWO_ScenePropertiesGroup(PropertyGroup):
     # CINEMATIC EVENTS
@@ -2080,6 +2085,17 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         description="The object to use as the anchor point (or reference point) of the cinematic scene. On export this anchor point will be added to the specified scenario if you have set one. This anchor point should be used to move the level geometry to the cinematic scene (by parenting level geometry to the anchor). At export the inverse matrix of this anchor is calculated and added to the scenario tag",
         type=bpy.types.Object,
         options=set(),
+    )
+    
+    cinematic_scenes: bpy.props.CollectionProperty(
+        name="Extra Cinematic Scenes",
+        description="Pointers to the additional cinematic scenes for this asset",
+        type=NWO_CinematicScene,
+    )
+    
+    scene_parent: bpy.props.PointerProperty(
+        name="Parent Scene",
+        type=bpy.types.Scene,
     )
     
     # ANIMATION

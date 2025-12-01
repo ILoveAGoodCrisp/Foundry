@@ -25,6 +25,28 @@ import xml.etree.ElementTree as ET
                 
 #         layout.label(text=name, icon='FILE')
 #         layout.prop(item, "enabled", icon='CHECKBOX_HLT' if item.enabled else 'CHECKBOX_DEHLT', text="", emboss=False)
+
+class NWO_OT_SceneSwitch(bpy.types.Operator):
+    pass
+
+class NWO_OT_CinematicSceneNew(bpy.types.Operator):
+    pass
+
+class NWO_OT_CinematicSceneRemove(bpy.types.Operator):
+    pass
+
+class NWO_OT_CinematicSceneMove(bpy.types.Operator):
+    pass
+
+class NWO_UL_CinematicScenes(bpy.types.UIList):
+    def draw_item(self, context, layout: bpy.types.UILayout, data, item, icon, active_data, active_propname, index, flt_flag):
+        pass
+        # layout.alignment = 'LEFT'
+        # layout.prop(item, 'name', text='', emboss=False, icon_value=get_icon_id("ik_chain"))
+        # if item.start_node and item.effector_node:
+        #     layout.label(text=f'{item.start_node} >>> {item.effector_node}')
+        # else:
+        #     layout.label(text='IK Chain Bones Not Set', icon='ERROR')
         
 class NWO_OT_OpenParentAsset(bpy.types.Operator):
     bl_idname = "nwo.open_parent_asset"
