@@ -542,7 +542,7 @@ def run_tool_sidecar(tool_args: list, event_level='WARNING'):
     failed = False
     os.chdir(get_project_path())
     command = f"""{get_tool_type()} {' '.join(f'"{arg}"' for arg in tool_args)}"""
-    print(command)
+    # print(command)
     error = ""
     cull_warnings = event_level == 'DEFAULT'
     log_warnings = event_level == 'LOG'
