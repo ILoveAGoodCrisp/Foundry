@@ -199,6 +199,9 @@ object_game_validation = {
 
 WU_SCALAR = 0.3280839895013123 # converts a meter to a world unit
 HALO_FACTOR = (1 / 0.03048) # Converts a meter to halo units
+REACH_FL_FACTOR = 1.276614018691589 # Multiply Blender camera length to get the game focal length
+CORINTH_FL_FACTOR = 0.5
+
 
 class GameVersion(Enum):
     REACH = 0

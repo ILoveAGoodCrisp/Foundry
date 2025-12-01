@@ -419,7 +419,7 @@ class CinematicSceneTag(Tag):
     def get_loop_text(self) -> str:
         return self.scene_playback.GetLoopText()
     
-    def to_blender(self):
+    def to_blender(self, film_aperture: float):
         camera_objects = []
         object_animations = []
         frame = 1
@@ -474,7 +474,7 @@ class CinematicSceneTag(Tag):
                 
                 cam_frame = CamFrame()
                 cam_frame.matrix = matrix @ camera_correction_matrix.to_4x4()
-                cam_frame.lens = focal_length / (0.5 if self.corinth else 1.25)
+                cam_frame.lens = focal_length
                 cam_frames.append(cam_frame)
                 
             
@@ -501,6 +501,7 @@ class CinematicSceneTag(Tag):
             fovs = [cf.lens for cf in cam_frames]
             keyframe_fovs = len(set(fovs)) > 1
             shot_camera_data.lens = fovs[0]
+            shot_camera_data.sensor_width = film_aperture
             if keyframe_fovs:
                 camera_data_action = bpy.data.actions.new(f"{shot_camera.name}_data")
                 slot = camera_data_action.slots.new('CAMERA', shot_camera_data.name)

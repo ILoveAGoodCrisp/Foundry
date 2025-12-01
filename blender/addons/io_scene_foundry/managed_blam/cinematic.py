@@ -157,7 +157,7 @@ class CinematicTag(Tag):
                 if scenario.read_scenario_type() == 1:
                     utils.print_warning(f"{scenario.tag_path.RelativePathWithExtension} is set to Multiplayer. Cinematics will crash if you attempt to run them\nSwitch the scenario type to Solo before playing cinematic")
     
-    def to_blender(self, import_scenario=False):
+    def to_blender(self, film_aperture: float, import_scenario=False):
         scenario_path = None
         zone_set = ""
         
@@ -179,7 +179,7 @@ class CinematicTag(Tag):
             scene_tagpath = element.SelectField("Reference:scene").Path
             if self.path_exists(scene_tagpath):
                 with CinematicSceneTag(path=scene_tagpath) as scene:
-                    scene_data = SceneData(*scene.to_blender())
+                    scene_data = SceneData(*scene.to_blender(film_aperture))
                     scene_datas.append(scene_data)
                     
                 # until we add support for multiple scenes

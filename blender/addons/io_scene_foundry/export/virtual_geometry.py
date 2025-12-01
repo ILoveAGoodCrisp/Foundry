@@ -172,12 +172,12 @@ class VirtualShot:
         self.scripts = []
         self.in_scope = in_scope
     
-    def perform(self, scene: 'VirtualScene'):
+    def perform(self, scene: 'VirtualScene', film_aperture: float):
         if scene.cinematic_scope != 'OBJECT' and self.in_scope:
             for frame in range(self.frame_start, self.frame_end + 1):
                 scene.context.scene.frame_set(frame)
                 # Camera Animation
-                self.frames.append(Frame(self.camera, scene.corinth))
+                self.frames.append(Frame(self.camera, scene.corinth, film_aperture))
                 # Bone Animation
                 for shot_actor in self.shot_actors:
                     if not shot_actor.in_scope:
@@ -2052,9 +2052,9 @@ class VirtualScene:
         self.animations.append(animation)
         return animation.name
     
-    def add_shot(self, frame_start: int, frame_end: int, actors: list[bpy.types.Object], camera: bpy.types.Object, index: int, in_scope: bool):
+    def add_shot(self, frame_start: int, frame_end: int, actors: list[bpy.types.Object], camera: bpy.types.Object, index: int, in_scope: bool, film_aperture: float):
         shot = VirtualShot(frame_start, frame_end, actors, camera, index, self, in_scope)
-        shot.perform(self)
+        shot.perform(self, film_aperture)
         self.shots.append(shot)
         
     def _get_material(self, material: bpy.types.Material, scene: 'VirtualScene'):

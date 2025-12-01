@@ -199,7 +199,7 @@ class ShotActor:
 class Shot: ...
     
 class Frame:
-    def __init__(self, ob: bpy.types.Object, corinth: bool):
+    def __init__(self, ob: bpy.types.Object, corinth: bool, film_aperture: float):
         assert(ob.type == 'CAMERA')
         data = ob.data
         data: bpy.types.Camera
@@ -235,7 +235,8 @@ class Frame:
         forward = matrix_3x3.col[0]
         self.up = up.normalized().to_tuple()
         self.forward = forward.normalized().to_tuple()
-        self.focal_length = data.lens * (0.5 if corinth else 1.25)
+        # (game aperture from globals * blender focal length) / blender sensor width
+        self.focal_length = (film_aperture * data.lens) / data.sensor_width
         self.depth_of_field = int(data.dof.use_dof)
 
         self.near_focal_plane_distance = utils.halo_scale(near_focal_plane) * 100

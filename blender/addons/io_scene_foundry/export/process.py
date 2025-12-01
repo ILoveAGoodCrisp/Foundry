@@ -10,6 +10,8 @@ import bmesh
 import bpy
 from mathutils import Matrix, Vector
 
+from ..managed_blam.globals import GlobalsTag
+
 from ..managed_blam.frame_event_list import FrameEventListTag
 
 from ..managed_blam.material import MaterialTag
@@ -1601,6 +1603,22 @@ class ExportScene:
             shot_count = min(len(markers) + 1, MAXIMUM_CINEMATIC_SHOTS)
             if shot_count == MAXIMUM_CINEMATIC_SHOTS:
                 self.warnings.append(f"Maximum shot count of 64 exceeeded (You have {len(markers) + 1} shots). Shots have been limited")
+                
+            if self.corinth:
+                film_aperture = 22.5
+            else:
+                film_aperture = 45
+                
+            globals_path = Path(utils.get_tags_path(), "globals\\globals.globals")
+            if globals_path.exists():
+                with GlobalsTag(path=globals_path) as tag_globals:
+                    film_aperture_field = tag_globals.tag.SelectField("Block:cinematics globals[0]/Real:cinematic film aperture")
+                    if film_aperture_field is not None:
+                        film_aperture = film_aperture_field.Data
+                    else:
+                        utils.print_warning(f"Failed to read globals tag. Using default cinematic film aperture of {film_aperture}")
+            else:
+                utils.print_warning(f"Failed to read globals tag. Using default cinematic film aperture of {film_aperture}")
             
             shot_frame_start = frame_start
             fallback_camera = None
@@ -1652,7 +1670,7 @@ class ExportScene:
                     
                     in_scope = not self.export_settings.current_shot_only or i == current_shot
 
-                    self.virtual_scene.add_shot(shot_frame_start, shot_frame_end, shot_actors, camera, i, in_scope)
+                    self.virtual_scene.add_shot(shot_frame_start, shot_frame_end, shot_actors, camera, i, in_scope, film_aperture)
                     
                     shot_frame_start = shot_frame_end + 1
                     if not single_shot_only:

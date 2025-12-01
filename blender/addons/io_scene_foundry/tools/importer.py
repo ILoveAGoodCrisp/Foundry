@@ -172,8 +172,8 @@ def set_asset(tag_ext: str, ob: bpy.types.Object=None, is_sky=False):
                 scene_nwo.asset_type = 'decorator_set'
             case '.camera_track':
                 scene_nwo.asset_type = 'camera_track_set'
-            case '.decorator_set':
-                scene_nwo.asset_type = 'decorator_set'
+            case '.cinematic':
+                scene_nwo.asset_type = 'cinematic'
 
 def add_function(scene: bpy.types.Scene, name: str, ob: bpy.types.Object, armature: bpy.types.Object=None) -> bool:
     func = game_functions.get(name)
@@ -1186,6 +1186,25 @@ class NWO_Import(bpy.types.Operator):
                     imported_cinematic_actions = []
                     importer.tag_cinematic_import_scenario = self.tag_cinematic_import_scenario
                     anchor_objects = {}
+                    imported_cinematic_scenario_objects = []
+                    
+                    context.scene.render.fps = 30
+                    
+                    if utils.is_corinth(context):
+                        film_aperture = 22.5
+                    else:
+                        film_aperture = 45
+                        
+                    globals_path = Path(utils.get_tags_path(), "globals\\globals.globals")
+                    if globals_path.exists():
+                        with GlobalsTag(path=globals_path) as tag_globals:
+                            film_aperture_field = tag_globals.tag.SelectField("Block:cinematics globals[0]/Real:cinematic film aperture")
+                            if film_aperture_field is not None:
+                                film_aperture = film_aperture_field.Data
+                            else:
+                                utils.print_warning(f"Failed to read globals tag. Using default cinematic film aperture of {film_aperture}")
+                    else:
+                        utils.print_warning(f"Failed to read globals tag. Using default cinematic film aperture of {film_aperture}")
                     
                     def action_shot_index(name):
                         no_dupe = utils.dot_partition(name)
@@ -1200,7 +1219,7 @@ class NWO_Import(bpy.types.Operator):
                     importer.graph_import_animations = True
                     
                     for file in cinematic_files:
-                        scene_datas, scenario, zone_set = importer.import_cinematic(file)
+                        scene_datas, scenario, zone_set = importer.import_cinematic(file, film_aperture)
                         
                         if scenario and zone_set:
                             importer.tag_zone_set = zone_set
@@ -2814,15 +2833,15 @@ class NWOImporter:
             
         return decorator_objects
     
-    def import_cinematic(self, file, import_scenario=False):
+    def import_cinematic(self, file, film_aperture: float):
         filename = Path(file).with_suffix("").name
         print(f"Importing Cinematic: {filename}")
         with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
             with CinematicTag(path=mover.tag_path) as cinematic:
-                scene_datas, scenario_path, zone_set = cinematic.to_blender(self.tag_cinematic_import_scenario)
+                scene_datas, scenario_path, zone_set = cinematic.to_blender(film_aperture, self.tag_cinematic_import_scenario)
                 
-        # if self.setup_as_asset:
-        #     set_asset(Path(file).suffix)
+        if self.setup_as_asset:
+            set_asset(Path(file).suffix)
         
         return scene_datas, scenario_path, zone_set
         

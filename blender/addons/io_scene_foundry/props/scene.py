@@ -2093,6 +2093,8 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         type=NWO_CinematicScene,
     )
     
+    active_cinematic_scene_index: bpy.props.IntProperty(options={'HIDDEN'})
+    
     scene_parent: bpy.props.PointerProperty(
         name="Parent Scene",
         type=bpy.types.Scene,

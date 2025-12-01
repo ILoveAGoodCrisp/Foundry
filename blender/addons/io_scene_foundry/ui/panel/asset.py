@@ -27,13 +27,97 @@ import xml.etree.ElementTree as ET
 #         layout.prop(item, "enabled", icon='CHECKBOX_HLT' if item.enabled else 'CHECKBOX_DEHLT', text="", emboss=False)
 
 class NWO_OT_SceneSwitch(bpy.types.Operator):
-    pass
+    bl_idname = "nwo.scene_switch"
+    bl_label = "Switch Cinematic Scene"
+    bl_description = "Changes the active blender scene to the selected cinematic scene"
+    bl_options = set()
+
+    @classmethod
+    def poll(cls, context):
+        return len(bpy.data.scenes) > 1
+
+    def execute(self, context):
+        
+        return {"FINISHED"}
+
 
 class NWO_OT_CinematicSceneNew(bpy.types.Operator):
-    pass
+    bl_idname = "nwo.cinematic_scene_new"
+    bl_label = "New Cinematic Scene"
+    bl_description = "Creates a new cinematic scene"
+    bl_options = {'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene.nwo.scene_parent is None
+    
+    existing_scene: bpy.props.StringProperty(
+        name="Link to Existing Scene",
+        description="Links to the selected Blender scene rather than creating a new one"
+    )
+    
+    def execute(self, context):
+        existing_scene = None
+        if self.existing_scene:
+            existing_scene = bpy.data.scenes.get(self.existing_scene)
+            if existing_scene is not None:
+                if existing_scene == context.scene:
+                    self.report({'WARNING'}, "Cannot link scene to it self")
+                    return {'CANCELLED'}
+                    
+        nwo = context.scene.nwo
+        cin_scene = nwo.cinematic_scenes.add()
+        nwo.active_cinematic_scene_index = len(nwo.cinematic_scenes) - 1
+                
+        if existing_scene is None:
+            cin_scene.scene = bpy.data.scenes.new()
+        else:
+            cin_scene.scene = existing_scene
+            
+        cin_scene.scene.nwo.scene_parent = context.scene
+            
+        context.area.tag_redraw()
+        return {'FINISHED'}
+    
+    def invoke(self, context, _):
+        return context.window_manager.invoke_props_dialog(self)
+    
+    def draw(self, context):
+        self.layout.prop_search(self, "existing_scene", search_data=bpy.data, search_property="scenes")
 
 class NWO_OT_CinematicSceneRemove(bpy.types.Operator):
-    pass
+    bl_idname = "nwo.cinematic_scene_remove"
+    bl_label = "Remove Cinematic Scene"
+    bl_description = "Remove a cinematic scene and optionally delete the blender scene"
+    bl_options = {'UNDO'}
+    
+    def poll(cls, context):
+        return context.scene.nwo.scene_parent is None and context.scene.nwo.cinematic_scenes and context.scene.nwo.active_cinematic_scene_index < len(context.scene.nwo.cinematic_scenes)
+    
+    delete_scene: bpy.props.BoolProperty(
+        name="Delete Blender Scene"
+    )
+    
+    def execute(self, context):
+        nwo = context.scene.nwo
+        index = nwo.active_cinematic_scene_index
+        
+        cin_scene = nwo.cinematic_scenes[index]
+        
+        if self.delete_scene and cin_scene.scene and cin_scene.scene in bpy.data.scenes:
+            bpy.data.scenes.remove(cin_scene.scene)
+        
+        nwo.cinematic_scenes.remove(index)
+        if nwo.active_cinematic_scene_index > len(nwo.cinematic_scenes) - 1:
+            nwo.active_cinematic_scene_index -= 1
+        context.area.tag_redraw()
+        return {"FINISHED"}
+    
+    def invoke(self, context, _):
+        return context.window_manager.invoke_props_dialog(self)
+    
+    def draw(self, context):
+        self.layout.prop(self, "delete_scene")
 
 class NWO_OT_CinematicSceneMove(bpy.types.Operator):
     pass
