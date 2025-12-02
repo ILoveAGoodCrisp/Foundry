@@ -900,6 +900,7 @@ class VirtualMesh:
         self.granny_tri_topology = None
         self.siblings = [ob.name]
         self.new_indices = None
+        self.bone_parent = ""
         self._setup(ob, scene, render_mesh, props, bones)
             
         if not self.invalid:
@@ -1030,6 +1031,9 @@ class VirtualMesh:
         
     def _setup(self, ob: bpy.types.Object, scene: 'VirtualScene', render_mesh: bool, props: dict, bones: list[str]):
         mesh_type_value = props.get("bungie_mesh_type")
+        
+        if ob.parent_type == 'BONE' and ob.parent_bone:
+            self.bone_parent = ob.parent_bone
                 
         eval_ob = ob.eval_ob
         
@@ -1218,7 +1222,6 @@ class VirtualMesh:
             self.bone_bindings = [bones[i] for i in used_bones]
             self.bone_weights = bone_weights.astype(np.byte)[loop_vertex_indices]
             self.bone_indices = remapped_indices.astype(np.byte)[loop_vertex_indices]
-
         
         if render_mesh:
             # We only care about writing this data if the in game mesh will have a render definition
@@ -1462,8 +1465,11 @@ class VirtualNode:
                     self.negative_scaling = not self.negative_scaling
 
                 materials = tuple(slot.material for slot in id.material_slots)
+                bone_parent = ""
+                if id.parent_type == 'BONE' and id.parent_bone:
+                    bone_parent = id.parent_bone
                 
-                existing_mesh = scene.meshes.get((id.data, self.negative_scaling, materials))
+                existing_mesh = scene.meshes.get((id.data, self.negative_scaling, materials, bone_parent))
                 existing_linked_mesh = scene.meshes_linked.get(id.data)
                     
                 if existing_mesh:
@@ -2027,7 +2033,7 @@ class VirtualScene:
                 negative_scaling = id.matrix_world.is_negative
                 if id.invert_topology:
                     negative_scaling = not negative_scaling
-                self.meshes[(node.mesh.mesh, negative_scaling, node.mesh.bpy_materials)] = node.mesh
+                self.meshes[(node.mesh.mesh, negative_scaling, node.mesh.bpy_materials, node.mesh.bone_parent)] = node.mesh
                 self.meshes_linked[node.mesh.mesh] = node.mesh
             
         return node
