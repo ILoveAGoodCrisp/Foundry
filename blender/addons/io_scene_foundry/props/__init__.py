@@ -52,6 +52,8 @@ def register():
         type=object.NWO_ObjectPropertiesGroup,
         name="Halo NWO Properties",
         description="Set Halo Object Properties",
+        override={'LIBRARY_OVERRIDABLE'},
+        
     )
     bpy.types.Bone.nwo = bpy.props.PointerProperty(
         type=bone.NWO_BonePropertiesGroup,

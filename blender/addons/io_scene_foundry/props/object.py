@@ -57,6 +57,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         name="Original Render Model",
         description="Tag relative path to the render_model tag which provides the bone order for this armature",
         update=node_order_source_clean_tag_path,
+        override={'LIBRARY_OVERRIDABLE'},
     )
     
     # CINEMATIC
@@ -83,6 +84,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     #### MARKER PERM
     marker_permutations: bpy.props.CollectionProperty(
         type=NWO_MarkerPermutationItems,
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     marker_permutations_index: bpy.props.IntProperty(
@@ -90,6 +92,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         default=0,
         min=0,
         options=set(),
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     marker_permutation_type: bpy.props.EnumProperty(
@@ -100,11 +103,13 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
             ("include", "Include", ""),
         ],
         options=set(),
+        override={'LIBRARY_OVERRIDABLE'},
     )
     
     # ACTOR SHOTS
     actors: bpy.props.CollectionProperty(
         type=NWO_ActorItems,
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     active_actor_index: bpy.props.IntProperty(
@@ -112,6 +117,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         default=0,
         min=0,
         options=set(),
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     actors_type: bpy.props.EnumProperty(
@@ -122,6 +128,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
             ("include", "Include", "Include only the following actors in this camera's shots, exclude all others"),
         ],
         options=set(),
+        override={'LIBRARY_OVERRIDABLE'},
     )
     
     # MAIN
@@ -129,11 +136,13 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         name="Proxy Instance",
         description="Duplicates this structure mesh as instanced geometry at export",
         options=set(),
+        override={'LIBRARY_OVERRIDABLE'},
     )
     
     marker_instance: bpy.props.BoolProperty(
         name="Instance Collection is a Marker",
         description="Collection instance is a marker, as opposed a mesh. If this option is off, then the visible mesh will be made real at export",
+        override={'LIBRARY_OVERRIDABLE'},
     )
     
     collection_region: bpy.props.StringProperty(options={'HIDDEN'})
@@ -166,9 +175,10 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         name="Marker Type",
         options=set(),
         default='_connected_geometry_marker_type_model',
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
-    marker_type_help: bpy.props.IntProperty(options=set())
+    marker_type_help: bpy.props.IntProperty(options=set(), override={'LIBRARY_OVERRIDABLE'})
     
     # frame_override: bpy.props.BoolProperty(
     #     name="Frame Override",
@@ -236,12 +246,14 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         default="default",
         description="The BSP that the normals of this seam are facing away from",
         options=set(),
+        override={'LIBRARY_OVERRIDABLE'},
     )
     
     seam_back_manual: bpy.props.BoolProperty(
         name="Manual Seam Backface",
         description="Seam backface is defined by a separate seam object",
         options=set(),
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     def mesh_primitive_type_items(self, context):
@@ -274,6 +286,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="If this is not none then the in game physics shape will be simplified to the selected primitive, using the objects dimensions",
         items=mesh_primitive_type_items,
+        override={'LIBRARY_OVERRIDABLE'},
         # update=update_mesh_primitive_type,
     )
     
@@ -281,12 +294,14 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         name="Allow Non-Convex Shape",
         options=set(),
         description="Tells the game to generate a physics representation of this mesh without converting it to a convex hull",
+        override={'LIBRARY_OVERRIDABLE'},
     )
     
     global_material: bpy.props.StringProperty(
         name="Global Material",
         options=set(),
-        description="Applies the given global material to this object. This affects the sounds and effects that play when objects interact with this mesh"
+        description="Applies the given global material to this object. This affects the sounds and effects that play when objects interact with this mesh",
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     poop_lighting_items = [
@@ -313,12 +328,14 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         name="Collision Material Override",
         description="Override the collision materials for this mesh (which will be derived from the materials) with the given global material",
         options=set(),
+        override={'LIBRARY_OVERRIDABLE'},
     )
     
     poop_render_only: bpy.props.BoolProperty(
         name="Render Only",
         options=set(),
         description="Instance is render only regardless of whether the underlying mesh itself has collision",
+        override={'LIBRARY_OVERRIDABLE'},
     )
     
     poop_lighting: bpy.props.EnumProperty(
@@ -327,12 +344,14 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         description="Determines how this instance is lightmapped",
         default="per_pixel",
         items=poop_lighting_items,
+        override={'LIBRARY_OVERRIDABLE'},
     )
     
     poop_ao: bpy.props.BoolProperty(
         name="Ambient Occlusion",
         options=set(),
         description="Per vertex lighting gets ambient occlusion only",
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     poop_lightmap_resolution_scale: bpy.props.FloatProperty(
@@ -341,6 +360,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         description="Determines how much texel space this instance (if per pixel) will be given on the lightmap bitmap. Higher values do not automatically increase light resolution, instead the resolution is taken away from other instances. This value acts like a weight, deciding how the lightmap bitmap resolution gets divided up between instances",
         default=1,
         min=0,
+        override={'LIBRARY_OVERRIDABLE'},
     )
     
     def poop_pathfinding_items(self, context):
@@ -360,6 +380,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="How this instanced is assessed when the game builds a pathfinding representation of the map",
         items=poop_pathfinding_items,
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     poop_imposter_policy: bpy.props.EnumProperty(
@@ -398,6 +419,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         description="The brightness of the imposter variant of this instance",
         default=0.0,
         min=0.0,
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     poop_imposter_transition_distance: bpy.props.FloatProperty(
@@ -405,7 +427,8 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="The distance at which the instanced geometry transitions to its imposter variant",
         default=utils.wu(50),
-        subtype='DISTANCE'
+        subtype='DISTANCE',
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     poop_imposter_transition_distance_auto: bpy.props.BoolProperty(
@@ -413,6 +436,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="Enable to let the engine set the imposter transition distance by object size",
         default=True,
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     poop_streaming_priority: bpy.props.EnumProperty(  # h4+
@@ -446,6 +470,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="Lets this instance chop a portal the same way structure geometry does",
         default=False,
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     poop_does_not_block_aoe: bpy.props.BoolProperty(
@@ -453,6 +478,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="Instance does not block area of effect damage",
         default=False,
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     poop_excluded_from_lightprobe: bpy.props.BoolProperty(
@@ -460,6 +486,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="Instanced geometry to be excluded from any lightprobes (e.g. placed airprobes)",
         default=False,
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     poop_decal_spacing: bpy.props.BoolProperty(
@@ -467,6 +494,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="Gives this instance a small offset from its game calculated position, so that it avoids z-fighting with another mesh",
         default=False,
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     poop_remove_from_shadow_geometry: bpy.props.BoolProperty(  # H4+
@@ -474,6 +502,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="Shadows cast by this object are dynamic. Useful for example on tree leaves with foliage materials",
         default=False,
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     poop_disallow_lighting_samples: bpy.props.BoolProperty(  # H4+
@@ -481,11 +510,13 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="",
         default=False,
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     poop_cinematic_properties: bpy.props.EnumProperty(  # h4+
         name="Cinematic Properties",
         options=set(),
+        override={'LIBRARY_OVERRIDABLE'},
         description="Sets whether the instance should render only in cinematics, only outside of cinematics, or in both environments",
         default="_connected_geometry_poop_cinema_default",
         items=[
@@ -513,6 +544,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     portal_type: bpy.props.EnumProperty(
         name="Portal Type",
         options=set(),
+        override={'LIBRARY_OVERRIDABLE'},
         description="Determines how this portal handles visibilty culling",
         default="_connected_geometry_portal_type_two_way",
         items=[
@@ -539,6 +571,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="Stops AI hearing through this portal",
         default=False,
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     portal_blocks_sounds: bpy.props.BoolProperty(
@@ -546,6 +579,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="Stops sound from travelling past this portal",
         default=False,
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     portal_is_door: bpy.props.BoolProperty(
@@ -553,12 +587,14 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="Portal visibility is attached to a device machine state",
         default=False,
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     # DECORATOR PROPERTIES
     decorator_lod: bpy.props.EnumProperty(
         name="Decorator Level of Detail",
         options=set(),
+        override={'LIBRARY_OVERRIDABLE'},
         description="Level of detail of this object. The game will switch to this LOD at the appropriate range",
         items=[
             ("high", "High", ""),
@@ -575,13 +611,15 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         description="How deep the water physics volume extends",
         default=utils.wu(20),
         min=0,
-        subtype='DISTANCE'
+        subtype='DISTANCE',
+        override={'LIBRARY_OVERRIDABLE'},
     )
     water_volume_flow_direction: bpy.props.FloatProperty(  # this something which can probably be automated?
         name="Water Volume Flow Direction",
         options=set(),
         description="The flow direction of this water volume mesh. It will carry physics objects in this direction. 0 matches the scene forward direction",
         subtype='ANGLE',
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     water_volume_flow_velocity: bpy.props.FloatProperty(
@@ -592,6 +630,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         subtype='FACTOR',
         min=0,
         max=6,
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     water_volume_fog_color: bpy.props.FloatVectorProperty(
@@ -603,6 +642,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         subtype="COLOR",
         min=0.0,
         max=1.0,
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     water_volume_fog_murkiness: bpy.props.FloatProperty(
@@ -611,6 +651,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         description="How murky, i.e. opaque, the underwater fog appears",
         default=0.5,
         min=0.0,
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     def fog_clean_tag_path(self, context):
@@ -622,6 +663,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         name="Fog Appearance Tag",
         description="Link the planar fog parameters tag that provides settings for this fog volume",
         update=fog_clean_tag_path,
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     fog_volume_depth: bpy.props.FloatProperty(
@@ -630,6 +672,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         description="How deep the fog volume volume extends",
         min=0,
         default=utils.wu(20),
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     marker_uses_regions: bpy.props.BoolProperty(
@@ -637,6 +680,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="Link this object to a specific region and consequently, permutation(s)",
         default=False,
+        override={'LIBRARY_OVERRIDABLE'},
     )
     
     def get_marker_model_group(self):
@@ -665,11 +709,13 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         name="Marker Game Instance Tag",
         description="Reference to the tag that should be placed at this marker in your scenario",
         update=game_instance_clean_tag_path,
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     marker_game_instance_tag_variant_name: bpy.props.StringProperty(
         name="Marker Game Instance Tag Variant",
         description="Setting this will always create the given object variant provided that this name is a valid variant for the object",
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     marker_always_run_scripts: bpy.props.BoolProperty(
@@ -677,6 +723,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="Tells this game object to always run scripts if it has any",
         default=True,
+        override={'LIBRARY_OVERRIDABLE'},
     )
     
     # Decorators
@@ -689,6 +736,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         min=0,
         max=1,
         options=set(),
+        override={'LIBRARY_OVERRIDABLE'},
     )
     
     decorator_ground_tint: bpy.props.FloatProperty(
@@ -699,6 +747,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         max=1,
         default=0,
         options=set(),
+        override={'LIBRARY_OVERRIDABLE'},
     )
     
     decorator_tint: bpy.props.FloatVectorProperty(
@@ -709,6 +758,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         min=0,
         max=1,
         options=set(),
+        override={'LIBRARY_OVERRIDABLE'},
     )
     
     # Prefab marker specific props
@@ -719,36 +769,42 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         description="0 means override and the default resolution will be used. Determines how much texel space this prefab (if per pixel) will be given on the lightmap. Higher values do not automatically increase light resolution, instead the resolution is taken away from other prefabs. This value acts like a weight, deciding how the lightmap bitmap resolution gets divided up between prefabs",
         default=0,
         min=0,
+        override={'LIBRARY_OVERRIDABLE'},
     )
     
     prefab_render_only: bpy.props.BoolProperty(
         name="Render Only",
         description="Prefab instance has no collision",
         options=set(),
+        override={'LIBRARY_OVERRIDABLE'},
     )
     prefab_does_not_block_aoe: bpy.props.BoolProperty(
         name="Does Not Block AOE",
         options=set(),
         description="Prefab instance does not block area of effect damage",
         default=False,
+        override={'LIBRARY_OVERRIDABLE'},
     )
     prefab_decal_spacing: bpy.props.BoolProperty(
         name="Decal Spacing",
         options=set(),
         description="Prefab instance set to have decal spacing. This gives the mesh a small offset from its game calculated position, so that it avoids z-fighting with another mesh",
         default=False,
+        override={'LIBRARY_OVERRIDABLE'},
     )
     prefab_remove_from_shadow_geometry: bpy.props.BoolProperty(
         name="Dynamic Sun Shadow",
         options=set(),
         description="Shadows cast by this prefab instance are dynamic. Useful for example on tree leaves with foliage materials",
         default=False,
+        override={'LIBRARY_OVERRIDABLE'},
     )
     prefab_disallow_lighting_samples: bpy.props.BoolProperty(
         name="Disallow Lighting Samples",
         options=set(),
         description="",
         default=False,
+        override={'LIBRARY_OVERRIDABLE'},
     )
     
     prefab_excluded_from_lightprobe: bpy.props.BoolProperty(
@@ -756,11 +812,13 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="Prefab instance is excluded from any lightprobes",
         default=False,
+        override={'LIBRARY_OVERRIDABLE'},
     )
     
     prefab_cinematic_properties: bpy.props.EnumProperty(
         name="Cinematic Properties",
         options=set(),
+        override={'LIBRARY_OVERRIDABLE'},
         description="Sets whether the prefab instance should render only in cinematics, only outside of cinematics, or in both environments",
         default="_connected_geometry_poop_cinema_default",
         items=[
@@ -811,12 +869,14 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         description="Sets the lighting policy for this prefab instance",
         default="no_override",
         items=prefab_lighting_items,
+        override={'LIBRARY_OVERRIDABLE'},
     )
     
     prefab_ao: bpy.props.BoolProperty(
         name="Ambient Occlusion",
         options=set(),
         description="Per vertex lighting gets ambient occlusion only",
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     def prefab_pathfinding_items(self, context):
@@ -833,6 +893,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="Sets the pathfinding policy for this prefab instance",
         items=prefab_pathfinding_items,
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     prefab_imposter_policy: bpy.props.EnumProperty(
@@ -840,6 +901,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="Sets the imposter policy for this prefab instance",
         default="no_override",
+        override={'LIBRARY_OVERRIDABLE'},
         items=[
             (
                 "no_override",
@@ -876,6 +938,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         description="Sets the brightness of the imposter variant of this prefab. Leave at zero for no override",
         default=0.0,
         min=0.0,
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     prefab_imposter_transition_distance: bpy.props.FloatProperty(
@@ -883,7 +946,8 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="The distance at which the instanced geometry transitions to its imposter variant",
         default=utils.wu(50),
-        subtype='DISTANCE'
+        subtype='DISTANCE',
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     prefab_imposter_transition_distance_auto: bpy.props.BoolProperty(
@@ -891,6 +955,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="Enable to override the imposter transition distance of this prefab instance",
         default=True,
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     prefab_streaming_priority: bpy.props.EnumProperty(
@@ -898,6 +963,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="Sets the streaming priority for this prefab instance",
         default="no_override",
+        override={'LIBRARY_OVERRIDABLE'},
         items=[
             (
                 "no_override",
@@ -929,11 +995,13 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="Manages the direction and speed with which an object created at this marker is given on spawn",
         subtype="VELOCITY",
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     marker_pathfinding_sphere_vehicle: bpy.props.BoolProperty(
         name="Vehicle Only Pathfinding Sphere",
         options=set(),
+        override={'LIBRARY_OVERRIDABLE'},
         description="This pathfinding sphere only affects vehicle pathfinding",
     )
 
@@ -941,12 +1009,14 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         name="Pathfinding Sphere Remains When Open",
         options=set(),
         description="Pathfinding sphere remains even when a machine is open",
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     pathfinding_sphere_with_sectors: bpy.props.BoolProperty(
         name="Pathfinding Sphere With Sectors",
         options=set(),
         description="Only active when the pathfinding policy of the object is set to Sectors",
+        override={'LIBRARY_OVERRIDABLE'},
     )
     
     def poll_physics_constraint_target(self, object):
@@ -957,11 +1027,13 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         description="The physics object (or armature and bone) this constraint is attached to",
         type=bpy.types.Object,
         poll=poll_physics_constraint_target,
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     physics_constraint_parent_bone: bpy.props.StringProperty(
         name="Physics Constraint Parent Bone",
         description="The bone that is attached to this constaint. The bone must have atleast one physics object child to be valid",
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     physics_constraint_child: bpy.props.PointerProperty(
@@ -969,11 +1041,13 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         description="The physics object (or armature and bone) this constraint is attached to",
         type=bpy.types.Object,
         poll=poll_physics_constraint_target,
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     physics_constraint_child_bone: bpy.props.StringProperty(
         name="Physics Constraint Child Bone",
         description="The bone that is attached to this constaint. The bone must have atleast one physics object child to be valid",
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     physics_constraint_type: bpy.props.EnumProperty(
@@ -981,6 +1055,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="Whether this is a hinge or socket (i.e ragdoll) constraint",
         default="_connected_geometry_marker_type_physics_hinge_constraint",
+        override={'LIBRARY_OVERRIDABLE'},
         items=[
             (
                 "_connected_geometry_marker_type_physics_hinge_constraint",
@@ -999,6 +1074,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         name="Physics Constraint Uses Limits",
         options=set(),
         description="Allows setting of constraint limits",
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     hinge_constraint_minimum: bpy.props.FloatProperty(
@@ -1009,6 +1085,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         default=radians(-180),
         min=radians(-180),
         max=radians(180),
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     hinge_constraint_maximum: bpy.props.FloatProperty(
@@ -1019,6 +1096,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         default=radians(180),
         min=radians(-180),
         max=radians(180),
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     cone_angle: bpy.props.FloatProperty(
@@ -1029,6 +1107,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         default=radians(90),
         min=0,
         max=radians(180),
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     plane_constraint_minimum: bpy.props.FloatProperty(
@@ -1039,6 +1118,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         default=radians(-90),
         min=radians(-90),
         max=0,
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     plane_constraint_maximum: bpy.props.FloatProperty(
@@ -1049,6 +1129,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         default=radians(90),
         min=0,
         max=radians(90),
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     twist_constraint_start: bpy.props.FloatProperty(
@@ -1059,6 +1140,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         default=radians(-180),
         min=radians(-180),
         max=radians(180),
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     twist_constraint_end: bpy.props.FloatProperty(
@@ -1069,6 +1151,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         subtype='ANGLE',
         min=radians(-180),
         max=radians(180),
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     def effect_clean_tag_path(self, context):
@@ -1080,6 +1163,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         name="Effect Path",
         description="Tag path to an effect tag",
         update=effect_clean_tag_path,
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     def light_cone_clean_tag_path(self, context):
@@ -1091,6 +1175,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         name="Light Cone Tag Path",
         description="Tag path to a light cone tag",
         update=light_cone_clean_tag_path,
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     marker_light_cone_color: bpy.props.FloatVectorProperty(
@@ -1102,6 +1187,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         size=4,
         min=0.0,
         max=1.0,
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     # marker_light_cone_alpha: bpy.props.FloatProperty(
@@ -1120,6 +1206,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         description="",
         default=5,
         min=0,
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     marker_light_cone_length: bpy.props.FloatProperty(
@@ -1128,6 +1215,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         description="",
         default=10,
         min=0,
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     marker_light_cone_intensity: bpy.props.FloatProperty(
@@ -1136,6 +1224,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         description="",
         default=1,
         min=0,
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     def light_cone_curve_clean_tag_path(self, context):
@@ -1147,6 +1236,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         name="Light Cone Curve Tag Path",
         description="Tag path to a curve scalar tag",
         update=light_cone_curve_clean_tag_path,
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     def get_region_name(self):
@@ -1181,7 +1271,6 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         name="Face Region",
         description="",
         get=get_region_from_collection,
-        override={'LIBRARY_OVERRIDABLE'},
     )
 
     def get_permutation_name(self):
@@ -1217,7 +1306,6 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         name="Permutation",
         description="The permutation of this object",
         get=get_permutation_from_collection,
-        override={'LIBRARY_OVERRIDABLE'},
     )
 
     is_pca: bpy.props.BoolProperty(
@@ -1225,6 +1313,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="",
         default=False,
+        override={'LIBRARY_OVERRIDABLE'},
     )
     
     export_collection: bpy.props.StringProperty(options={'HIDDEN'})
@@ -1248,22 +1337,25 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
 
     instanced_collision: bpy.props.BoolProperty(
         name="Bullet Collision",
+        override={'LIBRARY_OVERRIDABLE'},
     )
     instanced_physics: bpy.props.BoolProperty(
         name="Player Collision",
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     cookie_cutter: bpy.props.BoolProperty(
         name="Cookie Cutter",
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     #########
 
-    toggle_face_defaults: bpy.props.BoolProperty()
+    toggle_face_defaults: bpy.props.BoolProperty(override={'LIBRARY_OVERRIDABLE'},)
 
     # MARKER PERMS
-    marker_exclude_permutations : bpy.props.StringProperty()
-    marker_include_permutations : bpy.props.StringProperty()
+    marker_exclude_permutations : bpy.props.StringProperty(override={'LIBRARY_OVERRIDABLE'},)
+    marker_include_permutations : bpy.props.StringProperty(override={'LIBRARY_OVERRIDABLE'},)
     
     # LIGHT OBJECT LEVEL PROPS
     
