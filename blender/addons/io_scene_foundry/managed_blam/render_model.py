@@ -472,6 +472,42 @@ class RenderModelTag(Tag):
             
     def get_bounds(self):
         return CompressionBounds(self.block_compression_info.Elements[0])
+    
+    def insert_empty_region_perms(self, empty_region_perms: dict[str, set]):
+        print("\nAdding Empty Region Permutations")
+        for region_element in self.block_regions.Elements:
+            region = region_element.Fields[0].GetStringData()
+            perms = empty_region_perms.get(region)
+            if perms is None:
+                continue
             
+            permutations_block = region_element.SelectField("Block:permutations")
+            # Getting all existing perms to ensure we don't duplicate any, for example those created by clones
+            existing_perms = {e.Fields[0].GetStringData() for e in permutations_block.Elements}
+            remaining_perms = perms.difference(existing_perms)
+            print(f"\n--- Adding empty permutations to existing region {region}")
+            for perm in sorted(remaining_perms): # Sorting this to ensure a consistent order in multiple exports
+                perm_element = permutations_block.AddElement()
+                perm_element.Fields[0].SetStringData(perm)
+                perm_element.Fields[1].Data = -1 # mesh index
+                print(f"\tAdded permutation {perm}")
+                self.tag_has_changes = True
             
+            empty_region_perms.pop(region)
+        
+        # This now contains only the completely empty regions
+        if empty_region_perms:
+            self.tag_has_changes = True
+        
+        for region, perms in empty_region_perms.items():
+            region_element = self.block_regions.AddElement()
+            region_element.Fields[0].SetStringData(region)
+            print(f"\n--- Created new empty region {region}")
             
+            permutations_block = region_element.SelectField("Block:permutations")
+            for perm in sorted(perms):
+                perm_element = permutations_block.AddElement()
+                perm_element.Fields[0].SetStringData(perm)
+                perm_element.Fields[1].Data = -1 # mesh index
+                print(f"\tAdded permutation {perm}")
+                

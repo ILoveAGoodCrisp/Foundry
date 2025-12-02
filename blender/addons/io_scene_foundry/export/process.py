@@ -219,6 +219,9 @@ class ExportScene:
         self.pca_objects = defaultdict(list)
         self.shape_key_unmutes = []
         
+        self.render_regions_perms = defaultdict(set) # region is key, perm is set
+        self.collision_physics_regions_perms = defaultdict(set)
+        
     def _get_export_tag_types(self):
         tag_types = set()
         match self.asset_type:
@@ -388,7 +391,6 @@ class ExportScene:
         original_proxy_collision = data_nwo.proxy_collision
         original_proxy_cookie_cutter = data_nwo.proxy_cookie_cutter
         
-
         has_coll = original_proxy_collision is not None
         has_phys = bool(original_proxy_physics_list)
         has_cookie = original_proxy_cookie_cutter is not None and not self.corinth
@@ -881,7 +883,7 @@ class ExportScene:
         if is_mesh:
             mesh_type = nwo.mesh_type or '_connected_geometry_mesh_type_default'
             if not self.type_is_relevant or _type_valid_cached(mesh_type, asset_name_lower, game_version):
-                copy = self._setup_mesh_properties(ob, nwo, supports_bsp, props, region, mesh_props)
+                copy = self._setup_mesh_properties(ob, nwo, supports_bsp, props, region, permutation, mesh_props)
                 if copy is not None and not copy:
                     return  # lightmap region
                 if ob.type == 'MESH' and ob.data.shape_keys and asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.ANIMATION, AssetType.CINEMATIC, AssetType.SINGLE_ANIMATION}:
@@ -906,7 +908,7 @@ class ExportScene:
 
         return props, region, permutation, mesh_props, copy, is_pca
     
-    def _setup_mesh_properties(self, ob: bpy.types.Object, nwo: NWO_ObjectPropertiesGroup, supports_bsp: bool, props: dict, region: str, mesh_props: dict):
+    def _setup_mesh_properties(self, ob: bpy.types.Object, nwo: NWO_ObjectPropertiesGroup, supports_bsp: bool, props: dict, region: str, permutation: str, mesh_props: dict):
         mesh_type = ob.data.nwo.mesh_type
         mesh = ob.data
         data_nwo: NWO_MeshPropertiesGroup = mesh.nwo
@@ -916,7 +918,7 @@ class ExportScene:
             case AssetType.MODEL:
                 match mesh_type:
                     case "_connected_geometry_mesh_type_physics":
-                        
+                        self.collision_physics_regions_perms[region].add(permutation)
                         if ob.nwo.global_material.strip():
                             mat = ob.nwo.global_material.strip().replace(' ', "_")
                             if mat:
@@ -934,6 +936,11 @@ class ExportScene:
                         if self.corinth:
                             mesh_type = '_connected_geometry_mesh_type_default'
                             self.pretend_object_instances[ob] = region
+                            
+                    case 'connected_geometry_mesh_type_collision':
+                        self.collision_physics_regions_perms[region].add(permutation)
+                    case 'connected_geometry_mesh_type_render':
+                        self.render_regions_perms[region].add(permutation)
                     
             case AssetType.SCENARIO:
                 # Foundry stores instances as the default mesh type, so switch them back to poops and structure to default
@@ -2392,6 +2399,12 @@ class ExportScene:
         # if self.is_child_asset:
         #     sidecar_importer = SidecarImport(self.parent_asset_path, self.parent_asset_name, self.asset_type, self.sidecar.parent_sidecar_relative, self.scene_settings, self.export_settings, self.selected_bsps, self.corinth, structure, self.tags_dir, self.selected_actors, self.cinematic_scene, self.active_animation)
         # else:
+        
+        # Check for missing render regions
+        may_need_empty_region_perms = self.corinth and self.is_model
+        if may_need_empty_region_perms:
+            empty_region_perms = {k : self.collision_physics_regions_perms[k] for k in set(self.collision_physics_regions_perms).difference(set(self.render_regions_perms))}
+        
         sidecar_importer = SidecarImport(self.asset_path, self.asset_name, self.asset_type, self.sidecar_path, self.scene_settings, self.export_settings, self.selected_bsps, self.corinth, structure, self.tags_dir, self.selected_actors, self.cinematic_scene, self.active_animation, structure, design, no_virtual_scene)
         if self.corinth and self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB}:
             sidecar_importer.save_lighting_infos()
@@ -2404,7 +2417,11 @@ class ExportScene:
             if self.asset_type == AssetType.SCENARIO:
                 patcher.reach_plane_builder()
         
-        sidecar_importer.run()
+        if may_need_empty_region_perms:
+            # Only needed for H4+ since Reach is chill with coll/phys only region permutations
+            sidecar_importer.run(empty_region_perms)
+        else:
+            sidecar_importer.run()
         if sidecar_importer.lighting_infos:
             sidecar_importer.restore_lighting_infos()
         if self.asset_type == AssetType.ANIMATION:

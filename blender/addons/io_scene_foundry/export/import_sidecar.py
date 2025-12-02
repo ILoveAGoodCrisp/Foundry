@@ -1,6 +1,8 @@
 import os
 from pathlib import Path
 
+from ..managed_blam.render_model import RenderModelTag
+
 from ..tools.asset_types import AssetType
 from .. import utils
 from ..props.scene import NWO_ScenePropertiesGroup
@@ -97,17 +99,29 @@ class SidecarImport:
             with open(file, 'w+b') as f:
                 f.write(data)
                 
-    def run(self):
-        self.import_failed, self.error = utils.run_tool_sidecar(
-            [
-                "import",
-                self.sidecar_path,
-                *self._get_import_flags()
-            ],
-            self.export_settings.event_level
-        )
+    def run(self, empty_region_perms=set()):
+        # Run two imports if necessary
+        # In the first we only build the render model tag
+        # In the second we then build the physics and collision tags
+        # Two steps are used to allow empty regions and permutations to be added to the render model tag
+        # If these empty regions and permutations are not present in the render model, then Tool will fail to compile the collision and physics
+        # Empty regions and permutations here simply refers to regions and permutations that have physics or collision representation, but no render
+        empty_import_relevant = empty_region_perms and (self.export_settings.export_render or self.export_settings.export_markers or self.export_settings.export_markers)
         
-    def _get_import_flags(self):
+        if empty_import_relevant:
+            print("\nImporting Render Geometry Only\n")
+            self.import_failed, self.error = utils.run_tool_sidecar(["import", self.sidecar_path, *self._get_import_flags(render_only=True)], self.export_settings.event_level)
+            
+            with RenderModelTag() as render_model:
+                render_model.insert_empty_region_perms(empty_region_perms)
+            
+            if self.export_settings.export_collision or self.export_settings.export_physics:
+                print("\nImporting Collision & Physics Geometry Only\n")
+                self.import_failed, self.error = utils.run_tool_sidecar(["import", self.sidecar_path, *self._get_import_flags(collision_physics_only=True)], self.export_settings.event_level)
+        else:
+            self.import_failed, self.error = utils.run_tool_sidecar(["import", self.sidecar_path, *self._get_import_flags()], self.export_settings.event_level)
+        
+    def _get_import_flags(self, render_only=False, collision_physics_only=False):
         flags = []
         if self.export_settings.import_force:
             flags.append("force")
@@ -158,27 +172,29 @@ class SidecarImport:
                 
         if self.cinematic_scene is not None:
             flags.append(self.cinematic_scene.name)
-            
-        if self.asset_type == AssetType.ANIMATION:
-            if self.corinth and self.export_settings.export_animations == 'ACTIVE':
+        
+        if self.corinth:
+            # Reach sucks and import will just always import everything... Long live Halo 4+
+            if self.asset_type == AssetType.ANIMATION:
                 flags.append("render")
                 flags.append("animation")
-                flags.append(self.active_animation)
-            else:
-                flags.append("render")
-                flags.append("animations")
-        elif self.asset_type == AssetType.MODEL:
-            if self.export_settings.export_render or self.export_settings.export_markers or self.export_settings.export_skeleton:
-                flags.append("render")
-            if self.export_settings.export_collision:
-                flags.append("collision")
-            if self.export_settings.export_physics:
-                flags.append("physics")
-            if self.corinth and self.export_settings.export_animations == 'ACTIVE':
-                flags.append("animation")
-                flags.append(self.active_animation)
-            elif self.export_settings.export_animations == 'ALL':
-                flags.append("animations")
+                if self.export_settings.export_animations == 'ACTIVE':
+                    flags.append(self.active_animation)
+            elif self.asset_type == AssetType.MODEL:
+                if not render_only:
+                    if self.export_settings.export_collision:
+                        flags.append("collision")
+                    if self.export_settings.export_physics:
+                        flags.append("physics")
+                
+                if not collision_physics_only:
+                    if self.export_settings.export_render or self.export_settings.export_markers or self.export_settings.export_skeleton:
+                        flags.append("render")
+                    if self.export_settings.export_animations == 'ACTIVE':
+                        flags.append("animation")
+                        flags.append(self.active_animation)
+                    elif self.export_settings.export_animations == 'ALL':
+                        flags.append("animations")
 
         return flags
     
