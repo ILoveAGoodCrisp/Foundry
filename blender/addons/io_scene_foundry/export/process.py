@@ -712,6 +712,7 @@ class ExportScene:
                     v = self.ob_halo_data[export_ob].copy()
                     v[1] = region
                     v[2] = permutation
+                    self.render_regions_perms[region].add(permutation)
                     self.ob_halo_data[new_export_ob] = v
                     set_parent(new_export_ob)
                     
@@ -939,7 +940,7 @@ class ExportScene:
                             
                     case 'connected_geometry_mesh_type_collision':
                         self.collision_physics_regions_perms[region].add(permutation)
-                    case 'connected_geometry_mesh_type_render':
+                    case '_connected_geometry_mesh_type_default':
                         self.render_regions_perms[region].add(permutation)
                     
             case AssetType.SCENARIO:
@@ -2397,13 +2398,15 @@ class ExportScene:
             design = self.virtual_scene.design
             
         # if self.is_child_asset:
-        #     sidecar_importer = SidecarImport(self.parent_asset_path, self.parent_asset_name, self.asset_type, self.sidecar.parent_sidecar_relative, self.scene_settings, self.export_settings, self.selected_bsps, self.corinth, structure, self.tags_dir, self.selected_actors, self.cinematic_scene, self.active_animation)
+        #     sidecar_importer = SidecarImport(self.parent_asset_path, self.parents_asset_name, self.asset_type, self.sidecar.parent_sidecar_relative, self.scene_settings, self.export_settings, self.selected_bsps, self.corinth, structure, self.tags_dir, self.selected_actors, self.cinematic_scene, self.active_animation)
         # else:
         
         # Check for missing render regions
         may_need_empty_region_perms = self.corinth and self.is_model
         if may_need_empty_region_perms:
-            empty_region_perms = {k : self.collision_physics_regions_perms[k] for k in set(self.collision_physics_regions_perms).difference(set(self.render_regions_perms))}
+            set_collision_physics_regions_perms = {(k, tuple(v)) for k, v in self.collision_physics_regions_perms.items()}
+            set_render_regions_perms = {(k, tuple(v)) for k, v in self.render_regions_perms.items()}
+            empty_region_perms = {k[0]: set(k[1]) for k in set_collision_physics_regions_perms.difference(set_render_regions_perms)}
         
         sidecar_importer = SidecarImport(self.asset_path, self.asset_name, self.asset_type, self.sidecar_path, self.scene_settings, self.export_settings, self.selected_bsps, self.corinth, structure, self.tags_dir, self.selected_actors, self.cinematic_scene, self.active_animation, structure, design, no_virtual_scene)
         if self.corinth and self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB}:
