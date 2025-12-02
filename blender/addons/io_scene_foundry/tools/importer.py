@@ -495,8 +495,8 @@ class NWO_Import(bpy.types.Operator):
     )
     
     import_biped_weapon: bpy.props.BoolProperty(
-        name="Import Biped Weapon",
-        description="Imports the bipeds weapon if it has one",
+        name="Import Biped Weapons",
+        description="Imports all the biped's weapons if it has any",
     )
     
     tag_state: bpy.props.EnumProperty(
@@ -2271,16 +2271,17 @@ class NWOImporter:
                                 if weapons is not None and weapons.Elements.Count > 0:
                                     weapon_collection = bpy.data.collections.new(name=f"{model.tag_path.ShortName}_weapon")
                                     model_collection.children.link(weapon_collection)
-                                    weapon = weapons.Elements[0].Fields[0].Path
-                                    if weapon is not None:
-                                        print(f"--- Importing Weapon: {weapon.ShortNameWithExtension}")
-                                        child = ChildObject()
-                                        parent_marker = obj.tag.SelectField("Struct:unit[0]/StringId:right_hand_node").GetStringData()
-                                        child.parent_marker = parent_marker if parent_marker else "primary_weapon"
-                                        child_marker = obj.tag.SelectField("Struct:unit[0]/Struct:more damn nodes[0]/StringId:preferred_gun_node").GetStringData()
-                                        child.child_marker = child_marker if child_marker else "right_hand"
-                                        child.child_object = weapon
-                                        imported_objects.extend(self.import_child_object(child, armature, {ob: ob.nwo.marker_model_group for ob in render_objects if ob.type == 'EMPTY'}, weapon_collection, is_game_object))
+                                    for wep_element in weapons.Elements:
+                                        weapon = wep_element.Fields[0].Path
+                                        if weapon is not None:
+                                            print(f"--- Importing Weapon: {weapon.ShortNameWithExtension}")
+                                            child = ChildObject()
+                                            parent_marker = obj.tag.SelectField("Struct:unit[0]/StringId:right_hand_node").GetStringData()
+                                            child.parent_marker = parent_marker if parent_marker else "primary_weapon"
+                                            child_marker = obj.tag.SelectField("Struct:unit[0]/Struct:more damn nodes[0]/StringId:preferred_gun_node").GetStringData()
+                                            child.child_marker = child_marker if child_marker else "right_hand"
+                                            child.child_object = weapon
+                                            imported_objects.extend(self.import_child_object(child, armature, {ob: ob.nwo.marker_model_group for ob in render_objects if ob.type == 'EMPTY'}, weapon_collection, is_game_object))
                                     self.context.view_layer.update()
                                     
                             if not is_game_object and self.setup_as_asset:
@@ -4204,8 +4205,8 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     )
     
     import_biped_weapon: bpy.props.BoolProperty(
-        name="Import Biped Weapon",
-        description="Imports the bipeds weapon if it has one",
+        name="Import Biped Weapons",
+        description="Imports all the biped's weapons if it has any",
     )
     
     amf_okay : bpy.props.BoolProperty(options={"HIDDEN", "SKIP_SAVE"})

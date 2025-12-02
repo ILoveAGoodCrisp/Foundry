@@ -123,7 +123,7 @@ class SidecarImport:
                 self.error = render_only_failed_error
                 
             if render_only_failed:
-                print("\nImporting Render Geometry Only\nIf at first you don't succeed, try, try again..\n")
+                print("\nImporting Render Geometry Only\nIf at first you don't succeed. Try, try, try again...\n")
                 render_only_failed, render_only_failed_error = utils.run_tool_sidecar(["import", self.sidecar_path, *self._get_import_flags(render_only=True, no_animation=True)], self.export_settings.event_level)
                 self.import_failed = render_only_failed
                 self.error = render_only_failed_error
