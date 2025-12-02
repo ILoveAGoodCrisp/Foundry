@@ -20,6 +20,23 @@ aim_shape_vert_coords = [(1.955878, 0.885051, 0.0), (1.95143, -0.887275, 0.0), (
 pedestal_shape_faces = [[61, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60]]
 aim_shape_faces = [[1, 3, 0, 2]]
 
+# Bone that should be connected, the final bone in the chain gets no FK bone of its own
+bone_links = (
+    ("upperarm", "forearm", "hand"),
+    ("thigh", "calf", "foot")
+)
+
+# Also connect sequential bones indicated by a number at the end of their name e.g. pinky1, pinky2
+# Any deform bones controlled by an FK bone are hidden by default
+# Final bone in the chain gets IK added
+
+# Bones which play a minor role in deformation, to go in their own collection and hidden by default
+helper_bones = (
+    "fixup",
+    "helper",
+    "twist",
+)
+
 class HaloRig:
     def __init__(self, context: bpy.types.Context, scale, forward, has_pose_bones=False, set_scene_rig_props=False):
         self.context = context
@@ -244,3 +261,15 @@ class HaloRig:
         self.rig_ob.select_set(True)
         if self.set_scene_rig_props and not self.context.scene.nwo.main_armature:
             self.context.scene.nwo.main_armature = self.rig_ob
+            
+    def generate_bone_collections(self):
+        """Sorts bones into bone collections"""
+            
+    def apply_halo_bone_shape(self):
+        """Applies a custom shape to every halo bone that is not the pedestal or an aim bone"""
+        
+    def build_fk_rig(self):
+        """Generates an FK skeleton for the halo rig"""
+        
+    def build_ik_rig(self):
+        """Generates an IK skeleton on the FK rig"""
