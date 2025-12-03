@@ -2867,6 +2867,8 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
         for light, intensity in light_intensities.items():
             light.energy = calc_light_energy(light, intensity, 1 / scale_factor)
             
+        return light_intensities
+            
 def get_area_info(context):
     area = [
         area
