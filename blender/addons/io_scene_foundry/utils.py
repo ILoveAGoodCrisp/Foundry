@@ -2735,8 +2735,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
             
             for pose_bone in arm.pose.bones:
                 pose_bone.custom_shape_translation *= scale_factor
-                if pose_bone.use_custom_shape_bone_size:
-                    pose_bone.custom_shape_scale_xyz *= (1 / scale_factor)
+                pose_bone.custom_shape_scale_xyz *= scale_factor
                 
                 for con in pose_bone.constraints:
                     match con.type:
@@ -5626,3 +5625,26 @@ def copy_material_nodes(existing_mat: bpy.types.Material, mat: bpy.types.Materia
             new_tree.links.new(from_node.outputs[out_i], to_node.inputs[in_i])
         except Exception:
             pass
+        
+def mesh_to_cube(mesh: bpy.types.Mesh):
+    verts = [
+        (-0.5, -0.5, -0.5),
+        (-0.5, -0.5,  0.5),
+        (-0.5,  0.5, -0.5),
+        (-0.5,  0.5,  0.5),
+        ( 0.5, -0.5, -0.5),
+        ( 0.5, -0.5,  0.5),
+        ( 0.5,  0.5, -0.5),
+        ( 0.5,  0.5,  0.5),
+    ]
+
+    indices = [
+        (0, 1, 3, 2),
+        (4, 6, 7, 5),
+        (0, 4, 5, 1),
+        (2, 3, 7, 6),
+        (1, 5, 7, 3),
+        (0, 2, 6, 4),
+    ]
+    
+    mesh.from_pydata(vertices=verts, edges=[], faces=indices)

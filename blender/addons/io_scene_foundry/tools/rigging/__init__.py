@@ -1,6 +1,7 @@
 
 
 from math import radians
+from typing import cast
 import bpy
 from mathutils import Vector
 
@@ -37,6 +38,12 @@ helper_bones = (
     "twist",
 )
 
+special_bones = (
+    "pedestal",
+    "aim_pitch",
+    "aim_yaw",
+)
+
 class HaloRig:
     def __init__(self, context: bpy.types.Context, scale, forward, has_pose_bones=False, set_scene_rig_props=False):
         self.context = context
@@ -44,8 +51,13 @@ class HaloRig:
         self.forward = forward
         self.has_pose_bones = has_pose_bones
         self.set_scene_rig_props = set_scene_rig_props
+        self.rig_data: bpy.types.Armature = None
+        self.rig_ob: bpy.types.Object = None
+        self.rig_pose: bpy.types.Pose = None
     
     def build_and_apply_control_shapes(self, pedestal=None, pitch=None, yaw=None, aim_control=None, wireframe=False, aim_control_only=False, reverse_control=False):
+        min_size, max_size = utils.to_aabb(self.rig_ob)
+        shape_scale = abs((max_size - min_size).length)
         if not aim_control_only:
             if not pedestal:
                 pedestal: bpy.types.PoseBone = utils.get_pose_bone(self.rig_ob, pedestal_name)
@@ -62,7 +74,7 @@ class HaloRig:
                     shape_ob.nwo.export_this = False
                     
                 pedestal.custom_shape = shape_ob
-                pedestal.custom_shape_scale_xyz *= self.scale
+                pedestal.custom_shape_scale_xyz = Vector((1, 1, 1)) * shape_scale
                 pedestal.use_custom_shape_bone_size = False
                 if wireframe:
                     self.rig_data.bones[pedestal.name].show_wire = True
@@ -80,7 +92,7 @@ class HaloRig:
                     shape_ob.nwo.export_this = False
                     
                 aim_control.custom_shape = shape_ob
-                aim_control.custom_shape_scale_xyz *= self.scale
+                aim_control.custom_shape_scale_xyz = Vector((1, 1, 1)) * shape_scale
                 aim_control.use_custom_shape_bone_size = False
                 if wireframe:
                     self.rig_data.bones[aim_control.name].show_wire = True
@@ -103,6 +115,21 @@ class HaloRig:
                     
                 if not (pedestal or pitch or yaw or aim_control):
                     return
+                
+                if pitch:
+                    pitch.custom_shape = shape_ob
+                    pitch.custom_shape_scale_xyz = Vector((0.2, 0.2, 0.2)) * shape_scale
+                    pitch.use_custom_shape_bone_size = False
+                    pitch.custom_shape_rotation_euler.x = radians(90)
+                    if wireframe:
+                        self.rig_data.bones[pitch.name].show_wire = True
+                        
+                if yaw:
+                    yaw.custom_shape = shape_ob
+                    yaw.custom_shape_scale_xyz = Vector((0.2, 0.2, 0.2)) * shape_scale
+                    yaw.use_custom_shape_bone_size = False
+                    if wireframe:
+                        self.rig_data.bones[yaw.name].show_wire = True
                 
                 if reverse_control:
                     con = aim_control.constraints.new('COPY_ROTATION')
@@ -264,9 +291,56 @@ class HaloRig:
             
     def generate_bone_collections(self):
         """Sorts bones into bone collections"""
+        bone_collections = self.rig_data.collections
+        halo_collection = bone_collections.get("Halo Bones")
+        
+        if halo_collection is None:
+            halo_collection = bone_collections.new("Halo Bones")
             
+        halo_special = bone_collections.get("Halo Special Bones")
+        if halo_special is None:
+            halo_special = bone_collections.new("Halo Special Bones", parent=halo_collection)
+            
+        halo_helpers = bone_collections.get("Halo Helper Bones")
+        if halo_helpers is None:
+            halo_helpers = bone_collections.new("Halo Helper Bones", parent=halo_collection)
+            
+        fk_collection = bone_collections.get("FK")
+        if fk_collection is None:
+            fk_collection = bone_collections.new("FK")
+
+        ik_collection = bone_collections.get("IK")
+        if ik_collection is None:
+            ik_collection = bone_collections.new("IK")
+        
+        for bone in self.rig_data.bones:
+            no_digit_name = bone.name.strip("0123456789")
+            if bone.use_deform:
+                if no_digit_name.endswith(special_bones):
+                    halo_special.assign(bone)
+                elif no_digit_name.endswith(helper_bones):
+                    halo_helpers.assign(bone)
+                else:
+                    halo_collection.assign(bone)
+            else:
+                if no_digit_name.startswith("FK_"):
+                    fk_collection.assign(bone)
+                elif no_digit_name.startswith("IK_"):
+                    ik_collection.assign(bone)
+
     def apply_halo_bone_shape(self):
         """Applies a custom shape to every halo bone that is not the pedestal or an aim bone"""
+        shape = bpy.data.objects.get("halo_deform_bone_shape")
+        if shape is None:
+            shape_mesh = bpy.data.meshes.new("halo_deform_bone_shape")
+            utils.mesh_to_cube(shape_mesh)
+            shape = bpy.data.objects.new("halo_deform_bone_shape", shape_mesh)
+            
+        for pbone, bone in zip(self.rig_pose.bones, self.rig_data.bones):
+            if pbone.custom_shape is None and bone.use_deform:
+                pbone.custom_shape = shape
+                pbone.custom_shape_scale_xyz = Vector((0.5, 0.5, 0.5)) * self.scale
+                bone.show_wire = True
         
     def build_fk_rig(self):
         """Generates an FK skeleton for the halo rig"""

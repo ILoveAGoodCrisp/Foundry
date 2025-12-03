@@ -5,6 +5,8 @@ import math
 import bmesh
 from mathutils import Color, Euler, Matrix, Quaternion, Vector
 
+from ..tools.rigging import HaloRig
+
 from ..constants import HALO_FACTOR
 
 from .connected_geometry import CompressionBounds, InstancePlacement, MarkerGroup, Material, Mesh, Node, Region, RenderArmature
@@ -172,6 +174,17 @@ class RenderModelTag(Tag):
             bpy.ops.object.editmode_toggle()
             # Set render_model ref for node order
             arm.ob.nwo.node_order_source = self.tag_path.RelativePathWithExtension
+            
+            # make the rig not terrible
+            scale = 1 / 0.03048
+            rig = HaloRig(self.context, scale, 'x', True, False)
+            rig.rig_ob = arm.ob
+            rig.rig_data = arm.data
+            rig.rig_pose = arm.ob.pose
+            rig.build_bones()
+            rig.build_and_apply_control_shapes(wireframe=True)
+            rig.apply_halo_bone_shape()
+            rig.generate_bone_collections()
         else:
             for node in self.nodes:
                 node.bone = next((b for b in arm.ob.data.bones if b.name == node.name), None)
