@@ -175,7 +175,7 @@ def set_asset(tag_ext: str, ob: bpy.types.Object=None, is_sky=False):
             case '.cinematic':
                 scene_nwo.asset_type = 'cinematic'
 
-def add_function(scene: bpy.types.Scene, name: str, ob: bpy.types.Object, armature: bpy.types.Object=None) -> bool:
+def add_function(scene: bpy.types.Scene, name: str, rename: str, ob: bpy.types.Object, armature: bpy.types.Object=None) -> bool:
     func = game_functions.get(name)
     ammo = name.startswith(ammo_names)
     tether = name.startswith(tether_name)
@@ -195,8 +195,8 @@ def add_function(scene: bpy.types.Scene, name: str, ob: bpy.types.Object, armatu
             id = armature
             needs_id_prop = armature.get(name) is None
         if needs_id_prop:
-            id[name] = 0.0
-            id.id_properties_ui(name).update(min=0, max=1, subtype='FACTOR')
+            id[rename if id == armature else name] = 0.0
+            id.id_properties_ui(rename if id == armature else name).update(min=0, max=1, subtype='FACTOR')
         ob[name] = 0.0
         ob.id_properties_ui(name).update(min=0, max=1, subtype='FACTOR')
     else:
@@ -213,12 +213,12 @@ def add_function(scene: bpy.types.Scene, name: str, ob: bpy.types.Object, armatu
         
         if value_is_bool:
             if needs_id_prop:
-                id[name] = func.default_value
+                id[rename if id == armature else name] = func.default_value
             ob[name] = func.default_value
         else:
             if needs_id_prop:
-                id[name] = float(func.default_value)
-                id.id_properties_ui(name).update(min=0, max=1, subtype='FACTOR')
+                id[rename if id == armature else name] = float(func.default_value)
+                id.id_properties_ui(rename if id == armature else name).update(min=0, max=1, subtype='FACTOR')
             ob[name] = float(func.default_value)
             ob.id_properties_ui(name).update(min=0, max=1, subtype='FACTOR')
     
@@ -234,7 +234,7 @@ def add_function(scene: bpy.types.Scene, name: str, ob: bpy.types.Object, armatu
         else:
             id.update_tag(refresh={'DATA'})
         var.targets[0].id = id
-        var.targets[0].data_path = f'["{name}"]'
+        var.targets[0].data_path = f'["{rename}"]'
         driver.expression = var.name
         
     return value_is_bool
@@ -4669,7 +4669,7 @@ def setup_materials(context: bpy.types.Context, importer: NWOImporter, starting_
                         validated_funcs.update(slot.material.nwo.object_functions.split(","))
                     if functions:
                         for func in functions:
-                            bool_prop = add_function(context.scene, func, ob, ob.parent)
+                            bool_prop = add_function(context.scene, func, func, ob, ob.parent)
                             key = sequence_drivers.get((func, slot.material.node_tree))
                             if key is not None:
                                 driver, sequence_length = key
@@ -4699,8 +4699,11 @@ def setup_materials(context: bpy.types.Context, importer: NWOImporter, starting_
         for ob, func_dict in importer.obs_for_props.items():
             for export_name, funcs in func_dict.items():
                 if export_name in validated_funcs:
-                    for func in funcs:
-                        add_function(context.scene, func, ob, ob.parent)
+                    for idx, func in enumerate(funcs):
+                        if idx == 0:
+                            add_function(context.scene, func, export_name, ob, ob.parent)
+                        else:
+                            add_function(context.scene, func, func, ob, ob.parent)
                         
         # Apply emissives
         if emissive_meshes:

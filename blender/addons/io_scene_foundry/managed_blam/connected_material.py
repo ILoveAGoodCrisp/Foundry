@@ -628,6 +628,8 @@ functions_list = [
     GameFunction("tether_projectile", 0, GameFunctionType.OBJECT),
     GameFunction("tether_state", 0, GameFunctionType.OBJECT),
     GameFunction("tether_trigger", 0, GameFunctionType.OBJECT),
+    GameFunction("tether_bipeds_in_range", 0, GameFunctionType.OBJECT), # not explicit in game functions list
+    GameFunction("tether_indicator", 0, GameFunctionType.OBJECT), # not explicit in game functions list
     GameFunction("turned_on", True, GameFunctionType.OBJECT),
     GameFunction("turning_on", False, GameFunctionType.OBJECT),
     GameFunction("venting_time", 0, GameFunctionType.OBJECT),
