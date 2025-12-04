@@ -203,7 +203,15 @@ class HaloRig:
                     con.use_transform_limit = True
                     con.owner_space = 'LOCAL'
                     
-                    con = pitch.constraints.new('COPY_ROTATION')
+                    
+                    if reach_fp_fix:
+                        pitch_con_bone = yaw
+                        yaw_con_bone = pitch
+                    else:
+                        pitch_con_bone = pitch
+                        yaw_con_bone = yaw
+                    
+                    con = pitch_con_bone.constraints.new('COPY_ROTATION')
                     con.target = self.rig_ob
                     con.subtarget = aim_control.name
                     con.use_x = False
@@ -211,7 +219,7 @@ class HaloRig:
                     con.target_space = 'LOCAL_OWNER_ORIENT'
                     con.owner_space = 'LOCAL'
                     
-                    con = yaw.constraints.new('COPY_ROTATION')
+                    con = yaw_con_bone.constraints.new('COPY_ROTATION')
                     con.target = self.rig_ob
                     con.subtarget = aim_control.name
                     con.use_x = False
@@ -220,7 +228,7 @@ class HaloRig:
                     con.owner_space = 'LOCAL'
                     
                     # constraint to handle gimbal lock scenario where X becomes our yaw
-                    con = yaw.constraints.new('TRANSFORM')
+                    con = yaw_con_bone.constraints.new('TRANSFORM')
                     con.target = self.rig_ob
                     con.subtarget = aim_control.name
                     con.map_from = 'ROTATION'
