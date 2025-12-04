@@ -223,7 +223,6 @@ def add_function(scene: bpy.types.Scene, name: str, ob: bpy.types.Object, armatu
             ob.id_properties_ui(name).update(min=0, max=1, subtype='FACTOR')
     
     if id is not None:
-        id.update_tag(refresh={'DATA'})
         result = ob.driver_add(f'["{name}"]')
         driver = result.driver
         driver.type = 'SCRIPTED'
@@ -232,6 +231,8 @@ def add_function(scene: bpy.types.Scene, name: str, ob: bpy.types.Object, armatu
         var.type = 'SINGLE_PROP'
         if value_comes_from_scene:
             var.targets[0].id_type = 'SCENE'
+        else:
+            id.update_tag(refresh={'DATA'})
         var.targets[0].id = id
         var.targets[0].data_path = f'["{name}"]'
         driver.expression = var.name
@@ -1292,6 +1293,8 @@ class NWO_Import(bpy.types.Operator):
                                 sdata.blender_scene.collection.objects.link(anchor)
                                 sdata.blender_scene.nwo.cinematic_anchor = anchor
                                 imported_cinematic_objects.append(anchor)
+                    
+                    imported_objects.extend(imported_cinematic_objects)
                         
                     if importer.needs_scaling:
                         utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_cinematic_objects, actions=imported_cinematic_actions)
@@ -4698,7 +4701,6 @@ def setup_materials(context: bpy.types.Context, importer: NWOImporter, starting_
                 if export_name in validated_funcs:
                     for func in funcs:
                         add_function(context.scene, func, ob, ob.parent)
-                        
                         
         # Apply emissives
         if emissive_meshes:

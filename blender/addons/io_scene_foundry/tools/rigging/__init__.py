@@ -55,7 +55,7 @@ class HaloRig:
         self.rig_ob: bpy.types.Object = None
         self.rig_pose: bpy.types.Pose = None
     
-    def build_and_apply_control_shapes(self, pedestal=None, pitch=None, yaw=None, aim_control=None, wireframe=False, aim_control_only=False, reverse_control=False):
+    def build_and_apply_control_shapes(self, pedestal=None, pitch=None, yaw=None, aim_control=None, wireframe=False, aim_control_only=False, reverse_control=False, reach_fp_fix=False):
         min_size, max_size = utils.to_aabb(self.rig_ob)
         shape_scale = abs((max_size - min_size).length)
         if not aim_control_only:
@@ -76,6 +76,10 @@ class HaloRig:
                 pedestal.custom_shape = shape_ob
                 pedestal.custom_shape_scale_xyz = Vector((1, 1, 1)) * shape_scale
                 pedestal.use_custom_shape_bone_size = False
+                
+                if reach_fp_fix:
+                    pedestal.custom_shape_rotation_euler.x = radians(-90)
+                
                 if wireframe:
                     self.rig_data.bones[pedestal.name].show_wire = True
         
@@ -94,6 +98,10 @@ class HaloRig:
                 aim_control.custom_shape = shape_ob
                 aim_control.custom_shape_scale_xyz = Vector((1, 1, 1)) * shape_scale
                 aim_control.use_custom_shape_bone_size = False
+                
+                if reach_fp_fix:
+                    aim_control.custom_shape_rotation_euler.z = radians(90)
+                
                 if wireframe:
                     self.rig_data.bones[aim_control.name].show_wire = True
                 
@@ -120,7 +128,9 @@ class HaloRig:
                     pitch.custom_shape = shape_ob
                     pitch.custom_shape_scale_xyz = Vector((0.2, 0.2, 0.2)) * shape_scale
                     pitch.use_custom_shape_bone_size = False
-                    pitch.custom_shape_rotation_euler.x = radians(90)
+                    if not reach_fp_fix:
+                        pitch.custom_shape_rotation_euler.x = radians(90)
+                    
                     if wireframe:
                         self.rig_data.bones[pitch.name].show_wire = True
                         
@@ -128,6 +138,10 @@ class HaloRig:
                     yaw.custom_shape = shape_ob
                     yaw.custom_shape_scale_xyz = Vector((0.2, 0.2, 0.2)) * shape_scale
                     yaw.use_custom_shape_bone_size = False
+                    
+                    if reach_fp_fix:
+                        yaw.custom_shape_rotation_euler.x = radians(90)
+                    
                     if wireframe:
                         self.rig_data.bones[yaw.name].show_wire = True
                 
@@ -175,12 +189,16 @@ class HaloRig:
                     con.owner_space = 'LOCAL'
                     
                     con = aim_control.constraints.new('LIMIT_ROTATION')
-                    con.use_limit_x = True
                     con.min_x = 0
                     con.max_x = 0
+                    con.use_limit_x = True
                     con.use_limit_y = True
-                    con.min_y = radians(-90)
-                    con.max_y = radians(90)
+                    if reach_fp_fix:
+                        con.min_x = radians(-90)
+                        con.max_x = radians(90)
+                    else:
+                        con.min_y = radians(-90)
+                        con.max_y = radians(90)
                     con.euler_order = 'YXZ'
                     con.use_transform_limit = True
                     con.owner_space = 'LOCAL'
@@ -193,7 +211,6 @@ class HaloRig:
                     con.target_space = 'LOCAL_OWNER_ORIENT'
                     con.owner_space = 'LOCAL'
                     
-
                     con = yaw.constraints.new('COPY_ROTATION')
                     con.target = self.rig_ob
                     con.subtarget = aim_control.name

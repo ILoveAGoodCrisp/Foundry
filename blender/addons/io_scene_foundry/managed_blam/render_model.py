@@ -16,7 +16,6 @@ from .. import utils
 from ..managed_blam import Tag
 import bpy
     
-    
 class RenderModelTag(Tag):
     tag_ext = 'render_model'
     
@@ -140,8 +139,16 @@ class RenderModelTag(Tag):
         # print("Creating Armature")
         arm = RenderArmature(f"{self.tag.Path.ShortName}", existing_armature)
         self.nodes: list[Node] = []
+        uses_aim_bones = False
+        uses_pedestal = False
+        root = None
+        reach_fp_fix = False
+        pedestal = None
+        pitch = None
+        yaw = None
         for element in self.block_nodes.Elements:
             node = Node(element.SelectField("name").GetStringData(), )
+            
             node.index = element.ElementIndex
             translation = element.SelectField("default translation").Data
             node.translation = Vector([n for n in translation]) * 100
@@ -162,6 +169,22 @@ class RenderModelTag(Tag):
             if parent_index > -1:
                 node.parent = self.block_nodes.Elements[parent_index].SelectField("name").GetStringData()
                 
+            if element.ElementIndex == 0:
+                root = node
+                pedestal = node.name
+                if node.name.endswith(('pedestal')):
+                    uses_pedestal = True
+                    
+                if rotation[1] == 0.5:
+                    reach_fp_fix = True
+                    
+            elif node.parent == root.name and node.name.endswith(('aim_pitch', 'aim_yaw')):
+                uses_aim_bones = True
+                if node.name.endswith('aim_pitch'):
+                    pitch = node.name
+                elif node.name.endswith('aim_yaw'):
+                    yaw = node.name
+                
             self.nodes.append(node)
         
         if existing_armature is None:
@@ -177,12 +200,13 @@ class RenderModelTag(Tag):
             
             # make the rig not terrible
             scale = 1 / 0.03048
-            rig = HaloRig(self.context, scale, 'x', True, False)
+            rig = HaloRig(self.context, scale, 'x', uses_aim_bones, False)
             rig.rig_ob = arm.ob
             rig.rig_data = arm.data
             rig.rig_pose = arm.ob.pose
-            rig.build_bones()
-            rig.build_and_apply_control_shapes(wireframe=True)
+            rig.build_bones(pedestal=pedestal, pitch=pitch, yaw=yaw)
+            if uses_pedestal or uses_aim_bones:
+                rig.build_and_apply_control_shapes(wireframe=True, reach_fp_fix=reach_fp_fix)
             rig.apply_halo_bone_shape()
             rig.generate_bone_collections()
         else:
