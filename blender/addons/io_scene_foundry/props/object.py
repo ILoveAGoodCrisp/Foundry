@@ -60,6 +60,11 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         override={'LIBRARY_OVERRIDABLE'},
     )
     
+    invert_control_aim: bpy.props.BoolProperty(
+        name="Aim Control Toggle",
+        description=f"Inverts the constraint relationship between the Aim Control and aim pitch / aim yaw bones. Allows the aim pitch and aim yaw bones to control the aim control bone"
+    )
+    
     # CINEMATIC
     
     def cinematic_object_clean_tag_path(self, context):

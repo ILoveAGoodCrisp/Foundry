@@ -203,13 +203,23 @@ class HaloRig:
                     con.use_transform_limit = True
                     con.owner_space = 'LOCAL'
                     
-                    
                     if reach_fp_fix:
                         pitch_con_bone = yaw
                         yaw_con_bone = pitch
                     else:
                         pitch_con_bone = pitch
                         yaw_con_bone = yaw
+                        
+                    # def add_aim_control_driver():
+                    #     result = con.driver_add('influence')
+                    #     driver = result.driver
+                    #     driver.type = 'SCRIPTED'
+                    #     var = driver.variables.new()
+                    #     var.name = "var"
+                    #     var.type = 'SINGLE_PROP'
+                    #     var.targets[0].id = self.rig_ob
+                    #     var.targets[0].data_path = '["invert_control_aim"]'
+                    #     driver.expression = var
                     
                     con = pitch_con_bone.constraints.new('COPY_ROTATION')
                     con.target = self.rig_ob

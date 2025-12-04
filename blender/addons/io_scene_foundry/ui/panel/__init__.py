@@ -18,6 +18,12 @@ AMF_ADDON = r"https://github.com/Gravemind2401/Reclaimer/blob/master/Reclaimer.B
 RECLAIMER = r"https://github.com/Gravemind2401/Reclaimer/releases"
 ANIMATION_REPO = r"https://github.com/77Mynameislol77/HaloAnimationRepository"
 
+
+from ...managed_blam.connected_material import functions_list
+game_functions = {func.name for func in functions_list}
+all_change_color_prop_names = ("Primary Color", "Secondary Color", "Tertiary Color", "Quaternary Color")
+all_change_color_prop_display_names = ("Primary", "Secondary", "Tertiary", "Quaternary")
+
 HOTKEYS = [
     ("show_foundry_panel", "SHIFT+F"),
     ("apply_mesh_type", "CTRL+F"),
@@ -1570,6 +1576,38 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 col.separator()
                 box = col.box()
                 box.prop(nwo, "node_order_source", icon_value=get_icon_id("tags"))
+            
+            custom_props = [k for k in ob.keys() if not k.startswith("_")]
+            
+            change_colors_props = [k for k in custom_props if k in all_change_color_prop_names]
+            weapon_props = [k for k in custom_props if k in ("Ammo", "Tether Distance")]
+            function_props = [k for k in custom_props if k in game_functions]
+            
+            if change_colors_props or weapon_props or function_props:
+                custom_box = box.box()
+                custom_box.label(text="Custom Properties")
+                custom_box.use_property_split = True
+                if change_colors_props:
+                    change_colors_box = custom_box.box()
+                    change_colors_box.label(text="Change Colors")
+                    change_colors_box.separator()
+                    for key, display in zip(all_change_color_prop_names, all_change_color_prop_display_names):
+                        if key in change_colors_props:
+                            change_colors_box.prop(ob, f'["{key}"]', text=display)
+                        
+                if weapon_props:
+                    weapon_box = custom_box.box()
+                    weapon_box.label(text="Weapon")
+                    weapon_box.separator()
+                    for key in sorted(weapon_props):
+                        weapon_box.prop(ob, f'["{key}"]')
+                        
+                if function_props:
+                    function_box = custom_box.box()
+                    function_box.label(text="Functions")
+                    function_box.separator()
+                    for key in sorted(function_props):
+                        function_box.prop(ob, f'["{key}"]', text=utils.formalise_string(key))
 
             return
         
