@@ -65,8 +65,13 @@ class ObjectTag(Tag):
         if has_data:
             return change_colors
     
-    def get_magazine_size(self):
+    def get_magazine_size(self, find_weapon=False):
         if self.tag_path.Extension != "weapon":
+            if find_weapon:
+                potential_weapon_path = Path(self.tag_path.Filename).with_suffix((".weapon"))
+                if potential_weapon_path.exists():
+                    with ObjectTag(path=potential_weapon_path) as wep_tag:
+                        return wep_tag.get_magazine_size()
             return 0
         
         magazines = self.tag.SelectField("Block:magazines")
@@ -75,8 +80,14 @@ class ObjectTag(Tag):
         
         return magazines.Elements[0].SelectField("rounds loaded maximum").Data
     
-    def get_uses_tether(self):
+    def get_uses_tether(self, find_weapon=False):
         if self.tag_path.Extension != "weapon":
+            if find_weapon:
+                potential_weapon_path = Path(self.tag_path.Filename).with_suffix((".weapon"))
+                if potential_weapon_path.exists():
+                    with ObjectTag(path=potential_weapon_path) as wep_tag:
+                        return wep_tag.get_uses_tether()
+                        
             return False
         
         triggers = self.tag.SelectField("Block:new triggers")

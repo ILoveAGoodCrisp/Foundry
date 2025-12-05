@@ -2052,11 +2052,11 @@ class NWOImporter:
                     if not model_path or not Path(model_path).exists():
                         continue
                     change_colors = obj.get_change_colors(self.tag_variant)
-                    magazine_size = obj.get_magazine_size()
+                    magazine_size = obj.get_magazine_size(find_weapon=True)
                     has_ammo = magazine_size > 0
                     if has_ammo:
                         print(f"--- Weapon has magazine size: {magazine_size}")
-                    uses_tether = obj.get_uses_tether()
+                    uses_tether = obj.get_uses_tether(find_weapon=True)
                     functions = obj.functions_to_blender()
                     if functions:
                         print(f"--- Created Blender node groups for {len(functions)} object functions")
@@ -2309,11 +2309,11 @@ class NWOImporter:
                 return imported_objects
             change_colors = obj.get_change_colors(self.tag_variant)
             has_change_colors = change_colors is not None
-            magazine_size = obj.get_magazine_size()
+            magazine_size = obj.get_magazine_size(find_weapon=True)
             has_ammo = magazine_size > 0
             if has_ammo:
                 print(f"--- Weapon has magazine size: {magazine_size}")
-            uses_tether = obj.get_uses_tether()
+            uses_tether = obj.get_uses_tether(find_weapon=True)
             functions = obj.functions_to_blender()
             if functions:
                 print(f"--- Created Blender node groups for {len(functions)} object functions")
