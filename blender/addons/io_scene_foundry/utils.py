@@ -5650,3 +5650,8 @@ def mesh_to_cube(mesh: bpy.types.Mesh):
     ]
     
     mesh.from_pydata(vertices=verts, edges=[], faces=indices)
+    
+def project_file_exists(path, data=False):
+    root = get_data_path() if data else get_tags_path()
+    rel = relative_path(path)
+    return Path(root, rel).exists()

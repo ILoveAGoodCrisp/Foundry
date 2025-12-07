@@ -35,7 +35,7 @@ class NWO_OpenFoundationTag(bpy.types.Operator):
         return current_project_valid()
 
     def execute(self, context):
-        full_tag_path = Path(get_tags_path(), self.tag_path)
+        full_tag_path = Path(get_tags_path(), relative_path(self.tag_path))
         if full_tag_path.exists():
             run_ek_cmd(["foundation", "/dontloadlastopenedwindows", full_tag_path], True)
         else:
