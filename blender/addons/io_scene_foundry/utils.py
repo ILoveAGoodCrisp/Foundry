@@ -5377,7 +5377,7 @@ class AnimationName:
             self.set = tokens.pop(0)
             
         if tokens:
-            print_warning("Bad animation name?", name, tokens)
+            print_warning(("Bad animation name?", name, tokens))
             
         self.valid = True
         
