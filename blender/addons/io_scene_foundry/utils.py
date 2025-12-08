@@ -2499,6 +2499,7 @@ class TransformObject:
 def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forward, new_forward, keep_marker_axis=None, objects=None, actions=None, apply_rotation=False, exclude_scale_models=False, skip_data=False):
     """Transform blender objects by the given scale factor and rotation. Optionally this can be scoped to a set of objects and animations rather than all"""
     print("\nTransforming Scene\n")
+    context.view_layer.update()
     all_objects = False
     armatures_to_reparent = {}
     with TransformManager():
