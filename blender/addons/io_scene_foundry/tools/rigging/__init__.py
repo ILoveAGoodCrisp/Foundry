@@ -45,17 +45,17 @@ special_bones = (
 )
 
 class HaloRig:
-    def __init__(self, context: bpy.types.Context, scale, forward, has_pose_bones=False, set_scene_rig_props=False):
+    def __init__(self, context=bpy.context, scale=None, forward=None, has_pose_bones=False, set_scene_rig_props=False):
         self.context = context
-        self.scale = scale
-        self.forward = forward
+        self.scale = ((1 / 0.03048) if context.scene.nwo.scale == 'max' else 1) if scale is None else scale
+        self.forward = context.scene.nwo.forward_direction if forward is None else forward
         self.has_pose_bones = has_pose_bones
         self.set_scene_rig_props = set_scene_rig_props
         self.rig_data: bpy.types.Armature = None
         self.rig_ob: bpy.types.Object = None
         self.rig_pose: bpy.types.Pose = None
     
-    def build_and_apply_control_shapes(self, pedestal=None, pitch=None, yaw=None, aim_control=None, wireframe=False, aim_control_only=False, reverse_control=False, reach_fp_fix=False):
+    def build_and_apply_control_shapes(self, pedestal=None, pitch=None, yaw=None, aim_control=None, wireframe=False, aim_control_only=False, reverse_control=False, reach_fp_fix=False, constraints_only=False):
         min_size, max_size = utils.to_aabb(self.rig_ob)
         shape_scale = abs((max_size - min_size).length)
         if not aim_control_only:
@@ -87,23 +87,25 @@ class HaloRig:
             if not aim_control:
                 aim_control: bpy.types.PoseBone = utils.get_pose_bone(self.rig_ob, aim_control_name)
             if aim_control is not None:
-                shape_ob = bpy.data.objects.get(aim_shape_name)
-                if shape_ob is None:
-                    shape_data = bpy.data.meshes.new(aim_shape_name)
-                    verts = [Vector(co) for co in aim_shape_vert_coords]
-                    shape_data.from_pydata(vertices=verts, edges=[], faces=aim_shape_faces)
-                    shape_ob = bpy.data.objects.new(aim_shape_name, shape_data)
-                    shape_ob.nwo.export_this = False
+                self.rig_ob.nwo.control_aim = aim_control.name
+                if not constraints_only:
+                    shape_ob = bpy.data.objects.get(aim_shape_name)
+                    if shape_ob is None:
+                        shape_data = bpy.data.meshes.new(aim_shape_name)
+                        verts = [Vector(co) for co in aim_shape_vert_coords]
+                        shape_data.from_pydata(vertices=verts, edges=[], faces=aim_shape_faces)
+                        shape_ob = bpy.data.objects.new(aim_shape_name, shape_data)
+                        shape_ob.nwo.export_this = False
+                        
+                    aim_control.custom_shape = shape_ob
+                    aim_control.custom_shape_scale_xyz = Vector((1, 1, 1)) * shape_scale
+                    aim_control.use_custom_shape_bone_size = False
+                
+                    if reach_fp_fix:
+                        aim_control.custom_shape_rotation_euler.z = radians(90)
                     
-                aim_control.custom_shape = shape_ob
-                aim_control.custom_shape_scale_xyz = Vector((1, 1, 1)) * shape_scale
-                aim_control.use_custom_shape_bone_size = False
-                
-                if reach_fp_fix:
-                    aim_control.custom_shape_rotation_euler.z = radians(90)
-                
-                if wireframe:
-                    self.rig_data.bones[aim_control.name].show_wire = True
+                    if wireframe:
+                        self.rig_data.bones[aim_control.name].show_wire = True
                 
                 if not pitch:
                     pitch: bpy.types.PoseBone = utils.get_pose_bone(self.rig_ob, aim_pitch_name)
@@ -124,31 +126,97 @@ class HaloRig:
                 if not (pedestal or pitch or yaw or aim_control):
                     return
                 
-                if pitch:
-                    pitch.custom_shape = shape_ob
-                    pitch.custom_shape_scale_xyz = Vector((0.2, 0.2, 0.2)) * shape_scale
-                    pitch.use_custom_shape_bone_size = False
-                    if not reach_fp_fix:
-                        pitch.custom_shape_rotation_euler.x = radians(90)
-                    
-                    if wireframe:
-                        self.rig_data.bones[pitch.name].show_wire = True
+                if not constraints_only:
+                    if pitch:
+                        pitch.custom_shape = shape_ob
+                        pitch.custom_shape_scale_xyz = Vector((0.2, 0.2, 0.2)) * shape_scale
+                        pitch.use_custom_shape_bone_size = False
+                        if not reach_fp_fix:
+                            pitch.custom_shape_rotation_euler.x = radians(90)
                         
-                if yaw:
-                    yaw.custom_shape = shape_ob
-                    yaw.custom_shape_scale_xyz = Vector((0.2, 0.2, 0.2)) * shape_scale
-                    yaw.use_custom_shape_bone_size = False
+                        if wireframe:
+                            self.rig_data.bones[pitch.name].show_wire = True
+                            
+                    if yaw:
+                        yaw.custom_shape = shape_ob
+                        yaw.custom_shape_scale_xyz = Vector((0.2, 0.2, 0.2)) * shape_scale
+                        yaw.use_custom_shape_bone_size = False
+                        
+                        if reach_fp_fix:
+                            yaw.custom_shape_rotation_euler.x = radians(90)
+                        
+                        if wireframe:
+                            self.rig_data.bones[yaw.name].show_wire = True
+                        
+                # def add_aim_control_driver(c, invert):
+                #     result = c.driver_add('influence')
+                #     driver = result.driver
+                #     driver.type = 'SCRIPTED'
+                #     var = driver.variables.new()
+                #     var.name = "var"
+                #     var.type = 'SINGLE_PROP'
+                #     var.targets[0].id = self.rig_ob
+                #     var.targets[0].data_path = '["_invert_control_aim"]'
+                #     driver.expression = var.name if invert else f"not {var.name}"
                     
-                    if reach_fp_fix:
-                        yaw.custom_shape_rotation_euler.x = radians(90)
-                    
-                    if wireframe:
-                        self.rig_data.bones[yaw.name].show_wire = True
+                if reach_fp_fix:
+                    pitch_con_bone = yaw
+                    yaw_con_bone = pitch
+                else:
+                    pitch_con_bone = pitch
+                    yaw_con_bone = yaw
                 
+                utils.clear_constraints(aim_control)
+                utils.clear_constraints(yaw)
+                utils.clear_constraints(pitch)
+                
+                con = aim_control.constraints.new('LIMIT_SCALE')
+                con.use_min_x = True
+                con.use_min_y = True
+                con.use_min_z = True
+                con.use_max_x = True
+                con.use_max_y = True
+                con.use_max_z = True
+                con.min_x = 1
+                con.min_y = 1
+                con.min_z = 1
+                con.max_x = 1
+                con.max_y = 1
+                con.max_z = 1
+                con.use_transform_limit = True
+                con.owner_space = 'LOCAL'
+                
+                con = aim_control.constraints.new('LIMIT_LOCATION')
+                con.use_min_x = True
+                con.use_min_y = True
+                con.use_min_z = True
+                con.use_max_x = True
+                con.use_max_y = True
+                con.use_max_z = True
+                con.use_transform_limit = True
+                con.owner_space = 'LOCAL'
+                
+                con = aim_control.constraints.new('LIMIT_ROTATION')
+                con.min_x = 0
+                con.max_x = 0
+                con.use_limit_x = True
+                con.use_limit_y = True
+                if reach_fp_fix:
+                    con.min_x = radians(-90)
+                    con.max_x = radians(90)
+                else:
+                    con.min_y = radians(-90)
+                    con.max_y = radians(90)
+                con.euler_order = 'YXZ'
+                con.use_transform_limit = True
+                con.owner_space = 'LOCAL'
+                
+                # When invert True
                 if reverse_control:
+                    self.rig_ob.nwo.invert_control_aim = True
                     con = aim_control.constraints.new('COPY_ROTATION')
                     con.target = self.rig_ob
-                    con.subtarget = pitch.name
+                    con.subtarget = pitch_con_bone.name
                     con.use_x = False
                     con.use_z = False
                     con.target_space = 'LOCAL_OWNER_ORIENT'
@@ -156,71 +224,15 @@ class HaloRig:
                     
                     con = aim_control.constraints.new('COPY_ROTATION')
                     con.target = self.rig_ob
-                    con.subtarget = yaw.name
+                    con.subtarget = yaw_con_bone.name
                     con.use_x = False
                     con.use_y = False
                     con.target_space = 'LOCAL_OWNER_ORIENT'
                     con.owner_space = 'LOCAL'
+                
+                # When invert false
                 else:
-                    con = aim_control.constraints.new('LIMIT_SCALE')
-                    con.use_min_x = True
-                    con.use_min_y = True
-                    con.use_min_z = True
-                    con.use_max_x = True
-                    con.use_max_y = True
-                    con.use_max_z = True
-                    con.min_x = 1
-                    con.min_y = 1
-                    con.min_z = 1
-                    con.max_x = 1
-                    con.max_y = 1
-                    con.max_z = 1
-                    con.use_transform_limit = True
-                    con.owner_space = 'LOCAL'
-                    
-                    con = aim_control.constraints.new('LIMIT_LOCATION')
-                    con.use_min_x = True
-                    con.use_min_y = True
-                    con.use_min_z = True
-                    con.use_max_x = True
-                    con.use_max_y = True
-                    con.use_max_z = True
-                    con.use_transform_limit = True
-                    con.owner_space = 'LOCAL'
-                    
-                    con = aim_control.constraints.new('LIMIT_ROTATION')
-                    con.min_x = 0
-                    con.max_x = 0
-                    con.use_limit_x = True
-                    con.use_limit_y = True
-                    if reach_fp_fix:
-                        con.min_x = radians(-90)
-                        con.max_x = radians(90)
-                    else:
-                        con.min_y = radians(-90)
-                        con.max_y = radians(90)
-                    con.euler_order = 'YXZ'
-                    con.use_transform_limit = True
-                    con.owner_space = 'LOCAL'
-                    
-                    if reach_fp_fix:
-                        pitch_con_bone = yaw
-                        yaw_con_bone = pitch
-                    else:
-                        pitch_con_bone = pitch
-                        yaw_con_bone = yaw
-                        
-                    # def add_aim_control_driver():
-                    #     result = con.driver_add('influence')
-                    #     driver = result.driver
-                    #     driver.type = 'SCRIPTED'
-                    #     var = driver.variables.new()
-                    #     var.name = "var"
-                    #     var.type = 'SINGLE_PROP'
-                    #     var.targets[0].id = self.rig_ob
-                    #     var.targets[0].data_path = '["invert_control_aim"]'
-                    #     driver.expression = var
-                    
+                    self.rig_ob.nwo.invert_control_aim = False
                     con = pitch_con_bone.constraints.new('COPY_ROTATION')
                     con.target = self.rig_ob
                     con.subtarget = aim_control.name
@@ -303,8 +315,6 @@ class HaloRig:
             aim_control.use_deform = False
             aim_control.parent = pedestal
             aim_control.tail = bone_tail
-            if set_control and self.set_scene_rig_props and not self.context.scene.nwo.control_aim:
-                self.context.scene.nwo.control_aim = aim_control_name
 
         bpy.ops.object.editmode_toggle()
                 

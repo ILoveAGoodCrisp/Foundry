@@ -492,8 +492,8 @@ class NWO_AddPoseBones(bpy.types.Operator):
         return {'FINISHED'}
     
     def invoke(self, context, event):
-        scene_nwo = context.scene.nwo
-        if scene_nwo.control_aim:
+        rig = utils.get_rig_prioritize_active(context)
+        if rig.nwo.control_aim:
             self.report({'INFO'}, "Aim Control bone already set")
             self.has_control_bone = True
             return self.execute(context)

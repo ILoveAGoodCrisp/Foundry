@@ -65,6 +65,12 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         description=f"Inverts the constraint relationship between the Aim Control and aim pitch / aim yaw bones. Allows the aim pitch and aim yaw bones to control the aim control bone"
     )
     
+    control_aim: bpy.props.StringProperty(
+        name="Aim Control Bone",
+        description="Bone used to control the aim yaw and pitch bones on a halo armature",
+        options=set(),
+    )
+    
     # CINEMATIC
     
     def cinematic_object_clean_tag_path(self, context):

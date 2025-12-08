@@ -893,12 +893,12 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 
         #col.separator()
                 
-    def draw_rig_controls(self, box: bpy.types.UILayout, nwo):
-        box.use_property_split = True
-        row = box.row(align=True)
-        row.prop_search(nwo, 'control_aim', nwo.main_armature.data, 'bones')
-        if not nwo.control_aim:
-            row.operator('nwo.add_pose_bones', text='', icon='ADD').skip_invoke = True
+    # def draw_rig_controls(self, box: bpy.types.UILayout, nwo):
+    #     box.use_property_split = True
+    #     row = box.row(align=True)
+    #     row.prop_search(nwo, 'control_aim', nwo.main_armature.data, 'bones')
+    #     if not nwo.control_aim:
+    #         row.operator('nwo.add_pose_bones', text='', icon='ADD').skip_invoke = True
     
     def draw_rig_usages(self, box, nwo):
         box.use_property_split = True
@@ -1239,7 +1239,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
     def draw_rig_ui(self, context, nwo):
         box = self.box.box()
         if self.draw_expandable_box(box, nwo, 'model_rig') and nwo.main_armature:
-            self.draw_expandable_box(box.box(), nwo, 'rig_controls', 'Bone Controls')
+            # self.draw_expandable_box(box.box(), nwo, 'rig_controls', 'Bone Controls')
             self.draw_expandable_box(box.box(), nwo, 'rig_usages', 'Node Usages')
             self.draw_expandable_box(box.box(), nwo, 'ik_chains', panel_display_name='IK Chains')
 
@@ -1565,7 +1565,14 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             draw_custom_props()
             
             box_rigging = box.box()
-            box_rigging.label(text="Rig Controls")
+            box_rigging.label(text="Armature Controls")
+            box_rigging.use_property_split = True
+            row = box_rigging.row(align=True)
+            row.prop_search(nwo, 'control_aim', ob.pose, 'bones')
+            if not nwo.control_aim:
+                row.operator('nwo.add_pose_bones', text='', icon='ADD').skip_invoke = True
+                
+            box_rigging.operator("nwo.invert_aim_control", icon='CONSTRAINT_BONE', depress=nwo.invert_control_aim)
             
             return
         

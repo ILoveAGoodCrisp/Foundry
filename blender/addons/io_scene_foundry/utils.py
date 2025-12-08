@@ -5655,3 +5655,7 @@ def project_file_exists(path, data=False):
     root = get_data_path() if data else get_tags_path()
     rel = relative_path(path)
     return Path(root, rel).exists()
+
+def clear_constraints(id):
+    for con in reversed(id.constraints):
+        id.constraints.remove(con)

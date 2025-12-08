@@ -206,7 +206,7 @@ class RenderModelTag(Tag):
             rig.rig_pose = arm.ob.pose
             rig.build_bones(pedestal=pedestal, pitch=pitch, yaw=yaw)
             if uses_pedestal or uses_aim_bones:
-                rig.build_and_apply_control_shapes(wireframe=True, reach_fp_fix=reach_fp_fix)
+                rig.build_and_apply_control_shapes(wireframe=True, reach_fp_fix=reach_fp_fix, reverse_control=True)
             rig.apply_halo_bone_shape()
             rig.generate_bone_collections()
         else:

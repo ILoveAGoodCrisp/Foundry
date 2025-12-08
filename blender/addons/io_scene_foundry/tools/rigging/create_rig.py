@@ -3,6 +3,32 @@ import bpy
 from ... import utils
 from ...tools.rigging import HaloRig
 
+class NWO_OT_InvertAimControl(bpy.types.Operator):
+    bl_idname = "nwo.invert_aim_control"
+    bl_label = "Invert Aim Control"
+    bl_description = "Inverts the constraint relationship between the Aim Control and aim pitch / aim yaw bones. Allows the aim pitch and aim yaw bones to control the aim control bone"
+    bl_options = {"REGISTER", "UNDO"}
+    
+    @classmethod
+    def poll(cls, context):
+        return context.object and context.object.type == 'ARMATURE' and context.object.nwo.control_aim.strip()
+    
+    def execute(self, context):
+        arm = context.object
+        aim_control_name = context.object.nwo.control_aim
+        aim_control = utils.get_pose_bone(arm, aim_control_name)
+        if aim_control is None:
+            self.report({'WARNING'}, f"Failed to find aim control bone named {aim_control_name}")
+            return {'CANCELLED'}
+        
+        rig = HaloRig(context, has_pose_bones=True)
+        rig.rig_ob = arm
+        rig.rig_data = arm.data
+        rig.rig_pose = arm.pose
+        rig.build_and_apply_control_shapes(aim_control=aim_control, aim_control_only=True, reverse_control=(not arm.nwo.invert_control_aim), constraints_only=True)
+        self.report({'INFO'}, f"Aim pitch & yaw now control {aim_control_name}" if arm.nwo.invert_control_aim else f"{aim_control_name} controls aim pitch & yaw")
+        return {'FINISHED'}
+
 class NWO_OT_AddRig(bpy.types.Operator):
     bl_idname = "nwo.add_rig"
     bl_label = "Add Halo Rig"

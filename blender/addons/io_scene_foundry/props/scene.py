@@ -2955,8 +2955,6 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     node_usage_right_hand : bpy.props.StringProperty(name="Right Hand", options=set())
     node_usage_weapon_ik : bpy.props.StringProperty(name="Weapon IK", options=set())
     
-    control_aim: bpy.props.StringProperty(name='Aim Control', options=set())
-    
     # Scale
     def scale_update(self, context):
         scene_scale = 1
