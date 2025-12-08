@@ -71,10 +71,17 @@ class ShaderTerrainTag(ShaderTag):
         self.shader_parameters.update(self.category_parameters["material_0"][utils.game_str(e_material_0.name)])
         self.shader_parameters.update(self.category_parameters["material_1"][utils.game_str(e_material_1.name)])
         self.shader_parameters.update(self.category_parameters["material_2"][utils.game_str(e_material_2.name)])
-        if e_material_3 == TerrainMaterial3.OFF:
-            self.shader_parameters.update(self.category_parameters["material_3"]["off"])
-        else:
-            self.shader_parameters.update(self.category_parameters["material_3"][f"{utils.game_str(e_material_3.name)}_(four_material_shaders_disable_detail_bump)"])
+        
+        match e_material_3:
+            case TerrainMaterial3.OFF:
+                material_3 = "off"
+            case TerrainMaterial3.DIFFUSE_ONLY:
+                material_3 = "diffuse_only_(four_material_shaders_disable_detail_bump)"
+            case TerrainMaterial3.DIFFUSE_PLUS_SPECULAR:
+                material_3 = "diffuse_plus_specular_(four_material_shaders_disable_detail_bump)"
+        
+        self.shader_parameters.update(self.category_parameters["material_3"][material_3])
+        
         self.true_parameters = {option.ui_name: option for option in self.shader_parameters.values()}
         
         tree = blender_material.node_tree
@@ -82,38 +89,19 @@ class ShaderTerrainTag(ShaderTag):
         # Clear it out
         nodes.clear()
         
-        node_group = self._add_group_node(tree, nodes, "Master Terrain Material")
-        self.populate_chiefster_node(tree, node_group)
-        final_node = node_group
+        group_node = self._add_group_node(tree, nodes, f"foundry_reach.shader_terrain")
         
-        if e_material_0 != TerrainMaterial.OFF:
-            node_group.inputs["Enable material_0"].default_value = True
-        if e_material_1 != TerrainMaterial.OFF:
-            node_group.inputs["Enable material_1"].default_value = True
-        if e_material_2 != TerrainMaterial.OFF:
-            node_group.inputs["Enable material_2"].default_value = True
-        if e_material_3 != TerrainMaterial3.OFF:
-            node_group.inputs["Enable material_3"].default_value = True
-            
-        if e_environment_mapping.value > 0:
-            node_environment_mapping = self._add_group_node(tree, nodes, f"environment_mapping - {utils.game_str(e_environment_mapping.name)}")
-            self.populate_chiefster_node(tree, node_environment_mapping)
-            tree.links.new(input=node_environment_mapping.inputs[0], output=node_group.outputs[1])
-            tree.links.new(input=node_environment_mapping.inputs["Normal"], output=node_group.outputs["Normal"])
-            if e_environment_mapping == TerrainEnvironmentMapping.DYNAMIC:
-                tree.links.new(input=node_environment_mapping.inputs[1], output=node_group.outputs[2])
-                
-            node_model_environment_add = nodes.new(type='ShaderNodeAddShader')
-            node_model_environment_add.location.x = node_environment_mapping.location.x + 300
-            node_model_environment_add.location.y = node_group.location.y
-            tree.links.new(input=node_model_environment_add.inputs[0], output=node_group.outputs[0])
-            tree.links.new(input=node_model_environment_add.inputs[1], output=node_environment_mapping.outputs[0])
-            final_node = node_model_environment_add
+        group_node.inputs[0].default_value = e_blending.name.lower().strip('_')
+        group_node.inputs[1].default_value = e_environment_mapping.name.lower().strip('_')
+        group_node.inputs[2].default_value = e_material_0.name.lower().strip('_')
+        group_node.inputs[3].default_value = e_material_1.name.lower().strip('_')
+        group_node.inputs[4].default_value = e_material_2.name.lower().strip('_')
+        group_node.inputs[5].default_value = material_3
+        
+        self.populate_chiefster_node(tree, group_node, 6)
             
         # Make the Output
         node_output = nodes.new(type='ShaderNodeOutputMaterial')
-        node_output.location.x = final_node.location.x + 300
-        node_output.location.y = final_node.location.y
-        
+
         # Link to output
-        tree.links.new(input=node_output.inputs[0], output=final_node.outputs[0])
+        tree.links.new(input=node_output.inputs[0], output=group_node.outputs[0])
