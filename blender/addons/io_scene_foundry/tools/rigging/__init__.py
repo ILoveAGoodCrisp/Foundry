@@ -54,6 +54,14 @@ class HaloRig:
         self.rig_data: bpy.types.Armature = None
         self.rig_ob: bpy.types.Object = None
         self.rig_pose: bpy.types.Pose = None
+        
+        self.pedestal: bpy.types.PoseBone = None
+        self.pitch: bpy.types.PoseBone = None
+        self.yaw: bpy.types.PoseBone = None
+        self.aim_control: bpy.types.PoseBone = None
+        
+        self.fk_bones: list[bpy.types.PoseBone] = []
+        self.ik_bones: list[bpy.types.PoseBone] = []
     
     def build_and_apply_control_shapes(self, pedestal=None, pitch=None, yaw=None, aim_control=None, wireframe=False, aim_control_only=False, reverse_control=False, reach_fp_fix=False, constraints_only=False):
         min_size, max_size = utils.to_aabb(self.rig_ob)
@@ -387,8 +395,158 @@ class HaloRig:
                 pbone.custom_shape_scale_xyz = Vector((0.5, 0.5, 0.5)) * self.scale
                 bone.show_wire = True
         
-    def build_fk_rig(self):
-        """Generates an FK skeleton for the halo rig"""
+    def build_fk_ik_rig(self):
+        """Generates an FK/IK skeleton for the halo rig"""
+        bone_chains = []
+        start_link_bones = {b[0]: iter(b[1:]) for b in bone_links}
+        start_link_bones_keys = tuple(start_link_bones)
         
-    def build_ik_rig(self):
-        """Generates an IK skeleton on the FK rig"""
+        def get_chain(b: bpy.types.PoseBone, i: int):
+            nonlocal start_link_bones
+            current_bone_chain = []
+            link_chain = next(v for k, v in start_link_bones.items() if b.name.endswith(k))
+            current_bone_chain.append(b.name)
+            next_link = next(link_chain, None)
+            allowed_bones = set(b.children_recursive)
+            if next_link is None:
+                return
+            while i < len(self.rig_pose.bones):
+                next_bone = self.rig_pose.bones[i]
+                if next_bone.name.endswith(next_link) and next_bone in allowed_bones:
+                    current_bone_chain.append(next_bone.name)
+                    next_link = next(link_chain, None)
+                    allowed_bones = set(b.children_recursive)
+                    if next_link is None:
+                        break
+                i += 1
+                
+            if len(current_bone_chain) > 1:
+               bone_chains.append(current_bone_chain)
+            
+            start_link_bones = {b[0]: iter(b[1:]) for b in bone_links} # reset the iterators
+        
+        def get_chain_digit(b: bpy.types.PoseBone, i: int):
+            current_bone_chain = []
+            current_bone_chain.append(b.name)
+            allowed_bones = set(b.children_recursive)
+            next_expected = b.name[:-1] + str(int(b.name[-1]) + 1)
+            while i < len(self.rig_pose.bones):
+                next_bone = self.rig_pose.bones[i]
+                if next_bone.name == next_expected and next_bone in allowed_bones:
+                    current_bone_chain.append(next_bone.name)
+                    allowed_bones = set(next_bone.children_recursive)
+                    next_expected = next_bone.name[:-1] + str(int(next_bone.name[-1]) + 1)
+                    
+                i += 1
+                
+            if len(current_bone_chain) > 1:
+               bone_chains.append(current_bone_chain)
+        
+        for idx, bone in enumerate(self.rig_pose.bones):
+            if bone.name.endswith(start_link_bones_keys):
+                get_chain(bone, idx + 1)
+            elif bone.name[-1] == "1":
+                get_chain_digit(bone, idx + 1)
+                
+        if not bone_chains:
+            return
+        
+        def fk_name(name):
+            no_prefix = utils.remove_node_prefix(name)
+            side = ""
+            
+            if len(no_prefix) > 2:
+                halo_side = no_prefix[0:2]
+                if halo_side == "r_":
+                    side = ".R"
+                elif halo_side == "l_":
+                    side = ".L"
+                    
+            if side:
+                end = no_prefix[2:]
+            else:
+                end = no_prefix
+            
+            return f"FK_{end}{side}"
+        
+        deform_fk_mapping = {}
+        deform_ik_mapping = {}
+        
+        bpy.ops.object.editmode_toggle()
+        
+        fk_bone_names = []
+        
+        for chain in bone_chains:
+            previous_fk_bone = None
+            for idx, bone_name in enumerate(chain):
+                edit_bone = self.rig_data.edit_bones[bone_name]
+                next_edit_bone = None
+                next_bone_idx = idx + 1
+                if next_bone_idx < len(chain):
+                    next_edit_bone = self.rig_data.edit_bones[chain[next_bone_idx]]
+                    
+                fk_bone = self.rig_data.edit_bones.new(fk_name(bone_name))
+                    
+                fk_bone.head = edit_bone.head
+
+                if next_edit_bone is None:
+                    children = edit_bone.children
+
+                    if children:
+                        avg = Vector((0.0, 0.0, 0.0))
+                        for child in children:
+                            avg += child.head
+                        fk_bone.tail = avg / len(children)
+
+                    else:
+                        fk_bone.tail = predict_tail_from_previous(previous_fk_bone, edit_bone)
+                else:
+                    fk_bone.tail = next_edit_bone.head
+
+                                    
+                if previous_fk_bone is None:
+                    fk_bone.parent = edit_bone.parent
+                else:
+                    fk_bone.parent = previous_fk_bone
+                    fk_bone.use_connect = True
+                    
+                deform_fk_mapping[edit_bone.name] = fk_bone.name
+                fk_bone_names.append(fk_bone.name)
+                previous_fk_bone = fk_bone
+                
+        bpy.ops.object.editmode_toggle()
+        
+        for b in self.rig_data.bones:
+            if b.name in fk_bone_names:
+                b.use_deform = False
+                
+        for db_name, fkb_name in deform_fk_mapping.items():
+            db = self.rig_pose.bones[db_name]
+            con = cast(bpy.types.Constraint, db.constraints.new('COPY_TRANSFORMS'))
+            con.target = self.rig_ob
+            con.subtarget = fkb_name
+            con.target_space = 'LOCAL_OWNER_ORIENT'
+            con.owner_space = 'LOCAL'
+
+
+def predict_tail_from_previous(previous_fk_bone, current_edit_bone):
+    if previous_fk_bone is None:
+        return current_edit_bone.tail.copy()
+
+    direction = previous_fk_bone.tail - previous_fk_bone.head
+    prev_len = direction.length
+
+    if prev_len < 1e-6:
+        return current_edit_bone.tail.copy()
+
+    direction.normalize()
+
+    return current_edit_bone.head + direction
+
+def is_descendant(bone: bpy.types.PoseBone, ancestor: bpy.types.PoseBone) -> bool:
+    parent = bone.parent
+    while parent:
+        if parent == ancestor:
+            return True
+        parent = parent.parent
+    return False

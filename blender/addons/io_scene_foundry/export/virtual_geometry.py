@@ -1664,7 +1664,7 @@ class FakeBone:
         else:
             self.matrix = ob.matrix_world @ bone.matrix
         
-def sort_bones_by_hierachy(fake_bones: list[FakeBone]):
+def sort_bones_by_hierarchy(fake_bones: list[FakeBone]):
     bone_dict = {}
     for fake_bone in fake_bones:
         if fake_bone.parent:
@@ -1763,8 +1763,8 @@ class VirtualSkeleton:
                 
             start_bones = list(start_bones_dict.values())
             
-            # Sort bones by hierachy i.e. all bones in a certain depth level in the child-parent relationship come before the next depth level
-            sorted_bones = sort_bones_by_hierachy(start_bones)
+            # Sort bones by hierarchy i.e. all bones in a certain depth level in the child-parent relationship come before the next depth level
+            sorted_bones = sort_bones_by_hierarchy(start_bones)
             valid_bones = [fb for fb in sorted_bones if fb.export]
             # More bone collections for later
             list_bones = [fb.name for fb in valid_bones]

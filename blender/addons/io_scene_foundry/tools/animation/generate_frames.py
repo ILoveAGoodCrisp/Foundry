@@ -305,6 +305,7 @@ class FrameGenerator:
             idle_name = name.copy()
             idle_name.state = "idle"
             next_animation = self._seek_best_matching_animation(animation, idle_name)
+            ignore_root = True
         
         elif "enter" in name.state: # mode/state enter from combat idle 
             idle_name = name.copy()
