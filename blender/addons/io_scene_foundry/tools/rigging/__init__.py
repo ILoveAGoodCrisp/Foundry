@@ -25,6 +25,7 @@ aim_shape_faces = [[1, 3, 0, 2]]
 bone_links = (
     ("upperarm", "forearm", "hand"),
     ("thigh", "calf", "foot"),
+    ("upper_leg", "lower_leg", "tarsus"),
     ("low", "mid", "tip"),
 )
 
