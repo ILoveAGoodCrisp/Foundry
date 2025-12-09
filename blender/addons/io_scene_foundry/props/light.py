@@ -580,8 +580,8 @@ class NWO_LightPropertiesGroup(bpy.types.PropertyGroup):
     )
     
     is_sun: bpy.props.BoolProperty(
-        name="Is Main Sun",
-        description="Sets this sun light as the main sun of the lighting info tag",
+        name="Is Sun",
+        description="Specifies this light as a sun light",
         options=set(),
     )
 
