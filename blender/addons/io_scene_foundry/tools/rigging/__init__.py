@@ -347,18 +347,22 @@ class HaloRig:
     def generate_bone_collections(self):
         """Sorts bones into bone collections"""
         bone_collections = self.rig_data.collections
-        halo_collection = bone_collections.get("Halo Bones")
+        halo_collection = bone_collections.get("Deform Bones")
         
         if halo_collection is None:
-            halo_collection = bone_collections.new("Halo Bones")
+            halo_collection = bone_collections.new("Deform Bones")
             
-        halo_special = bone_collections.get("Halo Special Bones")
+        halo_special = bone_collections.get("Deform Main Bones")
         if halo_special is None:
-            halo_special = bone_collections.new("Halo Special Bones", parent=halo_collection)
+            halo_special = bone_collections.new("Deform Main Bones", parent=halo_collection)
             
-        halo_helpers = bone_collections.get("Halo Helper Bones")
+        halo_helpers = bone_collections.get("Deform Helper Bones")
         if halo_helpers is None:
-            halo_helpers = bone_collections.new("Halo Helper Bones", parent=halo_collection)
+            halo_helpers = bone_collections.new("Deform Helper Bones", parent=halo_collection)
+            
+        pedestal_aim_collection = bone_collections.get("Pedestal & Aim Bones")
+        if pedestal_aim_collection is None:
+            pedestal_aim_collection = bone_collections.new("Pedestal & Aim Bones")
             
         fk_collection = bone_collections.get("FK")
         if fk_collection is None:
@@ -372,7 +376,7 @@ class HaloRig:
             no_digit_name = bone.name.strip("0123456789")
             if bone.use_deform:
                 if no_digit_name.endswith(special_bones):
-                    halo_special.assign(bone)
+                    pedestal_aim_collection.assign(bone)
                 elif no_digit_name.endswith(helper_bones):
                     halo_helpers.assign(bone)
                 else:

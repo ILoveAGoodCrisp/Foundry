@@ -675,6 +675,12 @@ class NWO_Import(bpy.types.Operator):
         description="Generates frames where possible for tag imported animations. This is needed because base and replacement animations are missing a final frame which would have been present in their source file",
     )
     
+    build_control_rig: bpy.props.BoolProperty(
+        name="Build Control Rig",
+        description="Builds an FK (IK TBD!) control rig for imported models",
+        default=True,
+    )
+    
     def execute(self, context):
         failed = False
         filepaths = [self.directory + f.name for f in self.files]
@@ -839,6 +845,7 @@ class NWO_Import(bpy.types.Operator):
                     importer.import_variant_children = self.import_variant_children
                     importer.setup_as_asset = self.setup_as_asset
                     importer.tag_import_lights = self.tag_import_lights
+                    importer.build_control_rig = self.build_control_rig
                     model_files = importer.sorted_filepaths["model"]
                     existing_armature = None
                     if self.reuse_armature:
@@ -928,6 +935,7 @@ class NWO_Import(bpy.types.Operator):
                         importer.import_fp_arms = FPARMS[self.import_fp_arms]
                         importer.from_vert_normals = self.from_vert_normals
                         importer.tag_import_lights = self.tag_import_lights
+                        importer.build_control_rig = self.build_control_rig
                         object_files = importer.sorted_filepaths["object"]
                         existing_armature = None
                         if self.reuse_armature:
@@ -955,6 +963,7 @@ class NWO_Import(bpy.types.Operator):
                     importer.tag_render = self.tag_render
                     importer.tag_markers = self.tag_markers
                     importer.from_vert_normals = self.from_vert_normals
+                    importer.build_control_rig = self.build_control_rig
                     render_model_files = importer.sorted_filepaths["render_model"]
                     existing_armature = None
                     if self.reuse_armature:
@@ -1834,6 +1843,7 @@ class NWOImporter:
         
         self.tag_cinematic_import_scenario = False
         self.tag_cinematic_import_actors = False
+        self.build_control_rig = False
     
     def group_filetypes(self, scope):
         if scope:
@@ -2466,7 +2476,7 @@ class NWOImporter:
         model_collection.children.link(collection)
         with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
             with RenderModelTag(path=mover.tag_path) as render_model:
-                render_model_objects, armature = render_model.to_blend_objects(collection, self.tag_render, self.tag_markers, model_collection, existing_armature, allowed_region_permutations, self.from_vert_normals)
+                render_model_objects, armature = render_model.to_blend_objects(collection, self.tag_render, self.tag_markers, model_collection, existing_armature, allowed_region_permutations, self.from_vert_normals, build_control_rig=self.build_control_rig)
                 render_model_objects.extend(render_model.skylights_to_blender(collection))
             
         return render_model_objects, armature
@@ -4239,6 +4249,12 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     generate_frames: bpy.props.BoolProperty(
         name="Generate Missing Frames",
         description="Generates frames where possible for tag imported animations. This is needed because base and replacement animations are missing a final frame which would have been present in their source file",
+    )
+    
+    build_control_rig: bpy.props.BoolProperty(
+        name="Build Control Rig",
+        description="Builds an FK (IK TBD!) control rig for imported models",
+        default=True,
     )
     
     @classmethod

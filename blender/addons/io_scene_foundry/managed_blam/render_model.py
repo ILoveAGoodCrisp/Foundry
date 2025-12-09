@@ -93,11 +93,11 @@ class RenderModelTag(Tag):
         print("#"*50 + '\n')
         print([i for i in tex_coords])
         
-    def to_blend_objects(self, collection, render: bool, markers: bool, model_collection: bpy.types.Collection, existing_armature=None, allowed_region_permutations=set(), from_vert_normals=False, no_io=False, no_armature=False, specific_io_index=None):
+    def to_blend_objects(self, collection, render: bool, markers: bool, model_collection: bpy.types.Collection, existing_armature=None, allowed_region_permutations=set(), from_vert_normals=False, no_io=False, no_armature=False, specific_io_index=None, build_control_rig=False):
         self.collection = collection
         self.model_collection = model_collection
         objects = []
-        self.armature = self._create_armature(existing_armature)
+        self.armature = self._create_armature(existing_armature, build_control_rig)
         objects.append(self.armature)
         
         self.regions: list[Region] = []
@@ -135,7 +135,7 @@ class RenderModelTag(Tag):
         
         return objects, self.armature
     
-    def _create_armature(self, existing_armature=None):
+    def _create_armature(self, existing_armature=None, build_control_rig=False):
         # print("Creating Armature")
         arm = RenderArmature(f"{self.tag.Path.ShortName}", existing_armature)
         self.nodes: list[Node] = []
@@ -198,18 +198,19 @@ class RenderModelTag(Tag):
             # Set render_model ref for node order
             arm.ob.nwo.node_order_source = self.tag_path.RelativePathWithExtension
             
+            if build_control_rig:
             # make the rig not terrible
-            scale = 1 / 0.03048
-            rig = HaloRig(self.context, scale, 'x', uses_aim_bones, False)
-            rig.rig_ob = arm.ob
-            rig.rig_data = arm.data
-            rig.rig_pose = arm.ob.pose
-            rig.build_bones(pedestal=pedestal, pitch=pitch, yaw=yaw)
-            if uses_pedestal or uses_aim_bones:
-                rig.build_and_apply_control_shapes(wireframe=True, reach_fp_fix=reach_fp_fix, reverse_control=True)
-            rig.apply_halo_bone_shape()
-            rig.build_fk_ik_rig(reverse_controls=True)
-            rig.generate_bone_collections()
+                scale = 1 / 0.03048
+                rig = HaloRig(self.context, scale, 'x', uses_aim_bones, False)
+                rig.rig_ob = arm.ob
+                rig.rig_data = arm.data
+                rig.rig_pose = arm.ob.pose
+                rig.build_bones(pedestal=pedestal, pitch=pitch, yaw=yaw)
+                if uses_pedestal or uses_aim_bones:
+                    rig.build_and_apply_control_shapes(wireframe=True, reach_fp_fix=reach_fp_fix, reverse_control=True)
+                rig.apply_halo_bone_shape()
+                rig.build_fk_ik_rig(reverse_controls=True)
+                rig.generate_bone_collections()
         else:
             for node in self.nodes:
                 node.bone = next((b for b in arm.ob.data.bones if b.name == node.name), None)
