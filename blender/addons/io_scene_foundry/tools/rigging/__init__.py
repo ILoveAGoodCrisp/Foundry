@@ -386,6 +386,9 @@ class HaloRig:
                     fk_collection.assign(bone)
                 elif no_digit_name.startswith("IK_"):
                     ik_collection.assign(bone)
+                    
+        if fk_collection.bones:
+            halo_collection.is_visible = False
 
     def apply_halo_bone_shape(self):
         """Applies a custom shape to every halo bone that is not the pedestal or an aim bone"""

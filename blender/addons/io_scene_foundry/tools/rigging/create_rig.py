@@ -2,6 +2,7 @@ import bpy
 
 from ... import utils
 from ...tools.rigging import HaloRig
+from bpy_extras import anim_utils
 
 class NWO_OT_BakeToControl(bpy.types.Operator):
     bl_idname = "nwo.bake_to_control"
@@ -15,7 +16,7 @@ class NWO_OT_BakeToControl(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return context.object and context.object.type =='ARMATURE'
+        return context.object and context.object.type =='ARMATURE' and context.object.animation_data
     
     def execute(self, context):
         arm = context.object
@@ -32,25 +33,21 @@ class NWO_OT_BakeToControl(bpy.types.Operator):
             pb.select = pb.name.startswith(("FK_", "CTRL_", "IK_"))
             
         arm.select_set(False)
+        
+        options = anim_utils.BakeOptions(True, True, False, True, False, False, False, True, True, True, False, False)
             
         for action in actions:
             print(f"Baking action: {action.name}")
+            
+            if action.use_frame_range:
+                frame_range = range(int(action.frame_start), int(action.frame_end))
+            else:
+                frame_range = range(int(context.scene.frame_start), int(context.scene.frame_end))
 
-            arm.animation_data.action = action
-
-            frame_start, frame_end = map(int, action.frame_range)
-
-            bpy.ops.nla.bake(
-                frame_start=frame_start,
-                frame_end=frame_end,
-                step=1,
-                only_selected=True,
-                visual_keying=True,
-                clear_constraints=False,
-                clear_parents=False,
-                use_current_action=True,
-                bake_types={'POSE'},
-            )
+            if self.all_actions:
+                arm.animation_data.action = action
+            
+            anim_utils.bake_action(arm, action=action, frames=frame_range, bake_options=options)
             
         rig = HaloRig(context, has_pose_bones=True)
         rig.rig_ob = arm
