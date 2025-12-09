@@ -1196,6 +1196,7 @@ class NWO_Import(bpy.types.Operator):
                     imported_cinematic_objects = []
                     imported_cinematic_actions = []
                     importer.tag_cinematic_import_scenario = self.tag_cinematic_import_scenario
+                    importer.build_control_rig = self.build_control_rig
                     anchor_objects = {}
                     imported_cinematic_scenario_objects = []
                     
@@ -4441,6 +4442,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
             case 'cinematic':
                 layout.prop(self, "tag_cinematic_import_scenario")
                 layout.prop(self, "tag_cinematic_import_actors")
+                layout.prop(self, "build_control_rig")
                 layout.prop(self, "tag_import_lights")
                 layout.prop(self, "tag_sky")
                 layout.prop(self, "tag_scenario_import_objects")

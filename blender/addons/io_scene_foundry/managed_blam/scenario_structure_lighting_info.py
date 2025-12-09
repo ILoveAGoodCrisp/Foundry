@@ -110,7 +110,7 @@ class ScenarioStructureLightingInfoTag(Tag):
             hotspot_mapping.Value.ClampRangeMin = light.hotspot_cutoff
             parameters.SelectField("Cone Projection Shape").Value = light.cone_shape
             
-        if light.type == 2 and light.is_sun: # Sun
+        if light.is_sun: # Sun
             element.SelectField("sun").Value = 1
         else:
             element.SelectField("sun").Value = 0
