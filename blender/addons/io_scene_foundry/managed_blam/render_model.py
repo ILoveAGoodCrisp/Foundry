@@ -208,7 +208,7 @@ class RenderModelTag(Tag):
             if uses_pedestal or uses_aim_bones:
                 rig.build_and_apply_control_shapes(wireframe=True, reach_fp_fix=reach_fp_fix, reverse_control=True)
             rig.apply_halo_bone_shape()
-            rig.build_fk_ik_rig()
+            rig.build_fk_ik_rig(reverse_controls=True)
             rig.generate_bone_collections()
         else:
             for node in self.nodes:

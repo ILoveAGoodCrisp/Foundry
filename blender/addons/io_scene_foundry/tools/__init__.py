@@ -30,7 +30,7 @@ from .scale_models import NWO_OT_AddScaleModel
 from .animation.automate_pose_overlay import NWO_OT_GeneratePoses, NWO_OT_ConvertLegacyPoseOverlays
 from .animation.generate_frames import NWO_OT_GenerateFrames
 from .rigging.convert_to_halo_rig import NWO_OT_ConvertToHaloRig
-from .rigging.create_rig import NWO_OT_AddRig, NWO_OT_InvertAimControl, NWO_OT_SelectArmature
+from .rigging.create_rig import NWO_OT_AddRig, NWO_OT_BakeToControl, NWO_OT_InvertAimControl, NWO_OT_SelectArmature
 from .rigging.validation import NWO_AddPoseBones, NWO_FixArmatureTransforms, NWO_FixPoseBones, NWO_FixRootBone, NWO_ValidateRig,NWO_OT_AddAimDisplay
 from .scene_scaler import NWO_ScaleScene
 from .append_foundry_materials import NWO_AppendFoundryMaterials
@@ -123,6 +123,7 @@ classes = (
     NWO_ShaderFinder_Find,
     NWO_OT_AddRig,
     NWO_OT_InvertAimControl,
+    NWO_OT_BakeToControl,
     NWO_OT_SelectArmature,
     NWO_ListMaterialShaders,
     NWO_Shader_BuildSingle,

@@ -3,6 +3,75 @@ import bpy
 from ... import utils
 from ...tools.rigging import HaloRig
 
+class NWO_OT_BakeToControl(bpy.types.Operator):
+    bl_idname = "nwo.bake_to_control"
+    bl_label = "Bake Deform to Control Bones"
+    bl_description = "Bakes the position of control, FK, and IK bones"
+    bl_options = {"UNDO"}
+    
+    all_actions: bpy.props.BoolProperty(
+        name="All Actions"
+    )
+    
+    @classmethod
+    def poll(cls, context):
+        return context.object and context.object.type =='ARMATURE'
+    
+    def execute(self, context):
+        arm = context.object
+        
+        if self.all_actions:
+            actions = bpy.data.actions
+        else:
+            actions = [arm.animation_data.action]
+            
+        if not actions or actions[0] is None:
+            return
+
+        for pb in arm.pose.bones:
+            pb.select = pb.name.startswith(("FK_", "CTRL_", "IK_"))
+            
+        arm.select_set(False)
+            
+        for action in actions:
+            print(f"Baking action: {action.name}")
+
+            arm.animation_data.action = action
+
+            frame_start, frame_end = map(int, action.frame_range)
+
+            bpy.ops.nla.bake(
+                frame_start=frame_start,
+                frame_end=frame_end,
+                step=1,
+                only_selected=True,
+                visual_keying=True,
+                clear_constraints=False,
+                clear_parents=False,
+                use_current_action=True,
+                bake_types={'POSE'},
+            )
+            
+        rig = HaloRig(context, has_pose_bones=True)
+        rig.rig_ob = arm
+        rig.rig_data = arm.data
+        rig.rig_pose = arm.pose
+        
+        aim_control_name = context.object.nwo.control_aim
+        aim_control = utils.get_pose_bone(arm, aim_control_name)
+        
+        if aim_control is not None:
+            rig.build_and_apply_control_shapes(aim_control_only=True, reverse_control=False, constraints_only=True)
+        rig.build_fk_ik_rig(reverse_controls=False, constraints_only=True)
+        
+        return {'FINISHED'}
+
+# class NWO_OT_BuildFKIKRig(bpy.types.Operator):
+#     bl_idname = "nwo.build_fkik_rig"
+#     bl_label = "Build FK Rig"
+#     bl_description = "Inverts the constraint relationship between the Aim Control and aim pitch / aim yaw bones. Allows the aim pitch and aim yaw bones to control the aim control bone"
+#     bl_options = {"REGISTER", "UNDO"}
+
 class NWO_OT_InvertAimControl(bpy.types.Operator):
     bl_idname = "nwo.invert_aim_control"
     bl_label = "Invert Aim Control"

@@ -1573,6 +1573,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 row.operator('nwo.add_pose_bones', text='', icon='ADD').skip_invoke = True
                 
             box_rigging.operator("nwo.invert_aim_control", icon='CONSTRAINT_BONE', depress=nwo.invert_control_aim)
+            box_rigging.separator()
+            box_rigging.operator("nwo.bake_to_control", icon='POSE_HLT')
             
             return
         

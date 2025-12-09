@@ -62,13 +62,18 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     
     invert_control_aim: bpy.props.BoolProperty(
         name="Aim Control Toggle",
-        description=f"Inverts the constraint relationship between the Aim Control and aim pitch / aim yaw bones. Allows the aim pitch and aim yaw bones to control the aim control bone"
+        description="Inverts the constraint relationship between the Aim Control and aim pitch / aim yaw bones. Allows the aim pitch and aim yaw bones to control the aim control bone"
     )
     
     control_aim: bpy.props.StringProperty(
         name="Aim Control Bone",
         description="Bone used to control the aim yaw and pitch bones on a halo armature",
         options=set(),
+    )
+    
+    invert_fkik: bpy.props.BoolProperty(
+        name="FK/IK Toggle",
+        description="Inverts the constraint relationship between the deform and FK/IK bones"
     )
     
     # CINEMATIC
