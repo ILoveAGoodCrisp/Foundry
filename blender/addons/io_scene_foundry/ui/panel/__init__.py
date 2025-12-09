@@ -1574,6 +1574,10 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 
             box_rigging.operator("nwo.invert_aim_control", icon='CONSTRAINT_BONE', depress=nwo.invert_control_aim)
             box_rigging.separator()
+            if not any(b for b in ob.pose.bones if b.name.startswith("FK_")):
+                box_rigging.operator("nwo.build_control_rig", icon='BONE_DATA')
+            box_rigging.operator("nwo.invert_control_rig", icon='CONSTRAINT_BONE', depress=nwo.invert_control_rig)
+            box_rigging.separator()
             box_rigging.operator("nwo.bake_to_control", icon='POSE_HLT')
             
             return

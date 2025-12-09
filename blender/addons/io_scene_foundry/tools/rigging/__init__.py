@@ -551,9 +551,9 @@ class HaloRig:
                     b.use_deform = False
                 
         if reverse_controls:
-            self.rig_ob.nwo.invert_fkik = True
+            self.rig_ob.nwo.invert_control_rig = True
         else:
-            self.rig_ob.nwo.invert_fkik = False
+            self.rig_ob.nwo.invert_control_rig = False
                 
         for db_name, fkb_name in deform_fk_mapping.items():
             fkb = self.rig_pose.bones[fkb_name]

@@ -11,7 +11,8 @@ class NWO_OT_BakeToControl(bpy.types.Operator):
     bl_options = {"UNDO"}
     
     all_actions: bpy.props.BoolProperty(
-        name="All Actions"
+        name="All Actions",
+        description="Bake all actions in the blend file to the control rig"
     )
     
     @classmethod
@@ -62,18 +63,66 @@ class NWO_OT_BakeToControl(bpy.types.Operator):
         rig.build_fk_ik_rig(reverse_controls=False, constraints_only=True)
         
         return {'FINISHED'}
+    
+    def invoke(self, context, _):
+        return context.window_manager.invoke_props_dialog(self)
+    
+    def draw(self, context):
+        self.layout.prop(self, "all_actions")
 
-# class NWO_OT_BuildFKIKRig(bpy.types.Operator):
-#     bl_idname = "nwo.build_fkik_rig"
-#     bl_label = "Build FK Rig"
-#     bl_description = "Inverts the constraint relationship between the Aim Control and aim pitch / aim yaw bones. Allows the aim pitch and aim yaw bones to control the aim control bone"
-#     bl_options = {"REGISTER", "UNDO"}
+class NWO_OT_BuildControlRig(bpy.types.Operator):
+    bl_idname = "nwo.build_control_rig"
+    bl_label = "Build Control Rig"
+    bl_description = "Generates an FK (IK TBD) control rig for this armature"
+    bl_options = {"UNDO"}
+    
+    @classmethod
+    def poll(cls, context):
+        return context.object and context.object.type == 'ARMATURE'
+    
+    def execute(self, context):
+        arm = context.object
+        any_pose_bones = any(b.name for b in arm.pose.bones if b.name.endswith(("_pitch", "_yaw")))
+        rig = HaloRig(context, has_pose_bones=any_pose_bones)
+        rig.rig_ob = arm
+        rig.rig_data = arm.data
+        rig.rig_pose = arm.pose
+        
+        rig.build_fk_ik_rig(reverse_controls=arm.nwo.invert_control_rig)
+        rig.generate_bone_collections()
+        self.report({'INFO'}, "Built Control Rig")
+        return {'FINISHED'}
+    
+    def invoke(self, context, event):
+        return context.window_manager.invoke_confirm(self, event)
+    
+class NWO_OT_InvertControlRig(bpy.types.Operator):
+    bl_idname = "nwo.invert_control_rig"
+    bl_label = "Invert Control Rig"
+    bl_description = "Inverts the constraint relationship between the control (FK & IK) rig and deform bones"
+    bl_options = {"UNDO"}
+    
+    @classmethod
+    def poll(cls, context):
+        return context.object and context.object.type == 'ARMATURE'
+    
+    def execute(self, context):
+        arm = context.object
+        any_pose_bones = any(b.name for b in arm.pose.bones if b.name.endswith(("_pitch", "_yaw")))
+        rig = HaloRig(context, has_pose_bones=any_pose_bones)
+        rig.rig_ob = arm
+        rig.rig_data = arm.data
+        rig.rig_pose = arm.pose
+        
+        rig.build_fk_ik_rig(reverse_controls=(not arm.nwo.invert_control_rig), constraints_only=True)
+        self.report({'INFO'}, f"Inverted Control Rig - {'Deform bones in control' if arm.nwo.invert_control_rig else 'Control bones in control'}")
+        return {'FINISHED'}
 
 class NWO_OT_InvertAimControl(bpy.types.Operator):
     bl_idname = "nwo.invert_aim_control"
     bl_label = "Invert Aim Control"
     bl_description = "Inverts the constraint relationship between the Aim Control and aim pitch / aim yaw bones. Allows the aim pitch and aim yaw bones to control the aim control bone"
-    bl_options = {"REGISTER", "UNDO"}
+    bl_options = {"UNDO"}
     
     @classmethod
     def poll(cls, context):

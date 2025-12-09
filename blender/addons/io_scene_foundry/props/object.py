@@ -71,9 +71,9 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
     )
     
-    invert_fkik: bpy.props.BoolProperty(
-        name="FK/IK Toggle",
-        description="Inverts the constraint relationship between the deform and FK/IK bones"
+    invert_control_rig: bpy.props.BoolProperty(
+        name="Invert Control Rig",
+        description="Inverts the constraint relationship between the control (FK & IK) rig and deform bones"
     )
     
     # CINEMATIC
