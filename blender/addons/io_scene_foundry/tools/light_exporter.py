@@ -84,6 +84,8 @@ class BlamLightDefinition:
         if nwo.light_shape == '_connected_geometry_light_shape_circle':
             self.shape = 1
             
+        self.is_sun = nwo.is_sun
+            
         self.color = [utils.linear_to_srgb(data.color[0]), utils.linear_to_srgb(data.color[1]), utils.linear_to_srgb(data.color[2])]
         self.intensity = nwo.light_intensity
         self.hotspot_size = 0

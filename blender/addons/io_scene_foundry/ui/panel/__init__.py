@@ -1675,6 +1675,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     col.separator()
                     row = col.row()
                     row.prop(nwo, "light_cone_projection_shape", expand=True)
+                elif data.type == 'SUN':
+                    col.prop(nwo, "is_sun")
 
                 col.separator()
                 col.prop(nwo, "light_physically_correct")

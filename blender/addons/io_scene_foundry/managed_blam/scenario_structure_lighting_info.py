@@ -110,7 +110,7 @@ class ScenarioStructureLightingInfoTag(Tag):
             hotspot_mapping.Value.ClampRangeMin = light.hotspot_cutoff
             parameters.SelectField("Cone Projection Shape").Value = light.cone_shape
             
-        if light.type == 2: # Sun
+        if light.type == 2 and light.is_sun: # Sun
             element.SelectField("sun").Value = 1
         else:
             element.SelectField("sun").Value = 0
@@ -431,6 +431,7 @@ class ScenarioStructureLightingInfoTag(Tag):
                 case 2:
                     nwo.light_jitter_quality = '_connected_geometry_light_jitter_quality_high'
                     
+            nwo.is_sun = element.SelectField("sun").Value == 1
             nwo.light_indirect_only = element.SelectField("indirect only").Value == 1
             nwo.light_static_analytic = element.SelectField("static analytic").Value == 1
             
