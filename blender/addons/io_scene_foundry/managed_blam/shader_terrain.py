@@ -65,6 +65,11 @@ class ShaderTerrainTag(ShaderTag):
         e_material_3 = TerrainMaterial3(self._option_value_from_index(5))
         # e_wetness = TerrainWetness(self._option_value_from_index(6))
         
+        if e_blending.value > 1:
+            old_model = e_blending.name
+            e_blending = TerrainBlending.MORPH
+            utils.print_warning(f"Unsupported material model : {old_model}. Using {e_blending.name} instead")
+        
         self.shader_parameters = {}
         self.shader_parameters.update(self.category_parameters["blending"][utils.game_str(e_blending.name)])
         self.shader_parameters.update(self.category_parameters["environment_map"][utils.game_str(e_environment_mapping.name)])
