@@ -4397,6 +4397,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 layout.prop(self, "build_blender_materials")
                 layout.prop(self, "always_extract_bitmaps")
             case "render_model":
+                layout.prop(self, "build_control_rig")
                 if self.has_variants:
                     layout.prop(self, "tag_variant")
                 layout.prop(self, "tag_markers")
