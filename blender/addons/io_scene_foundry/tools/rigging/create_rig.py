@@ -80,6 +80,11 @@ class NWO_OT_BuildControlRig(bpy.types.Operator):
     def poll(cls, context):
         return context.object and context.object.type == 'ARMATURE'
     
+    apply_deform_bone_shape: bpy.props.BoolProperty(
+        name="Apply Deform Bone Shape",
+        description="Applies a custom bone shape to deform bones before applying the control rig"
+    )
+    
     def execute(self, context):
         arm = context.object
         any_pose_bones = any(b.name for b in arm.pose.bones if b.name.endswith(("_pitch", "_yaw")))
@@ -88,13 +93,17 @@ class NWO_OT_BuildControlRig(bpy.types.Operator):
         rig.rig_data = arm.data
         rig.rig_pose = arm.pose
         
+        rig.apply_halo_bone_shape()
         rig.build_fk_ik_rig(reverse_controls=arm.nwo.invert_control_rig)
         rig.generate_bone_collections()
         self.report({'INFO'}, "Built Control Rig")
         return {'FINISHED'}
     
-    def invoke(self, context, event):
-        return context.window_manager.invoke_confirm(self, event)
+    def invoke(self, context, _):
+        return context.window_manager.invoke_props_dialog(self)
+    
+    def draw(self, context):
+        self.layout.prop(self, "apply_deform_bone_shape")
     
 class NWO_OT_InvertControlRig(bpy.types.Operator):
     bl_idname = "nwo.invert_control_rig"

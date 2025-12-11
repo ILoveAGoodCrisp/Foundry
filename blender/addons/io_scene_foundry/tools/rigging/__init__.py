@@ -1,5 +1,6 @@
 
 
+from collections import defaultdict
 from math import radians
 from typing import cast
 import bpy
@@ -21,13 +22,34 @@ aim_shape_vert_coords = [(1.955878, 0.885051, 0.0), (1.95143, -0.887275, 0.0), (
 pedestal_shape_faces = [[61, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60]]
 aim_shape_faces = [[1, 3, 0, 2]]
 
-# Bone that should be connected, the final bone in the chain gets no FK bone of its own
+# Bone that should be connected
 bone_links = (
     ("upperarm", "forearm", "hand"),
     ("thigh", "calf", "foot"),
     ("thigh", "shin", "toe_hinge", "toe"),
     ("upper_leg", "lower_leg", "tarsus"),
     ("low", "mid", "tip"),
+    ("neck", "head"),
+    ("neck0", "neck1", "head"),
+    ("spine", "spine1"),
+)
+
+start_link_bones = defaultdict(list)
+start_link_bones_keys = tuple()
+
+def reset_start_link_bones():
+    global start_link_bones
+    global start_link_bones_keys
+    start_link_bones = defaultdict(list)
+    for b in bone_links:
+        start_link_bones[b[0]].append(iter(b[1:]))
+
+    start_link_bones_keys = tuple(start_link_bones.keys())
+    
+reset_start_link_bones()
+
+key_deform_bones = (
+    "pelvis",
 )
 
 # Also connect sequential bones indicated by a number at the end of their name e.g. pinky1, pinky2
@@ -401,7 +423,7 @@ class HaloRig:
             shape = bpy.data.objects.new("halo_deform_bone_shape", shape_mesh)
             
         for pbone, bone in zip(self.rig_pose.bones, self.rig_data.bones):
-            if pbone.custom_shape is None and bone.use_deform:
+            if pbone.custom_shape is None and bone.use_deform and (not bone.name.endswith(special_bones) and not bone.name.startswith(("FK_", "IK_", "CTRL_"))):
                 pbone.custom_shape = shape
                 pbone.custom_shape_scale_xyz = Vector((0.5, 0.5, 0.5)) * self.scale
                 bone.show_wire = True
@@ -411,6 +433,8 @@ class HaloRig:
         
         deform_fk_mapping = {}
         deform_ik_mapping = {}
+        
+        processed_bones = set()
         
         def deform_bone_from_fk_name(name):
             if name.startswith("FK_"):
@@ -433,32 +457,34 @@ class HaloRig:
                         deform_fk_mapping[dbone.name] = bone.name
         else:
             bone_chains = []
-            start_link_bones = {b[0]: iter(b[1:]) for b in bone_links}
-            start_link_bones_keys = tuple(start_link_bones)
             
             def get_chain(b: bpy.types.PoseBone, i: int):
-                nonlocal start_link_bones
-                current_bone_chain = []
-                link_chain = next(v for k, v in start_link_bones.items() if b.name.endswith(k))
-                current_bone_chain.append(b.name)
-                next_link = next(link_chain, None)
-                allowed_bones = set(b.children_recursive)
-                if next_link is None:
+                matched_chains = [links for k, links in start_link_bones.items() if b.name.endswith(k)]
+                if not matched_chains:
                     return
-                while i < len(self.rig_pose.bones):
-                    next_bone = self.rig_pose.bones[i]
-                    if next_bone.name.endswith(next_link) and next_bone in allowed_bones:
-                        current_bone_chain.append(next_bone.name)
-                        next_link = next(link_chain, None)
+
+                for link_tuples in matched_chains:
+                    for link_chain in link_tuples:
+                        chain_iter = iter(link_chain)
+                        chain = [b.name]
+                        next_link = next(chain_iter, None)
                         allowed_bones = set(b.children_recursive)
-                        if next_link is None:
-                            break
-                    i += 1
-                    
-                if len(current_bone_chain) > 1:
-                    bone_chains.append(current_bone_chain)
-                
-                start_link_bones = {b[0]: iter(b[1:]) for b in bone_links} # reset the iterators
+
+                        while next_link and i < len(self.rig_pose.bones):
+                            next_bone = self.rig_pose.bones[i]
+                            if next_bone.name.endswith(next_link) and next_bone in allowed_bones:
+                                chain.append(next_bone.name)
+                                processed_bones.add(next_bone.name)
+                                next_link = next(chain_iter, None)
+                                allowed_bones = set(next_bone.children_recursive)
+                                if not next_link:
+                                    break
+                            i += 1
+
+                        if len(chain) > 1:
+                            bone_chains.append(chain)
+
+                reset_start_link_bones()
             
             def get_chain_digit(b: bpy.types.PoseBone, i: int):
                 current_bone_chain = []
@@ -469,6 +495,7 @@ class HaloRig:
                     next_bone = self.rig_pose.bones[i]
                     if next_bone.name == next_expected and next_bone in allowed_bones:
                         current_bone_chain.append(next_bone.name)
+                        processed_bones.add(next_bone.name)
                         allowed_bones = set(next_bone.children_recursive)
                         next_expected = next_bone.name[:-1] + str(int(next_bone.name[-1]) + 1)
                         
@@ -478,6 +505,8 @@ class HaloRig:
                     bone_chains.append(current_bone_chain)
             
             for idx, bone in enumerate(self.rig_pose.bones):
+                if bone.name in processed_bones:
+                    continue
                 if bone.name.endswith(start_link_bones_keys):
                     get_chain(bone, idx + 1)
                 elif bone.name[-1] == "1":
@@ -507,7 +536,6 @@ class HaloRig:
             bpy.ops.object.editmode_toggle()
             
             fk_bone_names = []
-            
             for chain in bone_chains:
                 previous_fk_bone = None
                 for idx, bone_name in enumerate(chain):
@@ -532,6 +560,8 @@ class HaloRig:
 
                         else:
                             fk_bone.tail = predict_tail_from_previous(previous_fk_bone, edit_bone)
+                            if fk_bone.length > previous_fk_bone.length:
+                                fk_bone.length = previous_fk_bone.length
                     else:
                         fk_bone.tail = next_edit_bone.head
 
