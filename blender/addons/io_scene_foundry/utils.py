@@ -3644,14 +3644,14 @@ def calc_face_prop_counts(mesh: bpy.types.Mesh):
     for prop in mesh.nwo.face_props:
         prop.face_count = face_attribute_count(mesh, prop)
     
-def add_face_attribute(mesh: bpy.types.Mesh) -> bmesh.types.BMLayerItem:
+def add_face_attribute(mesh: bpy.types.Mesh) -> bpy.types.Attribute:
     attribute = mesh.attributes.new(f"foundry_attribute__{str(uuid4())[:8]}", 'BOOLEAN', 'FACE')
     array = np.ones(len(mesh.polygons), dtype=np.int8)
     attribute.data.foreach_set("value", array)
     
     return attribute
 
-def add_face_attribute_empty(mesh: bpy.types.Mesh) -> bmesh.types.BMLayerItem:
+def add_face_attribute_empty(mesh: bpy.types.Mesh) -> bpy.types.Attribute:
     attribute = mesh.attributes.new(f"foundry_attribute__{str(uuid4())[:8]}", 'BOOLEAN', 'FACE')
     return attribute
 

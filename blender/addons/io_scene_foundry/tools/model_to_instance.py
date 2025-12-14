@@ -138,6 +138,12 @@ class ModelInstance:
             for k, v in prop.items():
                 copy_prop[k] = v
                 
+        # Always add precise since we don't know whether the model was imported with precise, and not being precise may cause issues
+        precise_prop = new_mesh.nwo.face_props.add()
+        precise_prop.type = 'precise_position'
+        precise_prop.color = utils.random_color()
+        precise_prop.attribute_name = utils.add_face_attribute(new_mesh).name
+                
     def _global_materials_to_shaders_mesh(self, materials_shaders: dict, mesh: bpy.types.Mesh):
         attributes = []
         to_remove_props = []
