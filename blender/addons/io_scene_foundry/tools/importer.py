@@ -678,7 +678,7 @@ class NWO_Import(bpy.types.Operator):
     build_control_rig: bpy.props.BoolProperty(
         name="Build Control Rig",
         description="Builds an FK (IK TBD!) control rig for imported models",
-        default=True,
+        default=False,
     )
     
     def execute(self, context):
@@ -4257,7 +4257,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     build_control_rig: bpy.props.BoolProperty(
         name="Build Control Rig",
         description="Builds an FK (IK TBD!) control rig for imported models",
-        default=True,
+        default=False,
     )
     
     @classmethod
