@@ -64,6 +64,7 @@ class Sidecar:
         self.animation_composites = []
         self.corinth = corinth
         self.context = context
+        self.nwo = utils.get_scene_props()
         self.lods = set()
         
         self.clone = None
@@ -673,7 +674,7 @@ class Sidecar:
                 self._write_network_files(content_object, data)
 
             output = ET.SubElement(content_object, "OutputTagCollection")
-            if self.context.scene.nwo.particle_uses_custom_points:
+            if self.nwo.particle_uses_custom_points:
                 ET.SubElement(output, "OutputTag", Type="particle_emitter_custom_points").text = self.tag_path
 
     def _write_prefab_contents(self, metadata):
@@ -830,7 +831,7 @@ class Sidecar:
                 self.append_animation_content_from_file(path, content)
 
     def _region_active_state(self, region_name):
-        region = self.context.scene.nwo.regions_table[region_name]
+        region = self.nwo.regions_table[region_name]
         return 'true' if region.active else 'false'
     
     def _write_cinematic_contents(self, metadata):

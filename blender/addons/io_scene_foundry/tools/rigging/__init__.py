@@ -72,8 +72,9 @@ special_bones = (
 class HaloRig:
     def __init__(self, context=bpy.context, scale=None, forward=None, has_pose_bones=False, set_scene_rig_props=False):
         self.context = context
-        self.scale = ((1 / 0.03048) if context.scene.nwo.scale == 'max' else 1) if scale is None else scale
-        self.forward = context.scene.nwo.forward_direction if forward is None else forward
+        self.scene_nwo = utils.get_scene_props()
+        self.scale = ((1 / 0.03048) if self.scene_nwo.scale == 'max' else 1) if scale is None else scale
+        self.forward = self.scene_nwo.forward_direction if forward is None else forward
         self.has_pose_bones = has_pose_bones
         self.set_scene_rig_props = set_scene_rig_props
         self.rig_data: bpy.types.Armature = None
@@ -311,8 +312,8 @@ class HaloRig:
         else:
             pedestal = self.rig_data.edit_bones.get(pedestal)
             
-        if self.set_scene_rig_props and self.has_pose_bones and not self.context.scene.nwo.node_usage_pedestal:
-            self.context.scene.nwo.node_usage_pedestal = pedestal_name
+        if self.set_scene_rig_props and self.has_pose_bones and not self.scene_nwo.node_usage_pedestal:
+            self.scene_nwo.node_usage_pedestal = pedestal_name
         
         if self.has_pose_bones:
             if pitch is None:
@@ -340,10 +341,10 @@ class HaloRig:
                 yaw = self.rig_data.edit_bones.get(yaw)
                 
             if self.set_scene_rig_props:
-                if not self.context.scene.nwo.node_usage_pose_blend_pitch:
-                    self.context.scene.nwo.node_usage_pose_blend_pitch = aim_pitch_name
-                if not self.context.scene.nwo.node_usage_pose_blend_yaw:
-                    self.context.scene.nwo.node_usage_pose_blend_yaw = aim_yaw_name
+                if not self.scene_nwo.node_usage_pose_blend_pitch:
+                    self.scene_nwo.node_usage_pose_blend_pitch = aim_pitch_name
+                if not self.scene_nwo.node_usage_pose_blend_yaw:
+                    self.scene_nwo.node_usage_pose_blend_yaw = aim_yaw_name
                     
             aim_control = self.rig_data.edit_bones.new(aim_control_name)
             aim_control.use_deform = False
@@ -365,8 +366,8 @@ class HaloRig:
         self.context.scene.collection.objects.link(self.rig_ob)
         self.context.view_layer.objects.active = self.rig_ob
         self.rig_ob.select_set(True)
-        if self.set_scene_rig_props and not self.context.scene.nwo.main_armature:
-            self.context.scene.nwo.main_armature = self.rig_ob
+        if self.set_scene_rig_props and not self.scene_nwo.main_armature:
+            self.scene_nwo.main_armature = self.rig_ob
             
     def generate_bone_collections(self):
         """Sorts bones into bone collections"""

@@ -186,7 +186,7 @@ def is_linked(ob):
 
 def get_project_path(project_name=None):
     if project_name is None:
-        project = get_project(bpy.context.scene.nwo.scene_project)
+        project = get_project(get_scene_props().scene_project)
     else:
         project = get_project(project_name)
     if not project:
@@ -195,19 +195,19 @@ def get_project_path(project_name=None):
 
 
 def get_tool_path():
-    project = get_project(bpy.context.scene.nwo.scene_project)
+    project = get_project(get_scene_props().scene_project)
     if not project:
         return ""
     return str(Path(project.project_path, get_tool_type()))
 
 def get_tags_path():
-    project = get_project(bpy.context.scene.nwo.scene_project)
+    project = get_project(get_scene_props().scene_project)
     if not project:
         return ""
     return project.tags_directory
 
 def get_data_path():
-    project = get_project(bpy.context.scene.nwo.scene_project)
+    project = get_project(get_scene_props().scene_project)
     if not project:
         return ""
     return project.data_directory
@@ -227,7 +227,7 @@ def is_windows():
 def is_corinth(context=None):
     if context is None:
         context = bpy.context
-    project = get_project(context.scene.nwo.scene_project)
+    project = get_project(get_scene_props().scene_project)
     return project and project.corinth
 
 def deselect_all_objects():
@@ -248,7 +248,7 @@ def get_active_object():
 
 def get_asset_info(filepath=""):
     if not filepath:
-        filepath = bpy.context.scene.nwo.sidecar_path
+        filepath = get_scene_props().sidecar_path
     asset_path = os.path.dirname(filepath).lower()
     asset = os_sep_partition(asset_path, True)
 
@@ -256,7 +256,7 @@ def get_asset_info(filepath=""):
 
 def get_asset_path():
     """Returns the path to the asset folder."""
-    return str(Path(relative_path(bpy.context.scene.nwo.sidecar_path)).parent)
+    return str(Path(relative_path(get_scene_props().sidecar_path)).parent)
 
 def relative_path(path: str | Path):
     """Gets the tag/data relative path of the given filepath"""
@@ -273,16 +273,16 @@ def relative_path(path: str | Path):
 
 def get_asset_path_full(tags=False):
     """Returns the full system path to the asset folder. For tags, add a True arg to the function call"""
-    if not bpy.context.scene.nwo.sidecar_path:
+    if not get_scene_props().sidecar_path:
         return None
-    asset_path = bpy.context.scene.nwo.sidecar_path.rpartition(os.sep)[0].lower()
+    asset_path = get_scene_props().sidecar_path.rpartition(os.sep)[0].lower()
     if tags:
         return str(Path(get_tags_path(), asset_path))
     else:
         return str(Path(get_data_path(), asset_path))
     
 def get_asset_name():
-    if not bpy.context.scene.nwo.sidecar_path:
+    if not get_scene_props().sidecar_path:
         return None
     return Path(get_asset_path()).name
 
@@ -650,7 +650,7 @@ def get_error_explanation(line):
 def set_project_in_registry():
     """Sets the current project in the users registry"""
     key_path = r"SOFTWARE\Halo\Projects"
-    name = bpy.context.scene.nwo.scene_project
+    name = get_scene_props().scene_project
     if not name:
         return
     # Get project name
@@ -715,11 +715,11 @@ def valid_nwo_asset(context=None):
     """Returns true if this blender scene is a valid NWO asset"""
     if not context:
         context = bpy.context
-    return context.scene.nwo.is_valid_asset
+    return get_scene_props().is_valid_asset
 
 def nwo_asset_type():
     """Returns the NWO asset type"""
-    return bpy.context.scene.nwo.asset_type
+    return get_scene_props().asset_type
 
 
 ######################################
@@ -1034,11 +1034,11 @@ class MutePrints():
         
 class ExportManager():
     def __enter__(self):
-        bpy.context.scene.nwo.export_in_progress = True
+        get_scene_props().export_in_progress = True
         return self
         
     def __exit__(self, exc_type, exc_value, traceback):
-        bpy.context.scene.nwo.export_in_progress = False
+        get_scene_props().export_in_progress = False
 
 def update_progress(job_title, progress):
     if progress <= 1:
@@ -1082,7 +1082,7 @@ def job_for_spinner(message):
     sys.stdout.flush()
 
 def poll_ui(selected_types) -> bool:
-    scene_nwo = bpy.context.scene.nwo
+    scene_nwo = get_scene_props()
     asset_type = scene_nwo.asset_type
 
     return asset_type == 'resource' or asset_type in selected_types
@@ -1157,7 +1157,7 @@ def get_halo_material_count() -> tuple:
 def validate_ek() -> str | None:
     """Returns an relevant error message if the current game does not reference a valid editing kit. Else returns None"""
     ek = Path(get_project_path())
-    scene_project = bpy.context.scene.nwo.scene_project
+    scene_project = get_scene_props().scene_project
     if not ek.exists():
         return f"{scene_project} Editing Kit path invalid"
     elif not Path(ek, get_tool_type()).with_suffix('.exe').exists():
@@ -1473,9 +1473,9 @@ def setup_projects_list(skip_registry_check=False, report=None):
     return []
 
 def update_tables_from_objects(context):
-    regions_table = context.scene.nwo.regions_table
+    regions_table = get_scene_props().regions_table
     region_names = [e.name for e in regions_table]
-    permutations_table = context.scene.nwo.permutations_table
+    permutations_table = get_scene_props().permutations_table
     permutation_names = [e.name for e in permutations_table]
     scene_obs = context.scene.objects
     for ob in scene_obs:
@@ -1498,7 +1498,7 @@ def update_tables_from_objects(context):
             ob.nwo.permutation_name = ob_permutation
 
 # def update_objects_from_tables(context, table_str, ob_prop_str):
-#     entry_names = [e.name for e in getattr(context.scene.nwo, table_str)]
+#     entry_names = [e.name for e in getattr(get_scene_props(), table_str)]
 #     default_entry = entry_names[0]
 #     scene_obs = context.scene.objects
 #     for ob in scene_obs:
@@ -1704,7 +1704,7 @@ def get_object_type(ob, get_ui_name=False):
     
 def type_valid(m_type, asset_type=None, game_version=None):
     if asset_type is None:
-        asset_type = bpy.context.scene.nwo.asset_type
+        asset_type = get_scene_props().asset_type
     if game_version is None:
         game_version = 'corinth' if is_corinth() else 'reach'
     if asset_type in {'cinematic', 'animation'}:
@@ -1806,7 +1806,7 @@ def set_origin_to_point(ob: bpy.types.Object, point: Vector):
     ob.matrix_world = ob.matrix_world @ translation_matrix.inverted_safe()
 
 def current_project_valid():
-    project = get_project(bpy.context.scene.nwo.scene_project)
+    project = get_project(get_scene_props().scene_project)
     
     return bool(project)
 
@@ -1834,7 +1834,7 @@ def material_read_only(path):
     path = path.strip(" .\"'")
     if not path: return False
     path = str(Path(relative_path(path)).with_suffix(""))
-    project = get_project(bpy.context.scene.nwo.scene_project)
+    project = get_project(get_scene_props().scene_project)
     protected_list = os.path.join(addon_root(), 'protected_tags', project.project_name, 'materials.txt')
     if not os.path.exists(protected_list): return False
     protected_materials = None
@@ -2057,7 +2057,7 @@ def get_rig(context=None, return_mutliple=False) -> bpy.types.Object | None | li
     """Gets the main armature from the scene (or tries to)"""
     if context is None:
         context = bpy.context
-    scene_nwo = context.scene.nwo
+    scene_nwo = get_scene_props()
     ob = context.object
     if scene_nwo.main_armature and context.scene.objects.get(scene_nwo.main_armature.name):
         return scene_nwo.main_armature
@@ -2127,15 +2127,6 @@ def rgb_to_float_list(red, green, blue):
 
 def copy_file(from_path, to_path):
     return shutil.copyfile(from_path, to_path)
-    
-# def get_foundry_storage_scene() -> bpy.types.Scene:
-#     """Returns the Foundry storage scene, creating it if it does not exist"""
-#     storage_scene = bpy.data.scenes.get('foundry_object_storage')
-#     if storage_scene is None:
-#         storage_scene =  bpy.data.scenes.new('foundry_object_storage')
-#         storage_scene.nwo.storage_only = True
-        
-#     return storage_scene
 
 def base_material_name(name: str, strip_legacy_halo_names=False) -> str:
     """Returns a material name with legacy halo naming conventions stripped and ignoring .00X blender duplicate names"""
@@ -2196,7 +2187,7 @@ def asset_path_from_blend_location() -> str | None:
 
 def get_export_scale(context) -> float:
     export_scale = 1
-    scene_nwo = context.scene.nwo
+    scene_nwo = get_scene_props()
     if scene_nwo.scale == 'blender':
         export_scale = (1 / 0.03048)
         
@@ -2205,7 +2196,7 @@ def get_export_scale(context) -> float:
 def get_unit_conversion_factor(context) -> float:
     '''Returns the factor needed to convert a unit back to blender scale'''
     export_scale = 1
-    scene_nwo = context.scene.nwo
+    scene_nwo = get_scene_props()
     if scene_nwo.scale == 'max':
         export_scale = 0.03048
         
@@ -2322,11 +2313,11 @@ class ArmatureWithParent():
         
 class TransformManager():
     def __enter__(self):
-        bpy.context.scene.nwo.transforming = True
+        get_scene_props().transforming = True
         return self
         
     def __exit__(self, exc_type, exc_value, traceback):
-        bpy.context.scene.nwo.transforming = False
+        get_scene_props().transforming = False
         
 def rotation_and_pivot(rotation):
     axis_z = Vector((0, 0, 1))
@@ -2341,13 +2332,13 @@ def halo_transforms(ob: bpy.types.Object, scale=None, rotation=None, marker=Fals
     Returns an object's matrix_world transformed for Halo. Used when writing object transforms directly to tags
     '''
     if scale is None:
-        if bpy.context.scene.nwo.scale == 'max':
+        if get_scene_props().scale == 'max':
             scale = 0.03048 * WU_SCALAR
         else:
             scale = WU_SCALAR
     
     if rotation is None:
-        rotation = blender_halo_rotation_diff(bpy.context.scene.nwo.forward_direction)
+        rotation = blender_halo_rotation_diff(get_scene_props().forward_direction)
         
     rotation_matrix, pivot_matrix = rotation_and_pivot(rotation)
     
@@ -2357,7 +2348,7 @@ def halo_transforms(ob: bpy.types.Object, scale=None, rotation=None, marker=Fals
     final_matrix = rotation_matrix @ scale_matrix @ object_matrix
     
     # If it's a marker and we have been asked to maintain marker axis
-    if marker and bpy.context.scene.nwo.maintain_marker_axis:
+    if marker and get_scene_props().maintain_marker_axis:
         marker_rotation_matrix = Matrix.Rotation(-rotation, 4, 'Z')
         final_matrix = final_matrix @ marker_rotation_matrix
     
@@ -2368,13 +2359,13 @@ def halo_transforms_matrix(matrix: Matrix, scale=None, rotation=None, marker=Fal
     Returns an object's matrix_world transformed for Halo. Used when writing object transforms directly to tags
     '''
     if scale is None:
-        if bpy.context.scene.nwo.scale == 'max':
+        if get_scene_props().scale == 'max':
             scale = 0.03048 * WU_SCALAR
         else:
             scale = WU_SCALAR
     
     if rotation is None:
-        rotation = blender_halo_rotation_diff(bpy.context.scene.nwo.forward_direction)
+        rotation = blender_halo_rotation_diff(get_scene_props().forward_direction)
         
     rotation_matrix, pivot_matrix = rotation_and_pivot(rotation)
     
@@ -2383,7 +2374,7 @@ def halo_transforms_matrix(matrix: Matrix, scale=None, rotation=None, marker=Fal
     final_matrix = rotation_matrix @ scale_matrix @ matrix
     
     # If it's a marker and we have been asked to maintain marker axis
-    if marker and bpy.context.scene.nwo.maintain_marker_axis:
+    if marker and get_scene_props().maintain_marker_axis:
         marker_rotation_matrix = Matrix.Rotation(-rotation, 4, 'Z')
         final_matrix = final_matrix @ marker_rotation_matrix
     
@@ -2392,10 +2383,10 @@ def halo_transforms_matrix(matrix: Matrix, scale=None, rotation=None, marker=Fal
 def halo_transform_matrix(matrix: Matrix) -> Matrix:
     """Converts a matrix from blender space to halo space"""
     scale = WU_SCALAR
-    if bpy.context.scene.nwo.scale == 'max':
+    if get_scene_props().scale == 'max':
         scale = 0.03048 * WU_SCALAR
     
-    rotation = blender_halo_rotation_diff(bpy.context.scene.nwo.forward_direction)
+    rotation = blender_halo_rotation_diff(get_scene_props().forward_direction)
     
     rotation_matrix, _ = rotation_and_pivot(rotation)
     scale_matrix = Matrix.Scale(scale, 4)
@@ -2407,10 +2398,10 @@ def halo_transform_matrix(matrix: Matrix) -> Matrix:
 def blender_transform_matrix(matrix: Matrix) -> Matrix:
     """Converts a matrix from halo space to blender space."""
     scale = WU_SCALAR
-    if bpy.context.scene.nwo.scale == 'max':
+    if get_scene_props().scale == 'max':
         scale = 0.03048 * WU_SCALAR
 
-    rotation = blender_halo_rotation_diff(bpy.context.scene.nwo.forward_direction)
+    rotation = blender_halo_rotation_diff(get_scene_props().forward_direction)
     rotation_matrix, _ = rotation_and_pivot(rotation)
 
     inv_scale_matrix = Matrix.Scale(1.0 / scale, 4)
@@ -2527,7 +2518,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
             actions = bpy.data.actions
             
         if keep_marker_axis is None:
-            keep_marker_axis = context.scene.nwo.maintain_marker_axis
+            keep_marker_axis = get_scene_props().maintain_marker_axis
 
         armatures = {}
         scene_coll = context.scene.collection.objects
@@ -2980,8 +2971,8 @@ def excluded(ob):
     return not ob.nwo.export_this or in_exclude_collection(ob)
 
 def get_camera_track_camera(context: bpy.types.Context) -> bpy.types.Object | None:
-    if context.scene.nwo.camera_track_camera:
-        return context.scene.nwo.camera_track_camera
+    if get_scene_props().camera_track_camera:
+        return get_scene_props().camera_track_camera
     
     cameras = [ob for ob in context.view_layer.objects if ob.type == 'CAMERA']
     animated_cameras = [ob for ob in cameras if ob.animation_data]
@@ -3088,7 +3079,7 @@ def is_halo_rig(ob):
         return False
     
 def get_object_controls(context: bpy.types.Context) -> list[bpy.types.Object]:
-    object_controls = context.scene.nwo.object_controls
+    object_controls = get_scene_props().object_controls
     if not object_controls:
         return []
     
@@ -3549,7 +3540,7 @@ def get_major_vertex_group(ob: bpy.types.Object):
         return ob.vertex_groups[most_common_index].name
     
 def set_region(ob, region):
-    regions_table = bpy.context.scene.nwo.regions_table
+    regions_table = get_scene_props().regions_table
     entry = regions_table.get(region, 0)
     if not entry:
         regions_table.add()
@@ -3560,7 +3551,7 @@ def set_region(ob, region):
     ob.nwo.region_name = region
     
 def add_region(region) -> str:
-    regions_table = bpy.context.scene.nwo.regions_table
+    regions_table = get_scene_props().regions_table
     entry = regions_table.get(region, 0)
     if not entry:
         regions_table.add()
@@ -3571,7 +3562,7 @@ def add_region(region) -> str:
     return entry.name
 
 def set_permutation(ob, permutation):
-    permutations_table = bpy.context.scene.nwo.permutations_table
+    permutations_table = get_scene_props().permutations_table
     entry = permutations_table.get(permutation, 0)
     if not entry:
         permutations_table.add()
@@ -3582,7 +3573,7 @@ def set_permutation(ob, permutation):
     ob.nwo.permutation_name = permutation
     
 def add_permutation(permutation) -> str:
-    permutations_table = bpy.context.scene.nwo.permutations_table
+    permutations_table = get_scene_props().permutations_table
     entry = permutations_table.get(permutation, 0)
     if not entry:
         permutations_table.add()
@@ -3955,7 +3946,7 @@ def apply_armature_scale(context, arm: bpy.types.Object):
                 
 def project_game_icon(context, project=None):
     if project is None:
-        project = get_project(context.scene.nwo.scene_project)
+        project = get_project(get_scene_props().scene_project)
     if not project:
         return get_icon_id('tag_test')
     match project.remote_server_name:
@@ -3968,7 +3959,7 @@ def project_game_icon(context, project=None):
         
 def project_game_for_mcc(context, project=None):
     if project is None:
-        project = get_project(context.scene.nwo.scene_project)
+        project = get_project(get_scene_props().scene_project)
     match project.remote_server_name:
         case 'bngtoolsql':
             return 'HaloReach'
@@ -3979,7 +3970,7 @@ def project_game_for_mcc(context, project=None):
         
 def project_icon(context, project=None):
     if project is None:
-        project = get_project(context.scene.nwo.scene_project)
+        project = get_project(get_scene_props().scene_project)
     if not project:
         return get_icon_id('tag_test')
     
@@ -4292,7 +4283,7 @@ def mesh_and_material(m_type, context):
     match m_type:
         case "collision":
             mesh_type = "_connected_geometry_mesh_type_collision"
-            if context.scene.nwo.asset_type == 'model':
+            if get_scene_props().asset_type == 'model':
                 material = "Collision"
         case "physics":
             mesh_type = "_connected_geometry_mesh_type_physics"
@@ -4428,7 +4419,7 @@ def get_timeline_markers(scene: bpy.types.Scene) -> list[bpy.types.TimelineMarke
     return markers
 
 def halo_scale(number: float) -> float:
-    if bpy.context.scene.nwo.scale == 'max':
+    if get_scene_props().scale == 'max':
         scale = 0.03048 * WU_SCALAR
     else:
         scale = WU_SCALAR
@@ -4437,7 +4428,7 @@ def halo_scale(number: float) -> float:
 
 # def valid_child_asset() -> bool:
 #     '''Returns if this scene is a valid child asset'''
-#     nwo = bpy.context.scene.nwo
+#     nwo = get_scene_props()
 #     parent_asset = nwo.parent_asset
 #     if not parent_asset.strip():
 #         return False
@@ -4447,7 +4438,7 @@ def halo_scale(number: float) -> float:
 
 # def get_ultimate_asset_path(full=False) -> Path:
 #     '''Gets the ultimate (parent if there is one) asset path for this asset. First argument is whether to return a full path or a relative path'''
-#     nwo = bpy.context.scene.nwo
+#     nwo = get_scene_props()
 #     if nwo.is_child_asset:
 #         assert(valid_child_asset())
 #         path = nwo.parent_asset
@@ -5660,3 +5651,36 @@ def project_file_exists(path, data=False):
 def clear_constraints(id):
     for con in reversed(id.constraints):
         id.constraints.remove(con)
+        
+def get_scene_props():
+    scene = bpy.context.scene
+    if scene.nwo.is_main_scene:
+        return scene.nwo
+    
+    for s in bpy.data.scenes:
+        if s.nwo.is_main_scene:
+            return s.nwo
+
+    return scene.nwo
+
+def get_export_props():
+    scene = bpy.context.scene
+    if scene.nwo.is_main_scene:
+        return scene.nwo_export
+    
+    for s in bpy.data.scenes:
+        if s.nwo.is_main_scene:
+            return s.nwo_export
+
+    return scene.nwo_export
+
+def get_launcher_props():
+    scene = bpy.context.scene
+    if scene.nwo.is_main_scene:
+        return scene.nwo_halo_launcher
+    
+    for s in bpy.data.scenes:
+        if s.nwo.is_main_scene:
+            return s.nwo_halo_launcher
+
+    return scene.nwo_halo_launcher

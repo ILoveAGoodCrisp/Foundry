@@ -34,10 +34,15 @@ class NWO_OT_SceneSwitch(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return len(bpy.data.scenes) > 1
+        scene_nwo = utils.get_scene_props()
+        return len(bpy.data.scenes) > 1 and scene_nwo.cinematic_scenes
 
     def execute(self, context):
-        
+        nwo = utils.get_scene_props()
+        cinematic_scene = nwo.cinematic_scenes[nwo.active_cinematic_scene_index]
+        scene = cinematic_scene.scene
+        if scene is not None:
+            self.report({'INFO'}, f"Scene switched to {scene.name} [{nwo.active_cinematic_scene_index:3f}]")
         return {"FINISHED"}
 
 
@@ -49,7 +54,8 @@ class NWO_OT_CinematicSceneNew(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.scene_parent is None
+        scene_nwo = utils.get_scene_props()
+        return len(scene_nwo.cinematic_scenes) < 33
     
     existing_scene: bpy.props.StringProperty(
         name="Link to Existing Scene",
@@ -65,7 +71,7 @@ class NWO_OT_CinematicSceneNew(bpy.types.Operator):
                     self.report({'WARNING'}, "Cannot link scene to it self")
                     return {'CANCELLED'}
                     
-        nwo = context.scene.nwo
+        nwo = utils.get_scene_props()
         cin_scene = nwo.cinematic_scenes.add()
         nwo.active_cinematic_scene_index = len(nwo.cinematic_scenes) - 1
                 
@@ -73,8 +79,6 @@ class NWO_OT_CinematicSceneNew(bpy.types.Operator):
             cin_scene.scene = bpy.data.scenes.new()
         else:
             cin_scene.scene = existing_scene
-            
-        cin_scene.scene.nwo.scene_parent = context.scene
             
         context.area.tag_redraw()
         return {'FINISHED'}
@@ -92,14 +96,15 @@ class NWO_OT_CinematicSceneRemove(bpy.types.Operator):
     bl_options = {'UNDO'}
     
     def poll(cls, context):
-        return context.scene.nwo.scene_parent is None and context.scene.nwo.cinematic_scenes and context.scene.nwo.active_cinematic_scene_index < len(context.scene.nwo.cinematic_scenes)
+        scene_nwo = utils.get_scene_props()
+        return len(scene_nwo.cinematic_scenes) > 1 and scene_nwo.active_cinematic_scene_index < len(scene_nwo.cinematic_scenes)
     
     delete_scene: bpy.props.BoolProperty(
         name="Delete Blender Scene"
     )
     
     def execute(self, context):
-        nwo = context.scene.nwo
+        nwo = utils.get_scene_props()
         index = nwo.active_cinematic_scene_index
         
         cin_scene = nwo.cinematic_scenes[index]
@@ -119,9 +124,6 @@ class NWO_OT_CinematicSceneRemove(bpy.types.Operator):
     def draw(self, context):
         self.layout.prop(self, "delete_scene")
 
-class NWO_OT_CinematicSceneMove(bpy.types.Operator):
-    pass
-
 class NWO_UL_CinematicScenes(bpy.types.UIList):
     def draw_item(self, context, layout: bpy.types.UILayout, data, item, icon, active_data, active_propname, index, flt_flag):
         pass
@@ -140,10 +142,12 @@ class NWO_OT_OpenParentAsset(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.parent_asset.strip()
+        scene_nwo = utils.get_scene_props()
+        return scene_nwo.parent_asset.strip()
     
     def execute(self, context):
-        asset_path = Path(context.scene.nwo.parent_asset)
+        scene_nwo = utils.get_scene_props()
+        asset_path = Path(scene_nwo.parent_asset)
         if asset_path.suffix != '.blend':
             asset_path = asset_path.with_suffix(".blend")
             
@@ -157,132 +161,6 @@ class NWO_OT_OpenParentAsset(bpy.types.Operator):
         bpy.ops.wm.save_mainfile(compress=context.preferences.filepaths.use_file_compression)
         bpy.ops.wm.open_mainfile(filepath=str(full_blend_path))
         return {'FINISHED'}
-        
-# class NWO_OT_OpenChildAsset(bpy.types.Operator):
-#     bl_idname = "nwo.open_child_asset"
-#     bl_label = "Open Blend"
-#     bl_description = "Opens the source blend file for this asset"
-#     bl_options = {"UNDO"}
-    
-#     @classmethod
-#     def poll(cls, context):
-#         return context.scene.nwo.child_assets and context.scene.nwo.active_child_asset_index > -1
-    
-#     def execute(self, context):
-#         asset_path = Path(context.scene.nwo.child_assets[context.scene.nwo.active_child_asset_index].asset_path)
-#         if asset_path.suffix == '.blend':
-#             relative_blend_path = utils.relative_path(asset_path)
-#         else:
-#             full_path = Path(utils.get_data_path(), asset_path, f"{asset_path.name}.sidecar.xml")
-            
-#             source_blend_element = None
-#             try:
-#                 tree = ET.parse(full_path)
-#                 root = tree.getroot()
-#                 source_blend_element = root.find(".//SourceBlend")
-#             except:
-#                 pass
-            
-#             if source_blend_element is None:
-#                 self.report({'WARNING'}, f"Failed to identify source blend file from {full_path}")
-#                 return {'CANCELLED'}
-            
-#             relative_blend_path = source_blend_element.text
-        
-#         full_blend_path = Path(utils.get_data_path(), relative_blend_path)
-#         if not full_blend_path.exists():
-#             self.report({'WARNING'}, f"Source blend file does not exist: {full_blend_path}")
-#             return {'CANCELLED'}
-        
-#         bpy.ops.wm.save_mainfile()
-#         bpy.ops.wm.open_mainfile(filepath=str(full_blend_path))
-#         return {'FINISHED'}
-        
-        
-# class NWO_OT_AddChildAsset(bpy.types.Operator):
-#     bl_idname = "nwo.add_child_asset"
-#     bl_label = "Add Child Asset"
-#     bl_description = "Adds a path to the sidecar which should contribute to this asset"
-#     bl_options = {"UNDO"}
-    
-#     @classmethod
-#     def poll(cls, context):
-#         return context.scene and utils.get_prefs().projects
-    
-#     filter_glob: bpy.props.StringProperty(
-#         default="*.sidecar.xml",
-#         options={"HIDDEN"},
-#     )
-
-#     use_filter_folder: bpy.props.BoolProperty(default=True)
-
-#     filepath: bpy.props.StringProperty(
-#         name="Sidecar Path",
-#         description="",
-#         subtype="FILE_PATH",
-#     )
-    
-#     filename: bpy.props.StringProperty()
-
-#     def execute(self, context):
-#         scene_nwo = context.scene.nwo
-#         fp = Path(self.filepath)
-#         if fp.is_absolute() and fp.is_relative_to(utils.get_data_path()):
-#             relative_filepath = utils.relative_path(fp)
-#             if relative_filepath == context.scene.nwo.sidecar_path:
-#                 self.report({'WARNING'}, f"Cannot add own asset sidecar")
-#                 return {'CANCELLED'}
-#             child = scene_nwo.child_assets.add()
-#             child.asset_path = str(Path(relative_filepath).parent)
-#             scene_nwo.active_child_asset_index = len(scene_nwo.child_assets) - 1
-#         else:
-#             self.report({'WARNING'}, f"sidecar.xml path [{fp}] is not relative to current project data directory [{utils.get_data_path()}]. Cannot add child asset")
-#             return {'CANCELLED'}
-        
-#         return {'FINISHED'}
-    
-#     def invoke(self, context, _):
-#         self.filepath = utils.get_asset_path_full() + os.sep
-#         context.window_manager.fileselect_add(self)
-#         return {'RUNNING_MODAL'}
-    
-# class NWO_OT_RemoveChildAsset(bpy.types.Operator):
-#     bl_idname = "nwo.remove_child_asset"
-#     bl_label = "Remove"
-#     bl_description = "Remove a child asset from the list"
-#     bl_options = {"UNDO"}
-
-#     @classmethod
-#     def poll(cls, context):
-#         return context.scene.nwo.child_assets and context.scene.nwo.active_child_asset_index > -1
-
-#     def execute(self, context):
-#         nwo = context.scene.nwo
-#         index = nwo.active_child_asset_index
-#         nwo.child_assets.remove(index)
-#         if nwo.active_child_asset_index > len(nwo.child_assets) - 1:
-#             nwo.active_child_asset_index -= 1
-#         context.area.tag_redraw()
-#         return {"FINISHED"}
-    
-# class NWO_OT_MoveChildAsset(bpy.types.Operator):
-#     bl_idname = "nwo.move_child_asset"
-#     bl_label = "Move"
-#     bl_description = "Moves the child asset up/down the list"
-#     bl_options = {"UNDO"}
-    
-#     direction: bpy.props.StringProperty()
-
-#     def execute(self, context):
-#         nwo = context.scene.nwo
-#         assets = nwo.child_assets
-#         delta = {"down": 1, "up": -1,}[self.direction]
-#         current_index = nwo.active_child_asset_index
-#         to_index = (current_index + delta) % len(assets)
-#         assets.move(current_index, to_index)
-#         nwo.active_child_asset_index = to_index
-#         context.area.tag_redraw()
-#         return {'FINISHED'}
     
 class NWO_UL_IKChain(bpy.types.UIList):
     # Called for each drawn item.
@@ -304,10 +182,11 @@ class NWO_OT_AddIKChain(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.main_armature
+        scene_nwo = utils.get_scene_props()
+        return scene_nwo.main_armature
 
     def execute(self, context):
-        nwo = context.scene.nwo
+        nwo = utils.get_scene_props()
         chain = nwo.ik_chains.add()
         nwo.ik_chains_active_index = len(nwo.ik_chains) - 1
         chain.name = f"ik_chain_{len(nwo.ik_chains)}"
@@ -322,10 +201,11 @@ class NWO_OT_RemoveIKChain(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.ik_chains and context.scene.nwo.ik_chains_active_index > -1
+        scene_nwo = utils.get_scene_props()
+        return scene_nwo.ik_chains and scene_nwo.ik_chains_active_index > -1
 
     def execute(self, context):
-        nwo = context.scene.nwo
+        nwo = utils.get_scene_props()
         index = nwo.ik_chains_active_index
         nwo.ik_chains.remove(index)
         if nwo.ik_chains_active_index > len(nwo.ik_chains) - 1:
@@ -342,7 +222,7 @@ class NWO_OT_MoveIKChain(bpy.types.Operator):
     direction: bpy.props.StringProperty()
 
     def execute(self, context):
-        nwo = context.scene.nwo
+        nwo = utils.get_scene_props()
         chains = nwo.ik_chains
         delta = {"down": 1, "up": -1,}[self.direction]
         current_index = nwo.ik_chains_active_index
@@ -360,10 +240,11 @@ class NWO_OT_ClearAsset(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.sidecar_path
+        scene_nwo = utils.get_scene_props()
+        return scene_nwo.sidecar_path
 
     def execute(self, context):
-        nwo = context.scene.nwo
+        nwo = utils.get_scene_props()
         _, asset_name = utils.get_asset_info(nwo.sidecar_path)
         nwo.sidecar_path = ""
         self.report({'INFO'}, f"Asset [{asset_name}] unlinked from file")

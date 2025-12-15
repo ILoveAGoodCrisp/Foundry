@@ -9,7 +9,7 @@ class NWO_ApplyCollectionMenu(bpy.types.Menu):
 
     def draw(self, context):
         layout = self.layout
-        is_scenario = context.scene.nwo.asset_type in ('scenario', 'prefab')
+        is_scenario = utils.get_scene_props().asset_type in ('scenario', 'prefab')
         r_name = "Region"
         p_name = "Permutation"
         if is_scenario:
@@ -34,7 +34,7 @@ class NWO_ApplyCollectionType(bpy.types.Operator):
         items = []
         r_name = "Region"
         p_name = "Permutation"
-        if context.scene.nwo.asset_type == "scenario":
+        if utils.get_scene_props().asset_type == "scenario":
             r_name = "BSP"
             p_name = "Layer"
 
@@ -65,16 +65,17 @@ class NWO_ApplyCollectionType(bpy.types.Operator):
             return {'FINISHED'}
 
         display_name = self.c_type
-        is_scenario = context.scene.nwo.asset_type in ('scenario', 'prefab')
+        scene_nwo = utils.get_scene_props()
+        is_scenario = scene_nwo.asset_type in ('scenario', 'prefab')
         if self.c_type == 'region':
-            regions = context.scene.nwo.regions_table
+            regions = scene_nwo.regions_table
             coll.nwo.region = coll_name
             if coll_name not in [r.name for r in regions]:
                 new_region = regions.add()
                 new_region.name = coll_name
 
         elif self.c_type == 'permutation':
-            permutations = context.scene.nwo.permutations_table
+            permutations = scene_nwo.permutations_table
             coll.nwo.permutation = coll_name
             if coll_name not in [p.name for p in permutations]:
                 new_permutation = permutations.add()
@@ -93,7 +94,7 @@ class NWO_OT_PermutationListCollection(NWO_ApplyCollectionType):
     def permutation_items(self, context):
         items = []
 
-        perms = context.scene.nwo.permutations_table
+        perms = utils.get_scene_props().permutations_table
         for p in perms:
             items.append((p.name, p.name, ''))
 
@@ -111,7 +112,7 @@ class NWO_OT_RegionListCollection(NWO_ApplyCollectionType):
     def region_items(self, context):
         items = []
 
-        regions = context.scene.nwo.regions_table
+        regions = utils.get_scene_props().regions_table
         for r in regions:
             items.append((r.name, r.name, ''))
 

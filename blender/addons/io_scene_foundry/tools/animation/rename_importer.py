@@ -3,6 +3,8 @@
 from pathlib import Path
 import bpy
 
+from ...utils import get_scene_props
+
 class RenameParser:
     def __init__(self, filepath) -> None:
         self.filepath = Path(filepath)
@@ -84,7 +86,7 @@ class NWO_OT_RenameImporter(bpy.types.Operator):
     )
     
     def create_renames(self, renames: dict):
-        for animation in bpy.context.scene.nwo.animations:
+        for animation in get_scene_props().animations:
             anim_name = animation.name.lower()
             for source, new in renames.items():
                 source_clean = source.lower()
@@ -100,7 +102,7 @@ class NWO_OT_RenameImporter(bpy.types.Operator):
                         self.rename_count += 1
                 
     def create_copies(self, context, copies: dict):
-        nwo = context.scene.nwo
+        nwo = get_scene_props()
         for source, new in copies.items():
             source_clean = source.lower()
             for name in new:

@@ -577,7 +577,7 @@ class NWO_OT_GeneratePoses(bpy.types.Operator):
     
     def execute(self, context):
         scene = context.scene
-        nwo = scene.nwo
+        nwo = utils.get_scene_props()
         armature = utils.get_rig_prioritize_active()
         if not armature:
             self.report({'WARNING'}, "No armature in scene")
@@ -800,7 +800,8 @@ def parse_xml_for_blend_screens(xml_path: Path) -> dict | None:
     return data
     
 def convert_legacy_pose_overlays(armature: bpy.types.Object, scene: bpy.types.Scene, builder: PoseBuilder, data: dict):
-    animations = {a.name.strip().replace(" ", ":").lower(): a for a in scene.nwo.animations}
+    scene_nwo = utils.get_scene_props()
+    animations = {a.name.strip().replace(" ", ":").lower(): a for a in scene_nwo.animations}
     animation_indexes = {a: idx for idx, a in enumerate(list(animations.values()))}
     
     if not armature.animation_data:
@@ -813,7 +814,7 @@ def convert_legacy_pose_overlays(armature: bpy.types.Object, scene: bpy.types.Sc
                 continue
             print(f"--- Converting {animation_name}")
             add_wrap_events = not ("vehicle" in animation_name or "pain" in animation_name)
-            scene.nwo.active_animation_index = animation_indexes[animation]
+            scene_nwo.active_animation_index = animation_indexes[animation]
             for track in animation.action_tracks:
                 if track.object == armature and track.action:
                     slot = utils.get_slot_from_id(track.action, armature.animation_data.last_slot_identifier)
@@ -840,8 +841,8 @@ class NWO_OT_ConvertLegacyPoseOverlays(bpy.types.Operator):
     
     def execute(self, context):
         scene = context.scene
-        nwo = scene.nwo
-        if not scene.nwo.animations:
+        nwo = utils.get_scene_props()
+        if not nwo.animations:
             self.report({'WARNING'}, "No animations in Scene")
             return {'CANCELLED'}
         
@@ -859,9 +860,10 @@ class NWO_OT_ConvertLegacyPoseOverlays(bpy.types.Operator):
         os.system("cls")
         start = time.perf_counter()
         user_cancelled = False
-        if context.scene.nwo_export.show_output:
+        scene_nwo_export = utils.get_export_props()
+        if scene_nwo_export.show_output:
             bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
-            context.scene.nwo_export.show_output = False
+            scene_nwo_export.show_output = False
             
         export_title = f"►►► LEGACY POSE OVERLAY CONVERTER ◄◄◄\n"
         print(export_title)

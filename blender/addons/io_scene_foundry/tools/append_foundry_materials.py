@@ -17,7 +17,7 @@ class NWO_AppendFoundryMaterials(bpy.types.Operator):
 
     def execute(self, context):
         game = 'h4' if utils.is_corinth(context) else 'reach'
-        asset_type = context.scene.nwo.asset_type
+        asset_type = utils.get_scene_props().asset_type
         count = add_special_materials(game, asset_type)
         
         if count == 0:

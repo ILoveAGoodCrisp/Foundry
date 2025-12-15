@@ -38,20 +38,21 @@ class NWO_OT_CameraSync(bpy.types.Operator):
         return utils.current_project_valid()
     
     def execute(self, context):
+        scene_nwo = utils.get_scene_props()
         if self.cancel_sync:
-            context.scene.nwo.camera_sync_active = False
+            scene_nwo.camera_sync_active = False
             return {'CANCELLED'}
         if not pymem_installed:
             pymem_install()
             return {'CANCELLED'}
-        context.scene.nwo.camera_sync_active = True
+        scene_nwo.camera_sync_active = True
         wm = context.window_manager
         self.timer = wm.event_timer_add(0.01, window=context.window)
         wm.modal_handler_add(self)
         return {'RUNNING_MODAL'}
 
     def modal(self, context, event):
-        nwo = context.scene.nwo
+        nwo = utils.get_scene_props()
         if not nwo.camera_sync_active:
             return self.cancel(context)
         if event.type == 'TIMER':

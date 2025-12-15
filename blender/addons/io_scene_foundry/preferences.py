@@ -6,7 +6,7 @@ from bpy.types import Operator, AddonPreferences
 from bpy.props import BoolProperty, StringProperty, EnumProperty, CollectionProperty
 
 from . import startup
-from .utils import ProjectXML, get_prefs, get_tags_path, is_corinth, project_game_icon, project_icon, read_projects_list, relative_path, setup_projects_list, write_projects_list
+from .utils import ProjectXML, get_prefs, get_scene_props, get_tags_path, is_corinth, project_game_icon, project_icon, read_projects_list, relative_path, setup_projects_list, write_projects_list
 FOUNDRY_GITHUB = r"https://github.com/ILoveAGoodCrisp/Foundry"
 import bpy
 
@@ -73,7 +73,7 @@ class NWO_ProjectAdd(Operator):
         projects = setup_projects_list(report=self.report)
 
         if self.set_scene_project or had_no_projects:
-            nwo = context.scene.nwo
+            nwo = get_scene_props()
             nwo.scene_project = projects[-1].name
         
         context.area.tag_redraw()

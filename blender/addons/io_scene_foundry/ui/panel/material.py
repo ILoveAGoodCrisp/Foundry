@@ -104,7 +104,8 @@ class NWO_MT_MaterialAttributeAddMenu(bpy.types.Menu):
     def draw(self, context):
         layout = self.layout
         corinth = utils.is_corinth(context)
-        asset_type = context.scene.nwo.asset_type
+        scene_nwo = utils.get_scene_props()
+        asset_type = scene_nwo.asset_type
         
         for name, display_name, mask in sorted(face_prop_type_items, key=lambda x: x[1]):
             games, asset_types = mask.split(":")
@@ -144,6 +145,7 @@ class NWO_OT_MaterialAttributeAdd(bpy.types.Operator):
     def execute(self, context):
         ob = context.object
         nwo = ob.active_material.nwo
+        scene_nwo = utils.get_scene_props()
         
         item = nwo.material_props.add()
         nwo.material_props_active_index = len(nwo.material_props) - 1
@@ -157,7 +159,7 @@ class NWO_OT_MaterialAttributeAdd(bpy.types.Operator):
         # item.color = utils.random_color()
 
         if self.options == "region":
-            region = context.scene.nwo.regions_table[0].name
+            region = scene_nwo.regions_table[0].name
             item.region = region
         elif self.options == "global_material":
             item.global_material = "default"

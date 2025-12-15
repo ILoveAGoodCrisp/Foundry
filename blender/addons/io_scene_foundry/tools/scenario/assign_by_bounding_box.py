@@ -3,6 +3,8 @@
 import bpy
 from mathutils import Vector
 
+from ...utils import get_scene_props
+
 class NWO_OT_AssignByBoundingBox(bpy.types.Operator):
     bl_idname = "nwo.bsp_assign_by_bounding_box"
     bl_label = "Assign to BSP By Bounding Box"
@@ -11,7 +13,8 @@ class NWO_OT_AssignByBoundingBox(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.asset_type == 'scenario' and len(context.scene.nwo.regions_table) > 1
+        scene_nwo = get_scene_props()
+        return scene_nwo.asset_type == 'scenario' and len(scene_nwo.regions_table) > 1
 
     def execute(self, context):
         

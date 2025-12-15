@@ -8,7 +8,7 @@ import time
 
 def generate_wetness(scenario_path, bsp="all"):
     os.system("cls")
-    if bpy.context.scene.nwo_export.show_output:
+    if utils.get_export_props().show_output:
         bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
         print(f"►►► WETNESS FARM ◄◄◄")
     
@@ -58,7 +58,7 @@ class NWO_OT_GenerateWetnessData(bpy.types.Operator):
     def invoke(self, context, event):
         tags_dir = utils.get_tags_path() + os.sep
         self.filepath = tags_dir
-        if utils.valid_nwo_asset() and context.scene.nwo.asset_type == "scenario":
+        if utils.valid_nwo_asset() and utils.get_scene_props().asset_type == "scenario":
             asset_path, asset_name = utils.get_asset_info()
             if asset_path and asset_name:
                 self.filepath = str(Path(tags_dir, asset_path, asset_name).with_suffix(".scenario"))

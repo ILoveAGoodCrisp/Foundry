@@ -97,7 +97,7 @@ class CameraTrackTag(Tag):
                     kfp.interpolation = 'BEZIER'
                     kfp.easing = 'AUTO'
                     
-        animation = self.context.scene.nwo.animations.add()
+        animation = self.scene_nwo.animations.add()
         animation.name = action.name
         animation.frame_start = int(action.frame_start)
         animation.frame_end = int(action.frame_end)

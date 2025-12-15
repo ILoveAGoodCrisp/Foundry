@@ -157,7 +157,7 @@ class PCAAnimationTag(Tag):
                     pca_objects[pca_index] = ob
         
         for name, blender_animation_name in animations.items():
-            blender_animation = bpy.context.scene.nwo.animations.get(blender_animation_name)
+            blender_animation = self.scene_nwo.animations.get(blender_animation_name)
             if blender_animation is None:
                 continue
             for element in self.block_mesh_data.Elements:

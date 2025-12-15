@@ -59,9 +59,8 @@ loopers = (
 
 class FrameGenerator:
     def __init__(self, animations=None):
-        
         if animations is None:
-            self.animations = {anim: utils.AnimationName(anim.name) for anim in bpy.context.scene.nwo.animations if anim.export_this}
+            self.animations = {anim: utils.AnimationName(anim.name) for anim in utils.get_scene_props().animations if anim.export_this}
         else:
             self.animations = {anim: utils.AnimationName(anim.name) for anim in animations if anim.export_this}
         
@@ -392,7 +391,7 @@ class NWO_OT_GenerateFrames(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.animations
+        return utils.get_scene_props().animations
 
     def execute(self, context):
         generator = FrameGenerator()

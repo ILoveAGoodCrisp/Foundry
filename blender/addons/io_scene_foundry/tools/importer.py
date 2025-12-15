@@ -118,7 +118,7 @@ object_tag_types = (
 tag_files_cache = set()
 
 def set_asset(tag_ext: str, ob: bpy.types.Object=None, is_sky=False):
-    scene_nwo = bpy.context.scene.nwo
+    scene_nwo = utils.get_scene_props()
     is_model = tag_ext == ".model"
     if is_model or tag_ext in object_tag_types:
         tags_dir = utils.get_tags_path()
@@ -314,6 +314,7 @@ class NWO_OT_ConvertScene(bpy.types.Operator):
         return context.window_manager.invoke_props_dialog(self)
     
     def execute(self, context):
+        scene_nwo_export = utils.get_export_props()
         failed = False
         if self.selected_only:
             objects_in_scope = context.selected_objects[:]
@@ -324,9 +325,9 @@ class NWO_OT_ConvertScene(bpy.types.Operator):
             os.system("cls")
             start = time.perf_counter()
             user_cancelled = False
-            if context.scene.nwo_export.show_output:
+            if scene_nwo_export.show_output:
                 bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
-                context.scene.nwo_export.show_output = False
+                scene_nwo_export.show_output = False
             try:
                 export_title = f"►►► FOUNDRY CONVERTER ◄◄◄"
                 print(export_title, '\n')
@@ -682,6 +683,8 @@ class NWO_Import(bpy.types.Operator):
     )
     
     def execute(self, context):
+        scene_nwo = utils.get_scene_props()
+        scene_nwo_export = utils.get_export_props()
         failed = False
         filepaths = [self.directory + f.name for f in self.files]
         if self.filepath and self.filepath not in filepaths:
@@ -696,7 +699,7 @@ class NWO_Import(bpy.types.Operator):
         imported_actions = []
         armature = None
         starting_materials = bpy.data.materials[:]
-        for_cinematic = context.scene.nwo.asset_type == 'cinematic'
+        for_cinematic = scene_nwo.asset_type == 'cinematic'
         self.anchor = None
         self.nothing_imported = False
         self.user_cancelled = False
@@ -715,14 +718,15 @@ class NWO_Import(bpy.types.Operator):
         if self.always_extract_bitmaps:
             clear_path_cache()
             
-        set_animation_index = context.scene.nwo.asset_type in {'model', 'animation'}
-            
+        set_animation_index = scene_nwo.asset_type in {'model', 'animation'}
+        
+
         with utils.ExportManager():
             os.system("cls")
             
-            if not self.place_at_mouse and context.scene.nwo_export.show_output:
+            if not self.place_at_mouse and scene_nwo_export.show_output:
                 bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
-                context.scene.nwo_export.show_output = False
+                scene_nwo_export.show_output = False
             try:
                 export_title = f"►►► FOUNDRY IMPORTER ◄◄◄"
                 print(export_title, '\n')
@@ -741,7 +745,7 @@ class NWO_Import(bpy.types.Operator):
                 mouse_matrix = utils.matrix_from_mouse(self.mouse_x, self.mouse_y)
                 
                 imported_animations = []
-                current_animations = set(context.scene.nwo.animations[:])
+                current_animations = set(scene_nwo.animations[:])
                 
                 if self.place_at_mouse and not self.convert_to_instance:
                     tag_path = filepaths[0]
@@ -769,7 +773,7 @@ class NWO_Import(bpy.types.Operator):
                         imported_objects.extend(imported_amf_objects)
                     
                     if importer.to_x_rot:
-                        utils.transform_scene(context, 1, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_amf_objects, actions=[])
+                        utils.transform_scene(context, 1, importer.from_x_rot, 'x', scene_nwo.forward_direction, objects=imported_amf_objects, actions=[])
                         
                 if self.legacy_okay and 'jms'  in importer.extensions:
                     toolset_addon_enabled = addon_utils.check('io_scene_halo')[0]
@@ -778,8 +782,7 @@ class NWO_Import(bpy.types.Operator):
                     jms_files = importer.sorted_filepaths["jms"]
                     
                     arm = None
-                    
-                    scene_nwo = context.scene.nwo
+                
                     if scene_nwo.main_armature:
                         arm = scene_nwo.main_armature
                     else:
@@ -793,7 +796,7 @@ class NWO_Import(bpy.types.Operator):
                     # Transform Scene so it's ready for JMS files
                     if importer.needs_scaling:
                         if arm is not None:
-                            utils.transform_scene(context, (1 / importer.scale_factor), importer.to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[arm], actions=[])
+                            utils.transform_scene(context, (1 / importer.scale_factor), importer.to_x_rot, scene_nwo.forward_direction, 'x', objects=[arm], actions=[])
          
                     imported_jms_objects = importer.import_jms_files(jms_files, self.legacy_type)
 
@@ -804,9 +807,9 @@ class NWO_Import(bpy.types.Operator):
 
                     if importer.needs_scaling:
                         if arm is None:
-                            utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_jms_objects, actions=[])
+                            utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', scene_nwo.forward_direction, objects=imported_jms_objects, actions=[])
                         else:
-                            utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=[arm] + imported_jms_objects, actions=[])
+                            utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', scene_nwo.forward_direction, objects=[arm] + imported_jms_objects, actions=[])
                             
                 if 'jma' in importer.extensions:
                     jma_files = importer.sorted_filepaths["jma"]
@@ -817,16 +820,16 @@ class NWO_Import(bpy.types.Operator):
                         utils.print_warning("No armature in scene, cannot import JMA files")
                     else:
                         if importer.needs_scaling:
-                            utils.transform_scene(context, (1 / importer.scale_factor), importer.to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[arm], actions=[])
+                            utils.transform_scene(context, (1 / importer.scale_factor), importer.to_x_rot, scene_nwo.forward_direction, 'x', objects=[arm], actions=[])
                         imported_animations = importer.import_jma_files(jma_files, arm)
                         if imported_animations:
                             imported_actions.extend(imported_animations)
                             
                         if importer.needs_scaling:
-                            utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=[arm], actions=imported_animations)
+                            utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', scene_nwo.forward_direction, objects=[arm], actions=imported_animations)
                             
                         if imported_animations and set_animation_index:
-                            context.scene.nwo.active_animation_index = len(context.scene.nwo.animations) - 1
+                            scene_nwo.active_animation_index = len(scene_nwo.animations) - 1
                         
                 if 'model' in importer.extensions:
                     importer.tag_render = self.tag_render
@@ -855,18 +858,18 @@ class NWO_Import(bpy.types.Operator):
                             existing_armature.data.pose_position = 'REST'
                             context.view_layer.update()
                             if importer.needs_scaling:
-                                utils.transform_scene(context, (1 / importer.scale_factor), importer.to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[existing_armature], actions=[])
+                                utils.transform_scene(context, (1 / importer.scale_factor), importer.to_x_rot, scene_nwo.forward_direction, 'x', objects=[existing_armature], actions=[])
                             
                     imported_model_objects, imported_animations = importer.import_models(model_files, existing_armature)
                     
                     if importer.needs_scaling:
-                        utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_model_objects, actions=imported_animations)
+                        utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', scene_nwo.forward_direction, objects=imported_model_objects, actions=imported_animations)
                         
                     if existing_armature is not None:
                         existing_armature.data.pose_position = arm_pose
                     
                     if imported_animations and set_animation_index:
-                        context.scene.nwo.active_animation_index = len(context.scene.nwo.animations) - 1
+                        scene_nwo.active_animation_index = len(scene_nwo.animations) - 1
                         
                     imported_objects.extend(imported_model_objects)
                     
@@ -883,9 +886,9 @@ class NWO_Import(bpy.types.Operator):
                                 imported_objects.extend(to_instance_objects)
                                 converter.clean_up()
                                 if to_instance_objects and importer.needs_scaling:
-                                    utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, context.scene.nwo.forward_direction, context.scene.nwo.forward_direction, objects=to_instance_objects, actions=[])
+                                    utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, scene_nwo.forward_direction, scene_nwo.forward_direction, objects=to_instance_objects, actions=[])
                                 
-                                if context.scene.nwo.maintain_marker_axis:
+                                if scene_nwo.maintain_marker_axis:
                                     converter.instance.matrix_world = mouse_matrix @ Matrix.Rotation(importer.from_x_rot, 4, 'Z')
                                 else:
                                     converter.instance.matrix_world = mouse_matrix
@@ -910,7 +913,7 @@ class NWO_Import(bpy.types.Operator):
                             context.collection.objects.link(marker)
                             
                             if imported_object_objects and importer.needs_scaling:
-                                utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_object_objects, actions=[])
+                                utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', scene_nwo.forward_direction, objects=imported_object_objects, actions=[])
                                 
                             marker.select_set(True)
                             context.view_layer.objects.active = marker
@@ -945,11 +948,11 @@ class NWO_Import(bpy.types.Operator):
                                 existing_armature.data.pose_position = 'REST'
                                 context.view_layer.update()
                                 if importer.needs_scaling:
-                                    utils.transform_scene(context, (1 / importer.scale_factor), importer.to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[existing_armature], actions=[])
+                                    utils.transform_scene(context, (1 / importer.scale_factor), importer.to_x_rot, scene_nwo.forward_direction, 'x', objects=[existing_armature], actions=[])
                         
                         imported_object_objects, imported_animations = importer.import_object(object_files, existing_armature)
                         if importer.needs_scaling:
-                            utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_object_objects, actions=imported_animations)
+                            utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', scene_nwo.forward_direction, objects=imported_object_objects, actions=imported_animations)
                             
                         if existing_armature is not None:
                             existing_armature.data.pose_position = arm_pose
@@ -957,7 +960,7 @@ class NWO_Import(bpy.types.Operator):
                         imported_objects.extend(imported_object_objects)
                         
                         if imported_animations and set_animation_index:
-                            context.scene.nwo.active_animation_index = len(context.scene.nwo.animations) - 1
+                            scene_nwo.active_animation_index = len(scene_nwo.animations) - 1
                     
                 elif 'render_model' in importer.extensions:
                     importer.tag_render = self.tag_render
@@ -969,7 +972,7 @@ class NWO_Import(bpy.types.Operator):
                     if self.reuse_armature:
                         existing_armature = utils.get_rig_prioritize_active(context)
                         if importer.needs_scaling:
-                            utils.transform_scene(context, (1 / importer.scale_factor), importer.to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[existing_armature], actions=[])
+                            utils.transform_scene(context, (1 / importer.scale_factor), importer.to_x_rot, scene_nwo.forward_direction, 'x', objects=[existing_armature], actions=[])
                     
                     imported_render_objects = []
                     for file in render_model_files:
@@ -978,7 +981,7 @@ class NWO_Import(bpy.types.Operator):
                         imported_render_objects.extend(render_model_objects)
                         
                     if importer.needs_scaling:
-                        utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_render_objects, actions=[])
+                        utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', scene_nwo.forward_direction, objects=imported_render_objects, actions=[])
                         
                     imported_objects.extend(imported_render_objects)
                     
@@ -1018,7 +1021,7 @@ class NWO_Import(bpy.types.Operator):
                         
                         if good_to_go:
                             if importer.needs_scaling:
-                                utils.transform_scene(context, (1 / importer.scale_factor), importer.to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[existing_armature], actions=[])
+                                utils.transform_scene(context, (1 / importer.scale_factor), importer.to_x_rot, scene_nwo.forward_direction, 'x', objects=[existing_armature], actions=[])
                             
                             imported_animations = []
                             for file in animation_files:
@@ -1026,10 +1029,10 @@ class NWO_Import(bpy.types.Operator):
                                 imported_animations.extend(importer.import_animation_graph(file, existing_armature, full_render_path))
                                 
                             if importer.needs_scaling:
-                                utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=[existing_armature], actions=imported_animations)
+                                utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', scene_nwo.forward_direction, objects=[existing_armature], actions=imported_animations)
                             
                         if imported_animations and set_animation_index:
-                            context.scene.nwo.active_animation_index = len(context.scene.nwo.animations) - 1
+                            scene_nwo.active_animation_index = len(scene_nwo.animations) - 1
                                     
                         existing_armature.data.pose_position = arm_pose
                     
@@ -1048,15 +1051,15 @@ class NWO_Import(bpy.types.Operator):
                     scenario_files = importer.sorted_filepaths["scenario"]
                     imported_scenario_objects = importer.import_scenarios(scenario_files, self.build_blender_materials, self.always_extract_bitmaps)
                     if importer.needs_scaling:
-                        utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_scenario_objects, actions=[])
+                        utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', scene_nwo.forward_direction, objects=imported_scenario_objects, actions=[])
                         
                     imported_objects.extend(imported_scenario_objects)
                     
                     if for_cinematic:
-                        if not context.scene.nwo.cinematic_scenario and scenario_files:
-                            context.scene.nwo.cinematic_scenario = scenario_files[0]
+                        if not scene_nwo.cinematic_scenario and scenario_files:
+                            scene_nwo.cinematic_scenario = scenario_files[0]
                             if self.tag_zone_set:
-                                context.scene.nwo.cinematic_zone_set = self.tag_zone_set
+                                scene_nwo.cinematic_zone_set = self.tag_zone_set
                         self.link_anchor(context, imported_scenario_objects)
                     
                 elif 'scenario_structure_bsp' in importer.extensions:
@@ -1071,7 +1074,7 @@ class NWO_Import(bpy.types.Operator):
                         imported_bsp_objects.extend(bsp_objects)
                         set_asset(Path(bsp).suffix)
                     if importer.needs_scaling:
-                        utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_bsp_objects, actions=[])
+                        utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', scene_nwo.forward_direction, objects=imported_bsp_objects, actions=[])
                         
                     imported_objects.extend(imported_bsp_objects)
                     
@@ -1088,7 +1091,7 @@ class NWO_Import(bpy.types.Operator):
                         design_objects = importer.import_structure_design(design)
                         imported_design_objects.extend(design_objects)
                     if importer.needs_scaling:
-                        utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_design_objects, actions=[])
+                        utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', scene_nwo.forward_direction, objects=imported_design_objects, actions=[])
                         
                     imported_objects.extend(imported_design_objects)
                         
@@ -1114,7 +1117,7 @@ class NWO_Import(bpy.types.Operator):
                         context.collection.objects.link(marker)
                         
                         if imported_object_objects and importer.needs_scaling:
-                            utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_object_objects, actions=[])
+                            utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', scene_nwo.forward_direction, objects=imported_object_objects, actions=[])
                             
                         marker.select_set(True)
                         context.view_layer.objects.active = marker
@@ -1124,7 +1127,7 @@ class NWO_Import(bpy.types.Operator):
                         for file in prefab_files:
                             imported_prefab_objects.extend(importer.import_prefab(file))
                         if importer.needs_scaling:
-                            utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_prefab_objects, actions=[])
+                            utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', scene_nwo.forward_direction, objects=imported_prefab_objects, actions=[])
                             
                         imported_objects.extend(imported_prefab_objects)
                         
@@ -1135,7 +1138,7 @@ class NWO_Import(bpy.types.Operator):
                         imported_polyart_objects.extend(importer.import_polyart(file))
                         
                     if importer.needs_scaling:
-                        utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_polyart_objects, actions=[])
+                        utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', scene_nwo.forward_direction, objects=imported_polyart_objects, actions=[])
                         
                     imported_objects.extend(imported_polyart_objects)
                     
@@ -1161,7 +1164,7 @@ class NWO_Import(bpy.types.Operator):
                         context.collection.objects.link(marker)
                         
                         if imported_object_objects and importer.needs_scaling:
-                            utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_object_objects, actions=[])
+                            utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', scene_nwo.forward_direction, objects=imported_object_objects, actions=[])
                             
                         marker.select_set(True)
                         context.view_layer.objects.active = marker
@@ -1173,7 +1176,7 @@ class NWO_Import(bpy.types.Operator):
                             imported_decorator_objects.extend(importer.import_decorator_set(file, self.build_blender_materials, self.always_extract_bitmaps, self.decorator_type.lower() if self.decorator_type.strip() else None, lod))
                         
                         if importer.needs_scaling:
-                            utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_decorator_objects, actions=[])
+                            utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', scene_nwo.forward_direction, objects=imported_decorator_objects, actions=[])
                         
                         imported_objects.extend(imported_decorator_objects)
                     
@@ -1184,7 +1187,7 @@ class NWO_Import(bpy.types.Operator):
                         particle_objects = importer.import_particle_model(file)
                         imported_particle_model_objects.extend(particle_objects)
                     if importer.needs_scaling:
-                        utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_particle_model_objects, actions=[])
+                        utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', scene_nwo.forward_direction, objects=imported_particle_model_objects, actions=[])
                         
                     imported_objects.extend(imported_particle_model_objects)
                     
@@ -1244,8 +1247,8 @@ class NWO_Import(bpy.types.Operator):
                             
                             imported_cinematic_objects.extend(imported_cinematic_scenario_objects)
                             
-                            context.scene.nwo.cinematic_scenario = scenario
-                            context.scene.nwo.cinematic_zone_set = zone_set
+                            scene_nwo.cinematic_scenario = scenario
+                            scene_nwo.cinematic_zone_set = zone_set
                         
                         first_scene = True
                         for sdata in scene_datas:
@@ -1307,7 +1310,7 @@ class NWO_Import(bpy.types.Operator):
                     imported_objects.extend(imported_cinematic_objects)
                         
                     if importer.needs_scaling:
-                        utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_cinematic_objects, actions=imported_cinematic_actions)
+                        utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', scene_nwo.forward_direction, objects=imported_cinematic_objects, actions=imported_cinematic_actions)
 
                     # for anchor, scen_objects in anchor_objects.items():
                     #     for ob in scen_objects:
@@ -1336,13 +1339,13 @@ class NWO_Import(bpy.types.Operator):
                     camera_track_files = importer.sorted_filepaths["camera_track"]
                     cameras, actions = importer.import_camera_tracks(camera_track_files, self.camera_track_animation_scale)
                     if importer.needs_scaling:
-                        utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=cameras, actions=actions)
+                        utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', scene_nwo.forward_direction, objects=cameras, actions=actions)
                     
-                    if context.scene.nwo.animations:
-                        context.scene.nwo.active_animation_index = len(context.scene.nwo.animations) - 1
+                    if scene_nwo.animations:
+                        scene_nwo.active_animation_index = len(scene_nwo.animations) - 1
                         
                 if self.generate_frames and imported_animations:
-                    generator = FrameGenerator(a for a in context.scene.nwo.animations if a not in current_animations)
+                    generator = FrameGenerator(a for a in scene_nwo.animations if a not in current_animations)
                     generator.generate()
                     
                 # if importer.deferred_parenting:
@@ -1397,13 +1400,14 @@ class NWO_Import(bpy.types.Operator):
         return {'FINISHED'}
     
     def link_anchor(self, context, objects):
+        scene_nwo = utils.get_scene_props()
         if self.anchor is None:
-            if context.scene.nwo.cinematic_anchor is None:
+            if scene_nwo.cinematic_anchor is None:
                 self.anchor = bpy.data.objects.new(name="Anchor", object_data=None)
                 context.scene.collection.objects.link(self.anchor)
-                context.scene.nwo.cinematic_anchor = self.anchor
+                scene_nwo.cinematic_anchor = self.anchor
             else:
-                self.anchor = context.scene.nwo.cinematic_anchor
+                self.anchor = scene_nwo.cinematic_anchor
         for ob in objects:
             if not ob.parent:
                 ob.parent = self.anchor
@@ -1786,6 +1790,7 @@ class JMSMaterialSlot:
 
 class NWOImporter:
     def __init__(self, context, filepaths=[], scope=[], existing_scene=False):
+        self.scene_nwo = utils.get_scene_props()
         self.filepaths = filepaths
         self.context = context
         self.mesh_objects = []
@@ -1823,7 +1828,7 @@ class NWOImporter:
         self.import_biped_weapon = False
         self.setup_as_asset = False
         self.tag_sky = ""
-        self.for_cinematic = context.scene.nwo.asset_type == "cinematic"
+        self.for_cinematic = self.scene_nwo.asset_type == "cinematic"
         self.obs_for_props = {}
         self.fp_arms_imported = False
         self.deferred_parenting = {}
@@ -1832,9 +1837,9 @@ class NWOImporter:
         else:
             self.sorted_filepaths = []
         
-        self.scale_factor = 0.03048 if context.scene.nwo.scale == 'blender' else 1
-        self.to_x_rot = utils.rotation_diff_from_forward(context.scene.nwo.forward_direction, 'x')
-        self.from_x_rot = utils.rotation_diff_from_forward('x', context.scene.nwo.forward_direction)
+        self.scale_factor = 0.03048 if self.scene_nwo.scale == 'blender' else 1
+        self.to_x_rot = utils.rotation_diff_from_forward(self.scene_nwo.forward_direction, 'x')
+        self.from_x_rot = utils.rotation_diff_from_forward('x', self.scene_nwo.forward_direction)
         self.needs_scaling = self.scale_factor != 1 or self.to_x_rot
         self.from_vert_normals = False
         
@@ -1924,7 +1929,7 @@ class NWOImporter:
     # Utility functions
     
     def set_region(self, ob, region):
-        regions_table = self.context.scene.nwo.regions_table
+        regions_table = self.scene_nwo.regions_table
         entry = regions_table.get(region, 0)
         if not entry:
             # Create the entry
@@ -1936,7 +1941,7 @@ class NWOImporter:
         ob.nwo.region_name = region
 
     def set_permutation(self, ob, permutation):
-        permutations_table = self.context.scene.nwo.permutations_table
+        permutations_table = self.scene_nwo.permutations_table
         entry = permutations_table.get(permutation, 0)
         if not entry:
             # Create the entry
@@ -1959,7 +1964,7 @@ class NWOImporter:
         return cameras, actions
             
     def import_camera_track(self, file, animation_scale):
-        with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
+        with utils.TagImportMover(utils.get_project(self.scene_nwo.scene_project).tags_directory, file) as mover:
             with CameraTrackTag(path=mover.tag_path) as camera_track:
                 camera, action = camera_track.to_blender_animation(self.context, animation_scale)
             
@@ -1975,13 +1980,13 @@ class NWOImporter:
                 print(f'Importing Model Tag: {Path(file).with_suffix("").name} [{self.tag_variant}] ')
             else:
                 print(f'Importing Model Tag: {Path(file).with_suffix("").name} ')
-            with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
+            with utils.TagImportMover(utils.get_project(self.scene_nwo.scene_project).tags_directory, file) as mover:
                 with ModelTag(path=mover.tag_path, raise_on_error=False) as model:
                     if not model.valid: continue
                     if mover.needs_to_move:
                         source_tag_root = mover.potential_source_tag_dir
                     else:
-                        source_tag_root = utils.get_project(self.context.scene.nwo.scene_project).tags_directory
+                        source_tag_root = utils.get_project(self.scene_nwo.scene_project).tags_directory
                         
                     render, collision, animation, physics = model.get_model_paths(optional_tag_root=source_tag_root)
                     
@@ -2046,7 +2051,7 @@ class NWOImporter:
                 print(f'Importing Object Tag: {Path(file).name} [{self.tag_variant}]')
             else:
                 print(f'Importing Object Tag: {Path(file).name} ')
-            with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
+            with utils.TagImportMover(utils.get_project(self.scene_nwo.scene_project).tags_directory, file) as mover:
                 with ObjectTag(path=mover.tag_path, raise_on_error=False) as obj:
                     if is_game_object:
                         if game_object.nwo.marker_game_instance_tag_variant_name.strip():
@@ -2074,19 +2079,19 @@ class NWOImporter:
                     if functions:
                         print(f"--- Created Blender node groups for {len(functions)} object functions")
                     prop_names = []
-                    with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, model_path) as model_mover:
+                    with utils.TagImportMover(utils.get_project(self.scene_nwo.scene_project).tags_directory, model_path) as model_mover:
                         with ModelTag(path=model_mover.tag_path, raise_on_error=False) as model:
                             if not model.valid: continue
                             if model_mover.needs_to_move:
                                 source_tag_root = mover.potential_source_tag_dir
                             else:
-                                source_tag_root = utils.get_project(self.context.scene.nwo.scene_project).tags_directory
+                                source_tag_root = utils.get_project(self.scene_nwo.scene_project).tags_directory
                                 
                             render, collision, animation, physics = model.get_model_paths(optional_tag_root=source_tag_root)
                             
                             temp_variant = self.tag_variant
                             
-                            if not temp_variant and (for_instance_conversion or is_game_object or self.context.scene.nwo.asset_type == 'cinematic'):
+                            if not temp_variant and (for_instance_conversion or is_game_object or self.scene_nwo.asset_type == 'cinematic'):
                                 if model.block_variants.Elements.Count:
                                     temp_variant = model.block_variants.Elements[0].Fields[0].GetStringData()
                             
@@ -2477,7 +2482,7 @@ class NWOImporter:
         armature = None
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_render")
         model_collection.children.link(collection)
-        with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
+        with utils.TagImportMover(utils.get_project(self.scene_nwo.scene_project).tags_directory, file) as mover:
             with RenderModelTag(path=mover.tag_path) as render_model:
                 render_model_objects, armature = render_model.to_blend_objects(collection, self.tag_render, self.tag_markers, model_collection, existing_armature, allowed_region_permutations, self.from_vert_normals, build_control_rig=self.build_control_rig)
                 render_model_objects.extend(render_model.skylights_to_blender(collection))
@@ -2490,7 +2495,7 @@ class NWOImporter:
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_collision")
         collection.hide_render = True
         model_collection.children.link(collection)
-        with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
+        with utils.TagImportMover(utils.get_project(self.scene_nwo.scene_project).tags_directory, file) as mover:
             with CollisionTag(path=mover.tag_path) as collision_model:
                 collision_model_objects = collision_model.to_blend_objects(collection, armature, allowed_region_permutations)
             
@@ -2502,7 +2507,7 @@ class NWOImporter:
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_physics")
         collection.hide_render = True
         model_collection.children.link(collection)
-        with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
+        with utils.TagImportMover(utils.get_project(self.scene_nwo.scene_project).tags_directory, file) as mover:
             with PhysicsTag(path=mover.tag_path) as physics_model:
                 physics_model_objects = physics_model.to_blend_objects(collection, armature, allowed_region_permutations)
             
@@ -2511,7 +2516,7 @@ class NWOImporter:
     def import_animation_graph(self, file, armature, render):
         actions = []
         filter = self.tag_animation_filter.replace(" ", ":")
-        with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
+        with utils.TagImportMover(utils.get_project(self.scene_nwo.scene_project).tags_directory, file) as mover:
             with AnimationTag(path=mover.tag_path) as graph:
                 if self.graph_import_animations:
                     print("Importing Animations")
@@ -2544,7 +2549,7 @@ class NWOImporter:
         for file in paths:
             print(f'Importing Scenario Tag: {Path(file).with_suffix("").name} ')
             structure_collision = []
-            with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
+            with utils.TagImportMover(utils.get_project(self.scene_nwo.scene_project).tags_directory, file) as mover:
                 with ScenarioTag(path=mover.tag_path, raise_on_error=False) as scenario:
                     if not scenario.valid: continue
                     bsps = scenario.get_bsp_paths(self.tag_zone_set)
@@ -2583,7 +2588,7 @@ class NWOImporter:
                         imported_objects.extend(sky_objects)
                             
                         factor = 1
-                        if bpy.context.scene.nwo.scale == 'max':
+                        if self.scene_nwo.scale == 'max':
                             factor = 1 / 0.03048
                         
                         sky_view = 100_000 * factor
@@ -2673,7 +2678,7 @@ class NWOImporter:
 
                     if self.setup_as_asset:
                         set_asset(Path(file).suffix)
-                        self.context.scene.nwo_export.create_debug_zone_set = False
+                        self.scene_nwo_export.create_debug_zone_set = False
                         # scenario.zone_sets_to_blender(self.tag_zone_set)
         
         if dont_link_collection:
@@ -2695,7 +2700,7 @@ class NWOImporter:
                 self.context.scene.collection.children.link(collection)
             else:
                 scenario_collection.children.link(collection)
-        with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
+        with utils.TagImportMover(utils.get_project(self.scene_nwo.scene_project).tags_directory, file) as mover:
             with ScenarioStructureBspTag(path=mover.tag_path) as bsp:
                 bsp_objects, game_objects, bvh = bsp.to_blend_objects(collection, self.tag_bsp_render_only, info_path, self.tag_bsp_import_geometry, self.tag_import_lights, always_get_structure_collision, sky_index)
                 
@@ -2746,7 +2751,7 @@ class NWOImporter:
             else:
                 scenario_collection.children.link(collection)
         collection.hide_render = True
-        with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
+        with utils.TagImportMover(utils.get_project(self.scene_nwo.scene_project).tags_directory, file) as mover:
             with StructureDesignTag(path=mover.tag_path) as design:
                 design_objects = design.to_blender(collection)
         
@@ -2805,7 +2810,7 @@ class NWOImporter:
         collection.nwo.region = utils.add_region(filename)
         main_collection.children.link(collection)
         
-        with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
+        with utils.TagImportMover(utils.get_project(self.scene_nwo.scene_project).tags_directory, file) as mover:
             with PolyArtTag(path=mover.tag_path) as polyart:
                 return polyart.to_blender(collection)
     
@@ -2815,7 +2820,7 @@ class NWOImporter:
         particle_model_objects = []
         collection = bpy.data.collections.new(f"{filename}_particle")
         self.context.scene.collection.children.link(collection)
-        with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
+        with utils.TagImportMover(utils.get_project(self.scene_nwo.scene_project).tags_directory, file) as mover:
             with ParticleModelTag(path=mover.tag_path) as particle_model:
                 particle_model_objects = particle_model.to_blend_objects(collection, filename)
                 
@@ -2839,7 +2844,7 @@ class NWOImporter:
             
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name))
         self.context.scene.collection.children.link(collection)
-        with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
+        with utils.TagImportMover(utils.get_project(self.scene_nwo.scene_project).tags_directory, file) as mover:
             with DecoratorSetTag(path=mover.tag_path) as decorator:
                 decorator_objects = decorator.to_blender(collection, build_materials, extract_bitmaps, single_type, lod, only_single_type)
 
@@ -2854,7 +2859,7 @@ class NWOImporter:
     def import_cinematic(self, file, film_aperture: float):
         filename = Path(file).with_suffix("").name
         print(f"Importing Cinematic: {filename}")
-        with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, file) as mover:
+        with utils.TagImportMover(utils.get_project(self.scene_nwo.scene_project).tags_directory, file) as mover:
             with CinematicTag(path=mover.tag_path) as cinematic:
                 scene_datas, scenario_path, zone_set = cinematic.to_blender(film_aperture, self.tag_cinematic_import_scenario)
                 
@@ -2876,7 +2881,7 @@ class NWOImporter:
             utils.update_progress(job, idx / bitmap_count)
             # bitmap_name = utils.dot_partition(os.path.basename(fp))
             # if 'lp_array' in bitmap_name or 'global_render_texture' in bitmap_name: continue # Filter out the bitmaps that crash ManagedBlam
-            with utils.TagImportMover(utils.get_project(self.context.scene.nwo.scene_project).tags_directory, fp) as mover:
+            with utils.TagImportMover(utils.get_project(self.scene_nwo.scene_project).tags_directory, fp) as mover:
                 info = bitmap_to_image(mover.tag_path, True)
                 if info.image:
                     extracted_bitmaps[info.image_path] = info.for_normal
@@ -2946,7 +2951,7 @@ class NWOImporter:
                 self.context.scene.collection.children.link(new_coll)
             if not is_model and possible_bsp:
                 new_coll.name = possible_bsp
-                regions_table = self.context.scene.nwo.regions_table
+                regions_table = self.scene_nwo.regions_table
                 entry = regions_table.get(possible_bsp, 0)
                 if not entry:
                     regions_table.add()
@@ -2998,7 +3003,7 @@ class NWOImporter:
             solved_permutation = False
             part_we_care_about = ob.name.split(":")[1]
             region_part, permutation_part = part_we_care_about.split("(")
-            for region in self.context.scene.nwo.regions_table:
+            for region in self.scene_nwo.regions_table:
                 if region_part.startswith(region.name):
                     self.set_region(ob, region.name)
                     ob.nwo.region_name = region.name
@@ -3007,7 +3012,7 @@ class NWOImporter:
                     
             permutation_part: str
             permutation_part = permutation_part.strip(")").partition("_")[2]
-            for permutation in self.context.scene.nwo.permutations_table:
+            for permutation in self.scene_nwo.permutations_table:
                 if permutation_part.startswith(permutation.name):
                     self.set_permutation(ob, permutation.name)
                     ob.nwo.permutation_name = permutation.name
@@ -3130,7 +3135,7 @@ class NWOImporter:
             possible_bsp = file_name
             if possible_bsp.lower() == 'shared': possible_bsp = "default_shared"
             new_coll.name = possible_bsp
-            regions_table = self.context.scene.nwo.regions_table
+            regions_table = self.scene_nwo.regions_table
             entry = regions_table.get(possible_bsp, 0)
             if not entry:
                 regions_table.add()
@@ -3243,16 +3248,16 @@ class NWOImporter:
             marker.empty_display_type = 'ARROWS'
             
         if is_model and region is not None:
-            if region not in [region.name for region in self.context.scene.nwo.regions_table]:
-                region_entry = self.context.scene.nwo.regions_table.add()
+            if region not in [region.name for region in self.scene_nwo.regions_table]:
+                region_entry = self.scene_nwo.regions_table.add()
                 region_entry.name = region
                 region_entry.old = region
             marker.nwo.region_name = region
             marker.nwo.marker_uses_regions = True
             
             if is_model and perm is not None:
-                if perm not in [perm.name for perm in self.context.scene.nwo.permutations_table]:
-                    perm_entry = self.context.scene.nwo.permutations_table.add()
+                if perm not in [perm.name for perm in self.scene_nwo.permutations_table]:
+                    perm_entry = self.scene_nwo.permutations_table.add()
                     perm_entry.name = perm
                     perm_entry.old = perm
                 marker.nwo.marker_permutations.add().name = perm
@@ -3856,8 +3861,8 @@ class NWOImporter:
             finally:
                 utils.unmute_armature_mods(muted_armature_deforms)
                 
-            if self.context.scene.nwo.asset_type in {'model', 'animation'}:
-                self.context.scene.nwo.active_animation_index = len(self.context.scene.nwo.animations) - 1
+            if self.scene_nwo.asset_type in {'model', 'animation'}:
+                self.scene_nwo.active_animation_index = len(self.scene_nwo.animations) - 1
             
             return self.actions
             
@@ -3874,7 +3879,7 @@ class NWOImporter:
         #     bpy.ops.import_scene.jma(filepath=str(path))
         if action is not None:
             self.actions.append(action)
-            animation = self.context.scene.nwo.animations.add()
+            animation = self.scene_nwo.animations.add()
             animation.name = anim_name
             # action.use_fake_user = True
             action.use_frame_range = True
@@ -3997,7 +4002,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     def items_tag_variant(self, context):
         global variant_items
         var_match = False
-        if context.scene.nwo.asset_type in {"cinematic", "scenario"}:
+        if utils.get_scene_props().asset_type in {"cinematic", "scenario"}:
             items = []
         else:
             items = [("all_variants", "All Variants", "Includes the full model geometry")]
@@ -4018,7 +4023,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     def items_decorator_type(self, context):
         global decorator_type_items
         dec_match = False
-        if context.scene.nwo.asset_type in {"cinematic", "scenario"}:
+        if utils.get_scene_props().asset_type in {"cinematic", "scenario"}:
             items = []
         else:
             items = [("all_types", "All Types", "Includes the full model geometry")]
@@ -4271,6 +4276,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         return {'FINISHED'}
     
     def invoke(self, context, event):
+        scene_nwo = utils.get_scene_props()
         global checked_asset_once
         if not self.setup_as_asset and not utils.valid_nwo_asset(context) and not checked_asset_once:
             checked_asset_once = True
@@ -4278,11 +4284,11 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         self.mouse_x = event.mouse_region_x
         self.mouse_y = event.mouse_region_y
         suffix = Path(self.filepath).suffix.lower()
-        self.place_at_mouse = context.scene.nwo.asset_type == 'scenario' and (suffix == '.prefab' or suffix == '.decorator_set' or suffix in OBJECT_TAG_EXTS)
+        self.place_at_mouse = scene_nwo.asset_type == 'scenario' and (suffix == '.prefab' or suffix == '.decorator_set' or suffix in OBJECT_TAG_EXTS)
         self.has_variants = False
         self.has_zone_sets = False
         self.import_type = Path(self.filepath).suffix[1:].lower()
-        if context.scene.nwo.asset_type == "cinematic":
+        if scene_nwo.asset_type == "cinematic":
             self.tag_bsp_render_only = True
             self.tag_collision = False
             self.tag_physics = False
@@ -4779,6 +4785,7 @@ class NWO_ImportGameInstanceTag(bpy.types.Operator):
 
     def execute(self, context):
         ob = context.object
+        scene_nwo = utils.get_scene_props()
         tag_path = ob.nwo.marker_game_instance_tag_name
         variant = ob.nwo.marker_game_instance_tag_variant_name.lower()
         
@@ -4803,7 +4810,7 @@ class NWO_ImportGameInstanceTag(bpy.types.Operator):
             else:
                 collection = importer.import_object(ob, None)
             if importer.needs_scaling:
-                utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=collection.all_objects, actions=[])
+                utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', scene_nwo.forward_direction, objects=collection.all_objects, actions=[])
                 
             merge_collection(collection)
             context.scene.collection.children.unlink(collection)
@@ -4844,6 +4851,7 @@ class NWO_OT_InstancerToInstance(bpy.types.Operator):
         collection = context.scene.collection
         count = 0
         rotation_matrix = Matrix.Identity(4)
+        scene_nwo = utils.get_scene_props()
         for ob in context.selected_objects:
             if not utils.is_instancer(ob):
                 continue
@@ -4870,9 +4878,9 @@ class NWO_OT_InstancerToInstance(bpy.types.Operator):
                 cache[(ob.nwo.marker_game_instance_tag_name, ob.nwo.marker_game_instance_tag_variant_name)] = converter.instance
                 
                 if importer.needs_scaling:
-                    utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', context.scene.nwo.forward_direction, objects=new_objects, actions=[])
+                    utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', scene_nwo.forward_direction, objects=new_objects, actions=[])
                 
-                if context.scene.nwo.maintain_marker_axis:
+                if scene_nwo.maintain_marker_axis:
                     rotation_matrix = Matrix.Rotation(importer.from_x_rot, 4, 'Z')
                 
                 converter.instance.matrix_world = ob.matrix_world @ rotation_matrix

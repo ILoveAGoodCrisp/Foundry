@@ -9,7 +9,7 @@ from ..icons import get_icon_id
 from ..managed_blam.scenario import ScenarioTag
 from ..tools.collection_manager import get_full_name
 
-from ..utils import create_parent_mapping, is_corinth, is_frame, is_marker, is_marker_quick, is_mesh, poll_ui, update_tables_from_objects, valid_nwo_asset
+from ..utils import create_parent_mapping, get_scene_props, is_corinth, is_frame, is_marker, is_marker_quick, is_mesh, poll_ui, update_tables_from_objects, valid_nwo_asset
 
 def has_region_or_perm(ob):
     if is_mesh(ob) and (ob.nwo.mesh_type != '_connected_geometry_mesh_type_object_instance' or ob.nwo.marker_uses_regions):
@@ -28,11 +28,12 @@ class NWO_UpdateSets(bpy.types.Operator):
     bl_options = {"UNDO"}
 
     def execute(self, context):
+        scene_nwo = get_scene_props()
         update_tables_from_objects(context)
-        for item in context.scene.nwo.regions_table:
+        for item in scene_nwo.regions_table:
             bpy.ops.nwo.region_hide(entry_name=item.name)
             bpy.ops.nwo.region_hide_select(entry_name=item.name)
-        for item in context.scene.nwo.permutations_table:
+        for item in scene_nwo.permutations_table:
             bpy.ops.nwo.permutation_hide(entry_name=item.name)
             bpy.ops.nwo.permutation_hide_select(entry_name=item.name)
             
@@ -79,7 +80,7 @@ class TableEntryAdd(bpy.types.Operator):
 
     def execute(self, context):
         name = self.name.lower()
-        nwo = context.scene.nwo
+        nwo = get_scene_props()
         table = getattr(nwo, self.table_str)
         all_names = [entry.name for entry in table]
 
@@ -119,7 +120,7 @@ class TableEntryRemove(bpy.types.Operator):
     bl_options = {'UNDO'}
 
     def execute(self, context):
-        nwo = context.scene.nwo
+        nwo = get_scene_props()
         table = getattr(nwo, self.table_str)
         
         table_active_index_str = f"{self.table_str}_active_index"
@@ -171,7 +172,7 @@ class TableEntryMove(bpy.types.Operator):
     direction: bpy.props.StringProperty()
 
     def execute(self, context):
-        nwo = context.scene.nwo
+        nwo = get_scene_props()
         table = getattr(nwo, self.table_str)
             
         table_active_index_str = f"{self.table_str}_active_index"
@@ -222,8 +223,8 @@ class TableEntrySelect(bpy.types.Operator):
     select: bpy.props.BoolProperty()
     
     def execute(self, context):
-        nwo = context.scene.nwo
-        table = getattr(context.scene.nwo, self.table_str)
+        nwo = get_scene_props()
+        table = getattr(nwo, self.table_str)
         table_active_index_str = f"{self.table_str}_active_index"
         table_active_index = getattr(nwo, table_active_index_str)
         entry = table[table_active_index]
@@ -243,7 +244,7 @@ class TableEntryRename(bpy.types.Operator):
     index: bpy.props.IntProperty()
     
     def execute(self, context):
-        nwo = context.scene.nwo
+        nwo = get_scene_props()
         new_name = self.new_name.lower()
         table = getattr(nwo, self.table_str)
         table_active_index = self.index
@@ -319,7 +320,7 @@ class TableEntryHide(bpy.types.Operator):
     
     def execute(self, context):
         collection_map = create_parent_mapping(context)
-        nwo = context.scene.nwo
+        nwo = get_scene_props()
         table = getattr(nwo, self.table_str)
         entry = get_entry(table, self.entry_name)
         should_hide = entry.hidden
@@ -340,7 +341,7 @@ class TableEntryHideSelect(bpy.types.Operator):
     
     def execute(self, context):
         collection_map = create_parent_mapping(context)
-        nwo = context.scene.nwo
+        nwo = get_scene_props()
         table = getattr(nwo, self.table_str)
         entry = get_entry(table, self.entry_name)
         should_hide_select = entry.hide_select
@@ -381,7 +382,7 @@ class NWO_RegionAdd(TableEntryAdd):
 
     @classmethod
     def description(cls, context, properties) -> str:
-        is_scenario = context.scene.nwo.asset_type == 'scenario'
+        is_scenario = get_scene_props().asset_type == 'scenario'
         if is_scenario:
             return "Add a new BSP"
         else:
@@ -398,7 +399,7 @@ class NWO_FaceRegionAdd(bpy.types.Operator):
 
     def execute(self, context):
         name = self.name.lower()
-        nwo = context.scene.nwo
+        nwo = get_scene_props()
         table = getattr(nwo, "regions_table")
         all_names = [entry.name for entry in table]
 
@@ -441,7 +442,7 @@ class NWO_RegionRemove(TableEntryRemove):
 
     @classmethod
     def poll(cls, context):
-        return len(context.scene.nwo.regions_table) > 1
+        return len(get_scene_props().regions_table) > 1
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -450,7 +451,7 @@ class NWO_RegionRemove(TableEntryRemove):
 
     @classmethod
     def description(cls, context, properties) -> str:
-        is_scenario = context.scene.nwo.asset_type == 'scenario'
+        is_scenario = get_scene_props().asset_type == 'scenario'
         if is_scenario:
             return "Removes the active BSP"
         else:
@@ -463,7 +464,7 @@ class NWO_RegionMove(TableEntryMove):
 
     @classmethod
     def poll(cls, context):
-        return len(context.scene.nwo.regions_table) > 1
+        return len(get_scene_props().regions_table) > 1
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -471,7 +472,7 @@ class NWO_RegionMove(TableEntryMove):
 
     @classmethod
     def description(cls, context, properties) -> str:
-        is_scenario = context.scene.nwo.asset_type == 'scenario'
+        is_scenario = get_scene_props().asset_type == 'scenario'
         if is_scenario:
             return "Moves the active BSP"
         else:
@@ -484,7 +485,7 @@ class NWO_RegionAssignSingle(TableEntryAssignSingle):
 
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.regions_table and context.object
+        return get_scene_props().regions_table and context.object
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -493,7 +494,7 @@ class NWO_RegionAssignSingle(TableEntryAssignSingle):
 
     @classmethod
     def description(cls, context, properties) -> str:
-        is_scenario = context.scene.nwo.asset_type == 'scenario'
+        is_scenario = get_scene_props().asset_type == 'scenario'
         if is_scenario:
             return "Assigns the selected BSP to the active Object"
         else:
@@ -547,7 +548,7 @@ class NWO_RegionAssign(TableEntryAssign):
 
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.regions_table and context.selected_objects
+        return get_scene_props().regions_table and context.selected_objects
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -556,7 +557,7 @@ class NWO_RegionAssign(TableEntryAssign):
 
     @classmethod
     def description(cls, context, properties) -> str:
-        is_scenario = context.scene.nwo.asset_type == 'scenario'
+        is_scenario = get_scene_props().asset_type == 'scenario'
         if is_scenario:
             return "Assigns the active BSP to selected Objects"
         else:
@@ -569,7 +570,7 @@ class NWO_RegionSelect(TableEntrySelect):
 
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.regions_table
+        return get_scene_props().regions_table
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -578,7 +579,7 @@ class NWO_RegionSelect(TableEntrySelect):
 
     @classmethod
     def description(cls, context, properties) -> str:
-        is_scenario = context.scene.nwo.asset_type == 'scenario'
+        is_scenario = get_scene_props().asset_type == 'scenario'
         if is_scenario:
             if properties.select:
                 return "Selects the active BSP"
@@ -597,7 +598,7 @@ class NWO_RegionRename(TableEntryRename):
 
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.regions_table
+        return get_scene_props().regions_table
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -607,7 +608,7 @@ class NWO_RegionRename(TableEntryRename):
 
     @classmethod
     def description(cls, context, properties) -> str:
-        is_scenario = context.scene.nwo.asset_type == 'scenario'
+        is_scenario = get_scene_props().asset_type == 'scenario'
         if is_scenario:
             return "Renames the active BSP and updates scene objects"
         else:
@@ -620,7 +621,7 @@ class NWO_RegionHide(TableEntryHide):
 
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.regions_table
+        return get_scene_props().regions_table
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -629,7 +630,7 @@ class NWO_RegionHide(TableEntryHide):
 
     @classmethod
     def description(cls, context, properties) -> str:
-        is_scenario = context.scene.nwo.asset_type == 'scenario'
+        is_scenario = get_scene_props().asset_type == 'scenario'
         if is_scenario:
             if properties.hidden:
                 return "Unhides the active BSP"
@@ -648,7 +649,7 @@ class NWO_RegionHideSelect(TableEntryHideSelect):
 
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.regions_table
+        return get_scene_props().regions_table
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -657,7 +658,7 @@ class NWO_RegionHideSelect(TableEntryHideSelect):
 
     @classmethod
     def description(cls, context, properties) -> str:
-        is_scenario = context.scene.nwo.asset_type == 'scenario'
+        is_scenario = get_scene_props().asset_type == 'scenario'
         if is_scenario:
             if properties.hide_select:
                 return "Enables selection of the active BSP objects"
@@ -683,7 +684,7 @@ class NWO_PermutationAdd(TableEntryAdd):
 
     @classmethod
     def description(cls, context, properties) -> str:
-        is_scenario = context.scene.nwo.asset_type == 'scenario'
+        is_scenario = get_scene_props().asset_type == 'scenario'
         if is_scenario:
             return "Add a new Layer"
         else:
@@ -696,7 +697,7 @@ class NWO_PermutationRemove(TableEntryRemove):
 
     @classmethod
     def poll(cls, context):
-        return len(context.scene.nwo.permutations_table) > 1
+        return len(get_scene_props().permutations_table) > 1
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -705,7 +706,7 @@ class NWO_PermutationRemove(TableEntryRemove):
 
     @classmethod
     def description(cls, context, properties) -> str:
-        is_scenario = context.scene.nwo.asset_type == 'scenario'
+        is_scenario = get_scene_props().asset_type == 'scenario'
         if is_scenario:
             return "Removes the active Layer"
         else:
@@ -718,7 +719,7 @@ class NWO_PermutationMove(TableEntryMove):
 
     @classmethod
     def poll(cls, context):
-        return len(context.scene.nwo.permutations_table) > 1
+        return len(get_scene_props().permutations_table) > 1
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -726,7 +727,7 @@ class NWO_PermutationMove(TableEntryMove):
 
     @classmethod
     def description(cls, context, properties) -> str:
-        is_scenario = context.scene.nwo.asset_type == 'scenario'
+        is_scenario = get_scene_props().asset_type == 'scenario'
         if is_scenario:
             return "Moves the active Layer"
         else:
@@ -739,7 +740,7 @@ class NWO_PermutationAssignSingle(TableEntryAssignSingle):
 
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.permutations_table and context.object
+        return get_scene_props().permutations_table and context.object
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -748,7 +749,7 @@ class NWO_PermutationAssignSingle(TableEntryAssignSingle):
 
     @classmethod
     def description(cls, context, properties) -> str:
-        is_scenario = context.scene.nwo.asset_type == 'scenario'
+        is_scenario = get_scene_props().asset_type == 'scenario'
         if is_scenario:
             return "Assigns the selected Layer to the active Object"
         else:
@@ -761,7 +762,7 @@ class NWO_PermutationAssign(TableEntryAssign):
 
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.permutations_table and context.selected_objects
+        return get_scene_props().permutations_table and context.selected_objects
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -770,7 +771,7 @@ class NWO_PermutationAssign(TableEntryAssign):
 
     @classmethod
     def description(cls, context, properties) -> str:
-        is_scenario = context.scene.nwo.asset_type == 'scenario'
+        is_scenario = get_scene_props().asset_type == 'scenario'
         if is_scenario:
             return "Assigns the active Layer to selected Objects"
         else:
@@ -783,7 +784,7 @@ class NWO_PermutationSelect(TableEntrySelect):
 
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.permutations_table
+        return get_scene_props().permutations_table
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -792,7 +793,7 @@ class NWO_PermutationSelect(TableEntrySelect):
 
     @classmethod
     def description(cls, context, properties) -> str:
-        is_scenario = context.scene.nwo.asset_type == 'scenario'
+        is_scenario = get_scene_props().asset_type == 'scenario'
         if is_scenario:
             if properties.select:
                 return "Selects the active Layer"
@@ -811,7 +812,7 @@ class NWO_PermutationRename(TableEntryRename):
 
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.permutations_table
+        return get_scene_props().permutations_table
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -821,7 +822,7 @@ class NWO_PermutationRename(TableEntryRename):
 
     @classmethod
     def description(cls, context, properties) -> str:
-        is_scenario = context.scene.nwo.asset_type == 'scenario'
+        is_scenario = get_scene_props().asset_type == 'scenario'
         if is_scenario:
             return "Renames the active Layer and updates scene objects"
         else:
@@ -834,7 +835,7 @@ class NWO_PermutationHide(TableEntryHide):
 
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.permutations_table
+        return get_scene_props().permutations_table
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -843,7 +844,7 @@ class NWO_PermutationHide(TableEntryHide):
 
     @classmethod
     def description(cls, context, properties) -> str:
-        is_scenario = context.scene.nwo.asset_type == 'scenario'
+        is_scenario = get_scene_props().asset_type == 'scenario'
         if is_scenario:
             if properties.hide_select:
                 return "Enables selection of the active Layer objects"
@@ -862,7 +863,7 @@ class NWO_PermutationHideSelect(TableEntryHideSelect):
 
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.permutations_table
+        return get_scene_props().permutations_table
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -871,7 +872,7 @@ class NWO_PermutationHideSelect(TableEntryHideSelect):
 
     @classmethod
     def description(cls, context, properties) -> str:
-        is_scenario = context.scene.nwo.asset_type == 'scenario'
+        is_scenario = get_scene_props().asset_type == 'scenario'
         if is_scenario:
             if properties.hide_select:
                 return "Enables selection of the active Layer objects"
@@ -891,7 +892,7 @@ class NWO_SeamAssignSingle(TableEntryAssignSingle):
 
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.regions_table and context.object
+        return get_scene_props().regions_table and context.object
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -954,7 +955,7 @@ class NWO_BSPInfo(bpy.types.Operator):
         
     def execute(self, context):
         self.info = None
-        nwo = context.scene.nwo
+        nwo = get_scene_props()
         bsp = nwo.regions_table[nwo.regions_table_active_index].name
         with ScenarioTag() as scenario:
             self.info = scenario.get_bsp_info(bsp)
@@ -1029,7 +1030,7 @@ class NWO_BSPSetLightmapRes(bpy.types.Operator):
         
     def execute(self, context):
         self.info = None
-        nwo = context.scene.nwo
+        nwo = get_scene_props()
         bsp = nwo.regions_table[nwo.regions_table_active_index].name
         with ScenarioTag() as scenario:
             success = scenario.set_bsp_lightmap_res(bsp, int(self.size_class), int(self.refinement_size_class))
@@ -1098,7 +1099,7 @@ class NWO_OT_HideObjectType(bpy.types.Operator):
 
     def execute(self, context):
         collection_map = create_parent_mapping(context)
-        nwo = context.scene.nwo
+        nwo = get_scene_props()
         visible_str = f"{self.object_type[1:]}_visible"
         valid_objects = objects_by_type(context, self.object_type)
         if valid_objects:

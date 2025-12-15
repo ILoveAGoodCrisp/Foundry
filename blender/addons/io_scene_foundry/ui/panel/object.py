@@ -141,8 +141,9 @@ class NWO_MT_FaceAttributeAddMenu(bpy.types.Menu):
 
     def draw(self, context):
         layout = self.layout
+        scene_nwo = utils.get_scene_props()
         corinth = utils.is_corinth(context)
-        asset_type = context.scene.nwo.asset_type
+        asset_type = scene_nwo.asset_type
         
         for name, display_name, mask in sorted(face_prop_type_items, key=lambda x: x[1]):
             games, asset_types = mask.split(":")
@@ -359,6 +360,7 @@ class NWO_OT_FaceAttributeAdd(bpy.types.Operator):
         ob = context.object
         mesh = ob.data
         nwo = mesh.nwo
+        scene_nwo = utils.get_scene_props()
         
         item = nwo.face_props.add()
         nwo.face_props_active_index = len(nwo.face_props) - 1
@@ -385,7 +387,7 @@ class NWO_OT_FaceAttributeAdd(bpy.types.Operator):
             bpy.ops.nwo.face_attribute_color_all(enable_highlight=nwo.highlight)
 
         if self.options == "region":
-            region = context.scene.nwo.regions_table[0].name
+            region = scene_nwo.regions_table[0].name
             item.region = region
         elif self.options == "global_material":
             item.global_material = "default"
@@ -692,7 +694,8 @@ class NWO_OT_FaceAttributeColor(bpy.types.Operator):
 
         cm = bm.copy()
         cm.normal_update()
-        offset = 0.005 if context.scene.nwo.scale == 'max' else 0.0005
+        scene_nwo = utils.get_scene_props()
+        offset = 0.005 if scene_nwo.scale == 'max' else 0.0005
         for v in cm.verts:
             v.co += v.normal * offset
             
@@ -784,7 +787,8 @@ class NWO_OT_RegionListFace(bpy.types.Operator):
 
     def regions_items(self, context):
         items = []
-        for r in context.scene.nwo.regions_table:
+        scene_nwo = utils.get_scene_props()
+        for r in scene_nwo.regions_table:
             items.append((r.name, r.name, ''))
         return items
 
@@ -868,8 +872,9 @@ class NWO_MT_RegionsMenu(bpy.types.Menu):
 
     def draw(self, context):
         layout = self.layout
-        is_scenario = context.scene.nwo.asset_type == 'scenario'
-        region_names = [region.name for region in context.scene.nwo.regions_table]
+        scene_nwo = utils.get_scene_props()
+        is_scenario = scene_nwo.asset_type == 'scenario'
+        region_names = [region.name for region in scene_nwo.regions_table]
         for r_name in region_names:
             layout.operator("nwo.region_assign_single", text=r_name).name = r_name
 
@@ -880,8 +885,9 @@ class NWO_MT_RegionsMenuSelection(NWO_MT_RegionsMenu):
     
     def draw(self, context):
         layout = self.layout
-        is_scenario = context.scene.nwo.asset_type == 'scenario'
-        region_names = [region.name for region in context.scene.nwo.regions_table]
+        scene_nwo = utils.get_scene_props()
+        is_scenario = scene_nwo.asset_type == 'scenario'
+        region_names = [region.name for region in scene_nwo.regions_table]
         for r_name in region_names:
             layout.operator("nwo.region_assign", text=r_name).name = r_name
             
@@ -897,7 +903,8 @@ class NWO_MT_FaceRegionsMenu(bpy.types.Menu):
 
     def draw(self, context):
         layout = self.layout
-        region_names = [region.name for region in context.scene.nwo.regions_table]
+        scene_nwo = utils.get_scene_props()
+        region_names = [region.name for region in scene_nwo.regions_table]
         for r_name in region_names:
             layout.operator("nwo.face_region_assign_single", text=r_name).name = r_name
 
@@ -913,7 +920,8 @@ class NWO_MT_MaterialRegionsMenu(bpy.types.Menu):
 
     def draw(self, context):
         layout = self.layout
-        region_names = [region.name for region in context.scene.nwo.regions_table]
+        scene_nwo = utils.get_scene_props()
+        region_names = [region.name for region in scene_nwo.regions_table]
         for r_name in region_names:
             layout.operator("nwo.material_region_assign_single", text=r_name).name = r_name
 
@@ -924,7 +932,8 @@ class NWO_MT_SeamBackfaceMenu(NWO_MT_RegionsMenu):
 
     def draw(self, context):
         layout = self.layout
-        region_names = [region.name for region in context.scene.nwo.regions_table if region.name != utils.true_region(context.object.nwo)]
+        scene_nwo = utils.get_scene_props()
+        region_names = [region.name for region in scene_nwo.regions_table if region.name != utils.true_region(context.object.nwo)]
         if not region_names:
             layout.label(text="Only one BSP in scene. At least two required to use seams", icon="ERROR")
         for r_name in region_names:
@@ -940,8 +949,9 @@ class NWO_MT_PermutationsMenu(bpy.types.Menu):
 
     def draw(self, context):
         layout = self.layout
-        is_scenario = context.scene.nwo.asset_type in ('scenario', 'prefab')
-        permutation_names = [permutation.name for permutation in context.scene.nwo.permutations_table]
+        scene_nwo = utils.get_scene_props()
+        is_scenario = scene_nwo.asset_type in ('scenario', 'prefab')
+        permutation_names = [permutation.name for permutation in scene_nwo.permutations_table]
         for p_name in permutation_names:
             layout.operator("nwo.permutation_assign_single", text=p_name).name = p_name
 
@@ -952,8 +962,9 @@ class NWO_MT_PermutationsMenuSelection(NWO_MT_PermutationsMenu):
     
     def draw(self, context):
         layout = self.layout
-        is_scenario = context.scene.nwo.asset_type in ('scenario', 'prefab')
-        permutation_names = [permutation.name for permutation in context.scene.nwo.permutations_table]
+        scene_nwo = utils.get_scene_props()
+        is_scenario = scene_nwo.asset_type in ('scenario', 'prefab')
+        permutation_names = [permutation.name for permutation in scene_nwo.permutations_table]
         for p_name in permutation_names:
             layout.operator("nwo.permutation_assign", text=p_name).name = p_name
             
@@ -969,7 +980,8 @@ class NWO_MT_MarkerPermutationsMenu(bpy.types.Menu):
 
     def draw(self, context):
         layout = self.layout
-        permutation_names = [permutation.name for permutation in context.scene.nwo.permutations_table]
+        scene_nwo = utils.get_scene_props()
+        permutation_names = [permutation.name for permutation in scene_nwo.permutations_table]
         for p_name in permutation_names:
             layout.operator("nwo.marker_perm_add", text=p_name).name = p_name
 
@@ -1088,7 +1100,8 @@ class NWO_OT_RegionList(bpy.types.Operator):
     def regions_items(self, context):
         # get scene regions
         items = []
-        for r in context.scene.nwo.regions_table:
+        scene_nwo = utils.get_scene_props()
+        for r in scene_nwo.regions_table:
             items.append((r.name, r.name, ''))
         return items
 
@@ -1367,11 +1380,12 @@ class NWO_OT_ShowWaterDirection(bpy.types.Operator):
         return False
 
     def execute(self, context):
-        if context.scene.nwo.show_water_direction:
-            context.scene.nwo.show_water_direction = False
+        scene_nwo = utils.get_scene_props()
+        if scene_nwo.show_water_direction:
+            scene_nwo.show_water_direction = False
             return {"FINISHED"}
         else:
-            context.scene.nwo.show_water_direction = True
+            scene_nwo.show_water_direction = True
             self.ob_mats = defaultdict(list)
             self.objects: set[bpy.types.Object] = {ob for ob in context.selected_objects if ob.type in VALID_MESHES and ob.data.nwo.mesh_type == '_connected_geometry_mesh_type_water_surface'}
             self.set_materials()
@@ -1405,8 +1419,9 @@ class NWO_OT_ShowWaterDirection(bpy.types.Operator):
                 ob.data.materials.clear()
 
     def modal(self, context, event):
-        if context.scene.nwo.export_in_progress or not context.scene.nwo.show_water_direction:
-            context.scene.nwo.show_water_direction = False
+        scene_nwo = utils.get_scene_props()
+        if scene_nwo.export_in_progress or not scene_nwo.show_water_direction:
+            scene_nwo.show_water_direction = False
             self.restore_materials()
             return {"FINISHED"}
         

@@ -17,17 +17,18 @@ from ..managed_blam.camera_track import camera_correction_matrix
 
 class CinematicScene:
     def __init__(self, asset_path, scene_name, scene: bpy.types.Scene):
+        nwo = utils.get_scene_props()
         self.name = scene_name
         self.path_no_ext = Path(asset_path, self.name)
         self.path = self.path_no_ext.with_suffix(".cinematic_scene")
         self.path_qua = Path(self.path_no_ext).with_suffix(".qua")
-        self.anchor = scene.nwo.cinematic_anchor
+        self.anchor = nwo.cinematic_anchor
         self.anchor_name = f"{self.name}_anchor"
         self.anchor_location = 0.0, 0.0, 0.0
         self.anchor_ypr = 0.0, 0.0, 0.0
         if self.anchor is not None:
             anchor_matrix = utils.halo_transform_matrix(self.anchor.matrix_world.inverted_safe())
-            rotation_offset = utils.blender_halo_rotation_diff(bpy.context.scene.nwo.forward_direction)
+            rotation_offset = utils.blender_halo_rotation_diff(nwo.forward_direction)
             self.anchor_location = anchor_matrix.translation.to_tuple()
             rot = anchor_matrix.to_euler()
             rotation = Euler((rot.z, -rot.y, rot.x), 'ZYX')

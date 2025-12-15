@@ -1705,7 +1705,7 @@ class VirtualSkeleton:
     def _get_bones(self, ob, scene: 'VirtualScene', is_main_armature: bool):
         if ob.type == 'ARMATURE':
             main_arm = ob
-            scene_nwo = scene.context.scene.nwo
+            scene_nwo = utils.get_scene_props()
             aim_bone_names = {scene_nwo.node_usage_pose_blend_pitch, scene_nwo.node_usage_pose_blend_yaw}
             special_bone_names = {scene_nwo.node_usage_pedestal, scene_nwo.node_usage_pose_blend_pitch, scene_nwo.node_usage_pose_blend_yaw}
             # Get all bones at fake_bones, so we can more easily create a virtual skeleton containing multiple armatures
@@ -1901,7 +1901,7 @@ class VirtualModel:
         if node and not node.invalid:
             self.node = node
             if ob.type == 'ARMATURE' and scene.has_main_skeleton:
-                if not scene.skeleton_node or scene.context.scene.nwo.main_armature == ob:
+                if not scene.skeleton_node or scene.scene_nwo.main_armature == ob:
                     scene.skeleton_node = self.node
                     scene.skeleton_model = self
                     scene.skeleton_object = ob
@@ -1978,6 +1978,7 @@ class VirtualScene:
         self.limit_permutations = False
         
         self.context = context
+        self.scene_nwo = utils.get_scene_props()
         self.actors = []
         self.selected_actors = set()
         self.selected_cinematic_objects_only = False

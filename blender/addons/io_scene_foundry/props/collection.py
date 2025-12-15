@@ -1,11 +1,12 @@
 import bpy
+from ..utils import get_scene_props
 
 class NWO_CollectionPropertiesGroup(bpy.types.PropertyGroup):
     def type_items(self, context):
         items = []
         r_name = "Region"
         p_name = "Permutation"
-        if context.scene.nwo.asset_type == "scenario":
+        if get_scene_props().asset_type == "scenario":
             r_name = "BSP"
             p_name = "BSP Category"
 

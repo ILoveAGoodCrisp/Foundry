@@ -27,8 +27,9 @@ class Node:
         self.fc_sca_z: bpy.types.FCurve
         self.pose_bone: bpy.types.PoseBone = None
         no_prefix = utils.remove_node_prefix(name)
+        scene_nwo = utils.get_scene_props()
         if no_prefix:
-            self.aim_bone = no_prefix in ("aim_pitch", "aim_yaw", bpy.context.scene.nwo.node_usage_pose_blend_pitch, bpy.context.scene.nwo.node_usage_pose_blend_yaw)
+            self.aim_bone = no_prefix in ("aim_pitch", "aim_yaw", scene_nwo.node_usage_pose_blend_pitch, scene_nwo.node_usage_pose_blend_yaw)
         else:
             self.aim_bone = False
     

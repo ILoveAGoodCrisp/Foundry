@@ -81,7 +81,7 @@ class NWO_ExportScene(Operator, ExportHelper):
     
     @classmethod
     def poll(cls, context):
-        return utils.current_project_valid() and not validate_ek() and not context.scene.nwo.storage_only and context.scene.nwo.asset_type != 'resource' and (utils.nwo_asset_type() == 'single_animation' or not context.scene.nwo.is_child_asset)
+        return utils.current_project_valid() and not validate_ek() and utils.get_scene_props().asset_type != 'resource' and (utils.nwo_asset_type() == 'single_animation' or not utils.get_scene_props().is_child_asset)
     
     @classmethod
     def description(cls, context, properties):
@@ -101,12 +101,13 @@ class NWO_ExportScene(Operator, ExportHelper):
             export = Path(parent, "export", "animations", name).with_suffix(".gr2")
             self.filepath = str(export)
             return
-        scene = bpy.context.scene
+
+        nwo = utils.get_scene_props()
         data_dir = get_data_path()
 
         if Path(get_tool_path()).with_suffix(".exe").exists():
             # get sidecar path from users EK data path + internal path
-            sidecar_filepath = str(Path(data_dir, scene.nwo.sidecar_path))
+            sidecar_filepath = str(Path(data_dir, nwo.sidecar_path))
             if not sidecar_filepath.endswith(".sidecar.xml"):
                 sidecar_filepath = ""
             if sidecar_filepath and file_exists(sidecar_filepath):
@@ -142,7 +143,7 @@ class NWO_ExportScene(Operator, ExportHelper):
             not file_exists(f"{get_tool_path()}.exe")
             or self.asset_path.lower() + os.sep == get_data_path().lower()
         ):  # check the user is saving the file to a location in their editing kit data directory AND tool exists. AND prevent exports to root data dir
-            nwo = bpy.context.scene.nwo
+            nwo = utils.get_scene_props()
             game = nwo.scene_project
             if get_project_path() is None or get_project_path() == "":
                 ctypes.windll.user32.MessageBoxW(
@@ -185,9 +186,8 @@ class NWO_ExportScene(Operator, ExportHelper):
         return False
 
     def execute(self, context):
-        scene = context.scene
-        scene_nwo_export = scene.nwo_export
-        scene_nwo = scene.nwo
+        scene_nwo_export = utils.get_export_props()
+        scene_nwo = utils.get_scene_props()
         
         # Write last export version
         scene_nwo.export_version = utils.get_version_string()
@@ -196,7 +196,7 @@ class NWO_ExportScene(Operator, ExportHelper):
         if self.game_path_not_set:
             self.report(
                 {"WARNING"},
-                f"Unable to export. Your {context.scene.nwo.scene_project} path must be set in preferences",
+                f"Unable to export. Your {scene_nwo.scene_project} path must be set in preferences",
             )
             return {"CANCELLED"}
         
@@ -247,7 +247,7 @@ class NWO_ExportScene(Operator, ExportHelper):
         if not self.for_cache_build:
             # toggle the console
             os.system("cls")
-            if context.scene.nwo_export.show_output:
+            if utils.get_export_props().show_output:
                 bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
                 scene_nwo_export.show_output = False
 
@@ -279,7 +279,7 @@ class NWO_ExportScene(Operator, ExportHelper):
 
             # validate that a sidecar file exists
             if not Path(sidecar_path_full).exists:
-                context.scene.nwo.sidecar_path = ""
+                utils.get_scene_props().sidecar_path = ""
 
             end = time.perf_counter()
 
@@ -333,8 +333,8 @@ class NWO_ExportScene(Operator, ExportHelper):
                     if scene_nwo.asset_type == 'model':
                         update_debug_menu(self.asset_path, self.asset_name)
                     elif scene_nwo.asset_type == 'cinematic':
-                        if context.scene.nwo.is_child_asset:
-                            asset_path = context.scene.nwo.parent_asset
+                        if utils.get_scene_props().is_child_asset:
+                            asset_path = utils.get_scene_props().parent_asset
                         else:
                             asset_path = utils.get_asset_path()
                             
@@ -346,7 +346,7 @@ class NWO_ExportScene(Operator, ExportHelper):
         except KeyboardInterrupt:
             print_warning("\n\nEXPORT CANCELLED BY USER")
 
-        context.scene.nwo.export_in_progress = False
+        utils.get_scene_props().export_in_progress = False
         return {"FINISHED"}
 
     def draw(self, context):
@@ -357,9 +357,8 @@ class NWO_ExportScene(Operator, ExportHelper):
         if managed_blam.mb_active:
             row.enabled = False
         projects = get_prefs().projects
-        scene = context.scene
-        scene_nwo_export = scene.nwo_export
-        scene_nwo = scene.nwo
+        scene_nwo_export = utils.get_export_props()
+        scene_nwo = utils.get_scene_props()
         scenario = scene_nwo.asset_type == "scenario"
         prefab = scene_nwo.asset_type == "prefab"
         for p in projects:

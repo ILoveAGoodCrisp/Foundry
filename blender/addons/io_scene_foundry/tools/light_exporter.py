@@ -137,44 +137,6 @@ class BlamLightDefinition:
             
         self.indirect_only = 1 if nwo.light_indirect_only else 0
         self.static_analytic = 1 if nwo.light_static_analytic else 0
-          
-# class NWO_OT_LightSync(bpy.types.Operator):
-#     bl_idname = "nwo.light_sync"
-#     bl_label = "Light Sync"
-#     bl_description = "Updates lighting info tags from Blender in realtime"
-#     bl_options = {'REGISTER'}
-    
-#     cancel_sync: bpy.props.BoolProperty(options={'HIDDEN', 'SKIP_SAVE'})
-
-#     @classmethod
-#     def poll(cls, context):
-#         return utils.valid_nwo_asset(context)
-    
-#     def execute(self, context):
-#         if self.cancel_sync:
-#             context.scene.nwo.light_sync_active = False
-#             return {'CANCELLED'}
-#         context.scene.nwo.light_sync_active = True
-#         wm = context.window_manager
-#         self.timer = wm.event_timer_add(context.scene.nwo.light_sync_rate, window=context.window)
-#         wm.modal_handler_add(self)
-#         return {'RUNNING_MODAL'}
-
-#     def modal(self, context, event):
-#         nwo = context.scene.nwo
-#         if not nwo.light_sync_active:
-#             return self.cancel(context)
-#         if event.type == 'TIMER':
-#             for area in context.screen.areas:
-#                 if area.type in ('VIEW_3D', "PROPERTIES", "OUTLINER") and utils.mouse_in_object_editor_region(context, event.mouse_x, event.mouse_y):
-#                     # blam(export_lights_tasks())
-#                     return {'PASS_THROUGH'}
-                
-#         return {'PASS_THROUGH'}
-    
-#     def cancel(self, context):
-#         wm = context.window_manager
-#         wm.event_timer_remove(self.timer)
 
 class NWO_OT_ExportLights(bpy.types.Operator):
     bl_idname = "nwo.export_lights"
@@ -187,8 +149,9 @@ class NWO_OT_ExportLights(bpy.types.Operator):
         return utils.valid_nwo_asset(context)
 
     def execute(self, context):
-        if context.scene.nwo.is_child_asset:
-            parent = context.scene.nwo.parent_asset
+        scene_nwo = utils.get_scene_props()
+        if scene_nwo.is_child_asset:
+            parent = scene_nwo.parent_asset
             if not parent.strip():
                 self.report({'WARNING'}, "Parent asset not specified, cannot export lights")
                 return {"CANCELLED"}
@@ -291,7 +254,8 @@ def export_lights(asset_path, asset_name, light_objects = None, bsps = None, lig
     tags_dir = utils.get_tags_path()
     context = bpy.context
     corinth = utils.is_corinth(bpy.context)
-    asset_type = context.scene.nwo.asset_type
+    scene_nwo = utils.get_scene_props()
+    asset_type = scene_nwo.asset_type
     if light_objects is None or lightmap_regions is None:
         collection_map = utils.create_parent_mapping(context)
     
@@ -301,7 +265,7 @@ def export_lights(asset_path, asset_name, light_objects = None, bsps = None, lig
     lights = [BlamLightInstance(ob, region) for ob, region in light_objects.items()]
     if asset_type == 'scenario':
         if bsps is None:
-            bsps = [r.name for r in context.scene.nwo.regions_table if r.name.lower() != 'shared']
+            bsps = [r.name for r in scene_nwo.regions_table if r.name.lower() != 'shared']
         lighting_info_paths = [str(Path(asset_path, f'{b}.scenario_structure_lighting_info')) for b in bsps]
         for idx, info_path in enumerate(lighting_info_paths):
             b = bsps[idx]

@@ -40,7 +40,8 @@ class NWO_OT_CinematicAnchorOffset(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.asset_type == 'cinematic' and utils.pointer_ob_valid(context.scene.nwo.cinematic_anchor)
+        scene_nwo = utils.get_scene_props()
+        return scene_nwo.asset_type == 'cinematic' and utils.pointer_ob_valid(scene_nwo.cinematic_anchor)
     
     def execute(self, context):
         global nudge
@@ -76,6 +77,7 @@ class NWO_OT_CinematicAnchorOffsetMain(bpy.types.Operator):
     bl_options = {'UNDO', 'INTERNAL'}
 
     def execute(self, context):
+        scene_nwo = utils.get_scene_props()
         cursor = context.scene.cursor
         
         loc, rot, sca = cast(Matrix, context.scene.cursor.matrix).decompose()
@@ -84,7 +86,7 @@ class NWO_OT_CinematicAnchorOffsetMain(bpy.types.Operator):
             
         matrix.invert_safe()
         
-        anchor = context.scene.nwo.cinematic_anchor
+        anchor = scene_nwo.cinematic_anchor
         anchor.matrix_world = matrix @ anchor.matrix_world
         
         cursor.location = -nudge
@@ -178,11 +180,12 @@ class NWO_OT_CinematicEventAdd(bpy.types.Operator):
     bl_options = {"UNDO"}
     
     def execute(self, context):
-        events = context.scene.nwo.cinematic_events
+        scene_nwo = utils.get_scene_props()
+        events = scene_nwo.cinematic_events
         event_data = None
         current_event = None
-        if events and context.scene.nwo.active_cinematic_event_index > -1 and context.scene.nwo.active_cinematic_event_index < len(events):
-            current_event = events[context.scene.nwo.active_cinematic_event_index]
+        if events and scene_nwo.active_cinematic_event_index > -1 and scene_nwo.active_cinematic_event_index < len(events):
+            current_event = events[scene_nwo.active_cinematic_event_index]
             if current_event.type != 'DIALOGUE': # don't copy dialogue data
                 event_data = current_event.items()
                 
@@ -214,7 +217,7 @@ class NWO_OT_CinematicEventAdd(bpy.types.Operator):
                 event.script_region = ""
                 event.script_permutation = ""
         
-        context.scene.nwo.active_cinematic_event_index = len(events) - 1
+        scene_nwo.active_cinematic_event_index = len(events) - 1
         context.area.tag_redraw()
         return {'FINISHED'}
     
@@ -226,10 +229,11 @@ class NWO_OT_CinematicEventRemove(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.cinematic_events and context.scene.nwo.active_cinematic_event_index > -1 and context.scene.nwo.active_cinematic_event_index < len(context.scene.nwo.cinematic_events)
+        scene_nwo = utils.get_scene_props()
+        return scene_nwo.cinematic_events and scene_nwo.active_cinematic_event_index > -1 and scene_nwo.active_cinematic_event_index < len(scene_nwo.cinematic_events)
     
     def execute(self, context):
-        nwo = context.scene.nwo
+        nwo = utils.get_scene_props()
         events = nwo.cinematic_events
         events.remove(nwo.active_cinematic_event_index)
         if nwo.active_cinematic_event_index > len(events) - 1:
@@ -245,11 +249,13 @@ class NWO_OT_CinematicEventsClear(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.cinematic_events and context.scene.nwo.active_cinematic_event_index > -1 and context.scene.nwo.active_cinematic_event_index < len(context.scene.nwo.cinematic_events)
+        scene_nwo = utils.get_scene_props()
+        return scene_nwo.cinematic_events and scene_nwo.active_cinematic_event_index > -1 and scene_nwo.active_cinematic_event_index < len(scene_nwo.cinematic_events)
     
     def execute(self, context):
-        context.scene.nwo.active_cinematic_event_index = 0
-        context.scene.nwo.cinematic_events.clear()
+        scene_nwo = utils.get_scene_props()
+        scene_nwo.active_cinematic_event_index = 0
+        scene_nwo.cinematic_events.clear()
         context.area.tag_redraw()
         return {'FINISHED'}
         
@@ -264,10 +270,11 @@ class NWO_OT_CinematicEventSetFrame(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.cinematic_events and context.scene.nwo.active_cinematic_event_index > -1 and context.scene.nwo.active_cinematic_event_index < len(context.scene.nwo.cinematic_events)
+        scene_nwo = utils.get_scene_props()
+        return scene_nwo.cinematic_events and scene_nwo.active_cinematic_event_index > -1 and scene_nwo.active_cinematic_event_index < len(scene_nwo.cinematic_events)
 
     def execute(self, context):
-        nwo = context.scene.nwo
+        nwo = utils.get_scene_props()
         event = nwo.cinematic_events[nwo.active_cinematic_event_index]
         event.frame = int(context.scene.frame_current)
         return {"FINISHED"}
@@ -280,7 +287,8 @@ class NWO_OT_GetSoundEffects(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.cinematic_events and context.scene.nwo.active_cinematic_event_index > -1 and context.scene.nwo.active_cinematic_event_index < len(context.scene.nwo.cinematic_events)
+        scene_nwo = utils.get_scene_props()
+        return scene_nwo.cinematic_events and scene_nwo.active_cinematic_event_index > -1 and scene_nwo.active_cinematic_event_index < len(scene_nwo.cinematic_events)
     
     def fx_items(self, context):
         items = []
@@ -306,7 +314,7 @@ class NWO_OT_GetSoundEffects(bpy.types.Operator):
         if not Path(utils.get_tags_path(), SOUND_FX_TAG).exists():
             self.report({'WARNING'}, f"Could not find tag {SOUND_FX_TAG}")
             return {'CANCELLED'}
-        nwo = context.scene.nwo
+        nwo = utils.get_scene_props()
         event = nwo.cinematic_events[nwo.active_cinematic_event_index]
         event.default_sound_effect = self.fx
         return {'FINISHED'}
@@ -316,13 +324,15 @@ class GetCinematicBase(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.cinematic_events and context.scene.nwo.active_cinematic_event_index > -1 and context.scene.nwo.active_cinematic_event_index < len(context.scene.nwo.cinematic_events)
+        scene_nwo = utils.get_scene_props()
+        return scene_nwo.cinematic_events and scene_nwo.active_cinematic_event_index > -1 and scene_nwo.active_cinematic_event_index < len(scene_nwo.cinematic_events)
     
     def items(self, context):
         global variants
         global regions
         global permutations
-        event = context.scene.nwo.cinematic_events[context.scene.nwo.active_cinematic_event_index]
+        scene_nwo = utils.get_scene_props()
+        event = scene_nwo.cinematic_events[scene_nwo.active_cinematic_event_index]
         relative_tag_path = utils.relative_path(event.script_object.nwo.cinematic_object)
         match self.get_type:
             case 'script_variant':
@@ -370,7 +380,7 @@ class GetCinematicBase(bpy.types.Operator):
     )
     
     def execute(self, context):
-        nwo = context.scene.nwo
+        nwo = utils.get_scene_props()
         event = nwo.cinematic_events[nwo.active_cinematic_event_index]
         setattr(event, self.get_type, self.item)
         return {'FINISHED'}

@@ -51,10 +51,12 @@ class NWO_OT_AddAnimationEventData(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.animations and context.scene.nwo.active_animation_index > -1
+        scene_nwo = utils.get_scene_props()
+        return scene_nwo.animations and scene_nwo.active_animation_index > -1
 
     def execute(self, context):
-        animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
+        scene_nwo = utils.get_scene_props()
+        animation = scene_nwo.animations[scene_nwo.active_animation_index]
         event = animation.animation_events[animation.active_animation_event_index]
         event.event_data.add()
         event.active_event_data_index = len(event.event_data) - 1
@@ -70,10 +72,12 @@ class NWO_OT_RemoveAnimationEventData(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.animations and context.scene.nwo.active_animation_index > -1 and context.scene.nwo.animations[context.scene.nwo.active_animation_index].animation_events
+        scene_nwo = utils.get_scene_props()
+        return scene_nwo.animations and scene_nwo.active_animation_index > -1 and scene_nwo.animations[scene_nwo.active_animation_index].animation_events
 
     def execute(self, context):
-        animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
+        scene_nwo = utils.get_scene_props()
+        animation = scene_nwo.animations[scene_nwo.active_animation_index]
         event = animation.animation_events[animation.active_animation_event_index]
         index = event.active_event_data_index
         event.event_data.remove(index)
@@ -112,7 +116,8 @@ class NWO_OT_ClearAnimations(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.animations
+        scene_nwo = utils.get_scene_props()
+        return scene_nwo.animations
     
     filter: bpy.props.StringProperty(
         name="Filter",
@@ -145,7 +150,8 @@ class NWO_OT_ClearAnimations(bpy.types.Operator):
                 bpy.data.actions.remove(action)
                 
     def execute(self, context):
-        animations = context.scene.nwo.animations
+        scene_nwo = utils.get_scene_props()
+        animations = scene_nwo.animations
         if self.delete_actions:
             self.action_map(animations)
             
@@ -169,7 +175,7 @@ class NWO_OT_ClearAnimations(bpy.types.Operator):
         if self.delete_actions:
             self.clear_actions()
             
-        context.scene.nwo.active_animation_index = len(animations) - 1
+        scene_nwo.active_animation_index = len(animations) - 1
             
         self.report({'INFO'}, f"Cleared {total_animations} animations")
         return {"FINISHED"}
@@ -187,7 +193,8 @@ class NWO_OT_DeleteAnimation(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.animations and context.scene.nwo.active_animation_index > -1
+        scene_nwo = utils.get_scene_props()
+        return scene_nwo.animations and scene_nwo.active_animation_index > -1
     
     def action_map(self, all_animations):    
         self.action_animations = defaultdict(list)
@@ -209,19 +216,20 @@ class NWO_OT_DeleteAnimation(bpy.types.Operator):
         layout.prop(self, "delete_actions")
 
     def execute(self, context):
+        scene_nwo = utils.get_scene_props()
         context.scene.tool_settings.use_keyframe_insert_auto = False
-        current_animation_index = context.scene.nwo.active_animation_index
-        animation = context.scene.nwo.animations[current_animation_index]
+        current_animation_index = scene_nwo.active_animation_index
+        animation = scene_nwo.animations[current_animation_index]
         if animation:
             if self.delete_actions:
-                self.action_map(context.scene.nwo.animations)
+                self.action_map(scene_nwo.animations)
             utils.clear_animation(animation)
             name = animation.name
-            context.scene.nwo.animations.remove(current_animation_index)
-            new_index = context.scene.nwo.active_animation_index - 1
-            if new_index < 0 and context.scene.nwo.animations:
+            scene_nwo.animations.remove(current_animation_index)
+            new_index = scene_nwo.active_animation_index - 1
+            if new_index < 0 and scene_nwo.animations:
                 new_index = 0
-            context.scene.nwo.active_animation_index = new_index
+            scene_nwo.active_animation_index = new_index
             self.report({"INFO"}, f"Deleted animation: {name}")
         
         return {"FINISHED"}
@@ -234,12 +242,14 @@ class NWO_OT_UnlinkAnimation(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.animations and context.scene.nwo.active_animation_index > -1
+        scene_nwo = utils.get_scene_props()
+        return scene_nwo.animations and scene_nwo.active_animation_index > -1
 
     def execute(self, context):
+        scene_nwo = utils.get_scene_props()
         context.scene.tool_settings.use_keyframe_insert_auto = False
-        animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
-        context.scene.nwo.active_animation_index = -1
+        animation = scene_nwo.animations[scene_nwo.active_animation_index]
+        scene_nwo.active_animation_index = -1
         
         utils.clear_animation(animation)
                     
@@ -275,13 +285,13 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
     )
     
     def execute(self, context):
-        
+        scene_nwo = utils.get_scene_props()
         armature = None
         if self.prioritise_selected_armature:
             armature = utils.get_rig_prioritize_active(context)
         
         current_scenes = set(bpy.data.scenes)
-        current_animations = context.scene.nwo.animations
+        current_animations = scene_nwo.animations
         with bpy.data.libraries.load(self.filepath, link=False) as (data_from, data_to):
             
             scope_objects = set(data_from.objects)
@@ -296,7 +306,7 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
         filter = self.animation_filter.replace(" ", ":")
         
         for scene in new_scenes:
-            for anim in scene.nwo.animations:
+            for anim in scene_nwo.animations:
                 colon_name = anim.name.replace(" ", ":")
                 
                 if filter and filter not in colon_name:
@@ -383,10 +393,12 @@ class NWO_OT_OpenExternalAnimationBlend(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.animations and context.scene.nwo.active_animation_index > -1
+        scene_nwo = utils.get_scene_props()
+        return scene_nwo.animations and scene_nwo.active_animation_index > -1
     
     def execute(self, context):
-        animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
+        scene_nwo = utils.get_scene_props()
+        animation = scene_nwo.animations[scene_nwo.active_animation_index]
         
         if not animation.external:
             self.report({'WARNING'}, "Animation is not external. No blend to open")
@@ -423,15 +435,17 @@ class NWO_OT_AnimationMoveToOwnBlend(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.animations and context.scene.nwo.active_animation_index > -1 and utils.valid_nwo_asset(context)
+        scene_nwo = utils.get_scene_props()
+        return scene_nwo.animations and scene_nwo.active_animation_index > -1 and utils.valid_nwo_asset(context)
     
     def execute(self, context):
-        animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
+        scene_nwo = utils.get_scene_props()
+        animation = scene_nwo.animations[scene_nwo.active_animation_index]
         rel_path = ""
         if bpy.data.filepath:
             rel_path = utils.relative_path(bpy.data.filepath)
             
-        sidecar_path = context.scene.nwo.sidecar_path
+        sidecar_path = scene_nwo.sidecar_path
         
         asset_path = utils.get_asset_path_full()
         blend_path = Path(utils.get_asset_path_full(), "animations", animation.name).with_suffix(".blend")
@@ -450,13 +464,13 @@ class NWO_OT_AnimationMoveToOwnBlend(bpy.types.Operator):
         
         scene = bpy.context.scene
         scene.frame_start, scene.frame_end = frame_start, frame_end
-        scene.nwo.animations.clear()
+        scene_nwo.animations.clear()
         
-        scene.nwo.asset_type = 'single_animation'
+        scene_nwo.asset_type = 'single_animation'
         if rel_path:
-            scene.nwo.is_child_asset = True
-            scene.nwo.parent_asset = rel_path
-            scene.nwo.parent_sidecar = sidecar_path
+            scene_nwo.is_child_asset = True
+            scene_nwo.parent_asset = rel_path
+            scene_nwo.parent_sidecar = sidecar_path
         
         bpy.ops.wm.save_mainfile(compress=context.preferences.filepaths.use_file_compression)
         self.report({'INFO'}, f"Loaded new blend: {blend_path}")
@@ -499,14 +513,15 @@ class NWO_OT_AnimationLinkToGR2(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.animations and context.scene.nwo.active_animation_index > -1
+        scene_nwo = utils.get_scene_props()
+        return scene_nwo.animations and scene_nwo.active_animation_index > -1
     
     def execute(self, context):
-        
+        scene_nwo = utils.get_scene_props()
         path = Path(self.filepath)
         
         if path.exists():
-            animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
+            animation = scene_nwo.animations[scene_nwo.active_animation_index]
             animation.external = True
             animation.gr2_path = utils.relative_path(self.filepath)
             animation.pose_overlay = self.pose_overlay
@@ -516,10 +531,10 @@ class NWO_OT_AnimationLinkToGR2(bpy.types.Operator):
     
     def invoke(self, context, _):
         asset_path = utils.get_asset_path_full()
-        
+        scene_nwo = utils.get_scene_props()
         if Path(asset_path).exists():
             self.filepath = asset_path
-            animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
+            animation = scene_nwo.animations[scene_nwo.active_animation_index]
             expected_path = Path(self.filepath, "export", "animations", animation.name).with_suffix(".gr2")
             if expected_path.exists():
                 self.filepath = str(expected_path)
@@ -552,10 +567,10 @@ class NWO_OT_AnimationsFromActions(bpy.types.Operator):
             arm = utils.get_rig(context)
             if arm is not None:
                 objects = [arm]
-        scene_nwo = context.scene.nwo
-        current_animation_names = {animation.name for animation in context.scene.nwo.animations}
+        scene_nwo = utils.get_scene_props()
+        current_animation_names = {animation.name for animation in scene_nwo.animations}
         used_actions = set()
-        for animation in context.scene.nwo.animations:
+        for animation in scene_nwo.animations:
             for track in animation.action_tracks:
                 if track.action:
                     used_actions.add(action)
@@ -598,14 +613,16 @@ class NWO_OT_CopyEvents(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        if context.scene.nwo.animations and context.scene.nwo.active_animation_index > -1:
-            animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
+        scene_nwo = utils.get_scene_props()
+        if scene_nwo.animations and scene_nwo.active_animation_index > -1:
+            animation = scene_nwo.animations[scene_nwo.active_animation_index]
             return animation.animation_events
         
         return False
     
     def execute(self, context):
-        animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
+        scene_nwo = utils.get_scene_props()
+        animation = scene_nwo.animations[scene_nwo.active_animation_index]
         global animation_event_data
         animation_event_data = [event.items() for event in animation.animation_events]
         return {'FINISHED'}
@@ -618,10 +635,12 @@ class NWO_OT_PasteEvents(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.animations and context.scene.nwo.active_animation_index > -1 and animation_event_data
+        scene_nwo = utils.get_scene_props()
+        return scene_nwo.animations and scene_nwo.active_animation_index > -1 and animation_event_data
     
     def execute(self, context):
-        animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
+        scene_nwo = utils.get_scene_props()
+        animation = scene_nwo.animations[scene_nwo.active_animation_index]
         for event_data in animation_event_data:
             event = animation.animation_events.add()
             animation.active_animation_event_index  = len(animation.animation_events) - 1
@@ -650,11 +669,13 @@ class NWO_OT_ClearRenames(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.animations
+        scene_nwo = utils.get_scene_props()
+        return scene_nwo.animations
     
     def execute(self, context):
         rename_count = 0
-        for animation in context.scene.nwo.animations:
+        scene_nwo = utils.get_scene_props()
+        for animation in scene_nwo.animations:
             rename_count += len(animation.animation_renames)
             animation.animation_renames.clear()
             
@@ -669,11 +690,13 @@ class NWO_OT_ClearEvents(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.animations
+        scene_nwo = utils.get_scene_props()
+        return scene_nwo.animations
     
     def execute(self, context):
         event_count = 0
-        for animation in context.scene.nwo.animations:
+        scene_nwo = utils.get_scene_props()
+        for animation in scene_nwo.animations:
             event_count += len(animation.animation_events)
             animation.animation_events.clear()
             
@@ -692,11 +715,13 @@ class NWO_OT_SetTimeline(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.active_animation_index > -1
+        scene_nwo = utils.get_scene_props()
+        return scene_nwo.active_animation_index > -1
     
     def execute(self, context):
+        scene_nwo = utils.get_scene_props()
         scene = context.scene
-        animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
+        animation = scene_nwo.animations[scene_nwo.active_animation_index]
         
         if animation.animation_type == 'composite':
             return {'FINISHED'}
@@ -932,12 +957,12 @@ class NWO_OT_NewAnimation(bpy.types.Operator):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fp_animation = utils.poll_ui(("animation",)) and bpy.context.scene.nwo.asset_animation_type == 'first_person'
+        self.fp_animation = utils.poll_ui(("animation",)) and utils.get_scene_props().asset_animation_type == 'first_person'
         if self.fp_animation:
             self.mode = "first_person"
 
     def execute(self, context):
-        scene_nwo = context.scene.nwo
+        scene_nwo = utils.get_scene_props()
         # Create the animation
         current_animation = None
         
@@ -1529,20 +1554,13 @@ class NWO_OT_List_Add_Animation_Rename(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.animations and context.scene.nwo.active_animation_index > -1
+        scene_nwo = utils.get_scene_props()
+        return scene_nwo.animations and scene_nwo.active_animation_index > -1
     
     def execute(self, context):
-        # full_name = self.create_name()
-        # animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
-        # if full_name == animation.name:
-        #     self.report(
-        #         {"WARNING"},
-        #         f"Rename entry not created. Rename cannot match animation name",
-        #     )
-        #     return {"CANCELLED"}
-
+        scene_nwo = utils.get_scene_props()
         # Create the rename
-        animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
+        animation = scene_nwo.animations[scene_nwo.active_animation_index]
         rename = animation.animation_renames.add()
         animation.active_animation_rename_index = len(animation.animation_renames) - 1
         rename.name = animation.name
@@ -1560,14 +1578,16 @@ class NWO_OT_List_Remove_Animation_Rename(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        if context.scene.nwo.animations and context.scene.nwo.active_animation_index > -1:
-            animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
+        scene_nwo = utils.get_scene_props()
+        if scene_nwo.animations and scene_nwo.active_animation_index > -1:
+            animation = scene_nwo.animations[scene_nwo.active_animation_index]
             return len(animation.animation_renames) > 0
         
         return False
 
     def execute(self, context):
-        animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
+        scene_nwo = utils.get_scene_props()
+        animation = scene_nwo.animations[scene_nwo.active_animation_index]
         animation.animation_renames.remove(animation.active_animation_rename_index)
         if animation.active_animation_rename_index > len(animation.animation_renames) - 1:
             animation.active_animation_rename_index += -1
@@ -1581,7 +1601,8 @@ class NWO_OT_AnimationRenameMove(bpy.types.Operator):
     direction: bpy.props.StringProperty()
 
     def execute(self, context):
-        animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
+        scene_nwo = utils.get_scene_props()
+        animation = scene_nwo.animations[scene_nwo.active_animation_index]
         table = animation.animation_renames
         delta = {"down": 1, "up": -1,}[self.direction]
         current_index = animation.active_animation_rename_index
@@ -1614,12 +1635,14 @@ class NWO_OT_SetActionTracksActive(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        if context.scene.nwo.animations and context.scene.nwo.active_animation_index >= 0:
-            return context.scene.nwo.animations[context.scene.nwo.active_animation_index].action_tracks
+        scene_nwo = utils.get_scene_props()
+        if scene_nwo.animations and scene_nwo.active_animation_index >= 0:
+            return scene_nwo.animations[scene_nwo.active_animation_index].action_tracks
         return False
     
     def execute(self, context):
-        animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
+        scene_nwo = utils.get_scene_props()
+        animation = scene_nwo.animations[scene_nwo.active_animation_index]
         for track in animation.action_tracks:
             if track.object and track.action:
                 if track.is_shape_key_action:
@@ -1639,7 +1662,8 @@ class NWO_OT_AddActionTrack(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        if not context.scene.nwo.animations or context.scene.nwo.active_animation_index == -1:
+        scene_nwo = utils.get_scene_props()
+        if not scene_nwo.animations or scene_nwo.active_animation_index == -1:
             return False
         ob = context.object
         if not ob:
@@ -1659,8 +1683,8 @@ class NWO_OT_AddActionTrack(bpy.types.Operator):
         if not context.selected_objects:
             self.report({'WARNING'}, "No active object, cannot add action track")
             return {'CANCELLED'}
-        
-        animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
+        scene_nwo = utils.get_scene_props()
+        animation = scene_nwo.animations[scene_nwo.active_animation_index]
         
         for ob in context.selected_objects:
             self.add_track(animation, ob)
@@ -1706,12 +1730,14 @@ class NWO_OT_RemoveActionTrack(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        if context.scene.nwo.animations and context.scene.nwo.active_animation_index >= 0:
-            return context.scene.nwo.animations[context.scene.nwo.active_animation_index].action_tracks
+        scene_nwo = utils.get_scene_props()
+        if scene_nwo.animations and scene_nwo.active_animation_index >= 0:
+            return scene_nwo.animations[scene_nwo.active_animation_index].action_tracks
         return False
 
     def execute(self, context):
-        animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
+        scene_nwo = utils.get_scene_props()
+        animation = scene_nwo.animations[scene_nwo.active_animation_index]
         animation.action_tracks.remove(animation.active_action_group_index)
         if animation.active_action_group_index > len(animation.action_tracks) - 1:
             animation.active_action_group_index += -1
@@ -1726,12 +1752,14 @@ class NWO_OT_ActionTrackMove(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        if context.scene.nwo.animations and context.scene.nwo.active_animation_index >= 0:
-            return context.scene.nwo.animations[context.scene.nwo.active_animation_index].action_tracks
+        scene_nwo = utils.get_scene_props()
+        if scene_nwo.animations and scene_nwo.active_animation_index >= 0:
+            return scene_nwo.animations[scene_nwo.active_animation_index].action_tracks
         return False
 
     def execute(self, context):
-        animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
+        scene_nwo = utils.get_scene_props()
+        animation = scene_nwo.animations[scene_nwo.active_animation_index]
         table = animation.action_tracks
         delta = {"down": 1, "up": -1,}[self.direction]
         current_index = animation.active_action_group_index
@@ -1969,13 +1997,15 @@ class NWO_OT_AnimationEventSetFrame(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context) -> bool:
-        return context.scene.nwo.active_animation_index > -1
+        scene_nwo = utils.get_scene_props()
+        return scene_nwo.active_animation_index > -1
 
     def execute(self, context):
+        scene_nwo = utils.get_scene_props()
         if not self.prop_to_set:
             print("Operator requires prop_to_set specified")
             return {"CANCELLED"}
-        animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
+        animation = scene_nwo.animations[scene_nwo.active_animation_index]
         if not animation.animation_events:
             return {"CANCELLED"}
         event = animation.animation_events[animation.active_animation_event_index]
@@ -1995,13 +2025,15 @@ class NWO_OT_AnimationFramesSyncToKeyFrames(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.active_animation_index > -1
+        scene_nwo = utils.get_scene_props()
+        return scene_nwo.active_animation_index > -1
 
     _timer = None
     _current_animation_index = -1
     
     def update_frame_range_from_keyframes(self, context: bpy.types.Context):
-        animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
+        scene_nwo = utils.get_scene_props()
+        animation = scene_nwo.animations[scene_nwo.active_animation_index]
         old_start = animation.frame_start
         old_end = animation.frame_end
         actions = {track.action for track in animation.action_tracks if track.action is not None}
@@ -2022,7 +2054,8 @@ class NWO_OT_AnimationFramesSyncToKeyFrames(bpy.types.Operator):
             bpy.ops.nwo.set_timeline()
 
     def modal(self, context, event):
-        if context.scene.nwo.active_animation_index != self._current_animation_index or context.scene.nwo.export_in_progress or not context.scene.nwo.keyframe_sync_active:
+        scene_nwo = utils.get_scene_props()
+        if scene_nwo.active_animation_index != self._current_animation_index or scene_nwo.export_in_progress or not scene_nwo.keyframe_sync_active:
             self.cancel(context)
             return {'CANCELLED'}
 
@@ -2032,18 +2065,20 @@ class NWO_OT_AnimationFramesSyncToKeyFrames(bpy.types.Operator):
         return {'PASS_THROUGH'}
 
     def execute(self, context):
-        if context.scene.nwo.keyframe_sync_active:
-            context.scene.nwo.keyframe_sync_active = False
+        scene_nwo = utils.get_scene_props()
+        if scene_nwo.keyframe_sync_active:
+            scene_nwo.keyframe_sync_active = False
             return {"CANCELLED"}
-        context.scene.nwo.keyframe_sync_active = True
+        scene_nwo.keyframe_sync_active = True
         wm = context.window_manager
         self._timer = wm.event_timer_add(0.5, window=context.window)
-        self._current_animation_index = context.scene.nwo.active_animation_index
+        self._current_animation_index = scene_nwo.active_animation_index
         wm.modal_handler_add(self)
         return {'RUNNING_MODAL'}
 
     def cancel(self, context):
-        context.scene.nwo.keyframe_sync_active = False
+        scene_nwo = utils.get_scene_props()
+        scene_nwo.keyframe_sync_active = False
         wm = context.window_manager
         wm.event_timer_remove(self._timer)
         
@@ -2058,10 +2093,12 @@ class NWO_OT_List_Add_Animation_Event(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.animations and context.scene.nwo.active_animation_index > -1
+        scene_nwo = utils.get_scene_props()
+        return scene_nwo.animations and scene_nwo.active_animation_index > -1
 
     def execute(self, context):
-        animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
+        scene_nwo = utils.get_scene_props()
+        animation = scene_nwo.animations[scene_nwo.active_animation_index]
         event = animation.animation_events.add()
         animation.active_animation_event_index = len(animation.animation_events) - 1
         event.frame_frame = context.scene.frame_current
@@ -2083,10 +2120,12 @@ class NWO_OT_List_Remove_Animation_Event(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.animations and context.scene.nwo.active_animation_index > -1 and len(context.scene.nwo.animations[context.scene.nwo.active_animation_index].animation_events) > 0
+        scene_nwo = utils.get_scene_props()
+        return scene_nwo.animations and scene_nwo.active_animation_index > -1 and len(scene_nwo.animations[scene_nwo.active_animation_index].animation_events) > 0
 
     def execute(self, context):
-        animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
+        scene_nwo = utils.get_scene_props()
+        animation = scene_nwo.animations[scene_nwo.active_animation_index]
         index = animation.active_animation_event_index
         animation.animation_events.remove(index)
         if animation.active_animation_event_index > len(animation.animation_events) - 1:
@@ -2102,7 +2141,8 @@ class NWO_OT_AnimationEventMove(bpy.types.Operator):
     direction: bpy.props.StringProperty()
 
     def execute(self, context):
-        animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
+        scene_nwo = utils.get_scene_props()
+        animation = scene_nwo.animations[scene_nwo.active_animation_index]
         table = animation.animation_events
         delta = {"down": 1, "up": -1,}[self.direction]
         current_index = animation.active_animation_event_index
@@ -2126,7 +2166,8 @@ class NWO_OT_SingleList_Add_Animation_Event(bpy.types.Operator):
         return context.scene
 
     def execute(self, context):
-        animation = context.scene.nwo
+        scene_nwo = utils.get_scene_props()
+        animation = scene_nwo
         event = animation.animation_events.add()
         animation.active_animation_event_index = len(animation.animation_events) - 1
         event.frame_frame = context.scene.frame_current
@@ -2148,10 +2189,12 @@ class NWO_OT_SingleList_Remove_Animation_Event(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.scene and context.scene.nwo.animation_events
+        scene_nwo = utils.get_scene_props()
+        return context.scene and scene_nwo.animation_events
 
     def execute(self, context):
-        animation = context.scene.nwo
+        scene_nwo = utils.get_scene_props()
+        animation = scene_nwo
         index = animation.active_animation_event_index
         animation.animation_events.remove(index)
         if animation.active_animation_event_index > len(animation.animation_events) - 1:

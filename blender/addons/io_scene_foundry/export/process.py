@@ -94,16 +94,16 @@ class ExportScene:
         self.virtual_scene: VirtualScene = None
         self.no_parent_objects = []
         self.objects_with_children = set()
-        self.default_region: str = context.scene.nwo.regions_table[0].name
-        self.default_permutation: str = context.scene.nwo.permutations_table[0].name
+        self.default_region: str = scene_settings.regions_table[0].name
+        self.default_permutation: str = scene_settings.permutations_table[0].name
         
         self.models_export_dir = Path(asset_path, "export", "models")
         self.animations_export_dir = Path(asset_path, "export", "animations")
         self.cinematics_export_dir = Path(asset_path, "export", "cinematics")
         
-        self.regions = [i.name for i in context.scene.nwo.regions_table]
+        self.regions = [i.name for i in scene_settings.regions_table]
         self.regions_set = frozenset(self.regions)
-        self.permutations = [i.name for i in context.scene.nwo.permutations_table]
+        self.permutations = [i.name for i in scene_settings.permutations_table]
         self.permutations_set = frozenset(self.permutations)
         self.global_materials = set()
         self.global_materials_list = []
@@ -268,9 +268,9 @@ class ExportScene:
         self.context.view_layer.update()
         utils.set_object_mode(self.context)
         if self.asset_type in {AssetType.MODEL, AssetType.ANIMATION}:
-            animation_index = self.context.scene.nwo.active_animation_index
+            animation_index = self.scene_settings.active_animation_index
             if animation_index > -1:
-                self.current_animation = self.context.scene.nwo.animations[animation_index]
+                self.current_animation = self.scene_settings.animations[animation_index]
 
         for ob in self.context.view_layer.objects:
             if ob.hide_get():
@@ -288,7 +288,7 @@ class ExportScene:
         self.temp_objects = set()
         main_armature = None
         if self.uses_main_armature:
-            main_armature = self.context.scene.nwo.main_armature
+            main_armature = self.scene_settings.main_armature
         support_armatures = []
         self.export_objects = []
             
@@ -382,7 +382,7 @@ class ExportScene:
         else:    
             self.export_objects = [ob for ob in proxy_export_objects if ob.nwo.export_this and ob.type in valid_objects]
         
-        self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir, self.granny, self.export_settings, utils.time_step(), self.scene_settings.default_animation_compression, utils.blender_halo_rotation_diff(self.forward), self.scene_settings.maintain_marker_axis, self.granny_textures, utils.get_project(self.context.scene.nwo.scene_project), self.to_halo_scale, self.unit_factor, self.atten_scalar, self.context)
+        self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir, self.granny, self.export_settings, utils.time_step(), self.scene_settings.default_animation_compression, utils.blender_halo_rotation_diff(self.forward), self.scene_settings.maintain_marker_axis, self.granny_textures, utils.get_project(self.scene_settings.scene_project), self.to_halo_scale, self.unit_factor, self.atten_scalar, self.context)
         
     def create_instance_proxies(self, ob: bpy.types.Object, ob_halo_data: dict, region: str, permutation: str):
         self.processed_poop_meshes.add(ob.data)
@@ -1704,7 +1704,7 @@ class ExportScene:
         animation_names = set()
         valid_animations = []
         if not single_animation:
-            for idx, animation in enumerate(self.context.scene.nwo.animations):
+            for idx, animation in enumerate(self.scene_settings.animations):
                 if animation.export_this:
                     if animation.name in animation_names:
                         self.warnings.append(f"Duplicate animation name found: {animation.name} [index {idx}]. Skipping animation")
@@ -1901,7 +1901,7 @@ class ExportScene:
                     proxy_target_props["bungie_animation_control_type"] = '_connected_geometry_animation_control_type_target_proxy'
                     proxy_target_props["bungie_animation_control_proxy_target_usage"] = props["bungie_animation_event_ik_target_usage"]
                     proxy_target_props["bungie_animation_control_proxy_target_marker"] = props["bungie_animation_event_ik_target_marker"]
-                    actual_chain = self.context.scene.nwo.ik_chains
+                    actual_chain = self.scene_settings.ik_chains
                     current_chain = None
                     for chain in actual_chain:
                         if chain.name == event.ik_chain:
@@ -2223,7 +2223,7 @@ class ExportScene:
                     
         if self.corinth and self.asset_type in {AssetType.MODEL, AssetType.SKY}:
             clones = {}
-            for perm in self.context.scene.nwo.permutations_table:
+            for perm in self.scene_settings.permutations_table:
                 tmp_clone_names = set()
                 if perm.clones and perm.name in self.permutations_set:
                     tmp_clones = []
@@ -2391,7 +2391,7 @@ class ExportScene:
     def invoke_tool_import(self):
         no_virtual_scene = self.virtual_scene is None
         if no_virtual_scene:
-            structure = [region.name for region in self.context.scene.nwo.regions_table]
+            structure = [region.name for region in self.scene_settings.regions_table]
             design = []
         else:
             structure = self.virtual_scene.structure

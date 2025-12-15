@@ -31,7 +31,7 @@ class NWO_OT_MovementDataToPedestal(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.animations
+        return utils.get_scene_props().animations
     
     def items_list_source_bones(self, context):
         return list_source_bones
@@ -185,7 +185,7 @@ class NWO_OT_MovementDataToPedestal(bpy.types.Operator):
             layout.prop(self, "use_y_rot")
             layout.prop(self, "use_z_rot")
         elif self.movement_type == 'ANIMATION':
-            layout.prop_search(self, "animation", context.scene.nwo, "animations", icon='ANIM')
+            layout.prop_search(self, "animation", utils.get_scene_props(), "animations", icon='ANIM')
             layout.prop(self, "start_end", expand=True)
         elif self.movement_type == 'AUTOMATIC':
             layout.prop(self, "include_no_movement")
@@ -210,19 +210,20 @@ class NWO_OT_MovementDataToPedestal(bpy.types.Operator):
         last_source_bone = self.source_bone
         last_root_bone = self.root_bone
         
-        if not context.scene.nwo.animations:
+        scene_nwo = utils.get_scene_props()
+        if not scene_nwo.animations:
             self.report({'WARNING'}, "No animations in scene")
             return {'CANCELLED'}
         
-        if not self.all_animations and context.scene.nwo.active_animation_index == -1:
+        if not self.all_animations and scene_nwo.active_animation_index == -1:
             self.report({'WARNING'}, "No active animation")
             return {'CANCELLED'}
         
         self.find_armature_ob(context)
         
         current_frame = context.scene.frame_current
-        current_animation_index = context.scene.nwo.active_animation_index
-        current_animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
+        current_animation_index = scene_nwo.active_animation_index
+        current_animation = scene_nwo.animations[scene_nwo.active_animation_index]
         current_pose = self.ob.data.pose_position
         current_object = context.object
         current_mode = context.mode
@@ -247,9 +248,9 @@ class NWO_OT_MovementDataToPedestal(bpy.types.Operator):
             if not self.animation:
                 self.report({'WARNING'}, "No animation specified")
                 return {'CANCELLED'}
-            for idx, animation in enumerate(context.scene.nwo.animations):
+            for idx, animation in enumerate(scene_nwo.animations):
                 if animation.name == self.animation:
-                    context.scene.nwo.active_animation_index = idx
+                    scene_nwo.active_animation_index = idx
                     if self.start_end == 'START':
                         context.scene.frame_set(animation.frame_start)
                         root_matrix = self.ob.pose.bones[self.root_bone].matrix.copy()
@@ -260,7 +261,7 @@ class NWO_OT_MovementDataToPedestal(bpy.types.Operator):
                         root_matrix = get_bone_matrices(context, idx, animation, self.ob.pose.bones[self.root_bone], current_animation.frame_end + 1 - current_animation.frame_start)
                     break
                 
-            context.scene.nwo.active_animation_index = current_animation_index
+            scene_nwo.active_animation_index = current_animation_index
             context.scene.frame_set(current_frame)
         
         if not self.all_animations and not self.has_movement_data(current_animation) and not settings_dict and root_matrix is None:
@@ -273,9 +274,10 @@ class NWO_OT_MovementDataToPedestal(bpy.types.Operator):
         if self.all_animations:
             os.system("cls")
             start = time.perf_counter()
-            if context.scene.nwo_export.show_output:
+            scene_nwo_export = utils.get_export_props()
+            if scene_nwo_export.show_output:
                 bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
-                context.scene.nwo_export.show_output = False
+                scene_nwo_export.show_output = False
                 
             export_title = f"►►► MOVEMENT DATA TRANSFER ◄◄◄\n"
             print(export_title)
@@ -286,8 +288,8 @@ class NWO_OT_MovementDataToPedestal(bpy.types.Operator):
         if not self.relative:
             if self.all_animations:
                 print("Getting existing source bone poses")
-                for i in range(len(context.scene.nwo.animations)):
-                    animation = context.scene.nwo.animations[i]
+                for i in range(len(scene_nwo.animations)):
+                    animation = scene_nwo.animations[i]
                     print(f"--- {animation.name}")
                     source_bone_anim_matrices[i] = get_bone_matrices(context, i, animation, source_bone)
             else:
@@ -309,8 +311,8 @@ class NWO_OT_MovementDataToPedestal(bpy.types.Operator):
         if self.relative:
             if self.all_animations:
                 print("Getting existing source bone poses")
-                for i in range(len(context.scene.nwo.animations)):
-                    animation = context.scene.nwo.animations[i]
+                for i in range(len(scene_nwo.animations)):
+                    animation = scene_nwo.animations[i]
                     print(f"--- {animation.name}")
                     source_bone_anim_matrices[i] = get_bone_matrices(context, i, animation, source_bone)
             else:
@@ -319,7 +321,7 @@ class NWO_OT_MovementDataToPedestal(bpy.types.Operator):
 
         if self.all_animations:
             print("Calculating new root movement for all animations")
-            for idx, animation in enumerate(context.scene.nwo.animations):
+            for idx, animation in enumerate(scene_nwo.animations):
                 if root_matrix is not None or settings_dict or self.has_movement_data(animation):
                     print(f"--- {animation.name}")
                     transfer_movement(context, animation, idx, self.ob, self.source_bone, self.root_bone, root_rest_matrix, root_matrix, settings_dict)
@@ -333,12 +335,12 @@ class NWO_OT_MovementDataToPedestal(bpy.types.Operator):
         
         print(f"\nSetting new source bone keyframes")
         for idx, source_bone_matrices in source_bone_anim_matrices.items():
-            animation = context.scene.nwo.animations[idx]
+            animation = scene_nwo.animations[idx]
             print(f"--- {animation.name}")
             fix_source_movement(context, animation, idx, self.ob, self.source_bone, source_bone_matrices)
         
         self.ob.data.pose_position = current_pose
-        context.scene.nwo.active_animation_index = current_animation_index
+        scene_nwo.active_animation_index = current_animation_index
         context.scene.frame_set(current_frame)
         context.view_layer.objects.active = current_object
         utils.restore_mode(current_mode)
@@ -351,7 +353,8 @@ class NWO_OT_MovementDataToPedestal(bpy.types.Operator):
         return {'FINISHED'}
     
 def get_bone_matrices(context: bpy.types.Context, animation_index: int, animation, bone: bpy.types.PoseBone, frame_count=None):
-    context.scene.nwo.active_animation_index = animation_index
+    scene_nwo = utils.get_scene_props()
+    scene_nwo.active_animation_index = animation_index
     scene = context.scene
     bone_matrices = []
     for i in range(animation.frame_start, animation.frame_end + 1):
@@ -367,7 +370,8 @@ def get_bone_matrices(context: bpy.types.Context, animation_index: int, animatio
     return bone_matrices
     
 def fix_source_movement(context: bpy.types.Context, animation, animation_index: int, ob: bpy.types.Object, source_bone_name: str, source_bone_matrices: list[Matrix]):
-    context.scene.nwo.active_animation_index = animation_index
+    scene_nwo = utils.get_scene_props()
+    scene_nwo.active_animation_index = animation_index
     source_bone = ob.pose.bones[source_bone_name]
     for idx, i in enumerate(range(animation.frame_start, animation.frame_end + 1)):
         context.scene.frame_set(i)
@@ -377,7 +381,8 @@ def fix_source_movement(context: bpy.types.Context, animation, animation_index: 
         source_bone.keyframe_insert(data_path='rotation_quaternion', frame=i, options={'INSERTKEY_VISUAL'})
         
 def transfer_movement(context: bpy.types.Context, animation, animation_index: int, ob: bpy.types.Object, source_bone_name: str, root_bone_name: str, root_rest_matrix: Matrix, root_matrix: Matrix, custom_settings: dict = {}):
-    context.scene.nwo.active_animation_index = animation_index
+    scene_nwo = utils.get_scene_props()
+    scene_nwo.active_animation_index = animation_index
     scene = context.scene
     horizontal = False
     vertical = False
@@ -655,8 +660,9 @@ class NWO_OT_FcurveTransfer(bpy.types.Operator):
     )
 
     def execute(self, context):
-        active_animation_index = context.scene.nwo.active_animation_index
-        animation = context.scene.nwo.animations[active_animation_index]
+        scene_nwo = utils.get_scene_props()
+        active_animation_index = scene_nwo.active_animation_index
+        animation = scene_nwo.animations[active_animation_index]
         actions = []
         if self.all_animations:
             actions = set(bpy.data.actions)
@@ -680,7 +686,7 @@ class NWO_OT_FcurveTransfer(bpy.types.Operator):
             else:
                 self.report({'WARNING'}, f"Failed to find source fcurve on action {action.name}")
         
-        context.scene.nwo.active_animation_index = active_animation_index
+        scene_nwo.active_animation_index = active_animation_index
         return {"FINISHED"}
     
     def invoke(self, context, event):

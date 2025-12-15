@@ -382,12 +382,12 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
     # MATERIAL LIGHTING PROPERTIES
       
     def update_lighting_attenuation_falloff(self, context):
-        if not context.scene.nwo.transforming:
+        if not utils.get_scene_props().transforming:
             if self.material_lighting_attenuation_falloff > self.material_lighting_attenuation_cutoff:
                 self.material_lighting_attenuation_cutoff = self.material_lighting_attenuation_falloff
             
     def update_lighting_attenuation_cutoff(self, context):
-        if not context.scene.nwo.transforming:
+        if not utils.get_scene_props().transforming:
             if self.material_lighting_attenuation_cutoff < self.material_lighting_attenuation_falloff:
                 self.material_lighting_attenuation_falloff = self.material_lighting_attenuation_cutoff
     

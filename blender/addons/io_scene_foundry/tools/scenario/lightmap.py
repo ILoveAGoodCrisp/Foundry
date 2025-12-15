@@ -43,7 +43,7 @@ class NWO_OT_Lightmap(bpy.types.Operator):
     def poll(cls, context):
         if not utils.valid_nwo_asset(context):
             return False
-        asset_type = context.scene.nwo.asset_type
+        asset_type = utils.get_scene_props().asset_type
         if utils.is_corinth(context):
             if asset_type == 'scenario':
                 return scenario_exists()
@@ -55,15 +55,16 @@ class NWO_OT_Lightmap(bpy.types.Operator):
             return asset_type == 'scenario' and scenario_exists()
 
     def execute(self, context):
-        asset_type = context.scene.nwo.asset_type
+        scene_nwo = utils.get_scene_props()
+        scene_nwo_export = utils.get_export_props()
+        asset_type = scene_nwo.asset_type
         asset_path, asset_name = utils.get_asset_info()
         scenario_path = str(Path(asset_path, asset_name))
-        scene_nwo_export = context.scene.nwo_export
         is_corinth = utils.is_corinth(context)
         os.system("cls")
-        if context.scene.nwo_export.show_output:
+        if scene_nwo_export.show_output:
             bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
-            context.scene.nwo_export.show_output = False
+            scene_nwo_export.show_output = False
 
         export_title = f"►►► LIGHTMAPPER ◄◄◄"
         print(export_title)
@@ -316,10 +317,11 @@ class LightMapper:
         print(
             "-------------------------------------------------------------------------\n"
         )
+        scene_nwo = utils.get_scene_props()
         if using_asset_settings:
             asset_path = utils.get_asset_path_full(True)
             asset_name = Path(asset_path).name
-            bsps = [r.name for r in bpy.context.scene.nwo.regions_table if r.name.lower() != 'shared']
+            bsps = [r.name for r in scene_nwo.regions_table if r.name.lower() != 'shared']
             lightmapper_globals_paths = [str(Path(asset_path, f'{asset_name}_{b}.lightmapper_globals')) for b in bsps]
             if self.light_group:
                 ob = bpy.context.scene.objects.get(self.light_group)

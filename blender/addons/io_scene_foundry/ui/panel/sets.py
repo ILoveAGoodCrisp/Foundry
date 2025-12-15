@@ -15,7 +15,7 @@ class NWO_OT_SwapMaterial(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        nwo = context.scene.nwo
+        nwo = utils.get_scene_props()
         permutation = nwo.permutations_table[nwo.permutations_table_active_index]
         if not permutation.clones:
             return False
@@ -31,7 +31,7 @@ class NWO_OT_SwapMaterial(bpy.types.Operator):
         return override.source_material is not None and override.destination_material is not None
 
     def execute(self, context):
-        nwo = context.scene.nwo
+        nwo = utils.get_scene_props()
         permutation = nwo.permutations_table[nwo.permutations_table_active_index]
         clone = permutation.clones[permutation.active_clone_index]
         override = clone.material_overrides[clone.active_material_override_index]
@@ -80,7 +80,7 @@ class NWO_OT_AddMaterialOverride(bpy.types.Operator):
     bl_options = {'UNDO'}
     
     def execute(self, context):
-        nwo = context.scene.nwo
+        nwo = utils.get_scene_props()
         permutation = nwo.permutations_table[nwo.permutations_table_active_index]
         clone = permutation.clones[permutation.active_clone_index]
         clone.material_overrides.add()
@@ -96,12 +96,12 @@ class NWO_OT_RemoveMaterialOverride(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        nwo = context.scene.nwo
+        nwo = utils.get_scene_props()
         permutation = nwo.permutations_table[nwo.permutations_table_active_index]
         return permutation.clones and permutation.active_clone_index > -1
 
     def execute(self, context):
-        nwo = context.scene.nwo
+        nwo = utils.get_scene_props()
         permutation = nwo.permutations_table[nwo.permutations_table_active_index]
         clone = permutation.clones[permutation.active_clone_index]
         index = clone.active_material_override_index
@@ -120,7 +120,7 @@ class NWO_OT_MoveMaterialOverride(bpy.types.Operator):
     direction: bpy.props.StringProperty()
 
     def execute(self, context):
-        nwo = context.scene.nwo
+        nwo = utils.get_scene_props()
         permutation = nwo.permutations_table[nwo.permutations_table_active_index]
         clone = permutation.clones[permutation.active_clone_index]
         overrides = clone.material_overrides
@@ -144,7 +144,7 @@ class NWO_OT_AddPermutationClone(bpy.types.Operator):
     bl_options = {'UNDO'}
     
     def execute(self, context):
-        nwo = context.scene.nwo
+        nwo = utils.get_scene_props()
         permutation = nwo.permutations_table[nwo.permutations_table_active_index]
         clone = permutation.clones.add()
         permutation.active_clone_index = len(permutation.clones) - 1
@@ -160,12 +160,12 @@ class NWO_OT_RemovePermutationClone(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        nwo = context.scene.nwo
+        nwo = utils.get_scene_props()
         permutation = nwo.permutations_table[nwo.permutations_table_active_index]
         return permutation.clones and permutation.active_clone_index > -1
 
     def execute(self, context):
-        nwo = context.scene.nwo
+        nwo = utils.get_scene_props()
         permutation = nwo.permutations_table[nwo.permutations_table_active_index]
         index = permutation.active_clone_index
         permutation.clones.remove(index)
@@ -184,12 +184,12 @@ class NWO_OT_MovePermutationClone(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        nwo = context.scene.nwo
+        nwo = utils.get_scene_props()
         permutation = nwo.permutations_table[nwo.permutations_table_active_index]
         return permutation.clones and permutation.active_clone_index > -1
 
     def execute(self, context):
-        nwo = context.scene.nwo
+        nwo = utils.get_scene_props()
         permutation = nwo.permutations_table[nwo.permutations_table_active_index]
         clones = permutation.clones
         delta = {"down": 1, "up": -1,}[self.direction]
@@ -206,7 +206,8 @@ class NWO_RegionsContextMenu(bpy.types.Menu):
 
     @classmethod
     def poll(self, context):
-        return context.scene.nwo.regions_table
+        scene_nwo = utils.get_scene_props()
+        return scene_nwo.regions_table
     
     def draw(self, context):
         pass
@@ -217,7 +218,8 @@ class NWO_PermutationsContextMenu(bpy.types.Menu):
 
     @classmethod
     def poll(self, context):
-        return context.scene.nwo.permutations_table
+        scene_nwo = utils.get_scene_props()
+        return scene_nwo.permutations_table
     
     def draw(self, context):
         pass

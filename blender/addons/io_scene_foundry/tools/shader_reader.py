@@ -45,7 +45,8 @@ class NWO_OT_BuildShaderTemplates(bpy.types.Operator):
         tags_path = utils.get_tags_path()
         
         os.system("cls")
-        if context.scene.nwo_export.show_output:
+        scene_nwo_export = utils.get_export_props()
+        if scene_nwo_export.show_output:
             bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
             
         print(f"Building Shader Templates\n")
@@ -164,13 +165,13 @@ class NWO_OT_ShaderToNodesBulk(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return utils.current_project_valid() and not context.scene.nwo.export_in_progress
+        return utils.current_project_valid() and not utils.get_scene_props().export_in_progress
     
     def execute(self, context):
         corinth = utils.is_corinth(context)
         
         os.system("cls")
-        if context.scene.nwo_export.show_output:
+        if utils.get_export_props().show_output:
             bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
         print(f"Building Blender Materials\n")
         
@@ -212,7 +213,7 @@ class NWO_ShaderToNodes(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return utils.current_project_valid() and not context.scene.nwo.export_in_progress
+        return utils.current_project_valid() and not utils.get_scene_props().export_in_progress
 
     def execute(self, context):
         mat = bpy.data.materials.get(self.mat_name, 0)

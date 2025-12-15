@@ -2,6 +2,8 @@
 
 import bpy
 
+from ...utils import get_scene_props
+
 from ...icons import get_icon_id
 
 class NWO_UL_AnimationCopies(bpy.types.UIList):
@@ -54,7 +56,7 @@ class NWO_OT_AnimationCopyAdd(bpy.types.Operator):
             self.report({'WARNING'}, "Source name and copy name cannot match")
             return {'CANCELLED'}
         
-        nwo = context.scene.nwo
+        nwo = get_scene_props()
         table = nwo.animation_copies
         entry = table.add()
         entry.name = copy_name
@@ -86,7 +88,7 @@ class NWO_OT_AnimationCopyRemove(bpy.types.Operator):
     bl_options = {'UNDO'}
 
     def execute(self, context):
-        nwo = context.scene.nwo
+        nwo = get_scene_props()
         table = nwo.animation_copies
         table.remove(nwo.animation_copies_active_index)
         if nwo.animation_copies_active_index > len(table) - 1:
@@ -102,7 +104,7 @@ class NWO_OT_AnimationCopyMove(bpy.types.Operator):
     direction: bpy.props.StringProperty()
 
     def execute(self, context):
-        nwo = context.scene.nwo
+        nwo = get_scene_props()
         table = nwo.animation_copies
         delta = {"down": 1, "up": -1,}[self.direction]
         current_index = nwo.animation_copies_active_index

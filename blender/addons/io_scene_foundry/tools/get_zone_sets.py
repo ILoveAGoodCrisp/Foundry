@@ -18,13 +18,15 @@ class NWO_GetZoneSets(bpy.types.Operator):
         if not utils.current_project_valid():
             return False
         
-        if not context.scene.nwo.cinematic_scenario:
+        scene_nwo = utils.get_scene_props()
+        if not scene_nwo.cinematic_scenario:
             return False
-        tag_path = Path(get_tags_path(), context.scene.nwo.cinematic_scenario)
+        tag_path = Path(get_tags_path(), scene_nwo.cinematic_scenario)
         return tag_path.is_absolute() and tag_path.exists() and tag_path.is_file()
     
     def zone_set_items(self, context):
-        with ScenarioTag(path=context.scene.nwo.cinematic_scenario) as scenario:
+        scene_nwo = utils.get_scene_props()
+        with ScenarioTag(path=scene_nwo.cinematic_scenario) as scenario:
             if not scenario.block_zone_sets.Elements.Count:
                 return [("default", "default", "")]
             items = []
@@ -42,7 +44,7 @@ class NWO_GetZoneSets(bpy.types.Operator):
     )
     
     def execute(self, context):
-        nwo = context.scene.nwo
+        nwo = utils.get_scene_props()
         if Path(get_tags_path(), utils.relative_path(nwo.cinematic_scenario)).exists():
             nwo.cinematic_zone_set = self.zone_set
             return {'FINISHED'}

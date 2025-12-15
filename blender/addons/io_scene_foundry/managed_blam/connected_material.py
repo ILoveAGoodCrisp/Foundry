@@ -283,7 +283,7 @@ functions_list = [
     GameFunction("balling", False, GameFunctionType.OBJECT),
     GameFunction("balling_beserk", False, GameFunctionType.OBJECT),
     GameFunction("body_vitality", 1, GameFunctionType.OBJECT),
-    GameFunction("cinematic_in_progress", False, GameFunctionType.WORLD, "cinematic_in_progress"), # bpy.context.scene.nwo.asset_type == "cinematic"
+    GameFunction("cinematic_in_progress", False, GameFunctionType.WORLD, "cinematic_in_progress"),
     GameFunction("compass", 0, GameFunctionType.OBJECT, "compass"), # GET BY DIRECTION
     GameFunction("cortana_rampancy", 0, GameFunctionType.OBJECT),
     GameFunction("current_body_damage", 0, GameFunctionType.OBJECT),

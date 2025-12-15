@@ -31,7 +31,7 @@ class NWO_PIE_ApplyTypeMesh(bpy.types.Operator):
 
     @classmethod
     def poll(self, context):
-        asset_type = context.scene.nwo.asset_type
+        asset_type = utils.get_scene_props().asset_type
         return asset_type in ("model", "scenario", "prefab") and bpy.ops.object.mode_set.poll()
 
     def execute(self, context):
@@ -63,7 +63,7 @@ class NWO_OT_ApplyTypeMesh(bpy.types.Operator):
 
     def m_type_items(self, context):
         items = []
-        nwo = context.scene.nwo
+        nwo = utils.get_scene_props()
         asset_type = nwo.asset_type
         h4 = utils.is_corinth(context)
         index = 0
@@ -373,7 +373,7 @@ class NWO_PIE_ApplyTypeMarker(bpy.types.Operator):
 
     @classmethod
     def poll(self, context):
-        asset_type = context.scene.nwo.asset_type
+        asset_type = utils.get_scene_props().asset_type
         return asset_type in ("model", "sky", "scenario", "prefab") and context.object and not context.object.library
 
     def execute(self, context):
@@ -394,7 +394,7 @@ class NWO_OT_ApplyTypeMarker(bpy.types.Operator):
 
     def m_type_items(self, context):
         items = []
-        nwo = context.scene.nwo
+        nwo = utils.get_scene_props()
         asset_type = nwo.asset_type
         reach = not utils.is_corinth(context)
         index = 0
@@ -544,7 +544,7 @@ class NWO_OT_ApplyTypeMarkerSingle(NWO_OT_ApplyTypeMarker):
     
 def object_context_apply_types(self, context):
     layout = self.layout
-    asset_type = context.scene.nwo.asset_type
+    asset_type = utils.get_scene_props().asset_type
     layout.separator()
     selection_count = len(context.selected_objects)
     if selection_count > 1:
@@ -581,11 +581,12 @@ def object_context_apply_types(self, context):
             layout.operator("nwo.instancer_to_instance", icon='MESH_DATA')
             
 def object_context_sets(self, context):
-    asset_type = context.scene.nwo.asset_type
+    scene_nwo = utils.get_scene_props()
+    asset_type = scene_nwo.asset_type
     regions_valid = asset_type in ('model', 'sky', 'scenario')
     permutations_valid =  asset_type in ('model', 'sky', 'scenario', 'prefab')
-    region_name = "BSP" if context.scene.nwo.asset_type == "scenario" else "Region" 
-    permutation_name = "Layer" if context.scene.nwo.asset_type in ("scenario", "prefab") else "Permutation"
+    region_name = "BSP" if scene_nwo.asset_type == "scenario" else "Region" 
+    permutation_name = "Layer" if scene_nwo.asset_type in ("scenario", "prefab") else "Permutation"
     layout = self.layout
     layout.separator()
     ob = context.object
@@ -614,7 +615,7 @@ def object_context_sets(self, context):
 def collection_context(self, context):
     layout = self.layout
     coll = context.view_layer.active_layer_collection.collection
-    is_scenario = context.scene.nwo.asset_type in ('scenario', 'prefab')
+    is_scenario = utils.get_scene_props().asset_type in ('scenario', 'prefab')
     if coll and coll.users:
         layout.separator()
         if coll.nwo.type == 'exclude':
@@ -628,37 +629,6 @@ def collection_context(self, context):
 
         layout.menu("NWO_MT_ApplyCollectionMenu", text="Set Halo Collection", icon_value=get_icon_id("collection"))
         layout.operator("nwo.open_linked_collection", icon='BLENDER')
-        
-class NWO_CollectionManager(bpy.types.Panel):
-    bl_label = "Collection Creator"
-    bl_idname = "NWO_PT_CollectionManager"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_options = {"DEFAULT_CLOSED"}
-    bl_parent_id = "NWO_PT_PropertiesManager"
-
-    def draw_header(self, context):
-        self.layout.label(text="", icon_value=get_icon_id("collection_creator"))
-
-    def draw(self, context):
-        layout = self.layout
-        scene = context.scene
-        scene_nwo_collection_manager = scene.nwo_collection_manager
-
-        layout.use_property_split = True
-        flow = layout.grid_flow(
-            row_major=True,
-            columns=0,
-            even_columns=True,
-            even_rows=False,
-            align=False,
-        )
-        col = flow.column()
-        col.prop(scene_nwo_collection_manager, "collection_name", text="Name")
-        col.prop(scene_nwo_collection_manager, "collection_type", text="Type")
-        col = col.row()
-        col.scale_y = 1.5
-        col.operator("nwo.collection_create")
 
 def add_halo_join(self, context):
     self.layout.operator("nwo.join_halo", text="Halo Join")

@@ -196,8 +196,9 @@ class NWO_OT_SelectArmature(bpy.types.Operator):
         
         objects = context.view_layer.objects
         scene = context.scene
-        if scene.nwo.main_armature:
-            arm = scene.nwo.main_armature
+        scene_nwo = utils.get_scene_props()
+        if scene_nwo.main_armature:
+            arm = scene_nwo.main_armature
         else:
             rigs = [ob for ob in objects if ob.type == 'ARMATURE']
             if not rigs:
@@ -222,7 +223,7 @@ class NWO_OT_SelectArmature(bpy.types.Operator):
         layout.prop(self, 'has_pose_bones', text='With Aim Bones')
         
 def add_rig(context, has_pose_bones, wireframe):
-    scene_nwo = context.scene.nwo
+    scene_nwo = utils.get_scene_props()
     scale = 1
     if scene_nwo.scale == 'max':
         scale *= (1 / 0.03048)

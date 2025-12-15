@@ -122,9 +122,10 @@ class NWO_FarmShaders(bpy.types.Operator):
             tag_type = 'Material' if self.corinth else 'Shader'
             start = time.perf_counter()
             os.system("cls")
-            if context.scene.nwo_export.show_output:
+            scene_nwo_export = utils.get_export_props()
+            if scene_nwo_export.show_output:
                 bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
-                context.scene.nwo_export.show_output = False
+                scene_nwo_export.show_output = False
 
             export_title = f"►►► {tag_type.upper()} FARM ◄◄◄"
 

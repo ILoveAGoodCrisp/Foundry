@@ -18,10 +18,11 @@ class NWO_OT_LoadTemplate(bpy.types.Operator):
         return utils.valid_nwo_asset()
 
     def execute(self, context):
+        scene_nwo = utils.get_scene_props()
         if self.tag_type == "":
             return {'CANCELLED'}
         tag_ext = "." + self.tag_type
-        template_tag_str = getattr(context.scene.nwo, f"template_{self.tag_type}")
+        template_tag_str = getattr(scene_nwo, f"template_{self.tag_type}")
         template_tag_path = Path(utils.relative_path(template_tag_str))
         template_full_path = Path(utils.get_tags_path(), template_tag_path)
         if not template_full_path.exists():
@@ -38,7 +39,7 @@ class NWO_OT_LoadTemplate(bpy.types.Operator):
         if self.tag_type == 'model':
             with ModelTag(path=tag_path) as model:
                 model.set_asset_paths()
-                model.set_model_overrides(context.scene.nwo.template_render_model, context.scene.nwo.template_collision_model, context.scene.nwo.template_model_animation_graph, context.scene.nwo.template_physics_model)
+                model.set_model_overrides(scene_nwo.template_render_model, scene_nwo.template_collision_model, scene_nwo.template_model_animation_graph, scene_nwo.template_physics_model)
         else:
             with ObjectTag(path=tag_path) as tag:
                 tag.set_model_tag_path(str(Path(asset_dir, asset_name).with_suffix(".model")))
@@ -50,4 +51,4 @@ class NWO_OT_LoadTemplate(bpy.types.Operator):
     def draw(self, context):
         layout = self.layout
         layout.label(text=f"This will override the current {self.tag_type} tag with:", icon='ERROR')
-        layout.label(text=getattr(context.scene.nwo, f"template_{self.tag_type}"))
+        layout.label(text=getattr(utils.get_scene_props(), f"template_{self.tag_type}"))

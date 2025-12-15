@@ -60,23 +60,24 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
     
     @classmethod
     def poll(cls, context):
-        return not context.scene.nwo.storage_only and utils.get_prefs().projects and context.scene.nwo.scene_project
+        return utils.get_prefs().projects and utils.get_scene_props().scene_project
 
     def draw(self, context):
         self.context = context
         layout = self.layout
         self.h4 = utils.is_corinth(context)
         self.scene = context.scene
-        nwo = self.scene.nwo
-        self.asset_type = nwo.asset_type
-        if context.scene.nwo.instance_proxy_running:    
+        self.scene_nwo = utils.get_scene_props()
+        self.scene_nwo_export = utils.get_export_props()
+        self.asset_type = self.scene_nwo.asset_type
+        if self.scene_nwo.instance_proxy_running:    
             box = layout.box()
             ob = context.object
             if ob:
                 box.label(text=f"Editing: {ob.name}")
                 box2 = box.box()
                 box2.label(text="Mesh Properties")
-                self.draw_expandable_box(box.box(), context.scene.nwo, "mesh_properties", ob=ob)
+                self.draw_expandable_box(box.box(), self.scene_nwo, "mesh_properties", ob=ob)
 
             row = box.row()
             row.scale_y = 2
@@ -95,15 +96,15 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 if not utils.poll_ui(('model', 'animation', 'camera_track_set', 'cinematic')):
                     continue
             elif p in ("material_properties", 'sets_manager'):
-                if nwo.asset_type in ('camera_track_set', 'animation', 'cinematic', 'single_animation') or (p == "material_properties" and nwo.asset_type == "animation"):
+                if self.scene_nwo.asset_type in ('camera_track_set', 'animation', 'cinematic', 'single_animation') or (p == "material_properties" and self.scene_nwo.asset_type == "animation"):
                     continue
             elif p == "object_properties":
-                if nwo.asset_type in ('camera_track_set', 'animation', 'single_animation'):
+                if self.scene_nwo.asset_type in ('camera_track_set', 'animation', 'single_animation'):
                     continue
             
             row_icon = box.row(align=True)
-            panel_active = getattr(nwo, f"{p}_active")
-            panel_pinned = getattr(nwo, f"{p}_pinned")
+            panel_active = getattr(self.scene_nwo, f"{p}_active")
+            panel_pinned = getattr(self.scene_nwo, f"{p}_pinned")
             row_icon.scale_x = 1.2
             row_icon.scale_y = 1.2
             row_icon.operator(
@@ -119,7 +120,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     panel_display_name = "Cinematic Events"
                 else:
                     panel_display_name = f"{p.replace('_', ' ').title()}"
-                panel_expanded = getattr(nwo, f"{p}_expanded")
+                panel_expanded = getattr(self.scene_nwo, f"{p}_expanded")
                 self.box = col2.box()
                 row_header = self.box.row(align=True)
                 row_header.operator(
@@ -142,7 +143,6 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
 
     def draw_scene_properties(self):
         box = self.box
-        nwo = self.scene.nwo
         scene = self.scene
 
         col = box.column()
@@ -156,26 +156,26 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         col.label(text="Coordinate System")
         row = col.row()
         row.scale_y = 1.1
-        row.prop(scene.nwo, 'scale', text='Scale', expand=True)
+        row.prop(self.scene_nwo, 'scale', text='Scale', expand=True)
         row = col.row(heading="Forward")
         row = col.row()
-        row.prop(nwo, "forward_direction", text="Scene Forward", expand=True)
+        row.prop(self.scene_nwo, "forward_direction", text="Scene Forward", expand=True)
         row = col.row()
-        row.prop(nwo, "maintain_marker_axis")
+        row.prop(self.scene_nwo, "maintain_marker_axis")
         col.label(text="Units Display")
         row = col.row()
         row.scale_y = 1.1
-        row.prop(scene.nwo, 'scale_display', text=' ', expand=True)
-        if scene.nwo.scale_display == 'halo' and scene.unit_settings.length_unit != 'METERS':
+        row.prop(self.scene_nwo, 'scale_display', text=' ', expand=True)
+        if self.scene_nwo.scale_display == 'halo' and scene.unit_settings.length_unit != 'METERS':
             row = col.row()
             row.label(text='World Units only accurate when Unit Length is Meters', icon='ERROR')
         
         col.label(text="Scene Project")
         row = col.row()
         row.scale_y = 1.1
-        row.menu("NWO_MT_ProjectChooser", text=nwo.scene_project, icon_value=utils.project_icon(bpy.context))
+        row.menu("NWO_MT_ProjectChooser", text=self.scene_nwo.scene_project, icon_value=utils.project_icon(bpy.context))
         
-        if nwo.asset_type == 'scenario':
+        if self.scene_nwo.asset_type == 'scenario':
             col.label(text="BSP Collections")
             row = col.row()
             row.scale_y = 1.1
@@ -185,7 +185,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
 
     def draw_asset_editor(self):
         box = self.box
-        nwo = self.scene.nwo
+        nwo = self.scene_nwo
         col = box.column()
         row = col.row()
         row.scale_y = 1.5
@@ -203,7 +203,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             row.scale_y = 1.5
             row.operator("nwo.new_asset", text="New Asset", icon_value=get_icon_id("halo_asset"))
         
-        col.prop(nwo, "is_child_asset", text="Child Asset" if self.asset_type != "cinematic" else "Cinematic Scene Only")
+        col.prop(nwo, "is_child_asset", text="Child Asset")
         
         if nwo.is_child_asset:
             col.prop(nwo, "parent_asset")
@@ -493,7 +493,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
     def draw_lighting(self, box: bpy.types.UILayout, nwo):
         box_lights = box.box()
         box_lights.label(text="Lights")
-        scene_nwo_export = self.scene.nwo_export
+        scene_nwo_export = self.scene_nwo_export
         _, asset_name = utils.get_asset_info()
         if self.asset_type == 'scenario':
             lighting_name = "Lightmap Scenario"
@@ -989,7 +989,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         col = box.column()
         col.use_property_split = True
         col.prop(item, "overlay")
-        col.prop_search(item, "timing_source", self.scene.nwo, "animations", icon='ANIM')
+        col.prop_search(item, "timing_source", self.scene_nwo, "animations", icon='ANIM')
         box = col.box()
         box.label(text="Blend Axes")
         row = box.row()
@@ -1226,7 +1226,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             leaf = parent.leaves[parent.leaves_active_index]
             col = box.column()
             col.use_property_split = True
-            col.prop_search(leaf, "animation", self.scene.nwo, "animations", icon='ANIM', results_are_suggestions=True)
+            col.prop_search(leaf, "animation", self.scene_nwo, "animations", icon='ANIM', results_are_suggestions=True)
             
             for idx, par in enumerate(parent_stack):
                 if idx > 9:
@@ -1246,7 +1246,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
     def draw_sets_manager(self):
         self.box.operator('nwo.update_sets', icon='FILE_REFRESH')
         box = self.box
-        nwo = self.scene.nwo
+        nwo = self.scene_nwo
         if not nwo.regions_table:
             return
         is_scenario = nwo.asset_type == 'scenario'
@@ -1934,7 +1934,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                         text="Underwater Fog Murkiness",
                     )
                     col.separator()
-                    col.operator("nwo.show_water_direction", depress=self.scene.nwo.show_water_direction, icon='MATFLUID')
+                    col.operator("nwo.show_water_direction", depress=self.scene_nwo.show_water_direction, icon='MATFLUID')
 
             elif nwo.mesh_type in (
                 "_connected_geometry_mesh_type_default",
@@ -2322,7 +2322,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             return
 
         if utils.has_face_props(ob):
-            self.draw_expandable_box(self.box.box(), context.scene.nwo, "mesh_properties", ob=ob)
+            self.draw_expandable_box(self.box.box(), self.scene_nwo, "mesh_properties", ob=ob)
   
         nwo = ob.data.nwo
         # Instance Proxy Operators
@@ -2330,7 +2330,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             return
         
         col.separator()
-        self.draw_expandable_box(self.box.box(), context.scene.nwo, "instance_proxies", ob=ob)
+        self.draw_expandable_box(self.box.box(), self.scene_nwo, "instance_proxies", ob=ob)
         
     def draw_mesh_properties(self, box, ob):
         self.draw_face_material_properties(box, ob, False)
@@ -2648,9 +2648,9 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             # First validate if Material has images
             if mat.node_tree:
                 if utils.recursive_image_search(mat):
-                    self.draw_expandable_box(self.box.box(), context.scene.nwo, "image_properties", material=mat)
+                    self.draw_expandable_box(self.box.box(), self.scene_nwo, "image_properties", material=mat)
             
-            self.draw_expandable_box(self.box.box(), context.scene.nwo, "material_attributes", material=mat)
+            self.draw_expandable_box(self.box.box(), self.scene_nwo, "material_attributes", material=mat)
 
                 
     def draw_image_properties(self, box, mat):
@@ -2839,7 +2839,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         
         context = self.context
         ob = context.object
-        scene_nwo = context.scene.nwo
+        scene_nwo = utils.get_scene_props()
         
         if self.asset_type == 'cinematic':
             return self.draw_cinematic_events(scene_nwo, ob, box)
@@ -3180,7 +3180,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     col.prop(item, "import_name")
 
     def draw_tools(self):
-        nwo = self.scene.nwo
+        nwo = self.scene_nwo
         shader_type = "Material" if self.h4 else "Shader"
         self.draw_expandable_box(self.box.box(), nwo, "asset_shaders", f"Asset {shader_type}s")
         self.draw_expandable_box(self.box.box(), nwo, "importer")
@@ -3208,7 +3208,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         
     def draw_camera_sync(self, box: bpy.types.UILayout, nwo):
         col = box.column()
-        if self.scene.nwo.camera_sync_active:
+        if self.scene_nwo.camera_sync_active:
             col.operator("nwo.camera_sync", icon="PAUSE", depress=True).cancel_sync = True
         else:
             col.operator("nwo.camera_sync", icon="PLAY")
@@ -3221,7 +3221,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
     def draw_importer(self, box, nwo):
         row = box.row()
         col = row.column()
-        if self.context.scene.nwo.asset_type == 'cinematic':
+        if self.self.scene_nwo.asset_type == 'cinematic':
             col.operator('nwo.foundry_import', text="Import Cinematic Objects", icon='IMPORT').scope = 'object'
             col.operator('nwo.foundry_import', text="Import Cinematic Scenarios", icon='IMPORT').scope = 'scenario'
         else:
@@ -3556,7 +3556,7 @@ class NWO_OT_PanelUnpin(bpy.types.Operator):
     panel_str : bpy.props.StringProperty()
 
     def execute(self, context):
-        nwo = context.scene.nwo
+        nwo = utils.get_scene_props()
         prop_pin = f"{self.panel_str}_pinned"
         setattr(nwo, prop_pin, not getattr(nwo, prop_pin))
 
@@ -3574,7 +3574,7 @@ class NWO_OT_PanelSet(bpy.types.Operator):
     pin : bpy.props.BoolProperty()
 
     def execute(self, context):
-        nwo = context.scene.nwo
+        nwo = utils.get_scene_props()
         prop = f"{self.panel_str}_active"
         prop_pin = f"{self.panel_str}_pinned"
         pinned = getattr(nwo, prop_pin)
@@ -3624,7 +3624,7 @@ class NWO_OT_PanelExpand(bpy.types.Operator):
     panel_str: bpy.props.StringProperty()
 
     def execute(self, context):
-        nwo = context.scene.nwo
+        nwo = self.scene_nwo
         prop = f"{self.panel_str}_expanded"
         setattr(nwo, prop, not getattr(nwo, prop))
         return {"FINISHED"}

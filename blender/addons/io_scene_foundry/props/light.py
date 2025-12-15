@@ -35,42 +35,8 @@ class NWO_LightPropertiesGroup(bpy.types.PropertyGroup):
         ],
     )
     
-    # def update_light_near_attenuation_start(self, context):
-    #     if not context.scene.nwo.transforming:
-    #         if self.light_near_attenuation_start > self.light_near_attenuation_end:
-    #             self.light_near_attenuation_end = self.light_near_attenuation_start
-
-    # light_near_attenuation_start: bpy.props.FloatProperty(
-    #     name="Light Activation Start",
-    #     options=set(),
-    #     description="The power of the light remains zero up until this point",
-    #     default=0,
-    #     min=0,
-    #     subtype='DISTANCE',
-    #     unit='LENGTH',
-    #     update=update_light_near_attenuation_start,
-    # )
-    
-    # def update_light_near_attenuation_end(self, context):
-    #     if not context.scene.nwo.transforming:
-    #         if self.light_near_attenuation_end > self.light_far_attenuation_start:
-    #             self.light_far_attenuation_start = self.light_near_attenuation_end
-    #         elif self.light_near_attenuation_end < self.light_near_attenuation_start:
-    #             self.light_near_attenuation_start = self.light_near_attenuation_end
-
-    # light_near_attenuation_end: bpy.props.FloatProperty(
-    #     name="Light Activation End",
-    #     options=set(),
-    #     description="From the light activation start, light power gradually increases up until the end point",
-    #     default=0,
-    #     min=0,
-    #     subtype='DISTANCE',
-    #     unit='LENGTH',
-    #     update=update_light_near_attenuation_end,
-    # )
-    
     def update_light_far_attenuation_start(self, context):
-        if not context.scene.nwo.transforming:
+        if not utils.get_scene_props().transforming:
             if self.light_far_attenuation_start > self.light_far_attenuation_end:
                 self.light_far_attenuation_end = self.light_far_attenuation_start
             # elif self.light_far_attenuation_start < self.light_near_attenuation_end:
@@ -88,7 +54,7 @@ class NWO_LightPropertiesGroup(bpy.types.PropertyGroup):
     )
     
     def update_light_far_attenuation_end(self, context):
-        if not context.scene.nwo.transforming:
+        if not utils.get_scene_props().transforming:
             if self.light_far_attenuation_end < self.light_far_attenuation_start:
                 self.light_far_attenuation_start = self.light_far_attenuation_end
 

@@ -2,6 +2,8 @@
 
 import bpy
 
+from ..utils import get_scene_props
+
 def create_collections(context, ops, data, coll_type, coll_name, move_objects):
     selected_collection = context.collection
     if coll_name.strip() == "":
@@ -30,8 +32,9 @@ def create_collections(context, ops, data, coll_type, coll_name, move_objects):
             context.scene.collection.children.link(new_collection)
 
     new_collection.nwo.type = coll_type
+    scene_nwo = get_scene_props()
     if coll_type == 'region':
-        regions = context.scene.nwo.regions_table
+        regions = scene_nwo.regions_table
         new_collection.nwo.region = coll_name
         if coll_name not in [r.name for r in regions]:
             new_region = regions.add()
@@ -40,7 +43,7 @@ def create_collections(context, ops, data, coll_type, coll_name, move_objects):
 
 
     elif coll_type == 'permutation':
-        permutations = context.scene.nwo.permutations_table
+        permutations = scene_nwo.permutations_table
         new_collection.nwo.permutation = coll_name
         if coll_name not in [p.name for p in permutations]:
             new_perm = permutations.add()
@@ -64,20 +67,7 @@ def get_coll_if_exists(data, full_name):
 
 def get_full_name(coll_type, coll_name):
     prefix = ""
-    asset_type = bpy.context.scene.nwo.asset_type
-    # match coll_type:
-    #     case "exclude":
-    #         prefix = "exclude::"
-    #     case "region":
-    #         if asset_type in ("scenario", "prefab"):
-    #             prefix = "bsp::"
-    #         else:
-    #             prefix = "region::"
-    #     case _:
-    #         if bpy.context.scene.nwo.asset_type in ("scenario", "prefab"):
-    #             prefix = "layer::"
-    #         else:
-    #             prefix = "permutation::"
+    asset_type = get_scene_props().asset_type
 
     if not coll_name:
         coll_name = "default"
@@ -104,7 +94,7 @@ class NWO_CollectionManager_Create(bpy.types.Operator):
         items = []
         r_name = "Region"
         p_name = "Permutation"
-        if context.scene.nwo.asset_type == "scenario":
+        if get_scene_props().asset_type == "scenario":
             r_name = "BSP"
             p_name = "Layer"
 

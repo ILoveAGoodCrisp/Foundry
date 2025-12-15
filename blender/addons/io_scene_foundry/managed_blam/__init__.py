@@ -8,6 +8,7 @@ from ..utils import (
     get_asset_path,
     get_data_path,
     get_prefs,
+    get_scene_props,
     get_tags_path,
     linear_to_srgb,
     is_corinth,
@@ -55,6 +56,7 @@ class Tag():
             
         # Asset Info
         self.context = bpy.context
+        self.scene_nwo = get_scene_props()
         self.tags_dir = get_tags_path() # full path to tags dir
         self.data_dir = get_data_path() # full path to data dir
         self.asset_dir = get_asset_path() # the relative path to the asset directory
@@ -361,11 +363,12 @@ class Tag():
     
 def switch_project_from_filepath(context, path: Path):
     root = any_partition(str(path), "\\tags\\").lower()
+    nwo = get_scene_props()
     for project in get_prefs().projects:
         if root == project.project_path.lower():
-            if context.scene.nwo.scene_project == project.name:
+            if nwo.scene_project == project.name:
                 return
-            context.scene.nwo.scene_project = project.name
+            nwo.scene_project = project.name
             print(f"Project was changed to {project.name} in order to read file: {path}")
             return
         

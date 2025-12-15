@@ -315,7 +315,7 @@ class CacheBuilder:
         print("-----------------------------------------------------------------------")
         
     def lightmap(self):
-        export = self.context.scene.nwo_export
+        export = utils.get_export_props()
         run_lightmapper(
             self.game_engine != "HaloReach",
             str(self.scenario),
@@ -809,13 +809,14 @@ class NWO_OT_OpenModFolder(bpy.types.Operator):
         if not utils.current_project_valid():
             return
         
-        if not context.scene.nwo.mod_name:
+        nwo = utils.get_scene_props()
+        if not nwo.mod_name:
             return False
-        path = Path(utils.get_project_path(), "MCC", context.scene.nwo.mod_name)
+        path = Path(utils.get_project_path(), "MCC", nwo.mod_name)
         return path.exists()
     
     def execute(self, context):
-        path = Path(utils.get_project_path(), "MCC", context.scene.nwo.mod_name)
+        path = Path(utils.get_project_path(), "MCC", utils.get_scene_props().mod_name)
         os.startfile(path)
         return {'FINISHED'}
             
@@ -956,9 +957,10 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
                 self.report({'WARNING'}, f"Specified scenario file does not exist: {full_path}")
                 return {'CANCELLED'}
         
-        scene_nwo_export = context.scene.nwo_export
+        scene_nwo_export = utils.get_export_props()
+        scene_nwo = utils.get_scene_props()
         os.system("cls")
-        if context.scene.nwo_export.show_output:
+        if scene_nwo_export.show_output:
             bpy.ops.wm.console_toggle()
             scene_nwo_export.show_output = False
         
@@ -1029,7 +1031,7 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
                 
                 print(f"Mod files generated and saved to: {builder.mod_dir}")
                 
-                context.scene.nwo.mod_name = builder.mod_name
+                scene_nwo.mod_name = builder.mod_name
                 
             match self.sounds:
                 case 'CUSTOM':
@@ -1059,16 +1061,17 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
     def invoke(self, context, event):
         start_path = self.filepath.lower()
         tag_dir = utils.get_tags_path()
+        scene_nwo = utils.get_scene_props()
         self.filepath = tag_dir + os.sep
-        if context.scene.nwo.asset_type == 'scenario':
+        if scene_nwo.asset_type == 'scenario':
             asset_path = utils.get_asset_path_full(True)
             if asset_path:
                 path = Path(asset_path, f"{utils.get_asset_name()}.scenario")
                 if not path.parent.exists():
                     path.parent.mkdir(parents=True)
                 self.filepath = str(path)
-        elif context.scene.nwo.asset_type == 'cinematic' and context.scene.nwo.cinematic_scenario:
-            cin_scenario = Path(tag_dir, utils.relative_path(context.scene.nwo.cinematic_scenario))
+        elif scene_nwo.asset_type == 'cinematic' and scene_nwo.cinematic_scenario:
+            cin_scenario = Path(tag_dir, utils.relative_path(scene_nwo.cinematic_scenario))
             if cin_scenario.exists():
                 self.filepath = str(cin_scenario)
                 
@@ -1092,11 +1095,11 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
         layout.prop(self, "imposter_farm")
         layout.prop(self, "cubemap_farm")
         layout.prop(self, "launch_mcc")
-        if context.scene.nwo.asset_type == 'scenario':
+        if utils.get_scene_props().asset_type == 'scenario':
             layout.prop(self, "rexport_scenario")
         layout.prop(self, "lightmap")
         if self.lightmap:
-            export = context.scene.nwo_export
+            export = utils.get_export_props()
             if corinth:
                 layout.prop(export, "lightmap_quality_h4")
             else:

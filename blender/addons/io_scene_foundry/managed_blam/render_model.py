@@ -375,7 +375,7 @@ class RenderModelTag(Tag):
         for cmesh in clone_meshes:
             for tmesh in original_meshes:
                 if tmesh.permutation.name == cmesh.permutation.clone_name:
-                    permutation = self.context.scene.nwo.permutations_table.get(tmesh.permutation.name)
+                    permutation = self.scene_nwo.permutations_table.get(tmesh.permutation.name)
                     if permutation is None:
                         continue
                     clone = permutation.clones.get(cmesh.permutation.name)
@@ -461,7 +461,7 @@ class RenderModelTag(Tag):
                 cos_theta = 1.0 - (power / two_pi)
                 cos_theta = max(-1.0, min(1.0, cos_theta))
                 half_angle_radians = math.acos(cos_theta)
-                self.context.scene.nwo.sun_size = 2.0 * half_angle_radians * 180.0 / math.pi
+                self.scene_nwo.sun_size = 2.0 * half_angle_radians * 180.0 / math.pi
             
             data = bpy.data.lights.new(f"skylight:{element.ElementIndex}", 'SUN')
                 
@@ -502,9 +502,9 @@ class RenderModelTag(Tag):
             
         # sunlight_mutliplier = self.tag.SelectField("Real:direct sun light multiplier").Data
         # skylight_multiplier = self.tag.SelectField("Real:sky dome and all bounce light multiplier").Data
-        self.context.scene.nwo.sun_bounce_scale = self.tag.SelectField("Real:sun 1st bounce scaler").Data
-        self.context.scene.nwo.skylight_bounce_scale = self.tag.SelectField("Real:sky light 1st bounce scaler").Data
-        self.context.scene.nwo.sun_as_vmf_light = sun_as_vmf_light
+        self.scene_nwo.sun_bounce_scale = self.tag.SelectField("Real:sun 1st bounce scaler").Data
+        self.scene_nwo.skylight_bounce_scale = self.tag.SelectField("Real:sky light 1st bounce scaler").Data
+        self.scene_nwo.sun_as_vmf_light = sun_as_vmf_light
         
         return objects
             

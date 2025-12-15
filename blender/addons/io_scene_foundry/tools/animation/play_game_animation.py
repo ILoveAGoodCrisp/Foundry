@@ -37,7 +37,8 @@ class NWO_OT_AnimationNameSearch(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.animations or Path(utils.get_tags_path(), utils.relative_path(context.scene.nwo.animation_cmd_path)).exists()
+        scene_nwo = utils.get_scene_props()
+        return scene_nwo.animations or Path(utils.get_tags_path(), utils.relative_path(scene_nwo.animation_cmd_path)).exists()
     
     def animation_name_items(self, context):
         if animation_names:
@@ -53,14 +54,15 @@ class NWO_OT_AnimationNameSearch(bpy.types.Operator):
     area: bpy.props.StringProperty()
     
     def execute(self, context):
-        context.scene.nwo.animation_cmd_name = self.selected_animation_name
+        scene_nwo = utils.get_scene_props()
+        scene_nwo.animation_cmd_name = self.selected_animation_name
         utils.redraw_area(context, 'VIEW_3D')
         return {'FINISHED'}
     
     def invoke(self, context, event):
         global animation_names
         global last_graph_path
-        nwo = context.scene.nwo
+        nwo = utils.get_scene_props()
         path = utils.relative_path(nwo.animation_cmd_path)
         using_asset_path = False
         if not nwo.animation_cmd_path and utils.valid_nwo_asset(context):
@@ -92,7 +94,7 @@ class NWO_OT_PlayGameAnimation(bpy.types.Operator):
     bl_options = {"REGISTER"}
 
     def execute(self, context):
-        nwo = context.scene.nwo
+        nwo = utils.get_scene_props()
         anim_name = nwo.animation_cmd_name.strip()
         if not anim_name:
             if nwo.animations and nwo.active_animation_index != -1:

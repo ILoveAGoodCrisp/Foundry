@@ -3,7 +3,7 @@
 from pathlib import Path
 import bpy
 import os
-from ..utils import get_project_path, get_tags_path, is_corinth, os_sep_partition, redraw_area
+from ..utils import get_project_path, get_scene_props, get_tags_path, is_corinth, os_sep_partition, redraw_area
 
 global_items = {}
 cinematic_event_props = ("sound_tag", "female_sound_tag", "effect")
@@ -52,16 +52,17 @@ class NWO_GetTagsList(bpy.types.Operator):
     list_type: bpy.props.StringProperty()
     
     def execute(self, context):
+        scene_nwo = get_scene_props()
         if self.list_type in scene_props:
-            nwo = context.scene.nwo
+            nwo = scene_nwo
         elif self.list_type == 'shader_path':
             nwo = context.object.active_material.nwo
         elif self.list_type.startswith('light'):
             nwo = context.object.data.nwo
         elif self.list_type in cinematic_event_props:
-            nwo = context.scene.nwo.cinematic_events[context.scene.nwo.active_cinematic_event_index]
+            nwo = scene_nwo.cinematic_events[scene_nwo.active_cinematic_event_index]
         elif self.list_type in event_data_props:
-            animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
+            animation = scene_nwo.animations[scene_nwo.active_animation_index]
             event = animation.animation_events[animation.active_animation_event_index]
             nwo = event.event_data[event.active_event_data_index]
         else:
@@ -211,16 +212,17 @@ class NWO_TagExplore(bpy.types.Operator):
     prop: bpy.props.StringProperty()
 
     def execute(self, context):
+        scene_nwo = get_scene_props()
         if self.prop in scene_props:
-            nwo = context.scene.nwo
+            nwo = scene_nwo
         elif self.prop == 'shader_path':
             nwo = context.object.active_material.nwo
         elif self.prop.startswith('light'):
             nwo = context.object.data.nwo
         elif self.prop in cinematic_event_props:
-            nwo = context.scene.nwo.cinematic_events[context.scene.nwo.active_cinematic_event_index]
+            nwo = scene_nwo.cinematic_events[scene_nwo.active_cinematic_event_index]
         elif self.prop in event_data_props:
-            animation = context.scene.nwo.animations[context.scene.nwo.active_animation_index]
+            animation = scene_nwo.animations[scene_nwo.active_animation_index]
             event = animation.animation_events[animation.active_animation_event_index]
             nwo = event.event_data[event.active_event_data_index]
         else:

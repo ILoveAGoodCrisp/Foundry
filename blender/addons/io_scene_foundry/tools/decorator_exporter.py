@@ -117,8 +117,9 @@ def gather_decorators(context):
     
 def export_decorators(corinth, decorator_objects = None):
     scenario_path = utils.get_asset_tag(".scenario", True)
-    if corinth and bpy.context.scene.nwo.decorators_from_blender_child_scenario.strip():
-        scenario_path = str(Path(scenario_path).with_name(bpy.context.scene.nwo.decorators_from_blender_child_scenario).with_suffix(".scenario"))
+    scene_nwo = utils.get_scene_props()
+    if corinth and scene_nwo.decorators_from_blender_child_scenario.strip():
+        scenario_path = str(Path(scenario_path).with_name(scene_nwo.decorators_from_blender_child_scenario).with_suffix(".scenario"))
     
     tags_dir = utils.get_tags_path()
     context = bpy.context

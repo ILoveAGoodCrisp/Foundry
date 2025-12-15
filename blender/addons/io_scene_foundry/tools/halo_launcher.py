@@ -10,8 +10,10 @@ from ..utils import (
     get_asset_path_full,
     get_data_path,
     get_exe,
+    get_launcher_props,
     get_prefs,
     get_project_path,
+    get_scene_props,
     get_tags_path,
     has_gr2_viewer,
     is_corinth,
@@ -51,7 +53,7 @@ def get_tag_if_exists(asset_path, asset_name, type, extra=""):
         return ""
 
 def launch_foundation(settings, context):
-    scene_nwo = context.scene.nwo
+    scene_nwo = get_scene_props()
     launch_args = ["Foundation.exe"]
     # set the launch args
     if settings.foundation_default == "asset" and valid_nwo_asset(context):
@@ -552,7 +554,7 @@ class NWO_HaloLauncher_Foundation(bpy.types.Operator):
     def execute(self, context):
         from .halo_launcher import launch_foundation
 
-        return launch_foundation(context.scene.nwo_halo_launcher, context)
+        return launch_foundation(get_launcher_props(), context)
 
 
 class NWO_HaloLauncher_Data(bpy.types.Operator):
@@ -567,12 +569,12 @@ class NWO_HaloLauncher_Data(bpy.types.Operator):
 
     def execute(self, context):
         scene = context.scene
-        scene_nwo_halo_launcher = scene.nwo_halo_launcher
+        scene_nwo_halo_launcher = get_launcher_props()
 
         return open_file_explorer(
             scene_nwo_halo_launcher.explorer_default,
             False,
-            scene.nwo
+            get_scene_props()
         )
 
 
@@ -587,13 +589,12 @@ class NWO_HaloLauncher_Tags(bpy.types.Operator):
         return current_project_valid()
 
     def execute(self, context):
-        scene = context.scene
-        scene_nwo_halo_launcher = scene.nwo_halo_launcher
+        scene_nwo_halo_launcher = get_launcher_props()
 
         return open_file_explorer(
             scene_nwo_halo_launcher.explorer_default,
             True,
-            scene.nwo
+            get_scene_props()
         )
         
 class NWO_HaloLauncher_Granny(bpy.types.Operator):
@@ -660,16 +661,17 @@ class NWO_HaloLauncher_Sapien(bpy.types.Operator):
 
     def execute(self, context):
         scene = context.scene
-        scene_nwo_halo_launcher = scene.nwo_halo_launcher
-        return launch_game(True, scene_nwo_halo_launcher, self.filepath.lower(), scene.nwo, self.ignore_play)
+        scene_nwo_halo_launcher = get_launcher_props()
+        return launch_game(True, scene_nwo_halo_launcher, self.filepath.lower(), get_scene_props(), self.ignore_play)
 
     def invoke(self, context, event):
         scene = context.scene
-        scene_nwo_halo_launcher = scene.nwo_halo_launcher
+        scene_nwo_halo_launcher = get_launcher_props()
+        scene_nwo = get_scene_props()
         if (
             scene_nwo_halo_launcher.game_default == "default"
-            or not scene.nwo.is_valid_asset
-            or scene.nwo.asset_type not in {'cinematic', 'scenario'}
+            or not scene_nwo.is_valid_asset
+            or scene_nwo.asset_type not in {'cinematic', 'scenario'}
         ):
             self.filepath = get_tags_path() + os.sep
             context.window_manager.fileselect_add(self)
@@ -680,7 +682,7 @@ class NWO_HaloLauncher_Sapien(bpy.types.Operator):
         
     def draw(self, context):
         layout = self.layout
-        scene_nwo_launcher = context.scene.nwo_halo_launcher
+        scene_nwo_launcher = get_launcher_props()
         draw_game_launcher_settings(scene_nwo_launcher, layout)
         box = layout.box()
         box.label(text="Pruning")
@@ -711,17 +713,17 @@ class NWO_HaloLauncher_TagTest(bpy.types.Operator):
         return current_project_valid()
 
     def execute(self, context):
-        scene = context.scene
-        scene_nwo_halo_launcher = scene.nwo_halo_launcher
-        return launch_game(False, scene_nwo_halo_launcher, self.filepath.lower(), scene.nwo, self.ignore_play)
+        scene_nwo = get_scene_props()
+        scene_nwo_halo_launcher = get_launcher_props()
+        return launch_game(False, scene_nwo_halo_launcher, self.filepath.lower(), scene_nwo, self.ignore_play)
 
     def invoke(self, context, event):
-        scene = context.scene
-        scene_nwo_halo_launcher = scene.nwo_halo_launcher
+        scene_nwo = get_scene_props()
+        scene_nwo_halo_launcher = get_launcher_props()
         if (
             scene_nwo_halo_launcher.game_default == "default"
-            or not scene.nwo.is_valid_asset
-            or scene.nwo.asset_type not in {'cinematic', 'scenario'}
+            or not scene_nwo.is_valid_asset
+            or scene_nwo.asset_type not in {'cinematic', 'scenario'}
         ):
             self.filepath = get_tags_path() + os.sep
             context.window_manager.fileselect_add(self)
@@ -732,7 +734,7 @@ class NWO_HaloLauncher_TagTest(bpy.types.Operator):
         
     def draw(self, context):
         layout = self.layout
-        scene_nwo_launcher = context.scene.nwo_halo_launcher
+        scene_nwo_launcher = get_launcher_props()
         draw_game_launcher_settings(scene_nwo_launcher, layout)
         box = layout.box()
         box.label(text="Pruning")
@@ -838,7 +840,8 @@ class NWO_HaloLauncherPropertiesGroup(bpy.types.PropertyGroup):
     
     def bsp_name_items(self, context):
         items = []
-        bsps = [b.name for b in context.scene.nwo.regions_table if b.name.lower() != "shared"]
+        scene_nwo = get_scene_props()
+        bsps = [b.name for b in scene_nwo.regions_table if b.name.lower() != "shared"]
         for b in bsps:
             items.append((b, b, ''))
             

@@ -36,7 +36,7 @@ def subscribe(owner):
 
 @persistent
 def load_set_output_state(dummy):
-    bpy.context.scene.nwo_export.show_output = utils.foundry_output_state
+    utils.get_export_props().show_output = utils.foundry_output_state
     
 @persistent
 def import_handler(import_context):
@@ -82,22 +82,28 @@ def import_handler(import_context):
 @persistent
 def load_handler(dummy):
     context = bpy.context
-    context.scene.nwo.export_in_progress = False
-    context.scene.nwo.camera_sync_active = False
+    
+    nwo = utils.get_scene_props()
+    
+    if not nwo.is_main_scene:
+        nwo.is_main_scene = True
+    
+    nwo.export_in_progress = False
+    nwo.camera_sync_active = False
     # Add projects
     projects = utils.setup_projects_list()
     blend_path = bpy.data.filepath
     project_names = [p.name for p in projects]
-    if projects and (not context.scene.nwo.scene_project or context.scene.nwo.scene_project not in project_names):
+    if projects and (not nwo.scene_project or nwo.scene_project not in project_names):
         if blend_path:
             for p in projects:
                 if Path(blend_path).is_relative_to(p.project_path):
-                    context.scene.nwo.scene_project = p.name
+                    nwo.scene_project = p.name
                     break
             else:
-                context.scene.nwo.scene_project = projects[0].name
+                nwo.scene_project = projects[0].name
         else:
-            context.scene.nwo.scene_project = projects[0].name
+            nwo.scene_project = projects[0].name
 
     # Handle old scenes with aleady existing regions/perms/global materials
     # update_tables_from_objects(context)
@@ -108,16 +114,19 @@ def load_handler(dummy):
             utils.module = m
 
     # Add default sets if needed
-    scene_nwo = context.scene.nwo
-    if not scene_nwo.regions_table:
-        default_region = scene_nwo.regions_table.add()
+    if not nwo.regions_table:
+        default_region = nwo.regions_table.add()
         default_region.old = "default"
         default_region.name = "default"
 
-    if not scene_nwo.permutations_table:
-        default_permutation = scene_nwo.permutations_table.add()
+    if not nwo.permutations_table:
+        default_permutation = nwo.permutations_table.add()
         default_permutation.old = "default"
         default_permutation.name = "default"
+        
+    if not nwo.cinematic_scenes:
+        default_cin_scene = nwo.cinematic_scenes.add()
+        default_cin_scene.scene = nwo.id_data
         
     # if not scene_nwo.zone_sets and not scene_nwo.user_removed_all_zone_set:
     #     all_zone_set = scene_nwo.zone_sets.add()
@@ -129,28 +138,26 @@ def load_handler(dummy):
     
     if not bpy.app.background:
         # Set game version from file
-        proxy_left_active = context.scene.nwo.instance_proxy_running
+        proxy_left_active = nwo.instance_proxy_running
         if proxy_left_active:
             for ob in context.view_layer.objects:
                 if ob.nwo.proxy_type:
                     utils.unlink(ob)
 
-            context.scene.nwo.instance_proxy_running = False
+            nwo.instance_proxy_running = False
 
-        context.scene.nwo.instance_proxy_running = False
-        # set output to on
-        # context.scene.nwo_export.show_output = True
+        nwo.instance_proxy_running = False
 
         # create warning if current project is incompatible with loaded managedblam.dll
         mb_path = managed_blam.mb_path
         if mb_path:
             if not str(mb_path).startswith(str(utils.get_project_path())):
-                if context.scene.nwo.sidecar_path:
+                if nwo.sidecar_path:
                     utils.restart_blender()
                 else:
                     possible_project = utils.get_project_from_path(str(Path(mb_path).parent.parent))
                     if possible_project is not None:
-                        context.scene.nwo.scene_project = possible_project.name
+                        nwo.scene_project = possible_project.name
 
         # like and subscribe
         subscription_owner = object()
@@ -186,7 +193,7 @@ def load_handler(dummy):
 @persistent
 def save_object_positions_to_tags(dummy):
     if bpy.context and bpy.context.scene:
-        nwo = bpy.context.scene.nwo
+        nwo = utils.get_scene_props()
         asset_type = nwo.asset_type
         if not utils.valid_nwo_asset(): return
         if nwo.prefabs_export_on_save and asset_type == 'scenario' and utils.is_corinth():

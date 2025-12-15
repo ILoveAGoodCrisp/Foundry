@@ -74,6 +74,7 @@ class NWO_OT_StartFoundry(bpy.types.Operator):
         startup.load_handler(context)
         startup.load_set_output_state(context)
         startup.save_object_positions_to_tags(context)
+        scene_nwo = utils.get_scene_props()
         if context.space_data.type == 'VIEW_3D':
             context.space_data.show_region_ui = True
             
@@ -83,8 +84,8 @@ class NWO_OT_StartFoundry(bpy.types.Operator):
             global temp_area
             temp_area = context.area
             bpy.app.timers.register(invoke_project_add, first_interval=0.02)
-        elif not context.scene.nwo.scene_project:
-            context.scene.nwo.scene_project = projects[0].name
+        elif not scene_nwo.scene_project:
+            scene_nwo.scene_project = projects[0].name
         # self.report({'INFO'}, "Welcome to Foundry!")
         # display_fading_text("Foundry Loaded")
         return {"FINISHED"}
@@ -138,7 +139,7 @@ class NWO_OT_ProjectChooser(bpy.types.Operator):
     project_name : bpy.props.StringProperty()
 
     def execute(self, context):
-        nwo = context.scene.nwo
+        nwo = utils.get_scene_props()
         if managed_blam.mb_active:
             mb_path = managed_blam.mb_path
             if mb_path:
@@ -170,8 +171,7 @@ class NWO_HaloLauncherExplorerSettings(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        scene = context.scene
-        scene_nwo_halo_launcher = scene.nwo_halo_launcher
+        scene_nwo_halo_launcher = utils.get_launcher_props()
 
         layout.use_property_split = False
         flow = layout.grid_flow(
@@ -195,8 +195,7 @@ class NWO_HaloLauncherGameSettings(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        scene = context.scene
-        scene_nwo_halo_launcher = scene.nwo_halo_launcher
+        scene_nwo_halo_launcher = utils.get_launcher_props()
 
         layout.use_property_split = False
         flow = layout.grid_flow(
@@ -247,8 +246,7 @@ class NWO_HaloLauncherGamePruneSettings(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        scene = context.scene
-        scene_nwo_halo_launcher = scene.nwo_halo_launcher
+        scene_nwo_halo_launcher = utils.get_launcher_props()
 
         layout.use_property_split = False
         flow = layout.grid_flow(
@@ -356,8 +354,8 @@ class NWO_HaloLauncherFoundationSettings(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        scene = context.scene
-        scene_nwo_halo_launcher = scene.nwo_halo_launcher
+        scene_nwo = utils.get_scene_props()
+        scene_nwo_halo_launcher = utils.get_launcher_props()
 
         layout.use_property_split = False
         flow = layout.grid_flow(
@@ -382,31 +380,31 @@ class NWO_HaloLauncherFoundationSettings(bpy.types.Panel):
                     col.prop(scene_nwo_halo_launcher, "open_model_animation_graph")
                     col.prop(scene_nwo_halo_launcher, "open_frame_event_list")
                 col.separator()
-                if scene.nwo.output_biped:
+                if scene_nwo.output_biped:
                     col.prop(scene_nwo_halo_launcher, "open_biped")
-                if scene.nwo.output_crate:
+                if scene_nwo.output_crate:
                     col.prop(scene_nwo_halo_launcher, "open_crate")
-                if scene.nwo.output_creature:
+                if scene_nwo.output_creature:
                     col.prop(scene_nwo_halo_launcher, "open_creature")
-                if scene.nwo.output_device_control:
+                if scene_nwo.output_device_control:
                     col.prop(scene_nwo_halo_launcher, "open_device_control")
-                if scene.nwo.output_device_dispenser:
+                if scene_nwo.output_device_dispenser:
                     col.prop(scene_nwo_halo_launcher, "open_device_dispenser")
-                if scene.nwo.output_device_machine:
+                if scene_nwo.output_device_machine:
                     col.prop(scene_nwo_halo_launcher, "open_device_machine")
-                if scene.nwo.output_device_terminal:
+                if scene_nwo.output_device_terminal:
                     col.prop(scene_nwo_halo_launcher, "open_device_terminal")
-                if scene.nwo.output_effect_scenery:
+                if scene_nwo.output_effect_scenery:
                     col.prop(scene_nwo_halo_launcher, "open_effect_scenery")
-                if scene.nwo.output_equipment:
+                if scene_nwo.output_equipment:
                     col.prop(scene_nwo_halo_launcher, "open_equipment")
-                if scene.nwo.output_giant:
+                if scene_nwo.output_giant:
                     col.prop(scene_nwo_halo_launcher, "open_giant")
-                if scene.nwo.output_scenery:
+                if scene_nwo.output_scenery:
                     col.prop(scene_nwo_halo_launcher, "open_scenery")
-                if scene.nwo.output_vehicle:
+                if scene_nwo.output_vehicle:
                     col.prop(scene_nwo_halo_launcher, "open_vehicle")
-                if scene.nwo.output_weapon:
+                if scene_nwo.output_weapon:
                     col.prop(scene_nwo_halo_launcher, "open_weapon")
             elif utils.nwo_asset_type() == "scenario":
                 col.prop(scene_nwo_halo_launcher, "open_scenario")
@@ -455,10 +453,10 @@ class NWO_HaloExportSettings(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        scene = context.scene
-        scene_nwo_export = scene.nwo_export
+        scene_nwo = utils.get_scene_props()
+        scene_nwo_export = utils.get_export_props()
         h4 = utils.is_corinth(context)
-        asset_type = scene.nwo.asset_type
+        asset_type = scene_nwo.asset_type
         layout.use_property_split = False
         flow = layout.grid_flow(
             row_major=True,
@@ -475,7 +473,7 @@ class NWO_HaloExportSettings(bpy.types.Panel):
         col.separator()
         col = flow.column()
         col.use_property_split = False
-        if not scene.nwo.is_child_asset or asset_type == 'cinematic' or asset_type == 'single_animation':
+        if not scene_nwo.is_child_asset or asset_type == 'cinematic' or asset_type == 'single_animation':
             col.prop(scene_nwo_export, "export_mode", text="")
             col.prop(scene_nwo_export, "event_level", text="")
         if asset_type == 'camera_track_set':
@@ -522,8 +520,8 @@ class NWO_HaloExportSettingsScope(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         scene = context.scene
-        scene_nwo_export = scene.nwo_export
-        scene_nwo = scene.nwo
+        scene_nwo_export = utils.get_export_props()
+        scene_nwo = utils.get_scene_props()
 
         layout.use_property_split = False
         flow = layout.grid_flow(
@@ -578,9 +576,8 @@ class NWO_HaloExportSettingsFlags(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        scene = context.scene
-        scene_nwo = scene.nwo
-        scene_nwo_export = scene.nwo_export
+        scene_nwo = utils.get_scene_props()
+        scene_nwo_export = utils.get_export_props()
         h4 = utils.is_corinth(context)
         scenario = scene_nwo.asset_type == "scenario"
         prefab = scene_nwo.asset_type == "prefab"
@@ -686,9 +683,8 @@ class NWO_HaloExportCoordinateSystem(bpy.types.Panel):
     
     def draw(self, context):
         layout = self.layout
-        scene = context.scene
-        scene_nwo = scene.nwo
-        scene_nwo_export = scene.nwo_export
+        scene_nwo = utils.get_scene_props()
+        scene_nwo_export = utils.get_export_props()
         layout.use_property_split = False
         flow = layout.grid_flow(
             row_major=True,
@@ -716,8 +712,7 @@ class NWO_HaloExportGranny(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        scene = context.scene
-        scene_nwo_export = scene.nwo_export
+        scene_nwo_export = utils.get_export_props()
         layout.use_property_split = False
         flow = layout.grid_flow(
             row_major=True,
@@ -745,8 +740,7 @@ class NWO_HaloExportTriangulation(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        scene = context.scene
-        scene_nwo_export = scene.nwo_export
+        scene_nwo_export = utils.get_export_props()
         layout.use_property_split = False
         flow = layout.grid_flow(
             row_major=True,
@@ -766,8 +760,7 @@ class NWO_HaloExport(bpy.types.Operator):
     bl_description = "Exports the current Halo asset and creates tags"
 
     def execute(self, context):
-        scene = context.scene
-        scene_nwo_export = scene.nwo_export
+        scene_nwo_export = utils.get_export_props()
         if scene_nwo_export.export_quick and (utils.valid_nwo_asset(context) or utils.nwo_asset_type() == 'single_animation'):
             bpy.ops.nwo.export_scene()
         else:
@@ -1003,7 +996,7 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
     
     def bsp_items(self, context):
         items = []
-        bsps = [region.name for region in context.scene.nwo.regions_table if region.name.lower() != 'shared']
+        bsps = [region.name for region in utils.get_scene_props().regions_table if region.name.lower() != 'shared']
         for bsp in bsps:
             items.append((bsp, bsp, ''))
         
@@ -1297,7 +1290,7 @@ def draw_foundry_nodes_toolbar(self, context):
 
 def foundry_nodes_toolbar(layout, context):
     row = layout.row()
-    nwo = context.scene.nwo
+    nwo = utils.get_scene_props()
     row.scale_x = 1
     box = row.box()
     box.scale_x = 0.3
@@ -1327,10 +1320,7 @@ def draw_foundry_toolbar(self, context):
 def foundry_toolbar(layout, context):
     #layout.label(text=" ")
     row = layout.row()
-    nwo = context.scene.nwo
-    if nwo.storage_only:
-        row.label(text='Scene is used by Foundry for object storage', icon_value=get_icon_id('foundry'))
-        return
+    nwo = utils.get_scene_props()
     icons_only = utils.get_prefs().toolbar_icons_only
     row.scale_x = 1
     box = row.box()

@@ -232,7 +232,7 @@ class StructureDesignTag(Tag):
     
 def get_water_flow_direction_velocity(flow_velocity_vector):
     
-    match bpy.context.scene.nwo.forward_direction:
+    match utils.get_scene_props().forward_direction:
         case 'y-':
             global_forward = Vector((0, -1, 0))
         case 'y':

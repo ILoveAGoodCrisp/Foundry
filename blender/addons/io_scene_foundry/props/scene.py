@@ -857,7 +857,7 @@ class NWO_Animation_ListItems(bpy.types.PropertyGroup):
     def ik_chain_items(self, context):
         items = []
         items.append(("none", "None", ''))
-        valid_chains = [chain for chain in context.scene.nwo.ik_chains if chain.start_node and chain.effector_node]
+        valid_chains = [chain for chain in utils.get_scene_props().ik_chains if chain.start_node and chain.effector_node]
         for chain in valid_chains:
             items.append((chain.name, chain.name, ''))
             
@@ -1955,6 +1955,8 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     
     export_version: bpy.props.StringProperty(options={'HIDDEN'})
     
+    is_main_scene: bpy.props.BoolProperty(options={'HIDDEN'})
+    
     def get_game_frame(self):
         return self.id_data.frame_current - self.id_data.frame_start + int(utils.is_corinth(bpy.context))
     
@@ -2094,11 +2096,6 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     )
     
     active_cinematic_scene_index: bpy.props.IntProperty(options={'HIDDEN'})
-    
-    scene_parent: bpy.props.PointerProperty(
-        name="Parent Scene",
-        type=bpy.types.Scene,
-    )
     
     # ANIMATION
     def update_active_animation_index(self, context):
@@ -2341,7 +2338,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     
     def update_asset_type(self, context):
         if self.asset_type == 'animation':
-            context.scene.nwo_halo_launcher.open_model_animation_graph = True
+            utils.get_launcher_props().open_model_animation_graph = True
 
     asset_type: bpy.props.EnumProperty(
         name="Asset Type",
@@ -2867,8 +2864,6 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         name="Project",
         options=set(),
     )
-    
-    storage_only: bpy.props.BoolProperty(options=set())
 
     # TABLES
 

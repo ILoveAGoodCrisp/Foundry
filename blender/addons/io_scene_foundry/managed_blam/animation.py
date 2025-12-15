@@ -201,7 +201,7 @@ class AnimationTag(Tag):
             for n in [b.name for b in bones]:
                 self.block_skeleton_nodes.AddElement().Fields[0].SetStringData(n)
                 
-        node_usage_dict = _node_usage_dict(self.context.scene.nwo)
+        node_usage_dict = _node_usage_dict(self.scene_nwo)
         skeleton_nodes = self._node_index_dict()
         self.block_node_usages.RemoveAllElements()
         node_targets = [n for n in skeleton_nodes.keys() if n in node_usage_dict.keys()]
@@ -454,7 +454,7 @@ class AnimationTag(Tag):
                 armature.animation_data.last_slot_identifier = slot.identifier
                 armature.animation_data.action = action
                 print(f"--- {action.name}")
-                animation = self.context.scene.nwo.animations.add()
+                animation = self.scene_nwo.animations.add()
                 animation.name = new_name
                 # action.use_fake_user = True
                 action.use_frame_range = True
@@ -768,7 +768,7 @@ class AnimationTag(Tag):
             start_bone = node_bone_dict[start_node] if start_node is not None else ""
             effector_bone = node_bone_dict[effector_node] if effector_node is not None else ""
             
-            blender_ik_chains = bpy.context.scene.nwo.ik_chains
+            blender_ik_chains = self.scene_nwo.ik_chains
             
             chain = blender_ik_chains.get(name)
             if chain is None:
@@ -784,7 +784,7 @@ class AnimationTag(Tag):
     def generate_renames(self, filter=""):
         '''Reads current blender animation names and then parses in the mode n state graph to set up renames in blender'''
         # dict with keys as blender animations and values as sets of renames
-        real_animations = {anim.name.replace(" ", ":"): anim for anim in bpy.context.scene.nwo.animations}
+        real_animations = {anim.name.replace(" ", ":"): anim for anim in self.scene_nwo.animations}
         if filter:
             real_animations = {k: v for k, v in real_animations.items() if filter in k}
 
@@ -815,17 +815,15 @@ class AnimationTag(Tag):
                 
         # Add copies
         for src, dst in copies:
-            for copy in self.context.scene.nwo.animation_copies:
+            for copy in self.scene_nwo.animation_copies:
                 if copy.source_name.replace(":", " ") == src.replace(":", " ") and copy.name.replace(":", " ") == dst.replace(":", " "):
                     break
                 
             else:
-                new_copy = self.context.scene.nwo.animation_copies.add()
+                new_copy = self.scene_nwo.animation_copies.add()
                 new_copy.source_name = src.replace(":", " ")
                 new_copy.name = dst.replace(":", " ")
                 
-                    
-                    
         print(f"\Generated {len(renames)} renames from tag and applied these to {animations_with_renames_count} blender animations\nCreated {len(copies)} animation copies")
         
     def _animation_from_index(self, index, state_type="") -> Animation:
@@ -995,7 +993,7 @@ class AnimationTag(Tag):
             ref.from_element(element, self.corinth)
             unique_effects.append(ref)
         
-        blender_animations = {a.name.replace(":", " "): a for a in self.context.scene.nwo.animations if a.export_this}
+        blender_animations = {a.name.replace(":", " "): a for a in self.scene_nwo.animations if a.export_this}
         blender_markers = {ob.nwo.marker_model_group: ob for ob in bpy.data.objects if ob.type == 'EMPTY'}
         event_count = 0
         

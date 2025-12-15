@@ -208,12 +208,13 @@ class NWO_OT_Cubemap(bpy.types.Operator):
     )
 
     def execute(self, context):
+        scene_nwo_export = utils.get_export_props()
         if not self.filepath or Path(self.filepath).suffix.lower() != ".scenario":
             self.report({"WARNING"}, "No scenario path given. Operation cancelled")
             return {'CANCELLED'}
         farm = CubemapFarm(utils.relative_path(self.filepath))
         os.system("cls")
-        if context.scene.nwo_export.show_output:
+        if scene_nwo_export.show_output:
             bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
             print(f"►►► CUBEMAP FARM ◄◄◄")
         farm.ensure_cubemap_points()
@@ -232,9 +233,10 @@ class NWO_OT_Cubemap(bpy.types.Operator):
         return {"FINISHED"}
     
     def invoke(self, context, event):
+        scene_nwo = utils.get_scene_props()
         tags_dir = utils.get_tags_path() + os.sep
         self.filepath = tags_dir
-        if utils.valid_nwo_asset() and context.scene.nwo.asset_type == "scenario":
+        if utils.valid_nwo_asset() and scene_nwo.asset_type == "scenario":
             asset_path, asset_name = utils.get_asset_info()
             if asset_path and asset_name:
                 self.filepath = str(Path(tags_dir, asset_path, asset_name).with_suffix(".scenario"))

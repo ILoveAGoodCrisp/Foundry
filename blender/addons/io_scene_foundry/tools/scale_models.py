@@ -5,7 +5,7 @@ from bpy_extras.object_utils import object_data_add
 import os
 import zipfile
 
-from ..utils import add_auto_smooth, rotation_diff_from_forward, transform_scene
+from ..utils import add_auto_smooth, get_scene_props, rotation_diff_from_forward, transform_scene
 from ..tools.barebones_model_format import BarebonesModelFormat
 from bpy_extras.object_utils import AddObjectHelper
 
@@ -98,12 +98,13 @@ class NWO_OT_AddScaleModel(bpy.types.Operator, AddObjectHelper):
         ob.nwo.export_this = False
         ob.nwo.scale_model = True
         scale_factor = 1
-        if context.scene.nwo.scale == 'max':
+        scene_nwo = get_scene_props()
+        if scene_nwo.scale == 'max':
             scale_factor = 1 / 0.03048
             
         add_auto_smooth(context, ob, apply_mod=True)
         old_loc = ob.location.copy()
-        transform_scene(context, scale_factor, rotation_diff_from_forward('x', context.scene.nwo.forward_direction), 'x', context.scene.nwo.forward_direction, keep_marker_axis=False, objects=[ob], actions=[], apply_rotation=True)
+        transform_scene(context, scale_factor, rotation_diff_from_forward('x', scene_nwo.forward_direction), 'x', scene_nwo.forward_direction, keep_marker_axis=False, objects=[ob], actions=[], apply_rotation=True)
         ob.location = old_loc
         
     

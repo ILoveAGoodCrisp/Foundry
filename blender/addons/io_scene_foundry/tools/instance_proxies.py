@@ -6,7 +6,7 @@ import bmesh
 import bpy
 from ..tools.property_apply import apply_props_material
 
-from ..utils import deselect_all_objects, is_corinth, set_active_object, set_object_mode, unlink
+from ..utils import deselect_all_objects, get_scene_props, is_corinth, set_active_object, set_object_mode, unlink
 
 class NWO_ProxyInstanceEdit(bpy.types.Operator):
     bl_idname = "nwo.proxy_instance_edit"
@@ -105,12 +105,12 @@ class NWO_ProxyInstanceEdit(bpy.types.Operator):
                         self.shading_attr = space.shading
                         space.shading.show_xray = True
                             
-        context.scene.nwo.instance_proxy_running = True
+        get_scene_props().instance_proxy_running = True
         
         return {'RUNNING_MODAL'}
     
     def modal(self, context, event):
-        scene_nwo = context.scene.nwo
+        scene_nwo = get_scene_props()
         active = scene_nwo.instance_proxy_running
         edit_mode = context.mode == 'EDIT_MESH'
         
@@ -377,5 +377,5 @@ class NWO_ProxyInstanceCancel(bpy.types.Operator):
     proxy : bpy.props.StringProperty()
 
     def execute(self, context):
-        context.scene.nwo.instance_proxy_running = False
+        get_scene_props().instance_proxy_running = False
         return {'FINISHED'}

@@ -41,7 +41,7 @@ class NWO_OT_ExportPrefabs(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return utils.valid_nwo_asset(context) and context.scene.nwo.asset_type == 'scenario' and utils.is_corinth(context)
+        return utils.valid_nwo_asset(context) and utils.get_scene_props().asset_type == 'scenario' and utils.is_corinth(context)
 
     def execute(self, context):
         export_prefabs()
@@ -93,7 +93,7 @@ def gather_prefabs(context):
 def export_prefabs():
     asset_path = utils.get_asset_path()
     prefabs = [BlamPrefab(ob, region) for ob, region in gather_prefabs(bpy.context).items()]
-    bsps = [r.name for r in bpy.context.scene.nwo.regions_table if r.name.lower() != 'shared']
+    bsps = [r.name for r in utils.get_scene_props().regions_table if r.name.lower() != 'shared']
     structure_bsp_paths = [str(Path(asset_path, f'{b}.scenario_structure_bsp')) for b in bsps]
     for idx, bsp_path in enumerate(structure_bsp_paths):
         b = bsps[idx]

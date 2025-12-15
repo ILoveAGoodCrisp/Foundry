@@ -33,7 +33,7 @@ class NWO_ScaleScene(bpy.types.Operator):
     )
     
     def update_forward(self, context):
-        rot = utils.blender_rotation_diff(self.forward, context.scene.nwo.forward_direction)
+        rot = utils.blender_rotation_diff(self.forward, utils.get_scene_props().forward_direction)
         self.rotation = rot
     
     forward: bpy.props.EnumProperty(
@@ -108,14 +108,15 @@ class NWO_ScaleScene(bpy.types.Operator):
         utils.deselect_all_objects()
         objects_to_transform = old_selection if self.selected_only else None
         actions_to_transform = None
+        scene_nwo = utils.get_scene_props()
         if self.animations != "all":
-            active_animation_index = context.scene.nwo.active_animation_index
+            active_animation_index = scene_nwo.active_animation_index
             if self.animations == 'active' and active_animation_index >= 0:
-                actions_to_transform = {track.action for track in context.scene.nwo.animations[active_animation_index].action_tracks}
+                actions_to_transform = {track.action for track in scene_nwo.animations[active_animation_index].action_tracks}
             else:
                 actions_to_transform = set()
                 
-        light_intensities = utils.transform_scene(context, self.scale_factor, self.rotation, context.scene.nwo.forward_direction, self.forward, keep_marker_axis=self.maintain_marker_axis, objects=objects_to_transform, actions=actions_to_transform, exclude_scale_models=self.exclude_scale_models)
+        light_intensities = utils.transform_scene(context, self.scale_factor, self.rotation, scene_nwo.forward_direction, self.forward, keep_marker_axis=self.maintain_marker_axis, objects=objects_to_transform, actions=actions_to_transform, exclude_scale_models=self.exclude_scale_models)
 
         if old_object:
             utils.set_active_object(old_object)
@@ -127,18 +128,19 @@ class NWO_ScaleScene(bpy.types.Operator):
             bpy.ops.object.posemode_toggle()
         
         if self.scale == 'blender' or self.scale == 'max':
-            context.scene.nwo.scale = self.scale
+            scene_nwo.scale = self.scale
             for light, intensity in light_intensities.items():
                 light.nwo.light_intensity = intensity
             
-        context.scene.nwo.forward_direction = self.forward
-        context.scene.nwo.maintain_marker_axis = self.maintain_marker_axis
+        scene_nwo.forward_direction = self.forward
+        scene_nwo.maintain_marker_axis = self.maintain_marker_axis
         
         return {"FINISHED"}
     
     def invoke(self, context: bpy.types.Context, _):
-        self.forward = context.scene.nwo.forward_direction
-        self.maintain_marker_axis = context.scene.nwo.maintain_marker_axis
+        scene_nwo = utils.get_scene_props()
+        self.forward = scene_nwo.forward_direction
+        self.maintain_marker_axis = scene_nwo.maintain_marker_axis
         return context.window_manager.invoke_props_dialog(self)
             
     def draw(self, context):

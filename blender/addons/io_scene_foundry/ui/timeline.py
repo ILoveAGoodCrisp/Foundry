@@ -1,8 +1,9 @@
+from ..utils import get_scene_props
 from ..icons import get_icon_id
 
 
 def draw_cinematic_info(self, context):
-    nwo = context.scene.nwo
+    nwo = get_scene_props()
     if nwo.asset_type != "cinematic":
         return
     layout = self.layout

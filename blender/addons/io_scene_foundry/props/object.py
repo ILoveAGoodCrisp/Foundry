@@ -1256,7 +1256,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     )
 
     def get_region_name(self):
-        scene_nwo = bpy.context.scene.nwo
+        scene_nwo = utils.get_scene_props()
         regions = scene_nwo.regions_table
         name = self.get("region_name", "")
         if not regions:
@@ -1290,7 +1290,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     )
 
     def get_permutation_name(self):
-        scene_nwo = bpy.context.scene.nwo
+        scene_nwo = utils.get_scene_props()
         permutations = scene_nwo.permutations_table
         name = self.get("permutation_name", "")
         if not permutations:

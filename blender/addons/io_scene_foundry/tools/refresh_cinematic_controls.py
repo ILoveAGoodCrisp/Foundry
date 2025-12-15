@@ -118,17 +118,18 @@ class NWO_OT_RefreshCinematicControls(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.scene.nwo.asset_type == 'cinematic' and utils.valid_nwo_asset(context)
+        return utils.get_scene_props().asset_type == 'cinematic' and utils.valid_nwo_asset(context)
 
     def execute(self, context):
-        if context.scene.nwo.is_child_asset:
-            asset_path = context.scene.nwo.parent_asset
+        scene_nwo = utils.get_scene_props()
+        if scene_nwo.is_child_asset:
+            asset_path = scene_nwo.parent_asset
         else:
             asset_path = utils.get_asset_path()
             
         asset_name = Path(asset_path).name
         
-        scene_name = f"{asset_name}_{utils.get_asset_name()}" if context.scene.nwo.is_child_asset else f"{asset_name}_000"
+        scene_name = f"{asset_name}_{utils.get_asset_name()}" if scene_nwo.is_child_asset else f"{asset_name}_000"
         shot_index = utils.current_shot_index(context)
         if add_controls_to_debug_menu(utils.is_corinth(context), Path(asset_path, asset_name).with_suffix(".cinematic"), scene_name, shot_index):
             self.report({'INFO'}, f"Updated debug menu with cinematic controls: [Cinematic: {asset_name}], [Scene: {scene_name}], [Shot: {shot_index + 1}]",)

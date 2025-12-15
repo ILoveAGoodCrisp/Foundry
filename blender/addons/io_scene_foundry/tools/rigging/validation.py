@@ -18,7 +18,7 @@ class NWO_ValidateRig(bpy.types.Operator):
         root_bones = [b for b in rig.data.bones if b.use_deform and not b.parent]
         if root_bones:
             if len(root_bones) > 1:
-                scene.nwo.multiple_root_bones = True
+                utils.get_scene_props().multiple_root_bones = True
                 return
             return root_bones[0].name
     
@@ -31,7 +31,7 @@ class NWO_ValidateRig(bpy.types.Operator):
         # x_negative = (0, -1, 0)
         # y_postive = (1, 0, 0)
         edit_root = rig.data.edit_bones.get(root_bone_name)
-        match scene.nwo.forward_direction:
+        match utils.get_scene_props().forward_direction:
             case 'x':
                 tail_okay = (
                 math.isclose(edit_root.tail[0], 0, abs_tol=1e-5) and
@@ -68,17 +68,6 @@ class NWO_ValidateRig(bpy.types.Operator):
         validated = pedestal.matrix == aim_pitch.matrix == aim_yaw.matrix
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         return validated
-    
-    # def needs_pose_bones(self, scene_nwo):
-    #     usage_set =  scene_nwo.node_usage_pedestal and scene_nwo.node_usage_pose_blend_pitch and scene_nwo.node_usage_pose_blend_yaw
-    #     if usage_set:
-    #         return False
-    #     for action in bpy.data.actions:
-    #         if action.frame_range:
-    #             if action.nwo.animation_type == 'overlay' and action.nwo.animation_is_pose:
-    #                 return True
-                
-    #     return False
     
     def armature_transforms_valid(self, rig):
         return rig.matrix_world == Matrix.Identity(4)
@@ -186,7 +175,7 @@ class NWO_ValidateRig(bpy.types.Operator):
         self.rig_was_hidden = False
         utils.set_object_mode(context)
         scene = context.scene
-        scene_nwo = scene.nwo
+        scene_nwo = utils.get_scene_props()
         self.rig = utils.get_rig(context, True)
         multi_rigs = type(self.rig) == list
         no_rig = self.rig is None
@@ -238,9 +227,9 @@ class NWO_ValidateRig(bpy.types.Operator):
             self.report({'INFO'}, f"{self.rig} is linked from another scene, further validation cancelled")
             return self.complete_validation()
         
-        root_bone_name = self.get_root_bone(self.rig, scene)
+        root_bone_name = self.get_root_bone(self.rig)
         if root_bone_name is None:
-            if scene.nwo.multiple_root_bones:
+            if utils.get_scene_props().multiple_root_bones:
                 self.report({'WARNING'}, 'Multiple root bones in armature. Export will fail. Ensure only one bone in the armature has no parent (or set additional root bones as non-deform bones)')
             else:
                 self.report({'WARNING'}, f'Root bone of {self.rig.name} is marked non-deform. This rig will not export')
@@ -304,7 +293,7 @@ class NWO_FixPoseBones(bpy.types.Operator):
         self.old_active = context.object
         utils.set_object_mode(context)
         utils.set_active_object(rig)
-        scene_nwo = context.scene.nwo
+        scene_nwo = utils.get_scene_props()
         if not scene_nwo.node_usage_pedestal:
             self.report({'WARNING'}, "Cannot fix as pedestal bone is not set in the Asset Editor panel")
             return {'CANCELLED'}
@@ -337,7 +326,6 @@ class NWO_FixRootBone(bpy.types.Operator):
     bl_options = {'UNDO'}
     
     def execute(self, context):
-        scene = context.scene
         arm = utils.get_rig(context)
         root_bones = [b for b in arm.data.bones if b.use_deform and not b.parent]
         if len(root_bones) > 1:
@@ -347,10 +335,11 @@ class NWO_FixRootBone(bpy.types.Operator):
         self.old_active = context.object
         utils.set_object_mode(context)
         utils.set_active_object(arm)
-        tail_size = 1 if scene.nwo.scale == 'blender' else (1 / 0.03048)
+        scene_nwo = utils.get_scene_props()
+        tail_size = 1 if scene_nwo.scale == 'blender' else (1 / 0.03048)
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         edit_root = arm.data.edit_bones.get(root_bone_name)
-        match scene.nwo.forward_direction:
+        match scene_nwo.forward_direction:
             case 'x':
                 edit_root.tail[0] = 0
                 edit_root.tail[1] = tail_size
@@ -381,7 +370,7 @@ class NWO_FixRootBone(bpy.types.Operator):
                 bpy.ops.object.mode_set(mode='POSE', toggle=False)
             elif self.old_mode.startswith('EDIT'):
                 bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        scene.nwo.invalid_root_bone = False
+        scene_nwo.invalid_root_bone = False
         return {'FINISHED'}
     
 class NWO_FixArmatureTransforms(bpy.types.Operator):
@@ -394,7 +383,7 @@ class NWO_FixArmatureTransforms(bpy.types.Operator):
         scene = context.scene
         arm = utils.get_rig(context)
         arm.matrix_world = Matrix.Identity(4)
-        scene.nwo.armature_bad_transforms = False
+        utils.get_scene_props().armature_bad_transforms = False
         return {'FINISHED'}
     
 class NWO_OT_AddAimDisplay(bpy.types.Operator):
@@ -405,7 +394,7 @@ class NWO_OT_AddAimDisplay(bpy.types.Operator):
     
     def execute(self, context):
         utils.set_object_mode(context)
-        scene_nwo = context.scene.nwo
+        scene_nwo = utils.get_scene_props()
         tail_scale = 1 if scene_nwo.scale == 'blender' else (1 / 0.03048)
         arm = utils.get_rig_prioritize_active(context)
         if not arm:
@@ -436,7 +425,6 @@ class NWO_OT_AddAimDisplay(bpy.types.Operator):
         rig.has_pose_bones = True
         rig.build_bones(pedestal=scene_nwo.node_usage_pedestal if scene_nwo.node_usage_pedestal else None, pitch=scene_nwo.node_usage_pose_blend_pitch if scene_nwo.node_usage_pose_blend_pitch else None, yaw=scene_nwo.node_usage_pose_blend_yaw if scene_nwo.node_usage_pose_blend_yaw else None, set_control=False)
         rig.build_and_apply_control_shapes(pitch=scene_nwo.node_usage_pose_blend_pitch, yaw=scene_nwo.node_usage_pose_blend_yaw, aim_control_only=True, reverse_control=True)
-        # context.scene.nwo.needs_pose_bones = False
         return {'FINISHED'}
     
 class NWO_AddPoseBones(bpy.types.Operator):
@@ -453,7 +441,7 @@ class NWO_AddPoseBones(bpy.types.Operator):
         
     def execute(self, context):
         utils.set_object_mode(context)
-        scene_nwo = context.scene.nwo
+        scene_nwo = utils.get_scene_props()
         tail_scale = 1 if scene_nwo.scale == 'blender' else (1 / 0.03048)
         if self.armature:
             arm = bpy.data.objects.get(self.armature)
@@ -488,7 +476,6 @@ class NWO_AddPoseBones(bpy.types.Operator):
         rig.build_bones(pedestal=scene_nwo.node_usage_pedestal if scene_nwo.node_usage_pedestal else None, pitch=scene_nwo.node_usage_pose_blend_pitch if scene_nwo.node_usage_pose_blend_pitch else None, yaw=scene_nwo.node_usage_pose_blend_yaw if scene_nwo.node_usage_pose_blend_yaw else None)
         if self.add_control_bone:
             rig.build_and_apply_control_shapes(pitch=scene_nwo.node_usage_pose_blend_pitch, yaw=scene_nwo.node_usage_pose_blend_yaw, aim_control_only=True)
-        # context.scene.nwo.needs_pose_bones = False
         return {'FINISHED'}
     
     def invoke(self, context, event):

@@ -13,11 +13,12 @@ def export_current_action_as_camera_track(context, asset_path):
     if not camera.animation_data:
         return print(f"\nCamera [{camera.name}] has no animation data. Export Cancelled")
     
-    animations = context.scene.nwo.animations
+    scene_nwo =utils.get_scene_props()
+    animations = scene_nwo.animations
     if len(animations) < 1:
          return print("\nNo animations in scene. Please ensure atleast one camera animation is set up in the Foundry animation panel")
      
-    animation = animations[context.scene.nwo.active_animation_index]
+    animation = animations[scene_nwo.active_animation_index]
     
     if not animation.action_tracks:
         return print(f"\nAnimation {animation.name} has no action tracks. Please add one for the camera")

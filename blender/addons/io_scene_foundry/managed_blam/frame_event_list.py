@@ -234,7 +234,7 @@ class FrameEventListTag(Tag):
         self.block_effect_references.RemoveAllElements()
         self.block_frame_events.RemoveAllElements()
         
-        blender_animations = {a.name.replace(":", " "): a for a in self.context.scene.nwo.animations if a.export_this}
+        blender_animations = {a.name.replace(":", " "): a for a in self.scene_nwo.animations if a.export_this}
         
         unique_sounds_set = set()
         unique_effects_set = set()
@@ -380,7 +380,7 @@ class FrameEventListTag(Tag):
             ref.from_element(element, self.corinth)
             unique_effects.append(ref)
         
-        blender_animations = self.context.scene.nwo.animations
+        blender_animations = self.scene_nwo.animations
         
         animation_name_events = {}
         

@@ -7,7 +7,8 @@ from .. import utils
 from ..managed_blam.scenario import ScenarioTag
 
 def set_default_sky(context, report, sky_index):
-    active_bsp = context.scene.nwo.regions_table[context.scene.nwo.regions_table_active_index].name
+    scene_nwo = utils.get_scene_props()
+    active_bsp = scene_nwo.regions_table[scene_nwo.regions_table_active_index].name
     with ScenarioTag() as scenario:
         sky_name = scenario.set_bsp_default_sky(active_bsp, sky_index)
         if sky_name is None:
