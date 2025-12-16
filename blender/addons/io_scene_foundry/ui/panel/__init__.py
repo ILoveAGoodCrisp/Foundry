@@ -2857,7 +2857,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         scene_nwo = utils.get_scene_props()
         
         if self.asset_type == 'cinematic':
-            return self.draw_cinematic_events(scene_nwo, ob, box)
+            return self.draw_cinematic_events(self.context.scene.nwo, ob, box) # cinematic events are scene specific
         
         row = box.row()
         if not scene_nwo.animations:
