@@ -14,6 +14,13 @@ script_object_types = ('WEAPON_TRIGGER_START', 'WEAPON_TRIGGER_STOP', 'SET_VARIA
 
 last_used_compo_leaf = {}
 
+scene_specific_props = (
+    'cinematic_anchor',
+    'cinematic_events',
+    'active_cinematic_event_index',
+    'is_main_scene',
+)
+
 def poll_armature(self, object: bpy.types.Object):
     return object.type == 'ARMATURE'
 
@@ -1942,20 +1949,20 @@ class NWO_CinematicScene(PropertyGroup):
 
 class NWO_ScenePropertiesGroup(PropertyGroup):
     # CINEMATIC EVENTS
-    cinematic_events: bpy.props.CollectionProperty(
+    cinematic_events: bpy.props.CollectionProperty( # scene specific
         name="Cinematic Events",
         options=set(),
         type=NWO_CinematicEvent,
     )
     
-    active_cinematic_event_index: bpy.props.IntProperty(
+    active_cinematic_event_index: bpy.props.IntProperty( # scene specific
         name="Active Cinematic Event Index",
         options=set(),
     )
     
     export_version: bpy.props.StringProperty(options={'HIDDEN'})
     
-    is_main_scene: bpy.props.BoolProperty(options={'HIDDEN'})
+    is_main_scene: bpy.props.BoolProperty(options={'HIDDEN'}) # scene specific
     
     def get_game_frame(self):
         return self.id_data.frame_current - self.id_data.frame_start + int(utils.is_corinth(bpy.context))
@@ -2082,7 +2089,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         options=set(),
     )
     
-    cinematic_anchor: bpy.props.PointerProperty(
+    cinematic_anchor: bpy.props.PointerProperty( # scene specific
         name="Cinematic Anchor",
         description="The object to use as the anchor point (or reference point) of the cinematic scene. On export this anchor point will be added to the specified scenario if you have set one. This anchor point should be used to move the level geometry to the cinematic scene (by parenting level geometry to the anchor). At export the inverse matrix of this anchor is calculated and added to the scenario tag",
         type=bpy.types.Object,

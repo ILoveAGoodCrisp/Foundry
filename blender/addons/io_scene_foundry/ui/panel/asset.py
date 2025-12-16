@@ -6,6 +6,7 @@ import bpy
 
 from ...icons import get_icon_id
 from ... import utils
+from ...props.scene import scene_specific_props
 
 import xml.etree.ElementTree as ET
     
@@ -42,9 +43,9 @@ class NWO_OT_SceneSwitch(bpy.types.Operator):
         cinematic_scene = nwo.cinematic_scenes[nwo.active_cinematic_scene_index]
         scene = cinematic_scene.scene
         if scene is not None:
-            self.report({'INFO'}, f"Scene switched to {scene.name} [{nwo.active_cinematic_scene_index:3f}]")
+            context.window.scene = scene
+            self.report({'INFO'}, f"Scene switched to {nwo.active_cinematic_scene_index:03d} [{scene.name}]")
         return {"FINISHED"}
-
 
 class NWO_OT_CinematicSceneNew(bpy.types.Operator):
     bl_idname = "nwo.cinematic_scene_new"
@@ -66,25 +67,22 @@ class NWO_OT_CinematicSceneNew(bpy.types.Operator):
         existing_scene = None
         if self.existing_scene:
             existing_scene = bpy.data.scenes.get(self.existing_scene)
-            if existing_scene is not None:
-                if existing_scene == context.scene:
-                    self.report({'WARNING'}, "Cannot link scene to it self")
-                    return {'CANCELLED'}
-                    
+
         nwo = utils.get_scene_props()
         cin_scene = nwo.cinematic_scenes.add()
-        nwo.active_cinematic_scene_index = len(nwo.cinematic_scenes) - 1
-                
+        new_index = len(nwo.cinematic_scenes) - 1
         if existing_scene is None:
-            cin_scene.scene = bpy.data.scenes.new()
+            cin_scene.scene = bpy.data.scenes.new(f"Scene {(new_index * 10):03d}")
         else:
             cin_scene.scene = existing_scene
+            
+        nwo.active_cinematic_scene_index = new_index
             
         context.area.tag_redraw()
         return {'FINISHED'}
     
     def invoke(self, context, _):
-        return context.window_manager.invoke_props_dialog(self)
+        return context.window_manager.invoke_props_dialog(self, width=500)
     
     def draw(self, context):
         self.layout.prop_search(self, "existing_scene", search_data=bpy.data, search_property="scenes")
@@ -95,6 +93,7 @@ class NWO_OT_CinematicSceneRemove(bpy.types.Operator):
     bl_description = "Remove a cinematic scene and optionally delete the blender scene"
     bl_options = {'UNDO'}
     
+    @classmethod
     def poll(cls, context):
         scene_nwo = utils.get_scene_props()
         return len(scene_nwo.cinematic_scenes) > 1 and scene_nwo.active_cinematic_scene_index < len(scene_nwo.cinematic_scenes)
@@ -123,16 +122,57 @@ class NWO_OT_CinematicSceneRemove(bpy.types.Operator):
     
     def draw(self, context):
         self.layout.prop(self, "delete_scene")
+        
+class NWO_OT_CinematicSceneMove(bpy.types.Operator):
+    bl_idname = "nwo.cinematic_scene_move"
+    bl_label = "Move"
+    bl_description = "Moves the cinematic scene up/down the list"
+    bl_options = {"UNDO"}
+    
+    direction: bpy.props.StringProperty()
+
+    def execute(self, context):
+        nwo = utils.get_scene_props()
+        cin_scenes = nwo.cinematic_scenes
+        delta = {"down": 1, "up": -1,}[self.direction]
+        current_index = nwo.active_cinematic_scene_index
+        to_index = (current_index + delta) % len(cin_scenes)
+        cin_scenes.move(current_index, to_index)
+        nwo.active_cinematic_scene_index = to_index
+        context.area.tag_redraw()
+        return {'FINISHED'}
 
 class NWO_UL_CinematicScenes(bpy.types.UIList):
     def draw_item(self, context, layout: bpy.types.UILayout, data, item, icon, active_data, active_propname, index, flt_flag):
-        pass
-        # layout.alignment = 'LEFT'
-        # layout.prop(item, 'name', text='', emboss=False, icon_value=get_icon_id("ik_chain"))
-        # if item.start_node and item.effector_node:
-        #     layout.label(text=f'{item.start_node} >>> {item.effector_node}')
-        # else:
-        #     layout.label(text='IK Chain Bones Not Set', icon='ERROR')
+        layout.alignment = 'LEFT'
+        layout.label(text=f'{(index * 10):03d} [{"NONE" if item.scene is None else item.scene.name}]', icon='SCENE_DATA')
+        
+class NWO_OT_SetMainScene(bpy.types.Operator):
+    bl_idname = "nwo.set_main_scene"
+    bl_label = "Set Scene as Main"
+    bl_description = "Marks this scene as the main scene. The main scene holds the majority of Foundry properties. The only exceptions to this are certain cinematic properties which can be scene specific (such as the cinematic anchor and cinematic events). You only need to use this if you want to delete the current main scene without breaking Foundry properties"
+    bl_options = {"UNDO"}
+    
+    def execute(self, context):
+
+        main_scene_props = utils.get_scene_props()
+        current_scene_props = context.scene.nwo
+        
+        if main_scene_props == current_scene_props:
+            self.report({'INFO'}, f"Current scene [{current_scene_props.id_data.name}] is already the main scene")
+        else:
+            self.report({'INFO'}, f"Main scene is now {current_scene_props.id_data.name}")
+            for k, v in main_scene_props.items():
+                if k in scene_specific_props:
+                    continue
+                current_scene_props[k] = v
+            
+        for s in bpy.data.scenes:
+            s.nwo.is_main_scene = False
+            
+        current_scene_props.is_main_scene = True
+        
+        return {'FINISHED'}
         
 class NWO_OT_OpenParentAsset(bpy.types.Operator):
     bl_idname = "nwo.open_parent_asset"

@@ -209,13 +209,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col.prop(nwo, "parent_asset")
             col.operator("nwo.open_parent_asset", icon='BLENDER')
             col.prop(nwo, "parent_sidecar")
-            if nwo.asset_type == 'cinematic':
-                box = self.box.box()
-                box.label(text="Cinematic Scene")
-                box.operator("nwo.refresh_cinematic_controls", icon='FILE_REFRESH')
-                box.prop(nwo, 'cinematic_anchor')
-                box.operator('nwo.cinematic_anchor_offset', icon='PIVOT_CURSOR')
-            elif nwo.asset_type == 'single_animation':
+            if nwo.asset_type == 'single_animation':
                 self.draw_rig_ui(self.context, nwo)
                 self.draw_single_animation_events(nwo, box)
         elif nwo.asset_type == 'single_animation':
@@ -283,7 +277,28 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 row.prop(nwo, 'cinematic_zone_set')
                 row.operator_menu_enum("nwo.get_zone_sets", "zone_set", icon="DOWNARROW_HLT", text="")
                 col.separator()
-                col.prop(nwo, 'cinematic_anchor')
+                box_scene = col.box()
+                box_scene.label(text="Cinematic Scenes")
+                row = box_scene.row()
+                row.template_list(
+                    "NWO_UL_CinematicScenes",
+                    "",
+                    nwo,
+                    "cinematic_scenes",
+                    nwo,
+                    "active_cinematic_scene_index",
+                )
+                col_cin = row.column(align=True)
+                col_cin.operator("nwo.cinematic_scene_new", text="", icon="ADD")
+                col_cin.operator("nwo.cinematic_scene_remove", icon="REMOVE", text="")
+                col_cin.separator()
+                col_cin.operator("nwo.cinematic_scene_move", text="", icon="TRIA_UP").direction = 'up'
+                col_cin.operator("nwo.cinematic_scene_move", icon="TRIA_DOWN", text="").direction = 'down'
+                col_cin.separator()
+                col_cin.operator("nwo.scene_switch", icon="SCENE_DATA", text="")
+                col.separator()
+                col.label(text="Cinematic Scene Properties")
+                col.prop(self.context.scene.nwo, 'cinematic_anchor', text="Anchor") # specifically calling the current scene's nwo props
                 col.operator('nwo.cinematic_anchor_offset', icon='PIVOT_CURSOR')
             
             # if nwo.asset_type in {'model', 'sky', 'scenario', 'animation', 'cinematic'}:

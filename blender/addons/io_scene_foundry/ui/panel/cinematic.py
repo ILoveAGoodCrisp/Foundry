@@ -41,7 +41,7 @@ class NWO_OT_CinematicAnchorOffset(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         scene_nwo = utils.get_scene_props()
-        return scene_nwo.asset_type == 'cinematic' and utils.pointer_ob_valid(scene_nwo.cinematic_anchor)
+        return scene_nwo.asset_type == 'cinematic' and utils.pointer_ob_valid(context.scene.nwo.cinematic_anchor) # scene specific prop
     
     def execute(self, context):
         global nudge
@@ -77,7 +77,6 @@ class NWO_OT_CinematicAnchorOffsetMain(bpy.types.Operator):
     bl_options = {'UNDO', 'INTERNAL'}
 
     def execute(self, context):
-        scene_nwo = utils.get_scene_props()
         cursor = context.scene.cursor
         
         loc, rot, sca = cast(Matrix, context.scene.cursor.matrix).decompose()
@@ -86,7 +85,7 @@ class NWO_OT_CinematicAnchorOffsetMain(bpy.types.Operator):
             
         matrix.invert_safe()
         
-        anchor = scene_nwo.cinematic_anchor
+        anchor = context.scene.nwo.cinematic_anchor # scene specific
         anchor.matrix_world = matrix @ anchor.matrix_world
         
         cursor.location = -nudge
