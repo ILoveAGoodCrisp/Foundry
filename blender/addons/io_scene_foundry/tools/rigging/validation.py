@@ -112,8 +112,8 @@ class NWO_ValidateRig(bpy.types.Operator):
     
     def strip_null_rig_refs(self, scene_nwo, rig):
         bone_names = [b.name for b in rig.data.bones]
-        if scene_nwo.control_aim and scene_nwo.control_aim not in bone_names:
-            scene_nwo.control_aim = ""
+        if rig.nwo.control_aim and rig.nwo.control_aim not in bone_names:
+            rig.nwo.control_aim = ""
         if scene_nwo.node_usage_pedestal and scene_nwo.node_usage_pedestal not in bone_names:
             scene_nwo.node_usage_pedestal = ""
         if scene_nwo.node_usage_pose_blend_pitch and scene_nwo.node_usage_pose_blend_pitch not in bone_names:
