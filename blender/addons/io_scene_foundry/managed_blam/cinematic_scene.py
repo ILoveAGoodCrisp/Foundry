@@ -419,14 +419,19 @@ class CinematicSceneTag(Tag):
     def get_loop_text(self) -> str:
         return self.scene_playback.GetLoopText()
     
-    def to_blender(self, film_aperture: float):
+    def to_blender(self, film_aperture: float, blender_scene_index=0):
         camera_objects = []
         object_animations = []
         frame = 1
         actions = []
         shot_frames = []
         
-        blender_scene = bpy.context.scene
+        if blender_scene_index == 0:
+            # Use current scene
+            blender_scene = bpy.context.scene
+        else:
+            cin_scene = self.scene_nwo.cinematic_scenes.add()
+            cin_scene.scene = bpy.data.scenes.new(self.tag_path.ShortName)
         
         print(f"Importing cinematic scene: {self.tag_path.ShortName}")
         

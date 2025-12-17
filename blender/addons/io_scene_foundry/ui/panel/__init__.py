@@ -276,6 +276,9 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 row.enabled = scenario_exists
                 row.prop(nwo, 'cinematic_zone_set')
                 row.operator_menu_enum("nwo.get_zone_sets", "zone_set", icon="DOWNARROW_HLT", text="")
+                col.label(text="Scene Properties")
+                col.prop(self.context.scene.nwo, 'cinematic_anchor', text="Anchor") # specifically calling the current scene's nwo props
+                col.operator('nwo.cinematic_anchor_offset', icon='PIVOT_CURSOR')
                 col.separator()
                 box_scene = col.box()
                 box_scene.label(text="Cinematic Scenes")
@@ -291,15 +294,18 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 col_cin = row.column(align=True)
                 col_cin.operator("nwo.cinematic_scene_new", text="", icon="ADD")
                 col_cin.operator("nwo.cinematic_scene_remove", icon="REMOVE", text="")
-                col_cin.separator()
-                col_cin.operator("nwo.cinematic_scene_move", text="", icon="TRIA_UP").direction = 'up'
-                col_cin.operator("nwo.cinematic_scene_move", icon="TRIA_DOWN", text="").direction = 'down'
-                col_cin.separator()
-                col_cin.operator("nwo.scene_switch", icon="SCENE_DATA", text="")
-                col.separator()
-                col.label(text="Cinematic Scene Properties")
-                col.prop(self.context.scene.nwo, 'cinematic_anchor', text="Anchor") # specifically calling the current scene's nwo props
-                col.operator('nwo.cinematic_anchor_offset', icon='PIVOT_CURSOR')
+                cin_scene = nwo.cinematic_scenes[nwo.active_cinematic_scene_index]
+                if cin_scene is not None:
+                    col_cin.separator()
+                    col_cin.operator("nwo.cinematic_scene_move", text="", icon="TRIA_UP").direction = 'up'
+                    col_cin.operator("nwo.cinematic_scene_move", icon="TRIA_DOWN", text="").direction = 'down'
+                    col_cin.separator()
+                    col_cin.operator("nwo.scene_switch", icon="SCENE_DATA", text="")
+                    col_end = col.column()
+                    col_end.use_property_split = True
+                    col_end.prop(cin_scene, "scene_id")
+                    col_end.prop(cin_scene, "scene")
+
             
             # if nwo.asset_type in {'model', 'sky', 'scenario', 'animation', 'cinematic'}:
             #     self.draw_expandable_box(self.box.box(), nwo, "child_assets", panel_display_name="Child Assets" if nwo.asset_type != 'cinematic' else "Other Cinematic Scenes")

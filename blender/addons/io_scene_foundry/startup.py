@@ -126,6 +126,7 @@ def load_handler(dummy):
         
     if not nwo.cinematic_scenes:
         default_cin_scene = nwo.cinematic_scenes.add()
+        default_cin_scene.scene_id = 10
         default_cin_scene.scene = nwo.id_data
         
     # if not scene_nwo.zone_sets and not scene_nwo.user_removed_all_zone_set:

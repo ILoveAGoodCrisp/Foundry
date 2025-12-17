@@ -44,7 +44,7 @@ class NWO_OT_SceneSwitch(bpy.types.Operator):
         scene = cinematic_scene.scene
         if scene is not None:
             context.window.scene = scene
-            self.report({'INFO'}, f"Scene switched to {nwo.active_cinematic_scene_index:03d} [{scene.name}]")
+            self.report({'INFO'}, f"Scene switched to {((nwo.active_cinematic_scene_index + 1) * 10):03d} [{scene.name}]")
         return {"FINISHED"}
 
 class NWO_OT_CinematicSceneNew(bpy.types.Operator):
@@ -71,8 +71,10 @@ class NWO_OT_CinematicSceneNew(bpy.types.Operator):
         nwo = utils.get_scene_props()
         cin_scene = nwo.cinematic_scenes.add()
         new_index = len(nwo.cinematic_scenes) - 1
+        scene_id = (new_index + 1) * 10
+        cin_scene.scene_id = scene_id
         if existing_scene is None:
-            cin_scene.scene = bpy.data.scenes.new(f"Scene {(new_index * 10):03d}")
+            cin_scene.scene = bpy.data.scenes.new(f"Scene {scene_id:03d}")
         else:
             cin_scene.scene = existing_scene
             
@@ -130,6 +132,11 @@ class NWO_OT_CinematicSceneMove(bpy.types.Operator):
     bl_options = {"UNDO"}
     
     direction: bpy.props.StringProperty()
+    
+    @classmethod
+    def poll(cls, context):
+        scene_nwo = utils.get_scene_props()
+        return len(scene_nwo.cinematic_scenes) > 1 and scene_nwo.active_cinematic_scene_index < len(scene_nwo.cinematic_scenes)
 
     def execute(self, context):
         nwo = utils.get_scene_props()
@@ -145,7 +152,7 @@ class NWO_OT_CinematicSceneMove(bpy.types.Operator):
 class NWO_UL_CinematicScenes(bpy.types.UIList):
     def draw_item(self, context, layout: bpy.types.UILayout, data, item, icon, active_data, active_propname, index, flt_flag):
         layout.alignment = 'LEFT'
-        layout.label(text=f'{(index * 10):03d} [{"NONE" if item.scene is None else item.scene.name}]', icon='SCENE_DATA')
+        layout.label(text=f'{item.scene_id:03d} [{"NONE" if item.scene is None else item.scene.name}]', icon='SCENE_DATA')
         
 class NWO_OT_SetMainScene(bpy.types.Operator):
     bl_idname = "nwo.set_main_scene"

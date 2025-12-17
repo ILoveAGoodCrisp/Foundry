@@ -1943,8 +1943,18 @@ class NWO_CinematicEvent(PropertyGroup):
     )
     
 class NWO_CinematicScene(PropertyGroup):
+    
+    scene_id: bpy.props.IntProperty(
+        name="Scene ID",
+        min=0,
+        max=999,
+        options=set(),
+    )
+    
     scene: bpy.props.PointerProperty(
         type=bpy.types.Scene,
+        name="Blender Scene",
+        options=set(),
     )
 
 class NWO_ScenePropertiesGroup(PropertyGroup):

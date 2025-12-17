@@ -94,6 +94,16 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options={'HIDDEN'},
     )
     
+    cinematic_lighting: bpy.props.EnumProperty( # TODO Generate a lighting tag
+        name="Cinematic Lighting",
+        items=[
+            ('TAG', "Tag", ""),
+            ('NONE', "None", ""),
+            ('PERSIST', "Persist", ""),
+            ('PER_SHOT', "Per Shot", ""),
+        ]
+    )
+    
     ### PROXY
     # proxy_parent: bpy.props.PointerProperty(type=bpy.types.Mesh)
     proxy_type : bpy.props.StringProperty()

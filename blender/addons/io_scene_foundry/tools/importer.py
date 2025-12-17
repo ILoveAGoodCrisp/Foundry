@@ -70,6 +70,7 @@ decorator_type_items = []
 last_used_decorator_type = ""
 
 sky_items = []
+cinematic_scene_items = []
 
 zone_set_items = {"blah": "blah"}
 
@@ -552,6 +553,12 @@ class NWO_Import(bpy.types.Operator):
         default=True,
     )
     
+    tag_cinematic_scene: bpy.props.StringProperty(
+        name="Scene",
+        options={'SKIP_SAVE'},
+        description="Select a specific cinematic scene to import, or all (default)",
+    )
+    
     tag_scenario_import_objects: bpy.props.BoolProperty(
         name="Import Scenario Objects",
         description="Imports scenario objects. Added to an exclude collection by default",
@@ -714,6 +721,8 @@ class NWO_Import(bpy.types.Operator):
             self.decorator_type = ""
         if self.tag_sky == "none":
             self.tag_sky = ""
+        if self.tag_cinematic_scene == "all":
+            self.tag_cinematic_scene = ""
             
         if self.always_extract_bitmaps:
             clear_path_cache()
@@ -1199,6 +1208,7 @@ class NWO_Import(bpy.types.Operator):
                     imported_cinematic_objects = []
                     imported_cinematic_actions = []
                     importer.tag_cinematic_import_scenario = self.tag_cinematic_import_scenario
+                    importer.tag_cinematic_scene = self.tag_cinematic_scene
                     importer.build_control_rig = self.build_control_rig
                     anchor_objects = {}
                     imported_cinematic_scenario_objects = []
@@ -1243,7 +1253,7 @@ class NWO_Import(bpy.types.Operator):
                             importer.tag_scenario_import_objects = self.tag_scenario_import_objects
                             importer.tag_scenario_import_decals = self.tag_scenario_import_decals
                             importer.tag_scenario_import_decorators = self.tag_scenario_import_decorators
-                            imported_cinematic_scenario_objects, scenario_collection = importer.import_scenarios([scenario], self.build_blender_materials, self.always_extract_bitmaps, dont_link_collection=True)
+                            imported_cinematic_scenario_objects, scenario_collection = importer.import_scenarios([scenario], self.build_blender_materials, self.always_extract_bitmaps)
                             
                             imported_cinematic_objects.extend(imported_cinematic_scenario_objects)
                             
@@ -1297,9 +1307,15 @@ class NWO_Import(bpy.types.Operator):
                                 sdata.blender_scene.nwo.cinematic_anchor = anchor
                                 imported_cinematic_objects.append(anchor)
                                 anchor_objects[anchor] = imported_cinematic_scenario_objects
-                                anchor.instance_type = 'COLLECTION'
-                                anchor.instance_collection = scenario_collection
                                 anchor.nwo.export_this = False
+                                if first_scene:
+                                    for scen_ob in imported_cinematic_scenario_objects:
+                                        if scen_ob.parent is None:
+                                            scen_ob.parent = anchor
+                                            scen_ob.parent_type = 'OBJECT'
+                                else:
+                                    anchor.instance_type = 'COLLECTION'
+                                    anchor.instance_collection = scenario_collection
                             else:
                                 anchor = bpy.data.objects.new(name=sdata.anchor_name, object_data=None)
                                 anchor.nwo.export_this = False
@@ -1582,6 +1598,22 @@ class NWO_Import(bpy.types.Operator):
             box.prop(self, 'always_extract_bitmaps')
             box.prop(self, "setup_as_asset")
             
+        if not self.scope or ('cinemaitc' in self.scope):
+            box = layout.box()
+            box.label(text='Cinematic Settings')
+            box.prop(self, "tag_cinematic_import_scenario")
+            box.prop(self, "tag_cinematic_import_actors")
+            box.prop(self, "tag_cinematic_scene")
+            box.prop(self, "build_control_rig")
+            box.prop(self, "tag_import_lights")
+            box.prop(self, "tag_sky")
+            box.prop(self, "tag_scenario_import_objects")
+            box.prop(self, "tag_scenario_import_decals")
+            box.prop(self, "tag_scenario_import_decorators")
+            box.prop(self, "setup_as_asset")
+            box.prop(self, "build_blender_materials")
+            box.prop(self, "always_extract_bitmaps")
+            
 class JMSMaterialSlot:
     def __init__(self, slot: bpy.types.MaterialSlot):
         self.material = slot.material
@@ -1851,6 +1883,7 @@ class NWOImporter:
         
         self.tag_cinematic_import_scenario = False
         self.tag_cinematic_import_actors = False
+        self.tag_cinematic_scene = ""
         self.build_control_rig = False
     
     def group_filetypes(self, scope):
@@ -2861,7 +2894,7 @@ class NWOImporter:
         print(f"Importing Cinematic: {filename}")
         with utils.TagImportMover(utils.get_project(self.scene_nwo.scene_project).tags_directory, file) as mover:
             with CinematicTag(path=mover.tag_path) as cinematic:
-                scene_datas, scenario_path, zone_set = cinematic.to_blender(film_aperture, self.tag_cinematic_import_scenario)
+                scene_datas, scenario_path, zone_set = cinematic.to_blender(film_aperture, self.tag_cinematic_import_scenario, specific_scene=self.tag_cinematic_scene)
                 
         if self.setup_as_asset:
             set_asset(Path(file).suffix)
@@ -4048,6 +4081,14 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
             items.append((sky, Path(sky).with_suffix("").name, ""))
             
         return items
+    
+    def items_cinematic_scene(self, context):
+        global cinematic_scene_items
+        items = [("all", "All", "")]
+        for cin_scene in cinematic_scene_items:
+            items.append((cin_scene, Path(cin_scene).with_suffix("").name, ""))
+            
+        return items
         
     
     tag_variant: bpy.props.EnumProperty(
@@ -4109,6 +4150,13 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     tag_cinematic_import_actors: bpy.props.BoolProperty(
         name="Import Actors",
         default=True,
+    )
+    
+    tag_cinematic_scene: bpy.props.EnumProperty(
+        name="Scene",
+        options={'SKIP_SAVE'},
+        description="Select a specific cinematic scene to import, or all (default)",
+        items=cinematic_scene_items,
     )
     
     tag_scenario_import_objects: bpy.props.BoolProperty(
@@ -4325,8 +4373,23 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                             sky_items.append(sky.RelativePathWithExtension)
                             
             elif self.import_type == 'cinematic':
-                # TODO Add scenes enum
-                pass
+                global cinematic_scene_items
+                with CinematicTag(path=self.filepath) as cinematic:
+                    cinematic_scene_items = []
+                    scenario_path = cinematic.scenario
+                    for element in cinematic.tag.SelectField("scenes").Elements:
+                        cin_scene_path = element.SelectField("Reference:scene").Path
+                        if cinematic.path_exists(cin_scene_path):
+                            cinematic_scene_items.append(cin_scene_path.RelativePathWithExtension)
+                    
+                    if cinematic.path_exists(scenario_path):
+                        with ScenarioTag(path=scenario_path) as scenario:
+                            sky_items = []
+                            for element in scenario.tag.SelectField("skies").Elements:
+                                sky = element.SelectField("Reference:sky").Path
+                                sky_path = scenario.get_path_str(sky, True)
+                                if sky_path and Path(sky_path).exists():
+                                    sky_items.append(sky.RelativePathWithExtension)
                         
             elif self.import_type == 'decorator_set':
                 global decorator_type_items
@@ -4448,6 +4511,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
             case 'cinematic':
                 layout.prop(self, "tag_cinematic_import_scenario")
                 layout.prop(self, "tag_cinematic_import_actors")
+                layout.prop(self, "tag_cinematic_scene")
                 layout.prop(self, "build_control_rig")
                 layout.prop(self, "tag_import_lights")
                 layout.prop(self, "tag_sky")
