@@ -182,7 +182,7 @@ class CinematicTag(Tag):
                     continue
                 
                 with CinematicSceneTag(path=scene_tagpath) as scene:
-                    scene_data = SceneData(*scene.to_blender(film_aperture, element.ElementIndex))
+                    scene_data = SceneData(*scene.to_blender(film_aperture, self.tag_path.ShortName, element.ElementIndex))
                     scene_datas.append(scene_data)
         
         return scene_datas, scenario_path, zone_set

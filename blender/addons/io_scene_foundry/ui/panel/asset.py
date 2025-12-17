@@ -71,10 +71,10 @@ class NWO_OT_CinematicSceneNew(bpy.types.Operator):
         nwo = utils.get_scene_props()
         cin_scene = nwo.cinematic_scenes.add()
         new_index = len(nwo.cinematic_scenes) - 1
-        scene_id = (new_index + 1) * 10
-        cin_scene.scene_id = scene_id
+        scene_id = f"{(new_index + 1) * 10:03d}"
+        cin_scene.name = scene_id
         if existing_scene is None:
-            cin_scene.scene = bpy.data.scenes.new(f"Scene {scene_id:03d}")
+            cin_scene.scene = bpy.data.scenes.new(f"Scene {scene_id}")
         else:
             cin_scene.scene = existing_scene
             
@@ -152,7 +152,7 @@ class NWO_OT_CinematicSceneMove(bpy.types.Operator):
 class NWO_UL_CinematicScenes(bpy.types.UIList):
     def draw_item(self, context, layout: bpy.types.UILayout, data, item, icon, active_data, active_propname, index, flt_flag):
         layout.alignment = 'LEFT'
-        layout.label(text=f'{item.scene_id:03d} [{"NONE" if item.scene is None else item.scene.name}]', icon='SCENE_DATA')
+        layout.label(text=f'{item.name} [{"NONE" if item.scene is None else item.scene.name}]', icon='SCENE_DATA')
         
 class NWO_OT_SetMainScene(bpy.types.Operator):
     bl_idname = "nwo.set_main_scene"

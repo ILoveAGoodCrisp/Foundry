@@ -281,7 +281,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 col.operator('nwo.cinematic_anchor_offset', icon='PIVOT_CURSOR')
                 col.separator()
                 box_scene = col.box()
-                box_scene.label(text="Cinematic Scenes")
+                # box_scene.label(text="Cinematic Scenes")
                 row = box_scene.row()
                 row.template_list(
                     "NWO_UL_CinematicScenes",
@@ -303,7 +303,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     col_cin.operator("nwo.scene_switch", icon="SCENE_DATA", text="")
                     col_end = col.column()
                     col_end.use_property_split = True
-                    col_end.prop(cin_scene, "scene_id")
+                    col_end.prop(cin_scene, "name")
                     col_end.prop(cin_scene, "scene")
 
             

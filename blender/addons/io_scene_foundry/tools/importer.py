@@ -1253,7 +1253,7 @@ class NWO_Import(bpy.types.Operator):
                             importer.tag_scenario_import_objects = self.tag_scenario_import_objects
                             importer.tag_scenario_import_decals = self.tag_scenario_import_decals
                             importer.tag_scenario_import_decorators = self.tag_scenario_import_decorators
-                            imported_cinematic_scenario_objects, scenario_collection = importer.import_scenarios([scenario], self.build_blender_materials, self.always_extract_bitmaps)
+                            imported_cinematic_scenario_objects, scenario_collection = importer.import_scenarios([scenario], self.build_blender_materials, self.always_extract_bitmaps, return_collection=True)
                             
                             imported_cinematic_objects.extend(imported_cinematic_scenario_objects)
                             
@@ -1263,7 +1263,10 @@ class NWO_Import(bpy.types.Operator):
                         first_scene = True
                         for sdata in scene_datas:
                             
-                            if not first_scene:
+                            if first_scene:
+                                if sdata.blender_scene:
+                                    context.window.scene = sdata.blender_scene
+                            else:
                                 first_scene = False
                             
                             camera_collection = bpy.data.collections.new(sdata.name)
@@ -1276,7 +1279,7 @@ class NWO_Import(bpy.types.Operator):
                             
                             for cin_object in sdata.object_animations:
                                 importer.tag_variant = cin_object.variant if cin_object.variant else "default"
-                                imported_cinematic_object_objects, armature, render_path = importer.import_object([cin_object.object_path], None, return_cin_stuff=True)
+                                imported_cinematic_object_objects, armature, render_path = importer.import_object([cin_object.object_path], None, return_cin_stuff=True, blender_scene=sdata.blender_scene)
                                 imported_cinematic_objects.extend(imported_cinematic_object_objects)
                                 cin_object.armature = armature
                                 cin_actions = importer.import_animation_graph(cin_object.graph_path, armature, render_path)
@@ -2058,9 +2061,13 @@ class NWOImporter:
         
         return imported_objects, imported_animations
     
-    def import_object(self, paths, existing_armature, pose=None, make_non_export=False, for_instance_conversion=False, return_cin_stuff=False) -> tuple[list[bpy.types.Object], list] | bpy.types.Collection:
+    def import_object(self, paths, existing_armature, pose=None, make_non_export=False, for_instance_conversion=False, return_cin_stuff=False, blender_scene=None) -> tuple[list[bpy.types.Object], list] | bpy.types.Collection:
         imported_objects = []
         imported_animations = []
+        if blender_scene is None:
+            scene_collection = self.context.scene
+        else:
+            scene_collection = blender_scene.collection
         is_game_object = isinstance(paths, bpy.types.Object)
         if is_game_object:
             paths = [paths]
@@ -2133,7 +2140,7 @@ class NWOImporter:
                                 model_collection = bpy.data.collections.new(f"{model.tag_path.ShortName} [{temp_variant}]")
                             else:
                                 model_collection = bpy.data.collections.new(model.tag_path.ShortName)
-                            self.context.scene.collection.children.link(model_collection)
+                            scene_collection.children.link(model_collection)
                             
                             if make_non_export:
                                 model_collection.nwo.type = 'exclude'
@@ -2169,9 +2176,9 @@ class NWOImporter:
                                             
                                                 if Path(fp_arms_path).exists():
                                                     fp_collection = bpy.data.collections.new(f"FP Arms - {self.import_fp_arms.name.title()}")
-                                                    self.context.scene.collection.children.link(fp_collection)
+                                                    scene_collection.children.link(fp_collection)
                                                     with RenderModelTag(path=fp_arms_path) as render_model:
-                                                        fp_objects, fp_armature = render_model.to_blend_objects(fp_collection, True, self.tag_markers, self.context.scene.collection, None, allowed_fp_region_permutations, no_io=True)
+                                                        fp_objects, fp_armature = render_model.to_blend_objects(fp_collection, True, self.tag_markers, scene_collection, None, allowed_fp_region_permutations, no_io=True)
                                                         fp_objects.remove(fp_armature)
                                                         render_objects.extend(fp_objects)
                                                         
@@ -2577,7 +2584,7 @@ class NWOImporter:
     def import_scenario_data(self):
         pass
     
-    def import_scenarios(self, paths, build_blender_materials, always_extract_bitmaps, dont_link_collection=False):
+    def import_scenarios(self, paths, build_blender_materials, always_extract_bitmaps, return_collection=False):
         imported_objects = []
         for file in paths:
             print(f'Importing Scenario Tag: {Path(file).with_suffix("").name} ')
@@ -2599,8 +2606,6 @@ class NWOImporter:
                     scenario_collection = bpy.data.collections.get(scenario_name)
                     if scenario_collection is None:
                         scenario_collection = bpy.data.collections.new(scenario_name)
-                        if not dont_link_collection:
-                            self.context.scene.collection.children.link(scenario_collection)
                     for bsp, sky_index in zip(bsps, sky_indices):
                         bsp_objects, bvh = self.import_bsp(bsp, scenario_collection, None if self.corinth else scenario.get_info(all_bsps.index(bsp)), do_raycasting, sky_index)
                         imported_objects.extend(bsp_objects)
@@ -2714,7 +2719,7 @@ class NWOImporter:
                         self.scene_nwo_export.create_debug_zone_set = False
                         # scenario.zone_sets_to_blender(self.tag_zone_set)
         
-        if dont_link_collection:
+        if return_collection:
             return imported_objects, scenario_collection
         else:
             return imported_objects
@@ -4376,7 +4381,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 global cinematic_scene_items
                 with CinematicTag(path=self.filepath) as cinematic:
                     cinematic_scene_items = []
-                    scenario_path = cinematic.scenario
+                    scenario_path = cinematic.scenario.Path
                     for element in cinematic.tag.SelectField("scenes").Elements:
                         cin_scene_path = element.SelectField("Reference:scene").Path
                         if cinematic.path_exists(cin_scene_path):

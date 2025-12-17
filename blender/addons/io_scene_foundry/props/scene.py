@@ -1944,10 +1944,9 @@ class NWO_CinematicEvent(PropertyGroup):
     
 class NWO_CinematicScene(PropertyGroup):
     
-    scene_id: bpy.props.IntProperty(
+    name: bpy.props.StringProperty(
         name="Scene ID",
-        min=0,
-        max=999,
+        default="default",
         options=set(),
     )
     
