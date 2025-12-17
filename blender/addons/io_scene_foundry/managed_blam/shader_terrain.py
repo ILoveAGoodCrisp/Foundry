@@ -67,7 +67,7 @@ class ShaderTerrainTag(ShaderTag):
         
         if e_blending.value > 1:
             old_model = e_blending.name
-            e_blending = TerrainBlending.MORPH
+            e_blending = TerrainBlending.DYNAMIC_MORPH
             utils.print_warning(f"Unsupported material model : {old_model}. Using {e_blending.name} instead")
         
         self.shader_parameters = {}

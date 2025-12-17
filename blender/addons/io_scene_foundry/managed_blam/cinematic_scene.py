@@ -431,7 +431,7 @@ class CinematicSceneTag(Tag):
         if cin_scene is None:
             cin_scene = self.scene_nwo.cinematic_scenes.add()
             
-        cin_scene.scene_id = scene_id
+        cin_scene.name = scene_id
         blender_scene = bpy.data.scenes.get(self.tag_path.ShortName)
         if blender_scene is None:
             blender_scene = bpy.data.scenes.new(self.tag_path.ShortName)

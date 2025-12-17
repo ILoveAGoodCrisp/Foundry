@@ -26,6 +26,9 @@ from mathutils.geometry import tessellate_polygon
 
 mat_props_cache = {}
 
+mesh_cache = {}
+armature_cache = {}
+
 class PartType(Enum): # Thank you Halo 2!
     not_drawn = 0
     opaque_shadow_only = 1
@@ -540,6 +543,14 @@ class Node:
     def __init__(self, name):
         self.name = name
         self.parent = None
+        self.index = -1
+        self.translation: Vector = None
+        self.rotation: Quaternion = None
+        self.inverse_forward: Vector = None
+        self.inverse_left: Vector = None
+        self.inverse_up: Vector = None
+        self.inverse_position: Vector = None
+        self.inverse_scale: float = 1
 
 class Permutation: 
     def __init__(self, element: TagFieldBlockElement, region: 'Region'):
@@ -579,9 +590,18 @@ class Region:
             self.permutations.append(Permutation(element, self))
 
 class RenderArmature():
-    def __init__(self, name, existing_armature=None):
+    def __init__(self, name, existing_armature=None, tag_path=None):
         if existing_armature is None:
-            self.data = bpy.data.armatures.new(name)
+            data = None
+            if tag_path is not None:
+                data = armature_cache.get(tag_path)
+                if data is not None and data in frozenset(bpy.data.armatures):
+                    self.data = data
+                else:
+                    self.data = bpy.data.armatures.new(name)
+            else:
+                self.data = bpy.data.armatures.new(name)
+                
             self.ob = bpy.data.objects.new(name, self.data)
         else:
             self.ob = existing_armature
@@ -1629,7 +1649,8 @@ class MeshSubpart:
 
 class Mesh:
     '''All new Halo 3 render geometry definitions!'''
-    def __init__(self, element: TagFieldBlockElement, bounds: CompressionBounds = None, permutation=None, materials=[], block_node_map=None, does_not_need_parts=False, from_vert_normals=False):
+    def __init__(self, element: TagFieldBlockElement, bounds: CompressionBounds = None, permutation=None, materials=[], block_node_map=None, does_not_need_parts=False, from_vert_normals=False, tag_path=None):
+        self.tag_path = tag_path
         self.index = element.ElementIndex
         self.permutation = permutation
         self.rigid_node_index = element.SelectField("rigid node index").Data
@@ -1674,6 +1695,11 @@ class Mesh:
         if vertex_keys is not None:
             self.vertex_keys = [e.Fields[0].Data for e in vertex_keys.Elements]
             self.mesh_keys = [e.Fields[1].Data for e in vertex_keys.Elements]
+            
+        self.render_model = None
+        self.temp_meshes = None
+        self.instances = []
+        self.real_mesh_index = -1
                 
             
     def _true_uvs(self, texcoords):
@@ -1688,66 +1714,13 @@ class Mesh:
     def create(self, render_model, temp_meshes: TagFieldBlock, nodes=[], parent: bpy.types.Object | None = None, instances: list['InstancePlacement'] = [], name="blam", is_io=False, surface_triangle_mapping=[], section_index=0, real_mesh_index=None):
         if not self.valid:
             return []
-        
-        raw_mesh_index = self.index if real_mesh_index is None else real_mesh_index
-        temp_mesh = temp_meshes.Elements[raw_mesh_index]
-            
-        raw_vertices = temp_mesh.SelectField("raw vertices")
-        raw_indices = temp_mesh.SelectField("raw indices")
-        if raw_indices.Elements.Count == 0:
-            raw_indices = temp_mesh.SelectField("raw indices32")
-
-        self.raw_positions = list(render_model.GetPositionsFromMesh(temp_meshes, raw_mesh_index))
-        self.raw_texcoords = list(render_model.GetTexCoordsFromMesh(temp_meshes, raw_mesh_index))
-        self.raw_normals = list(render_model.GetNormalsFromMesh(temp_meshes, raw_mesh_index))
-        self.raw_lightmap_texcoords = [e.Fields[5].Data for e in raw_vertices.Elements]
-        self.raw_vertex_colors = [e.Fields[8].Data for e in raw_vertices.Elements]
-        self.raw_texcoords1 = [e.Fields[9].Data for e in raw_vertices.Elements] if utils.is_corinth() else []
-        self.raw_water_texcoords = []
-
-        if not instances and self.rigid_node_index == -1:
-            self.raw_node_indices = list(render_model.GetNodeIndiciesFromMesh(temp_meshes, raw_mesh_index))
-            self.raw_node_weights = list(render_model.GetNodeWeightsFromMesh(temp_meshes, raw_mesh_index))
-
-        indices = [utils.unsigned_int16(element.Fields[0].Data) for element in raw_indices.Elements]
-        buffer = IndexBuffer(self.index_buffer_type, indices)
-        self.tris = buffer.get_faces(self)
-        if temp_mesh.SelectField("raw water data").Elements.Count > 0:
-            water_data = temp_mesh.SelectField("raw water data").Elements[0]
-
-            raw_water_indices = water_data.Fields[0]
-            water_indices_local = [utils.unsigned_int16(e.Fields[0].Data) for e in raw_water_indices.Elements]
-
-            raw_water_vertices = water_data.Fields[1]
-            self.raw_water_texcoords = [e.Fields[0].Data for e in raw_water_vertices.Elements]
-
-            water_subparts = [sp for sp in self.subparts if sp.is_water_surface]
-
-            water_global_index_stream = []
-            for sp in water_subparts:
-                s, c = sp.index_start, sp.index_count
-                water_global_index_stream.extend(indices[s:s + c])
-
-            if len(water_global_index_stream) != len(water_indices_local):
-                print(f"[warn] water index count mismatch: "
-                    f"global={len(water_global_index_stream)} local={len(water_indices_local)}")
-
-            local_to_global = {}
-            for gi, li in zip(water_global_index_stream, water_indices_local):
-                if li not in local_to_global:
-                    local_to_global[li] = gi
-
-            vert_count = len(self.raw_positions) // 3
-            full = [(0.0, 0.0)] * vert_count
-            
-            for local_id, uv in enumerate(self.raw_water_texcoords):
-                gi = local_to_global.get(local_id)
-                if gi is not None:
-                    full[gi] = (float(uv[0]), float(uv[1]))
-
-            self.raw_water_texcoords = full
 
         objects = []
+        
+        self.render_model = render_model
+        self.temp_meshes = temp_meshes
+        self.instances = instances
+        self.real_mesh_index = real_mesh_index
 
         if instances:
             for instance in instances:
@@ -1795,8 +1768,77 @@ class Mesh:
                 objects.append(ob_water)
         
         return objects
+    
+    def _get_raw_mesh_data(self):
+        raw_mesh_index = self.index if self.real_mesh_index is None else self.real_mesh_index
+        temp_mesh = self.temp_meshes.Elements[raw_mesh_index]
+            
+        raw_vertices = temp_mesh.SelectField("raw vertices")
+        raw_indices = temp_mesh.SelectField("raw indices")
+        if raw_indices.Elements.Count == 0:
+            raw_indices = temp_mesh.SelectField("raw indices32")
+
+        self.raw_positions = list(self.render_model.GetPositionsFromMesh(self.temp_meshes, raw_mesh_index))
+        self.raw_texcoords = list(self.render_model.GetTexCoordsFromMesh(self.temp_meshes, raw_mesh_index))
+        self.raw_normals = list(self.render_model.GetNormalsFromMesh(self.temp_meshes, raw_mesh_index))
+        self.raw_lightmap_texcoords = [e.Fields[5].Data for e in raw_vertices.Elements]
+        self.raw_vertex_colors = [e.Fields[8].Data for e in raw_vertices.Elements]
+        self.raw_texcoords1 = [e.Fields[9].Data for e in raw_vertices.Elements] if utils.is_corinth() else []
+        self.raw_water_texcoords = []
+
+        if not self.instances and self.rigid_node_index == -1:
+            self.raw_node_indices = list(self.render_model.GetNodeIndiciesFromMesh(self.temp_meshes, raw_mesh_index))
+            self.raw_node_weights = list(self.render_model.GetNodeWeightsFromMesh(self.temp_meshes, raw_mesh_index))
+
+        indices = [utils.unsigned_int16(element.Fields[0].Data) for element in raw_indices.Elements]
+        buffer = IndexBuffer(self.index_buffer_type, indices)
+        self.tris = buffer.get_faces(self)
+        if temp_mesh.SelectField("raw water data").Elements.Count > 0:
+            water_data = temp_mesh.SelectField("raw water data").Elements[0]
+
+            raw_water_indices = water_data.Fields[0]
+            water_indices_local = [utils.unsigned_int16(e.Fields[0].Data) for e in raw_water_indices.Elements]
+
+            raw_water_vertices = water_data.Fields[1]
+            self.raw_water_texcoords = [e.Fields[0].Data for e in raw_water_vertices.Elements]
+
+            water_subparts = [sp for sp in self.subparts if sp.is_water_surface]
+
+            water_global_index_stream = []
+            for sp in water_subparts:
+                s, c = sp.index_start, sp.index_count
+                water_global_index_stream.extend(indices[s:s + c])
+
+            if len(water_global_index_stream) != len(water_indices_local):
+                print(f"[warn] water index count mismatch: "
+                    f"global={len(water_global_index_stream)} local={len(water_indices_local)}")
+
+            local_to_global = {}
+            for gi, li in zip(water_global_index_stream, water_indices_local):
+                if li not in local_to_global:
+                    local_to_global[li] = gi
+
+            vert_count = len(self.raw_positions) // 3
+            full = [(0.0, 0.0)] * vert_count
+            
+            for local_id, uv in enumerate(self.raw_water_texcoords):
+                gi = local_to_global.get(local_id)
+                if gi is not None:
+                    full[gi] = (float(uv[0]), float(uv[1]))
+
+            self.raw_water_texcoords = full
 
     def _create_mesh(self, name, parent, nodes, subpart: MeshSubpart | None, parent_bone=None, local_matrix=None, is_io=False, surface_triangle_mapping=[], section_index=0):
+        has_tag_path = self.tag_path is not None
+        
+        if has_tag_path:
+            mesh_key = name, self.tag_path
+            mesh = mesh_cache.get(mesh_key)
+            if mesh is not None and mesh in frozenset(bpy.data.meshes):
+                return bpy.data.objects.new(name, mesh)
+        
+        self._get_raw_mesh_data()
+        
         matrix = local_matrix or (parent.matrix_world if parent else Matrix.Identity(4))
 
         indices = [t.indices for t in self.tris if not subpart or t.subpart == subpart]
@@ -1805,9 +1847,12 @@ class Mesh:
         idx_start, idx_end = vertex_indices[0], vertex_indices[-1]
         
         idx_start, idx_end = vertex_indices[0], vertex_indices[-1]
-
+        
         mesh = bpy.data.meshes.new(name)
         ob = bpy.data.objects.new(name, mesh)
+        
+        if has_tag_path:
+            mesh_cache[mesh_key] = mesh
 
         positions = [self.raw_positions[i:i+3] for i in range(idx_start * 3, (idx_end + 1) * 3, 3)]
         texcoords = [self.raw_texcoords[i:i+2] for i in range(idx_start * 2, (idx_end + 1) * 2, 2)]

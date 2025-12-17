@@ -117,6 +117,7 @@ object_tag_types = (
 )
 
 tag_files_cache = set()
+objects_cache = {}
 
 def set_asset(tag_ext: str, ob: bpy.types.Object=None, is_sky=False):
     scene_nwo = utils.get_scene_props()
@@ -330,8 +331,7 @@ class NWO_OT_ConvertScene(bpy.types.Operator):
                 bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
                 scene_nwo_export.show_output = False
             try:
-                export_title = f"►►► FOUNDRY CONVERTER ◄◄◄"
-                print(export_title, '\n')
+                utils.print_section("FOUNDRY CONVERTER")
                 converter = NWOImporter(context, [], [], existing_scene=True)
                 match self.convert_type:
                     case "amf":
@@ -737,8 +737,7 @@ class NWO_Import(bpy.types.Operator):
                 bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
                 scene_nwo_export.show_output = False
             try:
-                export_title = f"►►► FOUNDRY IMPORTER ◄◄◄"
-                print(export_title, '\n')
+                utils.print_section("FOUNDRY IMPORTER")
                 
                 # Start MB if the file is a tag and switch project as needed.
                 # Only checking the last file for speed (last file is always self.filepath if there was one).
@@ -909,10 +908,11 @@ class NWO_Import(bpy.types.Operator):
                             imported_object_objects = []
                             if game_object_collection is None:
                                 game_object_collection = importer.import_object(marker, None)
-                                merge_collection(game_object_collection)
+                                merged_collection = merge_collection(game_object_collection)
                                 imported_object_objects = game_object_collection.all_objects
                                 context.scene.collection.children.unlink(game_object_collection)
                                 # bpy.data.collections.link(game_object_collection)
+                                game_object_collection = merged_collection
                                 game_object_collection.nwo.game_object_path, game_object_collection.nwo.game_object_variant = key
                                 
                             marker.instance_type = 'COLLECTION'
@@ -1113,9 +1113,10 @@ class NWO_Import(bpy.types.Operator):
                         imported_object_objects = []
                         if game_object_collection is None:
                             game_object_collection = importer.import_prefab(marker)
-                            merge_collection(game_object_collection)
+                            merged_collection = merge_collection(game_object_collection, suffix="Prefab") 
                             imported_object_objects = game_object_collection.all_objects
                             context.scene.collection.children.unlink(game_object_collection)
+                            game_object_collection = merged_collection
                             # bpy.data.collections.link(game_object_collection)
                             game_object_collection.nwo.game_object_path = key
                             
@@ -1160,9 +1161,10 @@ class NWO_Import(bpy.types.Operator):
                         imported_object_objects = []
                         if game_object_collection is None:
                             game_object_collection = importer.import_decorator_set(marker, self.build_blender_materials, self.always_extract_bitmaps, self.decorator_type.lower() if self.decorator_type.strip() else None, int(self.decorator_lod), True)
-                            merge_collection(game_object_collection)
+                            merged_collection = merge_collection(game_object_collection, suffix="Decorator") 
                             imported_object_objects = game_object_collection.all_objects
                             context.scene.collection.children.unlink(game_object_collection)
+                            game_object_collection = merged_collection
                             # bpy.data.collections.link(game_object_collection)
                             game_object_collection.nwo.game_object_path, game_object_collection.nwo.game_object_variant = key
                             
@@ -1826,6 +1828,7 @@ class JMSMaterialSlot:
 class NWOImporter:
     def __init__(self, context, filepaths=[], scope=[], existing_scene=False):
         self.scene_nwo = utils.get_scene_props()
+        self.scene_nwo_export = utils.get_export_props()
         self.filepaths = filepaths
         self.context = context
         self.mesh_objects = []
@@ -2064,8 +2067,9 @@ class NWOImporter:
     def import_object(self, paths, existing_armature, pose=None, make_non_export=False, for_instance_conversion=False, return_cin_stuff=False, blender_scene=None) -> tuple[list[bpy.types.Object], list] | bpy.types.Collection:
         imported_objects = []
         imported_animations = []
+        armature = None
         if blender_scene is None:
-            scene_collection = self.context.scene
+            scene_collection = self.context.scene.collection
         else:
             scene_collection = blender_scene.collection
         is_game_object = isinstance(paths, bpy.types.Object)
@@ -2084,9 +2088,24 @@ class NWOImporter:
             self.import_variant_children = True
             
         for file in paths:
+            imported_file_objects = []
             if is_game_object:
                 game_object = file
                 file = str(Path(utils.get_tags_path(), game_object.nwo.marker_game_instance_tag_name))
+            
+            cache_key = file, self.tag_variant
+            cached = objects_cache.get(cache_key)
+            need_to_cache = cached is None
+            
+            if not need_to_cache and not self.tag_animation:
+                if self.tag_variant:
+                    print(f'Using Cached Object Tag: {Path(file).name} [{self.tag_variant}]')
+                else:
+                    print(f'Using Cached Object Tag: {Path(file).name} ')
+                imported_file_objects, armature, render, model_collection = duplicate_cached_import(*cached, scene_collection)
+                imported_objects.extend(imported_file_objects)
+                continue
+                
             if self.tag_variant:
                 print(f'Importing Object Tag: {Path(file).name} [{self.tag_variant}]')
             else:
@@ -2232,7 +2251,7 @@ class NWOImporter:
                                     
                                     self.fp_arms_imported = True
                                 
-                                imported_objects.extend(render_objects)
+                                imported_file_objects.extend(render_objects)
                                 
                                 has_change_colors = change_colors is not None
                                 
@@ -2294,9 +2313,9 @@ class NWOImporter:
                                                     driver.expression = var.name
                                                                                 
                             if not is_game_object and collision and self.tag_collision:
-                                imported_objects.extend(self.import_collision_model(collision, armature, model_collection, allowed_region_permutations))
+                                imported_file_objects.extend(self.import_collision_model(collision, armature, model_collection, allowed_region_permutations))
                             if not is_game_object and physics and self.tag_physics:
-                                imported_objects.extend(self.import_physics_model(physics, armature, model_collection, allowed_region_permutations))
+                                imported_file_objects.extend(self.import_physics_model(physics, armature, model_collection, allowed_region_permutations))
                             if not is_game_object and animation and self.tag_animation:
                                 print("Importing Animation Graph")
                                 imported_animations.extend(self.import_animation_graph(animation, armature, render))
@@ -2310,7 +2329,7 @@ class NWOImporter:
                                             light_objects = info.to_blender(model_collection)
                                             if light_objects:
                                                 print(f"Imported {len(light_objects)} lights from {info.tag_path.RelativePathWithExtension}")
-                                                imported_objects.extend(light_objects)
+                                                imported_file_objects.extend(light_objects)
                                                 for ob in light_objects:
                                                     ob.parent = armature
                                 
@@ -2324,7 +2343,7 @@ class NWOImporter:
                                         if child.child_object is None:
                                             continue
                                         print(f"--- {child.child_object.ShortNameWithExtension}")
-                                        imported_objects.extend(self.import_child_object(child, armature, {ob: ob.nwo.marker_model_group for ob in render_objects if ob.type == 'EMPTY'}, child_collection, is_game_object))
+                                        imported_file_objects.extend(self.import_child_object(child, armature, {ob: ob.nwo.marker_model_group for ob in render_objects if ob.type == 'EMPTY'}, child_collection, is_game_object))
                                     self.context.view_layer.update()
                                     
                             if self.import_biped_weapon and obj.tag_path.Extension == "biped":
@@ -2342,11 +2361,16 @@ class NWOImporter:
                                             child_marker = obj.tag.SelectField("Struct:unit[0]/Struct:more damn nodes[0]/StringId:preferred_gun_node").GetStringData()
                                             child.child_marker = child_marker if child_marker else "right_hand"
                                             child.child_object = weapon
-                                            imported_objects.extend(self.import_child_object(child, armature, {ob: ob.nwo.marker_model_group for ob in render_objects if ob.type == 'EMPTY'}, weapon_collection, is_game_object))
+                                            imported_file_objects.extend(self.import_child_object(child, armature, {ob: ob.nwo.marker_model_group for ob in render_objects if ob.type == 'EMPTY'}, weapon_collection, is_game_object))
                                     self.context.view_layer.update()
                                     
                             if not is_game_object and self.setup_as_asset:
                                 set_asset(Path(file).suffix, armature, model.is_sky())
+                                
+                            if need_to_cache:
+                                objects_cache[cache_key] = imported_file_objects, armature, render, model_collection.name
+                                
+                            imported_objects.extend(imported_file_objects)
 
         if is_game_object:
             return model_collection
@@ -2359,8 +2383,18 @@ class NWOImporter:
     
     def import_child_object(self, child_object: ChildObject, parent_armature: bpy.types.Object, markers: dict[bpy.types.Object: str], child_collection, is_game_object):
         imported_objects = []
+        armature = None
         if child_object.child_object is None:
             return imported_objects
+        
+        cache_key = child_object.child_object, child_object.child_variant_name
+        cached = objects_cache.get(cache_key)
+        need_to_cache = cached is None
+        if not need_to_cache:
+            imported_file_objects, armature, render, model_collection = duplicate_cached_import(*cached, child_collection)
+            imported_objects.extend(imported_file_objects)
+            return imported_objects
+        
         with ObjectTag(path=child_object.child_object, raise_on_error=False) as obj:
             model_path = obj.get_model_tag_path_full()
             if not model_path or not Path(model_path).exists():
@@ -2512,6 +2546,9 @@ class NWOImporter:
                             attach_point.matrix_world = parent_armature.matrix_world
                         else:
                             armature.parent = parent_armature
+                            
+                    if need_to_cache:
+                        objects_cache[cache_key] = imported_objects, armature, render, model_collection.name
                         
         return imported_objects
             
@@ -2606,6 +2643,7 @@ class NWOImporter:
                     scenario_collection = bpy.data.collections.get(scenario_name)
                     if scenario_collection is None:
                         scenario_collection = bpy.data.collections.new(scenario_name)
+                        self.context.scene.collection.children.link(scenario_collection)
                     for bsp, sky_index in zip(bsps, sky_indices):
                         bsp_objects, bvh = self.import_bsp(bsp, scenario_collection, None if self.corinth else scenario.get_info(all_bsps.index(bsp)), do_raycasting, sky_index)
                         imported_objects.extend(bsp_objects)
@@ -2660,11 +2698,12 @@ class NWOImporter:
                                             game_object_collection = self.import_prefab(ob)
                                         else:
                                             game_object_collection = self.import_object(ob, None, skeleton_pose)
-                                            
-                                        merge_collection(game_object_collection, has_skeleton_pose)
+                                        
+                                        merged_collection = merge_collection(game_object_collection, has_skeleton_pose) 
                                         imported_objects.extend(game_object_collection.all_objects)
                                         self.context.scene.collection.children.unlink(game_object_collection)
                                         # bpy.data.collections.link(game_object_collection)
+                                        game_object_collection = merged_collection
                                         if not has_skeleton_pose:
                                             game_object_collection.nwo.game_object_path, game_object_collection.nwo.game_object_variant = key
                                             game_object_cache[key] = game_object_collection
@@ -2688,10 +2727,11 @@ class NWOImporter:
                                     
                                     if game_object_collection is None:
                                         game_object_collection = self.import_decorator_set(ob, build_blender_materials, always_extract_bitmaps, single_type=ob.nwo.marker_game_instance_tag_variant_name, lod=self.decorator_lod, only_single_type=True)
-                                        merge_collection(game_object_collection)
+                                        merged_collection = merge_collection(game_object_collection, suffix="Decorator")
                                         imported_objects.extend(game_object_collection.all_objects)
                                         self.context.scene.collection.children.unlink(game_object_collection)
                                         # bpy.data.collections.link(game_object_collection)
+                                        game_object_collection = merged_collection
                                         game_object_collection.nwo.game_object_path, game_object_collection.nwo.game_object_variant = key
                                         game_object_cache[key] = game_object_collection
                                         
@@ -2754,14 +2794,17 @@ class NWOImporter:
                         game_object_collection = game_object_cache.get(key)
                         
                         if game_object_collection is None:
+                            suffix = "Marker"
                             if ob.nwo.marker_game_instance_tag_name.endswith(".prefab"):
                                 game_object_collection = self.import_prefab(ob)
+                                suffix = "Prefab"
                             else:
                                 game_object_collection = self.import_object(ob, None)
-                            merge_collection(game_object_collection)
+                            merged_collection = merge_collection(game_object_collection, suffix=suffix)
                             bsp_objects.extend(game_object_collection.all_objects)
                             self.context.scene.collection.children.unlink(game_object_collection)
                             # bpy.data.collections.link(game_object_collection)
+                            game_object_collection = merged_collection
                             game_object_collection.nwo.game_object_path, game_object_collection.nwo.game_object_variant = key
                             game_object_cache[key] = game_object_collection
                             
@@ -4672,38 +4715,37 @@ class NWO_FH_ImportShaderAsMaterial(bpy.types.FileHandler):
     def poll_drop(cls, context):
         return (context.area and context.area.type in {'NODE_EDITOR', 'VIEW_3D', 'PROPERTIES'})
     
-def merge_collection(collection: bpy.types.Collection, keep_armature=False):
+def merge_collection(collection: bpy.types.Collection, suffix="Marker"):
     """Reduces a collection down to just the meshes. Clearing markers and armatures"""
-    utils.deselect_all_objects()
-    any_parents = False
-    to_remove_objects = []
-    to_remove_data = []
+    # utils.deselect_all_objects()
+    # any_parents = False
+    # to_remove_objects = []
+    # to_remove_data = []
     allowed_types = {'MESH', 'LIGHT'}
-    if keep_armature:
-        allowed_types.add('ARMATURE')
+    merged_collection = bpy.data.collections.new(f"{collection.name} {suffix}")
+    # if keep_armature:
+    #     allowed_types.add('ARMATURE')
     for ob in collection.all_objects:
         if ob.type in allowed_types:
-            has_parent = ob.parent is not None
-            if has_parent:
-                any_parents = True
-                ob.select_set(True)
-                bpy.context.view_layer.objects.active = ob
-        else:
-            to_remove_objects.append(ob)
-            if ob.data is not None:
-                to_remove_data.append(ob.data)
+            merged_collection.objects.link(ob)
+            # has_parent = ob.parent is not None
+            # if has_parent:
+            #     any_parents = True
+            #     ob.select_set(True)
+            #     bpy.context.view_layer.objects.active = ob
+        # else:
+        #     to_remove_objects.append(ob)
+        #     if ob.data is not None:
+        #         to_remove_data.append(ob.data)
     
-    if any_parents:
-        bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
-    if to_remove_objects:
-        bpy.data.batch_remove(to_remove_objects)
-        if to_remove_data:
-            bpy.data.batch_remove(to_remove_data)
+    # if any_parents:
+    #     bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
+    # if to_remove_objects:
+    #     bpy.data.batch_remove(to_remove_objects)
+    #     if to_remove_data:
+    #         bpy.data.batch_remove(to_remove_data)
     
-    # for ob in to_remove_objects:
-    #     bpy.data.objects.remove(ob)
-        
-    # bpy.ops.object.join()
+    return merged_collection
     
     for ob in list(collection.all_objects):
         utils.unlink(ob)
@@ -4872,19 +4914,23 @@ class NWO_ImportGameInstanceTag(bpy.types.Operator):
             importer = NWOImporter(context)
             starting_materials = bpy.data.materials[:]
             
+            suffix = "Marker"
             if tag_path_full.suffix.lower() == ".prefab":
+                suffix = "Prefab"
                 collection = importer.import_prefab(ob)
             elif tag_path_full.suffix.lower() == ".decorator_set":
+                suffix = "Decorator"
                 collection = importer.import_decorator_set(ob, self.build_blender_materials, self.always_extract_bitmaps, single_type=variant, lod=int(self.decorator_lod), only_single_type=True)
             else:
                 collection = importer.import_object(ob, None)
             if importer.needs_scaling:
                 utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', scene_nwo.forward_direction, objects=collection.all_objects, actions=[])
-                
-            merge_collection(collection)
+            
+            merged_collection = merge_collection(collection, suffix=suffix)
             context.scene.collection.children.unlink(collection)
             collection.nwo.game_object_path = tag_path_rel
             collection.nwo.game_object_variant = variant
+            collection = merged_collection
             
             setup_materials(context, importer, starting_materials, collection.all_objects, self.build_blender_materials, self.always_extract_bitmaps)
             
@@ -5024,3 +5070,47 @@ def add_sdata_to_nla(sdata):
                 ad.action = None
 
             # print(f"Added {action.name} to {arm.name} at frame {shot_frame}")
+
+def duplicate_cached_import(
+    template_objects,
+    template_armature,
+    render_ref,
+    collection_name,
+    parent_collection,
+):
+    new_collection = bpy.data.collections.new(collection_name)
+    parent_collection.children.link(new_collection)
+
+    # --- duplicate armature (object copy + data copy)
+    armature = template_armature.copy()
+    armature.data = template_armature.data
+    new_collection.objects.link(armature)
+
+    obj_map = {}
+
+    # --- duplicate render objects
+    for src in template_objects:
+        if src == armature:
+            obj = armature
+        else:
+            obj = src.copy()
+
+        new_collection.objects.link(obj)
+        obj_map[src] = obj
+
+    # --- restore parenting
+    for src, obj in obj_map.items():
+        if src.parent in obj_map:
+            obj.parent = obj_map[src.parent]
+
+        obj.parent_type = src.parent_type
+        obj.parent_bone = src.parent_bone
+
+    # --- fix armature modifiers
+    for obj in obj_map.values():
+        if obj.type == 'MESH':
+            for mod in obj.modifiers:
+                if mod.type == 'ARMATURE':
+                    mod.object = armature
+
+    return list(obj_map.values()), armature, render_ref, new_collection

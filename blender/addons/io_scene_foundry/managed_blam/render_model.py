@@ -137,7 +137,9 @@ class RenderModelTag(Tag):
     
     def _create_armature(self, existing_armature=None, build_control_rig=False):
         # print("Creating Armature")
-        arm = RenderArmature(f"{self.tag.Path.ShortName}", existing_armature)
+        arm = RenderArmature(f"{self.tag_path.ShortName}", existing_armature, tag_path=self.tag_path.RelativePathWithExtension)
+        if arm.data.bones:
+            return arm.ob
         self.nodes: list[Node] = []
         uses_aim_bones = False
         uses_pedestal = False
@@ -147,7 +149,7 @@ class RenderModelTag(Tag):
         pitch = None
         yaw = None
         for element in self.block_nodes.Elements:
-            node = Node(element.SelectField("name").GetStringData(), )
+            node = Node(element.SelectField("name").GetStringData())
             
             node.index = element.ElementIndex
             translation = element.SelectField("default translation").Data
@@ -187,34 +189,30 @@ class RenderModelTag(Tag):
                 
             self.nodes.append(node)
         
-        if existing_armature is None:
-            self.model_collection.objects.link(arm.ob)
-            arm.ob.select_set(True)
-            utils.set_active_object(arm.ob)
-            bpy.ops.object.editmode_toggle()
-            for node in self.nodes: arm.create_bone(node)
-            for node in self.nodes: arm.parent_bone(node)
-            bpy.ops.object.editmode_toggle()
-            # Set render_model ref for node order
-            arm.ob.nwo.node_order_source = self.tag_path.RelativePathWithExtension
-            
-            if build_control_rig:
-            # make the rig not terrible
-                scale = 1 / 0.03048
-                rig = HaloRig(self.context, scale, 'x', uses_aim_bones, False)
-                rig.rig_ob = arm.ob
-                rig.rig_data = arm.data
-                rig.rig_pose = arm.ob.pose
-                rig.build_bones(pedestal=pedestal, pitch=pitch, yaw=yaw)
-                if uses_pedestal or uses_aim_bones:
-                    rig.build_and_apply_control_shapes(wireframe=True, reach_fp_fix=reach_fp_fix, reverse_control=True)
-                rig.apply_halo_bone_shape()
-                rig.build_fk_ik_rig(reverse_controls=True)
-                rig.generate_bone_collections()
-        else:
-            for node in self.nodes:
-                node.bone = next((b for b in arm.ob.data.bones if b.name == node.name), None)
+        self.model_collection.objects.link(arm.ob)
+        arm.ob.select_set(True)
+        utils.set_active_object(arm.ob)
+        bpy.ops.object.editmode_toggle()
+        for node in self.nodes: arm.create_bone(node)
+        for node in self.nodes: arm.parent_bone(node)
+        bpy.ops.object.editmode_toggle()
+        # Set render_model ref for node order
+        arm.ob.nwo.node_order_source = self.tag_path.RelativePathWithExtension
         
+        if build_control_rig:
+        # make the rig not terrible
+            scale = 1 / 0.03048
+            rig = HaloRig(self.context, scale, 'x', uses_aim_bones, False)
+            rig.rig_ob = arm.ob
+            rig.rig_data = arm.data
+            rig.rig_pose = arm.ob.pose
+            rig.build_bones(pedestal=pedestal, pitch=pitch, yaw=yaw)
+            if uses_pedestal or uses_aim_bones:
+                rig.build_and_apply_control_shapes(wireframe=True, reach_fp_fix=reach_fp_fix, reverse_control=True)
+            rig.apply_halo_bone_shape()
+            rig.build_fk_ik_rig(reverse_controls=True)
+            rig.generate_bone_collections()
+
         return arm.ob
         
 
@@ -257,7 +255,7 @@ class RenderModelTag(Tag):
                 if permutation.mesh_index < 0: continue
                 for i in range(permutation.mesh_count):
                     real_mesh_idx = None
-                    mesh = Mesh(self.block_meshes.Elements[permutation.mesh_index + i], self.bounds, permutation, materials, mesh_node_map, from_vert_normals=from_vert_normals)
+                    mesh = Mesh(self.block_meshes.Elements[permutation.mesh_index + i], self.bounds, permutation, materials, mesh_node_map, from_vert_normals=from_vert_normals, tag_path=self.tag_path.RelativePathWithExtension)
                     for part in mesh.parts:
                         part.material = materials[part.material_index]
                     
@@ -338,7 +336,7 @@ class RenderModelTag(Tag):
             utils.set_permutation(ob, permutation)
             
         if self.instances:
-            instance_mesh = Mesh(self.block_meshes.Elements[self.instance_mesh_index], self.bounds, None, materials, mesh_node_map, from_vert_normals=from_vert_normals)
+            instance_mesh = Mesh(self.block_meshes.Elements[self.instance_mesh_index], self.bounds, None, materials, mesh_node_map, from_vert_normals=from_vert_normals, tag_path=self.tag_path.RelativePathWithExtension)
             ios = instance_mesh.create(render_model, self.block_per_mesh_temporary, self.nodes, self.armature, self.instances, is_io=True)
             for ob in ios:
                 ob.data.nwo.mesh_type = "_connected_geometry_mesh_type_object_instance"

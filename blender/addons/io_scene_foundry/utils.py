@@ -5684,3 +5684,29 @@ def get_launcher_props():
             return s.nwo_halo_launcher
 
     return scene.nwo_halo_launcher
+
+class Section(Enum):
+    FILE = "FILE"
+    OBJECT = "OBJECT"
+    STEP = "STEP"
+    INFO = "INFO"
+    WARNING = "WARNING"
+    ERROR = "ERROR"
+
+_last_section = None
+
+def print_section(title: str):
+    print()
+    print("=" * len(title))
+    print(title)
+    print("=" * len(title))
+
+def print_object(title: str):
+    print()
+    print(f"• {title}")
+
+def print_step(msg: str):
+    print(f"  - {msg}")
+
+def print_info(msg: str):
+    print(f"    {msg}")
