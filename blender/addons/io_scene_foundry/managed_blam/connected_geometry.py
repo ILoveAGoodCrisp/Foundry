@@ -29,6 +29,12 @@ mat_props_cache = {}
 mesh_cache = {}
 armature_cache = {}
 
+def clear_cache():
+    global mesh_cache
+    global armature_cache
+    mesh_cache = {}
+    armature_cache = {}
+
 class PartType(Enum): # Thank you Halo 2!
     not_drawn = 0
     opaque_shadow_only = 1
@@ -512,7 +518,7 @@ class EnvironmentObject:
         
     def to_object(self):
         if self.reference is None or self.reference.definition is None:
-            return print(f"Found environment object named {self.name} but it has no valid tag reference")
+            return utils.print_warning(f"Found environment object named {self.name} but it has no valid tag reference")
             
         ob = bpy.data.objects.new(name=self.name, object_data=None)
         ob.empty_display_type = "ARROWS"
@@ -966,9 +972,9 @@ class RigidBody:
                             self.shapes.append(Polyhedron(tag.block_polyhedra.Elements[list_shape_index], materials, tag.block_polyhedron_four_vectors, four_vectors_map))
                             self.four_vectors_offset = self.shapes[-1].offset
                         case _:
-                            print(f"Unsupported physics shape type: {self.shape_type.name}")
+                            utils.print_warning(f"Unsupported physics shape type: {self.shape_type.name}")
             case _:
-                print(f"Unsupported physics shape type: {self.shape_type.name}")
+                utils.print_warning(f"Unsupported physics shape type: {self.shape_type.name}")
                 
     def to_objects(self) -> bpy.types.Object:
         for shape in self.shapes:
@@ -1240,8 +1246,6 @@ class BSP:
                     
         if surface_indices:
             to_remove.update({idx for idx in range(len(bm.faces)) if idx not in set(surface_indices)})
-        
-        # print(to_remove)
         
         if to_remove:
             bmesh.ops.delete(bm, geom=[bm.faces[i] for i in to_remove], context='FACES')
@@ -1724,6 +1728,7 @@ class Mesh:
 
         if instances:
             for instance in instances:
+                utils.print_step(instance.name)
                 subpart = self.subparts[instance.index]
                 ob = self._create_mesh(instance.name, parent, nodes, subpart, instance.bone, instance.matrix, is_io)
                 ob.scale = Vector.Fill(3, instance.scale)
@@ -1732,6 +1737,7 @@ class Mesh:
         else:
             if self.permutation:
                 name = f"{self.permutation.region.name}:{self.permutation.name}"
+                utils.print_step(name)
                 
             ob = self._create_mesh(name, parent, nodes, None, surface_triangle_mapping=surface_triangle_mapping, section_index=section_index)
             objects.append(ob)
@@ -1809,10 +1815,6 @@ class Mesh:
                 s, c = sp.index_start, sp.index_count
                 water_global_index_stream.extend(indices[s:s + c])
 
-            if len(water_global_index_stream) != len(water_indices_local):
-                print(f"[warn] water index count mismatch: "
-                    f"global={len(water_global_index_stream)} local={len(water_indices_local)}")
-
             local_to_global = {}
             for gi, li in zip(water_global_index_stream, water_indices_local):
                 if li not in local_to_global:
@@ -1830,16 +1832,26 @@ class Mesh:
 
     def _create_mesh(self, name, parent, nodes, subpart: MeshSubpart | None, parent_bone=None, local_matrix=None, is_io=False, surface_triangle_mapping=[], section_index=0):
         has_tag_path = self.tag_path is not None
-        
+        needs_new_mesh = True
+        matrix = local_matrix or (parent.matrix_world if parent else Matrix.Identity(4))
         if has_tag_path:
             mesh_key = name, self.tag_path
             mesh = mesh_cache.get(mesh_key)
             if mesh is not None and mesh in frozenset(bpy.data.meshes):
-                return bpy.data.objects.new(name, mesh)
-        
+                ob = bpy.data.objects.new(name, mesh)
+                if parent:
+                    ob.parent = parent
+                    if parent.type == 'ARMATURE':
+                        if self.rigid_node_index > -1:
+                            ob.parent_type = "BONE"
+                            ob.parent_bone = parent_bone or nodes[self.rigid_node_index].name
+                            ob.matrix_world = matrix
+                        else:
+                            ob.modifiers.new(name="Armature", type="ARMATURE").object = parent
+                            
+                return ob
+            
         self._get_raw_mesh_data()
-        
-        matrix = local_matrix or (parent.matrix_world if parent else Matrix.Identity(4))
 
         indices = [t.indices for t in self.tris if not subpart or t.subpart == subpart]
 
@@ -1870,8 +1882,6 @@ class Mesh:
         transform_matrix = self.bounds.co_matrix if self.bounds else Matrix.Scale(100, 4)
         mesh.transform(transform_matrix)
 
-        print(f"--- {name}")
-
         has_vertex_colors = any(any(v) for v in vertex_colors)
         has_lighting_texcoords = any(any(v) for v in lighting_texcoords)
         has_texcoords1 = bool(texcoords1) and any(any(v) for v in texcoords1)
@@ -1891,7 +1901,6 @@ class Mesh:
                 
             water_uvs = self._true_uvs(water_texcoords) if self.bounds else [Vector((u, 1-v)) for (u, v) in water_texcoords]
             
-
         if uv_layer:
             for face in mesh.polygons:
                 for vert_idx, loop_idx in zip(face.vertices, face.loop_indices):
@@ -1911,8 +1920,8 @@ class Mesh:
         if has_vertex_colors:
             vcolor_attribute = mesh.color_attributes.new("Color", 'FLOAT_COLOR', 'POINT')
             rgba = np.c_[vertex_colors, np.ones(len(mesh.vertices))]
-            vcolor_attribute.data.foreach_set("color", rgba.ravel())   
-
+            vcolor_attribute.data.foreach_set("color", rgba.ravel())
+            
         if parent:
             ob.parent = parent
             if parent.type == 'ARMATURE':
@@ -1921,16 +1930,18 @@ class Mesh:
                     ob.parent_bone = parent_bone or nodes[self.rigid_node_index].name
                     ob.matrix_world = matrix
                 else:
-                    node_indices = [self.raw_node_indices[i:i+4] for i in range(idx_start * 4, (idx_end + 1) * 4, 4)]
-                    node_weights = [self.raw_node_weights[i:i+4] for i in range(idx_start * 4, (idx_end + 1) * 4, 4)]
-                    vgroups = ob.vertex_groups
-                    for idx, (ni, nw) in enumerate(zip(node_indices, node_weights)):
-                        for i, w in zip(ni, nw):
-                            if 0 <= i <= 254 and w > 0:
-                                if self.node_map:
-                                    i = self.node_map[i]
-                                group = vgroups.get(nodes[i].name) or vgroups.new(name=nodes[i].name)
-                                group.add([idx], w, 'REPLACE')
+                    if needs_new_mesh:
+                        node_indices = [self.raw_node_indices[i:i+4] for i in range(idx_start * 4, (idx_end + 1) * 4, 4)]
+                        node_weights = [self.raw_node_weights[i:i+4] for i in range(idx_start * 4, (idx_end + 1) * 4, 4)]
+                        vgroups = ob.vertex_groups
+                        for idx, (ni, nw) in enumerate(zip(node_indices, node_weights)):
+                            for i, w in zip(ni, nw):
+                                if 0 <= i <= 254 and w > 0:
+                                    if self.node_map:
+                                        i = self.node_map[i]
+                                    group = vgroups.get(nodes[i].name) or vgroups.new(name=nodes[i].name)
+                                    group.add([idx], w, 'REPLACE')
+                                    
                     ob.modifiers.new(name="Armature", type="ARMATURE").object = parent
 
         # water_subparts = []
@@ -1989,7 +2000,6 @@ class Mesh:
                 utils.add_face_prop(mesh, "face_mode", None if breakable_mask.all() else breakable_mask).face_mode = 'breakable'
             if render_only_mask.any():
                 utils.add_face_prop(mesh, "face_mode", None if render_only_mask.all() else render_only_mask).face_mode = 'render_only'
-
 
         # for subpart in water_subparts:
         #     subpart.remove(ob, self.tris)

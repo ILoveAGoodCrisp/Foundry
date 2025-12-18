@@ -426,7 +426,7 @@ class CinematicSceneTag(Tag):
         actions = []
         shot_frames = []
         
-        scene_id = self.tag_path.ShortName[len(cinematic_name):]
+        scene_id = self.tag_path.ShortName[(len(cinematic_name) + 1):]
         cin_scene = self.scene_nwo.cinematic_scenes.get(scene_id)
         if cin_scene is None:
             cin_scene = self.scene_nwo.cinematic_scenes.add()
@@ -437,7 +437,7 @@ class CinematicSceneTag(Tag):
             blender_scene = bpy.data.scenes.new(self.tag_path.ShortName)
         cin_scene.scene = blender_scene
         
-        print(f"Importing cinematic scene: {self.tag_path.ShortName}")
+        utils.print_tag(f"Importing cinematic scene: {self.tag_path.ShortName}")
         
         for element in self.tag.SelectField("Block:objects").Elements:
             name = element.SelectField("name").GetStringData()
@@ -454,7 +454,7 @@ class CinematicSceneTag(Tag):
                 object_animations.append(cin_object)
         
         for element in self.tag.SelectField("shots").Elements:
-            print(f"--- Creating camera data for shot: {element.ElementIndex + 1}")
+            utils.print_step(f"Creating camera data for shot: {element.ElementIndex + 1}")
             shot_camera_name = f"{self.tag_path.ShortName}_shot{element.ElementIndex + 1}"
             shot_camera_data = bpy.data.cameras.new(shot_camera_name)
             shot_camera = bpy.data.objects.new(shot_camera_name, shot_camera_data)

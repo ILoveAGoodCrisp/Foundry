@@ -265,7 +265,7 @@ class RenderModelTag(Tag):
                             continue
                         
                         real_mesh_idx = region_perm_raw_mesh[tuple((region.name, mesh.permutation.clone_name, i))]
-
+                    
                     obs = mesh.create(render_model, self.block_per_mesh_temporary, self.nodes, self.armature, real_mesh_index=real_mesh_idx)
                     # NOTE This code doesn't work correctly
                     if False and mesh.mesh_keys:

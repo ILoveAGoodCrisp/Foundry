@@ -395,7 +395,6 @@ class AnimationTag(Tag):
                 
     def to_blender(self, render_model: str, armature, filter: str, import_pca=False):
         # Prepare exporter
-        print()
         # print(self.resource_info())
         actions = []
         bone_base_matrices = {}
@@ -453,7 +452,7 @@ class AnimationTag(Tag):
                 slot = action.slots.new('OBJECT', armature.name)
                 armature.animation_data.last_slot_identifier = slot.identifier
                 armature.animation_data.action = action
-                print(f"--- {action.name}")
+                utils.print_step(action.name)
                 animation = self.scene_nwo.animations.add()
                 animation.name = new_name
                 # action.use_fake_user = True
@@ -1007,7 +1006,7 @@ class AnimationTag(Tag):
                     # utils.print_warning(f"--- Animation graph contains animation {name_with_spaces} but Blender does not")
                     continue
                 
-            print(f"--- Getting events for {blender_animation.name}")
+            utils.print_bullet(f"Getting events for {blender_animation.name}")
             
             animation_events: list[AnimationEvent] = []
             

@@ -5701,12 +5701,18 @@ def print_section(title: str):
     print(title)
     print("=" * len(title))
 
-def print_object(title: str):
+def print_tag(title: str):
     print()
     print(f"• {title}")
+    
+def print_done(msg: str):
+    print(f"-> {msg}")
 
 def print_step(msg: str):
     print(f"  - {msg}")
+    
+def print_bullet(msg: str):
+    print(f"• {msg}")
 
 def print_info(msg: str):
     print(f"    {msg}")

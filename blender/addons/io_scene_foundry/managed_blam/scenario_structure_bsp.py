@@ -175,13 +175,13 @@ class ScenarioStructureBspTag(Tag):
                         if not for_cinematic:
                             lightmap_regions = info.lightmap_regions_to_blender()
                             if lightmap_regions:
-                                print(f"Imported {len(lightmap_regions)} lightmap regions from {info.tag_path.RelativePathWithExtension}")
+                                utils.print_step(f"Imported {len(lightmap_regions)} lightmap regions from {info.tag_path.RelativePathWithExtension}")
                                 objects.extend(lightmap_regions)
                 
                 if import_lights:
                     light_objects = info.to_blender(collection)
                     if light_objects:
-                        print(f"Imported {len(light_objects)} lights from {info.tag_path.RelativePathWithExtension}")
+                        utils.print_step(f"Imported {len(light_objects)} lights from {info.tag_path.RelativePathWithExtension}")
                         objects.extend(light_objects)
                             
         if not import_geometry:
@@ -204,18 +204,23 @@ class ScenarioStructureBspTag(Tag):
         temp_meshes = self.tag.SelectField("Struct:render geometry[0]/Block:per mesh temporary")
         meshes = self.tag.SelectField("Struct:render geometry[0]/Block:meshes")
         # Get all instance definitions
-        if self.block_instances.Elements.Count > 0:
+        num_defs = self.block_instance_definitions.Elements.Count
+        if num_defs > 0:
             instance_definitions = []
-            print("Creating Instance Definitions")
-            for element in self.block_instance_definitions.Elements:
-                definition = InstanceDefinition(element, meshes, bounds, render_materials, collision_materials, for_cinematic)
-                objects.extend(definition.create(render_model, temp_meshes))
-                instance_definitions.append(definition)
+            process = "  - Creating Instance Definitions"
+            with utils.Spinner():
+                utils.update_job_count(process, "", 0, num_defs)
+                for element in self.block_instance_definitions.Elements:
+                    definition = InstanceDefinition(element, meshes, bounds, render_materials, collision_materials, for_cinematic)
+                    objects.extend(definition.create(render_model, temp_meshes))
+                    instance_definitions.append(definition)
+                    utils.update_job_count(process, "", element.ElementIndex, num_defs)
+                utils.update_job_count(process, "", num_defs, num_defs)
             
             # Create instanced geometries
         
             # poops = []
-            print("Creating Instanced Objects")
+            utils.print_step("Creating Instanced Objects")
             ig_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_instances")
             self.collection.children.link(ig_collection)
             # Keeping track of the collections we add in this bsp import
@@ -249,7 +254,6 @@ class ScenarioStructureBspTag(Tag):
             
         # Create structure
         structure_objects = []
-        print("Creating Structure")
         collision = None
         
         layer = utils.add_permutation("structure")
@@ -264,26 +268,35 @@ class ScenarioStructureBspTag(Tag):
             if collision is not None:
                 structure_surface_triangle_mapping = [SurfaceMapping(e.Fields[0].Data, e.Fields[1].Data, collision.surfaces[e.ElementIndex], self.tag.SelectField("Block:structure surface to triangle mapping")) for e in self.tag.SelectField("Block:large structure surfaces").Elements]
         
-        for element in self.tag.SelectField("Block:clusters").Elements:
-            structure = Cluster(element, meshes, render_materials)
-            structure_obs = structure.create(render_model, temp_meshes, structure_surface_triangle_mapping, element.ElementIndex)
-            for ob in structure_obs:
-                if ob is not None and ob.data and ob.data.polygons:
-                    # structure_collection.objects.link(ob)
+        
+        num_clusters = self.tag.SelectField("Block:clusters").Elements.Count
+        if num_clusters > 0:
+            instance_definitions = []
+            process = "  - Creating Clusters"
+            with utils.Spinner():
+                utils.update_job_count(process, "", 0, num_clusters)
+                for element in self.tag.SelectField("Block:clusters").Elements:
+                    structure = Cluster(element, meshes, render_materials)
+                    structure_obs = structure.create(render_model, temp_meshes, structure_surface_triangle_mapping, element.ElementIndex)
+                    for ob in structure_obs:
+                        if ob is not None and ob.data and ob.data.polygons:
+                            # structure_collection.objects.link(ob)
 
-                    if ob.data.nwo.mesh_type == '_connected_geometry_mesh_type_water_surface':
-                        objects.append(ob)
-                        structure_collection.objects.link(ob)
-                    else:
-                        structure_objects.append(ob)
+                            if ob.data.nwo.mesh_type == '_connected_geometry_mesh_type_water_surface':
+                                objects.append(ob)
+                                structure_collection.objects.link(ob)
+                            else:
+                                structure_objects.append(ob)
+                    utils.update_job_count(process, "", element.ElementIndex, num_clusters)
+                utils.update_job_count(process, "", num_clusters, num_clusters)
             
         # Create Structure Collision
         # self.structure_collision = None
         if collision is not None:
             if self.corinth:
-                print("Creating Structure Sky")
+                utils.print_step("Creating Structure Sky")
             else:
-                print("Creating Structure Collision")
+                utils.print_step("Creating Structure Collision")
             
             collision_only_indices = [idx for idx, mapping in enumerate(structure_surface_triangle_mapping) if mapping.collision_only]
             if collision_only_indices:
@@ -313,7 +326,7 @@ class ScenarioStructureBspTag(Tag):
                         
         # Merge all structure objects
         main_structure_ob = None
-        print("Merging Structure")
+        utils.print_step("Merging Structure")
         if len(structure_objects) > 1:
             main_structure_ob, remaining_structure_obs = structure_objects[0], structure_objects[1:]
             main_structure_ob.name = f"{self.tag_path.ShortName}_structure"
@@ -358,7 +371,7 @@ class ScenarioStructureBspTag(Tag):
                 objects.append(seam_ob)
                 seam_collection.objects.link(seam_ob)
         
-        print("Removing Duplicate Material Slots")
+        utils.print_step("Removing Duplicate Material Slots")
         ob_meshes = {o.data for o in objects if o.type == 'MESH'}
         for me in ob_meshes:
             utils.consolidate_face_attributes(me)
@@ -367,7 +380,7 @@ class ScenarioStructureBspTag(Tag):
         # Create Portals
         if not for_cinematic:
             if self.tag.SelectField("Block:cluster portals").Elements.Count > 0:
-                print("Creating Portals")
+                utils.print_step("Creating Portals")
                 layer = utils.add_permutation("portals")
                 portals_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_portals")
                 portals_collection.hide_render = True
@@ -381,7 +394,7 @@ class ScenarioStructureBspTag(Tag):
                     portals_collection.objects.link(ob)
             
             if self.tag.SelectField("Block:cookie cutters").Elements.Count > 0:
-                print("Creating Cookie Cutters")
+                utils.print_step("Creating Cookie Cutters")
                 layer = utils.add_permutation("cookie_cutters")
                 cookies_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_cookie_cutters")
                 cookies_collection.hide_render = True
@@ -396,7 +409,7 @@ class ScenarioStructureBspTag(Tag):
         
             # Create markers
             if self.tag.SelectField("Block:markers").Elements.Count > 0:
-                print("Creating Structure Markers")
+                utils.print_step("Creating Structure Markers")
                 layer = utils.add_permutation("markers")
                 markers_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_markers")
                 markers_collection.nwo.type = "permutation"
@@ -415,7 +428,7 @@ class ScenarioStructureBspTag(Tag):
             if path is not None:
                 structure_meta_path = Path(path.RelativePathWithExtension)
                 if structure_meta_path.exists():
-                    print("Importing Structure Meta")
+                    utils.print_step("Importing Structure Meta")
                     meta_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_meta")
                     meta_collection.nwo.type = "permutation"
                     meta_collection.nwo.permutation = layer
@@ -433,7 +446,7 @@ class ScenarioStructureBspTag(Tag):
                 
         else:
             if self.tag.SelectField("Block:environment objects").Elements.Count > 0:
-                print("Creating Game Object Markers")
+                utils.print_step("Creating Game Object Markers")
                 layer = utils.add_permutation("objects")
                 env_objects_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_objects")
                 env_objects_collection.nwo.type = "permutation"
@@ -456,7 +469,7 @@ class ScenarioStructureBspTag(Tag):
         if block_prefabs.Elements.Count == 0:
             return objects
         
-        print("Importing Prefabs")
+        utils.print_step("Importing Prefabs")
         prefabs_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_prefabs")
         prefabs_collection.nwo.type = "permutation"
         prefabs_collection.nwo.permutation = "prefabs"
