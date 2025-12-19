@@ -1776,6 +1776,9 @@ class Mesh:
         return objects
     
     def _get_raw_mesh_data(self):
+        if self.raw_positions:
+            return
+        
         raw_mesh_index = self.index if self.real_mesh_index is None else self.real_mesh_index
         temp_mesh = self.temp_meshes.Elements[raw_mesh_index]
             
