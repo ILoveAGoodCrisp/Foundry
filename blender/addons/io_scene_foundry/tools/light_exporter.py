@@ -180,7 +180,7 @@ def gather_lights(context, collection_map):
             obj = inst.object
             original = obj.original
             nwo = original.nwo
-            parent = None
+            parent = original
             
             if inst.is_instance:
                 obj = inst.instance_object
@@ -228,7 +228,7 @@ def gather_lightmap_regions(context, collection_map):
             obj = inst.object
             original = obj.original
             nwo = original.nwo
-            parent = None
+            parent = original
             
             if inst.is_instance:
                 obj = inst.instance_object

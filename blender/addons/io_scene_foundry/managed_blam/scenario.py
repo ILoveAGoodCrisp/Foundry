@@ -460,11 +460,13 @@ class ScenarioTag(Tag):
             return
 
         with Tag(path=cinematic_resource.Path.RelativePathWithExtension) as resource:
-            self.tag.SelectField("Block:cinematics").CopyEntireTagBlock()
-            resource.tag.SelectField("Block:cinematics").PasteReplaceEntireBlock()
-            self.tag.SelectField("Block:cutscene flags").CopyEntireTagBlock()
-            resource.tag.SelectField("Block:flags").PasteReplaceEntireBlock()
-            resource.tag_has_changes = True
+            try:
+                self.tag.SelectField("Block:cinematics").CopyEntireTagBlock()
+                resource.tag.SelectField("Block:cinematics").PasteReplaceEntireBlock()
+                self.tag.SelectField("Block:cutscene flags").CopyEntireTagBlock()
+                resource.tag.SelectField("Block:flags").PasteReplaceEntireBlock()
+            finally:
+                resource.tag_has_changes = True
             
     def get_zone_sets_dict(self) -> dict[str, list[str]]:
         """Returns a dict with the key as the zoneset name and values as a str of the bsps"""

@@ -317,7 +317,7 @@ class ExportScene:
             obj = inst.object
             original = obj.original
             nwo = original.nwo
-            parent = None
+            parent = original
             
             if inst.is_instance:
                 obj = inst.instance_object
