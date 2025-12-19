@@ -91,17 +91,18 @@ def gather_decorators(context):
             obj = inst.object
             original = obj.original
             nwo = original.nwo
+            parent = None
             
             if inst.is_instance:
                 obj = inst.instance_object
                 original = obj.original
                 nwo = original.nwo
+                parent = inst.parent
             
             if not (original.type == 'EMPTY' and is_decorator_instance(nwo)):
                 continue
             
-            
-            if utils.ignore_for_export_fast(original, collection_map, obj):
+            if utils.ignore_for_export_fast(original, collection_map, parent):
                 continue
 
             proxy = types.SimpleNamespace()

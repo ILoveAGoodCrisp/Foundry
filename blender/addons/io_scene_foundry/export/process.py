@@ -317,20 +317,22 @@ class ExportScene:
             obj = inst.object
             original = obj.original
             nwo = original.nwo
+            parent = None
             
             if inst.is_instance:
                 obj = inst.instance_object
                 original = obj.original
                 nwo = original.nwo
+                parent = inst.parent
             
             elif original.is_instancer and original.instance_collection and original.instance_collection.all_objects and not nwo.marker_instance:
                 continue
             
-            if utils.ignore_for_export_fast(original, self.collection_map, obj):
+            if utils.ignore_for_export_fast(original, self.collection_map, parent):
                 continue
             
-            export_collection = obj.nwo.export_collection
-            has_export_collection = bool(obj.nwo.export_collection)
+            export_collection = parent.nwo.export_collection
+            has_export_collection = bool(parent.nwo.export_collection)
             if has_export_collection:
                 collection = self.collection_map[export_collection]
             

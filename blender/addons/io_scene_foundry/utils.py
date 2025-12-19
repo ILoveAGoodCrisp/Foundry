@@ -5285,7 +5285,7 @@ def ignore_for_export_fast_no_frame(ob, collection_map, instancer):
     
     return False
 
-def ignore_for_export_fast(ob, collection_map, instancer):
+def ignore_for_export_fast(ob, collection_map, instancer_parent):
     nwo = ob.nwo
     if not nwo.export_this:
         return True
@@ -5294,13 +5294,16 @@ def ignore_for_export_fast(ob, collection_map, instancer):
         return True
     
     if nwo.is_frame and ob.type == 'EMPTY':
-        return False
+        return True
 
     if ob.parent and recursive_parentage(ob, collection_map):
         return True
     
-    if instancer.nwo.export_collection:
-        return collection_map[instancer.nwo.export_collection].non_export
+    if instancer_parent is None:
+        instancer_parent = ob
+    
+    if instancer_parent.nwo.export_collection:
+        return collection_map[instancer_parent.nwo.export_collection].non_export
     
     return False
 

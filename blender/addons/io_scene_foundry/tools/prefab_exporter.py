@@ -63,23 +63,24 @@ def gather_prefabs(context):
             obj = inst.object
             original = obj.original
             nwo = original.nwo
+            parent = None
             
             if inst.is_instance:
                 obj = inst.instance_object
                 original = obj.original
                 nwo = original.nwo
+                parent = inst.parent
             
             if not (original.type == 'EMPTY' and is_prefab_instance(nwo)):
                 continue
 
-            if utils.ignore_for_export_fast(original, collection_map, obj):
+            if utils.ignore_for_export_fast(original, collection_map, parent):
                 continue
             
-            export_collection = nwo.export_collection
-            has_export_collection = bool(nwo.export_collection)
+            export_collection = parent.nwo.export_collection
+            has_export_collection = bool(parent.nwo.export_collection)
             if has_export_collection:
-                if collection_map[export_collection].non_export:
-                    continue
+                collection = collection_map[export_collection]
 
             proxy = utils.ExportObject()
             proxy.name = original.name
@@ -87,7 +88,7 @@ def gather_prefabs(context):
             proxy.nwo = nwo
             proxy.matrix_world = inst.matrix_world.copy()
             if has_export_collection:
-                proxies[proxy] = collection_map[export_collection].region
+                proxies[proxy] = collection.region
             else:
                 proxies[proxy] = nwo.region_name
 
