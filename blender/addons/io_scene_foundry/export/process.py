@@ -90,41 +90,26 @@ class ExportScene:
         self.corinth = corinth
         self.tags_dir = Path(utils.get_tags_path())
         self.data_dir = Path(utils.get_data_path())
-        self.depsgraph: bpy.types.Depsgraph = None
-        self.virtual_scene: VirtualScene = None
-        self.no_parent_objects = []
-        self.objects_with_children = set()
+
         self.default_region: str = scene_settings.regions_table[0].name
         self.default_permutation: str = scene_settings.permutations_table[0].name
         
         self.models_export_dir = Path(asset_path, "export", "models")
         self.animations_export_dir = Path(asset_path, "export", "animations")
-        self.cinematics_export_dir = Path(asset_path, "export", "cinematics")
-        
-        self.regions = [i.name for i in scene_settings.regions_table]
-        self.regions_set = frozenset(self.regions)
-        self.permutations = [i.name for i in scene_settings.permutations_table]
-        self.permutations_set = frozenset(self.permutations)
-        self.global_materials = set()
-        self.global_materials_list = []
+        self.cinematics_export_dir = Path(self.asset_path, "export", "cinematics")
         
         self.reg_name = 'BSP' if self.asset_type.supports_bsp else 'region'
         self.perm_name = 'layer' if self.asset_type.supports_bsp else 'permutation'
-        
-        self.processed_meshes = {}
-        self.processed_poop_meshes = set()
 
         self.game_version = 'corinth' if corinth else 'reach'
         self.export_settings = export_settings
         self.scene_settings = scene_settings
         
-        self.selected_permutations = set()
-        self.selected_bsps = set()
         self.limit_perms_to_selection = export_settings.export_all_perms == 'selected' and self.asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.SCENARIO, AssetType.PREFAB}
         self.limit_bsps_to_selection = export_settings.export_all_bsps == 'selected' and self.asset_type == AssetType.SCENARIO
         
         self.project_root = self.tags_dir.parent
-        self.warnings = []
+        
         os.chdir(self.project_root)
         self.granny = Granny(Path(self.project_root, "granny2_x64.dll"), self.corinth)
         
@@ -134,13 +119,7 @@ class ExportScene:
         self.to_maya_scale = self.to_halo_scale / 10 if self.corinth else self.to_halo_scale
         self.mirror = export_settings.granny_mirror
         self.has_animations = False
-        self.exported_animations = []
         self.setup_scenario = False
-        self.lights = {}
-        self.temp_objects = set()
-        self.temp_meshes = set()
-        self.sky_lights = []
-        self.sun = None
         
         self.is_model = self.asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.ANIMATION}
         self.export_tag_types = self._get_export_tag_types()
@@ -154,23 +133,12 @@ class ExportScene:
         
         self.node_usage_set = False
         
-        self.armature_poses = {}
-        self.ob_halo_data = {}
-        # self.disabled_collections = set()
-        self.current_frame = context.scene.frame_current
-        self.current_animation = None
-        # self.action_map = {}
-        self.current_mode = context.mode
-        
         self.atten_scalar = 1 if corinth else 100
         self.unit_factor = utils.get_unit_conversion_factor(context)
         
-        self.data_remap = {}
         
-        self.selected_actors = set()
+        
         self.type_is_relevant = self.asset_type in {AssetType.MODEL, AssetType.SCENARIO, AssetType.SKY, AssetType.PARTICLE_MODEL, AssetType.PREFAB}
-        self.main_armature = None
-        self.support_armatures = []
         self.uses_main_armature = self.asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.ANIMATION, AssetType.SINGLE_ANIMATION}
         # self.is_child_asset = scene_settings.is_child_asset
         # self.parent_asset_path = None
@@ -186,41 +154,12 @@ class ExportScene:
         #         self.parent_asset_path_relative = parent_relative
         #         self.parent_asset_name = parent_relative.name
                 
-        self.cinematic_actors = []
-        self.cinematic_scene = None
-        if self.asset_type == AssetType.CINEMATIC:
-            # if self.is_child_asset and self.parent_asset_path_relative is not None:
-            #     self.cinematic_scene = CinematicScene(self.parent_asset_path_relative, f"{self.parent_asset_name}_{self.asset_name}", context.scene)
-            # else:
-            self.cinematic_scene = CinematicScene(self.asset_path_relative, f"{self.asset_name}_000", context.scene)
-                
         self.sidecar = Sidecar(sidecar_path_full, sidecar_path, asset_path, asset_name, self.asset_type, scene_settings, corinth, context, self.tags_dir)
-        self.active_animation = ""
-        self.suspension_animations = {}
         
-        self.any_collision_proxies = False
         self.has_frame_events = False
         
-        self.poop_obs = defaultdict(list)
-        self.lightmap_regions = {}
-        
-        self.scene_collection_name = context.scene.collection.name
-        
-        self.external_animations = {}
-        self.local_views = set()
-        
-        self.decorators = []
-        self.hidden_objects = set()
-        self.marker_instancers = []
-        
-        self.used_game_object_names = set()
-        
-        self.pretend_object_instances = {}
-        self.pca_objects = defaultdict(list)
-        self.shape_key_unmutes = []
-        
-        self.render_regions_perms = defaultdict(set) # region is key, perm is set
-        self.collision_physics_regions_perms = defaultdict(set)
+        self.cinematic_scenes = []
+        self.cinematic_actors_all = set()
         
     def _get_export_tag_types(self):
         tag_types = set()
@@ -257,6 +196,63 @@ class ExportScene:
                 tag_types.add('render')
                 
         return tag_types
+    
+    def new_scene(self, scene_id: str):
+        self.depsgraph: bpy.types.Depsgraph = None
+        self.virtual_scene: VirtualScene = None
+        self.no_parent_objects = []
+        self.objects_with_children = set()
+        self.regions = [i.name for i in self.scene_settings.regions_table]
+        self.regions_set = frozenset(self.regions)
+        self.permutations = [i.name for i in self.scene_settings.permutations_table]
+        self.permutations_set = frozenset(self.permutations)
+        self.global_materials = set()
+        self.global_materials_list = []
+        self.processed_meshes = {}
+        self.processed_poop_meshes = set()
+        self.selected_permutations = set()
+        self.selected_bsps = set()
+        self.warnings = []
+        self.exported_animations = []
+        self.lights = {}
+        self.temp_objects = set()
+        self.temp_meshes = set()
+        self.sky_lights = []
+        self.sun = None
+        self.armature_poses = {}
+        self.ob_halo_data = {}
+        # self.disabled_collections = set()
+        self.current_frame = self.context.scene.frame_current
+        self.current_animation = None
+        # self.action_map = {}
+        self.current_mode = self.context.mode
+        self.data_remap = {}
+        self.selected_actors = set()
+        self.main_armature = None
+        self.support_armatures = []
+        self.cinematic_actors = []
+        self.cinematic_scene = None
+        if self.asset_type == AssetType.CINEMATIC:
+            self.cinematic_scene = CinematicScene(self.asset_path_relative, f"{self.asset_name}_{scene_id}")
+            self.cinematic_scenes.append(self.cinematic_scene)
+                
+        self.active_animation = ""
+        self.suspension_animations = {}
+        self.any_collision_proxies = False
+        self.poop_obs = defaultdict(list)
+        self.lightmap_regions = {}
+        self.scene_collection_name = self.context.scene.collection.name
+        self.external_animations = {}
+        self.local_views = set()
+        self.decorators = []
+        self.hidden_objects = set()
+        self.marker_instancers = []
+        self.used_game_object_names = set()
+        self.pretend_object_instances = {}
+        self.pca_objects = defaultdict(list)
+        self.shape_key_unmutes = []
+        self.render_regions_perms = defaultdict(set) # region is key, perm is set
+        self.collision_physics_regions_perms = defaultdict(set)
         
     def ready_scene(self):
         # Annoying but need to loop all instancers and set them to not instance if they are intended as markers
@@ -746,6 +742,10 @@ class ExportScene:
         self.virtual_scene.cinematic_scope = self.export_settings.cinematic_scope
         self.virtual_scene.poop_obs = self.poop_obs
         self.context.view_layer.update()
+        
+        if self.cinematic_actors:
+            self.cinematic_scene.actors = self.cinematic_actors
+            self.cinematic_actors_all.update(self.cinematic_actors)
 
     def _get_object_type(self, ob) -> ObjectType:
         if ob.type in VALID_MESHES:
@@ -1688,7 +1688,7 @@ class ExportScene:
                     utils.update_job_count(process, "", 1, 1)
                 else:
                     utils.update_job_count(process, "", shot_count, shot_count)
-                self.sidecar.cinematic_scene = self.cinematic_scene
+                self.sidecar.cinematic_scenes.append(self.cinematic_scene)
         finally:
             if armature_mods is not None:
                 utils.unmute_armature_mods(armature_mods)
@@ -2042,10 +2042,10 @@ class ExportScene:
                 case 'OBJECT':
                     print("\n\nExporting Cinematic Animations Only")
             print("-----------------------------------------------------------------------\n")
-            self.sidecar.shots = self.virtual_scene.shots
+            self.cinematic_scene.shots = self.virtual_scene.shots
             for shot in self.virtual_scene.shots:
                 for actor, animation in shot.actor_animation.items():
-                    self.sidecar.actor_animations[actor.actor].append(animation)
+                    self.cinematic_scene.actor_animations[actor.actor].append(animation)
                     granny_path = Path(self.asset_path, "export", "cinematics", f"{animation.name}.gr2")
                     granny_path_relative = str(Path(self.asset_path_relative, "export", "cinematics", f"{animation.name}.gr2"))
                     animation.gr2_path = granny_path_relative
@@ -2060,11 +2060,11 @@ class ExportScene:
             shot_count = 1 if self.export_settings.current_shot_only else len(self.virtual_scene.shots)
             print(f'--- Built cinematic camera data for {shot_count} shot{"s" if shot_count != 1 else ""}')
                 
-    def _write_qua(self):
+    def _write_qua(self, cin_scene):
         # if self.is_child_asset:
         #     writer = QUA(self.parent_asset_path_relative, self.cinematic_scene.name, self.virtual_scene.shots, self.cinematic_actors, self.corinth, False)
         # else:
-        writer = QUA(self.asset_path_relative, self.cinematic_scene.name, self.virtual_scene.shots, self.cinematic_actors, self.corinth, False)
+        writer = QUA(self.asset_path_relative, cin_scene.name, cin_scene.shots, cin_scene.actors, self.corinth, False)
         writer.write_to_tag()
                 
     def _export_animations(self):
@@ -2263,7 +2263,6 @@ class ExportScene:
             
         for ob in self.hidden_objects:
             ob.hide_set(True)
-
         
         if self.asset_type in {AssetType.MODEL, AssetType.ANIMATION} and self.scene_settings.animations and self.scene_settings.active_animation_index > -1:
             self.scene_settings.active_animation_index = self.scene_settings.active_animation_index
@@ -2886,15 +2885,7 @@ class ExportScene:
                     utils.print_warning("Decorator set has no texture set in the tag. Please ensure the appropriate bitmap tag is set in the tag")
                     
         if self.asset_type == AssetType.CINEMATIC:
-            self.print_post(f"--- Writing cinematic scene: {self.cinematic_scene.name}")
-            self._write_qua()
-            scenario_path = Path(self.tags_dir, self.scene_settings.cinematic_scenario)
-            cinematic_path = None
-            # if self.is_child_asset:
-            #     cinematic_scenes = get_cinematic_scenes(self.sidecar.parent_sidecar)
-            #     cinematic_path = Path(self.parent_asset_path_relative, self.parent_asset_name)
-            # else:
-            cinematic_scenes = get_cinematic_scenes(self.sidecar.sidecar_path_full)
+            
             cinematic_path = Path(self.asset_path, self.asset_name)
             with CinematicTag(path=cinematic_path) as cinematic:
                 term = "Created" if cinematic.tag_is_new else "Updated"
@@ -2904,21 +2895,25 @@ class ExportScene:
                     # if self.is_child_asset:
                     #     cinematic.create(self.parent_asset_name, self.cinematic_scene, cinematic_scenes)
                     # else:
-                    cinematic.create(self.asset_name, self.cinematic_scene, cinematic_scenes, Path(self.scene_settings.cinematic_scenario), self.scene_settings.cinematic_zone_set if self.scene_settings.cinematic_zone_set.strip() else "cinematic")
+                    cinematic.create(self.asset_name, self.cinematic_scenes, Path(self.scene_settings.cinematic_scenario), self.scene_settings.cinematic_zone_set if self.scene_settings.cinematic_zone_set.strip() else "cinematic")
                     self.print_post(f"--- Linked cinematic to scenario: {self.scene_settings.cinematic_scenario}")
                     if self.scene_settings.cinematic_zone_set:
                         self.print_post(f"--- Linked to zone set: {self.scene_settings.cinematic_zone_set}")
                             
-                    self.print_post(f"--- {term} cutscene flags for cinematic anchor")
+                    self.print_post(f"--- {term} cutscene flags for cinematic anchors")
                 else:
-                    cinematic.create(self.asset_name, self.cinematic_scene, cinematic_scenes)
+                    cinematic.create(self.asset_name, self.cinematic_scenes)
                     self.print_post(f"--- {term} cinematic tag")
                     if self.scene_settings.cinematic_scenario.strip():
                         utils.print_warning(f"Cinematic Scenario does not exist: {self.scene_settings.cinematic_scenario}")
-                        
-            for actor in self.cinematic_actors:
+            
+            for cin_scene in self.cinematic_scenes:
+                self.print_post(f"--- Writing cinematic scene: {cin_scene.name}")
+                self._write_qua(cin_scene)
+
+            for actor in {a.original_tag: a for a in self.cinematic_actors_all}.values(): # dict just ensures we don't process tags twice
                 actor.validate()
-            self.print_post(f"--- Validated {len(self.cinematic_actors)} cinematic object tag{'s' if len(self.cinematic_actors) != 1 else ''}")
+            self.print_post(f"--- Validated {len(self.cinematic_actors_all)} cinematic object tag{'s' if len(self.cinematic_actors_all) != 1 else ''}")
         
     def _setup_model_overrides(self):
         model_override = self.asset_type == AssetType.MODEL and any((

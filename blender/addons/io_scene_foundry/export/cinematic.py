@@ -1,3 +1,4 @@
+from collections import defaultdict
 from math import degrees, radians
 from pathlib import Path
 import bpy
@@ -16,7 +17,7 @@ from .. import utils
 from ..managed_blam.camera_track import camera_correction_matrix
 
 class CinematicScene:
-    def __init__(self, asset_path, scene_name, scene: bpy.types.Scene):
+    def __init__(self, asset_path, scene_name):
         nwo = utils.get_scene_props()
         self.name = scene_name
         self.path_no_ext = Path(asset_path, self.name)
@@ -26,6 +27,9 @@ class CinematicScene:
         self.anchor_name = f"{self.name}_anchor"
         self.anchor_location = 0.0, 0.0, 0.0
         self.anchor_ypr = 0.0, 0.0, 0.0
+        self.shots = []
+        self.actor_animations = defaultdict(list)
+        self.actors = []
         if self.anchor is not None:
             anchor_matrix = utils.halo_transform_matrix(self.anchor.matrix_world.inverted_safe())
             rotation_offset = utils.blender_halo_rotation_diff(nwo.forward_direction)

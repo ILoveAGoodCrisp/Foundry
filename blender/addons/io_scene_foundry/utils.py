@@ -5653,37 +5653,25 @@ def clear_constraints(id):
         id.constraints.remove(con)
         
 def get_scene_props():
-    scene = bpy.context.scene
-    if scene.nwo.is_main_scene:
-        return scene.nwo
-    
     for s in bpy.data.scenes:
         if s.nwo.is_main_scene:
             return s.nwo
 
-    return scene.nwo
+    return bpy.context.scene.nwo
 
 def get_export_props():
-    scene = bpy.context.scene
-    if scene.nwo.is_main_scene:
-        return scene.nwo_export
-    
     for s in bpy.data.scenes:
         if s.nwo.is_main_scene:
             return s.nwo_export
 
-    return scene.nwo_export
+    return bpy.context.scene.nwo_export
 
 def get_launcher_props():
-    scene = bpy.context.scene
-    if scene.nwo.is_main_scene:
-        return scene.nwo_halo_launcher
-    
     for s in bpy.data.scenes:
         if s.nwo.is_main_scene:
             return s.nwo_halo_launcher
 
-    return scene.nwo_halo_launcher
+    return bpy.context.scene.nwo_halo_launcher
 
 class Section(Enum):
     FILE = "FILE"

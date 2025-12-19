@@ -597,47 +597,71 @@ def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_pat
     if asset_type == 'camera_track_set':
         return export_current_action_as_camera_track(context,asset_path) # Return early if this is a camera track export
     export_scene = ExportScene(context, sidecar_path_full, sidecar_path, asset_type, asset_name, asset_path, corinth, export_settings, scene_settings)
-    try:
-        if export_settings.export_mode in {'FULL', 'GRANNY'}:
-            print("\n\nProcessing Scene")
-            print("-----------------------------------------------------------------------\n")
-            export_scene.ready_scene()
-            export_scene.get_initial_export_objects()
-            export_scene.map_halo_properties()
-            export_scene.set_template_node_order()
-            export_scene.create_virtual_tree()
-            if export_scene.asset_type == AssetType.CINEMATIC:
-                export_scene.sample_shots()
-            else:
-                export_scene.sample_animations(single_animation)
-            export_scene.report_warnings()
-            export_scene.export_files(single_animation)
-            if not single_animation:
-                export_scene.write_sidecar()
-                
-        if single_animation and export_settings.export_mode in {'FULL', 'TAGS'} and sidecar_path:
-            print("\n\nWriting Tags")
-            print("-----------------------------------------------------------------------\n")
-            export_scene.tool_import_simple(sidecar_path)
+    scenes = {}
+    start_scene = context.scene
+    if asset_type == 'cinematic':
+        for idx, cin_scene in enumerate(utils.get_scene_props().cinematic_scenes):
+            if not cin_scene.name.strip():
+                utils.print_warning(f"Cinematic Scene Index {idx} has not scene ID, skipping")
+                continue
             
-        if not single_animation and export_settings.export_mode in {'FULL', 'TAGS'}:
-            if export_settings.export_mode == 'TAGS' and (export_scene.limit_perms_to_selection or export_scene.limit_bsps_to_selection):
-                # Need to figure out what perms/bsps are selected in this case
-                print("\n\nQuick Scene Process")
+            if cin_scene.scene is None or cin_scene.scene not in set(bpy.data.scenes):
+                utils.print_warning(f"Cinematic Scene Index {idx} has no blender scene linked, skipping")
+                continue
+            
+            if cin_scene.scene not in scenes:
+                scenes[cin_scene.scene] = cin_scene.name
+    else:
+        scenes = {context.scene: "default"}
+        
+    if export_settings.export_mode in {'FULL', 'GRANNY'}:
+        for bscene, scene_id in scenes.items():
+                print(f"\n\nProcessing {bscene.name}")
                 print("-----------------------------------------------------------------------\n")
+                context.window.scene = bscene
+                export_scene.new_scene(scene_id)
+                try:
+                    export_scene.ready_scene()
+                    export_scene.get_initial_export_objects()
+                    export_scene.map_halo_properties()
+                    export_scene.set_template_node_order()
+                    export_scene.create_virtual_tree()
+                    if export_scene.asset_type == AssetType.CINEMATIC:
+                        export_scene.sample_shots()
+                    else:
+                        export_scene.sample_animations(single_animation)
+                    export_scene.report_warnings()
+                    export_scene.export_files(single_animation)
+                finally:
+                    export_scene.restore_scene()
+        if not single_animation:
+            export_scene.write_sidecar()
+            
+    if single_animation and export_settings.export_mode in {'FULL', 'TAGS'} and sidecar_path:
+        print("\n\nWriting Tags")
+        print("-----------------------------------------------------------------------\n")
+        export_scene.tool_import_simple(sidecar_path)
+        
+    if not single_animation and export_settings.export_mode in {'FULL', 'TAGS'}:
+        if export_settings.export_mode == 'TAGS' and (export_scene.limit_perms_to_selection or export_scene.limit_bsps_to_selection):
+            # Need to figure out what perms/bsps are selected in this case
+            print("\n\nQuick Scene Process")
+            print("-----------------------------------------------------------------------\n")
+            export_scene.new_scene("default")
+            try:
                 export_scene.ready_scene()
                 export_scene.get_initial_export_objects()
                 export_scene.map_halo_properties()
+            finally:
+                export_scene.restore_scene()
+        
+        export_scene.preprocess_tags()
+        if not (export_scene.asset_type == AssetType.CINEMATIC and (export_settings.cinematic_scope == 'CAMERA' or not export_scene.cinematic_actors)):
+            # No need to invoke tool if we're only writing cinematic frame data
+            print("\n\nWriting Tags")
+            print("-----------------------------------------------------------------------\n")
+            export_scene.invoke_tool_import()
             
-            export_scene.preprocess_tags()
-            if not (export_scene.asset_type == AssetType.CINEMATIC and (export_settings.cinematic_scope == 'CAMERA' or not export_scene.cinematic_actors)):
-                # No need to invoke tool if we're only writing cinematic frame data
-                print("\n\nWriting Tags")
-                print("-----------------------------------------------------------------------\n")
-                export_scene.invoke_tool_import()
-                
-            export_scene.postprocess_tags()
-            if not for_cache_build:
-                export_scene.lightmap()
-    finally:
-        export_scene.restore_scene()
+        export_scene.postprocess_tags()
+        if not for_cache_build:
+            export_scene.lightmap()

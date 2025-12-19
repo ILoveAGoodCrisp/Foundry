@@ -53,16 +53,17 @@ class CinematicTag(Tag):
     def get_pause_text(self) -> str:
         return self.cinematic_playback.GetPauseCinematicText()
     
-    def create(self, name: str, cinematic_scene, all_scenes: list[Path], scenario_path: Path | None = None, zone_set: str = "cinematic"):
+    def create(self, name: str, cinematic_scenes, scenario_path: Path | None = None, zone_set: str = "cinematic"):
         self.tag_has_changes = True
         # Add scenes to cinematic
-        if all_scenes:
+        scene_paths = [cs.name for cs in cinematic_scenes]
+        if scene_paths:
             if self.scenes.Elements.Count > 0:
                 self.scenes.RemoveAllElements()
             
-            for scene in all_scenes:
+            for sp in scene_paths:
                 element = self.scenes.AddElement()
-                scene_path = Path(Path(self.tag_path.RelativePath).parent, scene)
+                scene_path = Path(Path(self.tag_path.RelativePath).parent, sp)
                 element.Fields[0].Path = self._TagPath_from_string(scene_path.with_suffix(".cinematic_scene"))
                 if self.corinth:
                     element.Fields[1].Path = self._TagPath_from_string(scene_path.with_suffix(".cinematic_scene_data"))
@@ -128,21 +129,31 @@ class CinematicTag(Tag):
                         
                 # Add cinematic anchor object to scenario
                 cutscene_flags = scenario.tag.SelectField("Block:cutscene flags")
+                anchor_names = {cs.anchor_name for cs in cinematic_scenes}
                 for element in cutscene_flags.Elements:
-                    if cinematic_scene.anchor_name == element.Fields[0].GetStringData():
-                        element.Fields[1].Data = cinematic_scene.anchor_location
-                        if self.corinth:
-                            element.Fields[2].Data = cinematic_scene.anchor_ypr
-                        else:
-                            # Reach only uses yaw and pitch for cutscene flags
-                            element.Fields[2].Data = cinematic_scene.anchor_ypr[:2]
+                    for cin_scene in cinematic_scenes:
+                        if cin_scene.anchor_name == element.Fields[0].GetStringData():
+                            element.Fields[1].Data = cin_scene.anchor_location
+                            if self.corinth:
+                                element.Fields[2].Data = cin_scene.anchor_ypr
+                            else:
+                                # Reach only uses yaw and pitch for cutscene flags
+                                element.Fields[2].Data = cin_scene.anchor_ypr[:2]
+                            anchor_names.remove(cin_scene.anchor_name)
+                            break
+                    if not anchor_names:
                         break
                             
                 else:
-                    element = cutscene_flags.AddElement()
-                    element.Fields[0].SetStringData(cinematic_scene.anchor_name)
-                    element.Fields[1].Data = cinematic_scene.anchor_location
-                    element.Fields[2].Data = cinematic_scene.anchor_ypr
+                    remaining_cin_scenes = {cs for cs in cinematic_scenes if cs.anchor_name in anchor_names}
+                    for cin_scene in remaining_cin_scenes:
+                        if cin_scene.anchor_name not in anchor_names:
+                            continue
+                        element = cutscene_flags.AddElement()
+                        element.Fields[0].SetStringData(cin_scene.anchor_name)
+                        element.Fields[1].Data = cin_scene.anchor_location
+                        element.Fields[2].Data = cin_scene.anchor_ypr
+                        anchor_names.remove(cin_scene.anchor_name)
                         
                 if not self.corinth:
                     scenario.update_cinematic_resource()

@@ -76,8 +76,6 @@ class Sidecar:
         self.regions = []
         self.global_materials = []
         self.file_data: dict[list[SidecarFileData]] = defaultdict(list)
-        self.shots = []
-        self.actor_animations = defaultdict(list)
         self.child_sidecar_paths = []
         self.child_animation_elements = []
         self.child_physics_elements = []
@@ -85,7 +83,7 @@ class Sidecar:
         self.child_render_elements = []
         self.child_bsp_elements = []
         self.child_scene_elements = []
-        self.cinematic_scene = None
+        self.cinematic_scenes = []
         # self.parent_sidecar = parent_sidecar
         # self.parent_sidecar_relative = None if parent_sidecar is None else utils.relative_path(parent_sidecar)
         
@@ -305,7 +303,8 @@ class Sidecar:
                 case AssetType.ANIMATION:
                     self._write_animation_contents(metadata)
                 case AssetType.CINEMATIC:
-                    self._write_cinematic_contents(metadata)
+                    for cin_scene in self.cinematic_scenes:
+                        self._write_cinematic_contents(metadata, cin_scene)
 
         dom = xml.dom.minidom.parseString(ET.tostring(metadata))
         xml_string = dom.toprettyxml(indent="  ")
@@ -834,9 +833,9 @@ class Sidecar:
         region = self.nwo.regions_table[region_name]
         return 'true' if region.active else 'false'
     
-    def _write_cinematic_contents(self, metadata):
+    def _write_cinematic_contents(self, metadata, cin_scene):
         contents = ET.SubElement(metadata, "Contents")
-        content = ET.SubElement(contents, "Content", Name=self.cinematic_scene.name, Type="scene")
+        content = ET.SubElement(contents, "Content", Name=cin_scene.name, Type="scene")
         
         # sound_sequences = [sequence for sequence in self.context.scene.sequence_editor.strips if sequence.type == 'SOUND']
         # audio_content_object = ET.SubElement(content, "ContentObject", Name="", Type="cinematic_audio")
@@ -859,17 +858,17 @@ class Sidecar:
         ET.SubElement(network, "InputFile").text = self.relative_blend
         ET.SubElement(network, "IntermediateFile").text = self.relative_blend
         collection = ET.SubElement(scene_content_object, "OutputTagCollection")
-        ET.SubElement(collection, "OutputTag", Type="cinematic_scene").text = str(self.cinematic_scene.path_no_ext)
+        ET.SubElement(collection, "OutputTag", Type="cinematic_scene").text = str(cin_scene.path_no_ext)
         if self.corinth:
-            ET.SubElement(collection, "OutputTag", Type="cinematic_scene_data").text = str(self.cinematic_scene.path_no_ext)
+            ET.SubElement(collection, "OutputTag", Type="cinematic_scene_data").text = str(cin_scene.path_no_ext)
         
         # Shots
         shots_content_object = ET.SubElement(content, "ContentObject", Name="", Type="cinematic_shots") # Sequencer="True"
-        for shot in self.shots:
+        for shot in cin_scene.shots:
             ET.SubElement(shots_content_object, "ContentNetwork", Name=str(shot.shot_index + 1), Type="", StartFrame=str(shot.frame_start), EndFrame=str(shot.frame_end))
         
         # Animations
-        for actor, animations in self.actor_animations.items():
+        for actor, animations in cin_scene.actor_animations.items():
             actor_content_object = ET.SubElement(content, "ContentObject", Name=actor.name, Type="model_animation_graph", Sidecar=actor.sidecar)
             for animation in animations:
                 network = ET.SubElement(actor_content_object, "ContentNetwork", Name=animation.name, Type="Base", ShotId=str(animation.shot_index + 1), ModelAnimationMovementData="None")
