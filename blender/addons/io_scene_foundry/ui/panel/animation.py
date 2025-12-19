@@ -12,6 +12,8 @@ from ...props.scene import NWO_AnimationBlendAxisItems, NWO_AnimationGroupItems,
 from ... import utils
 from ...icons import get_icon_id
 
+pose_hints = 'aim', 'look', 'acc', 'steer', 'pain'
+
 class NWO_OT_ExportFrameEvents(bpy.types.Operator):
     bl_idname = "nwo.export_animation_frame_events"
     bl_label = "Export Events"
@@ -593,9 +595,28 @@ class NWO_OT_AnimationsFromActions(bpy.types.Operator):
                 group.action = action
             
             animation.name = name
-            animation.frame_start = int(action.frame_start)
-            animation.frame_end = int(action.frame_end)
-            animation.export_this = action.use_frame_range
+            if action.use_frame_range:
+                animation.frame_start = int(action.frame_start)
+                animation.frame_end = int(action.frame_end)
+            else:
+                frames = set()
+                slot = utils.get_slot_from_id(action, group.object)
+                if slot is None:
+                    animation.export_this = False
+                else:
+                    for fcurve in utils.get_fcurves(action, slot):
+                        for kfp in fcurve.keyframe_points:
+                            frames.add(kfp.co[0])
+                        
+                    if len(frames) > 1:
+                        animation.frame_start = int(min(*frames))
+                        animation.frame_end = int(max(*frames))
+                        
+            anim_name = utils.AnimationName(action.name)
+            if any((h in anim_name.state) for h in pose_hints):
+                animation.animation_type = 'overlay'
+                        
+            # animation.export_this = action.use_frame_range
             # for key, value in action_nwo.items():
             #     animation[key] = value
             

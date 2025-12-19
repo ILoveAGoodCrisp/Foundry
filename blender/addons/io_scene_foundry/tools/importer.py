@@ -60,7 +60,6 @@ from ..managed_blam.connected_material import GameFunctionType, game_functions
 from .. import utils
 from .model_to_instance import ModelInstance
 
-pose_hints = 'aim', 'look', 'acc', 'steer', 'pain'
 legacy_model_formats = '.jms', '.ass'
 legacy_animation_formats = '.jmm', '.jma', '.jmt', '.jmz', '.jmv', '.jmw', '.jmo', '.jmr', '.jmrx'
 legacy_poop_prefixes = '%', '+', '-', '?', '!', '>', '*', '&', '^', '<', '|',
