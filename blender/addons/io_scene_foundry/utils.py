@@ -2652,102 +2652,105 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                 # light.nwo.light_near_attenuation_end *= scale_factor
                 light.shadow_soft_size *= scale_factor
         
-        arm_datas = set()
-        
-        for arm in armatures.keys():
-            if arm.library or arm.data.library:
-                print_warning(f'Cannot scale {arm.name}')
-                continue
-            
-            should_be_hidden = False
-            should_be_unlinked = False
-            data: bpy.types.Armature = arm.data
-            if arm.hide_get():
-                arm.hide_set(False)
-                should_be_hidden = True
-                
-            if not arm.visible_get():
-                original_collections = arm.users_collection
-                unlink(arm)
-                scene_coll.link(arm)
-                should_be_unlinked = True
-                
-            set_active_object(arm)
-            if data not in arm_datas:
-                arm_datas.add(data)
-                bpy.ops.object.editmode_toggle()
-                
-                uses_edit_mirror = bool(arm.data.use_mirror_x)
-                if uses_edit_mirror:
-                    arm.data.use_mirror_x = False
-                
-                edit_bones = data.edit_bones
-                connected_bones = [b for b in edit_bones if b.use_connect]
-                for edit_bone in connected_bones:
-                    edit_bone.use_connect = False
-                    
-                arm_inverted = scale_matrix @ arm.matrix_world.inverted_safe()
-                    
-                for edit_bone in edit_bones:
-                    world_matrix = arm.matrix_world @ edit_bone.matrix
-                    transformed_matrix = rotation_matrix @ world_matrix
-                    edit_bone.matrix = arm_inverted @ transformed_matrix
-                    # edit_bone.transform(transform_matrix)
-                    
-                for edit_bone in connected_bones:
-                    edit_bone.use_connect = True
-            
-                if uses_edit_mirror:
-                    arm.data.use_mirror_x = True
-                
-            bpy.ops.object.posemode_toggle()
-            
-            uses_pose_mirror = bool(arm.pose.use_mirror_x)
-            if uses_pose_mirror:
-                arm.pose.use_mirror_x = False
-            
-            for pose_bone in arm.pose.bones:
-                pose_bone.custom_shape_translation *= scale_factor
-                pose_bone.custom_shape_scale_xyz *= scale_factor
-                
-                for con in pose_bone.constraints:
-                    match con.type:
-                        case 'LIMIT_DISTANCE':
-                            con.distance *= scale_factor
-                        case 'LIMIT_LOCATION':
-                            con.min_x *= scale_factor
-                            con.min_y *= scale_factor
-                            con.min_z *= scale_factor
-                            con.max_x *= scale_factor
-                            con.max_y *= scale_factor
-                            con.max_z *= scale_factor
-                        case 'STRETCH_TO':
-                            con.rest_length *= scale_factor
-                        case 'SHRINKWRAP':
-                            con.distance *= scale_factor
-                        case 'FOLLOW_PATH':
-                            if rotation:
-                                con.forward_axis = rotate_follow_path_axis(con.forward_axis, old_forward, new_forward)
-                        case 'CHILD_OF':
-                            child_of_constraints.append(con)
 
-            if uses_pose_mirror:
-                arm.pose.use_mirror_x = True
-                
-            bpy.ops.object.posemode_toggle()
-            
-            for bone in data.bones:
-                bone.bbone_x *= scale_factor
-                bone.bbone_z *= scale_factor
-            
-            if should_be_hidden:
-                arm.hide_set(True)
-                
-            if should_be_unlinked:
-                unlink(arm)
-                if original_collections:
-                    for coll in original_collections:
-                        coll.objects.link(arm)
+            if armatures:
+                arm_datas = set()
+                arm_linkyness = {}
+                for arm in armatures:
+                    if arm.library or arm.data.library:
+                        print_warning(f'Cannot scale {arm.name}')
+                        continue
+
+                    should_be_hidden = False
+                    should_be_unlinked = False
+                    data = arm.data
+
+                    if arm.hide_get():
+                        arm.hide_set(False)
+                        should_be_hidden = True
+
+                    if not arm.visible_get():
+                        original_collections = arm.users_collection
+                        unlink(arm)
+                        scene_coll.link(arm)
+                        should_be_unlinked = True
+                    
+                    set_active_object(arm)
+                    arm.select_set(True)
+                    arm_linkyness[arm] = should_be_hidden, should_be_unlinked
+                    
+                bpy.ops.object.editmode_toggle()   
+                for arm in armatures:
+                    data = arm.data
+                    if data not in arm_datas:
+                        arm_datas.add(data)
+
+                        uses_edit_mirror = bool(data.use_mirror_x)
+                        data.use_mirror_x = False
+
+                        edit_bones = data.edit_bones
+                        connected = [b for b in edit_bones if b.use_connect]
+                        for b in connected:
+                            b.use_connect = False
+
+                        arm_inv = scale_matrix @ arm.matrix_world.inverted_safe()
+
+                        for b in edit_bones:
+                            world = arm.matrix_world @ b.matrix
+                            b.matrix = arm_inv @ (rotation_matrix @ world)
+
+                        for b in connected:
+                            b.use_connect = True
+
+                        data.use_mirror_x = uses_edit_mirror
+
+                bpy.ops.object.editmode_toggle()
+                for arm in armatures:
+                    uses_pose_mirror = bool(arm.pose.use_mirror_x)
+                    arm.pose.use_mirror_x = False
+
+                    for pb in arm.pose.bones:
+                        pb.custom_shape_translation *= scale_factor
+                        pb.custom_shape_scale_xyz *= scale_factor
+
+                        for con in pb.constraints:
+                            match con.type:
+                                case 'LIMIT_DISTANCE':
+                                    con.distance *= scale_factor
+                                case 'LIMIT_LOCATION':
+                                    con.min_x *= scale_factor
+                                    con.min_y *= scale_factor
+                                    con.min_z *= scale_factor
+                                    con.max_x *= scale_factor
+                                    con.max_y *= scale_factor
+                                    con.max_z *= scale_factor
+                                case 'STRETCH_TO':
+                                    con.rest_length *= scale_factor
+                                case 'SHRINKWRAP':
+                                    con.distance *= scale_factor
+                                case 'FOLLOW_PATH':
+                                    if rotation:
+                                        con.forward_axis = rotate_follow_path_axis(
+                                            con.forward_axis, old_forward, new_forward
+                                        )
+                                case 'CHILD_OF':
+                                    child_of_constraints.append(con)
+
+                    arm.pose.use_mirror_x = uses_pose_mirror
+                    # bpy.ops.object.posemode_toggle()
+
+                    for bone in data.bones:
+                        bone.bbone_x *= scale_factor
+                        bone.bbone_z *= scale_factor
+
+                for arm, (should_be_hidden, should_be_unlinked) in arm_linkyness.items():
+                    if should_be_hidden:
+                        arm.hide_set(True)
+
+                    if should_be_unlinked:
+                        unlink(arm)
+                        for coll in original_collections:
+                            coll.objects.link(arm)
 
         for action in actions:
             for slot in action.slots:
