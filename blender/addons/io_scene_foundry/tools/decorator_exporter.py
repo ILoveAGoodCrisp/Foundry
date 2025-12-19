@@ -88,23 +88,24 @@ def gather_decorators(context):
         depsgraph = context.evaluated_depsgraph_get()
 
         for inst in depsgraph.object_instances:
-            ob = inst.object.original
-            nwo = ob.nwo
+            obj = inst.object
+            original = obj.original
+            nwo = original.nwo
             
-            if not (ob.type == 'EMPTY' and is_decorator_instance(nwo)):
+            if inst.is_instance:
+                obj = inst.instance_object
+                original = obj.original
+                nwo = original.nwo
+            
+            if not (original.type == 'EMPTY' and is_decorator_instance(nwo)):
                 continue
             
             
-            if utils.ignore_for_export_fast(ob, collection_map):
+            if utils.ignore_for_export_fast(original, collection_map, obj):
                 continue
-            
-            export_collection = nwo.export_collection
-            if nwo.export_collection:
-                if collection_map[export_collection].non_export:
-                    continue
 
             proxy = types.SimpleNamespace()
-            proxy.name = ob.name
+            proxy.name = original.name
             proxy.type = 'EMPTY'
             proxy.nwo = nwo
             proxy.matrix_world = inst.matrix_world.copy()

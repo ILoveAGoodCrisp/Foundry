@@ -177,13 +177,19 @@ def gather_lights(context, collection_map):
         depsgraph = context.evaluated_depsgraph_get()
 
         for inst in depsgraph.object_instances:
-            ob = inst.object.original
-            nwo = ob.nwo
+            obj = inst.object
+            original = obj.original
+            nwo = original.nwo
             
-            if ob.type != 'LIGHT' or ob.data.type == 'AREA':
+            if inst.is_instance:
+                obj = inst.instance_object
+                original = obj.original
+                nwo = original.nwo
+            
+            if original.type != 'LIGHT' or original.data.type == 'AREA':
                 continue
             
-            if utils.ignore_for_export_fast(ob, collection_map):
+            if utils.ignore_for_export_fast(original, collection_map, obj):
                 continue
             
             export_collection = nwo.export_collection
@@ -193,8 +199,8 @@ def gather_lights(context, collection_map):
                     continue
 
             proxy = utils.ExportObject()
-            proxy.name = ob.name
-            proxy.data = ob.data
+            proxy.name = original.name
+            proxy.data = original.data
             proxy.type = 'LIGHT'
             proxy.nwo = nwo
             proxy.matrix_world = inst.matrix_world.copy()
@@ -218,13 +224,19 @@ def gather_lightmap_regions(context, collection_map):
         depsgraph = context.evaluated_depsgraph_get()
 
         for inst in depsgraph.object_instances:
-            ob = inst.object.original
-            nwo = ob.nwo
+            obj = inst.object
+            original = obj.original
+            nwo = original.nwo
             
-            if ob.type not in VALID_MESHES or ob.data.nwo.mesh_type != '_connected_geometry_mesh_type_lightmap_region':
+            if inst.is_instance:
+                obj = inst.instance_object
+                original = obj.original
+                nwo = original.nwo
+            
+            if original.type not in VALID_MESHES or original.data.nwo.mesh_type != '_connected_geometry_mesh_type_lightmap_region':
                 continue
             
-            if utils.ignore_for_export_fast(ob, collection_map):
+            if utils.ignore_for_export_fast(original, collection_map, obj):
                 continue
             
             export_collection = nwo.export_collection
@@ -234,10 +246,10 @@ def gather_lightmap_regions(context, collection_map):
                     continue
 
             proxy = utils.ExportObject()
-            proxy.name = ob.name
-            proxy.ob = ob
-            proxy.data = ob.data
-            proxy.type = ob.type
+            proxy.name = original.name
+            proxy.ob = original
+            proxy.data = original.data
+            proxy.type = original.type
             proxy.nwo = nwo
             proxy.matrix_world = inst.matrix_world.copy()
             if has_export_collection:

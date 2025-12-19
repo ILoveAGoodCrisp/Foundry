@@ -246,25 +246,6 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         get=get_ignore_for_export,
     )
 
-
-    # def get_ignore_for_export_fast(self):
-    #     if not self.export_this:
-    #         return IgnoreReason.export_this.value
-    #     ob = self.id_data
-    #     ob: bpy.types.Object
-    #     if ob.type not in VALID_OBJECTS:
-    #         return IgnoreReason.invalid_type.value
-
-    #     if ob.parent and recursive_parentage(ob):
-    #         return IgnoreReason.parent.value
-        
-    #     return IgnoreReason.none.value
-    
-    # ignore_for_export_fast: bpy.props.IntProperty(
-    #     options={'HIDDEN', 'SKIP_SAVE'},
-    #     get=get_ignore_for_export,
-    # )
-
     # OBJECT LEVEL PROPERTIES
 
     seam_back: bpy.props.StringProperty(

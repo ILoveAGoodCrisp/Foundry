@@ -5286,9 +5286,9 @@ def recursive_parentage(ob, collection_map):
     if ob.parent:
         return recursive_parentage(ob.parent, collection_map)
         
-    return ignore_for_export_fast(ob, collection_map)
+    return ignore_for_export_fast(ob, collection_map, ob)
 
-def ignore_for_export_fast(ob, collection_map):
+def ignore_for_export_fast(ob, collection_map, instancer):
     nwo = ob.nwo
     if not nwo.export_this:
         return True
@@ -5299,8 +5299,8 @@ def ignore_for_export_fast(ob, collection_map):
     if ob.parent and recursive_parentage(ob, collection_map):
         return True
     
-    if nwo.export_collection:
-        return collection_map[nwo.export_collection].non_export
+    if instancer.nwo.export_collection:
+        return collection_map[instancer.nwo.export_collection].non_export
     
     return False
 

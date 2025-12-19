@@ -326,11 +326,11 @@ class ExportScene:
             elif original.is_instancer and original.instance_collection and original.instance_collection.all_objects and not nwo.marker_instance:
                 continue
             
-            if utils.ignore_for_export_fast(original, self.collection_map):
+            if utils.ignore_for_export_fast(original, self.collection_map, obj):
                 continue
             
-            export_collection = nwo.export_collection
-            has_export_collection = bool(nwo.export_collection)
+            export_collection = obj.nwo.export_collection
+            has_export_collection = bool(obj.nwo.export_collection)
             if has_export_collection:
                 collection = self.collection_map[export_collection]
             
