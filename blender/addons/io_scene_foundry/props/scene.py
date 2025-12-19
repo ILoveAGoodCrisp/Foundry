@@ -2008,7 +2008,10 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
             return
         markers = utils.get_timeline_markers(scene)
         marker_index = value - 2
-        scene.frame_current = markers[marker_index].frame
+        if marker_index < 0 or marker_index >= len(markers):
+            scene.frame_current = scene.frame_start
+        else:
+            scene.frame_current = markers[marker_index].frame
     
     current_shot: bpy.props.IntProperty(
         name="Current Shot",
@@ -2034,6 +2037,8 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         marker_index = self.current_shot - 2
         if marker_index < 0:
             frame = scene.frame_start + value
+        elif marker_index >= len(markers):
+            frame = markers[-1].frame + value
         else:
             frame = markers[marker_index].frame + value
             

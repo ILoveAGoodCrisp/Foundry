@@ -3,8 +3,8 @@ from ..icons import get_icon_id
 
 
 def draw_cinematic_info(self, context):
-    nwo = get_scene_props()
-    if nwo.asset_type != "cinematic":
+    nwo = context.scene.nwo
+    if get_scene_props().asset_type != "cinematic":
         return
     layout = self.layout
     layout.label(text="", icon_value=get_icon_id("foundry"))

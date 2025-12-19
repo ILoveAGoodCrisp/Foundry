@@ -3246,7 +3246,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
     def draw_importer(self, box, nwo):
         row = box.row()
         col = row.column()
-        if self.self.scene_nwo.asset_type == 'cinematic':
+        if self.scene_nwo.asset_type == 'cinematic':
             col.operator('nwo.foundry_import', text="Import Cinematic Objects", icon='IMPORT').scope = 'object'
             col.operator('nwo.foundry_import', text="Import Cinematic Scenarios", icon='IMPORT').scope = 'scenario'
         else:
