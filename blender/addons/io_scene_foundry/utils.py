@@ -1655,19 +1655,6 @@ def is_mesh(ob):
     return ob.type in VALID_MESHES
 
 def is_marker(ob):
-    if ob.type != 'EMPTY':
-        return False
-    
-    if ob.empty_display_type == "IMAGE":
-        return False
-    
-    children = ob.children
-    if not children:
-        return True
-    
-    return all((o.nwo.ignore_for_export) for o in children)
-
-def is_marker_quick(ob):
     return ob.type == 'EMPTY' and ob.empty_display_type != "IMAGE"
 
 def is_frame(ob):
@@ -1691,7 +1678,7 @@ def get_object_type(ob, get_ui_name=False):
         return 'Camera' if get_ui_name else '_connected_geometry_object_type_animation_camera'
     elif is_frame(ob):
         return 'Frame' if get_ui_name else '_connected_geometry_object_type_frame'
-    elif is_marker_quick(ob):
+    elif is_marker(ob):
         return 'Marker' if get_ui_name else '_connected_geometry_object_type_marker'
     else:
         return 'None' if get_ui_name else '_connected_geometry_object_type_none'

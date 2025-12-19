@@ -2335,7 +2335,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 if nwo.marker_light_cone_curve.strip() and Path(utils.get_tags_path(), utils.relative_path(nwo.marker_light_cone_curve)).exists():
                     row.operator("nwo.open_foundation_tag", text="", icon_value=get_icon_id("foundation")).tag_path = nwo.marker_light_cone_curve
                 
-        elif utils.is_frame(ob) and utils.poll_ui(
+        elif ob.type == 'ARMATURE' and utils.poll_ui(
             ("model", "scenario", "sky", "animation", "prefab")):
             col = box.column()
             col.label(text='Frame', icon_value=get_icon_id('frame'))

@@ -9,7 +9,7 @@ from ..icons import get_icon_id
 from ..managed_blam.scenario import ScenarioTag
 from ..tools.collection_manager import get_full_name
 
-from ..utils import create_parent_mapping, get_scene_props, is_corinth, is_frame, is_marker, is_marker_quick, is_mesh, poll_ui, update_tables_from_objects, valid_nwo_asset
+from ..utils import create_parent_mapping, get_scene_props, is_corinth, is_frame, is_marker, is_mesh, poll_ui, update_tables_from_objects, valid_nwo_asset
 
 def has_region_or_perm(ob):
     if is_mesh(ob) and (ob.nwo.mesh_type != '_connected_geometry_mesh_type_object_instance' or ob.nwo.marker_uses_regions):
@@ -1117,6 +1117,6 @@ def objects_by_type(context: bpy.types.Context, object_type: str) -> list[bpy.ty
     elif object_type == '_connected_geometry_object_type_frame':
         return [ob for ob in context.view_layer.objects if is_frame(ob)]
     elif object_type.startswith("_connected_geometry_marker_type"):
-        return [ob for ob in context.view_layer.objects if is_marker_quick(ob) and ob.nwo.marker_type == object_type]
+        return [ob for ob in context.view_layer.objects if is_marker(ob) and ob.nwo.marker_type == object_type]
     elif object_type.startswith("_connected_geometry_mesh_type"):
         return [ob for ob in context.view_layer.objects if is_mesh(ob) and ob.data.nwo.mesh_type == object_type]

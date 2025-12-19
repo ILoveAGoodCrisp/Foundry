@@ -3268,7 +3268,9 @@ class NWOImporter:
             self.new_coll = new_coll
         else:
             self.new_coll = self.context.scene.collection
-            
+        
+        parents = {o.parent for o in objects if o.parent is not None}
+        
         for ob in objects:
             if file_name:
                 utils.unlink(ob)
@@ -3281,7 +3283,7 @@ class NWOImporter:
                 ob = convert_to_marker(ob, maintain_mesh=True)
                 self.setup_jms_marker(ob, is_model, xref)
                 
-            elif ob.name.lower().startswith(legacy_frame_prefixes) or utils.is_frame(ob):
+            elif ob.name.lower().startswith(legacy_frame_prefixes) or (ob.type != 'MESH' and ob in parents):
                 ob = self.setup_jms_frame(ob)
                 if not ob.parent and ob.type == 'EMPTY' and not (ob.name.lower().startswith(legacy_frame_prefixes) or "root" in ob.name):
                     ob.nwo.export_this = False
