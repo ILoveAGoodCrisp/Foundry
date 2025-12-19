@@ -3649,7 +3649,7 @@ class NWO_OT_PanelExpand(bpy.types.Operator):
     panel_str: bpy.props.StringProperty()
 
     def execute(self, context):
-        nwo = self.scene_nwo
+        nwo = utils.get_scene_props()
         prop = f"{self.panel_str}_expanded"
         setattr(nwo, prop, not getattr(nwo, prop))
         return {"FINISHED"}
