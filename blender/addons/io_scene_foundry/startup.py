@@ -202,7 +202,7 @@ def save_object_positions_to_tags(dummy):
             export_prefabs()
         if nwo.lights_export_on_save and asset_type == 'scenario':
             print("Exporting Lights")
-            export_lights()
+            export_lights(*utils.get_asset_info())
         if nwo.decorators_export_on_save and asset_type == 'scenario' and nwo.decorators_from_blender:
             print("Exporting Decorators")
             export_decorators(utils.is_corinth(bpy.context))
