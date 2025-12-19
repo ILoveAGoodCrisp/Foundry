@@ -5,7 +5,6 @@ import math
 import os
 import sys
 import traceback
-import clr
 from pathlib import Path
 import ctypes
 import numpy as np
@@ -14,8 +13,6 @@ from ..constants import NormalType
 from ..managed_blam import Tag
 from .. import utils
 import bpy
-
-clr.AddReference('System.Drawing')
 
 path_cache = set()
 
@@ -252,7 +249,6 @@ class BitmapTag(Tag):
         self.tag_has_changes = True
         
     def get_granny_data(self, fill_alpha: bool, calc_blue_channel: bool) -> object | None:
-        clr.AddReference('System.Drawing')
         from System import Array, Byte # type: ignore
         from System.Runtime.InteropServices import Marshal # type: ignore
         from System.Drawing import Rectangle # type: ignore

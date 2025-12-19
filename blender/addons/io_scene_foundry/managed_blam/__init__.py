@@ -3,6 +3,7 @@ from ..managed_blam.Tags import *
 from ..utils import (
     any_partition,
     disable_prints,
+    display_warning,
     dot_partition,
     enable_prints,
     get_asset_path,
@@ -21,7 +22,6 @@ import os
 from ..utils import get_project_path
 import sys
 import atexit
-import clr
 
 last_saved_tag = None
 
@@ -378,56 +378,54 @@ def start_mb_for_import(path: str | Path):
 
 def mb_init(tag_path=None):
     context = bpy.context
-    # Switch the project if necessary & possible
+
     if tag_path:
         tag_path = Path(tag_path)
         if tag_path.is_absolute() and tag_path.exists():
             switch_project_from_filepath(context, tag_path)
-    # append the blender python module path to the sys PATH
-    packages_path = Path(sys.exec_prefix, "lib", "site-packages")
-    sys.path.append(str(packages_path))
-    # Get the reference to ManagedBlam.dll
+
+    # packages_path = Path(sys.exec_prefix, "lib", "site-packages")
+    # if str(packages_path) not in sys.path:
+    #     sys.path.append(str(packages_path))
+
     global mb_path
     mb_path = Path(get_project_path(), "bin", "managedblam.dll")
 
-    # Check that a path to ManagedBlam actually exists
     if not mb_path.exists():
         print_warning("Could not find path to ManagedBlam.dll")
         return
 
-    # Logic for importing the clr module and importing Bungie/Corinth from ManagedBlam.dll
     try:
+        import clr
         clr.AddReference(str(mb_path.with_suffix("")))
+
         if is_corinth(context):
-            import Corinth as Bungie # type: ignore
+            import Corinth as Bungie  # type: ignore
         else:
-            import Bungie # type: ignore
-            
-        mb_operational = True
+            import Bungie  # type: ignore
 
-    except:
-        print("Failed to add reference to ManagedBlam")
-        return {"CANCELLED"}
-
-    else:
         global Halo
         Halo = Bungie
-        try:
-            callback = Halo.ManagedBlamCrashCallback(lambda info: None)
-            startup_parameters = Halo.ManagedBlamStartupParameters()
-            startup_parameters.InitializationLevel = Halo.InitializationType.TagsOnly
-            System = Halo.ManagedBlamSystem()
-            System.Start(get_project_path(), callback, startup_parameters)
-            global Tags
-            Tags = Halo.Tags
-            global Animation
-            Animation = Halo.Game.Animation
-            atexit.register(close_managed_blam)
-            global mb_active
-            mb_active = True
-            
-        except:
-            print("ManagedBlam already initialised Once. Skipping")
+
+        callback = Halo.ManagedBlamCrashCallback(lambda info: None)
+        startup_parameters = Halo.ManagedBlamStartupParameters()
+        startup_parameters.InitializationLevel = Halo.InitializationType.TagsOnly
+
+        SystemInstance = Halo.ManagedBlamSystem()
+        SystemInstance.Start(get_project_path(), callback, startup_parameters)
+
+        global Tags, Animation, mb_active, mb_operational
+        Tags = Halo.Tags
+        Animation = Halo.Game.Animation
+        mb_active = True
+        mb_operational = True
+
+        atexit.register(close_managed_blam)
+
+    except Exception as e:
+        print_error(f"Failed to initialise ManagedBlam: {e}")
+        return {"CANCELLED"}
+
         
 def close_managed_blam():
     Halo.ManagedBlamSystem.Stop()

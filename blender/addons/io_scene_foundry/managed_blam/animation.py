@@ -419,8 +419,6 @@ class AnimationTag(Tag):
                 return print(f"Failed to use tags: {self.tag_path.RelativePath} & {render_model.tag_path.RelativePath}")
             
             nodes_count = exporter.GetGraphNodeCount()
-            import clr
-            clr.AddReference('System')
             from System import Array # type: ignore
             animation_nodes = [self._GameAnimationNode() for _ in range(nodes_count)]
             animation_nodes = Array[self._GameAnimationNodeType()](animation_nodes)

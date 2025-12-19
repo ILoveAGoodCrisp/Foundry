@@ -5707,3 +5707,16 @@ def print_bullet(msg: str):
 
 def print_info(msg: str):
     print(f"    {msg}")
+
+def display_warning(title: str, message: str):
+    try:
+        MB_ICONWARNING = 0x30
+        MB_OK = 0x0
+        ctypes.windll.user32.user32.MessageBoxW(
+            None,
+            message,
+            title,
+            MB_OK | MB_ICONWARNING,
+        )
+    except Exception:
+        pass

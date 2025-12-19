@@ -9,26 +9,15 @@ def get_bungie(report=None):
     """Get a reference to Bungie"""
     mb_path = os.path.join(get_project_path(), "bin", "managedblam")
     try:
-        import clr
-
-        try:
-            clr.AddReference(mb_path)
-            print(mb_path)
-            if is_corinth():
-                import Corinth as Bungie # type: ignore
-            else:
-                import Bungie # type: ignore
-        except:
-            print("Failed to add reference to ManagedBlam")
-            # return({'CANCELLED'})
+        # clr.AddReference(mb_path)
+        print(mb_path)
+        if is_corinth():
+            import Corinth as Bungie # type: ignore
+        else:
+            import Bungie # type: ignore
     except:
-        print("Failed to import clr")
-        report(
-            {
-                "ERROR",
-                "Failed to import modules to connect to ManagedBlam. Process aborted",
-            }
-        )
+        print("Failed to add reference to ManagedBlam")
+        # return({'CANCELLED'})
 
     return Bungie
 
