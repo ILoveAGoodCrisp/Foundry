@@ -2054,6 +2054,10 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             )
             flow.use_property_split = False
             col = flow.column()
+            col.prop(nwo, "is_frame")
+            col.separator()
+            if nwo.is_frame:
+                return
             row = col.row()
             row.scale_y = 1.25
             row.emboss = "NORMAL"

@@ -787,7 +787,7 @@ class NWO_Import(bpy.types.Operator):
                     if importer.to_x_rot:
                         utils.transform_scene(context, 1, importer.from_x_rot, 'x', scene_nwo.forward_direction, objects=imported_amf_objects, actions=[])
                         
-                if self.legacy_okay and 'jms'  in importer.extensions:
+                if self.legacy_okay and 'jms' in importer.extensions:
                     toolset_addon_enabled = addon_utils.check('io_scene_halo')[0]
                     if not toolset_addon_enabled:
                         addon_utils.enable('io_scene_halo')
@@ -811,17 +811,20 @@ class NWO_Import(bpy.types.Operator):
                             utils.transform_scene(context, (1 / importer.scale_factor), importer.to_x_rot, scene_nwo.forward_direction, 'x', objects=[arm], actions=[])
          
                     imported_jms_objects = importer.import_jms_files(jms_files, self.legacy_type)
-
-                    if imported_jms_objects:
-                        imported_objects.extend(imported_jms_objects)
-                    if not toolset_addon_enabled:
-                        addon_utils.disable('io_scene_halo')
-
+                    
                     if importer.needs_scaling:
                         if arm is None:
                             utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', scene_nwo.forward_direction, objects=imported_jms_objects, actions=[])
                         else:
                             utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', scene_nwo.forward_direction, objects=[arm] + imported_jms_objects, actions=[])
+
+                    if imported_jms_objects:
+                        imported_objects.extend(imported_jms_objects)
+                        
+                    if not toolset_addon_enabled:
+                        addon_utils.disable('io_scene_halo')
+
+
                             
                 if 'jma' in importer.extensions:
                     jma_files = importer.sorted_filepaths["jma"]
@@ -3323,8 +3326,11 @@ class NWOImporter:
                 for coll in ob.users_collection: coll.objects.link(marker)
             bpy.data.objects.remove(ob)
             self.jms_file_frame_objects.append(marker)
+            marker.nwo.is_frame = True
             return marker
         else:
+            if ob.type == 'EMPTY':
+                ob.nwo.is_frame = True
             self.jms_file_frame_objects.append(ob)
             return ob
             

@@ -1671,16 +1671,10 @@ def is_marker_quick(ob):
     return ob.type == 'EMPTY' and ob.empty_display_type != "IMAGE"
 
 def is_frame(ob):
-    if ob.type == 'ARMATURE':
+    if ob.type == 'ARMATURE' or (ob.type == 'EMPTY' and ob.nwo.is_frame):
         return True
-    if ob.type != 'EMPTY':
-        return False
     
-    children = ob.children
-    if not children:
-        return False
-    
-    return any((not o.nwo.ignore_for_export) for o in children)
+    return False
 
 def is_light(ob):
     return ob.type == 'LIGHT'
@@ -5286,7 +5280,23 @@ def recursive_parentage(ob, collection_map):
     if ob.parent:
         return recursive_parentage(ob.parent, collection_map)
         
-    return ignore_for_export_fast(ob, collection_map, ob)
+    return ignore_for_export_fast_no_frame(ob, collection_map, ob)
+
+def ignore_for_export_fast_no_frame(ob, collection_map, instancer):
+    nwo = ob.nwo
+    if not nwo.export_this:
+        return True
+    
+    if ob.type not in VALID_OBJECTS:
+        return True
+
+    if ob.parent and recursive_parentage(ob, collection_map):
+        return True
+    
+    if instancer.nwo.export_collection:
+        return collection_map[instancer.nwo.export_collection].non_export
+    
+    return False
 
 def ignore_for_export_fast(ob, collection_map, instancer):
     nwo = ob.nwo
@@ -5295,6 +5305,9 @@ def ignore_for_export_fast(ob, collection_map, instancer):
     
     if ob.type not in VALID_OBJECTS:
         return True
+    
+    if nwo.is_frame and ob.type == 'EMPTY':
+        return False
 
     if ob.parent and recursive_parentage(ob, collection_map):
         return True

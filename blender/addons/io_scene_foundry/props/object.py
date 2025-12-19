@@ -245,6 +245,11 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options={'HIDDEN', 'SKIP_SAVE'},
         get=get_ignore_for_export,
     )
+    
+    is_frame: bpy.props.BoolProperty(
+        name="Is Frame",
+        description="Allows this empty to be used for parenting but does not export the empty itself"
+    )
 
     # OBJECT LEVEL PROPERTIES
 
