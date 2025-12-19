@@ -360,7 +360,7 @@ class NWO_ProxyInstanceDelete(bpy.types.Operator):
         if nwo.proxy_collision == proxy_ob:
             nwo.proxy_collision = None
         elif nwo.proxy_cookie_cutter == proxy_ob:
-            nwo.proxy_collision = None
+            nwo.proxy_cookie_cutter = None
         else:
             for i in range(200):
                 if getattr(nwo, f"proxy_physics{i}") == proxy_ob:
