@@ -1771,21 +1771,54 @@ class VirtualSkeleton:
             dict_bones = {v: i for i, v in enumerate(list_bones)}
             self.pbones = {fb.name: fb.bone for fb in valid_bones}
 
+
             root_bone = None
             root_bone_found = False
             bone_inverse_matrices = {}
+            
+            requested_indices = {}
+
             for idx, fb in enumerate(valid_bones):
-                b = VirtualBone(fb.bone, fb.name)
-                frame_ids_index = None
+                name = fb.name
+
                 if scene.is_cinematic:
                     actor = scene.actors.get(ob)
-                    if actor is not None and actor.node_order is not None:
-                        frame_ids_index = actor.node_order.get(b.name)
+                    if actor and actor.node_order:
+                        requested_indices[name] = actor.node_order.get(name)
+                    else:
+                        requested_indices[name] = None
                 else:
-                    frame_ids_index = scene.template_node_order.get(b.name)
-                if frame_ids_index is None:
-                    frame_ids_index = idx
-                b.create_bone_props(scene.frame_ids[frame_ids_index])
+                    requested_indices[name] = scene.template_node_order.get(name)
+
+                if requested_indices[name] is None:
+                    requested_indices[name] = idx
+
+            used_indices = set()
+            max_needed = max(requested_indices.values()) + len(valid_bones)
+
+            free_indices = iter(i for i in range(max_needed))
+            
+            def allocate_index(preferred):
+                if preferred not in used_indices:
+                    used_indices.add(preferred)
+                    return preferred
+
+                for i in free_indices:
+                    if i not in used_indices:
+                        used_indices.add(i)
+                        return i
+            
+            for idx, fb in enumerate(valid_bones):
+                b = VirtualBone(fb.bone, fb.name)
+
+                preferred = requested_indices[b.name]
+                frame_ids_index = allocate_index(preferred)
+
+                if frame_ids_index is None or frame_ids_index >= len(scene.frame_ids):
+                    b.create_bone_props([0, 0])
+                else:
+                    b.create_bone_props(scene.frame_ids[frame_ids_index])
+                    
                 if fb.parent:
                     # Add one to this since the root is the armature
                     b.parent_index = dict_bones[fb.parent.name] + 1
