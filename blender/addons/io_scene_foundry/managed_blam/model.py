@@ -1,5 +1,6 @@
 
 
+from enum import Enum
 from pathlib import Path
 
 from .Tags import TagFieldBlockElement, TagPath
@@ -7,6 +8,12 @@ from .Tags import TagFieldBlockElement, TagPath
 from .render_model import RenderModelTag
 
 from ..managed_blam import Tag
+
+class RenderModelOverrideType(Enum):
+    campaign = 0
+    multiplayer = 1
+    firefight = 2
+    mainmenu = 3
 
 class ChildObject:
     def __init__(self, element: TagFieldBlockElement = None):
@@ -31,19 +38,26 @@ class ModelTag(Tag):
         self.reference_physics_model = self.tag.SelectField("Reference:physics_model")
         self.block_variants = self.tag.SelectField("Block:variants")
         
-    def get_model_paths(self, optional_tag_root=None) -> tuple[str]:
+    def get_model_paths(self, optional_tag_root=None, override_type: RenderModelOverrideType=None) -> tuple[str]:
         """Returns string paths from model tag dependencies: render, collision, animation, physics"""
         render = ""
         collision = ""
         animation  = ""
         physics = ""
+        
         render_path = self.reference_render_model.Path
+        if self.corinth and override_type is not None:
+            for element in self.tag.SelectField("Block:game mode render model override").Elements:
+                if element.Fields[0].Value == override_type.value:
+                    render_path = element.Fields[1].Path
+                    break
+            
         if render_path:
             if optional_tag_root:
                 render = str(Path(optional_tag_root, render_path.RelativePathWithExtension))
             else:
                 render = render_path.Filename
-            
+                
         collision_path = self.reference_collision_model.Path
         if collision_path:
             if optional_tag_root:

@@ -1,4 +1,6 @@
 from mathutils import Matrix, Vector
+
+from .cinematic_scene_data import CinematicSceneDataTag
 from .. import utils
 from ..props.scene import NWO_CinematicEvent
 from . import Tag, tag_path_from_string
@@ -408,7 +410,7 @@ class CinObject():
         self.graph_path = ""
         self.object_path = ""
         self.armature = None
-        self.actions = None
+        self.animations = None
     
 class CinematicSceneTag(Tag):
     tag_ext = 'cinematic_scene'
@@ -419,7 +421,141 @@ class CinematicSceneTag(Tag):
     def get_loop_text(self) -> str:
         return self.scene_playback.GetLoopText()
     
-    def to_blender(self, film_aperture: float, cinematic_name: str, blender_scene_index=0):
+    def to_blender_corinth(self, film_aperture: float, cinematic_name: str, scene_data_tagpath):
+        with CinematicSceneDataTag(path=scene_data_tagpath) as data:
+            camera_objects = []
+            object_animations = []
+            frame = 1
+            actions = []
+            shot_frames = []
+            
+            scene_id = self.tag_path.ShortName[(len(cinematic_name) + 1):]
+            cin_scene = self.scene_nwo.cinematic_scenes.get(scene_id)
+            if cin_scene is None:
+                cin_scene = self.scene_nwo.cinematic_scenes.add()
+                
+            cin_scene.name = scene_id
+            blender_scene = bpy.data.scenes.get(self.tag_path.ShortName)
+            if blender_scene is None:
+                blender_scene = bpy.data.scenes.new(self.tag_path.ShortName)
+            cin_scene.scene = blender_scene
+            
+            utils.print_tag(f"Importing cinematic scene: {self.tag_path.ShortName}")
+            
+            for scene_element, data_element in zip(self.tag.SelectField("Block:objects").Elements, data.tag.SelectField("Block:objects").Elements):
+                name = scene_element.SelectField("name").GetStringData()
+                variant = scene_element.SelectField("variant name").GetStringData()
+                graph = data_element.SelectField("model animation graph").Path
+                obj = data_element.SelectField("object type").Path
+                
+                if self.path_exists(obj) and self.path_exists(graph):
+                    cin_object = CinObject()
+                    cin_object.name = name
+                    cin_object.variant = variant
+                    cin_object.graph_path = graph.Filename
+                    cin_object.object_path = obj.Filename
+                    object_animations.append(cin_object)
+            
+            for element in data.tag.SelectField("shots").Elements:
+                utils.print_step(f"Creating camera data for shot: {element.ElementIndex + 1}")
+                shot_camera_name = f"{self.tag_path.ShortName}_shot{element.ElementIndex + 1}"
+                shot_camera_data = bpy.data.cameras.new(shot_camera_name)
+                shot_camera = bpy.data.objects.new(shot_camera_name, shot_camera_data)
+                shot_camera_data.display_size *= (1 / 0.03048)
+                camera_objects.append(shot_camera)
+                
+                cam_frames = []
+                
+                timeline_marker = blender_scene.timeline_markers.new(shot_camera.name, frame=frame)
+                timeline_marker.camera = shot_camera
+                
+                for frame_element in element.SelectField("Block:frame data").Elements:
+                    cam_position = Vector([n for n in frame_element.SelectField("Struct:camera frame[0]/Struct:dynamic data[0]/RealPoint3d:camera position").Data]) * 100
+                    cam_forward = Vector([n for n in frame_element.SelectField("Struct:camera frame[0]/Struct:dynamic data[0]/RealVector3d:camera forward").Data]).normalized()
+                    cam_up = Vector([n for n in frame_element.SelectField("Struct:camera frame[0]/Struct:dynamic data[0]/RealVector3d:camera up").Data]).normalized()
+                    focal_length = frame_element.SelectField("Struct:camera frame[0]/Struct:constant data[0]/Real:focal length").Data
+                    
+                    cam_left = cam_up.cross(cam_forward).normalized()
+                    
+                    matrix = Matrix((
+                        (cam_forward[0], cam_left[0], cam_up[0], cam_position[0]),
+                        (cam_forward[1], cam_left[1], cam_up[1], cam_position[1]),
+                        (cam_forward[2], cam_left[2], cam_up[2], cam_position[2]),
+                        (0, 0, 0, 1),
+                    ))
+                    
+                    cam_frame = CamFrame()
+                    cam_frame.matrix = matrix @ camera_correction_matrix.to_4x4()
+                    cam_frame.lens = focal_length
+                    cam_frames.append(cam_frame)
+                    
+                
+                matrices = [cf.matrix.freeze() for cf in cam_frames]
+                keyframe_matrices = len(set(matrices)) > 1
+                camera_data_action = None
+                camera_action = None
+                shot_camera.matrix_world = matrices[0]
+                if keyframe_matrices:
+                    camera_action = bpy.data.actions.new(f"{shot_camera.name}")
+                    slot = camera_action.slots.new('OBJECT', shot_camera.name)
+                    actions.append(camera_action)
+                    
+                    shot_camera.animation_data_create()
+                    shot_camera.animation_data.action = camera_action
+                    shot_camera.animation_data.last_slot_identifier = slot.identifier
+                    
+                    camera_fcurves = utils.get_fcurves(camera_action, slot)
+                    loc_curves = [camera_fcurves.new(data_path="location", index=i) for i in range(3)]
+
+                    shot_camera.rotation_mode = 'QUATERNION'
+                    rot_curves = [camera_fcurves.new(data_path="rotation_quaternion", index=i) for i in range(4)]
+                    
+                fovs = [cf.lens for cf in cam_frames]
+                keyframe_fovs = len(set(fovs)) > 1
+                shot_camera_data.lens = fovs[0]
+                shot_camera_data.sensor_width = film_aperture
+                if keyframe_fovs:
+                    camera_data_action = bpy.data.actions.new(f"{shot_camera.name}_data")
+                    slot = camera_data_action.slots.new('CAMERA', shot_camera_data.name)
+                    
+                    shot_camera_data.animation_data_create()
+                    shot_camera_data.animation_data.action = camera_data_action
+                    shot_camera_data.animation_data.last_slot_identifier = slot.identifier
+                    
+                    camera_data_fcurves = utils.get_fcurves(camera_data_action, slot)
+                    lens_curve = camera_data_fcurves.new(data_path="lens")
+                    
+                if keyframe_matrices or keyframe_fovs:
+                    shot_frame = frame
+                    for cf in cam_frames:
+                        if keyframe_matrices:
+                            loc, rot, _ = cf.matrix.decompose()
+                            for i in range(3):
+                                loc_curves[i].keyframe_points.insert(shot_frame, loc[i], options={'FAST'})
+
+                            for i in range(4):
+                                rot_curves[i].keyframe_points.insert(shot_frame, rot[i], options={'FAST'})
+                            
+                        if keyframe_fovs:
+                            lens_curve.keyframe_points.insert(shot_frame, cf.lens, options={'FAST'})
+                            
+                        shot_frame += 1
+
+                shot_frames.append(frame)
+                frame += element.SelectField("frame count").Data
+                
+            blender_scene.frame_start = 1
+            blender_scene.frame_end = frame
+            
+            light_tags = []
+            for element in self.tag.SelectField("Block:lights").Elements:
+                info_path = element.Fields[0].Path
+                if self.path_exists(info_path):
+                    light_tags.append(info_path.Filename)
+                
+            return self.tag_path.ShortName, blender_scene, camera_objects, object_animations, self.tag.SelectField("anchor").GetStringData(), actions, shot_frames,light_tags
+    
+    def to_blender(self, film_aperture: float, cinematic_name: str):
         camera_objects = []
         object_animations = []
         frame = 1
@@ -430,11 +566,17 @@ class CinematicSceneTag(Tag):
         cin_scene = self.scene_nwo.cinematic_scenes.get(scene_id)
         if cin_scene is None:
             cin_scene = self.scene_nwo.cinematic_scenes.add()
-            
+        
+        current_scene = self.context.scene
         cin_scene.name = scene_id
         blender_scene = bpy.data.scenes.get(self.tag_path.ShortName)
         if blender_scene is None:
             blender_scene = bpy.data.scenes.new(self.tag_path.ShortName)
+            utils.copy_rna_props(current_scene.render, blender_scene.render)
+            utils.copy_rna_props(current_scene.view_settings, blender_scene.view_settings)
+            utils.copy_rna_props(current_scene.cycles, blender_scene.cycles)
+            utils.copy_rna_props(current_scene.eevee, blender_scene.eevee)
+            
         cin_scene.scene = blender_scene
         
         utils.print_tag(f"Importing cinematic scene: {self.tag_path.ShortName}")

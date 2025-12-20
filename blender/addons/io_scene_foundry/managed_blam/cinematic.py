@@ -188,22 +188,44 @@ class CinematicTag(Tag):
                 pass
             
             scene_tagpath = element.SelectField("Reference:scene").Path
-            if self.path_exists(scene_tagpath):
-                if specific_scene and scene_tagpath.RelativePathWithExtension != specific_scene:
-                    continue
-                
-                with CinematicSceneTag(path=scene_tagpath) as scene:
-                    scene_data = SceneData(*scene.to_blender(film_aperture, self.tag_path.ShortName, element.ElementIndex))
+            if self.corinth:
+                scene_data_tagpath = element.SelectField("Reference:data").Path
+                if self.path_exists(scene_tagpath) and self.path_exists(scene_data_tagpath):
+                    if specific_scene and scene_tagpath.RelativePathWithExtension != specific_scene:
+                        continue
+                    
+                    scene_data = SceneData(film_aperture, self.tag_path.ShortName)
+                    scene_data.from_scene_corinth(scene_tagpath, scene_data_tagpath)
+                    scene_datas.append(scene_data)
+            else:
+                if self.path_exists(scene_tagpath):
+                    if specific_scene and scene_tagpath.RelativePathWithExtension != specific_scene:
+                        continue
+                    
+                    scene_data = SceneData(film_aperture, self.tag_path.ShortName)
+                    scene_data.from_scene(scene_tagpath)
                     scene_datas.append(scene_data)
         
         return scene_datas, scenario_path, zone_set
     
 class SceneData:
-    def __init__(self, name, scene, camera_objects, object_animations, anchor_name, actions, shot_frames):
-        self.name = name
-        self.blender_scene = scene
-        self.camera_objects = camera_objects
-        self.object_animations = object_animations
-        self.anchor_name = anchor_name
-        self.actions = actions
-        self.shot_frames = shot_frames
+    def __init__(self, film_aperture, cinematic_name):
+        self.name = ""
+        self.blender_scene = None
+        self.camera_objects = []
+        self.object_animations = []
+        self.anchor_name = ""
+        self.actions = []
+        self.shot_frames = []
+        self.lighting_infos = []
+        
+        self.film_aperture = film_aperture
+        self.cinematic_name = cinematic_name
+        
+    def from_scene(self, scene_tagpath):
+        with CinematicSceneTag(path=scene_tagpath) as scene:
+            self.name, self.blender_scene, self.camera_objects, self.object_animations, self.anchor_name, self.actions, self.shot_frames = scene.to_blender(self.film_aperture, self.cinematic_name)
+    
+    def from_scene_corinth(self, scene_tagpath, scene_data_tagpath):
+        with CinematicSceneTag(path=scene_tagpath) as scene:
+            self.name, self.blender_scene, self.camera_objects, self.object_animations, self.anchor_name, self.actions, self.shot_frames, self.lighting_infos = scene.to_blender_corinth(self.film_aperture, self.cinematic_name, scene_data_tagpath)

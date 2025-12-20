@@ -5723,3 +5723,17 @@ def display_warning(title: str, message: str):
         )
     except Exception:
         pass
+    
+def action_shot_index(name):
+    no_dupe = dot_partition(name)
+    num = any_partition(no_dupe, "_", True)
+    if num.isdigit():
+        return int(num)
+    
+def copy_rna_props(src, dst):
+    for prop in src.bl_rna.properties:
+        if not prop.is_readonly:
+            try:
+                setattr(dst, prop.identifier, getattr(src, prop.identifier))
+            except Exception:
+                pass

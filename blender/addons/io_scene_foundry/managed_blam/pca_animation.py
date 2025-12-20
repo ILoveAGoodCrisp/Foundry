@@ -34,6 +34,8 @@ class PCAAnimationTag(Tag):
         print(f"--- Adding PCA animation for {name} to {ob.name}")
         mesh_data = self.block_mesh_data.Elements[mesh_data_index]
         vertices_per_shape = int(mesh_data.Fields[1].Data)
+        
+        shape_keys = set()
 
         compressed_vertices_array = self._raw_verts(mesh_data)
         vertices_array = self._decompress_verts(compressed_vertices_array, bounds)
@@ -122,14 +124,15 @@ class PCAAnimationTag(Tag):
                 kp.co = (frame_idx, pinned_value)
                 kp.interpolation = 'LINEAR'
                 
-    def to_blender(self, animations: dict, groups: dict):
+        return ob.data.shape_keys, action, slot
+                
+    def to_blender(self, animations: dict, groups: dict, objects: list):
         # Animations is a dict with keys of graph animation names and values of blender animations
         render_model_path = self.tag.SelectField("Reference:RenderModel").Path
+        shape_key_actions = {}
         
         if not self.path_exists(render_model_path):
             return
-        
-        print("Importing PCA Animations")
         
         pca_mesh_vert_counts = {}
         pca_mesh_indices = []
@@ -150,16 +153,16 @@ class PCAAnimationTag(Tag):
                 
             compression_bounds = CompressionBounds(render_model.block_compression_info.Elements[0])
         
-        for ob in bpy.data.objects:
-            if ob.type == 'MESH':
-                pca_index =  pca_mesh_vert_counts.get(len(ob.data.vertices))
-                if pca_index is not None:
-                    pca_objects[pca_index] = ob
+        for ob in objects:
+            pca_index = pca_mesh_vert_counts.get(len(ob.data.vertices))
+            if pca_index is not None:
+                pca_objects[pca_index] = ob
         
         for name, blender_animation_name in animations.items():
             blender_animation = self.scene_nwo.animations.get(blender_animation_name)
             if blender_animation is None:
                 continue
+            
             for element in self.block_mesh_data.Elements:
                 mesh_index = element.Fields[0].Data
                 ob = pca_objects.get(mesh_index)
@@ -176,4 +179,7 @@ class PCAAnimationTag(Tag):
                     
                     group_name = groups[shape_offset]
 
-                    self.import_animation(ob, element.ElementIndex, compression_bounds, offset, count, coefficient_count, shape_offset, name, blender_animation, group_name, kb_pca_min_max)
+                    shape_key, action, slot = self.import_animation(ob, element.ElementIndex, compression_bounds, offset, count, coefficient_count, shape_offset, name, blender_animation, group_name, kb_pca_min_max)
+                    shape_key_actions[(action, slot)] = shape_key
+                    
+        return shape_key_actions

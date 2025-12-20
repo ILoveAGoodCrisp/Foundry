@@ -1663,6 +1663,7 @@ class Mesh:
         self.parts: list[MeshPart] = []
         self.subparts: list[MeshSubpart] = []
         self.from_vert_normals = from_vert_normals
+        self.index = element.ElementIndex
         
         water_indices = [e.Fields[0].Data for e in element.SelectField("Block:water indices start").Elements]
         
@@ -1695,17 +1696,16 @@ class Mesh:
         
         self.vertex_keys = []
         self.mesh_keys = []
-        vertex_keys = element.SelectField("Block:vertex keys")
-        if vertex_keys is not None:
-            self.vertex_keys = [e.Fields[0].Data for e in vertex_keys.Elements]
-            self.mesh_keys = [e.Fields[1].Data for e in vertex_keys.Elements]
+        # vertex_keys = element.SelectField("Block:vertex keys")
+        # if vertex_keys is not None:
+        #     self.vertex_keys = [e.Fields[0].Data for e in vertex_keys.Elements]
+        #     self.mesh_keys = [e.Fields[1].Data for e in vertex_keys.Elements]
             
         self.render_model = None
         self.temp_meshes = None
         self.instances = []
         self.real_mesh_index = -1
                 
-            
     def _true_uvs(self, texcoords):
         return [self._interp_uv(tc) for tc in texcoords]
     
@@ -1838,7 +1838,7 @@ class Mesh:
         needs_new_mesh = True
         matrix = local_matrix or (parent.matrix_world if parent else Matrix.Identity(4))
         if has_tag_path:
-            mesh_key = name, self.tag_path
+            mesh_key = self.index, self.tag_path
             mesh = mesh_cache.get(mesh_key)
             if mesh is not None and mesh in frozenset(bpy.data.meshes):
                 ob = bpy.data.objects.new(name, mesh)
@@ -1866,7 +1866,7 @@ class Mesh:
         mesh = bpy.data.meshes.new(name)
         ob = bpy.data.objects.new(name, mesh)
         
-        if has_tag_path:
+        if has_tag_path and not self.is_pca:
             mesh_cache[mesh_key] = mesh
 
         positions = [self.raw_positions[i:i+3] for i in range(idx_start * 3, (idx_end + 1) * 3, 3)]

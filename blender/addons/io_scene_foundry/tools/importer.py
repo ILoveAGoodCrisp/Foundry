@@ -46,7 +46,7 @@ from ..managed_blam.animation import AnimationTag
 from ..managed_blam.pca_animation import PCAAnimationTag
 from ..managed_blam.render_model import RenderModelTag
 from ..managed_blam.physics_model import PhysicsTag
-from ..managed_blam.model import ChildObject, ModelTag
+from ..managed_blam.model import ChildObject, ModelTag, RenderModelOverrideType
 from ..tools.mesh_to_marker import convert_to_marker
 from ..managed_blam.bitmap import bitmap_to_image, clear_path_cache
 from ..managed_blam.camera_track import CameraTrackTag
@@ -91,7 +91,7 @@ checked_asset_once = False
 # 6. Add an if with conditions for handling this import under NWO_Import.execute
 # 7. Update scope variable to importer calls in other python files where appropriate
 
-formats = "amf", "jms", "jma", "bitmap", "camera_track", "model", "render_model", "scenario", "scenario_structure_bsp", "particle_model", "object", "animation", "prefab", "structure_design", "polyart_asset", "decorator_set", "cinematic"
+formats = "amf", "jms", "jma", "bitmap", "camera_track", "model", "render_model", "scenario", "scenario_structure_bsp", "scenario_structure_lighting_info", "particle_model", "object", "animation", "prefab", "structure_design", "polyart_asset", "decorator_set", "cinematic"
 
 xref_tag_types = (
     ".crate",
@@ -511,6 +511,18 @@ class NWO_Import(bpy.types.Operator):
         items=state_items,
     )
     
+    tag_model_override_type: bpy.props.EnumProperty(
+        name="Model Override",
+        description="The render model type to read from the model override block",
+        items=[
+            ('none', "None", ""),
+            ('campaign', "Campaign", ""),
+            ('multiplayer', "Multiplayer", ""),
+            ('firefight', "Firefight", ""),
+            ('mainmenu', "Main Menu", ""),
+        ]
+    )
+    
     setup_as_asset: bpy.props.BoolProperty(
         name="Setup as Asset",
         default=False,
@@ -731,6 +743,7 @@ class NWO_Import(bpy.types.Operator):
             
         set_animation_index = scene_nwo.asset_type in {'model', 'animation'}
         scene_collection_map = defaultdict(list)
+        scene_datas = []
 
         with utils.ExportManager():
             os.system("cls")
@@ -853,6 +866,7 @@ class NWO_Import(bpy.types.Operator):
                     importer.tag_animation = self.tag_animation
                     importer.tag_variant = self.tag_variant.lower()
                     importer.tag_state = State[self.tag_state].value
+                    importer.tag_model_override_type = RenderModelOverrideType(self.tag_model_override_type) if self.tag_model_override_type != 'none' else None
                     importer.tag_animation_filter = self.tag_animation_filter
                     importer.graph_import_animations = self.graph_import_animations
                     importer.graph_import_pca_data = self.graph_import_pca_data
@@ -934,6 +948,7 @@ class NWO_Import(bpy.types.Operator):
                             context.view_layer.objects.active = marker
                         
                     else:
+                        importer.tag_model_override_type = RenderModelOverrideType(self.tag_model_override_type) if self.tag_model_override_type != 'none' else None
                         importer.tag_render = self.tag_render
                         importer.tag_markers = self.tag_markers
                         importer.tag_collision = self.tag_collision
@@ -1219,6 +1234,8 @@ class NWO_Import(bpy.types.Operator):
                     importer.tag_cinematic_import_scenario = self.tag_cinematic_import_scenario
                     importer.tag_cinematic_scene = self.tag_cinematic_scene
                     importer.build_control_rig = self.build_control_rig
+                    importer.tag_model_override_type = RenderModelOverrideType.campaign
+                    importer.graph_import_pca_data = self.graph_import_pca_data
                     anchor_objects = {}
                     imported_cinematic_scenario_objects = []
                     
@@ -1240,12 +1257,6 @@ class NWO_Import(bpy.types.Operator):
                     else:
                         utils.print_warning(f"Failed to read globals tag. Using default cinematic film aperture of {film_aperture}")
                     
-                    def action_shot_index(name):
-                        no_dupe = utils.dot_partition(name)
-                        num = utils.any_partition(no_dupe, "_", True)
-                        if num.isdigit():
-                            return int(num)
-                    
                     importer.tag_render = True
                     importer.tag_markers = True
                     importer.tag_state = State["default"].value
@@ -1259,6 +1270,7 @@ class NWO_Import(bpy.types.Operator):
                             importer.tag_zone_set = zone_set
                             importer.tag_bsp_import_geometry = True
                             importer.tag_bsp_render_only = True
+                            importer.tag_import_lights = self.tag_import_lights
                             importer.tag_scenario_import_objects = self.tag_scenario_import_objects
                             importer.tag_scenario_import_decals = self.tag_scenario_import_decals
                             importer.tag_scenario_import_decorators = self.tag_scenario_import_decorators
@@ -1285,22 +1297,30 @@ class NWO_Import(bpy.types.Operator):
                                 camera_collection.objects.link(ob)
                                 
                             scene_collection_map[sdata.blender_scene].append(camera_collection)
+                            
+                            sdata.blender_scene.render.fps = 30
                                 
                             imported_cinematic_objects.extend(sdata.camera_objects)
                             imported_cinematic_actions.extend(sdata.actions)
                             
                             for cin_object in sdata.object_animations:
-                                importer.tag_variant = cin_object.variant if cin_object.variant else "default"
+                                importer.tag_variant = cin_object.variant
                                 imported_cinematic_object_objects, armature, render_path, model_collection = importer.import_object([cin_object.object_path], None, return_cin_stuff=True)
                                 scene_collection_map[sdata.blender_scene].append(model_collection)
                                 imported_cinematic_objects.extend(imported_cinematic_object_objects)
                                 cin_object.armature = armature
-                                cin_actions = importer.import_animation_graph(cin_object.graph_path, armature, render_path)
+                                cin_actions, cin_animations = importer.import_animation_graph(cin_object.graph_path, armature, render_path, return_animations=True)
                                 
-                                cin_object.actions = {action_shot_index(a.name): a for a in cin_actions}
+                                cin_object.animations = {utils.action_shot_index(a): a for a in cin_animations}
                                 imported_cinematic_actions.extend(cin_actions)
                             
-                            add_sdata_to_nla(sdata)
+                            light_objects_all = []
+                            if self.tag_import_lights:
+                                for lighting_info in sdata.lighting_infos:
+                                    light_objects, light_collection = importer.import_scenario_structure_lighting_info(lighting_info)
+                                    light_objects_all.extend(light_objects)
+                                    scene_collection_map[sdata.blender_scene].append(light_collection)
+                                    imported_cinematic_objects.extend(light_objects)
 
                             if imported_cinematic_scenario_objects:
                                 anchor_position = Vector.Fill(3, 0)
@@ -1338,7 +1358,10 @@ class NWO_Import(bpy.types.Operator):
                                 context.scene.collection.objects.link(anchor)
                                 sdata.blender_scene.nwo.cinematic_anchor = anchor
                                 imported_cinematic_objects.append(anchor)
-                                
+                            
+                            for ob in light_objects_all:
+                                ob.parent = anchor
+                                ob.parent_type = 'OBJECT'
                             scene_collection_map[sdata.blender_scene].append(anchor)
                     
                     imported_objects.extend(imported_cinematic_objects)
@@ -1352,9 +1375,33 @@ class NWO_Import(bpy.types.Operator):
                     #             ob.parent = anchor
                     #             ob.parent_type = 'OBJECT'
 
-                if importer.pca_animations:
-                    with PCAAnimationTag(path=importer.pca_path) as pca:
-                        pca.to_blender(importer.pca_animations, importer.pca_groups)
+                if importer.pca_info:
+                    print(f"Importing PCA Animations from {len(importer.pca_info)} tag{'' if len(importer.pca_info) == 1 else 's'}")
+                    shape_key_actions = {}
+                    for info in importer.pca_info:
+                        with PCAAnimationTag(path=info.pca_path) as pca:
+                            shape_key_actions.update(pca.to_blender(info.pca_animations, info.pca_groups, info.objects))
+                            
+                    for (action, slot), shape_keys in shape_key_actions.items():
+                        
+                        fcurves = utils.get_fcurves(action, slot)
+                        existing_paths = {fcu.data_path for fcu in fcurves}
+
+                        for kb in shape_keys.key_blocks:
+                            if kb.name == "Basis":
+                                continue
+
+                            data_path = f'key_blocks["{kb.name}"].value'
+
+                            if data_path not in existing_paths:
+                                fcu = fcurves.new(data_path=data_path)
+                                kp = fcu.keyframe_points.insert(frame=1, value=0.0, options={'FAST'})
+                                kp.interpolation = 'LINEAR'
+                
+                if scene_datas:
+                    print("--- Creating NLA tracks for cinematic")
+                    for sdata in scene_datas:
+                        add_scene_data_to_nla(sdata, scene_nwo)
                 
                 setup_materials(context, importer, starting_materials, imported_objects, self.build_blender_materials, self.always_extract_bitmaps, importer.emissive_meshes)
                         
@@ -1501,6 +1548,8 @@ class NWO_Import(bpy.types.Operator):
                 self.filter_glob += '*.scenario;'
             if 'scenario_structure_bsp' in self.scope:
                 self.filter_glob += '*.scen*_bsp;'
+            if 'scenario_structure_lighting_info' in self.scope:
+                self.filter_glob += '*.scen*_info;'
             if 'particle_model' in self.scope:
                 self.filter_glob += '*.particle_model;'
             if 'object' in self.scope:
@@ -1537,7 +1586,7 @@ class NWO_Import(bpy.types.Operator):
     def draw(self, context):
         layout = self.layout
         layout.scale_y = 1.25
-        
+        corinth = utils.is_corinth(context)
         if not self.scope or ('amf' in self.scope or 'jms' in self.scope or 'model' in self.scope or 'object' in self.scope):
             box = layout.box()
             box.label(text="Model Settings")
@@ -1560,14 +1609,15 @@ class NWO_Import(bpy.types.Operator):
                 sub_box = box.box()
                 sub_box.prop(self, "tag_animation_filter")
                 sub_box.prop(self, "graph_import_animations")
-                if self.graph_import_animations and utils.is_corinth(context):
+                if self.graph_import_animations and corinth:
                     sub_box.prop(self, "graph_import_pca_data")
                 sub_box.prop(self, "graph_generate_renames")
                 sub_box.prop(self, "graph_import_events")
                 sub_box.prop(self, "graph_import_ik_chains")
                 sub_box.prop(self, "generate_frames")
-            if utils.is_corinth(context):
-                layout.prop(self, "tag_import_lights")
+            if corinth:
+                box.prop(self, "tag_import_lights")
+                box.prop(self, "tag_model_override_type")
             box.prop(self, 'tag_variant')
             box.prop(self, 'tag_state')
             if self.tag_variant and self.tag_markers:
@@ -1580,7 +1630,7 @@ class NWO_Import(bpy.types.Operator):
             
         if not self.scope or ('scenario' in self.scope) or ('scenario_structure_bsp' in self.scope):
             box = layout.box()
-            tag_type = 'material' if utils.is_corinth(context) else 'shader'
+            tag_type = 'material' if corinth else 'shader'
             box.label(text='Scenario Tag Settings')
             box.prop(self, 'tag_zone_set')
             box.prop(self, "tag_bsp_import_geometry")
@@ -1634,6 +1684,8 @@ class NWO_Import(bpy.types.Operator):
             box.label(text='Cinematic Settings')
             box.prop(self, "tag_cinematic_import_scenario")
             box.prop(self, "tag_cinematic_import_actors")
+            if corinth:
+                box.prop(self, "graph_import_pca_data")
             box.prop(self, "tag_cinematic_scene")
             box.prop(self, "build_control_rig")
             box.prop(self, "tag_import_lights")
@@ -1850,6 +1902,13 @@ class JMSMaterialSlot:
         
         return True
 
+class PCAInfo:
+    def __init__(self):
+        self.start_frame = 1
+        self.objects = []
+        self.pca_animations = {}
+        self.pca_groups = {}
+        self.pca_path = None
 
 class NWOImporter:
     def __init__(self, context, filepaths=[], scope=[], existing_scene=False):
@@ -1909,14 +1968,14 @@ class NWOImporter:
         
         self.emissive_meshes = set()
         
-        self.pca_animations = {}
-        self.pca_groups = {}
-        self.pca_path = None
+        self.pca_info = []
         
         self.tag_cinematic_import_scenario = False
         self.tag_cinematic_import_actors = False
         self.tag_cinematic_scene = ""
         self.build_control_rig = False
+        
+        self.tag_model_override_type = None
         
         clear_cache()
         
@@ -1961,6 +2020,9 @@ class NWOImporter:
                 filetype_dict["scenario"][path] = None
             elif 'scenario_structure_bsp' in valid_exts and path.lower().endswith('.scenario_structure_bsp'):
                 self.extensions.add('scenario_structure_bsp')
+                filetype_dict["scenario_structure_bsp"][path] = None
+            elif 'scenario_structure_lighting_info' in valid_exts and path.lower().endswith('.scenario_structure_lighting_info'):
+                self.extensions.add('scenario_structure_lighting_info')
                 filetype_dict["scenario_structure_bsp"][path] = None
             elif 'particle_model' in valid_exts and path.lower().endswith('.particle_model'):
                 self.extensions.add('particle_model')
@@ -2055,7 +2117,7 @@ class NWOImporter:
                     else:
                         source_tag_root = utils.get_project(self.scene_nwo.scene_project).tags_directory
                         
-                    render, collision, animation, physics = model.get_model_paths(optional_tag_root=source_tag_root)
+                    render, collision, animation, physics = model.get_model_paths(optional_tag_root=source_tag_root, override_type=self.tag_model_override_type)
                     
                     allowed_region_permutations = model.get_variant_regions_and_permutations(self.tag_variant, self.tag_state)
                     if self.tag_variant:
@@ -2134,11 +2196,12 @@ class NWOImporter:
             #     imported_file_objects, armature, render, model_collection = duplicate_cached_import(*cached, scene_collection)
             #     imported_objects.extend(imported_file_objects)
             #     continue
-                
+            
             if self.tag_variant:
                 utils.print_section(f'Importing Object Tag: {Path(file).name} [{self.tag_variant}]')
             else:
                 utils.print_section(f'Importing Object Tag: {Path(file).name} ')
+                
             with utils.TagImportMover(utils.get_project(self.scene_nwo.scene_project).tags_directory, file) as mover:
                 with ObjectTag(path=mover.tag_path, raise_on_error=False) as obj:
                     if is_game_object:
@@ -2149,7 +2212,7 @@ class NWOImporter:
                         else:
                             self.tag_variant = ""
                             
-                    if for_instance_conversion:
+                    if for_instance_conversion or return_cin_stuff:
                         if not self.tag_variant:
                             if obj.default_variant.GetStringData():
                                 self.tag_variant = obj.default_variant.GetStringData()
@@ -2178,7 +2241,7 @@ class NWOImporter:
                             render, collision, animation, physics = model.get_model_paths(optional_tag_root=source_tag_root)
                             
                             temp_variant = self.tag_variant
-                            
+
                             if not temp_variant and (for_instance_conversion or is_game_object or self.scene_nwo.asset_type == 'cinematic'):
                                 if model.block_variants.Elements.Count:
                                     temp_variant = model.block_variants.Elements[0].Fields[0].GetStringData()
@@ -2443,7 +2506,7 @@ class NWOImporter:
             with ModelTag(path=model_path, raise_on_error=False) as model:
                 if not model.valid: return
                     
-                render, collision, animation, physics = model.get_model_paths()
+                render, collision, animation, physics = model.get_model_paths(override_type=self.tag_model_override_type)
                 temp_variant = child_object.child_variant_name
 
                 if not temp_variant:
@@ -2619,8 +2682,9 @@ class NWOImporter:
             
         return physics_model_objects
     
-    def import_animation_graph(self, file, armature, render):
+    def import_animation_graph(self, file, armature, render, return_animations=False):
         actions = []
+        animations = []
         filter = self.tag_animation_filter.replace(" ", ":")
         with utils.TagImportMover(utils.get_project(self.scene_nwo.scene_project).tags_directory, file) as mover:
             with AnimationTag(path=mover.tag_path) as graph:
@@ -2630,9 +2694,16 @@ class NWOImporter:
                     if self.corinth and self.graph_import_pca_data:
                         result = graph.to_blender(render, armature, filter, True)
                         if result is not None:
-                            actions, self.pca_animations, self.pca_groups, self.pca_path = result
+                            actions, animations, pca_animations, pca_groups, pca_path = result
+                            if pca_animations and pca_groups and pca_path is not None:
+                                pca_info = PCAInfo()
+                                pca_info.objects = [ob for ob in armature.children if ob.type == 'MESH']
+                                pca_info.pca_animations = pca_animations
+                                pca_info.pca_groups = pca_groups
+                                pca_info.pca_path = pca_path
+                                self.pca_info.append(pca_info)
                     else:
-                        actions = graph.to_blender(render, armature, filter, False)
+                        actions, animations = graph.to_blender(render, armature, filter, False)
 
                 if self.graph_generate_renames:
                     utils.print_bullet("Generating Animation Renames")
@@ -2645,7 +2716,10 @@ class NWOImporter:
                 if self.graph_import_ik_chains:
                     utils.print_bullet("Importing IK Chains")
                     graph.ik_chains_to_blender(armature)
-                    
+        
+        if return_animations:
+            return actions, animations
+        
         return actions
     
     def import_scenario_data(self):
@@ -2670,6 +2744,17 @@ class NWOImporter:
                     bsp_indices_list = [index_map[b] for b in bsps]
                     bsp_indices = set(bsp_indices_list)
                     sky_indices = [sky_index_map[b] for b in bsp_indices_list]
+                    
+                    match scenario.read_scenario_type():
+                        case 0:
+                            if scenario.survival_mode():
+                                self.tag_model_override_type = RenderModelOverrideType.firefight
+                            else:
+                                self.tag_model_override_type = RenderModelOverrideType.campaign
+                        case 1:
+                            self.tag_model_override_type = RenderModelOverrideType.multiplayer
+                        case 2:
+                            self.tag_model_override_type = RenderModelOverrideType.mainmenu
                     
                     do_raycasting = len(bsps) != len(all_bsps) and (self.tag_scenario_import_decals or self.tag_scenario_import_decorators or self.tag_scenario_import_objects)
                     scenario_name = f"scenario_{scenario.tag_path.ShortName}"
@@ -2852,6 +2937,24 @@ class NWOImporter:
         collection.nwo.region = bsp_name
         
         return bsp_objects, bvh
+    
+    def import_scenario_structure_lighting_info(self, file, parent_collection=None):
+        info_name = Path(file).with_suffix("").name
+        print(f"\nImporting Structure Structure Lighting Info {info_name}")
+        info_objects = []
+        collection = bpy.data.collections.get(info_name)
+        if collection is None:
+            collection = bpy.data.collections.new(info_name)
+            if parent_collection is None:
+                self.context.scene.collection.children.link(collection)
+            else:
+                collection.children.link(parent_collection)
+
+        with utils.TagImportMover(utils.get_project(self.scene_nwo.scene_project).tags_directory, file) as mover:
+            with ScenarioStructureLightingInfoTag(path=mover.tag_path) as info:
+                info_objects = info.to_blender(collection)
+        
+        return info_objects, collection
     
     def import_structure_design(self, file, scenario_collection=None):
         design_name = Path(file).with_suffix("").name
@@ -4300,6 +4403,18 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         items=state_items,
     )
     
+    tag_model_override_type: bpy.props.EnumProperty(
+        name="Model Override",
+        description="The render model type to read from the model override block",
+        items=[
+            ('none', "None", ""),
+            ('campaign', "Campaign", ""),
+            ('multiplayer', "Multiplayer", ""),
+            ('firefight', "Firefight", ""),
+            ('mainmenu', "Main Menu", ""),
+        ]
+    )
+    
     graph_import_animations: bpy.props.BoolProperty(
         name="Import Animations",
         description="Imports animations from the graph. Currently the root movement element of base movement animations is unsupported and overlay rotations do not import correctly"
@@ -4499,9 +4614,11 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         layout = self.layout
         layout.use_property_split = True
         layout.label(text=f"Importing: {Path(self.filepath).name}")
+        corinth = utils.is_corinth(context)
         match self.import_type:
             case "model" | "biped" | "crate" | "creature" | "device_control" | "device_dispenser" | "effect_scenery" | "equipment" | "giant" | "device_machine" | "projectile" | "scenery" | "spawner" | "sound_scenery" | "device_terminal" | "vehicle" | "weapon":
                 if self.has_variants:
+                    layout.prop(self, "tag_model_override_type")
                     layout.prop(self, "tag_variant")
                     if self.tag_variant != "all_variants":
                         layout.prop(self, "tag_state")
@@ -4521,13 +4638,13 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                         box = layout.box()
                         box.prop(self, "tag_animation_filter")
                         box.prop(self, "graph_import_animations")
-                        if self.graph_import_animations and utils.is_corinth(context):
+                        if self.graph_import_animations and corinth:
                             box.prop(self, "graph_import_pca_data")
                         box.prop(self, "graph_generate_renames")
                         box.prop(self, "graph_import_events")
                         box.prop(self, "graph_import_ik_chains")
                         box.prop(self, "generate_frames")
-                    if utils.is_corinth(context):
+                    if corinth:
                         layout.prop(self, "tag_import_lights")
                     layout.prop(self, "setup_as_asset")
                     layout.prop(self, "from_vert_normals")
@@ -4581,7 +4698,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
             case "model_animation_graph":
                 layout.prop(self, "tag_animation_filter")
                 layout.prop(self, "graph_import_animations")
-                if self.graph_import_animations and utils.is_corinth(context):
+                if self.graph_import_animations and corinth:
                     layout.prop(self, "graph_import_pca_data")
                 layout.prop(self, "graph_generate_renames")
                 layout.prop(self, "graph_import_events")
@@ -4593,6 +4710,8 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
             case 'cinematic':
                 layout.prop(self, "tag_cinematic_import_scenario")
                 layout.prop(self, "tag_cinematic_import_actors")
+                if corinth:
+                    layout.prop(self, "graph_import_pca_data")
                 layout.prop(self, "tag_cinematic_scene")
                 layout.prop(self, "build_control_rig")
                 layout.prop(self, "tag_import_lights")
@@ -4613,7 +4732,7 @@ class NWO_FH_Import(bpy.types.FileHandler):
     bl_idname = "NWO_FH_Import"
     bl_label = "File handler Foundry Importer"
     bl_import_operator = "nwo.import_from_drop"
-    bl_file_extensions = ".jms;.amf;.ass;.bitmap;.model;.render_model;.scenario;.scenario_structure_bsp;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track;.particle_model;.biped;.crate;.creature;.device_control;.device_dispenser;.effect_scenery;.equipment;.giant;.device_machine;.projectile;.scenery;.spawner;.sound_scenery;.device_terminal;.vehicle;.weapon;.model_animation_graph;.prefab;.structure_design;.polyart_asset;.decorator_set;.cinematic"
+    bl_file_extensions = ".jms;.amf;.ass;.bitmap;.model;.render_model;.scenario;.scenario_structure_bsp;.scenario_structure_lighting_info;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track;.particle_model;.biped;.crate;.creature;.device_control;.device_dispenser;.effect_scenery;.equipment;.giant;.device_machine;.projectile;.scenery;.spawner;.sound_scenery;.device_terminal;.vehicle;.weapon;.model_animation_graph;.prefab;.structure_design;.polyart_asset;.decorator_set;.cinematic"
 
     @classmethod
     def poll_drop(cls, context):
@@ -5060,47 +5179,66 @@ def find_or_create_free_track(ad, start, end):
     track.name = f"Track {len(ad.nla_tracks)}"
     return track
 
-def add_sdata_to_nla(sdata):
+def add_scene_data_to_nla(sdata, scene_nwo):
     for idx, shot_frame in enumerate(sdata.shot_frames):
         shot_idx = idx + 1
-
+        
         for cin_object in sdata.object_animations:
-            arm = cin_object.armature
-            if arm is None:
+            animation_name = cin_object.animations.get(shot_idx)
+            if animation_name is None:
                 continue
             
-            action = cin_object.actions.get(shot_idx)
-            if action is None:
+            animation = scene_nwo.animations.get(animation_name)
+            if animation is None:
                 continue
             
-            ad = arm.animation_data
-            if ad is None:
-                ad = arm.animation_data_create()
-
-            action_start, action_end = action.frame_range
+            animation_start, animation_end = animation.frame_start, animation.frame_end
             start = shot_frame
-            end = shot_frame + (action_end - action_start)
+            end = shot_frame + (animation_end - animation_start)
+            
+            for track in animation.action_tracks:
+                if track.is_shape_key_action:
+                    ob = track.object
+                    shape_keys = ob.data.shape_keys
+                    action = track.action
+                    track = find_or_create_free_track(shape_keys.animation_data, start, end)
+                    base_name = f"{ob.name}_shot{shot_idx}"
+                    strip_name = base_name
+                    existing = {s.name for s in track.strips}
+                    if strip_name in existing:
+                        i = 1
+                        while f"{base_name}_{i}" in existing:
+                            i += 1
+                        strip_name = f"{base_name}_{i}"
 
-            track = find_or_create_free_track(ad, start, end)
+                    strip = track.strips.new(strip_name, start, action)
 
-            base_name = f"{arm.name}_shot{shot_idx}"
-            strip_name = base_name
-            existing = {s.name for s in track.strips}
-            if strip_name in existing:
-                i = 1
-                while f"{base_name}_{i}" in existing:
-                    i += 1
-                strip_name = f"{base_name}_{i}"
+                    strip.frame_start = start
+                    strip.frame_end = end
+                    strip.action_frame_start = animation_start
+                    strip.action_frame_end = animation_end
+                    shape_keys.animation_data.action = None
+                else:
+                    arm = track.object
+                    action = track.action
+                    track = find_or_create_free_track(arm.animation_data, start, end)
+                    base_name = f"{arm.name}_shot{shot_idx}"
+                    strip_name = base_name
+                    existing = {s.name for s in track.strips}
+                    if strip_name in existing:
+                        i = 1
+                        while f"{base_name}_{i}" in existing:
+                            i += 1
+                        strip_name = f"{base_name}_{i}"
 
-            strip = track.strips.new(strip_name, start, action)
+                    strip = track.strips.new(strip_name, start, action)
 
-            strip.frame_start = start
-            strip.frame_end = end
-            strip.action_frame_start = action_start
-            strip.action_frame_end = action_end
+                    strip.frame_start = start
+                    strip.frame_end = end
+                    strip.action_frame_start = animation_start
+                    strip.action_frame_end = animation_end
 
-            if ad.action == action:
-                ad.action = None
+                    arm.animation_data.action = None
 
             # print(f"Added {action.name} to {arm.name} at frame {shot_frame}")
 

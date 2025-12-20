@@ -397,6 +397,7 @@ class AnimationTag(Tag):
         # Prepare exporter
         # print(self.resource_info())
         actions = []
+        animations = []
         bone_base_matrices = {}
         for bone in armature.pose.bones:
             if bone.parent:
@@ -457,6 +458,7 @@ class AnimationTag(Tag):
                 action.use_frame_range = True
                 animation.frame_start = 1
                 animation.frame_end = frame_count
+                animations.append(new_name)
                 
                 if self.corinth:
                     if element.SelectField("ShortBlockIndex:composite").Value > -1:
@@ -529,8 +531,8 @@ class AnimationTag(Tag):
             pca_groups = []
             pca_path = None
             if pca_animations:
-                pca_path = self.tag.SelectField("Struct:definitions[0]/Struct:pca data[0]/Reference:pca animation")
-                if pca_path is not None and self.path_exists(pca_path.Path):
+                pca_tagpath = self.tag.SelectField("Struct:definitions[0]/Struct:pca data[0]/Reference:pca animation").Path
+                if self.path_exists(pca_tagpath):
                     
                     pca_groups = {}
                     mesh_count = 0
@@ -541,11 +543,11 @@ class AnimationTag(Tag):
                         pca_groups[mesh_count] = element.Fields[0].GetStringData()
                         mesh_count += c
                         
-                    pca_path = pca_path.Path
+                    pca_path = pca_tagpath
                     
-            return actions, pca_animations, pca_groups, pca_path
+            return actions, animations, pca_animations, pca_groups, pca_path
         
-        return actions
+        return actions, animations
     
     def _to_armature_action(self, transforms, armature: bpy.types.Object, action: bpy.types.Action, nodes: list[Node], base_transforms: dict, nodes_with_animations):
         fcurves = utils.get_fcurves(action, armature.animation_data.last_slot_identifier)
