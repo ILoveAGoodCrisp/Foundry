@@ -1111,7 +1111,6 @@ class NWO_Import(bpy.types.Operator):
                     if for_cinematic:
                         self.link_anchor(context, imported_bsp_objects)    
                         
-                        
                 elif 'scenario_structure_lighting_info' in importer.extensions:
                     info_files = importer.sorted_filepaths["scenario_structure_lighting_info"]
                     imported_info_objects = []
@@ -1285,6 +1284,7 @@ class NWO_Import(bpy.types.Operator):
                             importer.tag_scenario_import_objects = self.tag_scenario_import_objects
                             importer.tag_scenario_import_decals = self.tag_scenario_import_decals
                             importer.tag_scenario_import_decorators = self.tag_scenario_import_decorators
+                            importer.tag_sky = self.tag_sky
                             imported_cinematic_scenario_objects, scenario_collection = importer.import_scenarios([scenario], self.build_blender_materials, self.always_extract_bitmaps, return_collection=True)
                             
                             imported_cinematic_objects.extend(imported_cinematic_scenario_objects)
@@ -1349,6 +1349,7 @@ class NWO_Import(bpy.types.Operator):
                                 scene_collection_map[sdata.blender_scene].add(scenario_instance_empty)
                                 scenario_instance_empty.instance_type = 'COLLECTION'
                                 scenario_instance_empty.instance_collection = scenario_collection
+                                imported_cinematic_objects.append(scenario_instance_empty)
                                 
                                 anchor = bpy.data.objects.new(name=sdata.anchor_name, object_data=None)
                                 anchor.nwo.is_frame = True

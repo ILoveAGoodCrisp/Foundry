@@ -34,6 +34,8 @@ from .tools.materials import special_materials, convention_materials
 from .icons import get_icon_id, get_icon_id_in_directory
 # import requests
 from bpy_extras import view3d_utils, anim_utils
+from bpy.utils import flip_name
+
 
 from .constants import object_asset_validation, object_game_validation
 

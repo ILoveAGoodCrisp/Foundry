@@ -433,11 +433,13 @@ class CinematicSceneTag(Tag):
             cin_scene = self.scene_nwo.cinematic_scenes.get(scene_id)
             if cin_scene is None:
                 cin_scene = self.scene_nwo.cinematic_scenes.add()
-                
+            
+            current_scene = self.context.scene
             cin_scene.name = scene_id
             blender_scene = bpy.data.scenes.get(self.tag_path.ShortName)
             if blender_scene is None:
-                blender_scene = bpy.data.scenes.new(self.tag_path.ShortName)
+                blender_scene = current_scene.copy()
+                blender_scene.name = self.tag_path.ShortName
             cin_scene.scene = blender_scene
             
             utils.print_tag(f"Importing cinematic scene: {self.tag_path.ShortName}")
@@ -568,14 +570,13 @@ class CinematicSceneTag(Tag):
         if cin_scene is None:
             cin_scene = self.scene_nwo.cinematic_scenes.add()
         
-        current_scene = self.context.scene
+        current_scene = self.scene_nwo.id_data
         cin_scene.name = scene_id
         blender_scene = bpy.data.scenes.get(self.tag_path.ShortName)
         if blender_scene is None:
-            # using op to copy settings
             blender_scene = current_scene.copy()
             blender_scene.name = self.tag_path.ShortName
-            
+
         cin_scene.scene = blender_scene
         
         utils.print_tag(f"Importing cinematic scene: {self.tag_path.ShortName}")
@@ -686,4 +687,3 @@ class CinematicSceneTag(Tag):
         blender_scene.frame_end = frame
             
         return self.tag_path.ShortName, blender_scene, camera_objects, object_animations, self.tag.SelectField("anchor").GetStringData(), actions, shot_frames
-                    
