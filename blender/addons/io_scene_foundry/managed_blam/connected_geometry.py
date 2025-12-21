@@ -549,6 +549,7 @@ class Node:
     def __init__(self, name):
         self.name = name
         self.parent = None
+        self.parent_name = None
         self.index = -1
         self.translation: Vector = None
         self.rotation: Quaternion = None
@@ -557,6 +558,7 @@ class Node:
         self.inverse_up: Vector = None
         self.inverse_position: Vector = None
         self.inverse_scale: float = 1
+        self.bone = None
 
 class Permutation: 
     def __init__(self, element: TagFieldBlockElement, region: 'Region'):
@@ -635,11 +637,10 @@ class RenderArmature():
         
     def parent_bone(self, node: Node):
         if node.parent:
-            parent = self.data.edit_bones[node.parent]
+            parent = node.parent.bone
             node.bone.parent = parent
             transform_matrix = parent.matrix @ node.transform_matrix
             node.bone.matrix = transform_matrix
-            
             
 class ConstraintType(Enum):
     hinge = 0

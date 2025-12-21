@@ -2511,6 +2511,8 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
         marker_z = Matrix.Rotation(-rotation, 4, 'Z')
         child_of_constraints = []
         
+        parents = {o.parent for o in objects if o.parent is not None}
+        
         armatures = {ob: ob.data.pose_position for ob in objects if ob.type == 'ARMATURE'}
         for ob in armatures.keys():
             ob.data.pose_position = 'REST'
@@ -2535,7 +2537,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                         ob.nwo.light_volume_distance *= scale_factor
                 case 'EMPTY':
                     ob.empty_display_size *= scale_factor
-                    if keep_marker_axis and not is_frame(ob):
+                    if keep_marker_axis and not is_frame(ob) and ob not in parents:
                         transform_objects.append(TransformObject(ob, rotation_matrix, scale_factor, marker_z_matrix=marker_z))
                     else:
                         transform_objects.append(TransformObject(ob, rotation_matrix, scale_factor))
@@ -5729,11 +5731,3 @@ def action_shot_index(name):
     num = any_partition(no_dupe, "_", True)
     if num.isdigit():
         return int(num)
-    
-def copy_rna_props(src, dst):
-    for prop in src.bl_rna.properties:
-        if not prop.is_readonly:
-            try:
-                setattr(dst, prop.identifier, getattr(src, prop.identifier))
-            except Exception:
-                pass

@@ -453,12 +453,12 @@ class AnimationTag(Tag):
                 armature.animation_data.action = action
                 utils.print_step(action.name)
                 animation = self.scene_nwo.animations.add()
-                animation.name = new_name
+                animation.name = action.name
                 # action.use_fake_user = True
                 action.use_frame_range = True
                 animation.frame_start = 1
                 animation.frame_end = frame_count
-                animations.append(new_name)
+                animations.append(animation.name)
                 
                 if self.corinth:
                     if element.SelectField("ShortBlockIndex:composite").Value > -1:

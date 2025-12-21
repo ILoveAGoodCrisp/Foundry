@@ -742,7 +742,7 @@ class NWO_Import(bpy.types.Operator):
             clear_path_cache()
             
         set_animation_index = scene_nwo.asset_type in {'model', 'animation'}
-        scene_collection_map = defaultdict(list)
+        scene_collection_map = defaultdict(set)
         scene_datas = []
 
         with utils.ExportManager():
@@ -1284,11 +1284,10 @@ class NWO_Import(bpy.types.Operator):
                         first_scene = True
                         for sdata in scene_datas:
                             if first_scene:
-                                if scenario_collection is not None:
-                                    scene_collection_map[sdata.blender_scene].append(scenario_collection)
+                                # if scenario_collection is not None:
+                                #     scene_collection_map[sdata.blender_scene].add(scenario_collection)
                                 # if sdata.blender_scene:
                                 #     context.window.scene = sdata.blender_scene
-                                first_scene = False
                                 switch_blender_scene = sdata.blender_scene
                             
                             camera_collection = bpy.data.collections.new(sdata.name)
@@ -1296,9 +1295,7 @@ class NWO_Import(bpy.types.Operator):
                             for ob in sdata.camera_objects:
                                 camera_collection.objects.link(ob)
                                 
-                            scene_collection_map[sdata.blender_scene].append(camera_collection)
-                            
-                            sdata.blender_scene.render.fps = 30
+                            scene_collection_map[sdata.blender_scene].add(camera_collection)
                                 
                             imported_cinematic_objects.extend(sdata.camera_objects)
                             imported_cinematic_actions.extend(sdata.actions)
@@ -1306,7 +1303,7 @@ class NWO_Import(bpy.types.Operator):
                             for cin_object in sdata.object_animations:
                                 importer.tag_variant = cin_object.variant
                                 imported_cinematic_object_objects, armature, render_path, model_collection = importer.import_object([cin_object.object_path], None, return_cin_stuff=True)
-                                scene_collection_map[sdata.blender_scene].append(model_collection)
+                                scene_collection_map[sdata.blender_scene].add(model_collection)
                                 imported_cinematic_objects.extend(imported_cinematic_object_objects)
                                 cin_object.armature = armature
                                 cin_actions, cin_animations = importer.import_animation_graph(cin_object.graph_path, armature, render_path, return_animations=True)
@@ -1319,7 +1316,7 @@ class NWO_Import(bpy.types.Operator):
                                 for lighting_info in sdata.lighting_infos:
                                     light_objects, light_collection = importer.import_scenario_structure_lighting_info(lighting_info)
                                     light_objects_all.extend(light_objects)
-                                    scene_collection_map[sdata.blender_scene].append(light_collection)
+                                    scene_collection_map[sdata.blender_scene].add(light_collection)
                                     imported_cinematic_objects.extend(light_objects)
 
                             if imported_cinematic_scenario_objects:
@@ -1336,7 +1333,14 @@ class NWO_Import(bpy.types.Operator):
                                 anchor_euler = Euler((anchor_facing[2], -anchor_facing[1], anchor_facing[0]), 'ZYX')
                                 anchor_matrix = Matrix.LocRotScale(anchor_position, anchor_euler, Vector.Fill(3, 1))
                                 
+                                scenario_instance_empty = bpy.data.objects.new(scenario_collection.name, object_data=None)
+                                context.scene.collection.objects.link(scenario_instance_empty)
+                                scene_collection_map[sdata.blender_scene].add(scenario_instance_empty)
+                                scenario_instance_empty.instance_type = 'COLLECTION'
+                                scenario_instance_empty.instance_collection = scenario_collection
+                                
                                 anchor = bpy.data.objects.new(name=sdata.anchor_name, object_data=None)
+                                anchor.nwo.is_frame = True
                                 anchor.empty_display_size = (1 / 0.03048)
                                 anchor.matrix_world = anchor_matrix.inverted_safe()
                                 context.scene.collection.objects.link(anchor)
@@ -1344,16 +1348,11 @@ class NWO_Import(bpy.types.Operator):
                                 imported_cinematic_objects.append(anchor)
                                 anchor_objects[anchor] = imported_cinematic_scenario_objects
                                 anchor.nwo.export_this = False
-                                if first_scene:
-                                    for scen_ob in imported_cinematic_scenario_objects:
-                                        if scen_ob.parent is None:
-                                            scen_ob.parent = anchor
-                                            scen_ob.parent_type = 'OBJECT'
-                                else:
-                                    anchor.instance_type = 'COLLECTION'
-                                    anchor.instance_collection = scenario_collection
+                                scenario_instance_empty.parent = anchor
+                                scenario_instance_empty.parent_type = 'OBJECT'
                             else:
                                 anchor = bpy.data.objects.new(name=sdata.anchor_name, object_data=None)
+                                anchor.nwo.is_frame = True
                                 anchor.nwo.export_this = False
                                 context.scene.collection.objects.link(anchor)
                                 sdata.blender_scene.nwo.cinematic_anchor = anchor
@@ -1362,8 +1361,9 @@ class NWO_Import(bpy.types.Operator):
                             for ob in light_objects_all:
                                 ob.parent = anchor
                                 ob.parent_type = 'OBJECT'
-                            scene_collection_map[sdata.blender_scene].append(anchor)
-                    
+                            scene_collection_map[sdata.blender_scene].add(anchor)
+                            first_scene = False
+                            
                     imported_objects.extend(imported_cinematic_objects)
                         
                     if importer.needs_scaling:
@@ -2942,9 +2942,10 @@ class NWOImporter:
         info_name = Path(file).with_suffix("").name
         print(f"\nImporting Structure Structure Lighting Info {info_name}")
         info_objects = []
-        collection = bpy.data.collections.get(info_name)
+        coll_name = f"{info_name}_lighting_info"
+        collection = bpy.data.collections.get(coll_name)
         if collection is None:
-            collection = bpy.data.collections.new(info_name)
+            collection = bpy.data.collections.new(coll_name)
             if parent_collection is None:
                 self.context.scene.collection.children.link(collection)
             else:

@@ -148,6 +148,7 @@ class RenderModelTag(Tag):
         pedestal = None
         pitch = None
         yaw = None
+        nodes_dict = {}
         for element in self.block_nodes.Elements:
             node = Node(element.SelectField("name").GetStringData())
             
@@ -169,7 +170,7 @@ class RenderModelTag(Tag):
             
             parent_index = element.SelectField("parent node").Value
             if parent_index > -1:
-                node.parent = self.block_nodes.Elements[parent_index].SelectField("name").GetStringData()
+                node.parent_name = self.block_nodes.Elements[parent_index].SelectField("name").GetStringData()
                 
             if element.ElementIndex == 0:
                 root = node
@@ -180,7 +181,7 @@ class RenderModelTag(Tag):
                 if rotation[1] == 0.5:
                     reach_fp_fix = True
                     
-            elif node.parent == root.name and node.name.endswith(('aim_pitch', 'aim_yaw')):
+            elif node.parent_name == root.name and node.name.endswith(('aim_pitch', 'aim_yaw')):
                 uses_aim_bones = True
                 if node.name.endswith('aim_pitch'):
                     pitch = node.name
@@ -188,6 +189,11 @@ class RenderModelTag(Tag):
                     yaw = node.name
                 
             self.nodes.append(node)
+            nodes_dict[node.name] = node
+            
+        for node in self.nodes:
+            if node.parent_name and node.parent is None:
+                node.parent = nodes_dict[node.parent_name]
         
         self.model_collection.objects.link(arm.ob)
         arm.ob.select_set(True)

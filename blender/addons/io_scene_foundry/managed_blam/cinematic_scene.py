@@ -462,6 +462,7 @@ class CinematicSceneTag(Tag):
                 shot_camera_data = bpy.data.cameras.new(shot_camera_name)
                 shot_camera = bpy.data.objects.new(shot_camera_name, shot_camera_data)
                 shot_camera_data.display_size *= (1 / 0.03048)
+                shot_camera_data.clip_end = 100000
                 camera_objects.append(shot_camera)
                 
                 cam_frames = []
@@ -571,11 +572,9 @@ class CinematicSceneTag(Tag):
         cin_scene.name = scene_id
         blender_scene = bpy.data.scenes.get(self.tag_path.ShortName)
         if blender_scene is None:
-            blender_scene = bpy.data.scenes.new(self.tag_path.ShortName)
-            utils.copy_rna_props(current_scene.render, blender_scene.render)
-            utils.copy_rna_props(current_scene.view_settings, blender_scene.view_settings)
-            utils.copy_rna_props(current_scene.cycles, blender_scene.cycles)
-            utils.copy_rna_props(current_scene.eevee, blender_scene.eevee)
+            # using op to copy settings
+            blender_scene = current_scene.copy()
+            blender_scene.name = self.tag_path.ShortName
             
         cin_scene.scene = blender_scene
         
