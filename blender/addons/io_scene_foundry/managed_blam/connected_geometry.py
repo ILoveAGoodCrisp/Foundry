@@ -1839,7 +1839,7 @@ class Mesh:
         needs_new_mesh = True
         matrix = local_matrix or (parent.matrix_world if parent else Matrix.Identity(4))
         if has_tag_path:
-            mesh_key = self.index, self.tag_path
+            mesh_key = subpart, self.index, self.tag_path
             mesh = mesh_cache.get(mesh_key)
             if mesh is not None and mesh in frozenset(bpy.data.meshes):
                 ob = bpy.data.objects.new(name, mesh)
