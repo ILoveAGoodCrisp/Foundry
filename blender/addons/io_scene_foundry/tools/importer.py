@@ -1112,6 +1112,17 @@ class NWO_Import(bpy.types.Operator):
                         self.link_anchor(context, imported_bsp_objects)    
                         
                         
+                elif 'scenario_structure_lighting_info' in importer.extensions:
+                    info_files = importer.sorted_filepaths["scenario_structure_lighting_info"]
+                    imported_info_objects = []
+                    for info in info_files:
+                        info_objects, info_collection = importer.import_scenario_structure_lighting_info(info)
+                        imported_info_objects.extend(info_objects)
+                    if importer.needs_scaling:
+                        utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', scene_nwo.forward_direction, objects=imported_info_objects, actions=[])
+                        
+                    imported_objects.extend(imported_info_objects)
+                    
                 elif 'structure_design' in importer.extensions:
                     importer.setup_as_asset = self.setup_as_asset
                     
@@ -2023,7 +2034,7 @@ class NWOImporter:
                 filetype_dict["scenario_structure_bsp"][path] = None
             elif 'scenario_structure_lighting_info' in valid_exts and path.lower().endswith('.scenario_structure_lighting_info'):
                 self.extensions.add('scenario_structure_lighting_info')
-                filetype_dict["scenario_structure_bsp"][path] = None
+                filetype_dict["scenario_structure_lighting_info"][path] = None
             elif 'particle_model' in valid_exts and path.lower().endswith('.particle_model'):
                 self.extensions.add('particle_model')
                 filetype_dict["particle_model"][path] = None

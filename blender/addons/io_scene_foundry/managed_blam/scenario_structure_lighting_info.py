@@ -368,13 +368,14 @@ class ScenarioStructureLightingInfoTag(Tag):
                     blender_light = cast(bpy.types.Light, bpy.data.lights.new(f"light_definition:{element.ElementIndex}", 'POINT'))
                 case 1:
                     blender_light = cast(bpy.types.Light, bpy.data.lights.new(f"light_definition:{element.ElementIndex}", 'SPOT'))
-                    hotspot_cutoff_size = parameters.SelectField("Inner Cone Angle").Data
+                    inner_cone = parameters.SelectField("Inner Cone Angle").Data
                     hotpot_struct = parameters.SelectField("Outer Cone End")
                     hotspot = hotpot_struct.Elements[0]
                     hotspot_mapping = hotspot.SelectField("Custom:Mapping")
-                    blender_light.spot_size = radians(hotspot_cutoff_size)
-                    if hotspot_cutoff_size > 0.0:
-                        blender_light.spot_blend = 1 - hotspot_mapping.Value.ClampRangeMin / hotspot_cutoff_size
+                    outer_cone = hotspot_mapping.Value.ClampRangeMin
+                    blender_light.spot_size = radians(outer_cone)
+                    if outer_cone > 0.0:
+                        blender_light.spot_blend = 1 - inner_cone / outer_cone
                 case 2:
                     blender_light = cast(bpy.types.Light, bpy.data.lights.new(f"light_definition:{element.ElementIndex}", 'SUN'))
                     
