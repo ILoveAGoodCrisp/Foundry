@@ -411,6 +411,7 @@ class CinObject():
         self.object_path = ""
         self.armature = None
         self.animations = None
+        self.cameras = []
     
 class CinematicSceneTag(Tag):
     tag_ext = 'cinematic_scene'
@@ -446,20 +447,6 @@ class CinematicSceneTag(Tag):
             cin_scene.scene = blender_scene
             
             utils.print_tag(f"Importing cinematic scene: {self.tag_path.ShortName}")
-            
-            for scene_element, data_element in zip(self.tag.SelectField("Block:objects").Elements, data.tag.SelectField("Block:objects").Elements):
-                name = scene_element.SelectField("name").GetStringData()
-                variant = scene_element.SelectField("variant name").GetStringData()
-                graph = data_element.SelectField("model animation graph").Path
-                obj = data_element.SelectField("object type").Path
-                
-                if self.path_exists(obj) and self.path_exists(graph):
-                    cin_object = CinObject()
-                    cin_object.name = name
-                    cin_object.variant = variant
-                    cin_object.graph_path = graph.Filename
-                    cin_object.object_path = obj.Filename
-                    object_animations.append(cin_object)
             
             for element in data.tag.SelectField("shots").Elements:
                 utils.print_step(f"Creating camera data for shot: {element.ElementIndex + 1}")
@@ -553,6 +540,30 @@ class CinematicSceneTag(Tag):
             blender_scene.frame_start = 1
             blender_scene.frame_end = frame
             
+            utils.print_tag("Cinematic Objects")
+            for scene_element, data_element in zip(self.tag.SelectField("Block:objects").Elements, data.tag.SelectField("Block:objects").Elements):
+                name = scene_element.SelectField("name").GetStringData()
+                variant = scene_element.SelectField("variant name").GetStringData()
+                graph = data_element.SelectField("model animation graph").Path
+                obj = data_element.SelectField("object type").Path
+                
+                if self.path_exists(obj) and self.path_exists(graph):
+                    cin_object = CinObject()
+                    cin_object.name = name
+                    cin_object.variant = variant
+                    cin_object.graph_path = graph.Filename
+                    cin_object.object_path = obj.Filename
+                    object_animations.append(cin_object)
+                    flags = data_element.SelectField("shots active flags")
+                    flags.RefreshShots()
+                    shots = []
+                    for idx in range(flags.ShotCount):
+                        if flags.GetShotChecked(idx):
+                            shots.append(idx)
+                            cin_object.cameras.append(camera_objects[idx])
+                            
+                    utils.print_step(f"{name} is present in shots {shots}")
+            
             light_tags = []
             for element in self.tag.SelectField("Block:lights").Elements:
                 info_path = element.Fields[0].Path
@@ -585,20 +596,6 @@ class CinematicSceneTag(Tag):
         cin_scene.scene = blender_scene
         
         utils.print_tag(f"Importing cinematic scene: {self.tag_path.ShortName}")
-        
-        for element in self.tag.SelectField("Block:objects").Elements:
-            name = element.SelectField("name").GetStringData()
-            variant = element.SelectField("variant name").GetStringData()
-            graph = element.SelectField("model animation graph").Path
-            obj = element.SelectField("object type").Path
-            
-            if self.path_exists(obj) and self.path_exists(graph):
-                cin_object = CinObject()
-                cin_object.name = name
-                cin_object.variant = variant
-                cin_object.graph_path = graph.Filename
-                cin_object.object_path = obj.Filename
-                object_animations.append(cin_object)
         
         for element in self.tag.SelectField("shots").Elements:
             utils.print_step(f"Creating camera data for shot: {element.ElementIndex + 1}")
@@ -690,5 +687,28 @@ class CinematicSceneTag(Tag):
             
         blender_scene.frame_start = 1
         blender_scene.frame_end = frame
+        
+        utils.print_tag("Cinematic Objects")
+        for element in self.tag.SelectField("Block:objects").Elements:
+            name = element.SelectField("name").GetStringData()
+            variant = element.SelectField("variant name").GetStringData()
+            graph = element.SelectField("model animation graph").Path
+            obj = element.SelectField("object type").Path
+            
+            if self.path_exists(obj) and self.path_exists(graph):
+                cin_object = CinObject()
+                cin_object.name = name
+                cin_object.variant = variant
+                cin_object.graph_path = graph.Filename
+                cin_object.object_path = obj.Filename
+                object_animations.append(cin_object)
+                flag_items = element.SelectField("shots active flags").Items
+                shots = []
+                for item in flag_items:
+                    if item.IsSet:
+                        shots.append(item.FlagIndex)
+                        cin_object.cameras.append(camera_objects[item.FlagIndex])
+                            
+                utils.print_step(f"{name} is present in shots {shots}")
             
         return self.tag_path.ShortName, blender_scene, camera_objects, object_animations, self.tag.SelectField("anchor").GetStringData(), actions, shot_frames

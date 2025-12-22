@@ -1311,6 +1311,9 @@ class NWO_Import(bpy.types.Operator):
                             imported_cinematic_objects.extend(sdata.camera_objects)
                             imported_cinematic_actions.extend(sdata.actions)
                             
+                            camera_actor_mask = {cam: set() for cam in sdata.camera_objects}
+                            
+                            all_actors = set()
                             for cin_object in sdata.object_animations:
                                 importer.tag_variant = cin_object.variant
                                 imported_cinematic_object_objects, armature, render_path, model_collection = importer.import_object([cin_object.object_path], None, return_cin_stuff=True)
@@ -1323,6 +1326,21 @@ class NWO_Import(bpy.types.Operator):
                                 
                                 cin_object.animations = {utils.action_shot_index(a): a for a in cin_animations}
                                 imported_cinematic_actions.extend(cin_actions)
+                                all_actors.add(armature)
+                                for cam in cin_object.cameras:
+                                    camera_actor_mask[cam].add(armature)
+                            
+                            for cam, actors in camera_actor_mask.items():
+                                cam_actors = cam.nwo.actors
+                                if len(actors) >= len(all_actors):
+                                    exclude_actors = all_actors.difference(actors)
+                                    cam.nwo.actors_type = 'exclude'
+                                    for a in exclude_actors:
+                                        cam_actors.add().actor = a
+                                else:
+                                    cam.nwo.actors_type = 'include'
+                                    for a in actors:
+                                        cam_actors.add().actor = a
                             
                             light_objects_all = []
                             if self.tag_import_lights:

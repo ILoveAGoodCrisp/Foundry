@@ -250,6 +250,8 @@ def cinematic_hide(scene, depsgraph):
 
     camera_target_set = set(camera_targets)
     non_camera_targets = actors - camera_target_set
+    
+    print(camera_target_set)
 
     for ob in geometry:
         parent = utils.ultimate_armature_parent(ob)
@@ -260,8 +262,9 @@ def cinematic_hide(scene, depsgraph):
 
     hide_cam = do_exclusion
     hide_non = not do_exclusion
-
+    
     for ob in camera_target_set:
+        print(ob.name)
         if ob.hide_viewport != hide_cam:
             ob.hide_viewport = hide_cam
         if ob.hide_render != hide_cam:
@@ -276,26 +279,26 @@ def cinematic_hide(scene, depsgraph):
     if not lights:
         return
     
-    camera_targets = {a.light for a in cam_nwo.cinematic_lights if a.light is not None}
-    do_exclusion = (cam_nwo.cinematic_lights_type == 'exclude')
+    # camera_targets = {a.light for a in cam_nwo.cinematic_lights if a.light is not None}
+    # do_exclusion = (cam_nwo.cinematic_lights_type == 'exclude')
 
-    camera_target_set = set(camera_targets)
-    non_camera_targets = actors - camera_target_set
+    # camera_target_set = set(camera_targets)
+    # non_camera_targets = actors - camera_target_set
 
-    hide_cam = do_exclusion
-    hide_non = not do_exclusion
+    # hide_cam = do_exclusion
+    # hide_non = not do_exclusion
 
-    for ob in camera_target_set:
-        if ob.hide_viewport != hide_cam:
-            ob.hide_viewport = hide_cam
-        if ob.hide_render != hide_cam:
-            ob.hide_render = hide_cam
+    # for ob in camera_target_set:
+    #     if ob.hide_viewport != hide_cam:
+    #         ob.hide_viewport = hide_cam
+    #     if ob.hide_render != hide_cam:
+    #         ob.hide_render = hide_cam
 
-    for ob in non_camera_targets:
-        if ob.hide_viewport != hide_non:
-            ob.hide_viewport = hide_non
-        if ob.hide_render != hide_non:
-            ob.hide_render = hide_non
+    # for ob in non_camera_targets:
+    #     if ob.hide_viewport != hide_non:
+    #         ob.hide_viewport = hide_non
+    #     if ob.hide_render != hide_non:
+    #         ob.hide_render = hide_non
         
 
     

@@ -1544,10 +1544,10 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             row.prop(nwo, "cinematic_lights_type", text=" ", expand=True)
             row = box.row(align=True)
             row.template_list(
-                "NWO_UL_CameraLightss",
+                "NWO_UL_CameraLights",
                 "",
                 nwo,
-                "light",
+                "cinematic_lights",
                 nwo,
                 "active_cinematic_light_index",
             )
