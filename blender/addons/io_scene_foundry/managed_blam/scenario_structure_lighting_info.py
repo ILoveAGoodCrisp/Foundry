@@ -298,10 +298,10 @@ class ScenarioStructureLightingInfoTag(Tag):
         self.tag_has_changes = start_count > 0 or region_objects
 
                 
-    def to_blender(self, parent_collection: bpy.types.Collection = None):
+    def to_blender(self, parent_collection: bpy.types.Collection = None, cinematic_cameras: dict[bpy.types.Object: int] = []):
         if self.corinth:
             definitions = self._from_corinth_light_definitions()
-            objects = self._from_corinth_light_instances(definitions)
+            objects = self._from_corinth_light_instances(definitions, cinematic_cameras)
         else:
             definitions = self._from_reach_light_definitions()
             objects = self._from_reach_light_instances(definitions)
@@ -322,14 +322,27 @@ class ScenarioStructureLightingInfoTag(Tag):
 
         return objects
     
-    def _from_corinth_light_instances(self, definitions: dict[int: bpy.types.Light]):
+    def _from_corinth_light_instances(self, definitions: dict[int: bpy.types.Light], cinematic_cameras: dict[bpy.types.Object: int]):
         objects = []
+        
+        def decode_shot_flags(value, base_shot=1):
+            shots = []
+            bit = 0
+            while value:
+                if value & 1:
+                    shots.append(base_shot + bit)
+                value >>= 1
+                bit += 1
+            return shots
+
+        
         for element in self.block_generic_light_instances.Elements:
-            blender_light = definitions.get(element.SelectField("Light Definition Index").Data)
+            def_index = element.SelectField("Light Definition Index").Data
+            blender_light = definitions.get(def_index)
             if blender_light is None:
                 continue
             
-            ob = cast(bpy.types.Object, bpy.data.objects.new(f"light_instance:{element.ElementIndex}", blender_light))
+            ob = cast(bpy.types.Object, bpy.data.objects.new(blender_light.name, blender_light))
             nwo = cast(NWO_ObjectPropertiesGroup, ob.nwo)
             
             origin = Vector(*(element.SelectField("origin").Data,)) * 100
@@ -357,17 +370,29 @@ class ScenarioStructureLightingInfoTag(Tag):
             
             objects.append(ob)
             
+            if cinematic_cameras:
+                for element in self.tag.SelectField("Block:cinematic light instances").Elements:
+                    if element.Fields[0].Value == def_index and element.Fields[1].Value == element.ElementIndex:
+                        shots = []
+                        shots += decode_shot_flags(element.SelectField("Array:Active Shots[0]/DwordInteger:shot flag data").Data, base_shot=1)
+                        shots += decode_shot_flags(element.SelectField("Array:Active Shots[1]/DwordInteger:shot flag data").Data, base_shot=33)
+                        
+                        for camera, shot_index in cinematic_cameras.items():
+                            if shot_index in shots:
+                                pass # logic to add lights to cinematic cameras goes here
+            
         return objects
     
     def _from_corinth_light_definitions(self):
         definitions: dict[int: bpy.types.Light] = {}
         for element in self.block_generic_light_definitions.Elements:
             parameters = element.SelectField("Struct:Midnight_Light_Parameters").Elements[0]
+            name = parameters.SelectField("StringId:haloLightNode").GetStringData()
             match parameters.SelectField("Light Type").Value:
                 case 0:
-                    blender_light = cast(bpy.types.Light, bpy.data.lights.new(f"light_definition:{element.ElementIndex}", 'POINT'))
+                    blender_light = cast(bpy.types.Light, bpy.data.lights.new(name, 'POINT'))
                 case 1:
-                    blender_light = cast(bpy.types.Light, bpy.data.lights.new(f"light_definition:{element.ElementIndex}", 'SPOT'))
+                    blender_light = cast(bpy.types.Light, bpy.data.lights.new(name, 'SPOT'))
                     inner_cone = parameters.SelectField("Inner Cone Angle").Data
                     hotpot_struct = parameters.SelectField("Outer Cone End")
                     hotspot = hotpot_struct.Elements[0]
@@ -377,7 +402,7 @@ class ScenarioStructureLightingInfoTag(Tag):
                     if outer_cone > 0.0:
                         blender_light.spot_blend = 1 - inner_cone / outer_cone
                 case 2:
-                    blender_light = cast(bpy.types.Light, bpy.data.lights.new(f"light_definition:{element.ElementIndex}", 'SUN'))
+                    blender_light = cast(bpy.types.Light, bpy.data.lights.new(name, 'SUN'))
                     
             nwo = cast(NWO_LightPropertiesGroup, blender_light.nwo)
                     
@@ -522,6 +547,5 @@ class ScenarioStructureLightingInfoTag(Tag):
             definitions[element.ElementIndex] = blender_light
             
         return definitions
-            
             
             

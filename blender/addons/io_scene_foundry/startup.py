@@ -206,3 +206,97 @@ def save_object_positions_to_tags(dummy):
         if nwo.decorators_export_on_save and asset_type == 'scenario' and nwo.decorators_from_blender:
             print("Exporting Decorators")
             export_decorators(utils.is_corinth(bpy.context))
+            
+@persistent
+def cinematic_hide(scene, depsgraph):
+    context = bpy.context
+    if context is None or scene is None:
+        return
+
+    scene_nwo = utils.get_scene_props()
+    if scene_nwo.asset_type != 'cinematic':
+        return
+
+    cam = scene.camera
+    if cam is None:
+        return
+
+    cam_nwo = cam.nwo
+    if not cam_nwo.update_object_visibility:
+        return
+
+    view_objects = context.view_layer.objects
+
+    actors = set()
+    geometry = []
+    lights = []
+    corinth = utils.is_corinth(context)
+
+    for ob in view_objects:
+        if ob.type == 'ARMATURE':
+            if ob.nwo.cinematic_object:
+                actors.add(ob)
+            continue
+        if corinth and ob.type == 'LIGHT':
+            lights.append(ob)
+        elif utils.ultimate_armature_parent(ob) is not None:
+            geometry.append(ob)
+
+    if not actors:
+        return
+
+    camera_targets = {a.actor for a in cam_nwo.actors if a.actor is not None}
+    do_exclusion = (cam_nwo.actors_type == 'exclude')
+
+    camera_target_set = set(camera_targets)
+    non_camera_targets = actors - camera_target_set
+
+    for ob in geometry:
+        parent = utils.ultimate_armature_parent(ob)
+        if parent in camera_target_set:
+            camera_target_set.add(ob)
+        elif parent in non_camera_targets:
+            non_camera_targets.add(ob)
+
+    hide_cam = do_exclusion
+    hide_non = not do_exclusion
+
+    for ob in camera_target_set:
+        if ob.hide_viewport != hide_cam:
+            ob.hide_viewport = hide_cam
+        if ob.hide_render != hide_cam:
+            ob.hide_render = hide_cam
+
+    for ob in non_camera_targets:
+        if ob.hide_viewport != hide_non:
+            ob.hide_viewport = hide_non
+        if ob.hide_render != hide_non:
+            ob.hide_render = hide_non
+            
+    if not lights:
+        return
+    
+    camera_targets = {a.light for a in cam_nwo.cinematic_lights if a.light is not None}
+    do_exclusion = (cam_nwo.cinematic_lights_type == 'exclude')
+
+    camera_target_set = set(camera_targets)
+    non_camera_targets = actors - camera_target_set
+
+    hide_cam = do_exclusion
+    hide_non = not do_exclusion
+
+    for ob in camera_target_set:
+        if ob.hide_viewport != hide_cam:
+            ob.hide_viewport = hide_cam
+        if ob.hide_render != hide_cam:
+            ob.hide_render = hide_cam
+
+    for ob in non_camera_targets:
+        if ob.hide_viewport != hide_non:
+            ob.hide_viewport = hide_non
+        if ob.hide_render != hide_non:
+            ob.hide_render = hide_non
+        
+
+    
+    

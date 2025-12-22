@@ -1317,6 +1317,8 @@ class NWO_Import(bpy.types.Operator):
                                 scene_collection_map[sdata.blender_scene].add(model_collection)
                                 imported_cinematic_objects.extend(imported_cinematic_object_objects)
                                 cin_object.armature = armature
+                                armature.name = cin_object.name
+                                model_collection.name = cin_object.name
                                 cin_actions, cin_animations = importer.import_animation_graph(cin_object.graph_path, armature, render_path, return_animations=True)
                                 
                                 cin_object.animations = {utils.action_shot_index(a): a for a in cin_animations}
@@ -2955,13 +2957,11 @@ class NWOImporter:
         print(f"\nImporting Structure Structure Lighting Info {info_name}")
         info_objects = []
         coll_name = f"{info_name}_lighting_info"
-        collection = bpy.data.collections.get(coll_name)
-        if collection is None:
-            collection = bpy.data.collections.new(coll_name)
-            if parent_collection is None:
-                self.context.scene.collection.children.link(collection)
-            else:
-                collection.children.link(parent_collection)
+        collection = bpy.data.collections.new(coll_name)
+        if parent_collection is None:
+            self.context.scene.collection.children.link(collection)
+        else:
+            collection.children.link(parent_collection)
 
         with utils.TagImportMover(utils.get_project(self.scene_nwo.scene_project).tags_directory, file) as mover:
             with ScenarioStructureLightingInfoTag(path=mover.tag_path) as info:

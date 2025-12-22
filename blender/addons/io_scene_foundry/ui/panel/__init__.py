@@ -1505,6 +1505,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         col1 = row.column()
         col1.template_ID(context.view_layer.objects, "active", filter="AVAILABLE")
         if ob.type == 'CAMERA' and is_cinematic:
+            box.prop(nwo, "update_object_visibility")
             markers = utils.get_timeline_markers(self.scene)
             camera_shots = [str(idx + 1) for idx, marker in enumerate(markers) if marker.camera == ob]
             if len(camera_shots) == 1:
@@ -1533,6 +1534,34 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 row.prop(nwo.actors[nwo.active_actor_index], "actor", icon='OUTLINER_OB_ARMATURE')
             row = box.row(align=True)
             row.operator("nwo.camera_actors_select", icon='RESTRICT_SELECT_OFF')
+            
+            if not self.h4:
+                return
+            
+            box.separator()
+            row = box.row(heading='Camera Lights')
+            row.use_property_split = False
+            row.prop(nwo, "cinematic_lights_type", text=" ", expand=True)
+            row = box.row(align=True)
+            row.template_list(
+                "NWO_UL_CameraLightss",
+                "",
+                nwo,
+                "light",
+                nwo,
+                "active_cinematic_light_index",
+            )
+            col = row.column(align=True)
+            col.operator("nwo.camera_light_add", text="", icon='ADD')
+            col.operator("nwo.camera_light_remove", text="", icon='REMOVE')
+            col.separator()
+            col.operator("nwo.camera_light_clear", text="", icon='CANCEL')
+            if nwo.actors and nwo.active_actor_index > -1:
+                row = box.row(align=True)
+                row.prop(nwo.actors[nwo.active_cinematic_light_index], "light", icon='OUTLINER_OB_LIGHT')
+            row = box.row(align=True)
+            row.operator("nwo.camera_lightss_select", icon='RESTRICT_SELECT_OFF')
+            
             return
         
         col2 = row.column()
@@ -1543,7 +1572,6 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             box.label(text="Object is excluded from export")
             if ob.type == 'ARMATURE':
                 draw_custom_props()
-            return
         
         elif nwo.ignore_for_export:
             txt = "Object is excluded from export. "
@@ -1559,7 +1587,6 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     txt += "Object's parent is set to not export"
                     
             box.label(text=txt)
-            return
         
         instanced = ob.is_instancer and ob.instance_collection and ob.instance_collection.all_objects
         if instanced:
@@ -1601,9 +1628,6 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             box_rigging.separator()
             box_rigging.operator("nwo.bake_to_control", icon='POSE_HLT')
             
-            return
-        
-        if is_cinematic:
             return
 
         row = box.row(align=True)

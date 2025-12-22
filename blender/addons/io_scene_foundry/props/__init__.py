@@ -13,6 +13,7 @@ classes = [
     material.NWO_MaterialPropertiesGroup,
     object.NWO_MarkerPermutationItems,
     object.NWO_ActorItems,
+    object.NWO_CinematicLightItems,
     object.NWO_ObjectPropertiesGroup,
     scene.NWO_AnimationCopiesItems,
     scene.NWO_AnimationLeavesItems,

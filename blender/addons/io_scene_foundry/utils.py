@@ -5270,6 +5270,24 @@ def reduce_suffix(name: str) -> str:
         return base  # .001 → base
     return f"{base}.{num-1:03d}"
 
+def is_child_of(potential_child, parent):
+    actual_parent = potential_child.parent
+    if actual_parent is not None:
+        if actual_parent == parent:
+            return True
+        return is_child_of(actual_parent, parent)
+    
+    return False
+
+def is_child_of_any(potential_child, parents):
+    actual_parent = potential_child.parent
+    if actual_parent is not None:
+        if actual_parent in parents:
+            return True
+        return is_child_of_any(actual_parent, parents)
+    
+    return False
+
 def recursive_parentage(ob, collection_map):
     if ob.parent:
         return recursive_parentage(ob.parent, collection_map)
@@ -5733,3 +5751,6 @@ def action_shot_index(name):
     num = any_partition(no_dupe, "_", True)
     if num.isdigit():
         return int(num)
+    
+def is_halo_light(ob):
+    return ob.type == 'LIGHT' and ob.data.type != 'AREA'

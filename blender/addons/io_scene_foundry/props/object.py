@@ -42,6 +42,20 @@ class NWO_ActorItems(bpy.types.PropertyGroup):
         type=bpy.types.Object,
         poll=poll_actor,
     )
+    
+def poll_cinematic_light(self, object):
+    if object.type == 'LIGHT':
+        for item in self.id_data.nwo.cinematic_lights:
+            if item.light is object:
+                return False
+        return True
+
+class NWO_CinematicLightItems(bpy.types.PropertyGroup):
+    light: bpy.props.PointerProperty(
+        name="Light",
+        type=bpy.types.Object,
+        poll=poll_cinematic_light,
+    )
 
 # OBJECT PROPERTIES
 # ----------------------------------------------------------
@@ -132,6 +146,13 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         override={'LIBRARY_OVERRIDABLE'},
     )
     
+    # CINEMATIC CAMERA PROPS
+    update_object_visibility: bpy.props.BoolProperty(
+        name="Update Object Visibility",
+        description="Hides objects in both viewport and render if they are not meant to be visible during this shot",
+        default=True,
+    )
+    
     # ACTOR SHOTS
     actors: bpy.props.CollectionProperty(
         type=NWO_ActorItems,
@@ -152,6 +173,31 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         items=[
             ("exclude", "Exclude", "Exclude the following actors from this camera's shots"),
             ("include", "Include", "Include only the following actors in this camera's shots, exclude all others"),
+        ],
+        options=set(),
+        override={'LIBRARY_OVERRIDABLE'},
+    )
+    
+    # LIGHTS (H4 Only)
+    cinematic_lights: bpy.props.CollectionProperty(
+        type=NWO_CinematicLightItems,
+        override={'LIBRARY_OVERRIDABLE'},
+    )
+    
+    active_cinematic_light_index: bpy.props.IntProperty(
+        name="Index for Cinematic Light",
+        default=0,
+        min=0,
+        options=set(),
+        override={'LIBRARY_OVERRIDABLE'},
+    )
+    
+    cinematic_lights_type: bpy.props.EnumProperty(
+        name="Include/Exclude",
+        description="Toggle whether cinematic lights should be included in, or excluded from the shots covered by this camera",
+        items=[
+            ("exclude", "Exclude", "Exclude the following cinematic lights from this camera's shots"),
+            ("include", "Include", "Include only the following cinematic lights in this camera's shots, exclude all others"),
         ],
         options=set(),
         override={'LIBRARY_OVERRIDABLE'},

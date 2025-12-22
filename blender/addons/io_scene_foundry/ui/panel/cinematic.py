@@ -526,3 +526,110 @@ class NWO_OT_SelectCameraActors(bpy.types.Operator):
                     item.actor.select_set(True)
                     
         return {'FINISHED'}
+    
+# LIGHTS, camera, action!
+
+class NWO_UL_CameraLights(bpy.types.UIList):
+    def draw_item(self, context, layout: bpy.types.UILayout, data, item, icon, active_data, active_propname, index):
+        layout.label(text=item.light.name if item.light else "NONE", icon='OUTLINER_OB_LIGHT')
+        
+class NWO_OT_CameraLightsClear(bpy.types.Operator):
+    bl_idname = "nwo.camera_light_clear"
+    bl_label = "Clear Camera Lights"
+    bl_description = "Removes all entries from the list"
+    bl_options = {"UNDO"}
+    
+    @classmethod
+    def poll(cls, context):
+        return context.object and context.object.type == 'CAMERA' and context.object.nwo.cinematic_lights
+    
+    def execute(self, context):
+        nwo = context.object.nwo
+        nwo.active_cinematic_light_index = 0
+        nwo.cinematic_lights.clear()
+        context.area.tag_redraw()
+        return {'FINISHED'}
+        
+class NWO_OT_CameraLightRemove(bpy.types.Operator):
+    bl_idname = "nwo.camera_light_remove"
+    bl_label = "Remove Camera Light"
+    bl_description = "Removes the highlighted light from the list"
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        return context.object and context.object.type == 'CAMERA' and context.object.nwo.cinematic_lights
+
+    def execute(self, context):
+        nwo = context.object.nwo
+        table = nwo.cinematic_lights
+        table.remove(nwo.active_cinematic_light_index)
+        if nwo.active_cinematic_light_index > len(table) - 1:
+            nwo.active_cinematic_light_index -= 1
+        context.area.tag_redraw()
+        return {'FINISHED'}
+    
+class NWO_OT_CameraLightAdd(bpy.types.Operator):
+    bl_idname = "nwo.camera_light_add"
+    bl_label = "Add Camera Light"
+    bl_description = "Adds selected lights to the list"
+    bl_options = {"UNDO"}
+    
+    @classmethod
+    def poll(cls, context):
+        return context.object and context.object.type == 'CAMERA'
+    
+    def add_entry(self, table, ob: bpy.types.Object | None):
+        item = table.add()
+        item.actor = ob
+    
+    def execute(self, context):
+        nwo = context.object.nwo
+        table = nwo.actors
+        light_count = 0
+        for ob in context.selected_objects:
+            if ob == context.object: # camera selected
+                continue
+            
+            if not utils.is_halo_light(ob):
+                continue
+            
+            self.add_entry(table, ob)
+            light_count += 1
+                
+        if light_count == 0:
+            self.add_entry(table, None)
+            light_count += 1
+        
+        if light_count == 1:
+            self.report({'INFO'}, f"Added 1 entry")
+        else:
+            self.report({'INFO'}, f"Added {light_count} entries")
+                
+        nwo.active_cinematic_light_index = len(table) - 1
+        context.area.tag_redraw()
+        return {'FINISHED'}
+    
+class NWO_OT_SelectCameraLights(bpy.types.Operator):
+    bl_idname = "nwo.camera_lights_select"
+    bl_label = "Select Camera Light Objects"
+    bl_description = "Selects lights which are active for this shot"
+    bl_options = {"UNDO"}
+    
+    @classmethod
+    def poll(cls, context):
+        return context.object and context.object.type == 'CAMERA'
+    
+    def execute(self, context):
+        nwo = context.object.nwo
+        if nwo.cinematic_lights_type == 'exclude':
+            excluded_objects = {item.light for item in nwo.cinematic_lights if item.light is not None}
+            for ob in context.view_layer.objects:
+                if ob.type == 'ARMATURE' and ob not in excluded_objects:
+                    ob.select_set(True)
+        else:
+            for item in nwo.actors:
+                if item.actor is not None:
+                    item.actor.select_set(True)
+                    
+        return {'FINISHED'}
