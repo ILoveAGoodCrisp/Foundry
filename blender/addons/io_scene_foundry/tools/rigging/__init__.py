@@ -5,13 +5,13 @@ from math import radians
 from typing import cast
 import bpy
 from mathutils import Vector
-
+from ...constants import WU_SCALAR
 from ... import utils
 
-bone_x = 0, 0.1, 0
-bone_x_negative = 0, -0.1, 0
-bone_y = -0.1, 0, 0
-bone_y_negative = 0.1, 0, 0
+bone_x = 0, (1 / WU_SCALAR), 0
+bone_x_negative = 0, -(1 / WU_SCALAR), 0
+bone_y = -(1 / WU_SCALAR), 0, 0
+bone_y_negative = (1 / WU_SCALAR), 0, 0
 
 pedestal_name, aim_pitch_name, aim_yaw_name = 'pedestal', 'aim_pitch', 'aim_yaw'
 aim_control_name = 'CTRL_aim'

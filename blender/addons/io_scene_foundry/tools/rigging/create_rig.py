@@ -160,7 +160,7 @@ class NWO_OT_AddRig(bpy.types.Operator):
     bl_options = {"REGISTER", "UNDO"}
     
     has_pose_bones: bpy.props.BoolProperty(default=True)
-    wireframe: bpy.props.BoolProperty(name="Wireframe Control Shapes", description="Makes the control shapes wireframe rather than solid")
+    wireframe: bpy.props.BoolProperty(name="Wireframe Control Shapes", description="Makes the control shapes wireframe rather than solid", default=True)
 
     @classmethod
     def poll(cls, context):
@@ -225,9 +225,7 @@ class NWO_OT_SelectArmature(bpy.types.Operator):
 def add_rig(context, has_pose_bones, wireframe):
     scene_nwo = utils.get_scene_props()
     scale = 1
-    if scene_nwo.scale == 'max':
-        scale *= (1 / 0.03048)
-    rig = HaloRig(context, scale, scene_nwo.forward_direction, has_pose_bones, True)
+    rig = HaloRig(context, forward=scene_nwo.forward_direction, has_pose_bones=has_pose_bones, set_scene_rig_props=True)
     rig.build_armature()
     rig.build_bones()
     rig.build_and_apply_control_shapes(wireframe=wireframe)

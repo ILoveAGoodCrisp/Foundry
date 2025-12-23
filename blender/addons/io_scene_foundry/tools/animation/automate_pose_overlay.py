@@ -441,7 +441,7 @@ def pose_overlay_armature_validate(armature: bpy.types.Object, nwo, report):
             pitch_name = pi.name
             nwo.node_usage_pose_blend_pitch = pi.name
                 
-    aim_name = nwo.control_aim
+    aim_name = armature.nwo.control_aim
     aim = None
     
     pedestal = armature.pose.bones.get(pedestal_name)
