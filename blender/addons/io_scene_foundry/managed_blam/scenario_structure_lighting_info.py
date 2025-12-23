@@ -298,7 +298,8 @@ class ScenarioStructureLightingInfoTag(Tag):
         self.tag_has_changes = start_count > 0 or region_objects
 
                 
-    def to_blender(self, parent_collection: bpy.types.Collection = None, cinematic_cameras: dict[bpy.types.Object: int] = []):
+    def to_blender(self, parent_collection: bpy.types.Collection = None, cinematic_cameras: list[bpy.types.Object] = []):
+        self.camera_lights = {c: set() for c in cinematic_cameras}
         if self.corinth:
             definitions = self._from_corinth_light_definitions()
             objects = self._from_corinth_light_instances(definitions, cinematic_cameras)
@@ -322,7 +323,7 @@ class ScenarioStructureLightingInfoTag(Tag):
 
         return objects
     
-    def _from_corinth_light_instances(self, definitions: dict[int: bpy.types.Light], cinematic_cameras: dict[bpy.types.Object: int]):
+    def _from_corinth_light_instances(self, definitions: dict[int: bpy.types.Light], cinematic_cameras: list[bpy.types.Object]):
         objects = []
         
         def decode_shot_flags(value, base_shot=1):
@@ -335,7 +336,7 @@ class ScenarioStructureLightingInfoTag(Tag):
                 bit += 1
             return shots
 
-        
+        ob_indices = {}
         for element in self.block_generic_light_instances.Elements:
             def_index = element.SelectField("Light Definition Index").Data
             blender_light = definitions.get(def_index)
@@ -363,23 +364,33 @@ class ScenarioStructureLightingInfoTag(Tag):
             match element.SelectField("light mode").Value:
                 case 0:
                     nwo.light_mode = '_connected_geometry_light_mode_dynamic'
+                    blender_light.nwo.strength_factor = 0.25
                 case 1:
                     nwo.light_mode = '_connected_geometry_light_mode_static'
                 case 2:
                     nwo.light_mode = '_connected_geometry_light_mode_analytic'
             
             objects.append(ob)
+            ob_indices[element.ElementIndex] = ob
             
             if cinematic_cameras:
-                for element in self.tag.SelectField("Block:cinematic light instances").Elements:
-                    if element.Fields[0].Value == def_index and element.Fields[1].Value == element.ElementIndex:
-                        shots = []
-                        shots += decode_shot_flags(element.SelectField("Array:Active Shots[0]/DwordInteger:shot flag data").Data, base_shot=1)
-                        shots += decode_shot_flags(element.SelectField("Array:Active Shots[1]/DwordInteger:shot flag data").Data, base_shot=33)
-                        
-                        for camera, shot_index in cinematic_cameras.items():
-                            if shot_index in shots:
-                                pass # logic to add lights to cinematic cameras goes here
+                nwo.is_cinematic_light = True
+            
+        if cinematic_cameras:
+            for element in self.tag.SelectField("Block:cinematic light instances").Elements:
+                instance_index = element.Fields[2].Value
+                if instance_index > -1 and instance_index < len(objects):
+                    ob = ob_indices.get(instance_index)
+                    if ob is None:
+                        continue
+                    
+                    shots = []
+                    shots += decode_shot_flags(element.SelectField("Array:Active Shots[0]/DwordInteger:shot flag data").Data, base_shot=1)
+                    shots += decode_shot_flags(element.SelectField("Array:Active Shots[1]/DwordInteger:shot flag data").Data, base_shot=33)
+                    for idx, camera in enumerate(cinematic_cameras):
+                        shot_index = idx + 1
+                        if shot_index in shots:
+                            self.camera_lights[camera].add(ob)
             
         return objects
     

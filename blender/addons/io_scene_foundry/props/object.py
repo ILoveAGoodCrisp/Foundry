@@ -146,13 +146,6 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         override={'LIBRARY_OVERRIDABLE'},
     )
     
-    # CINEMATIC CAMERA PROPS
-    update_object_visibility: bpy.props.BoolProperty(
-        name="Update Object Visibility",
-        description="Hides objects in both viewport and render if they are not meant to be visible during this shot",
-        default=True,
-    )
-    
     # ACTOR SHOTS
     actors: bpy.props.CollectionProperty(
         type=NWO_ActorItems,
@@ -1552,4 +1545,10 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
             ),
             ("_connected_geometry_light_mode_analytic", "Analytic", "Similar to static lights but provides better results, however only one analytic light should ever light an object at a time"),
         ],
+    )
+    
+    is_cinematic_light: bpy.props.BoolProperty(
+        name="Cinematic Light",
+        description="This light will be exported as cinematic light",
+        options=set()
     )

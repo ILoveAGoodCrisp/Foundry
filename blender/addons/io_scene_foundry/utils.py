@@ -1884,24 +1884,24 @@ def calc_light_intensity(light_data, factor=1):
     if light_data.type == "SUN":
         return light_data.energy
     
-    intensity = factor * ((light_data.energy / 0.03048**-2) / (50 if is_corinth() else 300))
+    intensity = factor * ((light_data.energy / 0.03048**-2) / (10 if is_corinth() else 300))
     
     return intensity
 
 def calc_emissive_intensity(emissive_power, factor=1):
-    intensity = factor * ((emissive_power / 0.03048**-2) / (50 if is_corinth() else 300))
+    intensity = factor * ((emissive_power / 0.03048**-2) / (10 if is_corinth() else 300))
     return intensity
 
 def calc_light_energy(light_data, intensity, scale=0.03048):
     if light_data.type == "SUN":
         return intensity
     
-    energy = intensity * (scale ** -2) * (50 if is_corinth() else 300)
+    energy = intensity * (scale ** -2) * (10 if is_corinth() else 300)
     
     return energy
 
 def calc_emissive_energy(light_data, intensity):
-    energy = intensity * (0.03048 ** -2) * (50 if is_corinth() else 300)
+    energy = intensity * (0.03048 ** -2) * (10 if is_corinth() else 300)
     return energy
 
 def get_blender_shader(node_tree: bpy.types.NodeTree) -> bpy.types.Node | None:
@@ -2658,6 +2658,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
         
 
             if armatures:
+                deselect_all_objects()
                 arm_datas = set()
                 arm_linkyness = {}
                 for arm in armatures:

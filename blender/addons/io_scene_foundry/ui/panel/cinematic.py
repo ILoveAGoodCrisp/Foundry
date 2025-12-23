@@ -19,6 +19,244 @@ permutations = {}
 nudge = Vector.Fill(3, 0)
 rotation = 0
 
+def clear_vis_keyframes(context, do_viewport=True, do_render=True, set_visible=True):
+    corinth = utils.is_corinth(context)
+    view_objects = context.view_layer.objects
+
+    for ob in view_objects:
+        if ob.type == 'ARMATURE':
+            if ob.nwo.cinematic_object:
+                pass
+            continue
+        if corinth and ob.type == 'LIGHT' and ob.nwo.is_cinematic_light:
+            pass
+        elif utils.ultimate_armature_parent(ob) is not None:
+            pass
+        else:
+            continue
+        
+        ad = ob.animation_data
+        if ad is None:
+            continue
+        
+        action = ad.action
+        if action is None:
+            continue
+        
+        fcurves = utils.get_fcurves(action, ob)
+        if fcurves is None:
+            continue
+        
+        if do_viewport:
+            fc = fcurves.find('hide_viewport')
+            if fc is not None:
+                fcurves.remove(fc)
+                if set_visible:
+                    ob.hide_viewport = False
+                    ob.hide_set(True)
+                
+        if do_render:
+            fc = fcurves.find('hide_render')
+            if fc is not None:
+                fcurves.remove(fc)
+                if set_visible:
+                    ob.hide_render = False
+                    
+        if not fcurves:
+            ad.action = None
+            bpy.data.actions.remove(action)
+
+def bake_vis_to_keyframes(context, do_viewport=True, do_render=True):
+    count = 0
+    def set_fcurves():
+        def find_and_set(dp, hide_bool):
+            nonlocal count
+            fc = fcurves.find(dp)
+            if fc is None:
+                fc = fcurves.new(data_path=dp)
+            fc.keyframe_points.insert(frame, hide_bool, options={'FAST'})
+            count += 1
+
+        for ob in camera_target_set:
+            ad = ob.animation_data
+            if ad is None:
+                ad = ob.animation_data_create()
+            
+            action = ad.action
+            if action is None:
+                action = bpy.data.actions.new("test")
+                slot = action.slots.new('OBJECT', ob.name)
+                ad.last_slot_identifier = slot.identifier
+                ad.action = action
+                
+            fcurves = utils.get_fcurves(action, ob)
+            if do_viewport:
+                find_and_set('hide_viewport', hide_cam)
+            if do_render:
+                find_and_set('hide_render', hide_cam)
+            
+        for ob in non_camera_targets:
+            ad = ob.animation_data
+            if ad is None:
+                ad = ob.animation_data_create()
+            
+            action = ad.action
+            if action is None:
+                action = bpy.data.actions.new("test")
+                slot = action.slots.new('OBJECT', ob.name)
+                ad.last_slot_identifier = slot.identifier
+                ad.action = action
+                
+            fcurves = utils.get_fcurves(action, ob)
+            if do_viewport:
+                find_and_set('hide_viewport', hide_non)
+            if do_render:
+                find_and_set('hide_render', hide_non)
+            
+    scene = context.scene
+    
+    camera_frames = {m.frame: m.camera for m in utils.get_timeline_markers(scene)}
+    
+    for frame, cam in camera_frames.items():
+        if cam is None:
+            return
+
+        cam_nwo = cam.nwo
+
+        view_objects = context.view_layer.objects
+
+        actors = set()
+        geometry = set()
+        lights = set()
+        corinth = utils.is_corinth(context)
+
+        for ob in view_objects:
+            if ob.type == 'ARMATURE':
+                if ob.nwo.cinematic_object:
+                    actors.add(ob)
+                continue
+            if corinth and ob.type == 'LIGHT' and ob.nwo.is_cinematic_light:
+                lights.add(ob)
+            elif utils.ultimate_armature_parent(ob) is not None:
+                geometry.add(ob)
+
+        if actors:
+            camera_targets = {a.actor for a in cam_nwo.actors if a.actor is not None}
+            do_exclusion = (cam_nwo.actors_type == 'exclude')
+
+            camera_target_set = set(camera_targets)
+            non_camera_targets = actors - camera_target_set
+
+            for ob in geometry:
+                parent = utils.ultimate_armature_parent(ob)
+                if parent in camera_target_set:
+                    camera_target_set.add(ob)
+                elif parent in non_camera_targets:
+                    non_camera_targets.add(ob)
+
+            hide_cam = do_exclusion
+            hide_non = not do_exclusion
+            
+            set_fcurves()
+            
+        if lights:
+            camera_targets = {a.light for a in cam_nwo.cinematic_lights if a.light is not None}
+            do_exclusion = (cam_nwo.cinematic_lights_type == 'exclude')
+
+            camera_target_set = set(camera_targets)
+            non_camera_targets = lights - camera_target_set
+
+            hide_cam = do_exclusion
+            hide_non = not do_exclusion
+
+            set_fcurves()
+            
+    return count
+
+class NWO_OT_ClearVisibilityKeyframes(bpy.types.Operator):
+    bl_idname = "nwo.clear_visibility_keyframes"
+    bl_label = "Clear Visibility Keyframes"
+    bl_description = "Clears all hide viewport and render keyframes for in scope actors and lights"
+    bl_options = {"UNDO", 'REGISTER'}
+    
+    do_viewport: bpy.props.BoolProperty(
+        name="Clear Viewport",
+        description="Clears keyframes for hide_viewport",
+        default=True,
+    )
+    do_render: bpy.props.BoolProperty(
+        name="Clear Render",
+        description="Clears keyframes for hide_render",
+        default=True,
+    )
+    
+    make_visible: bpy.props.BoolProperty(
+        name="Make Visible",
+        description="After clearing keyframes, sets each object to be visible in viewport / render",
+        default=True,
+    )
+
+    @classmethod
+    def poll(cls, context):
+        return utils.get_scene_props().asset_type == 'cinematic'
+    
+    def invoke(self, context, _):
+        return context.window_manager.invoke_props_dialog(self)
+    
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "do_viewport")
+        layout.prop(self, "do_render")
+        layout.prop(self, "make_visible")
+        
+    def execute(self, context):
+        if not (self.do_render or self.do_viewport):
+            self.report({'WARNING'}, "Select at least one of viewport or render")
+            return {"CANCELLED"}
+        
+        clear_vis_keyframes(context, self.do_viewport, self.do_render, self.make_visible)
+        self.report({'INFO'}, f"Complete")
+        return {"FINISHED"}
+
+
+class NWO_OT_BakeVisibilityToKeyframes(bpy.types.Operator):
+    bl_idname = "nwo.bake_visibility_to_keyframes"
+    bl_label = "Bake Shot Visibility to Keyframes"
+    bl_description = "Bakes the status of whether an object is hidden per shot to the hide_render and hide_viewport properties. This is done for every shot camera, not just the currently selected one"
+    bl_options = {"UNDO", 'REGISTER'}
+    
+    do_viewport: bpy.props.BoolProperty(
+        name="Keyframe Viewport",
+        description="Keyframes the hide_viewport property to hide/unhide objects in the 3D viewport",
+        default=True,
+    )
+    do_render: bpy.props.BoolProperty(
+        name="Keyframe Render",
+        description="Keyframes the hide_render property to hide/unhide objects during render",
+        default=True,
+    )
+
+    @classmethod
+    def poll(cls, context):
+        return utils.get_scene_props().asset_type == 'cinematic'
+    
+    def invoke(self, context, _):
+        return context.window_manager.invoke_props_dialog(self)
+    
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "do_viewport")
+        layout.prop(self, "do_render")
+
+    def execute(self, context):
+        if not (self.do_render or self.do_viewport):
+            self.report({'WARNING'}, "Select at least one of viewport or render baking")
+            return {"CANCELLED"}
+        
+        count = bake_vis_to_keyframes(context, self.do_viewport, self.do_render)
+        self.report({'INFO'}, f"Created {count} keyframes")
+        return {"FINISHED"}
+
 def run_anchor_offset():
     bpy.ops.nwo.cinematic_anchor_offset_main()
 
@@ -585,7 +823,7 @@ class NWO_OT_CameraLightAdd(bpy.types.Operator):
     
     def execute(self, context):
         nwo = context.object.nwo
-        table = nwo.actors
+        table = nwo.cinematic_lights
         light_count = 0
         for ob in context.selected_objects:
             if ob == context.object: # camera selected

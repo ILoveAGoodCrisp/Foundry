@@ -199,6 +199,8 @@ classes = [
     cinematic.NWO_OT_GetCinematicPermutation,
     cinematic.NWO_OT_CinematicAnchorOffsetMain,
     cinematic.NWO_OT_CinematicAnchorOffset,
+    cinematic.NWO_OT_BakeVisibilityToKeyframes,
+    cinematic.NWO_OT_ClearVisibilityKeyframes,
 ]
 
 def register():

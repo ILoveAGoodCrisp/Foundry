@@ -440,6 +440,7 @@ class CinematicSceneTag(Tag):
             if blender_scene is None:
                 current_scenes = set(bpy.data.scenes)
                 bpy.ops.scene.new(type='EMPTY')
+                self.context.window.scene = self.scene_nwo.id_data # because the above op switches the scene
                 blender_scene = next(s for s in bpy.data.scenes if s not in current_scenes)
                 blender_scene.nwo.is_main_scene = False
                 blender_scene.name = self.tag_path.ShortName
@@ -559,7 +560,7 @@ class CinematicSceneTag(Tag):
                     shots = []
                     for idx in range(flags.ShotCount):
                         if flags.GetShotChecked(idx):
-                            shots.append(idx)
+                            shots.append(idx + 1)
                             cin_object.cameras.append(camera_objects[idx])
                             
                     utils.print_step(f"{name} is present in shots {shots}")
@@ -706,7 +707,7 @@ class CinematicSceneTag(Tag):
                 shots = []
                 for item in flag_items:
                     if item.IsSet:
-                        shots.append(item.FlagIndex)
+                        shots.append(item.FlagIndex + 1)
                         cin_object.cameras.append(camera_objects[item.FlagIndex])
                             
                 utils.print_step(f"{name} is present in shots {shots}")

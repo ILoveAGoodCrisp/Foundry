@@ -1505,9 +1505,10 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         col1 = row.column()
         col1.template_ID(context.view_layer.objects, "active", filter="AVAILABLE")
         if ob.type == 'CAMERA' and is_cinematic:
-            box.prop(nwo, "update_object_visibility")
+            box.operator("nwo.bake_visibility_to_keyframes", icon='DECORATE_KEYFRAME')
+            box.operator("nwo.clear_visibility_keyframes", icon='X') 
             markers = utils.get_timeline_markers(self.scene)
-            camera_shots = [str(idx + 1) for idx, marker in enumerate(markers) if marker.camera == ob]
+            camera_shots = [str(idx + 2) for idx, marker in enumerate(markers) if marker.camera == ob]
             if len(camera_shots) == 1:
                 box.label(text=f"Camera Shot: {camera_shots[0]}")
             elif camera_shots:
@@ -1556,11 +1557,11 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col.operator("nwo.camera_light_remove", text="", icon='REMOVE')
             col.separator()
             col.operator("nwo.camera_light_clear", text="", icon='CANCEL')
-            if nwo.actors and nwo.active_actor_index > -1:
+            if nwo.cinematic_lights and nwo.active_cinematic_light_index > -1:
                 row = box.row(align=True)
-                row.prop(nwo.actors[nwo.active_cinematic_light_index], "light", icon='OUTLINER_OB_LIGHT')
+                row.prop(nwo.cinematic_lights[nwo.active_cinematic_light_index], "light", icon='OUTLINER_OB_LIGHT')
             row = box.row(align=True)
-            row.operator("nwo.camera_lightss_select", icon='RESTRICT_SELECT_OFF')
+            row.operator("nwo.camera_lights_select", icon='RESTRICT_SELECT_OFF')
             
             return
         
@@ -1651,8 +1652,15 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             box_ins.use_property_split = True
             box_ins.label(text="Light Instance Properties")
             col = box_ins.column()
+            
+            is_dynamic = self.h4 and (ob_nwo.light_mode == "_connected_geometry_light_mode_dynamic" or ob_nwo.is_cinematic_light)
+            is_cinematic = self.h4 and self.asset_type == 'cinematic'
+            
+            if is_cinematic:
+                col.prop(ob_nwo, "is_cinematic_light")
             if self.h4:
-                col.prop(ob_nwo, "light_mode", expand=True)
+                if not ob_nwo.is_cinematic_light:
+                    col.prop(ob_nwo, "light_mode", expand=True)
             else:
                 col.prop(ob_nwo, "light_game_type", text="Light Type")
                 col.prop(ob_nwo, "light_screenspace_has_specular")
@@ -1685,7 +1693,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 col.label(text="Light itensity is very low", icon='ERROR')
                 col.label(text="For best results match the power of the light in")
                 col.label(text="Cycles to how you'd like it to appear in game")
-                
+            
+            col.prop(nwo, "strength_factor")
             if data.type == 'AREA':
                 # Area lights use emissive settings, as they will be converted to lightmap only emissive planes at export
                 col.separator()
@@ -1730,9 +1739,10 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 
                 col.separator()
 
-                if ob_nwo.light_mode == "_connected_geometry_light_mode_dynamic":
-                    row = col.row()
-                    row.prop(nwo, "light_cinema", expand=True)
+                if is_dynamic:
+                    if not is_cinematic:
+                        row = col.row()
+                        row.prop(nwo, "light_cinema", expand=True)
                     col.separator()
 
                     col.prop(nwo, "light_shadows")

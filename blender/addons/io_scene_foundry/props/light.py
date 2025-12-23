@@ -380,10 +380,19 @@ class NWO_LightPropertiesGroup(bpy.types.PropertyGroup):
         elif self.light_indirect_only:
             value = 0.01
         
-        return max(value * self.light_amplification_factor, 0.001)
+        return max(value * self.light_amplification_factor * self.strength_factor, 0.001)
     
     light_strength: bpy.props.FloatProperty(
         get=get_light_strength,
+    )
+    
+    strength_factor: bpy.props.FloatProperty(
+        name="Light Strength Factor",
+        description="Used to adjust the strength of the light in cycles when using a halo light node. Has no affect on the game values",
+        default=1.0,
+        subtype='FACTOR',
+        soft_max=1,
+        min=0,
     )
 
     light_cinema: bpy.props.EnumProperty(
