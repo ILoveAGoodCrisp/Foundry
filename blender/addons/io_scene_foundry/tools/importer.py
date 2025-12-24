@@ -2290,6 +2290,7 @@ class NWOImporter:
                     functions = obj.functions_to_blender()
                     # if functions:
                     #     print(f"--- Created Blender node groups for {len(functions)} object functions")
+                    
                     prop_names = []
                     with utils.TagImportMover(utils.get_project(self.scene_nwo.scene_project).tags_directory, model_path) as model_mover:
                         with ModelTag(path=model_mover.tag_path, raise_on_error=False) as model:

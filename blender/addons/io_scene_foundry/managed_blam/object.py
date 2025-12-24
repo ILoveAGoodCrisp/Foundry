@@ -8,6 +8,12 @@ from .model import ModelTag
 from . import Tag
 from .connected_material import game_functions
 
+class Attachment:
+    def __init__(self):
+        pass
+    
+valid_attachment_tags = "cheap_light"
+
 class ObjectTag(Tag):
     """For ManagedBlam task that cover all tags that are classed as objects"""
     def _read_fields(self):
@@ -22,6 +28,30 @@ class ObjectTag(Tag):
         self.block_change_colors = self.tag.SelectField(f"{object_struct.FieldPath}/Block:change colors")
         self.block_functions = self.tag.SelectField(f"{object_struct.FieldPath}/Block:functions")
         self.runtime_object_type = self.tag.SelectField(f"{object_struct.FieldPath}/ShortInteger:runtime object type")
+        self.attachments = self.tag.SelectField(f"{object_struct.FieldPath}/Block:attachments")
+        
+    def attachments_to_blender(self, armature: bpy.types.Object, markers: list[bpy.types.Object]):
+        for element in self.attachments.Elements:
+            attach_type = element.SelectField("type").Path
+            if not (self.path_exists(attach_type) and attach_type.Extension in valid_attachment_tags):
+                continue
+            
+            primary_scale = element.SelectField("primary scale").GetStringData()
+            secondary_scale = element.SelectField("secondary scale").GetStringData()
+            
+            # TODO Create attachment here
+            ob = bpy.data.objects.new()
+            
+            marker_name = element.SelectField("marker").GetStringData()
+            for m in markers:
+                if m.nwo.marker_model_group == marker_name:
+                    ob.parent = m
+                    break
+            else:
+                ob.parent = armature
+                
+            
+            
 
     def get_model_tag_path(self):
         model_path = self.reference_model.Path

@@ -2990,7 +2990,7 @@ class ExportScene:
             down.rotate(mat.to_quaternion())
             lightGen_colors.extend(ob.data.color[:])
             lightGen_directions.extend(down.to_tuple())
-            lightGen_solid_angles.append(ob.data.energy)
+            lightGen_solid_angles.append(ob.data.energy * 2)
             
         props['lightGen_colors'] = " ".join(map(utils.jstr, lightGen_colors))
         props['lightGen_directions'] = " ".join(map(utils.jstr, lightGen_directions))
@@ -3001,7 +3001,7 @@ class ExportScene:
             self.sun = self.sky_lights[-1]
         
         props['sun_size'] = self.scene_settings.sun_size
-        props['sun_intensity'] = self.sun.data.energy
+        props['sun_intensity'] = self.sun.data.energy * 2
         props['sun_color'] = self.sun.data.color[:]
             
         props['uber_light_sun'] = self.scene_settings.sun_as_vmf_light

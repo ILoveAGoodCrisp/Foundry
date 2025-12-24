@@ -499,7 +499,7 @@ class RenderModelTag(Tag):
             normalized_color = Vector((sun_ir, sun_ib, sun_ig)).normalized()
             
             data.color = normalized_color
-            data.energy = sun_ir / normalized_color[0]
+            data.energy = sun_ir / normalized_color[0] / 2
             
             collection.objects.link(ob)
             objects.append(ob)

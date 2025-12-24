@@ -1879,30 +1879,35 @@ def enforce_uniformity(objects):
         bpy.ops.object.transform_apply(location=False, rotation=False, scale=True, isolate_users=True)
         deselect_all_objects()
         
+def get_light_intensity_factor(light_type=""):
+    match light_type:
+        case 'SPOT':
+            return 40
+        case 'SUN':
+            return 200
+        case _:
+            return 333
         
 def calc_light_intensity(light_data, factor=1):
-    if light_data.type == "SUN":
-        return light_data.energy
+    if light_data.type == 'SUN':
+        return light_data.energy * 2
     
-    intensity = factor * ((light_data.energy / 0.03048**-2) / (10 if is_corinth() else 300))
-    
-    return intensity
+    return factor * ((light_data.energy / (0.3048 if is_corinth() else 0.03048)  **-2) / get_light_intensity_factor(light_data.type))
 
 def calc_emissive_intensity(emissive_power, factor=1):
-    intensity = factor * ((emissive_power / 0.03048**-2) / (10 if is_corinth() else 300))
-    return intensity
+    return factor * ((emissive_power / (0.3048 if is_corinth() else 0.03048) **-2) / get_light_intensity_factor())
 
 def calc_light_energy(light_data, intensity, scale=0.03048):
-    if light_data.type == "SUN":
-        return intensity
+    if light_data.type == 'SUN':
+        return intensity / 2
     
-    energy = intensity * (scale ** -2) * (10 if is_corinth() else 300)
-    
-    return energy
+    if is_corinth():
+        scale *= 10
+        
+    return intensity * (scale ** -2) * get_light_intensity_factor(light_data.type)
 
-def calc_emissive_energy(light_data, intensity):
-    energy = intensity * (0.03048 ** -2) * (10 if is_corinth() else 300)
-    return energy
+def calc_emissive_energy(emissive_power, intensity):
+    return intensity * ((0.3048 if is_corinth() else 0.03048) ** -2) * get_light_intensity_factor()
 
 def get_blender_shader(node_tree: bpy.types.NodeTree) -> bpy.types.Node | None:
     """Gets the BSDF shader node from a node tree"""

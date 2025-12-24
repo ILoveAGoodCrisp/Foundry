@@ -53,7 +53,7 @@ def clear_vis_keyframes(context, do_viewport=True, do_render=True, set_visible=T
                 fcurves.remove(fc)
                 if set_visible:
                     ob.hide_viewport = False
-                    ob.hide_set(True)
+                    ob.hide_set(False)
                 
         if do_render:
             fc = fcurves.find('hide_render')
@@ -75,6 +75,7 @@ def bake_vis_to_keyframes(context, do_viewport=True, do_render=True):
             if fc is None:
                 fc = fcurves.new(data_path=dp)
             fc.keyframe_points.insert(frame, hide_bool, options={'FAST'})
+            fc.keyframe_points.insert(end_frame, hide_bool, options={'FAST'})
             count += 1
 
         for ob in camera_target_set:
@@ -116,8 +117,9 @@ def bake_vis_to_keyframes(context, do_viewport=True, do_render=True):
     scene = context.scene
     
     camera_frames = {m.frame: m.camera for m in utils.get_timeline_markers(scene)}
+    frame_list = list(camera_frames)
     
-    for frame, cam in camera_frames.items():
+    for idx, (frame, cam) in enumerate(camera_frames.items()):
         if cam is None:
             return
 
@@ -129,6 +131,11 @@ def bake_vis_to_keyframes(context, do_viewport=True, do_render=True):
         geometry = set()
         lights = set()
         corinth = utils.is_corinth(context)
+        
+        if idx == len(frame_list) - 1:
+            end_frame = int(scene.frame_end)
+        else:
+            end_frame = frame_list[idx + 1] - 1
 
         for ob in view_objects:
             if ob.type == 'ARMATURE':

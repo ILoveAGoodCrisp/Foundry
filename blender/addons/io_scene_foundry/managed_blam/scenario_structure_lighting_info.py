@@ -364,7 +364,7 @@ class ScenarioStructureLightingInfoTag(Tag):
             match element.SelectField("light mode").Value:
                 case 0:
                     nwo.light_mode = '_connected_geometry_light_mode_dynamic'
-                    blender_light.nwo.strength_factor = 0.25
+                    # blender_light.nwo.strength_factor = 0.25
                 case 1:
                     nwo.light_mode = '_connected_geometry_light_mode_static'
                 case 2:

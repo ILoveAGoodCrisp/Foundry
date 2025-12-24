@@ -377,10 +377,7 @@ class NWO_LightPropertiesGroup(bpy.types.PropertyGroup):
         elif self.light_cinema == '_connected_geometry_lighting_cinema_only' and not is_cinematic:
             return 0.0
         
-        elif self.light_indirect_only:
-            value = 0.01
-        
-        return max(value * self.light_amplification_factor * self.strength_factor, 0.001)
+        return max(value * self.strength_factor, 0.001)
     
     light_strength: bpy.props.FloatProperty(
         get=get_light_strength,
