@@ -2011,6 +2011,7 @@ class NWOImporter:
         self.tag_sky = ""
         self.for_cinematic = self.scene_nwo.asset_type == "cinematic"
         self.obs_for_props = {}
+        self.attachments = []
         self.fp_arms_imported = False
         self.deferred_parenting = {}
         if filepaths:
@@ -2329,6 +2330,10 @@ class NWOImporter:
                                     for idx, bone in enumerate(armature.pose.bones):
                                         if node_mask[idx]:
                                             bone.rotation_quaternion = bone.rotation_quaternion @ Quaternion(next(orientations))
+                                
+                                attachments = obj.attachments_to_blender(armature, [m for m in render_objects if m.type == 'EMPTY'], model_collection)
+                                self.attachments.extend(attachments)
+                                imported_file_objects.extend([ao for a in attachments for ao in a.objects])
                                 
                                 # FP Stuff
                                 if not (is_game_object or for_instance_conversion) and self.import_fp_arms.value and not self.fp_arms_imported and obj.tag_path.Extension == "weapon":
@@ -5063,6 +5068,12 @@ def setup_materials(context: bpy.types.Context, importer: NWOImporter, starting_
                             add_function(context.scene, func, export_name, ob, ob.parent)
                         else:
                             add_function(context.scene, func, func, ob, ob.parent)
+                            
+        for attachment in importer.attachments:
+            attach_arm = attachment.armature
+            for func in attachment.function_names:
+                for ao in attachment.objects:
+                    add_function(context.scene, func, func, ao, attach_arm)
                         
         # Apply emissives
         if emissive_meshes:

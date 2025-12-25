@@ -2083,6 +2083,10 @@ def find_file_in_directory(root_dir, filename) -> str:
             
     return ''
 
+material_shader_fallbacks = {
+    "srf_char_skin_tension_detail_normal": "srf_char_blinn_detailnormal"
+}
+
 def add_node_from_resources(blend_name, name, link=False, check_multiple=False) -> bpy.types.NodeGroup | None:
     node_group = bpy.data.node_groups.get(name)
     if node_group is not None:
@@ -2100,12 +2104,18 @@ def add_node_from_resources(blend_name, name, link=False, check_multiple=False) 
             data_to.node_groups = [name]
             found = True
         elif check_multiple:
-            while len(name) >= 7:
-                name = name[:-1]
-                if name in from_node_groups:
-                    data_to.node_groups = [name]
+            fallback = material_shader_fallbacks.get(name)
+            if fallback is not None:
+                if fallback in from_node_groups:
+                    data_to.node_groups = [fallback]
                     found = True
-                    break
+            else:
+                while len(name) >= 7:
+                    name = name[:-1]
+                    if name in from_node_groups:
+                        data_to.node_groups = [name]
+                        found = True
+                        break
                 
     if found:
         return bpy.data.node_groups[name]
@@ -5489,7 +5499,7 @@ def hide_from_rays(ob: bpy.types.Object):
     ob.visible_volume_scatter = False
     ob.visible_shadow = False
     
-def make_halo_light(data: bpy.types.Light):
+def make_halo_light(data: bpy.types.Light, primary_scale="", secondary_scale="", color_node_tree=None, strength_node_tree=None) -> bpy.types.Node:
     data.use_nodes = True
     tree = data.node_tree
     tree.nodes.clear()
@@ -5497,9 +5507,34 @@ def make_halo_light(data: bpy.types.Light):
     light_node.node_tree = add_node_from_resources("shared_nodes", 'Halo Light')
     
     output_node = tree.nodes.new('ShaderNodeOutputLight')
-    output_node.location.x += 200
     
     tree.links.new(input=output_node.inputs[0], output=light_node.outputs[0])
+    
+    if color_node_tree is not None:
+        color_node = tree.nodes.new('ShaderNodeGroup')
+        color_node.node_tree = color_node_tree
+        tree.links.new(input=light_node.inputs[0], output=color_node.outputs[0])
+        
+    if strength_node_tree is not None:
+        strength_node = tree.nodes.new('ShaderNodeGroup')
+        strength_node.node_tree = strength_node_tree
+        tree.links.new(input=light_node.inputs[1], output=strength_node.outputs[0])
+    
+    if primary_scale:
+        node_primary_scale = tree.nodes.new(type="ShaderNodeAttribute")
+        node_primary_scale.attribute_name = primary_scale
+        node_primary_scale.attribute_type = 'INSTANCER'
+        tree.links.new(input=light_node.inputs[2], output=node_primary_scale.outputs[2])
+        
+    if secondary_scale:
+        node_secondary_scale = tree.nodes.new(type="ShaderNodeAttribute")
+        node_secondary_scale.attribute_name = secondary_scale
+        node_secondary_scale.attribute_type = 'INSTANCER'
+        tree.links.new(input=light_node.inputs[3], output=node_secondary_scale.outputs[2])
+        
+    arrange(tree)
+
+    return light_node
     
 class ExportObject:
     def __init__(self):
@@ -5760,3 +5795,10 @@ def action_shot_index(name):
     
 def is_halo_light(ob):
     return ob.type == 'LIGHT' and ob.data.type != 'AREA'
+
+def scale_to_one(x, max_value):
+    x, max_value = float(x), float(max_value)
+    if max_value == 0.0:
+        return 0.0
+    
+    return x / max_value

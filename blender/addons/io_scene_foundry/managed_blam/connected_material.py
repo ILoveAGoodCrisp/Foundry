@@ -736,7 +736,12 @@ class Interpolation:
     def from_element(self, element: TagFieldBlockElement):
         self.interpolation_mode = InterpolationMode(element.SelectField("interpolation mode").Value)
         self.linear_travel_time = element.SelectField("linear travel time").Data
-        self.acceleration = element.SelectField("acceleration").Data
+        self.acceleration = element.SelectField("acceleration").Data#
+        
+class OutputModifierType(Enum):
+    NONE = 0
+    PLUS = 1
+    TIMES = 2
 
 class Function:
     def __init__(self):
@@ -789,6 +794,12 @@ class Function:
         self.editor = None
         
         self.is_object_function = False
+        self.is_light_function = False
+        
+        self.output_modifier_type = OutputModifierType.NONE
+        self.output_modifier = ""
+        
+        self.is_basic_function = False
     
     def from_element(self, element: TagFieldBlockElement, block_name: str):
         editor = element.SelectField(block_name).Value
@@ -804,7 +815,11 @@ class Function:
         self.exclusion_min = editor.ExclusionMin
         self.exclusion_max = editor.ExclusionMax
         
-        self.is_object_function = block_name == "default function"
+        match block_name:
+            case "default function":
+                self.is_object_function = True
+            case "Mapping":
+                self.is_light_function = True
         
         if self.is_object_function:
             self.input = element.SelectField("import name").GetStringData()
@@ -832,7 +847,13 @@ class Function:
                     self.interpolation_symmetric = Interpolation()
                     self.interpolation_symmetric.from_element(interp_elements[0])
                     self.time_period = self.interpolation_symmetric.linear_travel_time
-                
+        
+        elif self.is_light_function:
+            self.input = element.SelectField("Input Variable").GetStringData()
+            self.range = element.SelectField("Range Variable").GetStringData()
+            self.output_modifier = element.SelectField("Output Modifier Input").GetStringData()
+            if self.output_modifier:
+                self.output_modifier_type = OutputModifierType(element.SelectField("Output Modifier").Value)
         else:
             self.time_period = element.SelectField("time period").Data
             self.input = element.SelectField("input name").GetStringData()
@@ -846,6 +867,8 @@ class Function:
         graph_range = range(self.graph_count)
         
         match self.master_type:
+            case FunctionEditorMasterType.Basic:
+                self.is_basic_function = True
             case FunctionEditorMasterType.Periodic:
                 self.periodic_functions = [editor.GetPeriodicFunctionText(editor.GetFunctionIndex(i)) for i in graph_range]
                 self.frequencies = [editor.GetFrequency(i) for i in graph_range]
@@ -992,8 +1015,17 @@ class Function:
                 
         return tree
         
-    def to_blend_nodes(self, tree: bpy.types.NodeTree=None, name="", force_time_period=False) -> list[bpy.types.Nodes]:
+    def to_blend_nodes(self, tree: bpy.types.NodeTree=None, name="", force_time_period=False, normalize=False) -> list[bpy.types.Nodes]:
         '''Creates blender nodes for a game function, returns the output'''
+        
+        clamp_min = self.clamp_min
+        clamp_max = self.clamp_max
+        
+        if normalize:
+            max_value = max(clamp_min, clamp_max)
+            clamp_min = utils.scale_to_one(clamp_min, max_value)
+            clamp_max = utils.scale_to_one(clamp_max, max_value)
+        
         return_node_group = False
         if tree is None:
             return_node_group = True
@@ -1003,10 +1035,10 @@ class Function:
         if self.master_type == FunctionEditorMasterType.Basic:
             if self.color_type == FunctionEditorColorGraphType.Scalar:
                 node = tree.nodes.new('ShaderNodeValue')
-                node.outputs[0].default_value = self.clamp_min
+                node.outputs[0].default_value = clamp_min
                 if self.is_ranged:
                     node_range = tree.nodes.new('ShaderNodeValue')
-                    node_range.outputs[0].default_value = self.clamp_max
+                    node_range.outputs[0].default_value = clamp_max
                     node_mix = tree.nodes.new('ShaderNodeMix')
                     node_attribute = add_attribute_node(tree, self.range)
                     tree.links.new(input=node_mix.inputs["A"], output=node.outputs[0])
@@ -1035,13 +1067,16 @@ class Function:
                 return node_mix.outputs[0]
         
         function_node = tree.nodes.new('ShaderNodeGroup')
+        
         final_node = function_node
+        
+        print(self.color_type)
         
         match self.color_type:
             case FunctionEditorColorGraphType.Scalar:
                 function_node.node_tree = utils.add_node_from_resources("reach_nodes", "Function - 2-float")
-                function_node.inputs[1].default_value = self.clamp_min
-                function_node.inputs[2].default_value = self.clamp_max
+                function_node.inputs[1].default_value = clamp_min
+                function_node.inputs[2].default_value = clamp_min
                 if self.is_object_function:
                     object_function_node = tree.nodes.new('ShaderNodeGroup')
                     final_node = object_function_node
@@ -1059,6 +1094,10 @@ class Function:
                         tree.links.new(input=object_function_node.inputs[4], output=turn_off_attr_node.outputs[2] if turn_off_attr_node.bl_idname == 'ShaderNodeAttribute' else turn_off_attr_node.outputs[0])
                     tree.links.new(input=object_function_node.inputs[0], output=function_node.outputs[0])
 
+            case FunctionEditorColorGraphType.OneColor:
+                function_node.node_tree = utils.add_node_from_resources("reach_nodes", "Function - 2-color")
+                function_node.inputs[1].default_value = self.colors[0]
+                function_node.inputs[2].default_value = self.colors[0]
             case FunctionEditorColorGraphType.TwoColor:
                 function_node.node_tree = utils.add_node_from_resources("reach_nodes", "Function - 2-color")
                 function_node.inputs[1].default_value = self.colors[0]
@@ -1099,6 +1138,16 @@ class Function:
             tree.links.new(input=first_node_input, output=graph_mix_node.outputs[0])
         else:
             tree.links.new(input=first_node_input, output=outputs[0])
+            
+        if self.output_modifier_type != OutputModifierType.NONE:
+            math_node = tree.nodes.new('ShaderNodeMath')
+            math_node.operation = 'MULTIPLY' if self.output_modifier_type == OutputModifierType.TIMES else 'ADD'
+            tree.links.new(input=math_node.inputs[0], output=final_node.outputs[0])
+            
+            attribute_node = add_attribute_node(tree, self.output_modifier)
+            tree.links.new(input=math_node.inputs[1], output=attribute_node.outputs[2] if attribute_node.bl_idname == 'ShaderNodeAttribute' else attribute_node.outputs[0])
+            
+            final_node = math_node
         
         if return_node_group:
             tree.links.new(input=group_output.inputs[0], output=final_node.outputs[0])
