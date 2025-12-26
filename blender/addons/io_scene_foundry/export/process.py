@@ -166,6 +166,14 @@ class ExportScene:
         
         self.start_scene = start_scene
         
+        self.has_no_virtual_scene = True
+        self.selected_bsps = []
+        self.selected_actors = []
+        self.cinematic_scene = None
+        self.cinematic_actors = []
+        self.active_animation = ""
+        self.suspension_animations = {}
+        
     def _get_export_tag_types(self):
         tag_types = set()
         match self.asset_type:
@@ -386,6 +394,7 @@ class ExportScene:
             self.export_objects = [ob for ob in proxy_export_objects if ob.nwo.export_this and ob.type in valid_objects]
         
         self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir, self.granny, self.export_settings, utils.time_step(), self.scene_settings.default_animation_compression, utils.blender_halo_rotation_diff(self.forward), self.scene_settings.maintain_marker_axis, self.granny_textures, utils.get_project(self.scene_settings.scene_project), self.to_halo_scale, self.unit_factor, self.atten_scalar, self.context)
+        self.has_no_virtual_scene = False
         
     def create_instance_proxies(self, ob: bpy.types.Object, ob_halo_data: dict, region: str, permutation: str):
         self.processed_poop_meshes.add(ob.data)
@@ -1607,7 +1616,6 @@ class ExportScene:
         for armature in self.armature_poses.keys():
             armature.pose_position = 'POSE'
         try:
-            self.has_animations = True
             # Frame
             scene = self.context.scene
             frame_start = scene.frame_start
@@ -2395,8 +2403,7 @@ class ExportScene:
             raise RuntimeError("Export failed due to Tool assertion. See above")
     
     def invoke_tool_import(self):
-        no_virtual_scene = self.virtual_scene is None
-        if no_virtual_scene:
+        if self.has_no_virtual_scene:
             structure = [region.name for region in self.scene_settings.regions_table]
             design = []
         else:
@@ -2414,7 +2421,7 @@ class ExportScene:
             set_render_regions_perms = {(k, tuple(v)) for k, v in self.render_regions_perms.items()}
             empty_region_perms = {k[0]: set(k[1]) for k in set_collision_physics_regions_perms.difference(set_render_regions_perms)}
         
-        sidecar_importer = SidecarImport(self.asset_path, self.asset_name, self.asset_type, self.sidecar_path, self.scene_settings, self.export_settings, self.selected_bsps, self.corinth, structure, self.tags_dir, self.selected_actors, self.cinematic_scene, self.active_animation, structure, design, no_virtual_scene)
+        sidecar_importer = SidecarImport(self.asset_path, self.asset_name, self.asset_type, self.sidecar_path, self.scene_settings, self.export_settings, self.selected_bsps, self.corinth, structure, self.tags_dir, self.selected_actors, self.cinematic_scene, self.active_animation, structure, design, self.has_no_virtual_scene)
         if self.corinth and self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB}:
             sidecar_importer.save_lighting_infos()
         sidecar_importer.setup_templates()

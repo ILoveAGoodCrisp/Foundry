@@ -8,7 +8,7 @@ from .. import utils
 from ..props.scene import NWO_ScenePropertiesGroup
 from ..ui.bar import NWO_HaloExportPropertiesGroup
 
-default_templates = [
+model_templates = [
     'model',
     'render_model',
     'collision_model',
@@ -26,6 +26,10 @@ default_templates = [
     'scenery',
     'vehicle',
     'weapon'
+]
+
+animation_templates = [
+    'model_animation_graph',
 ]
 
 class SidecarImport:
@@ -52,9 +56,16 @@ class SidecarImport:
         self.no_virtual_scene = no_virtual_scene
     
     def setup_templates(self):
-        templates = default_templates.copy()
-        if self.corinth:
-            templates.append('device_dispenser')
+        match self.asset_type:
+            case AssetType.MODEL:
+                templates = model_templates.copy()
+                if self.corinth:
+                    templates.append('device_dispenser')
+            case AssetType.ANIMATION:
+                templates = animation_templates.copy()
+            case _:
+                return
+
         for template in templates:
             self._set_template(template)
         
@@ -166,6 +177,8 @@ class SidecarImport:
                 flags.append("suppress_errors_to_vrml")
 
         if self.asset_type == AssetType.SCENARIO:
+            if self.corinth:
+                flags.append("relink_lighting")
             if self.selected_bsps:
                 if not self.no_virtual_scene and (not self.export_settings.export_design or not self.export_settings.export_structure):
                     if self.export_settings.export_design:
@@ -179,8 +192,9 @@ class SidecarImport:
                     for bsp in self.selected_bsps:
                         flags.append(bsp)
                 
-        # if self.cinematic_scene is not None:
-            # flags.append(self.cinematic_scene.name)
+        # if self.asset_type == AssetType.CINEMATIC:
+        #     if self.corinth:
+        #         flags.append("-no_qua")
         
         if self.corinth:
             # Reach sucks and import will just always import everything... Long live Halo 4+
