@@ -853,14 +853,13 @@ class Sidecar:
         # ET.SubElement(audio_content_object, "OutputTagCollection")
         
         # QUA
-        scene_content_object = ET.SubElement(content, "ContentObject", Name="", Type="cinematic_scene")
-        network = ET.SubElement(scene_content_object, "ContentNetwork", Name="", Type="")
-        ET.SubElement(network, "InputFile").text = self.relative_blend
-        ET.SubElement(network, "IntermediateFile").text = self.relative_blend
-        collection = ET.SubElement(scene_content_object, "OutputTagCollection")
-        ET.SubElement(collection, "OutputTag", Type="cinematic_scene").text = str(cin_scene.path_no_ext)
-        if self.corinth:
-            ET.SubElement(collection, "OutputTag", Type="cinematic_scene_data").text = str(cin_scene.path_no_ext)
+        if not self.corinth:
+            scene_content_object = ET.SubElement(content, "ContentObject", Name="", Type="cinematic_scene")
+            network = ET.SubElement(scene_content_object, "ContentNetwork", Name="", Type="")
+            ET.SubElement(network, "InputFile").text = self.relative_blend
+            ET.SubElement(network, "IntermediateFile").text = self.relative_blend
+            collection = ET.SubElement(scene_content_object, "OutputTagCollection")
+            ET.SubElement(collection, "OutputTag", Type="cinematic_scene").text = str(cin_scene.path_no_ext)
         
         # Shots
         shots_content_object = ET.SubElement(content, "ContentObject", Name="", Type="cinematic_shots") # Sequencer="True"
