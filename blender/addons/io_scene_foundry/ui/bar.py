@@ -557,10 +557,12 @@ class NWO_HaloExportSettingsScope(bpy.types.Panel):
             col.separator()
             col.prop(scene_nwo_export, "export_animations", expand=True)
         if scene_nwo.asset_type == 'cinematic':
-            col.prop(scene_nwo_export, "selected_cinematic_objects_only")
-            col.prop(scene_nwo_export, "current_shot_only")
-            col.separator()
             col.prop(scene_nwo_export, "cinematic_scope", expand=True)
+            col.separator()
+            col.prop(scene_nwo_export, "current_scene_only")
+            if scene_nwo_export.current_scene_only:
+                col.prop(scene_nwo_export, "current_shot_only")
+                col.prop(scene_nwo_export, "selected_cinematic_objects_only")
 
 
 class NWO_HaloExportSettingsFlags(bpy.types.Panel):
@@ -792,6 +794,12 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
     selected_cinematic_objects_only: bpy.props.BoolProperty(
         name="Selected Actors Only",
         description="Exports only the armature objects which are currently selected",
+        options=set(),
+    )
+    
+    current_scene_only: bpy.props.BoolProperty(
+        name="Current Scene Only",
+        description="Only exports the currently active cinematic scene",
         options=set(),
     )
     

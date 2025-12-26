@@ -17,9 +17,10 @@ from .. import utils
 from ..managed_blam.camera_track import camera_correction_matrix
 
 class CinematicScene:
-    def __init__(self, asset_path, scene_name):
+    def __init__(self, asset_path, scene_name, scene):
         nwo = utils.get_scene_props()
         self.name = scene_name
+        self.scene = scene
         self.path_no_ext = Path(asset_path, self.name)
         self.path = self.path_no_ext.with_suffix(".cinematic_scene")
         self.path_qua = Path(self.path_no_ext).with_suffix(".qua")

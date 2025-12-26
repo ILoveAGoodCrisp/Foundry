@@ -79,7 +79,7 @@ class ExportTagType(Enum):
         
 class ExportScene:
     '''Scene to hold all the export objects'''
-    def __init__(self, context: bpy.types.Context, sidecar_path_full, sidecar_path, asset_type, asset_name, asset_path, corinth, export_settings, scene_settings):
+    def __init__(self, context: bpy.types.Context, sidecar_path_full, sidecar_path, asset_type, asset_name, asset_path, corinth, export_settings, scene_settings, start_scene):
         self.context = context
         self.asset_type = AssetType[asset_type.upper()]
         self.supports_bsp = self.asset_type.supports_bsp
@@ -161,6 +161,11 @@ class ExportScene:
         self.cinematic_scenes = []
         self.cinematic_actors_all = set()
         
+        self.current_shot_only = export_settings.current_scene_only and export_settings.current_shot_only
+        self.selected_cinematic_objects_only = export_settings.current_scene_only and export_settings.selected_cinematic_objects_only
+        
+        self.start_scene = start_scene
+        
     def _get_export_tag_types(self):
         tag_types = set()
         match self.asset_type:
@@ -233,7 +238,7 @@ class ExportScene:
         self.cinematic_actors = []
         self.cinematic_scene = None
         if self.asset_type == AssetType.CINEMATIC:
-            self.cinematic_scene = CinematicScene(self.asset_path_relative, f"{self.asset_name}_{scene_id}")
+            self.cinematic_scene = CinematicScene(self.asset_path_relative, f"{self.asset_name}_{scene_id}", self.context.scene)
             self.cinematic_scenes.append(self.cinematic_scene)
                 
         self.active_animation = ""
@@ -540,7 +545,7 @@ class ExportScene:
                 is_armature = ob.type == 'ARMATURE'
                 
                 if is_armature:
-                    if self.asset_type == AssetType.CINEMATIC and self.export_settings.selected_cinematic_objects_only and ob.ob.select_get():
+                    if self.asset_type == AssetType.CINEMATIC and self.selected_cinematic_objects_only and ob.ob.select_get():
                         self.selected_actors.add(ob)
                 else:
                     if self.limit_perms_to_selection:
@@ -739,7 +744,7 @@ class ExportScene:
         self.virtual_scene.limit_bsps = self.limit_bsps_to_selection
         self.virtual_scene.limit_permutations = self.limit_perms_to_selection
         self.virtual_scene.actors = {actor.ob: actor for actor in self.cinematic_actors}
-        self.virtual_scene.selected_cinematic_objects_only = self.export_settings.selected_cinematic_objects_only
+        self.virtual_scene.selected_cinematic_objects_only = self.selected_cinematic_objects_only
         self.virtual_scene.selected_actors = self.selected_actors
         self.virtual_scene.cinematic_scope = self.export_settings.cinematic_scope
         self.virtual_scene.poop_obs = self.poop_obs
@@ -1633,7 +1638,7 @@ class ExportScene:
             shot_frame_start = frame_start
             fallback_camera = None
             current_shot = utils.current_shot_index(self.context)
-            single_shot_only = self.export_settings.current_shot_only
+            single_shot_only = self.current_shot_only
             with utils.Spinner():
                 if single_shot_only:
                     utils.update_job_count(process, "", 0, 1)
@@ -1678,7 +1683,7 @@ class ExportScene:
                     for act in shot_actors:
                         act.shots_active.append(i)
                     
-                    in_scope = not self.export_settings.current_shot_only or i == current_shot
+                    in_scope = not self.current_shot_only or i == current_shot
 
                     self.virtual_scene.add_shot(shot_frame_start, shot_frame_end, shot_actors, camera, i, in_scope, film_aperture)
                     
@@ -2059,7 +2064,7 @@ class ExportScene:
                         self._export_granny_file(granny_path, nodes_dict, animation)
                         utils.update_job(job, 1)
 
-            shot_count = 1 if self.export_settings.current_shot_only else len(self.virtual_scene.shots)
+            shot_count = 1 if self.current_shot_only else len(self.virtual_scene.shots)
             print(f'--- Built cinematic camera data for {shot_count} shot{"s" if shot_count != 1 else ""}')
                 
     def _write_qua(self, cin_scene):
@@ -2911,6 +2916,8 @@ class ExportScene:
             
             if self.export_settings.cinematic_scope != 'OBJECT':
                 for cin_scene in self.cinematic_scenes:
+                    if self.export_settings.current_scene_only and cin_scene.scene != self.start_scene:
+                        continue
                     self.print_post(f"--- Writing cinematic scene: {cin_scene.name}")
                     self._write_qua(cin_scene)
 

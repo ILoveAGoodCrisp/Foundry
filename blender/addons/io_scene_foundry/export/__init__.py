@@ -596,10 +596,12 @@ def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_pat
     asset_type = scene_settings.asset_type
     if asset_type == 'camera_track_set':
         return export_current_action_as_camera_track(context,asset_path) # Return early if this is a camera track export
-    export_scene = ExportScene(context, sidecar_path_full, sidecar_path, asset_type, asset_name, asset_path, corinth, export_settings, scene_settings)
-    scenes = {}
     start_scene = context.scene
+    export_scene = ExportScene(context, sidecar_path_full, sidecar_path, asset_type, asset_name, asset_path, corinth, export_settings, scene_settings, start_scene)
+    scenes = {}
+    current_scene_only = False
     if asset_type == 'cinematic':
+        current_scene_only = export_settings.current_scene_only
         for idx, cin_scene in enumerate(utils.get_scene_props().cinematic_scenes):
             if not cin_scene.name.strip():
                 utils.print_warning(f"Cinematic Scene Index {idx} has not scene ID, skipping")
@@ -628,14 +630,15 @@ def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_pat
                     export_scene.ready_scene()
                     export_scene.get_initial_export_objects()
                     export_scene.map_halo_properties()
-                    export_scene.set_template_node_order()
-                    export_scene.create_virtual_tree()
-                    if export_scene.asset_type == AssetType.CINEMATIC:
-                        export_scene.sample_shots()
-                    else:
-                        export_scene.sample_animations(single_animation)
-                    export_scene.report_warnings()
-                    export_scene.export_files(single_animation)
+                    if not current_scene_only or bscene == start_scene:
+                        export_scene.set_template_node_order()
+                        export_scene.create_virtual_tree()
+                        if export_scene.asset_type == AssetType.CINEMATIC:
+                            export_scene.sample_shots()
+                        else:
+                            export_scene.sample_animations(single_animation)
+                        export_scene.report_warnings()
+                        export_scene.export_files(single_animation)
                 finally:
                     export_scene.restore_scene()
         if not single_animation:
