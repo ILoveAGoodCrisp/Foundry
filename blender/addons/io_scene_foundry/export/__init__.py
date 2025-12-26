@@ -333,13 +333,13 @@ class NWO_ExportScene(Operator, ExportHelper):
                     if scene_nwo.asset_type == 'model':
                         update_debug_menu(self.asset_path, self.asset_name)
                     elif scene_nwo.asset_type == 'cinematic':
-                        if utils.get_scene_props().is_child_asset:
-                            asset_path = utils.get_scene_props().parent_asset
-                        else:
-                            asset_path = utils.get_asset_path()
-                            
+                        asset_path = utils.get_asset_path()
                         asset_name = Path(asset_path).name
-                        scene_name = f"{asset_name}_000"
+                        scene_id = "000"
+                        for cs in scene_nwo.cinematic_scenes:
+                            if cs.scene == context.scene:
+                                scene_id = cs.name
+                        scene_name = f"{asset_name}_{scene_id}"
                         shot_index = utils.current_shot_index(context)
                         add_controls_to_debug_menu(utils.is_corinth(context), Path(asset_path, asset_name).with_suffix(".cinematic"), scene_name, shot_index)
 
