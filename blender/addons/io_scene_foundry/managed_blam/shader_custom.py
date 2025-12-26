@@ -192,6 +192,9 @@ class ShaderCustomTag(ShaderTag):
             blender_material.surface_render_method = 'BLENDED'
             group_node.inputs["material is two-sided"].default_value = True
             
+        if e_material_model == MaterialModel.TWO_LOBE_PHONG:
+            self.get_model_material_spec(group_node, True)
+            
         # Make the Output
         node_output = nodes.new(type='ShaderNodeOutputMaterial')
         

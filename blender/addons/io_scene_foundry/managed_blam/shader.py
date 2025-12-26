@@ -1133,6 +1133,9 @@ class ShaderTag(Tag):
         if e_blend_mode.value > 0 or e_alpha_test.value > 0:
             blender_material.surface_render_method = 'BLENDED'
             group_node.inputs["material is two-sided"].default_value = True
+            
+        if e_material_model in {MaterialModel.COOK_TORRANCE, MaterialModel.TWO_LOBE_PHONG, MaterialModel.ORGANISM}:
+            self.get_model_material_spec(group_node, True)
         
         # Make the Output
         node_output = nodes.new(type='ShaderNodeOutputMaterial')
