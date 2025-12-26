@@ -5499,7 +5499,7 @@ def hide_from_rays(ob: bpy.types.Object):
     ob.visible_volume_scatter = False
     ob.visible_shadow = False
     
-def make_halo_light(data: bpy.types.Light, primary_scale="", secondary_scale="", color_node_tree=None, strength_node_tree=None) -> bpy.types.Node:
+def make_halo_light(data: bpy.types.Light, primary_scale="", secondary_scale="", color_node_tree=None, strength_node_tree=None, gobo_image=None) -> bpy.types.Node:
     data.use_nodes = True
     tree = data.node_tree
     tree.nodes.clear()
@@ -5531,6 +5531,12 @@ def make_halo_light(data: bpy.types.Light, primary_scale="", secondary_scale="",
         node_secondary_scale.attribute_name = secondary_scale
         node_secondary_scale.attribute_type = 'INSTANCER'
         tree.links.new(input=light_node.inputs[3], output=node_secondary_scale.outputs[2])
+        
+    if gobo_image is not None:
+        node_image = tree.nodes.new(type='ShaderNodeTexImage')
+        node_image.image = gobo_image
+        tree.links.new(input=light_node.inputs[4], output=node_image.outputs[0])
+        
         
     arrange(tree)
 

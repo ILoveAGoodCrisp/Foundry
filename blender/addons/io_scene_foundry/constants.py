@@ -26,6 +26,11 @@ OBJECT_TAG_EXTS = {'.biped', '.crate', '.creature', '.device_control', '.device_
 #         (0.0, 0.0, 1.0, 0.0),
 #         (0.0, 0.0, 0.0, 1.0)))
 
+LIGHT_FORWARD_IDENTITY = Matrix(((1.0, 0.0, 0.0, 0.0),
+        (0.0, 0, 1.0, 0.0),
+        (0.0, -1.0, 0, 0.0),
+        (0.0, 0.0, 0.0, 1.0)))
+
 class NormalType:
     OPENGL = 0
     DIRECTX = 1

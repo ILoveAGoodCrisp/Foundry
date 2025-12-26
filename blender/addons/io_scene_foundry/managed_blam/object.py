@@ -1,8 +1,16 @@
 
 
 from collections import defaultdict
+from math import radians
 from pathlib import Path
 
+from mathutils import Matrix
+
+from .. import utils
+
+from ..constants import LIGHT_FORWARD_IDENTITY, WU_SCALAR
+
+from .light import LightTag
 from .cheap_light import CheapLightTag
 from .connected_material import Function
 import bpy
@@ -16,7 +24,7 @@ class Attachment:
         self.objects = []
         self.armature = None
     
-valid_attachment_tags = "cheap_light"
+valid_attachment_tags = "cheap_light", "light"
 
 class ObjectTag(Tag):
     """For ManagedBlam task that cover all tags that are classed as objects"""
@@ -37,6 +45,7 @@ class ObjectTag(Tag):
     def attachments_to_blender(self, armature: bpy.types.Object, markers: list[bpy.types.Object], parent_collection):
         
         collection = bpy.data.collections.new(f"{self.tag_path.ShortName}_attachments")
+        collection.nwo.type = 'exclude'
         parent_collection.children.link(collection)
         
         attachments = []
@@ -58,6 +67,9 @@ class ObjectTag(Tag):
                 case "cheap_light":
                     with CheapLightTag(path=attach_type) as cheap_light:
                         data = cheap_light.to_blender(primary_scale, secondary_scale, attachment)
+                case "light":
+                    with LightTag(path=attach_type) as light:
+                        data = light.to_blender(primary_scale, secondary_scale, attachment)
                         
             if data is None:
                 continue
@@ -69,6 +81,9 @@ class ObjectTag(Tag):
                     found_marker = True
                     ob = bpy.data.objects.new(data.name, data)
                     collection.objects.link(ob)
+                    if ob.type == 'LIGHT':
+                        ob.matrix_world = utils.halo_transforms(ob) @ Matrix.Rotation(radians(-90.0), 4, 'X')
+                        
                     ob.parent = m
                     ob.parent_type = 'OBJECT'
                     attachment.objects.append(ob)
