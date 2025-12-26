@@ -1070,8 +1070,6 @@ class Function:
         
         final_node = function_node
         
-        print(self.color_type)
-        
         match self.color_type:
             case FunctionEditorColorGraphType.Scalar:
                 function_node.node_tree = utils.add_node_from_resources("reach_nodes", "Function - 2-float")

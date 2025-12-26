@@ -269,7 +269,8 @@ class NWO_OT_NewAsset(bpy.types.Operator):
         asset_path = Path(asset_directory, asset_name)
         sidecar_path_full = asset_path.with_suffix(".sidecar.xml")
         sidecar_path = sidecar_path_full.relative_to(project.data_directory)
-        scene_settings = context.scene
+        scene = context.scene
+        scene_nwo = utils.get_scene_props()
         
         # if self.work_dir:
         #     blender_filepath = Path(asset_directory, "models", "work", asset_name).with_suffix(".blend")
@@ -288,35 +289,35 @@ class NWO_OT_NewAsset(bpy.types.Operator):
             print("Failed to save current file")
         
         # Set blender scene settings for new file
-        scene_settings.render.fps = 30
-        scene_settings.render.image_settings.tiff_codec = 'LZW'
+        scene.render.fps = 30
+        scene.render.image_settings.tiff_codec = 'LZW'
         # Set Foundry scene settings
-        scene_settings.nwo.scene_project = project.name
-        scene_settings.nwo.sidecar_path = str(sidecar_path)
-        scene_settings.nwo.asset_type = self.asset_type
-        if scene_settings.nwo.scale != self.scale:
-            scene_settings.nwo.scale = self.scale
-        scene_settings.nwo.forward_direction = self.forward_direction
+        scene_nwo.scene_project = project.name
+        scene_nwo.sidecar_path = str(sidecar_path)
+        scene_nwo.asset_type = self.asset_type
+        if scene_nwo.scale != self.scale:
+            scene_nwo.scale = self.scale
+        scene_nwo.forward_direction = self.forward_direction
         # Model specific settings
-        scene_settings.nwo.output_biped = self.output_biped
-        scene_settings.nwo.output_crate = self.output_crate
-        scene_settings.nwo.output_creature = self.output_creature
-        scene_settings.nwo.output_device_control = self.output_device_control
-        scene_settings.nwo.output_device_dispenser = self.output_device_dispenser
-        scene_settings.nwo.output_device_machine = self.output_device_machine
-        scene_settings.nwo.output_device_terminal = self.output_device_terminal
-        scene_settings.nwo.output_effect_scenery = self.output_effect_scenery
-        scene_settings.nwo.output_equipment = self.output_equipment
-        scene_settings.nwo.output_giant = self.output_giant
-        scene_settings.nwo.output_scenery = self.output_scenery
-        scene_settings.nwo.output_vehicle = self.output_vehicle
-        scene_settings.nwo.output_weapon = self.output_weapon
+        scene_nwo.output_biped = self.output_biped
+        scene_nwo.output_crate = self.output_crate
+        scene_nwo.output_creature = self.output_creature
+        scene_nwo.output_device_control = self.output_device_control
+        scene_nwo.output_device_dispenser = self.output_device_dispenser
+        scene_nwo.output_device_machine = self.output_device_machine
+        scene_nwo.output_device_terminal = self.output_device_terminal
+        scene_nwo.output_effect_scenery = self.output_effect_scenery
+        scene_nwo.output_equipment = self.output_equipment
+        scene_nwo.output_giant = self.output_giant
+        scene_nwo.output_scenery = self.output_scenery
+        scene_nwo.output_vehicle = self.output_vehicle
+        scene_nwo.output_weapon = self.output_weapon
         # Animation specific settings
-        scene_settings.nwo.asset_animation_type = self.animation_type
+        scene_nwo.asset_animation_type = self.animation_type
         # Particle
-        scene_settings.nwo.particle_uses_custom_points = self.particle_uses_custom_points
+        scene_nwo.particle_uses_custom_points = self.particle_uses_custom_points
         # Scenario
-        # if self.asset_type == 'scenario' and len(scene_settings.nwo.regions_table) < 2:
+        # if self.asset_type == 'scenario' and len(scene_nwo.regions_table) < 2:
         #     utils.add_region('shared')
         
         # Update blend data
@@ -339,7 +340,7 @@ class NWO_OT_NewAsset(bpy.types.Operator):
         if self.save_new_blend_file:
             bpy.ops.wm.save_as_mainfile(filepath=str(blender_filepath), check_existing=False, compress=context.preferences.filepaths.use_file_compression)
             
-        sidecar = Sidecar(sidecar_path_full, sidecar_path, asset_path, asset_name, None, scene_settings.nwo, utils.is_corinth(context), context)
+        sidecar = Sidecar(sidecar_path_full, sidecar_path, asset_path, asset_name, None, scene_nwo, utils.is_corinth(context), context)
         sidecar.build()
         
         self.report({"INFO"}, f"Created new {self.asset_type.title()} asset for {self.project}. Asset Name = {asset_name}")

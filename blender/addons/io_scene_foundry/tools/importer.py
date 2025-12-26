@@ -2331,9 +2331,10 @@ class NWOImporter:
                                         if node_mask[idx]:
                                             bone.rotation_quaternion = bone.rotation_quaternion @ Quaternion(next(orientations))
                                 
-                                attachments = obj.attachments_to_blender(armature, [m for m in render_objects if m.type == 'EMPTY'], model_collection)
-                                self.attachments.extend(attachments)
-                                imported_file_objects.extend([ao for a in attachments for ao in a.objects])
+                                # TODO complete attachments code
+                                # attachments = obj.attachments_to_blender(armature, [m for m in render_objects if m.type == 'EMPTY'], model_collection)
+                                # self.attachments.extend(attachments)
+                                # imported_file_objects.extend([ao for a in attachments for ao in a.objects])
                                 
                                 # FP Stuff
                                 if not (is_game_object or for_instance_conversion) and self.import_fp_arms.value and not self.fp_arms_imported and obj.tag_path.Extension == "weapon":
@@ -2772,7 +2773,9 @@ class NWOImporter:
                                 pca_info.pca_path = pca_path
                                 self.pca_info.append(pca_info)
                     else:
-                        actions, animations = graph.to_blender(render, armature, filter, False)
+                        result = graph.to_blender(render, armature, filter, False)
+                        if result is not None:
+                            actions, animations = result
 
                 if self.graph_generate_renames:
                     utils.print_bullet("Generating Animation Renames")

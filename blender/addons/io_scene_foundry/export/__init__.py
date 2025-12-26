@@ -609,6 +609,10 @@ def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_pat
                 utils.print_warning(f"Cinematic Scene Index {idx} has no blender scene linked, skipping")
                 continue
             
+            if not cin_scene.scene.camera:
+                utils.print_warning(f"Cinematic Scene Index {idx} has no active camera, skipping")
+                continue
+            
             if cin_scene.scene not in scenes:
                 scenes[cin_scene.scene] = cin_scene.name
     else:
@@ -665,3 +669,7 @@ def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_pat
         export_scene.postprocess_tags()
         if not for_cache_build:
             export_scene.lightmap()
+            
+            
+    if context.scene != start_scene:
+        context.window.scene = start_scene

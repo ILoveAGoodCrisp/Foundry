@@ -552,6 +552,7 @@ class QUA:
         effects: dict[CinematicEffect: int] = {}
         custom_scripts = {}
         current_frame_index = 0
+
         if self.corinth:
             elements_zip = zip(block_shots.Elements, block_data_shots.Elements)
         else:
@@ -598,7 +599,7 @@ class QUA:
                 c.from_element(sub_element)
                 music[c] = current_frame_index + c.frame + int(self.corinth)
             block_music.RemoveAllElements()
-            
+
             block_object_functions = element.SelectField("object functions")
             for sub_element in block_object_functions.Elements:
                 c = CinematicObjectFunction()
@@ -606,14 +607,14 @@ class QUA:
                 for keyframe in c.keyframes:
                     object_function_keyframes[keyframe] = current_frame_index + keyframe.frame + int(self.corinth)
             block_object_functions.RemoveAllElements()
-            
+
             block_screen_effects = element.SelectField("screen effects")
             for sub_element in block_screen_effects.Elements:
                 c = CinematicScreenEffect()
                 c.from_element(sub_element, self.corinth)
                 screen_effects[c] = current_frame_index + c.frame + int(self.corinth)
             block_screen_effects.RemoveAllElements()
-            
+
             block_user_input_constraints = element.SelectField("user input constraints")
             for sub_element in block_user_input_constraints.Elements:
                 c = CinematicUserInputConstraints()
@@ -628,10 +629,9 @@ class QUA:
                     c.from_element(sub_element)
                     texture_movies[c] = current_frame_index + c.frame + int(self.corinth)
                 block_texture_movies.RemoveAllElements()
-                element = block_data_shots.Elements[idx]
-                
+  
             current_frame_index += (data_element.SelectField("frame count").Data - 1)
-        
+            
         # SHOTS
         # make sure shots block is same size as shots count
         while block_shots.Elements.Count > len(self.shots):
@@ -644,13 +644,14 @@ class QUA:
                 block_data_shots.RemoveElement(block_data_shots.Elements.Count - 1)
             while block_data_shots.Elements.Count < len(self.shots):
                 block_data_shots.AddElement()
-        
         for idx, shot in enumerate(self.shots):
-            element = block_shots.Elements[idx]
+            if self.corinth:
+                element = block_data_shots.Elements[idx]
+            else:
+                element = block_shots.Elements[idx]
             element.SelectField("frame count").Data = shot.frame_count
             frame_data = element.SelectField("frame data")
             frame_data.RemoveAllElements()
-                
             if not shot.frames:
                 continue
             
@@ -665,10 +666,10 @@ class QUA:
                     felement.SelectField("Struct:camera frame[0]/Struct:constant data[0]/LongInteger:depth of field").Data = frame.depth_of_field
                     felement.SelectField("Struct:camera frame[0]/Struct:constant data[0]/Real:near focal plane distance").Data = frame.near_focal_plane_distance
                     felement.SelectField("Struct:camera frame[0]/Struct:constant data[0]/Real:far focal plane distance").Data = frame.far_focal_plane_distance
-                    felement.SelectField("Struct:camera frame[0]/Struct:constant data[0]/Real:near focal depth").Data = frame.near_focal_depth
-                    felement.SelectField("Struct:camera frame[0]/Struct:constant data[0]/Real:far focal depth").Data = frame.far_focal_depth
-                    felement.SelectField("Struct:camera frame[0]/Struct:constant data[0]/Real:near blur amount").Data = frame.near_blur_amount
-                    felement.SelectField("Struct:camera frame[0]/Struct:constant data[0]/Real:far blur amount").Data = frame.far_blur_amount
+                    felement.SelectField("Struct:camera frame[0]/Struct:constant data[0]/Real:near focal depth").Data = 0.01
+                    felement.SelectField("Struct:camera frame[0]/Struct:constant data[0]/Real:far focal depth").Data = 0.01
+                    felement.SelectField("Struct:camera frame[0]/Struct:constant data[0]/Real:near blur amount").Data = 0
+                    felement.SelectField("Struct:camera frame[0]/Struct:constant data[0]/Real:far blur amount").Data = 0
             else:
                 for frame in shot.frames:
                     felement = frame_data.AddElement()
@@ -725,7 +726,7 @@ class QUA:
                     attachment_element.SelectField("attachment type").Path = tag._TagPath_from_string(actor.weapon_tag)
                     object_tag_weapon_names[actor.original_tag] = attachment_element.SelectField("attachment object name").GetStringData()
                         
-                actor_elements[actor] = element
+            actor_elements[actor] = element
 
             if not self.corinth:  
                 # Reach writes this data to the cinematic_scene tag so lets do it now
@@ -757,7 +758,9 @@ class QUA:
         
         # Add cinematic events
         frame_start = int(bpy.context.scene.frame_start)
-        sound_sequences = bpy.context.scene.sequence_editor.strips_all
+        sound_sequences = {}
+        if bpy.context.scene.sequence_editor:
+            sound_sequences = bpy.context.scene.sequence_editor.strips_all
         for event in bpy.context.scene.nwo.cinematic_events:
             match event.type:
                 case 'DIALOGUE':
