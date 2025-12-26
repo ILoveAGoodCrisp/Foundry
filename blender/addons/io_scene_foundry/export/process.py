@@ -2909,9 +2909,10 @@ class ExportScene:
                     if self.scene_settings.cinematic_scenario.strip():
                         utils.print_warning(f"Cinematic Scenario does not exist: {self.scene_settings.cinematic_scenario}")
             
-            for cin_scene in self.cinematic_scenes:
-                self.print_post(f"--- Writing cinematic scene: {cin_scene.name}")
-                self._write_qua(cin_scene)
+            if self.export_settings.cinematic_scope != 'OBJECT':
+                for cin_scene in self.cinematic_scenes:
+                    self.print_post(f"--- Writing cinematic scene: {cin_scene.name}")
+                    self._write_qua(cin_scene)
 
             for actor in {a.original_tag: a for a in self.cinematic_actors_all}.values(): # dict just ensures we don't process tags twice
                 actor.validate()

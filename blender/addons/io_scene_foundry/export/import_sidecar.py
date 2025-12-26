@@ -179,8 +179,8 @@ class SidecarImport:
                     for bsp in self.selected_bsps:
                         flags.append(bsp)
                 
-        if self.cinematic_scene is not None:
-            flags.append(self.cinematic_scene.name)
+        # if self.cinematic_scene is not None:
+            # flags.append(self.cinematic_scene.name)
         
         if self.corinth:
             # Reach sucks and import will just always import everything... Long live Halo 4+
