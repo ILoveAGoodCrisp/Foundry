@@ -3374,7 +3374,8 @@ class NWOImporter:
         self.jms_frame_objects = []
         self.jms_light_objects = []
         self.jms_hidden_objects = []
-        for path in jms_files:
+        
+        for path in reversed(jms_files): # reversed so render folders get evaluated first
             self.import_jms_file(path, legacy_type)
             
         meshes = {ob.data for ob in self.jms_mesh_objects}
