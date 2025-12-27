@@ -3486,7 +3486,8 @@ class NWOImporter:
         if not self.existing_scene:
             utils.add_to_collection(self.jms_file_marker_objects, True, new_coll, name="markers")
             utils.add_to_collection(self.jms_file_mesh_objects, True, new_coll, name="meshes")
-            utils.add_to_collection(self.jms_file_frame_objects, True, new_coll, name="frames")
+            if not is_model:
+                utils.add_to_collection(self.jms_file_frame_objects, True, new_coll, name="frames")
             utils.add_to_collection(self.jms_file_light_objects, True, new_coll, name="lights")
             
         for data in self.light_data:
