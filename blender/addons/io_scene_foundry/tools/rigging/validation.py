@@ -14,7 +14,7 @@ class NWO_ValidateRig(bpy.types.Operator):
     bl_label = 'Validate Rig'
     bl_description = 'Runs a number of checks on the model armature, highlighting issues and providing fixes'
     
-    def get_root_bone(self, rig, scene):
+    def get_root_bone(self, rig):
         root_bones = [b for b in rig.data.bones if b.use_deform and not b.parent]
         if root_bones:
             if len(root_bones) > 1:
@@ -22,7 +22,7 @@ class NWO_ValidateRig(bpy.types.Operator):
                 return
             return root_bones[0].name
     
-    def validate_root_rot(self, rig, root_bone_name, scene):
+    def validate_root_rot(self, rig, root_bone_name):
         bpy.ops.object.mode_set(mode="EDIT", toggle=False)
         # Valid rotation depends on model forward direction
         # Given false tuples hightlight whether tail values should be zero = (x, y, z)
@@ -238,7 +238,7 @@ class NWO_ValidateRig(bpy.types.Operator):
             scene_nwo.multiple_root_bones = False
         
         
-        if self.validate_root_rot(self.rig, root_bone_name, scene):
+        if self.validate_root_rot(self.rig, root_bone_name):
             scene_nwo.invalid_root_bone = False
         else:
             self.report({'WARNING'}, f'Root bone [{root_bone_name}] has non-standard transforms. This may cause issues at export')
