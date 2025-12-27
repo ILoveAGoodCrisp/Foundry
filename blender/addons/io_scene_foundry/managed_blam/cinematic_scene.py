@@ -1,5 +1,7 @@
 from mathutils import Matrix, Vector
 
+from .lisp_to_corinth import convert
+
 from .cinematic_scene_data import CinematicSceneDataTag
 from .. import utils
 from ..props.scene import NWO_CinematicEvent
@@ -91,7 +93,7 @@ class CinematicDialogue:
     def to_element(self, element: TagFieldBlockElement):
         element.SelectField("dialogue").Path = self.dialogue
         element.SelectField("female dialogue").Path = self.female_dialogue
-        element.SelectField("frame").Data = self.frame
+        element.SelectField("LongInteger:frame").Data = self.frame
         element.SelectField("scale").Data = self.scale
         element.SelectField("lipsync actor").SetStringData(self.lipsync_actor)
         element.SelectField("default sound effect").SetStringData(self.default_sound_effect)
@@ -127,13 +129,13 @@ class CinematicMusic:
     def from_element(self, element: TagFieldBlockElement) -> bool:
         self.stops_music_at_frame = element.SelectField("flags").TestBit("Stop Music At Frame (rather than starting it)")
         self.music = element.SelectField(r"music\foley").Path
-        self.frame = element.SelectField("frame").Data
+        self.frame = element.SelectField("LongInteger:frame").Data
         return self.music is not None
     
     def to_element(self, element: TagFieldBlockElement):
         element.SelectField("flags").SetBit("Stop Music At Frame (rather than starting it)", self.stops_music_at_frame)
         element.SelectField(r"music\foley").Path = self.music
-        element.SelectField("frame").Data = self.frame
+        element.SelectField("LongInteger:frame").Data = self.frame
         
 class CinematicEffect:
     def __init__(self):
@@ -153,7 +155,7 @@ class CinematicEffect:
     def from_element(self, element: TagFieldBlockElement, object_block: TagFieldBlock, corinth: bool) -> bool:
         self.use_maya_value = element.SelectField("flags").TestBit("use maya value")
         self.effect = element.SelectField("effect").Path
-        self.frame = element.SelectField("frame").Data
+        self.frame = element.SelectField("LongInteger:frame").Data
         self.marker_name = element.SelectField("marker name").GetStringData()
         self.marker_parent = get_subject_name(element.SelectField("marker parent").Value, object_block)
         self.node_id = element.SelectField("node id").Data
@@ -161,7 +163,7 @@ class CinematicEffect:
         if corinth:
             self.looping = element.SelectField("flags").TestBit("looping")
             self.state = element.SelectField("state").Value
-            self.size_scale = element.SelectField("size scale").Value
+            self.size_scale = element.SelectField("size scale").Data
             self.function_a = element.SelectField("function a").GetStringData()
             self.function_b = element.SelectField("function b").GetStringData()
             
@@ -171,7 +173,7 @@ class CinematicEffect:
     def to_element(self, element: TagFieldBlockElement, object_block: TagFieldBlock, corinth: bool):
         element.SelectField("flags").SetBit("use maya value", self.use_maya_value)
         element.SelectField("effect").Path = self.effect
-        element.SelectField("frame").Data = self.frame
+        element.SelectField("LongInteger:frame").Data = self.frame
         element.SelectField("marker name").SetStringData(self.marker_name)
         element.SelectField("marker parent").Value = get_subject_index(self.marker_parent, object_block)
         element.SelectField("node id").Data = self.node_id
@@ -215,7 +217,7 @@ class CinematicObjectFunctionKeyframe:
         
     def from_element(self, element: TagFieldBlockElement):
         self.clear_function = element.SelectField("flags").TestBit("clear function (Value and Interpolation time are unused)")
-        self.frame = element.SelectField("frame").Data
+        self.frame = element.SelectField("LongInteger:frame").Data
         self.value = element.SelectField("value").Data
         self.interpolation_time = element.SelectField("interpolation time").Data
     
@@ -230,7 +232,7 @@ class CinematicObjectFunctionKeyframe:
         
         sub_element = element.SelectField("keyframes").AddElement()    
         sub_element.SelectField("flags").SetBit("clear function (Value and Interpolation time are unused)", self.clear_function)
-        sub_element.SelectField("frame").Data = self.frame
+        sub_element.SelectField("LongInteger:frame").Data = self.frame
         sub_element.SelectField("value").Data = self.value
         sub_element.SelectField("interpolation time").Data = self.interpolation_time
 
@@ -267,14 +269,14 @@ class CinematicScreenEffect:
         
     def from_element(self, element: TagFieldBlockElement, corinth: bool):
         self.screen_effect = element.SelectField("screen effect").Path
-        self.frame = element.SelectField("frame").Data
+        self.frame = element.SelectField("LongInteger:frame").Data
         self.stop_frame = element.SelectField("stop frame").Data
         if corinth:
             self.persist_entire_shot = element.SelectField("flags").TestBit("Persist Entire Shot")
     
     def to_element(self, element: TagFieldBlockElement, corinth: bool):
         element.SelectField("screen effect").Path = self.screen_effect
-        element.SelectField("frame").Data = self.frame
+        element.SelectField("LongInteger:frame").Data = self.frame
         element.SelectField("stop frame").Data = self.stop_frame
         if corinth:
             element.SelectField("flags").SetBit("Persist Entire Shot", self.persist_entire_shot)
@@ -290,19 +292,19 @@ class CinematicCustomScript:
         
     def from_element(self, element: TagFieldBlockElement):
         self.use_maya_value = element.SelectField("flags").TestBit("use maya value")
-        self.frame = element.SelectField("frame").Data
+        self.frame = element.SelectField("LongInteger:frame").Data
         self.script = element.SelectField("script").Elements[0].Fields[0].DataAsText
         self.node_id = element.SelectField("node id").Data
         self.sequence_id = element.SelectField("sequence id").Data
     
-    def to_element(self, element: TagFieldBlockElement):
+    def to_element(self, element: TagFieldBlockElement, corinth: bool):
         element.SelectField("flags").SetBit("use maya value", self.use_maya_value)
-        element.SelectField("frame").Data = self.frame
-        element.SelectField("script").Elements[0].Fields[0].DataAsText = self.script
+        element.SelectField("LongInteger:frame").Data = self.frame
+        element.SelectField("script").Elements[0].Fields[0].DataAsText = convert(self.script) if corinth else self.script
         element.SelectField("node id").Data = self.node_id
         element.SelectField("sequence id").Data = self.sequence_id
         
-    def from_event(self, event: NWO_CinematicEvent, object_tag_weapon_names: dict, actor_objects: set):
+    def from_event(self, event: NWO_CinematicEvent, object_tag_weapon_names: dict, actor_objects: set, corinth: bool):
         self.use_maya_value = True
         valid_object = event.script_object is not None and event.script_object in actor_objects
         obj_text = f'(cinematic_object_get "{event.script_object.name}")' if valid_object else 'None'
@@ -344,9 +346,11 @@ class CinematicCustomScript:
             case 'SET_TITLE':
                 self.script = f'cinematic_set_title {self.script_text}'
             case 'SHOW_HUD':
-                self.script = 'chud_cinematic_fade 0 0\nchud_show_cinematics 1'
+                if not corinth:
+                    self.script = 'chud_cinematic_fade 0 0\nchud_show_cinematics 1'
             case 'HIDE_HUD':
-                self.script = f'chud_cinematic_fade 1 0\nchud_show_cinematics 0'
+                if not corinth:
+                    self.script = f'chud_cinematic_fade 1 0\nchud_show_cinematics 0'
             case 'OBJECT_CANNOT_DIE' | 'OBJECT_CAN_DIE':
                 if valid_object:
                     self.script = f'object_cannot_die {obj_text} {int(event.script_type == "OBJECT_CANNOT_DIE")}'
@@ -356,7 +360,7 @@ class CinematicCustomScript:
                     self.script = f'object_cinematic_visibility {obj_text} {int(event.script_type == "OBJECT_PROJECTILE_COLLISION_OFF")}'
             case 'DAMAGE_OBJECT':
                 if valid_object:
-                    self.script = f'damage_object {obj_text} {event.script_region} {event.script_damage}'
+                    self.script = f'damage_object {obj_text} "{event.script_region}" {event.script_damage}'
             case 'PLAY_SOUND':
                 self.script = f'sound_impulse_start {event.sound_tag} {obj_text} {event.script_factor}'
         
@@ -368,13 +372,13 @@ class CinematicUserInputConstraints:
         self.frictional_force = 0
         
     def from_element(self, element: TagFieldBlockElement):
-        self.frame = element.SelectField("frame").Data
+        self.frame = element.SelectField("LongInteger:frame").Data
         self.ticks = element.SelectField("ticks").Data
         self.maximum_look_angles = element.SelectField("maximum look angles").Data
         self.frictional_force = element.SelectField("frictional force").Data
     
     def to_element(self, element: TagFieldBlockElement):
-        element.SelectField("frame").Data = self.frame
+        element.SelectField("LongInteger:frame").Data = self.frame
         element.SelectField("ticks").Data = self.ticks
         element.SelectField("maximum look angles").Data = self.maximum_look_angles
         element.SelectField("frictional force").Data = self.frictional_force
@@ -388,14 +392,14 @@ class CinematicTextureMovie:
         
     def from_element(self, element: TagFieldBlockElement) -> bool:
         self.stop_movie_at_frame = element.SelectField("flags").TestBit("Stop Movie At Frame (rather than starting it)")
-        self.frame = element.SelectField("frame").Data
+        self.frame = element.SelectField("LongInteger:frame").Data
         self.bink_movie = element.SelectField("bink movie").Path
         
         return self.bink_movie is not None
     
     def to_element(self, element: TagFieldBlockElement):
         element.SelectField("flags").SetBit("Stop Movie At Frame (rather than starting it)", self.stop_movie_at_frame)
-        element.SelectField("frame").Data = self.frame
+        element.SelectField("LongInteger:frame").Data = self.frame
         element.SelectField("bink movie").Path = self.bink_movie
         
 class CamFrame:

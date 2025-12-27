@@ -1153,3 +1153,19 @@ class Function:
             return tree
         else:
             return final_node.outputs[0]
+        
+    def time_period_valid(self, force_time_period: bool):
+        if not utils.get_prefs().import_shaders_with_time_period:
+            return False
+        
+        if force_time_period:
+            return True
+        
+        if self.is_object_function:
+            pass
+        
+        elif self.is_light_function:
+            pass
+        
+        else:
+            pass

@@ -782,7 +782,7 @@ class QUA:
                         effects[c] = event.frame - frame_start + int(self.corinth)
                 case 'SCRIPT':
                     c = CinematicCustomScript()
-                    c.from_event(event, object_tag_weapon_names, actor_objects)
+                    c.from_event(event, object_tag_weapon_names, actor_objects, self.corinth)
                     if c.script.strip():
                         custom_scripts[c] = event.frame - frame_start + int(self.corinth)
         
@@ -872,5 +872,5 @@ class QUA:
                 continue
             shot_element = block.Elements[shot_index]
             data.frame = shot_frame
-            data.to_element(shot_element.SelectField("custom script").AddElement())
+            data.to_element(shot_element.SelectField("custom script").AddElement(), self.corinth)
             
