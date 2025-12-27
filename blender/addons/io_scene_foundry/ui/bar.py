@@ -599,7 +599,9 @@ class NWO_HaloExportSettingsFlags(bpy.types.Panel):
             col.prop(scene_nwo_export, "force_imposter_policy_never")
             if scenario:
                 col.prop(scene_nwo_export, "create_debug_zone_set")
-                if not h4:
+                if h4:
+                    col.prop(scene_nwo_export, "relink_lighting")
+                else:
                     col.prop(scene_nwo_export, "allow_proxy_decals")
         if model or animation:
             col.prop(scene_nwo_export, "disable_automatic_suspension_computation")
@@ -1209,6 +1211,12 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
     allow_proxy_decals: bpy.props.BoolProperty(
         name="Allow Proxy Decals",
         description="Updates BSP tags post export to allow decals (like bullet impacts) to draw on proxy instance collision",
+        default=False,
+    )
+    
+    relink_lighting: bpy.props.BoolProperty(
+        name="Relink Lighting",
+        description="Tries to keep the existing lightmap on a reimport. For efficiency, this won't run if the export process includes a lightmapping step",
         default=False,
     )
 

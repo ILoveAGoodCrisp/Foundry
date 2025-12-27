@@ -177,7 +177,7 @@ class SidecarImport:
                 flags.append("suppress_errors_to_vrml")
 
         if self.asset_type == AssetType.SCENARIO:
-            if self.corinth and Path(self.asset_path, f"{self.asset_name}_faux_lightmap.scenario_lightmap").exists():
+            if self.corinth and self.export_settings.relink_lighting and not self.export_settings.lightmap_structure and Path(self.tags_dir, self.relative_asset_path, f"{self.asset_name}_faux_lightmap.scenario_lightmap").exists():
                 flags.append("relink_lighting")
             if self.selected_bsps:
                 if not self.no_virtual_scene and (not self.export_settings.export_design or not self.export_settings.export_structure):

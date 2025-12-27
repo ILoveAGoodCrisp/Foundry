@@ -490,7 +490,9 @@ class NWO_ExportScene(Operator, ExportHelper):
             col.prop(scene_nwo_export, "force_imposter_policy_never")
             if scenario:
                 col.prop(scene_nwo_export, "create_debug_zone_set")
-                if not h4:
+                if h4:
+                    col.prop(scene_nwo_export, "relink_lighting")
+                else:
                     col.prop(scene_nwo_export, "allow_proxy_decals")
         if model or animation:
             col.prop(scene_nwo_export, "disable_automatic_suspension_computation")
@@ -619,6 +621,9 @@ def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_pat
                 scenes[cin_scene.scene] = cin_scene.name
     else:
         scenes = {context.scene: "default"}
+        
+    if not scenes:
+        raise RuntimeError("No valid scenes to export")
         
     if export_settings.export_mode in {'FULL', 'GRANNY'}:
         for bscene, scene_id in scenes.items():
