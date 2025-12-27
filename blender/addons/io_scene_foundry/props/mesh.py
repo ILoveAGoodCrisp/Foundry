@@ -454,10 +454,7 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
         return utils.calc_emissive_intensity(self.material_lighting_emissive_power, utils.get_export_scale(bpy.context) ** 2)
     
     def set_light_intensity(self, value):
-        self['light_intensity_value'] = value
-        
-    def update_light_intensity(self, context):
-        self.material_lighting_emissive_power = utils.calc_emissive_energy(self.material_lighting_emissive_power, utils.get_export_scale(context) ** -2 * self.light_intensity_value)
+        self['material_lighting_emissive_power'] = utils.calc_emissive_energy(self.material_lighting_emissive_power, utils.get_export_scale(bpy.context) ** -2 * value / (1 if utils.is_corinth() else 100))
 
     light_intensity: bpy.props.FloatProperty(
         name="Light Intensity",
@@ -465,12 +462,9 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
         description="The intensity of this light expressed in the units the game uses",
         get=get_light_intensity,
         set=set_light_intensity,
-        update=update_light_intensity,
         min=0,
         default=1,
     )
-    
-    light_intensity_value: bpy.props.FloatProperty(options={'HIDDEN'})
     
     debug_emissive_index: bpy.props.IntProperty(options={'HIDDEN'})
 

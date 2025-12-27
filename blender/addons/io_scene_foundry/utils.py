@@ -1907,7 +1907,7 @@ def calc_light_energy(light_data, intensity, scale=0.03048):
     return intensity * (scale ** -2) * get_light_intensity_factor(light_data.type)
 
 def calc_emissive_energy(emissive_power, intensity):
-    return intensity * ((0.3048 if is_corinth() else 0.03048) ** -2) * get_light_intensity_factor()
+    return intensity * (0.03048 ** -2) * get_light_intensity_factor()
 
 def get_blender_shader(node_tree: bpy.types.NodeTree) -> bpy.types.Node | None:
     """Gets the BSDF shader node from a node tree"""
