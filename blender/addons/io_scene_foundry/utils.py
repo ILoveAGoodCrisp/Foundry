@@ -5537,8 +5537,30 @@ def make_halo_light(data: bpy.types.Light, primary_scale="", secondary_scale="",
         node_image.image = gobo_image
         tree.links.new(input=light_node.inputs[4], output=node_image.outputs[0])
         
-        
     arrange(tree)
+    
+    # Set up custom distance drivers for eevee # NOTE Currently causes driver dependancy issue
+    # result = data.driver_add("use_custom_distance")
+    # driver = result.driver
+    # driver.type = 'SCRIPTED'
+    # var = driver.variables.new()
+    # var.name = "var"
+    # var.type = 'SINGLE_PROP'
+    # var.targets[0].id_type = 'LIGHT'
+    # var.targets[0].id = data
+    # var.targets[0].data_path = "nwo.light_far_attenuation_end"
+    # driver.expression = f"{var.name} > 0"
+    
+    # result = data.driver_add("cutoff_distance")
+    # driver = result.driver
+    # driver.type = 'SCRIPTED'
+    # var = driver.variables.new()
+    # var.name = "var"
+    # var.type = 'SINGLE_PROP'
+    # var.targets[0].id_type = 'LIGHT'
+    # var.targets[0].id = data
+    # var.targets[0].data_path = "nwo.light_far_attenuation_end"
+    # driver.expression = var.name
 
     return light_node
     

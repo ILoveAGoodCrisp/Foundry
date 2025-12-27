@@ -18,6 +18,8 @@ class CheapLightTag(Tag):
     def to_blender(self, primary_scale="", secondary_scale="", attachment=None):
         data = bpy.data.lights.new(self.tag_path.ShortName, type='POINT')
         
+        data.shadow_soft_size = 0.5 * (1 / 0.03048)
+        
         color_function = Function()
         color_function.from_element(self.color_struct.Elements[0], "Mapping")
         
@@ -27,6 +29,12 @@ class CheapLightTag(Tag):
             data.color = [utils.srgb_to_linear(c) for c in color_function.colors[0][:3]]
         else:
             color_node = color_function.to_blend_nodes(name=color_function_name)
+            
+        # size_function = Function()
+        # size_function.from_element(self.radius_struct.Elements[0], "Mapping")
+        # atten_max = size_function.clamp_min if size_function.is_basic_function else size_function.clamp_max
+        
+        # data.nwo.light_far_attenuation_end = atten_max * 100
         
         intensity_function = Function()
         intensity_function.from_element(self.intensity_struct.Elements[0], "Mapping")

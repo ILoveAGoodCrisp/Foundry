@@ -1074,7 +1074,7 @@ class Function:
             case FunctionEditorColorGraphType.Scalar:
                 function_node.node_tree = utils.add_node_from_resources("reach_nodes", "Function - 2-float")
                 function_node.inputs[1].default_value = clamp_min
-                function_node.inputs[2].default_value = clamp_min
+                function_node.inputs[2].default_value = clamp_max
                 if self.is_object_function:
                     object_function_node = tree.nodes.new('ShaderNodeGroup')
                     final_node = object_function_node

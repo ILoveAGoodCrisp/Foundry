@@ -83,6 +83,7 @@ class ObjectTag(Tag):
                     collection.objects.link(ob)
                     if ob.type == 'LIGHT':
                         ob.matrix_world = utils.halo_transforms(ob) @ Matrix.Rotation(radians(-90.0), 4, 'X')
+                        # ob.update_tag(refresh={'DATA'})
                         
                     ob.parent = m
                     ob.parent_type = 'OBJECT'
@@ -97,6 +98,9 @@ class ObjectTag(Tag):
             #     ob.parent = armature
             #     ob.parent_type = 'OBJECT'
             #     objects.append(ob)
+            
+        if not attachments:
+            bpy.data.collections.remove(collection)
             
         return attachments
             

@@ -524,6 +524,11 @@ class NWO_Import(bpy.types.Operator):
         ]
     )
     
+    tag_import_attachments: bpy.props.BoolProperty(
+        name="Attachments",
+        description="Import object tag attachments. Currently supports lights and cheap lights"
+    )
+    
     setup_as_asset: bpy.props.BoolProperty(
         name="Setup as Asset",
         default=False,
@@ -970,6 +975,7 @@ class NWO_Import(bpy.types.Operator):
                         importer.from_vert_normals = self.from_vert_normals
                         importer.tag_import_lights = self.tag_import_lights
                         importer.build_control_rig = self.build_control_rig
+                        importer.tag_import_attachments = self.tag_import_attachments
                         object_files = importer.sorted_filepaths["object"]
                         existing_armature = None
                         if self.reuse_armature:
@@ -1248,6 +1254,7 @@ class NWO_Import(bpy.types.Operator):
                     importer.build_control_rig = self.build_control_rig
                     importer.tag_model_override_type = RenderModelOverrideType.campaign
                     importer.graph_import_pca_data = self.graph_import_pca_data
+                    importer.tag_import_attachments = self.tag_import_attachments
                     anchor_objects = {}
                     imported_cinematic_scenario_objects = []
                     
@@ -1682,6 +1689,7 @@ class NWO_Import(bpy.types.Operator):
             box.prop(self, 'import_biped_weapon')
             box.prop(self, "setup_as_asset")
             box.prop(self, "from_vert_normals")
+            box.prop(self, "tag_import_attachments")
             box.prop(self, "import_fp_arms", text="FP Arms (Weapon Only)")
             
         if not self.scope or ('scenario' in self.scope) or ('scenario_structure_bsp' in self.scope):
@@ -1735,7 +1743,7 @@ class NWO_Import(bpy.types.Operator):
             box.prop(self, 'always_extract_bitmaps')
             box.prop(self, "setup_as_asset")
             
-        if not self.scope or ('cinemaitc' in self.scope):
+        if not self.scope or ('cinematic' in self.scope):
             box = layout.box()
             box.label(text='Cinematic Settings')
             box.prop(self, "tag_cinematic_import_scenario")
@@ -1744,6 +1752,7 @@ class NWO_Import(bpy.types.Operator):
                 box.prop(self, "graph_import_pca_data")
             box.prop(self, "tag_cinematic_scene")
             box.prop(self, "build_control_rig")
+            box.prop(self, "tag_import_attachments")
             box.prop(self, "tag_import_lights")
             box.prop(self, "tag_sky")
             box.prop(self, "tag_scenario_import_objects")
@@ -2033,6 +2042,7 @@ class NWOImporter:
         self.tag_cinematic_import_actors = False
         self.tag_cinematic_scene = ""
         self.build_control_rig = False
+        self.tag_import_attachments = False
         
         self.tag_model_override_type = None
         
@@ -2331,10 +2341,10 @@ class NWOImporter:
                                         if node_mask[idx]:
                                             bone.rotation_quaternion = bone.rotation_quaternion @ Quaternion(next(orientations))
                                 
-                                # TODO complete attachments code
-                                # attachments = obj.attachments_to_blender(armature, [m for m in render_objects if m.type == 'EMPTY'], model_collection)
-                                # self.attachments.extend(attachments)
-                                # imported_file_objects.extend([ao for a in attachments for ao in a.objects])
+                                if self.tag_import_attachments:
+                                    attachments = obj.attachments_to_blender(armature, [m for m in render_objects if m.type == 'EMPTY'], model_collection)
+                                    self.attachments.extend(attachments)
+                                    imported_file_objects.extend([ao for a in attachments for ao in a.objects])
                                 
                                 # FP Stuff
                                 if not (is_game_object or for_instance_conversion) and self.import_fp_arms.value and not self.fp_arms_imported and obj.tag_path.Extension == "weapon":
@@ -4489,6 +4499,11 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         ]
     )
     
+    tag_import_attachments: bpy.props.BoolProperty(
+        name="Attachments",
+        description="Import object tag attachments. Currently supports lights and cheap lights"
+    )
+    
     graph_import_animations: bpy.props.BoolProperty(
         name="Import Animations",
         description="Imports animations from the graph. Currently the root movement element of base movement animations is unsupported and overlay rotations do not import correctly"
@@ -4692,7 +4707,8 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         match self.import_type:
             case "model" | "biped" | "crate" | "creature" | "device_control" | "device_dispenser" | "effect_scenery" | "equipment" | "giant" | "device_machine" | "projectile" | "scenery" | "spawner" | "sound_scenery" | "device_terminal" | "vehicle" | "weapon":
                 if self.has_variants:
-                    layout.prop(self, "tag_model_override_type")
+                    if corinth:
+                        layout.prop(self, "tag_model_override_type")
                     layout.prop(self, "tag_variant")
                     if self.tag_variant != "all_variants":
                         layout.prop(self, "tag_state")
@@ -4722,6 +4738,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                         layout.prop(self, "tag_import_lights")
                     layout.prop(self, "setup_as_asset")
                     layout.prop(self, "from_vert_normals")
+                    layout.prop(self, "tag_import_attachments")
                     if self.import_type == "weapon":
                         layout.prop(self, "import_fp_arms")
                     elif self.import_type == "biped":
@@ -4788,6 +4805,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                     layout.prop(self, "graph_import_pca_data")
                 layout.prop(self, "tag_cinematic_scene")
                 layout.prop(self, "build_control_rig")
+                layout.prop(self, "tag_import_attachments")
                 layout.prop(self, "tag_import_lights")
                 layout.prop(self, "tag_sky")
                 layout.prop(self, "tag_scenario_import_objects")

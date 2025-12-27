@@ -29,6 +29,8 @@ class LightTag(Tag):
             data.spot_size = radians(hotspot_cutoff_size)
             if hotspot_cutoff_size > 0.0:
                 data.spot_blend = 1 - self.tag.SelectField("Real:angular hotspot").Data / hotspot_cutoff_size
+                
+        data.shadow_soft_size = 0.5 * (1 / 0.03048)
         
         color_function = Function()
         color_function.from_element(self.color_struct.Elements[0], "Mapping")
@@ -45,6 +47,10 @@ class LightTag(Tag):
         
         strength_node = None
         intensity_function_name = f"{self.tag_path.ShortName}_strength"
+        
+        # atten_cutoff = self.tag.SelectField("Real:attenuation end distance").Data
+        # data.nwo.light_far_attenuation_end = atten_cutoff * 100
+        
         if intensity_function.is_basic_function:
             data.energy = utils.calc_light_energy(data, intensity_function.clamp_min) 
         else:
