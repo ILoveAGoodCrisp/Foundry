@@ -320,14 +320,14 @@ class CinematicCustomScript:
                     if weapon_name is not None:
                         self.script = f'weapon_set_primary_barrel_firing (cinematic_weapon_get "{weapon_name}") {int(event.script_type == "WEAPON_TRIGGER_START")}'
             case 'SET_VARIANT':
-                if valid_object:
-                    self.script = f'object_set_variant {obj_text} {event.script_variant}'
+                if valid_object and event.script_variant:
+                    self.script = f'object_set_variant {obj_text} "{event.script_variant}"'
             case 'SET_PERMUTATION':
-                if valid_object:
-                    self.script = f'object_set_permutation {obj_text} {event.script_region} {event.script_permutation}'
+                if valid_object and event.script_permutation:
+                    self.script = f'object_set_permutation {obj_text} "{event.script_region}" "{event.script_permutation}"'
             case 'SET_REGION_STATE':
                 if valid_object:
-                    self.script = f'object_set_region_state {obj_text} {event.script_region} {event.script_state}'
+                    self.script = f'object_set_region_state {obj_text} "{event.script_region}" {event.script_state}'
             case 'SET_MODEL_STATE_PROPERTY':
                 if valid_object:
                     self.script = f'object_set_model_state_property {obj_text} {int(event.script_state_property)} {event.script_bool}'
@@ -362,7 +362,8 @@ class CinematicCustomScript:
                 if valid_object:
                     self.script = f'damage_object {obj_text} "{event.script_region}" {event.script_damage}'
             case 'PLAY_SOUND':
-                self.script = f'sound_impulse_start {event.sound_tag} {obj_text} {event.script_factor}'
+                if event.sound_tag.strip():
+                    self.script = f'sound_impulse_start {event.sound_tag} {obj_text} {event.script_factor}'
         
 class CinematicUserInputConstraints:
     def __init__(self):

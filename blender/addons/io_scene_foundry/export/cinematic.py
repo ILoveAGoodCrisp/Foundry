@@ -867,10 +867,11 @@ class QUA:
             data.to_element(shot_element.SelectField("effects").AddElement(), block_objects, self.corinth)
             
         for data, frame_index in custom_scripts.items():
-            shot_index, shot_frame = self.get_shot_index_and_frame(frame_index)
-            if shot_index is None:
-                continue
-            shot_element = block.Elements[shot_index]
-            data.frame = shot_frame
-            data.to_element(shot_element.SelectField("custom script").AddElement(), self.corinth)
+            if data.script:
+                shot_index, shot_frame = self.get_shot_index_and_frame(frame_index)
+                if shot_index is None:
+                    continue
+                shot_element = block.Elements[shot_index]
+                data.frame = shot_frame
+                data.to_element(shot_element.SelectField("custom script").AddElement(), self.corinth)
             
