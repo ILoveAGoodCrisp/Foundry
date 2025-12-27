@@ -1892,10 +1892,10 @@ def calc_light_intensity(light_data, factor=1):
     if light_data.type == 'SUN':
         return light_data.energy * 2
     
-    return factor * ((light_data.energy / (0.3048 if is_corinth() else 0.03048)  **-2) / get_light_intensity_factor(light_data.type))
+    return factor * ((light_data.energy / 0.3048 **-2) / get_light_intensity_factor(light_data.type))
 
 def calc_emissive_intensity(emissive_power, factor=1):
-    return factor * ((emissive_power / (0.3048 if is_corinth() else 0.03048) **-2) / get_light_intensity_factor())
+    return factor * ((emissive_power / 0.3048 **-2) / get_light_intensity_factor())
 
 def calc_light_energy(light_data, intensity, scale=0.03048):
     if light_data.type == 'SUN':
@@ -5830,3 +5830,17 @@ def scale_to_one(x, max_value):
         return 0.0
     
     return x / max_value
+
+def get_frame_start_end_from_keyframes(action, ob_slot):
+    
+    slot = get_slot_from_id(action, ob_slot)
+    
+    frames = set()
+    for fcurve in get_fcurves(action, slot):
+        for kfp in fcurve.keyframe_points:
+            frames.add(kfp.co[0])
+        
+    if len(frames) > 1:
+        return int(min(*frames)), int(max(*frames))
+    else:
+        return int(bpy.context.scene.frame_start), int(bpy.context.scene.frame_end)

@@ -21,9 +21,10 @@ class NWO_OT_BakeToControl(bpy.types.Operator):
     
     def execute(self, context):
         arm = context.object
-        
+        original_action = None
         if self.all_actions:
             actions = bpy.data.actions
+            original_action = arm.animation_data.action
         else:
             actions = [arm.animation_data.action]
             
@@ -43,7 +44,7 @@ class NWO_OT_BakeToControl(bpy.types.Operator):
             if action.use_frame_range:
                 frame_range = range(int(action.frame_start), int(action.frame_end))
             else:
-                frame_range = range(int(context.scene.frame_start), int(context.scene.frame_end))
+                frame_range = range(utils.get_frame_start_end_from_keyframes(action, arm))
 
             if self.all_actions:
                 arm.animation_data.action = action
@@ -61,6 +62,9 @@ class NWO_OT_BakeToControl(bpy.types.Operator):
         if aim_control is not None:
             rig.build_and_apply_control_shapes(aim_control_only=True, reverse_control=False, constraints_only=True)
         rig.build_fk_ik_rig(reverse_controls=False, constraints_only=True)
+        
+        if self.all_actions:
+            arm.animation_data.action = original_action
         
         return {'FINISHED'}
     
