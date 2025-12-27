@@ -3389,6 +3389,7 @@ class NWOImporter:
         pre_import_objects = set(bpy.data.objects)
         path = Path(path)
         file_name = path.with_suffix("").name
+        str_path = str(path)
         ext = path.suffix.strip('.').upper()
         print(f"Importing {ext}: {file_name}")
         with utils.MutePrints():
@@ -3410,7 +3411,7 @@ class NWOImporter:
         
         match legacy_type:
             case "auto":
-                is_model =  bool([ob for ob in new_objects if ob.type == 'ARMATURE']) and not (path.lower().endswith(".ass") and file_name.lower() != "brute")
+                is_model =  bool([ob for ob in new_objects if ob.type == 'ARMATURE']) and not (str_path.lower().endswith(".ass") and file_name.lower() != "brute")
             case "model":
                 is_model = True
             case "bsp":
