@@ -83,6 +83,7 @@ classes = [
     asset.NWO_OT_MoveIKChain,
     asset.NWO_OT_ClearAsset,
     asset.NWO_OT_RegisterIcons,
+    asset.NWO_OT_CopyScenario,
     asset.NWO_OT_SceneSwitch,
     asset.NWO_OT_CinematicSceneNew,
     asset.NWO_OT_CinematicSceneRemove,

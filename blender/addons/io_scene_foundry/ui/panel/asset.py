@@ -4,6 +4,8 @@ import os
 from pathlib import Path
 import bpy
 
+from ...managed_blam.scenario import ScenarioTag
+
 from ...icons import get_icon_id
 from ... import utils
 from ...props.scene import scene_specific_props
@@ -26,6 +28,49 @@ import xml.etree.ElementTree as ET
                 
 #         layout.label(text=name, icon='FILE')
 #         layout.prop(item, "enabled", icon='CHECKBOX_HLT' if item.enabled else 'CHECKBOX_DEHLT', text="", emboss=False)
+
+class NWO_OT_CopyScenario(bpy.types.Operator):
+    bl_idname = "nwo.copy_scenario"
+    bl_label = "Copy Scenario"
+    bl_description = "Copies the referenced scenario into the cinematic tags folder and updates the scenario reference. This process always sets the scenario type to solo for the copied scenario"
+    bl_options = set()
+    
+    @classmethod
+    def poll(cls, context):
+        scene_nwo = utils.get_scene_props()
+        return scene_nwo.asset_type == 'cinematic' and scene_nwo.cinematic_scenario
+    
+    def invoke(self, context, event):
+        return context.window_manager.invoke_confirm(self, event)
+    
+    def execute(self, context):
+        scene_nwo = utils.get_scene_props()
+        scenario = Path(utils.get_tags_path(), utils.relative_path(scene_nwo.cinematic_scenario))
+        scenario_rel = utils.relative_path(scenario)
+        
+        if not scenario.exists():
+            self.report({'WARNING'}, f"Scenario does not exist: {scenario}")
+            return {'CANCELLED'}
+        
+        new_scenario = Path(utils.get_asset_tag(".scenario", True, True))
+        new_scenario_rel = utils.relative_path(new_scenario)
+        
+        if not new_scenario.parent.exists():
+            new_scenario.parent.mkdir(parents=True, exist_ok=True)
+            
+        with ScenarioTag(path=scenario) as scen:
+            new_tag_path = scen._TagPath_from_string(new_scenario)
+            scen.tag.SelectField("ShortEnum:type").Value = 0 # set to solo
+            scen.tag.SaveAsCopy(new_tag_path)
+        
+        if new_scenario.exists():
+            scene_nwo.cinematic_scenario = str(new_scenario)
+            self.report({'INFO'}, f"Copied [{scenario_rel}] to: {new_scenario_rel}")
+            return {'FINISHED'}
+        else:
+            self.report({'WARNING'}, f"Failed to copy [{scenario_rel}] to: {new_scenario_rel}")
+            return {'CANCELLED'}
+    
 
 class NWO_OT_SceneSwitch(bpy.types.Operator):
     bl_idname = "nwo.scene_switch"

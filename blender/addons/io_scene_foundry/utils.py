@@ -3358,14 +3358,14 @@ def get_asset_physics_model(full=False):
             else:
                 return str(tag_path)
             
-def get_asset_tag(extension: str, full=False):
+def get_asset_tag(extension: str, full=False, return_path_anyway=False):
     if not extension.startswith('.'):
         extension = '.' + extension
     if valid_nwo_asset(bpy.context):
         asset_dir, asset_name = get_asset_info()
         tag_path = Path(asset_dir, asset_name).with_suffix(extension)
         full_path = Path(get_tags_path(), tag_path)
-        if full_path.exists():
+        if full_path.exists() or return_path_anyway:
             if full:
                 return str(full_path)
             else:

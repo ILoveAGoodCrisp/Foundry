@@ -268,9 +268,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 draw_tag_path(box, nwo, "cinematic_scenario")
                 scenario_path = Path(utils.get_tags_path(), utils.relative_path(nwo.cinematic_scenario))
                 scenario_exists = scenario_path.exists() and scenario_path.is_absolute() and scenario_path.is_file()
-                if scenario_exists:
-                    box.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text="Open Scenario Tag").tag_path = nwo.cinematic_scenario
                 col = box.column()
+                col.operator("nwo.copy_scenario", icon='COPY_ID')
                 col.separator()
                 row = col.row(align=True)
                 row.enabled = scenario_exists
