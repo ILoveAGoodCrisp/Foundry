@@ -107,11 +107,7 @@ class NWO_LightPropertiesGroup(bpy.types.PropertyGroup):
         return utils.calc_light_intensity(self.id_data, utils.get_export_scale(bpy.context) ** 2)
     
     def set_light_intensity(self, value):
-        self['light_intensity_value'] = value
-        
-    def update_light_intensity(self, context):
-        if self.id_data.type != 'SUN':
-            self.id_data.energy = utils.calc_light_energy(self.id_data, utils.get_export_scale(context) ** -2 * self.light_intensity_value)
+        self.id_data.energy = utils.calc_light_energy(self.id_data, utils.get_export_scale(bpy.context) ** -2 * value / (1 if utils.is_corinth() else 100))
 
     light_intensity: bpy.props.FloatProperty(
         name="Light Intensity",
@@ -119,11 +115,11 @@ class NWO_LightPropertiesGroup(bpy.types.PropertyGroup):
         description="The intensity of this light expressed in the units the game uses",
         get=get_light_intensity,
         set=set_light_intensity,
-        update=update_light_intensity,
+        # update=update_light_intensity,
         min=0,
     )
     
-    light_intensity_value: bpy.props.FloatProperty(options={'HIDDEN'})
+    # light_intensity_value: bpy.props.FloatProperty(options={'HIDDEN'})
 
     light_use_clipping: utils.bpy.props.BoolProperty(
         name="Light Uses Clipping",
