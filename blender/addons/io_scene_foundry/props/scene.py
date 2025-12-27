@@ -1833,9 +1833,9 @@ class NWO_CinematicEvent(PropertyGroup):
         name="State",
         options=set(),
         items=[
-            ("0", "Start", "")
-            ("1", "Stop", "")
-            ("2", "Kill", "")
+            ("0", "Start", ""),
+            ("1", "Stop", ""),
+            ("2", "Kill", ""),
         ]
     )
     
@@ -1903,7 +1903,7 @@ class NWO_CinematicEvent(PropertyGroup):
         name="Script State",
         options=set(),
         items=[
-            ("standard", "Standard", ""),
+            ("default", "Default", ""),
             ("minor_damage", "Minor Damage", ""),
             ("medium_damage", "Medium Damage", ""),
             ("major_damage", "Major Damage", ""),
