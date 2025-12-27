@@ -2825,6 +2825,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 col.prop(event, "marker")
                 col.prop(event, "marker_name")
                 if self.h4:
+                    col.prop(event, "effect_state")
                     col.prop(event, "function_a")
                     col.prop(event, "function_b")
                     col.prop(event, "looping")

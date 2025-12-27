@@ -1829,6 +1829,16 @@ class NWO_CinematicEvent(PropertyGroup):
         options=set(),
     )
     
+    effect_state: bpy.props.EnumProperty(
+        name="State",
+        options=set(),
+        items=[
+            ("0", "Start", "")
+            ("1", "Stop", "")
+            ("2", "Kill", "")
+        ]
+    )
+    
     # script
     
     script: bpy.props.StringProperty(

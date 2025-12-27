@@ -204,6 +204,7 @@ class CinematicEffect:
         self.function_a = event.function_a
         self.function_b = event.function_b
         self.looping = event.looping
+        self.state = int(event.effect_state)
             
         
 class CinematicObjectFunctionKeyframe:
