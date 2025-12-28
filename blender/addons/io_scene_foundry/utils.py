@@ -1906,7 +1906,7 @@ def calc_light_energy(light_data, intensity, scale=0.03048):
         
     return intensity * (scale ** -2) * get_light_intensity_factor(light_data.type)
 
-def calc_emissive_energy(emissive_power, intensity):
+def calc_emissive_energy(intensity):
     return intensity * (0.03048 ** -2) * get_light_intensity_factor()
 
 def get_blender_shader(node_tree: bpy.types.NodeTree) -> bpy.types.Node | None:
@@ -2485,7 +2485,7 @@ class TransformObject:
         if self.marker_z_matrix is not None:
             self.ob.matrix_basis = self.ob.matrix_basis @ self.marker_z_matrix
 
-def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forward, new_forward, keep_marker_axis=None, objects=None, actions=None, apply_rotation=False, exclude_scale_models=False, skip_data=False):
+def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forward, new_forward, keep_marker_axis=None, objects=None, actions=None, apply_rotation=False, exclude_scale_models=False, skip_data=False, scale_light_energy=False):
     """Transform blender objects by the given scale factor and rotation. Optionally this can be scoped to a set of objects and animations rather than all"""
     print("\nTransforming Scene\n")
     context.view_layer.update()
@@ -2508,8 +2508,8 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
             cameras = {ob.data for ob in objects if ob.type =='CAMERA'}
             lights = {ob.data for ob in objects if ob.type =='LIGHT'}
             
-            for light in lights:
-                if light.type != 'SUN':
+            if scale_light_energy:
+                for light in lights:
                     light_intensities[light] = light.nwo.light_intensity
             
         if actions is None:
@@ -2860,8 +2860,9 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
             arm.parent = parent
             arm.matrix_world = m
         
-        for light, intensity in light_intensities.items():
-            light.energy = calc_light_energy(light, intensity, 1 / scale_factor)
+        if scale_light_energy:
+            for light, intensity in light_intensities.items():
+                light.energy = calc_light_energy(light, intensity, 1 / scale_factor)
             
         return light_intensities
             

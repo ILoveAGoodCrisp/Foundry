@@ -439,6 +439,9 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
         description="When an emissive surface is scaled, determines if the amount of emitted light should be spread out across the surface or increased/decreased to keep a regular amount of light emission per unit area",
         default=False,
     )
+    
+    def get_material_lighting_emissive_power(self):
+        return utils.calc_emissive_energy(utils.get_export_scale(bpy.context) ** -2 * self.light_intensity / (1 if utils.is_corinth() else 100))
 
     material_lighting_emissive_power: bpy.props.FloatProperty(
         name="Material Lighting Emissive Quality",
@@ -448,20 +451,13 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
         default=10,
         subtype='POWER',
         unit='POWER',
+        get=get_material_lighting_emissive_power,
     )
     
-    def get_light_intensity(self):
-        return utils.calc_emissive_intensity(self.material_lighting_emissive_power, utils.get_export_scale(bpy.context) ** 2)
-    
-    def set_light_intensity(self, value):
-        self['material_lighting_emissive_power'] = utils.calc_emissive_energy(self.material_lighting_emissive_power, utils.get_export_scale(bpy.context) ** -2 * value / (1 if utils.is_corinth() else 100))
-
     light_intensity: bpy.props.FloatProperty(
         name="Light Intensity",
         options=set(),
         description="The intensity of this light expressed in the units the game uses",
-        get=get_light_intensity,
-        set=set_light_intensity,
         min=0,
         default=1,
     )
