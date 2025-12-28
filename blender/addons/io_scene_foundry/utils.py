@@ -1892,10 +1892,10 @@ def calc_light_intensity(light_data, factor=1):
     if light_data.type == 'SUN':
         return light_data.energy * 2
     
-    return factor * ((light_data.energy / 0.3048 **-2) / get_light_intensity_factor(light_data.type))
+    return factor * ((light_data.energy / 0.03048 **-2) / get_light_intensity_factor(light_data.type))
 
 def calc_emissive_intensity(emissive_power, factor=1):
-    return factor * ((emissive_power / 0.3048 **-2) / get_light_intensity_factor())
+    return factor * ((emissive_power / 0.03048 **-2) / get_light_intensity_factor())
 
 def calc_light_energy(light_data, intensity, scale=0.03048):
     if light_data.type == 'SUN':

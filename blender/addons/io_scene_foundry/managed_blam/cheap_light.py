@@ -42,9 +42,9 @@ class CheapLightTag(Tag):
         strength_node = None
         intensity_function_name = f"{self.tag_path.ShortName}_strength"
         if intensity_function.is_basic_function:
-            data.energy = utils.calc_light_energy(data, intensity_function.clamp_min) 
+            data.nwo.light_intensity = data.nwo.light_intensity = intensity_function.clamp_min
         else:
-            data.energy = utils.calc_light_energy(data, intensity_function.clamp_max) 
+            data.nwo.light_intensity = data.nwo.light_intensity = intensity_function.clamp_max
             strength_node = intensity_function.to_blend_nodes(name=intensity_function_name, normalize=True)
         
         if attachment is not None:

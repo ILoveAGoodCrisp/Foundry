@@ -83,6 +83,7 @@ class ObjectTag(Tag):
                     collection.objects.link(ob)
                     if ob.type == 'LIGHT':
                         ob.matrix_world = utils.halo_transforms(ob) @ Matrix.Rotation(radians(-90.0), 4, 'X')
+                        ob.scale *= (1 / 0.03048)
                         # ob.update_tag(refresh={'DATA'})
                         
                     ob.parent = m

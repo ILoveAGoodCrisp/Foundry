@@ -107,7 +107,7 @@ class NWO_LightPropertiesGroup(bpy.types.PropertyGroup):
         return utils.calc_light_intensity(self.id_data, utils.get_export_scale(bpy.context) ** 2)
     
     def set_light_intensity(self, value):
-        self.id_data.energy = utils.calc_light_energy(self.id_data, utils.get_export_scale(bpy.context) ** -2 * value / (1 if utils.is_corinth() else 100))
+        self.id_data.energy = utils.calc_light_energy(self.id_data, utils.get_export_scale(bpy.context) ** -2 * value)
 
     light_intensity: bpy.props.FloatProperty(
         name="Light Intensity",

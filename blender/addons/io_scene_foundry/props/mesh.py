@@ -441,7 +441,7 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
     )
     
     def get_material_lighting_emissive_power(self):
-        return utils.calc_emissive_energy(utils.get_export_scale(bpy.context) ** -2 * self.light_intensity / (1 if utils.is_corinth() else 100))
+        return utils.calc_emissive_energy(utils.get_export_scale(bpy.context) ** -2 * self.light_intensity)
 
     material_lighting_emissive_power: bpy.props.FloatProperty(
         name="Material Lighting Emissive Quality",
