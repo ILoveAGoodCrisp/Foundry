@@ -1698,7 +1698,21 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             box_def.label(text="Light Definition Properties")
 
             col = box_def.column()
-            col.prop(data, "color")
+            heading = col.column(align=True, heading="Temperature")
+            row = heading.column(align=True).row(align=True)
+            row.use_property_decorate = False
+            row.prop(data, "use_temperature", text="")
+            if data.use_temperature:
+                sub = row.split(factor=0.7, align=True)
+                sub.active = data.use_temperature
+                sub.prop(data, "temperature", text="")
+                sub.prop(data, "temperature_color", text="")
+            else:
+                sub = row.row()
+                sub.active = data.use_temperature
+                sub.prop(data, "temperature", text="")
+                row.prop_decorator(data, "temperature")
+            
             row = col.row()
             row.prop(data, "energy")
             row.enabled = not halo_light

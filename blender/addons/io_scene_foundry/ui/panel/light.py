@@ -28,7 +28,7 @@ class NWO_OT_HaloLightToggle(bpy.types.Operator):
             for light in light_data:
                 light.use_nodes = False
                 light.use_custom_distance = False
-                light.energy = utils.calc_light_energy(light_data, light.nwo.light_intensity)
+                light.energy = utils.calc_light_energy(light, light.nwo.light_intensity)
             self.report({'INFO'}, f"Disabled Halo light properties for {len(light_data)} light{'' if len(light_data) == 1 else 's'}")
         
         return {"FINISHED"}

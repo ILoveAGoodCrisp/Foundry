@@ -3330,9 +3330,12 @@ def area_light_to_emissive(light_ob: bpy.types.Object, corinth: bool):
     prop.material_lighting_attenuation_cutoff = light_nwo.light_far_attenuation_end
     prop.material_lighting_attenuation_falloff = light_nwo.light_far_attenuation_start
     prop.material_lighting_emissive_focus = light_nwo.light_focus
-    prop.material_lighting_emissive_color = light.color
+    prop.material_lighting_emissive_color = get_light_final_color(light)
     prop.material_lighting_emissive_per_unit = not light.normalize
-    prop.material_lighting_emissive_power = light.energy
+    if light.use_nodes:
+        prop.material_lighting_emissive_power = light_nwo.light_intensity
+    else:
+        prop.material_lighting_emissive_power = calc_light_intensity(light)
     prop.material_lighting_emissive_quality = light_nwo.light_quality
     prop.material_lighting_use_shader_gel = light_nwo.light_use_shader_gel
     prop.material_lighting_bounce_ratio = plane_ob.nwo.light_bounce_ratio
@@ -5178,9 +5181,10 @@ def mesh_add_emissive_attributes(mesh: bpy.types.Mesh):
             continue
         
         color_on = np.array(prop.material_lighting_emissive_color[:], dtype=np.single)
+        power_on = np.array((prop.material_lighting_emissive_power, prop.material_lighting_attenuation_falloff, prop.material_lighting_attenuation_cutoff), dtype=np.single)
         
         color_data[mask] = color_on
-        power_data[mask] = prop.light_intensity
+        power_data[mask] = power_on
         
     on_mask = power_data.astype(bool)
 
@@ -5191,12 +5195,12 @@ def mesh_add_emissive_attributes(mesh: bpy.types.Mesh):
 
         power_attribute = mesh.attributes.get("foundry_power")
         if power_attribute is None:
-            power_attribute = mesh.attributes.new("foundry_power", 'FLOAT', 'FACE')
+            power_attribute = mesh.attributes.new("foundry_power", 'FLOAT_VECTOR', 'FACE')
         
         bm = bmesh.new()
         bm.from_mesh(mesh)
         layer = bm.faces.layers.float_vector.get("foundry_color")
-        layer_power = bm.faces.layers.float.get("foundry_power")
+        layer_power = bm.faces.layers.float_vector.get("foundry_power")
         for idx, face in enumerate(bm.faces):
             face[layer] = color_data[idx]
             face[layer_power] = power_data[idx]
@@ -5523,6 +5527,9 @@ def hide_from_rays(ob: bpy.types.Object):
     ob.visible_transmission = False
     ob.visible_volume_scatter = False
     ob.visible_shadow = False
+    
+def make_halo_emissive(data: bpy.types.Mesh, primary_scale="", secondary_scale="", color_node_tree=None, strength_node_tree=None, gobo_image=None, intensity_from_power=False):
+    pass
     
 def make_halo_light(data: bpy.types.Light, primary_scale="", secondary_scale="", color_node_tree=None, strength_node_tree=None, gobo_image=None, intensity_from_power=False) -> bpy.types.Node:
     data.use_nodes = True
@@ -5877,3 +5884,23 @@ def get_frame_start_end_from_keyframes(action, ob_slot):
         return int(min(*frames)), int(max(*frames))
     else:
         return int(bpy.context.scene.frame_start), int(bpy.context.scene.frame_end)
+    
+import bpy
+from mathutils import Color
+
+def get_light_final_color(light: bpy.types.Light) -> Color:
+    base = Color(light.color)
+
+    if light.use_color_temperature:
+        temp_color = light.temperature_color
+        base.r *= temp_color.r
+        base.g *= temp_color.g
+        base.b *= temp_color.b
+        
+    max_color = max(base.r, base.g, base.b)
+    if max_color > 0.0:
+        base.r /= max_color
+        base.g /= max_color
+        base.b /= max_color
+
+    return base

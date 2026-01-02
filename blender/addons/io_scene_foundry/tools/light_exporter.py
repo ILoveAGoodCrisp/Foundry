@@ -79,8 +79,9 @@ class BlamLightDefinition:
             self.shape = 1
             
         self.is_sun = nwo.is_sun
-            
-        self.color = [utils.linear_to_srgb(data.color[0]), utils.linear_to_srgb(data.color[1]), utils.linear_to_srgb(data.color[2])]
+        
+        final_color = utils.get_light_final_color(data)
+        self.color = [utils.linear_to_srgb(final_color[0]), utils.linear_to_srgb(final_color[1]), utils.linear_to_srgb(final_color[2])]
         self.hotspot_size = 0
         self.hotspot_cutoff = 0
         if data.type == 'SPOT':
