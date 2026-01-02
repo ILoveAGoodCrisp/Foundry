@@ -396,7 +396,7 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
         options=set(),
         description="Determines how far light travels before it stops. Leave this at 0 to for realistic light falloff/cutoff",
         min=0,
-        default=0,
+        default=10,
         update=update_lighting_attenuation_cutoff,
         subtype='DISTANCE',
         unit='LENGTH',
@@ -439,25 +439,11 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
         description="When an emissive surface is scaled, determines if the amount of emitted light should be spread out across the surface or increased/decreased to keep a regular amount of light emission per unit area",
         default=False,
     )
-    
-    def get_material_lighting_emissive_power(self):
-        return utils.calc_emissive_energy(utils.get_export_scale(bpy.context) ** -2 * self.light_intensity)
 
     material_lighting_emissive_power: bpy.props.FloatProperty(
-        name="Material Lighting Emissive Quality",
+        name="Material Lighting Emissive Power",
         options=set(),
         description="The power of the emissive surface",
-        min=0,
-        default=10,
-        subtype='POWER',
-        unit='POWER',
-        get=get_material_lighting_emissive_power,
-    )
-    
-    light_intensity: bpy.props.FloatProperty(
-        name="Light Intensity",
-        options=set(),
-        description="The intensity of this light expressed in the units the game uses",
         min=0,
         default=1,
     )

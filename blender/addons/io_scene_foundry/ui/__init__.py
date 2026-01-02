@@ -1,7 +1,6 @@
 import bpy
-
 from . import bar, node_editor, outliner, viewport, panel, timeline, properties
-from .panel import animation, asset, help, material, object, scene, sets, setting, tools, cinematic
+from .panel import animation, asset, help, material, object, scene, sets, setting, tools, cinematic, light
 
 classes = [
     bar.NWO_MT_ProjectChooserMenuDisallowNew,
@@ -202,6 +201,7 @@ classes = [
     cinematic.NWO_OT_CinematicAnchorOffset,
     cinematic.NWO_OT_BakeVisibilityToKeyframes,
     cinematic.NWO_OT_ClearVisibilityKeyframes,
+    light.NWO_OT_HaloLightToggle,
 ]
 
 def register():

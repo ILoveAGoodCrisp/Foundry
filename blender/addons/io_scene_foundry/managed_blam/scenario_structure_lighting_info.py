@@ -5,12 +5,14 @@ from typing import cast
 
 from mathutils import Matrix, Vector
 
+from .bitmap import bitmap_to_image
+
 from ..tools.property_apply import apply_props_material
 
 from ..props.object import NWO_ObjectPropertiesGroup
 from ..props.light import NWO_LightPropertiesGroup
-from ..managed_blam.Tags import TagFieldBlockElement
-from ..managed_blam import Tag
+from . Tags import TagFieldBlockElement
+from . import Tag
 from .. import utils
 import bpy
 
@@ -523,8 +525,18 @@ class ScenarioStructureLightingInfoTag(Tag):
             nwo.light_fade_start_distance = element.SelectField("fade start distance").Data
             nwo.light_tag_override = self.get_path_str(element.SelectField("user control").Path)
             nwo.light_shader_reference = self.get_path_str(element.SelectField("shader reference").Path)
-            nwo.light_gel_reference = self.get_path_str(element.SelectField("gel reference").Path)
+            gobo_tag_path = element.SelectField("gel reference").Path
+            nwo.light_gel_reference = self.get_path_str(gobo_tag_path)
             nwo.light_lens_flare_reference = self.get_path_str(element.SelectField("lens flare reference").Path)
+            
+            if not blender_light.use_nodes:
+                gobo_image = None
+                if self.path_exists(gobo_tag_path):
+                    gobo_info = bitmap_to_image(gobo_tag_path.Filename)
+                    if gobo_info.image:
+                        gobo_image = gobo_info.image
+                        
+                utils.make_halo_light(blender_light, gobo_image=gobo_image)
             
             objects.append(ob)
             
@@ -555,7 +567,7 @@ class ScenarioStructureLightingInfoTag(Tag):
             nwo.light_far_attenuation_start, nwo.light_far_attenuation_end = [a for a in element.SelectField("far attenuation bounds").Data]
             nwo.light_aspect = element.SelectField("aspect").Data
             
-            utils.make_halo_light(blender_light)
+            # utils.make_halo_light(blender_light)
             
             definitions[element.ElementIndex] = blender_light
             

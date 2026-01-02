@@ -45,7 +45,7 @@ class NWO_LightPropertiesGroup(bpy.types.PropertyGroup):
     light_far_attenuation_start: bpy.props.FloatProperty(
         name="Light Falloff Start",
         options=set(),
-        description="After this point, the light will begin to lose power. This value will be automatically calculated based on Blender light power in left at 0",
+        description="After this point, the light will begin to lose power",
         default=0,
         min=0,
         subtype='DISTANCE',
@@ -57,29 +57,23 @@ class NWO_LightPropertiesGroup(bpy.types.PropertyGroup):
         if not utils.get_scene_props().transforming:
             if self.light_far_attenuation_end < self.light_far_attenuation_start:
                 self.light_far_attenuation_start = self.light_far_attenuation_end
+        
+        light = self.id_data
+        if light.use_nodes:
+            light.use_custom_distance = True
+            light.cutoff_distance = self.light_far_attenuation_end
 
     light_far_attenuation_end: bpy.props.FloatProperty(
         name="Light Falloff End",
         options=set(),
-        description="From the light falloff start, the light will gradually lose power until it reaches zero by the end point. This value will be automatically calculated based on Blender light power in left at 0",
-        default=0,
+        description="From the light falloff start, the light will gradually lose power until it reaches zero by the end point. This value will be automatically calculated if this is not a Halo light",
+        default=10,
         min=0,
         subtype='DISTANCE',
         unit='LENGTH',
         update=update_light_far_attenuation_end,
     )
     
-    def get_debug_atten(self):
-        return utils.calc_attenuation(self.id_data.energy)[1]
-    
-    def set_debug_atten(self, value):
-        self.id_data.energy = utils.calc_max_intensity(value)
-    
-    debug_atten_end: bpy.props.FloatProperty(
-        name="Debug Atten End",
-        get=get_debug_atten,
-        set=set_debug_atten
-    )
 
     # light_volume_distance: bpy.props.FloatProperty(
     #     name="Light Volume Distance",
@@ -115,20 +109,21 @@ class NWO_LightPropertiesGroup(bpy.types.PropertyGroup):
     #     unit='LENGTH',
     # )
     
-    def get_light_intensity(self):
-        return utils.calc_light_intensity(self.id_data)
+    # def get_light_intensity(self):
+    #     return utils.calc_light_intensity(self.id_data)
     
-    def set_light_intensity(self, value):
-        self.id_data.energy = utils.calc_light_energy(self.id_data, value)
+    # def set_light_intensity(self, value):
+    #     self.id_data.energy = utils.calc_light_energy(self.id_data, value)
 
     light_intensity: bpy.props.FloatProperty(
         name="Light Intensity",
         options=set(),
         description="The intensity of this light expressed in the units the game uses",
-        get=get_light_intensity,
-        set=set_light_intensity,
+        default=1.0,
+        # get=get_light_intensity,
+        # set=set_light_intensity,
         # update=update_light_intensity,
-        min=0,
+        min=0.0,
     )
     
     # light_intensity_value: bpy.props.FloatProperty(options={'HIDDEN'})
@@ -265,7 +260,7 @@ class NWO_LightPropertiesGroup(bpy.types.PropertyGroup):
     
     light_physically_correct: bpy.props.BoolProperty(
         name="Light Physically Correct",
-        description="Light uses power to determine light falloff and cutoff",
+        description="Light uses power to determine light falloff and cutoff. This works very poorly for static lightmap lights and is not recommended. Results are more accurate for dynamic lights, however they have no specular influence",
         options=set(),
     )
     
@@ -374,22 +369,22 @@ class NWO_LightPropertiesGroup(bpy.types.PropertyGroup):
         min=0,
     )
     
-    def get_light_strength(self):
-        value = 1.0
-        is_cinematic = utils.get_scene_props().asset_type == 'cinematic'
-        if not utils.is_corinth() or self.id_data.type == 'SUN':
-            return 1.0
+    # def get_light_strength(self):
+    #     value = 1.0
+    #     is_cinematic = utils.get_scene_props().asset_type == 'cinematic'
+    #     if not utils.is_corinth() or self.id_data.type == 'SUN':
+    #         return 1.0
         
-        if self.light_cinema_objects_only and not is_cinematic:
-            return 0.0
-        elif self.light_cinema == '_connected_geometry_lighting_cinema_only' and not is_cinematic:
-            return 0.0
+    #     if self.light_cinema_objects_only and not is_cinematic:
+    #         return 0.0
+    #     elif self.light_cinema == '_connected_geometry_lighting_cinema_only' and not is_cinematic:
+    #         return 0.0
         
-        return max(value * self.strength_factor, 0.001)
+    #     return max(value * self.strength_factor, 0.001)
     
-    light_strength: bpy.props.FloatProperty(
-        get=get_light_strength,
-    )
+    # light_strength: bpy.props.FloatProperty(
+    #     get=get_light_strength,
+    # )
     
     strength_factor: bpy.props.FloatProperty(
         name="Light Strength Factor",

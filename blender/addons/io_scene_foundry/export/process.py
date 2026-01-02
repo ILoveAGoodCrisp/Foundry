@@ -33,7 +33,7 @@ from ..props.scene import NWO_Animation_ListItems
 
 from ..tools.scenario.lightmap import run_lightmapper
 
-from ..tools.light_exporter import calc_attenuation, export_lights
+from ..tools.light_exporter import export_lights
 from ..tools.decorator_exporter import export_decorators
 
 # from ..tools.scenario.zone_sets import write_zone_sets_to_scenario
@@ -1456,11 +1456,8 @@ class ExportScene:
                         mesh_props["bungie_lighting_emissive_power"] = 0.0
                     else:
                         power = max(prop.light_intensity, 0.0001)
-                        if prop.material_lighting_attenuation_cutoff > 0:
-                            falloff = prop.material_lighting_attenuation_falloff
-                            cutoff = prop.material_lighting_attenuation_cutoff
-                        else:
-                            falloff, cutoff = calc_attenuation(prop.material_lighting_emissive_power * self.unit_factor ** 2)
+                        falloff = prop.material_lighting_attenuation_falloff
+                        cutoff = prop.material_lighting_attenuation_cutoff
                         mesh_props["bungie_lighting_emissive_power"] = power
                         mesh_props["bungie_lighting_emissive_color"] = utils.color_4p_int(prop.material_lighting_emissive_color)
                         mesh_props["bungie_lighting_emissive_per_unit"] = int(prop.material_lighting_emissive_per_unit)
@@ -3005,7 +3002,7 @@ class ExportScene:
             down.rotate(mat.to_quaternion())
             lightGen_colors.extend(ob.data.color[:])
             lightGen_directions.extend(down.to_tuple())
-            lightGen_solid_angles.append(ob.data.energy * 2)
+            lightGen_solid_angles.append(ob.data.energy)
             
         props['lightGen_colors'] = " ".join(map(utils.jstr, lightGen_colors))
         props['lightGen_directions'] = " ".join(map(utils.jstr, lightGen_directions))
@@ -3016,7 +3013,7 @@ class ExportScene:
             self.sun = self.sky_lights[-1]
         
         props['sun_size'] = self.scene_settings.sun_size
-        props['sun_intensity'] = self.sun.data.energy * 2
+        props['sun_intensity'] = self.sun.data.energy
         props['sun_color'] = self.sun.data.color[:]
             
         props['uber_light_sun'] = self.scene_settings.sun_as_vmf_light

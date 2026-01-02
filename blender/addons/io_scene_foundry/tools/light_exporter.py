@@ -11,12 +11,6 @@ from ..managed_blam.scenario_structure_lighting_info import ScenarioStructureLig
 from ..constants import VALID_MESHES, WU_SCALAR
 from .. import utils
 
-def calc_attenuation(power: float, intensity_threshold=0.5, cutoff_intensity=0.1, spot_angle=None) -> tuple[float, float]:
-    power = abs(power)
-    falloff = math.sqrt(power / (4 * math.pi * intensity_threshold))
-    cutoff = math.sqrt(power / (4 * math.pi * cutoff_intensity))
-    return falloff, cutoff
-
 class BlamLightInstance:
     def __init__(self, ob, bsp=None, scale=None, rotation=None) -> None:
         # self.data = ob.data
@@ -87,7 +81,6 @@ class BlamLightDefinition:
         self.is_sun = nwo.is_sun
             
         self.color = [utils.linear_to_srgb(data.color[0]), utils.linear_to_srgb(data.color[1]), utils.linear_to_srgb(data.color[2])]
-        self.intensity = nwo.light_intensity
         self.hotspot_size = 0
         self.hotspot_cutoff = 0
         if data.type == 'SPOT':
@@ -98,11 +91,14 @@ class BlamLightDefinition:
         
         self.near_attenuation_start = data.shadow_soft_size * atten_scalar * WU_SCALAR * unit_factor
         self.near_attenuation_end = self.near_attenuation_start
-        if nwo.light_far_attenuation_end:
+        
+        if data.use_nodes:
+            self.intensity = nwo.light_intensity
             self.far_attenuation_start = nwo.light_far_attenuation_start * atten_scalar * WU_SCALAR * unit_factor
             self.far_attenuation_end = nwo.light_far_attenuation_end * atten_scalar * WU_SCALAR * unit_factor
         else:
-            falloff, cutoff = calc_attenuation(data.energy * unit_factor ** 2, spot_angle=data.spot_size if data.type == 'SPOT' else None)
+            self.intensity = utils.calc_light_intensity(data)
+            falloff, cutoff = utils.calc_attenuation(data.energy * unit_factor ** 2)
             self.far_attenuation_start = falloff * atten_scalar * WU_SCALAR
             self.far_attenuation_end = cutoff * atten_scalar * WU_SCALAR
             

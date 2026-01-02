@@ -1635,10 +1635,12 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         row.scale_y = 1.3
         data = ob.data
 
-        halo_light = ob.type == 'LIGHT'
+        is_light = ob.type == 'LIGHT'
         has_mesh_types = utils.is_mesh(ob) and utils.poll_ui(('model', 'scenario'))
 
-        if halo_light:
+        if is_light:
+            is_sun = data.type == 'SUN'
+            halo_light = data.use_nodes and not is_sun
             row.prop(data, "type", expand=True)
             col = box.column()
             col.use_property_split = True
@@ -1646,6 +1648,20 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             
             nwo = data.nwo
             ob_nwo = ob.nwo
+            
+            if not is_sun:
+                if halo_light:
+                    col.operator("nwo.halo_light_toggle", text="Convert to Blender Light", icon='OUTLINER_OB_LIGHT').toggle_on = False
+                else:
+                    col.operator("nwo.halo_light_toggle", text="Convert to Halo Light", icon_value=get_icon_id('light_cone')).toggle_on = True
+                
+            if halo_light:
+                box_halo = box.box()
+                box_halo.use_property_split = True
+                box_halo.label(text="Halo Light Properties")
+                box_halo.prop(nwo, "light_intensity")
+                box_halo.prop(nwo, "light_far_attenuation_start", text="Light Falloff")
+                box_halo.prop(nwo, "light_far_attenuation_end", text="Light Cutoff")
             
             box_ins = box.box()
             box_ins.use_property_split = True
@@ -1683,8 +1699,9 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
 
             col = box_def.column()
             col.prop(data, "color")
-            col.prop(data, "energy")
-            col.prop(nwo, 'light_intensity', text="Intensity")
+            row = col.row()
+            row.prop(data, "energy")
+            row.enabled = not halo_light
             scaled_energy = data.energy * utils.get_export_scale(context)
             if scaled_energy < 11 and data.type != 'SUN':
                 # Warn user about low light power. Need the light scaled to Halo proportions
@@ -1707,10 +1724,6 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 col.prop(nwo, "light_focus")
                 col.prop(ob.nwo, "light_bounce_ratio")
                 col.separator()
-                col.prop(nwo, "light_far_attenuation_start", text="Light Falloff")
-                col.prop(nwo, "light_far_attenuation_end", text="Light Cutoff")
-                col.prop(nwo, "debug_atten_end")
-                col.separator()
                 col.prop(nwo, "light_use_shader_gel")
                 col.prop(data, "normalize")
                 return
@@ -1730,13 +1743,6 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     row = col.row()
                     row.prop(nwo, "light_cone_projection_shape", expand=True)
 
-                col.separator()
-                col.prop(nwo, "light_physically_correct")
-                if not nwo.light_physically_correct:
-                    col.prop(nwo, "light_far_attenuation_start", text='Light Falloff')
-                    col.prop(nwo, "light_far_attenuation_end", text='Light Cutoff')
-                    col.prop(nwo, "debug_atten_end")
-                
                 col.separator()
 
                 if is_dynamic:
@@ -1799,24 +1805,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 
                 col.prop(data, "shadow_soft_size", text="Radius")
 
-                # col_box.prop(
-                #     nwo,
-                #     "light_near_attenuation_start",
-                #     text="Light Activation Start",
-                # )
-                # col_box.prop(
-                #     nwo,
-                #     "light_near_attenuation_end",
-                #     text="Light Activation End",
-                # )
-
                 col.separator()
-
-                col.prop(nwo, "light_far_attenuation_start", text="Light Falloff")
-                col.prop(nwo, "light_far_attenuation_end", text="Light Cutoff")
-                col.prop(nwo, "debug_atten_end")
-
-
                 # col.separator() # commenting out light clipping for now.
 
                 # col.prop(nwo, 'Light_Clipping_Size_X_Pos', text='Clipping Size X Forward')
