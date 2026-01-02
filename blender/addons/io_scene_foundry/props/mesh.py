@@ -104,7 +104,7 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
             case 'lightmap_lighting_from_both_sides':
                 return "Lightmap Lighting Two-Sided" if self.lightmap_lighting_from_both_sides else "Lightmap Lighting One-Sided" 
             case 'emissive':
-                return f"Emissive: Intensity {round(self.light_intensity, 2)}"
+                return f"Emissive: Intensity {round(self.material_lighting_emissive_power, 2)}"
             case _:
                 return "Something went wrong"
     
@@ -418,7 +418,7 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
         options=set(),
         description="Controls the spread of the light. 180 degrees will emit light in a hemisphere from each point, 0 degrees will emit light nearly perpendicular to the surface",
         min=0,
-        default=radians(180), 
+        default=0, 
         max=radians(180),
         subtype="ANGLE",
     )
@@ -437,7 +437,7 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
         name="Normalize",
         options=set(),
         description="When an emissive surface is scaled, determines if the amount of emitted light should be spread out across the surface or increased/decreased to keep a regular amount of light emission per unit area",
-        default=False,
+        default=True,
     )
 
     material_lighting_emissive_power: bpy.props.FloatProperty(

@@ -1455,7 +1455,7 @@ class ExportScene:
                     if prop.material_lighting_emissive_power <= 0:
                         mesh_props["bungie_lighting_emissive_power"] = 0.0
                     else:
-                        power = max(prop.light_intensity, 0.0001)
+                        power = max(prop.material_lighting_emissive_power, 0.0001)
                         falloff = prop.material_lighting_attenuation_falloff
                         cutoff = prop.material_lighting_attenuation_cutoff
                         mesh_props["bungie_lighting_emissive_power"] = power

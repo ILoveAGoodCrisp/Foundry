@@ -5143,7 +5143,8 @@ def mesh_add_emissive_attributes(mesh: bpy.types.Mesh):
     
     color_off  = np.array((1.0, 1.0, 1.0), dtype=np.single)
     color_data = np.tile(color_off, (face_count, 1))
-    power_data = np.zeros(face_count, dtype=np.single)
+    power_off  = np.array((0.0, 0.0, 0.0), dtype=np.single)
+    power_data = np.tile(power_off, (face_count, 1))
     
     if mesh.materials:
         material_indices = np.empty(face_count, dtype=np.int32)
@@ -5162,9 +5163,10 @@ def mesh_add_emissive_attributes(mesh: bpy.types.Mesh):
                     continue
 
                 color_on = np.array(m_prop.material_lighting_emissive_color[:], dtype=np.single)
+                power_on = np.array((prop.material_lighting_emissive_power, prop.material_lighting_attenuation_falloff, prop.material_lighting_attenuation_cutoff), dtype=np.single)
 
                 color_data[mask] = color_on
-                power_data[mask] = m_prop.light_intensity
+                power_data[mask] = power_on
 
     for prop in nwo.face_props:
         if prop.type != 'emissive':
@@ -5186,7 +5188,7 @@ def mesh_add_emissive_attributes(mesh: bpy.types.Mesh):
         color_data[mask] = color_on
         power_data[mask] = power_on
         
-    on_mask = power_data.astype(bool)
+    on_mask = power_data[:, 0] > 0.0
 
     if on_mask.any():
         color_attribute = mesh.attributes.get("foundry_color")
@@ -5891,7 +5893,7 @@ from mathutils import Color
 def get_light_final_color(light: bpy.types.Light) -> Color:
     base = Color(light.color)
 
-    if light.use_color_temperature:
+    if light.use_temperature:
         temp_color = light.temperature_color
         base.r *= temp_color.r
         base.g *= temp_color.g

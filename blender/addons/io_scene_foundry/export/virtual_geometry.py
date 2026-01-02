@@ -2453,7 +2453,7 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
                         face_properties.setdefault("bungie_lightmap_lighting_from_both_sides", FaceSet(np.full(num_faces, face_prop_defaults["bungie_lightmap_lighting_from_both_sides"], dtype=np.int32))).update_from_material(mesh, material_indices, int(prop.lightmap_lighting_from_both_sides))
                 case 'emissive':
                     if props.get("bungie_lighting_emissive_power") is None and prop.material_lighting_emissive_power > 0:
-                        power = max(prop.light_intensity, 0.0001)
+                        power = max(prop.material_lighting_emissive_power, 0.0001)
                         falloff = prop.material_lighting_attenuation_falloff
                         cutoff = prop.material_lighting_attenuation_cutoff
                         face_properties.setdefault("bungie_lighting_emissive_power", FaceSet(np.full(num_faces, face_prop_defaults["bungie_lighting_emissive_power"], np.single))).update_from_material(mesh, material_indices, power)
@@ -2592,7 +2592,7 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
                     face_properties.setdefault("bungie_lightmap_lighting_from_both_sides", FaceSet(np.full(num_faces, face_prop_defaults["bungie_lightmap_lighting_from_both_sides"], dtype=np.int32))).update(mesh, prop, int(prop.lightmap_lighting_from_both_sides))
             case 'emissive':
                 if props.get("bungie_lighting_emissive_power") is None and prop.material_lighting_emissive_power > 0:
-                    power = max(prop.light_intensity, 0.0001)
+                    power = max(prop.material_lighting_emissive_power, 0.0001)
                     falloff = prop.material_lighting_attenuation_falloff
                     cutoff = prop.material_lighting_attenuation_cutoff
                     face_properties.setdefault("bungie_lighting_emissive_power", FaceSet(np.full(num_faces, face_prop_defaults["bungie_lighting_emissive_power"], np.single))).update(mesh, prop, power)
