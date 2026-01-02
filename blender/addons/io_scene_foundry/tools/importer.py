@@ -1320,14 +1320,32 @@ class NWO_Import(bpy.types.Operator):
                             imported_cinematic_objects.extend(sdata.camera_objects)
                             imported_cinematic_actions.extend(sdata.actions)
                             
+                            camera_light_mask = {cam: set() for cam in sdata.camera_objects}
+                            light_objects_all = []
+                            light_objects_corinth = []
+                            cinematic_objects_collection = bpy.data.collections.new(f"objects_{sdata.name}")
+                            context.scene.collection.children.link(cinematic_objects_collection)
+                            scene_collection_map[sdata.blender_scene].add(cinematic_objects_collection)
+                            object_lighting_collection = bpy.data.collections.new(f"object_lighting_{sdata.name}")
+                            context.scene.collection.children.link(object_lighting_collection)
+                            scene_collection_map[sdata.blender_scene].add(object_lighting_collection)
+                            lights_to_bake_matrix = []
+                            
+                            def setup_light(light_ob, camera_shot, receiver_collection):
+                                object_lighting_coll.objects.link(light_ob)
+                                camera_light_mask[camera_shot].add(light_ob)
+                                light_objects_all.append(light_ob)
+                                imported_cinematic_objects.append(light_ob)
+                                if receiver_collection is not None:
+                                    light_ob.light_linking.receiver_collection = model_collection
+                            
                             if self.tag_cinematic_import_actors:
                                 camera_actor_mask = {cam: set() for cam in sdata.camera_objects}
                                 do_vis_bake = True
                                 all_actors = set()
                                 for cin_object in sdata.object_animations:
                                     importer.tag_variant = cin_object.variant
-                                    imported_cinematic_object_objects, armature, render_path, model_collection = importer.import_object([cin_object.object_path], None, return_cin_stuff=True)
-                                    scene_collection_map[sdata.blender_scene].add(model_collection)
+                                    imported_cinematic_object_objects, armature, render_path, model_collection = importer.import_object([cin_object.object_path], None, return_cin_stuff=True, parent_collection=cinematic_objects_collection)
                                     imported_cinematic_objects.extend(imported_cinematic_object_objects)
                                     cin_object.armature = armature
                                     armature.name = cin_object.name
@@ -1339,6 +1357,27 @@ class NWO_Import(bpy.types.Operator):
                                     all_actors.add(armature)
                                     for cam in cin_object.cameras:
                                         camera_actor_mask[cam].add(armature)
+                                        
+                                    # Lighting
+                                    if not self.tag_import_lights or cin_object.cinematic_lighting is None:
+                                        continue
+                                    
+                                    utils.print_bullet(f"Adding cinematic lighting for {cin_object.name}")
+                                    markers = {m.name: m for m in imported_cinematic_object_objects if m.type == 'EMPTY'}
+                                    object_lighting_coll = bpy.data.collections.new(f"{armature.name}_lighting")
+                                    object_lighting_collection.children.link(object_lighting_coll)
+                                    
+                                    for lighting_shot in cin_object.cinematic_lighting:
+                                        for idx, vmf_light in enumerate(lighting_shot.vmf_lights):
+                                            light_name = f"{armature.name}_analytical_vmf_light" if idx == 1 else f"{armature.name}_directional_vmf_light"
+                                            setup_light(vmf_light.to_blender(armature, light_name), cin_object.cameras[lighting_shot.shot_index], model_collection)
+                                            
+                                        for idx, dynamic_light in enumerate(lighting_shot.dynamic_lights):
+                                            light_name = f"{armature.name}_dynamic_light_{lighting_shot.marker}" if (lighting_shot.marker and dynamic_light.use_marker) else f"{armature.name}_dynamic_light"
+                                            l_ob = dynamic_light.to_blender(armature, markers.get(lighting_shot.marker), light_name)
+                                            setup_light(l_ob, cin_object.cameras[lighting_shot.shot_index], None)
+                                            if not dynamic_light.follow_object:
+                                                lights_to_bake_matrix.append(l_ob)
                                 
                                 for cam, actors in camera_actor_mask.items():
                                     cam_actors = cam.nwo.actors
@@ -1354,13 +1393,13 @@ class NWO_Import(bpy.types.Operator):
                             
                             if self.tag_import_lights:
                                 do_vis_bake = True
-                                light_objects_all = []
-                                camera_light_mask = {cam: set() for cam in sdata.camera_objects}
+                                
                                 for lighting_info in sdata.lighting_infos:
                                     light_objects, light_collection, camera_lights = importer.import_scenario_structure_lighting_info(lighting_info, cinematic_cameras=sdata.camera_objects)
                                     for cam, lights in camera_lights.items():
                                         camera_light_mask[cam].update(lights)
                                     light_objects_all.extend(light_objects)
+                                    light_objects_corinth.extend(light_objects)
                                     scene_collection_map[sdata.blender_scene].add(light_collection)
                                     imported_cinematic_objects.extend(light_objects)
                                     
@@ -1416,7 +1455,7 @@ class NWO_Import(bpy.types.Operator):
                                 sdata.blender_scene.nwo.cinematic_anchor = anchor
                                 imported_cinematic_objects.append(anchor)
                             
-                            for ob in light_objects_all:
+                            for ob in light_objects_corinth:
                                 ob.parent = anchor
                                 ob.parent_type = 'OBJECT'
                             scene_collection_map[sdata.blender_scene].add(anchor)
@@ -1503,11 +1542,18 @@ class NWO_Import(bpy.types.Operator):
                             
                     if do_vis_bake:
                         context.window.scene = bscene
-                        utils.print_step(f"--- Baking object visibility to keyframes for {bscene.name}")
+                        utils.print_step(f"Baking object visibility to keyframes for {bscene.name}")
                         bake_vis_to_keyframes(context)
 
                 if switch_blender_scene is not None and context.window.scene != switch_blender_scene:
                     context.window.scene = switch_blender_scene
+                    
+                # # Clamp lights
+                # utils.print_tag("Clamping Lights")
+                # lights = {l.data for l in imported_objects if l.type == 'LIGHT' and l.data.type != 'SUN' and l.data.nwo.light_far_attenuation_end > 0.0 and l.data.energy > 30}
+                # for l in lights:
+                #     l.energy = max(min(l.energy, utils.calc_max_intensity(l.nwo.light_far_attenuation_end, 0.05)), 30)
+                #     # l.nwo.light_far_attenuation_end = 0
                         
             except KeyboardInterrupt:
                 utils.print_warning("\nIMPORT CANCELLED BY USER")

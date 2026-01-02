@@ -16,7 +16,7 @@ from ..props.object import NWO_ObjectPropertiesGroup
 
 from ..props.scene import NWO_ScenePropertiesGroup
 
-from ..tools.light_exporter import calc_attenutation
+from ..tools.light_exporter import calc_attenuation
 
 from ..managed_blam.material import MaterialTag
 
@@ -2460,7 +2460,7 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
                             falloff = prop.material_lighting_attenuation_falloff
                             cutoff = prop.material_lighting_attenuation_cutoff
                         else:
-                            falloff, cutoff = calc_attenutation(prop.material_lighting_emissive_power * scene.unit_factor ** 2)
+                            falloff, cutoff = calc_attenuation(prop.material_lighting_emissive_power * scene.unit_factor ** 2)
                         face_properties.setdefault("bungie_lighting_emissive_power", FaceSet(np.full(num_faces, face_prop_defaults["bungie_lighting_emissive_power"], np.single))).update_from_material(mesh, material_indices, power)
                         face_properties.setdefault("bungie_lighting_emissive_color", FaceSet(np.full((num_faces, 4), face_prop_defaults["bungie_lighting_emissive_color"], np.single))).update_from_material(mesh, material_indices, utils.color_4p_int(prop.material_lighting_emissive_color))
                         face_properties.setdefault("bungie_lighting_emissive_per_unit", FaceSet(np.full(num_faces, face_prop_defaults["bungie_lighting_emissive_per_unit"], dtype=np.int32))).update_from_material(mesh, material_indices, int(prop.material_lighting_emissive_per_unit))
@@ -2602,7 +2602,7 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
                         falloff = prop.material_lighting_attenuation_falloff
                         cutoff = prop.material_lighting_attenuation_cutoff
                     else:
-                        falloff, cutoff = calc_attenutation(prop.material_lighting_emissive_power * scene.unit_factor ** 2)
+                        falloff, cutoff = calc_attenuation(prop.material_lighting_emissive_power * scene.unit_factor ** 2)
                     face_properties.setdefault("bungie_lighting_emissive_power", FaceSet(np.full(num_faces, face_prop_defaults["bungie_lighting_emissive_power"], np.single))).update(mesh, prop, power)
                     face_properties.setdefault("bungie_lighting_emissive_color", FaceSet(np.full((num_faces, 4), face_prop_defaults["bungie_lighting_emissive_color"], np.single))).update(mesh, prop, utils.color_4p_int(prop.material_lighting_emissive_color))
                     face_properties.setdefault("bungie_lighting_emissive_per_unit", FaceSet(np.full(num_faces, face_prop_defaults["bungie_lighting_emissive_per_unit"], dtype=np.int32))).update(mesh, prop, int(prop.material_lighting_emissive_per_unit))

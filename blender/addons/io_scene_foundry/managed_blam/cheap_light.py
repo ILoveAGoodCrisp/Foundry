@@ -30,11 +30,11 @@ class CheapLightTag(Tag):
         else:
             color_node = color_function.to_blend_nodes(name=color_function_name)
             
-        # size_function = Function()
-        # size_function.from_element(self.radius_struct.Elements[0], "Mapping")
-        # atten_max = size_function.clamp_min if size_function.is_basic_function else size_function.clamp_max
+        size_function = Function()
+        size_function.from_element(self.radius_struct.Elements[0], "Mapping")
+        atten_max = size_function.clamp_min if size_function.is_basic_function else size_function.clamp_max
         
-        # data.nwo.light_far_attenuation_end = atten_max * 100
+        data.nwo.light_far_attenuation_end = atten_max * 100
         
         intensity_function = Function()
         intensity_function.from_element(self.intensity_struct.Elements[0], "Mapping")

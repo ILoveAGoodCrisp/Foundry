@@ -555,6 +555,8 @@ class ScenarioStructureLightingInfoTag(Tag):
             nwo.light_far_attenuation_start, nwo.light_far_attenuation_end = [a for a in element.SelectField("far attenuation bounds").Data]
             nwo.light_aspect = element.SelectField("aspect").Data
             
+            utils.make_halo_light(blender_light)
+            
             definitions[element.ElementIndex] = blender_light
             
         return definitions

@@ -1880,34 +1880,65 @@ def enforce_uniformity(objects):
         deselect_all_objects()
         
 def get_light_intensity_factor(light_type=""):
-    match light_type:
-        case 'SPOT':
-            return 40
-        case 'SUN':
-            return 200
-        case _:
-            return 333
+    if is_corinth():
+        match light_type:
+            case 'SPOT':
+                return 1
+            case _:
+                return 3
+    else:
+        match light_type:
+            case 'SPOT':
+                return 1
+            case _:
+                return 3
         
-def calc_light_intensity(light_data, factor=1):
-    if light_data.type == 'SUN':
-        return light_data.energy * 2
+def calc_light_intensity(light_data):
+    scale = get_unit_conversion_factor(bpy.context)
     
-    return factor * ((light_data.energy / 0.03048 **-2) / get_light_intensity_factor(light_data.type))
+    if light_data.type == 'SUN':
+        # Directional lights are irradiance-based, not distance-based
+        return light_data.energy * 2.0
+
+    if is_corinth():
+        return light_data.energy * (scale ** 2) / 10
+    else:
+        return light_data.energy * (scale ** 2) / 100
+
+    # Power scales with distance²
+    return light_data.energy * (scale ** 2)  * get_light_intensity_factor(light_data.type)
+
+def calc_light_energy(light_data, intensity):
+    scale = get_unit_conversion_factor(bpy.context)
+    
+    if light_data.type == 'SUN':
+        return intensity / 2.0
+
+    if is_corinth():
+        return intensity / (scale ** 2) * 10
+    else:
+        return intensity / (scale ** 2) * 100
+
+
+    return intensity / (scale ** 2) / get_light_intensity_factor(light_data.type)
+
 
 def calc_emissive_intensity(emissive_power, factor=1):
-    return factor * ((emissive_power / 0.03048 **-2) / get_light_intensity_factor())
-
-def calc_light_energy(light_data, intensity, scale=0.03048):
-    if light_data.type == 'SUN':
-        return intensity / 2
-    
-    if is_corinth():
-        scale *= 10
-        
-    return intensity * (scale ** -2) * get_light_intensity_factor(light_data.type)
+    scale = 1.0 / get_export_scale(bpy.context)  # meters per engine unit
+    return emissive_power * (scale ** 2)  * get_light_intensity_factor()
 
 def calc_emissive_energy(intensity):
-    return intensity * (0.03048 ** -2) * get_light_intensity_factor()
+    scale = 1.0 / get_export_scale(bpy.context)
+    return intensity / (scale ** 2) / get_light_intensity_factor()
+
+def calc_max_intensity(cutoff: float, cutoff_intensity: float = 0.1):
+    return 4 * math.pi * cutoff_intensity * (cutoff ** 2)
+
+def calc_attenuation(power: float, intensity_threshold=0.5, cutoff_intensity=0.1, spot_angle=None) -> tuple[float, float]:
+    power = abs(power)
+    falloff = math.sqrt(power / (4 * math.pi * intensity_threshold))
+    cutoff = math.sqrt(power / (4 * math.pi * cutoff_intensity))
+    return falloff, cutoff
 
 def get_blender_shader(node_tree: bpy.types.NodeTree) -> bpy.types.Node | None:
     """Gets the BSDF shader node from a node tree"""

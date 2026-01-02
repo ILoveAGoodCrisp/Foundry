@@ -33,7 +33,7 @@ from ..props.scene import NWO_Animation_ListItems
 
 from ..tools.scenario.lightmap import run_lightmapper
 
-from ..tools.light_exporter import calc_attenutation, export_lights
+from ..tools.light_exporter import calc_attenuation, export_lights
 from ..tools.decorator_exporter import export_decorators
 
 # from ..tools.scenario.zone_sets import write_zone_sets_to_scenario
@@ -1460,7 +1460,7 @@ class ExportScene:
                             falloff = prop.material_lighting_attenuation_falloff
                             cutoff = prop.material_lighting_attenuation_cutoff
                         else:
-                            falloff, cutoff = calc_attenutation(prop.material_lighting_emissive_power * self.unit_factor ** 2)
+                            falloff, cutoff = calc_attenuation(prop.material_lighting_emissive_power * self.unit_factor ** 2)
                         mesh_props["bungie_lighting_emissive_power"] = power
                         mesh_props["bungie_lighting_emissive_color"] = utils.color_4p_int(prop.material_lighting_emissive_color)
                         mesh_props["bungie_lighting_emissive_per_unit"] = int(prop.material_lighting_emissive_per_unit)

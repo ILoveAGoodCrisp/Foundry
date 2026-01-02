@@ -1,6 +1,8 @@
 from enum import Enum
 from pathlib import Path
 
+from .cinematic_scene_data import CinematicSceneDataTag
+
 from .cinematic_scene import CinematicSceneTag
 
 from .. import utils
@@ -224,8 +226,9 @@ class SceneData:
         
     def from_scene(self, scene_tagpath):
         with CinematicSceneTag(path=scene_tagpath) as scene:
-            self.name, self.blender_scene, self.camera_objects, self.object_animations, self.anchor_name, self.actions, self.shot_frames = scene.to_blender(self.film_aperture, self.cinematic_name)
+            self.name, self.blender_scene, self.camera_objects, self.object_animations, self.anchor_name, self.actions, self.shot_frames, self.lighting_infos = scene.to_blender(self.film_aperture, self.cinematic_name, scene)
     
     def from_scene_corinth(self, scene_tagpath, scene_data_tagpath):
         with CinematicSceneTag(path=scene_tagpath) as scene:
-            self.name, self.blender_scene, self.camera_objects, self.object_animations, self.anchor_name, self.actions, self.shot_frames, self.lighting_infos = scene.to_blender_corinth(self.film_aperture, self.cinematic_name, scene_data_tagpath)
+            with CinematicSceneDataTag(path=scene_data_tagpath) as data:
+                self.name, self.blender_scene, self.camera_objects, self.object_animations, self.anchor_name, self.actions, self.shot_frames, self.lighting_infos = scene.to_blender(self.film_aperture, self.cinematic_name, data)

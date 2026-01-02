@@ -68,6 +68,18 @@ class NWO_LightPropertiesGroup(bpy.types.PropertyGroup):
         unit='LENGTH',
         update=update_light_far_attenuation_end,
     )
+    
+    def get_debug_atten(self):
+        return utils.calc_attenuation(self.id_data.energy)[1]
+    
+    def set_debug_atten(self, value):
+        self.id_data.energy = utils.calc_max_intensity(value)
+    
+    debug_atten_end: bpy.props.FloatProperty(
+        name="Debug Atten End",
+        get=get_debug_atten,
+        set=set_debug_atten
+    )
 
     # light_volume_distance: bpy.props.FloatProperty(
     #     name="Light Volume Distance",
@@ -104,10 +116,10 @@ class NWO_LightPropertiesGroup(bpy.types.PropertyGroup):
     # )
     
     def get_light_intensity(self):
-        return utils.calc_light_intensity(self.id_data, utils.get_export_scale(bpy.context) ** 2)
+        return utils.calc_light_intensity(self.id_data)
     
     def set_light_intensity(self, value):
-        self.id_data.energy = utils.calc_light_energy(self.id_data, utils.get_export_scale(bpy.context) ** -2 * value)
+        self.id_data.energy = utils.calc_light_energy(self.id_data, value)
 
     light_intensity: bpy.props.FloatProperty(
         name="Light Intensity",

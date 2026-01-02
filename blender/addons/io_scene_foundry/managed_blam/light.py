@@ -50,13 +50,15 @@ class LightTag(Tag):
         strength_node = None
         intensity_function_name = f"{self.tag_path.ShortName}_strength"
         
-        # atten_cutoff = self.tag.SelectField("Real:attenuation end distance").Data
-        # data.nwo.light_far_attenuation_end = atten_cutoff * 100
+        atten_falloff = self.tag.SelectField("Real:attenuation start distance").Data
+        data.nwo.light_far_attenuation_start = atten_falloff * 100
+        atten_cutoff = self.tag.SelectField("Real:attenuation end distance").Data
+        data.nwo.light_far_attenuation_end = atten_cutoff * 100
         
         if intensity_function.is_basic_function:
-            data.nwo.light_intensity = intensity_function.clamp_min * intensity_scale
+            data.nwo.light_intensity = intensity_function.clamp_min
         else:
-            data.nwo.light_intensity = intensity_function.clamp_max * intensity_scale
+            data.nwo.light_intensity = intensity_function.clamp_max
             strength_node = intensity_function.to_blend_nodes(name=intensity_function_name, normalize=True)
         
         if attachment is not None:

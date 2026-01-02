@@ -1688,7 +1688,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             scaled_energy = data.energy * utils.get_export_scale(context)
             if scaled_energy < 11 and data.type != 'SUN':
                 # Warn user about low light power. Need the light scaled to Halo proportions
-                col.label(text="Light itensity is very low", icon='ERROR')
+                col.label(text="Light intensity is very low", icon='ERROR')
                 col.label(text="For best results match the power of the light in")
                 col.label(text="Cycles to how you'd like it to appear in game")
             
@@ -1709,6 +1709,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 col.separator()
                 col.prop(nwo, "light_far_attenuation_start", text="Light Falloff")
                 col.prop(nwo, "light_far_attenuation_end", text="Light Cutoff")
+                col.prop(nwo, "debug_atten_end")
                 col.separator()
                 col.prop(nwo, "light_use_shader_gel")
                 col.prop(data, "normalize")
@@ -1734,6 +1735,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 if not nwo.light_physically_correct:
                     col.prop(nwo, "light_far_attenuation_start", text='Light Falloff')
                     col.prop(nwo, "light_far_attenuation_end", text='Light Cutoff')
+                    col.prop(nwo, "debug_atten_end")
                 
                 col.separator()
 
@@ -1812,6 +1814,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
 
                 col.prop(nwo, "light_far_attenuation_start", text="Light Falloff")
                 col.prop(nwo, "light_far_attenuation_end", text="Light Cutoff")
+                col.prop(nwo, "debug_atten_end")
 
 
                 # col.separator() # commenting out light clipping for now.
