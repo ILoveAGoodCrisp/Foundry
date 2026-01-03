@@ -4019,7 +4019,7 @@ class NWOImporter:
                         if jms_mat.ladder:
                             utils.add_face_prop(mesh, "ladder", indices)
                         if jms_mat.breakable:
-                            utils.add_face_prop(mesh, "face_mode, indices").face_mode = 'breakable'
+                            utils.add_face_prop(mesh, "face_mode", indices).face_mode = 'breakable'
                         
                         if jms_mat.no_shadow:
                             utils.add_face_prop(mesh, "no_shadow", indices)
