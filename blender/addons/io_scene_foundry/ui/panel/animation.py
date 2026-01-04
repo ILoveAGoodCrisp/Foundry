@@ -1000,7 +1000,8 @@ class NWO_OT_NewAnimation(bpy.types.Operator):
             # animation.animation_renames.clear()
             for track in animation.action_tracks:
                 if track.action:
-                    track.action = track.action.copy()
+                    if self.create_new_actions:
+                        track.action = track.action.copy()
             scene_nwo.active_animation_index = len(scene_nwo.animations) - 1
             return {'FINISHED'}
         
@@ -1074,6 +1075,7 @@ class NWO_OT_NewAnimation(bpy.types.Operator):
         col.use_property_split = True
         col.prop(self, "copy")
         if self.copy:
+            col.prop(self, "create_new_actions", text="Duplicate Actions")
             return
         
         col.label(text="Animation Format")
