@@ -995,8 +995,10 @@ class NWO_OT_NewAnimation(bpy.types.Operator):
         
         if self.copy and current_animation:
             for key, value in current_animation.items():
-                animation[key] = value
-            animation.name += "_copy"
+                if key == "name":
+                    animation[key] = f"{current_animation.name}_copy"
+                else:
+                    animation[key] = value
             # animation.animation_renames.clear()
             for track in animation.action_tracks:
                 if track.action:
