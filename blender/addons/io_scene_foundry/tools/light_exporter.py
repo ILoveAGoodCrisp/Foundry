@@ -101,7 +101,7 @@ class BlamLightDefinition:
             self.far_attenuation_start = falloff * atten_scalar * WU_SCALAR
             self.far_attenuation_end = cutoff * atten_scalar * WU_SCALAR
             
-        self.color, self.intensity = utils.get_light_final_color_and_intensity(data)
+        self.color, self.intensity = utils.get_light_final_color_and_intensity(data, intensity)
             
         self.aspect = nwo.light_aspect
         

@@ -5564,16 +5564,6 @@ def make_halo_light(data: bpy.types.Light, primary_scale="", secondary_scale="",
         node_image.image = gobo_image
         tree.links.new(input=light_node.inputs[4], output=node_image.outputs[0])
         
-    falloff_attribute_node = tree.nodes.new(type="ShaderNodeAttribute")
-    falloff_attribute_node.attribute_name = "nwo.light_far_attenuation_start"
-    falloff_attribute_node.attribute_type = 'INSTANCER'
-    tree.links.new(input=light_node.inputs[5], output=falloff_attribute_node.outputs[2])
-    
-    cutoff_attribute_node = tree.nodes.new(type="ShaderNodeAttribute")
-    cutoff_attribute_node.attribute_name = "nwo.light_far_attenuation_end"
-    cutoff_attribute_node.attribute_type = 'INSTANCER'
-    tree.links.new(input=light_node.inputs[6], output=cutoff_attribute_node.outputs[2])
-        
     arrange(tree)
     
     if intensity_from_power:
@@ -5867,6 +5857,9 @@ def get_frame_start_end_from_keyframes(action, ob_slot):
     else:
         return int(bpy.context.scene.frame_start), int(bpy.context.scene.frame_end)
 
+def lerp(x1: float, x2: float, y1: float, y2: float, x: float):
+    return ((y2 - y1) * x + x2 * y1 - x1 * y2) / (x2 - x1)
+
 def get_light_final_color_and_intensity(light: bpy.types.Light | float, intensity=1.0) -> Color:
     
     if isinstance(light, bpy.types.Light):
@@ -5887,5 +5880,10 @@ def get_light_final_color_and_intensity(light: bpy.types.Light | float, intensit
         base.r /= max_color
         base.g /= max_color
         base.b /= max_color
+        
+    intensity = intensity_factor * intensity
+    
+    if intensity > 100: # make color whiter in extreme intensity
+        base.s = lerp(100, 1000, 1, 0, intensity)
 
-    return [linear_to_srgb(base.r), linear_to_srgb(base.g), linear_to_srgb(base.b)], intensity_factor * intensity
+    return [linear_to_srgb(base.r), linear_to_srgb(base.g), linear_to_srgb(base.b)], intensity

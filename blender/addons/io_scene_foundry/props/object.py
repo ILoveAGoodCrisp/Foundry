@@ -291,11 +291,6 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     )
 
     # OBJECT LEVEL PROPERTIES
-    
-    light_intensity: bpy.props.FloatProperty( # So the Halo Light node works as expected for emissives
-        default=1.0,
-        options={'HIDDEN', 'READ_ONLY'}
-    )
 
     seam_back: bpy.props.StringProperty(
         name="Seam Back Facing BSP",

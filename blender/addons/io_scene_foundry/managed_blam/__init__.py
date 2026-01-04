@@ -3,7 +3,6 @@ from ..managed_blam.Tags import *
 from ..utils import (
     any_partition,
     disable_prints,
-    display_warning,
     dot_partition,
     enable_prints,
     get_asset_path,
@@ -20,7 +19,6 @@ from ..utils import (
 import bpy
 import os
 from ..utils import get_project_path
-import sys
 import atexit
 
 last_saved_tag = None
