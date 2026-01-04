@@ -997,6 +997,8 @@ class NWO_OT_NewAnimation(bpy.types.Operator):
             for key, value in current_animation.items():
                 if key == "name":
                     animation[key] = f"{current_animation.name}_copy"
+                elif key == "name_old":
+                    animation[key] = f"{current_animation.name}_copy"
                 else:
                     animation[key] = value
             # animation.animation_renames.clear()
