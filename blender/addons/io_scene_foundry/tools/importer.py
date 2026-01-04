@@ -56,7 +56,7 @@ from ..tools.clear_duplicate_materials import clear_duplicate_materials
 from ..tools.property_apply import apply_props_material
 from ..tools.shader_finder import find_shaders
 from ..tools.shader_reader import tag_to_nodes
-from ..constants import IDENTITY_MATRIX, OBJECT_TAG_EXTS, VALID_MESHES
+from ..constants import IDENTITY_MATRIX, OBJECT_TAG_EXTS, VALID_MESHES, WU_SCALAR
 from ..managed_blam.connected_material import GameFunctionType, game_functions
 from .. import utils
 from .model_to_instance import ModelInstance
@@ -3538,6 +3538,7 @@ class NWOImporter:
             
         for data in self.light_data:
             data.nwo.light_intensity = data.energy
+            utils.make_halo_light(data)
             if data.halo_light.light_cone_shape == 'RECTANGLE':
                 data.nwo.light_shape = '_connected_geometry_light_shape_rectangle'
             else:
@@ -3548,12 +3549,16 @@ class NWOImporter:
                 data.spot_blend = data.halo_light.spot_blend
             
             if data.halo_light.use_near_atten:
-                data.nwo.light_near_attenuation_start = data.halo_light.near_atten_start
-                data.nwo.light_near_attenuation_end = data.halo_light.near_atten_end
+                #data.nwo.light_near_attenuation_start = data.halo_light.near_atten_start
+                #data.nwo.light_near_attenuation_end = data.halo_light.near_atten_end
+                data.shadow_soft_size = data.halo_light.near_atten_end * (1 / WU_SCALAR) * (1 / 0.03048)
             
             if data.halo_light.use_far_atten:
-                data.nwo.light_far_attenuation_start = data.halo_light.far_atten_start
-                data.nwo.light_far_attenuation_end = data.halo_light.far_atten_end
+                data.nwo.light_far_attenuation_start = data.halo_light.far_atten_start * (1 / WU_SCALAR)
+                data.nwo.light_far_attenuation_end = data.halo_light.far_atten_end * (1 / WU_SCALAR)
+            else:
+                data.nwo.light_far_attenuation_start = 80
+                data.nwo.light_far_attenuation_end = 200
                 
     def setup_jms_frame(self, ob):
         # ob.nwo.frame_override = True

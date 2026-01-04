@@ -181,12 +181,8 @@ class ScenarioStructureLightingInfoTag(Tag):
             
             flags = element.SelectField("flags")
             flags.SetBit("use far attenuation", True)
-            if light.far_attenuation_end > 0:
-                flags.SetBit("invere squared falloff", False)
-                element.SelectField("far attenuation bounds").Data = [light.far_attenuation_start, light.far_attenuation_end]
-            else:
-                flags.SetBit("invere squared falloff", True)
-                element.SelectField("far attenuation bounds").Data = [900, 4000]
+            element.SelectField("far attenuation bounds").Data = [light.far_attenuation_start, light.far_attenuation_end]
+            flags.SetBit("invere squared falloff", light.inverse_squared_falloff)
 
             element.SelectField("aspect").Data = light.aspect
             
@@ -529,19 +525,23 @@ class ScenarioStructureLightingInfoTag(Tag):
             nwo.light_lens_flare_reference = self.get_path_str(element.SelectField("lens flare reference").Path)
             
             if not blender_light.use_nodes:
-                gobo_image = None
-                if self.path_exists(gobo_tag_path):
-                    gobo_info = bitmap_to_image(gobo_tag_path.Filename)
-                    if gobo_info.image:
-                        gobo_image = gobo_info.image
-                        
-                utils.make_halo_light(blender_light, gobo_image=gobo_image)
+                if blender_light in self.inverse_squared_lights:
+                    blender_light.energy = utils.calc_light_energy(blender_light, blender_light.nwo.light_intensity, (1 / 0.03048))
+                else:
+                    gobo_image = None
+                    if self.path_exists(gobo_tag_path):
+                        gobo_info = bitmap_to_image(gobo_tag_path.Filename)
+                        if gobo_info.image:
+                            gobo_image = gobo_info.image
+                            
+                    utils.make_halo_light(blender_light, gobo_image=gobo_image)
             
             objects.append(ob)
             
         return objects
     
     def _from_reach_light_definitions(self):
+        self.inverse_squared_lights = set()
         definitions: dict[int: bpy.types.Light] = {}
         for element in self.block_generic_light_definitions.Elements:
             match element.SelectField("type").Value:
@@ -565,8 +565,8 @@ class ScenarioStructureLightingInfoTag(Tag):
             blender_light.shadow_soft_size = max((*element.SelectField("near attenuation bounds").Data,))
             nwo.light_far_attenuation_start, nwo.light_far_attenuation_end = [a for a in element.SelectField("far attenuation bounds").Data]
             nwo.light_aspect = element.SelectField("aspect").Data
-            
-            # utils.make_halo_light(blender_light)
+            if element.SelectField("flags").TestBit("invere squared falloff"):
+                self.inverse_squared_lights.add(blender_light)
             
             definitions[element.ElementIndex] = blender_light
             

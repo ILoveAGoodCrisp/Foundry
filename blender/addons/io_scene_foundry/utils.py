@@ -1893,8 +1893,7 @@ def get_light_intensity_factor(light_type=""):
             case _:
                 return 3
         
-def calc_light_intensity(light_data):
-    scale = get_unit_conversion_factor(bpy.context)
+def calc_light_intensity(light_data, scale):
     
     if light_data.type == 'SUN':
         return light_data.energy
@@ -1904,9 +1903,7 @@ def calc_light_intensity(light_data):
     else:
         return light_data.energy * (scale ** 2) / 100
 
-def calc_light_energy(light_data, intensity):
-    scale = get_unit_conversion_factor(bpy.context)
-    
+def calc_light_energy(light_data, intensity, scale):
     if light_data.type == 'SUN':
         return intensity
 
@@ -1914,7 +1911,6 @@ def calc_light_energy(light_data, intensity):
         return intensity / (scale ** 2) * 10
     else:
         return intensity / (scale ** 2) * 100
-
 
 def calc_emissive_intensity(emissive_power, factor=1):
     scale = 1.0 / get_export_scale(bpy.context)  # meters per engine unit
@@ -1927,7 +1923,7 @@ def calc_emissive_energy(intensity):
 def calc_max_intensity(cutoff: float, cutoff_intensity: float = 0.1):
     return 4 * math.pi * cutoff_intensity * (cutoff ** 2)
 
-def calc_attenuation(power: float, intensity_threshold=0.5, cutoff_intensity=0.01) -> tuple[float, float]:
+def calc_attenuation(power: float, intensity_threshold=0.5, cutoff_intensity=0.1) -> tuple[float, float]:
     power = abs(power)
     falloff = math.sqrt(power / (4 * math.pi * intensity_threshold))
     cutoff = math.sqrt(power / (4 * math.pi * cutoff_intensity))
@@ -2211,6 +2207,14 @@ def get_export_scale(context) -> float:
     export_scale = 1
     scene_nwo = get_scene_props()
     if scene_nwo.scale == 'blender':
+        export_scale = (1 / 0.03048)
+        
+    return export_scale
+
+def get_import_scale(context) -> float:
+    export_scale = 1
+    scene_nwo = get_scene_props()
+    if scene_nwo.scale == 'max':
         export_scale = (1 / 0.03048)
         
     return export_scale
@@ -3325,7 +3329,7 @@ def area_light_to_emissive(light_ob: bpy.types.Object, corinth: bool):
     if light.use_nodes:
         intensity = light_nwo.light_intensity
     else:
-        intensity = calc_light_intensity(light)
+        intensity = calc_light_intensity(light, get_import_scale(bpy.context))
         
     prop.material_lighting_emissive_color, prop.material_lighting_emissive_power = get_light_final_color_and_intensity(light, intensity)
         
@@ -5567,7 +5571,7 @@ def make_halo_light(data: bpy.types.Light, primary_scale="", secondary_scale="",
     arrange(tree)
     
     if intensity_from_power:
-        data.nwo.light_intensity = calc_light_intensity(data)
+        data.nwo.light_intensity = calc_light_intensity(data, get_import_scale(bpy.context))
     
     data.energy = 100
     

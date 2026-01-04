@@ -108,12 +108,6 @@ class NWO_LightPropertiesGroup(bpy.types.PropertyGroup):
     #     subtype='DISTANCE',
     #     unit='LENGTH',
     # )
-    
-    # def get_light_intensity(self):
-    #     return utils.calc_light_intensity(self.id_data)
-    
-    # def set_light_intensity(self, value):
-    #     self.id_data.energy = utils.calc_light_energy(self.id_data, value)
 
     light_intensity: bpy.props.FloatProperty(
         name="Light Intensity",
