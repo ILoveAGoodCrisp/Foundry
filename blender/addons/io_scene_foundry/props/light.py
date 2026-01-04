@@ -368,32 +368,6 @@ class NWO_LightPropertiesGroup(bpy.types.PropertyGroup):
         default=0,
         min=0,
     )
-    
-    # def get_light_strength(self):
-    #     value = 1.0
-    #     is_cinematic = utils.get_scene_props().asset_type == 'cinematic'
-    #     if not utils.is_corinth() or self.id_data.type == 'SUN':
-    #         return 1.0
-        
-    #     if self.light_cinema_objects_only and not is_cinematic:
-    #         return 0.0
-    #     elif self.light_cinema == '_connected_geometry_lighting_cinema_only' and not is_cinematic:
-    #         return 0.0
-        
-    #     return max(value * self.strength_factor, 0.001)
-    
-    # light_strength: bpy.props.FloatProperty(
-    #     get=get_light_strength,
-    # )
-    
-    strength_factor: bpy.props.FloatProperty(
-        name="Light Strength Factor",
-        description="Used to adjust the strength of the light in cycles when using a halo light node. Has no affect on the game values",
-        default=1.0,
-        subtype='FACTOR',
-        soft_max=1,
-        min=0,
-    )
 
     light_cinema: bpy.props.EnumProperty(
         name="Cinematic Render",

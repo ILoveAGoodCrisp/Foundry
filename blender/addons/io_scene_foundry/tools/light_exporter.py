@@ -80,8 +80,6 @@ class BlamLightDefinition:
             
         self.is_sun = nwo.is_sun
         
-        final_color = utils.get_light_final_color(data)
-        self.color = [utils.linear_to_srgb(final_color[0]), utils.linear_to_srgb(final_color[1]), utils.linear_to_srgb(final_color[2])]
         self.hotspot_size = 0
         self.hotspot_cutoff = 0
         if data.type == 'SPOT':
@@ -94,14 +92,16 @@ class BlamLightDefinition:
         self.near_attenuation_end = self.near_attenuation_start
         
         if data.use_nodes:
-            self.intensity = nwo.light_intensity
+            intensity = nwo.light_intensity
             self.far_attenuation_start = nwo.light_far_attenuation_start * atten_scalar * WU_SCALAR * unit_factor
             self.far_attenuation_end = nwo.light_far_attenuation_end * atten_scalar * WU_SCALAR * unit_factor
         else:
-            self.intensity = utils.calc_light_intensity(data)
+            intensity = utils.calc_light_intensity(data)
             falloff, cutoff = utils.calc_attenuation(data.energy * unit_factor ** 2)
             self.far_attenuation_start = falloff * atten_scalar * WU_SCALAR
             self.far_attenuation_end = cutoff * atten_scalar * WU_SCALAR
+            
+        self.color, self.intensity = utils.get_light_final_color_and_intensity(data)
             
         self.aspect = nwo.light_aspect
         

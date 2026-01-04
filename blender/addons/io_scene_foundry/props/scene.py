@@ -2081,6 +2081,17 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     #     options=set(),
     # )
     
+    def get_intensity_multiplier(self):
+        if utils.is_corinth(bpy.context):
+            return 0.1
+        else:
+            return 1
+    
+    intensity_multiplier: bpy.props.FloatProperty(
+        options={'HIDDEN'},
+        get=get_intensity_multiplier
+    )
+    
     is_child_asset: bpy.props.BoolProperty(
         name="Child Asset",
         description="Mark if this asset is a child of another. Setting this will prevent this file from building tags, instead only building intermediary data for use by its parent file"

@@ -1702,7 +1702,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             row = heading.column(align=True).row(align=True)
             row.use_property_decorate = False
             row.prop(data, "use_temperature", text="")
-            if data.use_temperature:
+            if False: # data.use_temperature:
                 sub = row.split(factor=0.7, align=True)
                 sub.active = data.use_temperature
                 sub.prop(data, "temperature", text="")
@@ -1712,18 +1712,16 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 sub.active = data.use_temperature
                 sub.prop(data, "temperature", text="")
                 row.prop_decorator(data, "temperature")
+                
+            if data.use_temperature:
+                col.prop(data, "color", text="Tint")
+            else:
+                col.prop(data, "color", text="Color")
             
             row = col.row()
             row.prop(data, "energy")
             row.enabled = not halo_light
-            scaled_energy = data.energy * utils.get_export_scale(context)
-            if scaled_energy < 11 and data.type != 'SUN':
-                # Warn user about low light power. Need the light scaled to Halo proportions
-                col.label(text="Light intensity is very low", icon='ERROR')
-                col.label(text="For best results match the power of the light in")
-                col.label(text="Cycles to how you'd like it to appear in game")
             
-            col.prop(nwo, "strength_factor")
             if data.type == 'AREA':
                 # Area lights use emissive settings, as they will be converted to lightmap only emissive planes at export
                 col.separator()

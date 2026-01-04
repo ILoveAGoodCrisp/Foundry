@@ -337,9 +337,9 @@ def color_4p(color):
     return alpha, red, green, blue
 
 def color_4p_int(color):
-    red = int(linear_to_srgb(color.r) * 255)
-    green = int(linear_to_srgb(color.g) * 255)
-    blue = int(linear_to_srgb(color.b) * 255)
+    red = int(color[0] * 255)
+    green = int(color[1] * 255)
+    blue = int(color[2] * 255)
     return 255, red, green, blue
 
 def color_rgba_str(color):
@@ -2509,15 +2509,15 @@ class TransformObject:
         if self.marker_z_matrix is not None:
             self.ob.matrix_basis = self.ob.matrix_basis @ self.marker_z_matrix
 
-def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forward, new_forward, keep_marker_axis=None, objects=None, actions=None, apply_rotation=False, exclude_scale_models=False, skip_data=False, scale_light_energy=False):
+def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forward, new_forward, keep_marker_axis=None, objects=None, actions=None, apply_rotation=False, exclude_scale_models=False, skip_data=False):
     """Transform blender objects by the given scale factor and rotation. Optionally this can be scoped to a set of objects and animations rather than all"""
     print("\nTransforming Scene\n")
     context.view_layer.update()
     all_objects = False
     armatures_to_reparent = {}
+    energy_factor = (scale_factor ** 2)
     with TransformManager():
         # armatures = [ob for ob in bpy.data.objects if ob.type == 'ARMATURE']
-        light_intensities = {}
         if objects is None:
             objects = bpy.data.objects
             all_objects = True
@@ -2531,10 +2531,6 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
             meshes = {ob.data for ob in objects if ob.type =='MESH'}
             cameras = {ob.data for ob in objects if ob.type =='CAMERA'}
             lights = {ob.data for ob in objects if ob.type =='LIGHT'}
-            
-            if scale_light_energy:
-                for light in lights:
-                    light_intensities[light] = light.nwo.light_intensity
             
         if actions is None:
             actions = bpy.data.actions
@@ -2694,7 +2690,8 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                 # light.nwo.light_near_attenuation_start *= scale_factor
                 # light.nwo.light_near_attenuation_end *= scale_factor
                 light.shadow_soft_size *= scale_factor
-        
+                if not light.use_nodes:
+                    light.energy *= energy_factor
 
             if armatures:
                 deselect_all_objects()
@@ -2883,12 +2880,6 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
             m = arm.matrix_world.copy()
             arm.parent = parent
             arm.matrix_world = m
-        
-        if scale_light_energy:
-            for light, intensity in light_intensities.items():
-                light.energy = calc_light_energy(light, intensity, 1 / scale_factor)
-            
-        return light_intensities
             
 def get_area_info(context):
     area = [
@@ -3330,12 +3321,14 @@ def area_light_to_emissive(light_ob: bpy.types.Object, corinth: bool):
     prop.material_lighting_attenuation_cutoff = light_nwo.light_far_attenuation_end
     prop.material_lighting_attenuation_falloff = light_nwo.light_far_attenuation_start
     prop.material_lighting_emissive_focus = light_nwo.light_focus
-    prop.material_lighting_emissive_color = get_light_final_color(light)
     prop.material_lighting_emissive_per_unit = not light.normalize
     if light.use_nodes:
-        prop.material_lighting_emissive_power = light_nwo.light_intensity
+        intensity = light_nwo.light_intensity
     else:
-        prop.material_lighting_emissive_power = calc_light_intensity(light)
+        intensity = calc_light_intensity(light)
+        
+    prop.material_lighting_emissive_color, prop.material_lighting_emissive_power = get_light_final_color_and_intensity(light, intensity)
+        
     prop.material_lighting_emissive_quality = light_nwo.light_quality
     prop.material_lighting_use_shader_gel = light_nwo.light_use_shader_gel
     prop.material_lighting_bounce_ratio = plane_ob.nwo.light_bounce_ratio
@@ -5571,35 +5564,22 @@ def make_halo_light(data: bpy.types.Light, primary_scale="", secondary_scale="",
         node_image.image = gobo_image
         tree.links.new(input=light_node.inputs[4], output=node_image.outputs[0])
         
+    falloff_attribute_node = tree.nodes.new(type="ShaderNodeAttribute")
+    falloff_attribute_node.attribute_name = "nwo.light_far_attenuation_start"
+    falloff_attribute_node.attribute_type = 'INSTANCER'
+    tree.links.new(input=light_node.inputs[5], output=falloff_attribute_node.outputs[2])
+    
+    cutoff_attribute_node = tree.nodes.new(type="ShaderNodeAttribute")
+    cutoff_attribute_node.attribute_name = "nwo.light_far_attenuation_end"
+    cutoff_attribute_node.attribute_type = 'INSTANCER'
+    tree.links.new(input=light_node.inputs[6], output=cutoff_attribute_node.outputs[2])
+        
     arrange(tree)
-    
-    # Set up custom distance drivers for eevee # NOTE Currently causes driver dependancy issue
-    # result = data.driver_add("use_custom_distance")
-    # driver = result.driver
-    # driver.type = 'SCRIPTED'
-    # var = driver.variables.new()
-    # var.name = "var"
-    # var.type = 'SINGLE_PROP'
-    # var.targets[0].id_type = 'LIGHT'
-    # var.targets[0].id = data
-    # var.targets[0].data_path = "nwo.light_far_attenuation_end"
-    # driver.expression = f"{var.name} > 0"
-    
-    # result = data.driver_add("cutoff_distance")
-    # driver = result.driver
-    # driver.type = 'SCRIPTED'
-    # var = driver.variables.new()
-    # var.name = "var"
-    # var.type = 'SINGLE_PROP'
-    # var.targets[0].id_type = 'LIGHT'
-    # var.targets[0].id = data
-    # var.targets[0].data_path = "nwo.light_far_attenuation_end"
-    # driver.expression = var.name
     
     if intensity_from_power:
         data.nwo.light_intensity = calc_light_intensity(data)
     
-    data.energy = (10 if is_corinth() else 100) * get_unit_conversion_factor(bpy.context) ** -2
+    data.energy = 100
     
     data.use_custom_distance = True
     data.cutoff_distance = data.nwo.light_far_attenuation_end
@@ -5886,18 +5866,21 @@ def get_frame_start_end_from_keyframes(action, ob_slot):
         return int(min(*frames)), int(max(*frames))
     else:
         return int(bpy.context.scene.frame_start), int(bpy.context.scene.frame_end)
+
+def get_light_final_color_and_intensity(light: bpy.types.Light | float, intensity=1.0) -> Color:
     
-import bpy
-from mathutils import Color
+    if isinstance(light, bpy.types.Light):
+        base = Color(light.color)
 
-def get_light_final_color(light: bpy.types.Light) -> Color:
-    base = Color(light.color)
-
-    if light.use_temperature:
-        temp_color = light.temperature_color
-        base.r *= temp_color.r
-        base.g *= temp_color.g
-        base.b *= temp_color.b
+        if light.use_temperature:
+            temp_color = light.temperature_color
+            base.r *= temp_color.r
+            base.g *= temp_color.g
+            base.b *= temp_color.b
+    else:
+        base = Color(light)
+            
+    intensity_factor = max(base.r, base.g, base.b)
         
     max_color = max(base.r, base.g, base.b)
     if max_color > 0.0:
@@ -5905,4 +5888,4 @@ def get_light_final_color(light: bpy.types.Light) -> Color:
         base.g /= max_color
         base.b /= max_color
 
-    return base
+    return [linear_to_srgb(base.r), linear_to_srgb(base.g), linear_to_srgb(base.b)], intensity_factor * intensity

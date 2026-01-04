@@ -3537,7 +3537,7 @@ class NWOImporter:
             utils.add_to_collection(self.jms_file_light_objects, True, new_coll, name="lights")
             
         for data in self.light_data:
-            data.nwo.light_intensity = data.energy * (1 / 0.03048)
+            data.nwo.light_intensity = data.energy
             if data.halo_light.light_cone_shape == 'RECTANGLE':
                 data.nwo.light_shape = '_connected_geometry_light_shape_rectangle'
             else:
@@ -3864,7 +3864,7 @@ class NWOImporter:
             # Emissive
             if jms_mat.emissive_power:
                 prop = utils.add_face_prop(mesh, "emissive")
-                prop.light_intensity = jms_mat.emissive_power
+                prop.material_lighting_emissive_power = jms_mat.emissive_power
                 prop.material_lighting_emissive_color = jms_mat.emissive_color
                 prop.material_lighting_emissive_quality = jms_mat.emissive_quality
                 prop.material_lighting_emissive_per_unit = jms_mat.emissive_per_unit
@@ -3984,7 +3984,7 @@ class NWOImporter:
                     # Emissive
                     if jms_mat.emissive_power:
                         prop = utils.add_face_prop(mesh, "emissive")
-                        prop.light_intensity = jms_mat.emissive_power
+                        prop.material_lighting_emissive_power = jms_mat.emissive_power
                         prop.material_lighting_emissive_color = jms_mat.emissive_color
                         prop.material_lighting_emissive_quality = jms_mat.emissive_quality
                         prop.material_lighting_emissive_per_unit = jms_mat.emissive_per_unit
@@ -4051,7 +4051,7 @@ class NWOImporter:
                         # Emissive
                         if jms_mat.emissive_power:
                             prop = utils.add_face_prop(mesh, "emissive", indices)
-                            prop.light_intensity = jms_mat.emissive_power
+                            prop.material_lighting_emissive_power = jms_mat.emissive_power
                             prop.material_lighting_emissive_color = jms_mat.emissive_color
                             prop.material_lighting_emissive_quality = jms_mat.emissive_quality
                             prop.material_lighting_emissive_per_unit = jms_mat.emissive_per_unit

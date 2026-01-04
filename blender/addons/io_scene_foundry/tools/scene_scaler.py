@@ -116,7 +116,7 @@ class NWO_ScaleScene(bpy.types.Operator):
             else:
                 actions_to_transform = set()
                 
-        light_intensities = utils.transform_scene(context, self.scale_factor, self.rotation, scene_nwo.forward_direction, self.forward, keep_marker_axis=self.maintain_marker_axis, objects=objects_to_transform, actions=actions_to_transform, exclude_scale_models=self.exclude_scale_models, scale_light_energy=True)
+        utils.transform_scene(context, self.scale_factor, self.rotation, scene_nwo.forward_direction, self.forward, keep_marker_axis=self.maintain_marker_axis, objects=objects_to_transform, actions=actions_to_transform, exclude_scale_models=self.exclude_scale_models)
 
         if old_object:
             utils.set_active_object(old_object)
@@ -129,8 +129,6 @@ class NWO_ScaleScene(bpy.types.Operator):
         
         if self.scale == 'blender' or self.scale == 'max':
             scene_nwo.scale = self.scale
-            for light, intensity in light_intensities.items():
-                light.nwo.light_intensity = intensity
             
         scene_nwo.forward_direction = self.forward
         scene_nwo.maintain_marker_axis = self.maintain_marker_axis
