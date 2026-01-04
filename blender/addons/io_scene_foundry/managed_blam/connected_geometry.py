@@ -1532,7 +1532,7 @@ class MeshSubpart:
         self.index_start = element.SelectField("index start").Data
         self.index_count = element.SelectField("index count").Data
         self.part_index = element.SelectField("part index").Value
-        self.part = next(p for p in parts if p.index == self.part_index)
+        self.part = next((p for p in parts if p.index == self.part_index), None)
         self.is_water_subpart = self.index_start in water_indices
         self.is_water_surface = self.part and self.part.water_surface
         
@@ -1671,7 +1671,9 @@ class Mesh:
         for part_element in element.SelectField("parts").Elements:
             self.parts.append(MeshPart(part_element, materials))
         for subpart_element in element.SelectField("subparts").Elements:
-            self.subparts.append(MeshSubpart(subpart_element, self.parts, water_indices))
+            sp = MeshSubpart(subpart_element, self.parts, water_indices)
+            if sp.part is not None:
+                self.subparts.append(sp)
             
         self.valid = (bool(self.parts) and bool(self.subparts)) or does_not_need_parts
         
