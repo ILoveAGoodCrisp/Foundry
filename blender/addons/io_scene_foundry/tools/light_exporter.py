@@ -60,7 +60,8 @@ class BlamLightDefinition:
     def __init__(self, data):
         # export_scale = utils.get_export_scale(bpy.context)
         unit_factor = utils.get_unit_conversion_factor(bpy.context)
-        if utils.is_corinth():
+        corinth = utils.is_corinth()
+        if corinth:
             atten_scalar = 1
         else:
             atten_scalar = 100
@@ -96,7 +97,12 @@ class BlamLightDefinition:
             self.far_attenuation_start = nwo.light_far_attenuation_start * atten_scalar * WU_SCALAR * unit_factor
             self.far_attenuation_end = nwo.light_far_attenuation_end * atten_scalar * WU_SCALAR * unit_factor
         else:
-            intensity = utils.calc_light_intensity(data, utils.get_import_scale(bpy.context))
+            if corinth and nwo.light_physically_correct and data.type != 'SUN':
+                intensity = data.energy * unit_factor ** -2 * WU_SCALAR
+                self.lighting_mode = 0
+            else:
+                intensity = utils.calc_light_intensity(data, utils.get_import_scale(bpy.context))
+                
             falloff, cutoff = utils.calc_attenuation(data.energy * unit_factor ** 2)
             self.far_attenuation_start = falloff * atten_scalar * WU_SCALAR
             self.far_attenuation_end = cutoff * atten_scalar * WU_SCALAR
@@ -124,7 +130,7 @@ class BlamLightDefinition:
         
         # Static only props
         self.indirect_amp = nwo.light_amplification_factor
-        self.jitter_sphere = nwo.light_jitter_sphere_radius
+        self.jitter_sphere = data.shadow_soft_size * WU_SCALAR * unit_factor
         self.jitter_angle = degrees(nwo.light_jitter_angle)
         self.jitter_quality = 0
         if nwo.light_jitter_quality == '_connected_geometry_light_jitter_quality_medium':

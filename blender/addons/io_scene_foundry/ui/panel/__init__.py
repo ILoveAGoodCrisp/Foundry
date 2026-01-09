@@ -1785,7 +1785,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     row = col.row()
                     row.prop(nwo, "light_jitter_quality", expand=True)
                     col.prop(nwo, "light_jitter_angle")
-                    col.prop(nwo, "light_jitter_sphere_radius")
+                    col.prop(data, "shadow_soft_size", text="Jitter Sphere Radius")
 
                     col.separator()
 
@@ -1794,6 +1794,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     col.separator()
                     col.prop(nwo, "light_indirect_only")
                     col.prop(nwo, "light_static_analytic")
+                    col.prop(nwo, "light_physically_correct")
 
             else:
                 col.prop(nwo, "light_shape", text="Shape")

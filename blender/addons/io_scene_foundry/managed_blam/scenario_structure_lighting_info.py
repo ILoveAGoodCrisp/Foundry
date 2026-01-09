@@ -454,7 +454,7 @@ class ScenarioStructureLightingInfoTag(Tag):
             # Static Props
             
             nwo.light_amplification_factor = element.SelectField("indirect amplification factor").Data
-            nwo.light_jitter_sphere_radius = element.SelectField("jitter sphere radius").Data
+            blender_light.shadow_soft_size = element.SelectField("jitter sphere radius").Data
             nwo.light_jitter_angle = radians(element.SelectField("jitter angle").Data)
             
             match element.SelectField("jitter quality").Value:

@@ -402,13 +402,13 @@ class NWO_LightPropertiesGroup(bpy.types.PropertyGroup):
         min=0.0,
     )
 
-    light_jitter_sphere_radius: bpy.props.FloatProperty(
-        name="Light Jitter Sphere Radius",
-        options=set(),
-        description="",
-        default=0,
-        min=0.0,
-    )
+    # light_jitter_sphere_radius: bpy.props.FloatProperty(
+    #     name="Light Jitter Sphere Radius",
+    #     options=set(),
+    #     description="",
+    #     default=0,
+    #     min=0.0,
+    # )
 
     light_shadow_far_clipplane: bpy.props.FloatProperty(
         name="Shadow Far Clip Plane",

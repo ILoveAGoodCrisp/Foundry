@@ -1382,6 +1382,7 @@ class ProjectXML():
         if material is not None:
             if self.default_material and self.default_material != material.text:
                 material.text = self.default_material
+                has_changes = True
             else:
                 self.default_material = material.text
         else:
@@ -1400,6 +1401,7 @@ class ProjectXML():
         if water is not None:
             if self.default_water and self.default_water != water.text:
                 water.text = self.default_water
+                has_changes = True
             else:
                 self.default_water = water.text
         else:
@@ -1923,7 +1925,7 @@ def calc_emissive_energy(intensity):
 def calc_max_intensity(cutoff: float, cutoff_intensity: float = 0.1):
     return 4 * math.pi * cutoff_intensity * (cutoff ** 2)
 
-def calc_attenuation(power: float, intensity_threshold=0.5, cutoff_intensity=0.1) -> tuple[float, float]:
+def calc_attenuation(power: float, intensity_threshold=0.5, cutoff_intensity=0.05) -> tuple[float, float]:
     power = abs(power)
     falloff = math.sqrt(power / (4 * math.pi * intensity_threshold))
     cutoff = math.sqrt(power / (4 * math.pi * cutoff_intensity))
@@ -5573,7 +5575,10 @@ def make_halo_light(data: bpy.types.Light, primary_scale="", secondary_scale="",
     if intensity_from_power:
         data.nwo.light_intensity = calc_light_intensity(data, get_import_scale(bpy.context))
     
-    data.energy = 100
+    if is_corinth():
+        data.energy = 20
+    else:
+        data.energy = 100
     
     data.use_custom_distance = True
     data.cutoff_distance = data.nwo.light_far_attenuation_end
