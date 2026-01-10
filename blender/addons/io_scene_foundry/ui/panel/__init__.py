@@ -1794,7 +1794,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     col.separator()
                     col.prop(nwo, "light_indirect_only")
                     col.prop(nwo, "light_static_analytic")
-                    col.prop(nwo, "light_physically_correct")
+                    if not data.use_nodes:
+                        col.prop(nwo, "light_physically_correct")
 
             else:
                 col.prop(nwo, "light_shape", text="Shape")

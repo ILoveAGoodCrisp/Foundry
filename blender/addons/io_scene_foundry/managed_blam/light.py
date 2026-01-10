@@ -24,9 +24,9 @@ class LightTag(Tag):
     def _to_blender_reach(self, primary_scale, secondary_scale, attachment):
         is_spot_light = self.tag.SelectField("ShortEnum:type").Value == 1
         data = bpy.data.lights.new(self.tag_path.ShortName, type='SPOT' if is_spot_light else 'POINT')
-        intensity_scale = 1
+        # intensity_scale = 1
         if is_spot_light:
-            intensity_scale = 100
+            # intensity_scale = 100
             hotspot_cutoff_size = self.tag.SelectField("Real:frustum field of view").Data
             data.spot_size = radians(hotspot_cutoff_size)
             if hotspot_cutoff_size > 0.0:

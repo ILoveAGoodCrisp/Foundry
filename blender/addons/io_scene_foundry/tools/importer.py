@@ -1355,7 +1355,7 @@ class NWO_Import(bpy.types.Operator):
                                     cin_object.animations = {utils.action_shot_index(a): a for a in cin_animations}
                                     imported_cinematic_actions.extend(cin_actions)
                                     all_actors.add(armature)
-                                    for cam in cin_object.cameras:
+                                    for cam in cin_object.cameras.values():
                                         camera_actor_mask[cam].add(armature)
                                         
                                     # Lighting
@@ -1369,13 +1369,19 @@ class NWO_Import(bpy.types.Operator):
                                     
                                     for lighting_shot in cin_object.cinematic_lighting:
                                         for idx, vmf_light in enumerate(lighting_shot.vmf_lights):
-                                            light_name = f"{armature.name}_analytical_vmf_light" if idx == 1 else f"{armature.name}_directional_vmf_light"
-                                            setup_light(vmf_light.to_blender(armature, light_name), cin_object.cameras[lighting_shot.shot_index], model_collection)
+                                            c = cin_object.cameras.get(lighting_shot.shot_index)
+                                            if c is None:
+                                                continue
+                                            light_name = f"{armature.name}_light_2_shot_{lighting_shot.shot_index + 1}" if idx == 1 else f"{armature.name}_light_1_shot_{lighting_shot.shot_index + 1}"
+                                            setup_light(vmf_light.to_blender(armature, light_name), c, model_collection)
                                             
                                         for idx, dynamic_light in enumerate(lighting_shot.dynamic_lights):
-                                            light_name = f"{armature.name}_dynamic_light_{lighting_shot.marker}" if (lighting_shot.marker and dynamic_light.use_marker) else f"{armature.name}_dynamic_light"
+                                            c = cin_object.cameras.get(lighting_shot.shot_index)
+                                            if c is None:
+                                                continue
+                                            light_name = f"{armature.name}_dynamic_light_{lighting_shot.marker}_shot_{lighting_shot.shot_index + 1}" if (lighting_shot.marker and dynamic_light.use_marker) else f"{armature.name}_dynamic_light_shot_{lighting_shot.shot_index + 1}"
                                             l_ob = dynamic_light.to_blender(armature, markers.get(lighting_shot.marker), light_name)
-                                            setup_light(l_ob, cin_object.cameras[lighting_shot.shot_index], None)
+                                            setup_light(l_ob, c, None)
                                             if not dynamic_light.follow_object:
                                                 lights_to_bake_matrix.append(l_ob)
                                 

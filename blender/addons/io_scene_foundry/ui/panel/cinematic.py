@@ -115,6 +115,7 @@ def bake_vis_to_keyframes(context, do_viewport=True, do_render=True):
                 find_and_set('hide_render', hide_non)
             
     scene = context.scene
+    corinth = utils.is_corinth(context)
     
     camera_frames = {m.frame: m.camera for m in utils.get_timeline_markers(scene)}
     frame_list = list(camera_frames)
@@ -130,7 +131,6 @@ def bake_vis_to_keyframes(context, do_viewport=True, do_render=True):
         actors = set()
         geometry = set()
         lights = set()
-        corinth = utils.is_corinth(context)
         
         if idx == len(frame_list) - 1:
             end_frame = int(scene.frame_end)

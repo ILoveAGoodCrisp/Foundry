@@ -471,7 +471,10 @@ class ScenarioStructureLightingInfoTag(Tag):
             
             definitions[element.ElementIndex] = blender_light
             
-            utils.make_halo_light(blender_light)
+            if blender_light.type == 'SUN' or nwo.light_physically_correct:
+                blender_light.energy = blender_light.nwo.light_intensity
+            else:
+                utils.make_halo_light(blender_light)
             
         return definitions
             

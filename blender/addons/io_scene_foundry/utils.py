@@ -2696,7 +2696,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                 # light.nwo.light_near_attenuation_start *= scale_factor
                 # light.nwo.light_near_attenuation_end *= scale_factor
                 light.shadow_soft_size *= scale_factor
-                if not light.use_nodes:
+                if light.type != 'SUN':
                     light.energy *= energy_factor
 
             if armatures:
@@ -5533,6 +5533,10 @@ def make_halo_emissive(data: bpy.types.Mesh, primary_scale="", secondary_scale="
     pass
     
 def make_halo_light(data: bpy.types.Light, primary_scale="", secondary_scale="", color_node_tree=None, strength_node_tree=None, gobo_image=None, intensity_from_power=False) -> bpy.types.Node:
+    
+    if data.type == 'SUN':
+        return
+    
     data.use_nodes = True
     tree = data.node_tree
     tree.nodes.clear()
@@ -5575,10 +5579,11 @@ def make_halo_light(data: bpy.types.Light, primary_scale="", secondary_scale="",
     if intensity_from_power:
         data.nwo.light_intensity = calc_light_intensity(data, get_import_scale(bpy.context))
     
-    if is_corinth():
-        data.energy = 20
-    else:
-        data.energy = 100
+    data.energy = 10
+    # if is_corinth():
+    #     data.energy = 10
+    # else:
+    #     data.energy = 100
     
     data.use_custom_distance = True
     data.cutoff_distance = data.nwo.light_far_attenuation_end

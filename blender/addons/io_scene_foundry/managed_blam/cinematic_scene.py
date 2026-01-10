@@ -421,7 +421,7 @@ class CinObject():
         self.object_path = ""
         self.armature = None
         self.animations = None
-        self.cameras = []
+        self.cameras = {}
         self.cinematic_lighting: CinematicLighting = None
     
 class CinematicSceneTag(Tag):
@@ -606,12 +606,12 @@ class CinematicSceneTag(Tag):
                     for idx in range(flags.ShotCount):
                         if flags.GetShotChecked(idx):
                             shots.append(idx + 1)
-                            cin_object.cameras.append(camera_objects[idx])
+                            cin_object.cameras[idx] = camera_objects[idx]
                 else:
                     for idx, item in enumerate(flags.Items):
                         if item.IsSet:
                             shots.append(idx + 1)
-                            cin_object.cameras.append(camera_objects[idx])
+                            cin_object.cameras[idx] = camera_objects[idx]
                         
                 utils.print_step(f"{name} is present in shots {shots}")
         

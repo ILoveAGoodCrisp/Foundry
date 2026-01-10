@@ -42,7 +42,7 @@ class CinematicLight:
         
     def to_blender(self, armature: bpy.types.Object, light_name: str):
         data = bpy.data.lights.new(light_name, 'SUN')
-        data.nwo.light_intensity = self.intensity
+        data.energy = self.intensity
         data.color = self.color
         data.use_shadow = False
         ob = bpy.data.objects.new(data.name, data)
@@ -51,6 +51,7 @@ class CinematicLight:
         bone = armature.pose.bones[0]
         ob.parent_bone = bone.name
         ob.matrix_world = bone.matrix @ self.matrix
+        ob.nwo.is_cinematic_light = True
         
         return ob
         
@@ -92,7 +93,25 @@ class CinematicLightingTag(Tag):
     tag_ext = 'cinematic_lighting'
     
     def _from_corinth(self, cin_lighting: CinLighting):
-        pass
+        lights = self.tag.SelectField("Block:Authored Light Probe[0]/Block:Lights")
+        
+        if lights is not None and lights.Elements.Count > 0:
+            element = lights.Elements[0]
+            # Light 1
+            light_1 = CinematicLight()
+            light_1.set_color(element.SelectField("RealRgbColor:Direct color 1").Data)
+            light_1.set_intensity(element.SelectField("Real:Direct intensity 1").Data * element.SelectField("Real:Authored Light Probe Intensity Scale").Data)
+            if light_1.valid_color and light_1.valid_intensity:
+                light_1.compute_matrix(element.SelectField("Real:Direction 1").Data, element.SelectField("Real:Front-Back 1").Data)
+                cin_lighting.vmf_lights.append(light_1)
+            
+            # Light 2
+            light_2 = CinematicLight()
+            light_2.set_color(element.SelectField("RealRgbColor:Direct color 2").Data)
+            light_2.set_intensity(element.SelectField("Real:Direct intensity 2").Data * element.SelectField("Real:Authored Light Probe Intensity Scale").Data)
+            if light_2.valid_color and light_2.valid_intensity:
+                light_2.compute_matrix(element.SelectField("Real:Direction 2").Data, element.SelectField("Real:Front-Back 2").Data)
+                cin_lighting.vmf_lights.append(light_2)
     
     def _from_reach(self, cin_lighting: CinLighting):
         # Directional VMF Light
