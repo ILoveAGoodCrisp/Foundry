@@ -5581,11 +5581,11 @@ def make_halo_light(data: bpy.types.Light, primary_scale="", secondary_scale="",
     if intensity_from_power:
         data.nwo.light_intensity = calc_light_intensity(data, scale)
     
-    data.energy = 10 * (scale ** 2)
-    # if is_corinth():
-    #     data.energy = 10
-    # else:
-    #     data.energy = 100
+    # data.energy = 10 * (scale ** 2)
+    if is_corinth():
+        data.energy = 10 * (scale ** 2)
+    else:
+        data.energy = 100 * (scale ** 2)
     
     data.use_custom_distance = True
     data.cutoff_distance = data.nwo.light_far_attenuation_end
