@@ -1310,12 +1310,13 @@ class NWO_Import(bpy.types.Operator):
                                 #     context.window.scene = sdata.blender_scene
                                 switch_blender_scene = sdata.blender_scene
                             
+                            context.window.scene = sdata.blender_scene
                             camera_collection = bpy.data.collections.new(sdata.name)
                             context.scene.collection.children.link(camera_collection)
                             for ob in sdata.camera_objects:
                                 camera_collection.objects.link(ob)
                                 
-                            scene_collection_map[sdata.blender_scene].add(camera_collection)
+                            # scene_collection_map[sdata.blender_scene].add(camera_collection)
                                 
                             imported_cinematic_objects.extend(sdata.camera_objects)
                             imported_cinematic_actions.extend(sdata.actions)
@@ -1325,10 +1326,10 @@ class NWO_Import(bpy.types.Operator):
                             light_objects_corinth = []
                             cinematic_objects_collection = bpy.data.collections.new(f"objects_{sdata.name}")
                             context.scene.collection.children.link(cinematic_objects_collection)
-                            scene_collection_map[sdata.blender_scene].add(cinematic_objects_collection)
+                            # scene_collection_map[sdata.blender_scene].add(cinematic_objects_collection)
                             object_lighting_collection = bpy.data.collections.new(f"object_lighting_{sdata.name}")
                             context.scene.collection.children.link(object_lighting_collection)
-                            scene_collection_map[sdata.blender_scene].add(object_lighting_collection)
+                            # scene_collection_map[sdata.blender_scene].add(object_lighting_collection)
                             lights_to_bake_matrix = []
                             
                             def setup_light(light_ob, camera_shot, receiver_collection):
@@ -1406,7 +1407,7 @@ class NWO_Import(bpy.types.Operator):
                                         camera_light_mask[cam].update(lights)
                                     light_objects_all.extend(light_objects)
                                     light_objects_corinth.extend(light_objects)
-                                    scene_collection_map[sdata.blender_scene].add(light_collection)
+                                    # scene_collection_map[sdata.blender_scene].add(light_collection)
                                     imported_cinematic_objects.extend(light_objects)
                                     
                                 for cam, lights in camera_light_mask.items():
@@ -1437,7 +1438,7 @@ class NWO_Import(bpy.types.Operator):
                                 
                                 scenario_instance_empty = bpy.data.objects.new(scenario_collection.name, object_data=None)
                                 context.scene.collection.objects.link(scenario_instance_empty)
-                                scene_collection_map[sdata.blender_scene].add(scenario_instance_empty)
+                                # scene_collection_map[sdata.blender_scene].add(scenario_instance_empty)
                                 scenario_instance_empty.instance_type = 'COLLECTION'
                                 scenario_instance_empty.instance_collection = scenario_collection
                                 imported_cinematic_objects.append(scenario_instance_empty)
@@ -1457,14 +1458,13 @@ class NWO_Import(bpy.types.Operator):
                                 anchor = bpy.data.objects.new(name=sdata.anchor_name, object_data=None)
                                 anchor.nwo.is_frame = True
                                 anchor.nwo.export_this = False
-                                context.scene.collection.objects.link(anchor)
-                                sdata.blender_scene.nwo.cinematic_anchor = anchor
-                                imported_cinematic_objects.append(anchor)
+                                0
                             
                             for ob in light_objects_corinth:
                                 ob.parent = anchor
                                 ob.parent_type = 'OBJECT'
-                            scene_collection_map[sdata.blender_scene].add(anchor)
+
+                            # scene_collection_map[sdata.blender_scene].add(anchor)
                             first_scene = False
                             
                     imported_objects.extend(imported_cinematic_objects)
@@ -1537,14 +1537,14 @@ class NWO_Import(bpy.types.Operator):
                 #         if ob.name in bpy.data.objects and parent.name in bpy.data.objects:
                 #             ob.parent = parent
                 
-                for bscene, v in scene_collection_map.items():
-                    for ob_or_collection in v:
-                        if isinstance(ob_or_collection, bpy.types.Object):
-                            utils.unlink(ob_or_collection)
-                            bscene.collection.objects.link(ob_or_collection)
-                        else:
-                            context.scene.collection.children.unlink(ob_or_collection)
-                            bscene.collection.children.link(ob_or_collection)
+                # for bscene, v in scene_collection_map.items():
+                #     for ob_or_collection in v:
+                #         if isinstance(ob_or_collection, bpy.types.Object):
+                #             utils.unlink(ob_or_collection)
+                #             bscene.collection.objects.link(ob_or_collection)
+                #         else:
+                #             context.scene.collection.children.unlink(ob_or_collection)
+                #             bscene.collection.children.link(ob_or_collection)
                             
                     if do_vis_bake:
                         context.window.scene = bscene

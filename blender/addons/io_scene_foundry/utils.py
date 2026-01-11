@@ -2515,7 +2515,7 @@ class TransformObject:
         if self.marker_z_matrix is not None:
             self.ob.matrix_basis = self.ob.matrix_basis @ self.marker_z_matrix
 
-def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forward, new_forward, keep_marker_axis=None, objects=None, actions=None, apply_rotation=False, exclude_scale_models=False, skip_data=False):
+def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forward, new_forward, keep_marker_axis=None, objects=None, actions=None, apply_rotation=False, exclude_scale_models=False, skip_data=False, scale_light_energy=False):
     """Transform blender objects by the given scale factor and rotation. Optionally this can be scoped to a set of objects and animations rather than all"""
     print("\nTransforming Scene\n")
     context.view_layer.update()
@@ -2696,7 +2696,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                 # light.nwo.light_near_attenuation_start *= scale_factor
                 # light.nwo.light_near_attenuation_end *= scale_factor
                 light.shadow_soft_size *= scale_factor
-                if light.type != 'SUN':
+                if scale_light_energy and light.type != 'SUN':
                     light.energy *= energy_factor
 
             if armatures:
@@ -5576,10 +5576,12 @@ def make_halo_light(data: bpy.types.Light, primary_scale="", secondary_scale="",
         
     arrange(tree)
     
-    if intensity_from_power:
-        data.nwo.light_intensity = calc_light_intensity(data, get_import_scale(bpy.context))
+    scale = get_import_scale(bpy.context)
     
-    data.energy = 10
+    if intensity_from_power:
+        data.nwo.light_intensity = calc_light_intensity(data, scale)
+    
+    data.energy = 10 * (scale ** 2)
     # if is_corinth():
     #     data.energy = 10
     # else:
@@ -5874,7 +5876,7 @@ def get_frame_start_end_from_keyframes(action, ob_slot):
 def lerp(x1: float, x2: float, y1: float, y2: float, x: float):
     return ((y2 - y1) * x + x2 * y1 - x1 * y2) / (x2 - x1)
 
-def get_light_final_color_and_intensity(light: bpy.types.Light | float, intensity=1.0) -> Color:
+def get_light_final_color_and_intensity(light: bpy.types.Light | float, intensity=1.0, return_argb=False) -> Color:
     
     if isinstance(light, bpy.types.Light):
         base = Color(light.color)
@@ -5899,5 +5901,8 @@ def get_light_final_color_and_intensity(light: bpy.types.Light | float, intensit
     
     if intensity > 100: # make color whiter in extreme intensity
         base.s = lerp(100, 1000, 1, 0, intensity)
-
-    return [linear_to_srgb(base.r), linear_to_srgb(base.g), linear_to_srgb(base.b)], intensity
+        
+    if return_argb:
+        return [1.0, linear_to_srgb(base.r), linear_to_srgb(base.g), linear_to_srgb(base.b)], intensity
+    else:
+        return [linear_to_srgb(base.r), linear_to_srgb(base.g), linear_to_srgb(base.b)], intensity

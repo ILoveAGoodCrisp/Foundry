@@ -1455,7 +1455,7 @@ class ExportScene:
                     if prop.material_lighting_emissive_power <= 0:
                         mesh_props["bungie_lighting_emissive_power"] = 0.0
                     else:
-                        color, power = utils.get_light_final_color_and_intensity(prop.material_lighting_emissive_color, prop.material_lighting_emissive_power)
+                        color, power = utils.get_light_final_color_and_intensity(prop.material_lighting_emissive_color, prop.material_lighting_emissive_power, True)
                         falloff = prop.material_lighting_attenuation_falloff
                         cutoff = prop.material_lighting_attenuation_cutoff
                         mesh_props["bungie_lighting_emissive_power"] = power

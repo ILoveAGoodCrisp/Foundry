@@ -116,7 +116,7 @@ class NWO_ScaleScene(bpy.types.Operator):
             else:
                 actions_to_transform = set()
                 
-        utils.transform_scene(context, self.scale_factor, self.rotation, scene_nwo.forward_direction, self.forward, keep_marker_axis=self.maintain_marker_axis, objects=objects_to_transform, actions=actions_to_transform, exclude_scale_models=self.exclude_scale_models)
+        utils.transform_scene(context, self.scale_factor, self.rotation, scene_nwo.forward_direction, self.forward, keep_marker_axis=self.maintain_marker_axis, objects=objects_to_transform, actions=actions_to_transform, exclude_scale_models=self.exclude_scale_models, scale_light_energy=True)
 
         if old_object:
             utils.set_active_object(old_object)
