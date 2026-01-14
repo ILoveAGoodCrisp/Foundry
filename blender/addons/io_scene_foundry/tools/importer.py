@@ -1545,10 +1545,11 @@ class NWO_Import(bpy.types.Operator):
                 #         else:
                 #             context.scene.collection.children.unlink(ob_or_collection)
                 #             bscene.collection.children.link(ob_or_collection)
-                            
-                    if do_vis_bake:
-                        context.window.scene = bscene
-                        utils.print_step(f"Baking object visibility to keyframes for {bscene.name}")
+                
+                if do_vis_bake:
+                    for sdata in scene_datas:
+                        context.window.scene = sdata.blender_scene
+                        utils.print_step(f"Baking object visibility to keyframes for {data.blender_scene.name}")
                         bake_vis_to_keyframes(context)
 
                 if switch_blender_scene is not None and context.window.scene != switch_blender_scene:
@@ -2633,6 +2634,7 @@ class NWOImporter:
             functions = obj.functions_to_blender()
             if functions:
                 print(f"--- Created Blender node groups for {len(functions)} object functions")
+            
             default_variant = obj.default_variant.GetStringData()
             prop_names = []
             with ModelTag(path=model_path, raise_on_error=False) as model:
@@ -2773,7 +2775,7 @@ class NWOImporter:
                             
                     # if need_to_cache:
                     #     objects_cache[cache_key] = imported_objects, render, model_collection.name
-                        
+ 
         return imported_objects
             
     def import_render_model(self, file, model_collection, existing_armature, allowed_region_permutations, skip_print=False):

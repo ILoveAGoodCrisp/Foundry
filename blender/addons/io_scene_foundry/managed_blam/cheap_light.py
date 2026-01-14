@@ -12,8 +12,8 @@ class CheapLightTag(Tag):
     def _read_fields(self):
         self.color_struct = self.tag.SelectField("Struct:color")
         self.intensity_struct = self.tag.SelectField("Struct:intensity")
-        self.radius_struct = self.tag.SelectField("Struct:radius")
-        self.falloff = self.tag.SelectField("Real:falloff")
+        self.radius_struct = self.tag.SelectField("Struct:Falloff End") if self.corinth else self.tag.SelectField("Struct:radius")
+        self.falloff = self.tag.SelectField("Real:Falloff Begin Ratio") if self.corinth else self.tag.SelectField("Real:falloff")
         
     def to_blender(self, primary_scale="", secondary_scale="", attachment=None):
         data = bpy.data.lights.new(self.tag_path.ShortName, type='POINT')
