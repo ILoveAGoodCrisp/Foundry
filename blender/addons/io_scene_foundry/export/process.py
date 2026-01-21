@@ -312,7 +312,7 @@ class ExportScene:
         self.depsgraph = self.context.evaluated_depsgraph_get()
         
         valid_objects = GENERAL_OBJECTS
-        if self.asset_type in {AssetType.MODEL, AssetType.ANIMATION, AssetType.SINGLE_ANIMATION, AssetType.CINEMATIC}:
+        if self.asset_type in {AssetType.MODEL, AssetType.ANIMATION, AssetType.SINGLE_ANIMATION, AssetType.CINEMATIC, AssetType.SKY}:
             valid_objects.add('ARMATURE')
             
             if main_armature:

@@ -576,7 +576,11 @@ class AnimationTag(Tag):
         bones_ordered = [node.pose_bone for node in valid_nodes]
         for bone in bones_ordered:
             if bone.parent:
-                bone_dict[bone] = bone_dict[bone.parent] + 1
+                parent = bone_dict.get(bone.parent)
+                if parent is None:
+                    bone_dict[bone] = 0
+                else:
+                    bone_dict[bone] = parent + 1
             else:
                 bone_dict[bone] = 0
                 
