@@ -3016,7 +3016,7 @@ class ExportScene:
         props['sun_intensity'] = self.sun.data.energy
         props['sun_color'] = self.sun.data.color[:]
             
-        props['uber_light_sun'] = self.scene_settings.sun_as_vmf_light
+        props['uber_light_sun'] = not self.scene_settings.sun_as_vmf_light
         props['sun_bounce_ratio'] = self.scene_settings.sun_bounce_scale
         props['sky_light_bounce_ratio'] = self.scene_settings.skylight_bounce_scale
         
