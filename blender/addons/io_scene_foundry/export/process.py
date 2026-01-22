@@ -2996,6 +2996,12 @@ class ExportScene:
         lightGen_colors = []
         lightGen_directions = []
         lightGen_solid_angles = []
+        
+        if self.sun is None:
+            self.sun = self.sky_lights[-1]
+            
+        self.sky_lights.remove(self.sun)
+        
         for ob in self.sky_lights:
             down = Vector((0, 0, 1))
             mat = utils.halo_transforms(ob)
@@ -3009,11 +3015,8 @@ class ExportScene:
         props['lightGen_solid_angles'] = " ".join(map(utils.jstr, lightGen_solid_angles))
         props['lightGen_samples'] = len(self.sky_lights) - 1
         
-        if self.sun is None:
-            self.sun = self.sky_lights[-1]
-        
         props['sun_size'] = self.scene_settings.sun_size
-        props['sun_intensity'] = self.sun.data.energy
+        props['sun_intensity'] = self.sun.data.energy * 2
         props['sun_color'] = self.sun.data.color[:]
             
         props['uber_light_sun'] = not self.scene_settings.sun_as_vmf_light
