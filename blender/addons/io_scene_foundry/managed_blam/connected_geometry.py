@@ -572,19 +572,19 @@ class Permutation:
         if utils.is_corinth():
             self.clone_name = element.SelectField("clone name").GetStringData()
         flags_1 = element.SelectField("instance mask 0-31")
-        for i in range(31):
+        for i in range(32):
             if flags_1.TestBit(str(i)):
                 self.instance_indices.append(i)
         flags_2 = element.SelectField("instance mask 32-63")
-        for i in range(31):
+        for i in range(32):
             if flags_2.TestBit(str(i)):
                 self.instance_indices.append(i + 32)
         flags_3 = element.SelectField("instance mask 64-95")
-        for i in range(31):
+        for i in range(32):
             if flags_3.TestBit(str(i)):
                 self.instance_indices.append(i + 64)
         flags_4 = element.SelectField("instance mask 96-127")
-        for i in range(31):
+        for i in range(32):
             if flags_4.TestBit(str(i)):
                 self.instance_indices.append(i + 96)
     
