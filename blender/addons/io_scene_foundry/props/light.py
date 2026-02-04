@@ -566,7 +566,7 @@ class NWO_LightPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="Controls the spread of the light. 180 degrees will emit light in a hemisphere from each point, 0 degrees will emit light nearly perpendicular to the surface",
         min=0,
-        default=radians(180), 
+        default=0, 
         max=radians(180),
         subtype="ANGLE",
     )
