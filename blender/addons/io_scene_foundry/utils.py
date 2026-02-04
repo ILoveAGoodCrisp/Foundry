@@ -317,30 +317,10 @@ def color_3p(color):
     return red, green, blue
 
 def color_3p_int(color):
-    red = int(color.r * 255)
-    green = int(color.g * 255)
-    blue = int(color.b * 255)
+    red = color.r * 255
+    green = color.g * 255
+    blue = color.b * 255
     return red, green, blue
-
-def color_4p_str(color):
-    red = int(color.r * 255)
-    green = int(color.g * 255)
-    blue = int(color.b * 255)
-    alpha = int(color.a * 255)
-    return f"{jstr(alpha)} {jstr(red)} {jstr(green)} {jstr(blue)}"
-
-def color_4p(color):
-    red = int(color.r * 255)
-    green = int(color.g * 255)
-    blue = int(color.b * 255)
-    alpha = int(color.a * 255)
-    return alpha, red, green, blue
-
-def color_4p_int(color):
-    red = int(color[0] * 255)
-    green = int(color[1] * 255)
-    blue = int(color[2] * 255)
-    return 255, red, green, blue
 
 def color_rgba_str(color):
     red = linear_to_srgb(color[0])
@@ -3333,7 +3313,7 @@ def area_light_to_emissive(light_ob: bpy.types.Object, corinth: bool):
     else:
         intensity = calc_light_intensity(light, get_import_scale(bpy.context))
         
-    prop.material_lighting_emissive_color, prop.material_lighting_emissive_power = get_light_final_color_and_intensity(light, intensity)
+    prop.material_lighting_emissive_color, prop.material_lighting_emissive_power = get_light_final_color_and_intensity(light, intensity, ignore_colorspace_conversion=True)
         
     prop.material_lighting_emissive_quality = light_nwo.light_quality
     prop.material_lighting_use_shader_gel = light_nwo.light_use_shader_gel
@@ -5876,7 +5856,7 @@ def get_frame_start_end_from_keyframes(action, ob_slot):
 def lerp(x1: float, x2: float, y1: float, y2: float, x: float):
     return ((y2 - y1) * x + x2 * y1 - x1 * y2) / (x2 - x1)
 
-def get_light_final_color_and_intensity(light: bpy.types.Light | float, intensity=1.0, return_argb=False) -> Color:
+def get_light_final_color_and_intensity(light: bpy.types.Light | float, intensity=1.0, return_argb=False, return_255=False, ignore_colorspace_conversion=False) -> Color:
     
     if isinstance(light, bpy.types.Light):
         base = Color(light.color)
@@ -5902,7 +5882,18 @@ def get_light_final_color_and_intensity(light: bpy.types.Light | float, intensit
     if intensity > 100: # make color whiter in extreme intensity
         base.s = lerp(100, 1000, 1, 0, intensity)
         
+    red = base.r if ignore_colorspace_conversion else linear_to_srgb(base.r)
+    green = base.g if ignore_colorspace_conversion else linear_to_srgb(base.g)
+    blue = base.b if ignore_colorspace_conversion else linear_to_srgb(base.b)
+    alpha = 1.0
+    
+    if return_255:
+        red *= 255
+        green *= 255
+        blue *= 255
+        alpha = 255.0
+        
     if return_argb:
-        return [1.0, linear_to_srgb(base.r), linear_to_srgb(base.g), linear_to_srgb(base.b)], intensity
+        return [alpha, red, green, blue], intensity
     else:
-        return [linear_to_srgb(base.r), linear_to_srgb(base.g), linear_to_srgb(base.b)], intensity
+        return [red, green, blue], intensity
