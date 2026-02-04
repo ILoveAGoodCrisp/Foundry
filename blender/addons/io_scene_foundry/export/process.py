@@ -536,9 +536,20 @@ class ExportScene:
                             continue
                 if ob.type == 'LIGHT':
                     if ob.data.type == 'AREA':
-                        ob = utils.area_light_to_emissive(ob, self.corinth)
-                        self.temp_objects.add(ob)
-                        self.temp_meshes.add(ob.data)
+                        emissive_ob = utils.area_light_to_emissive(ob, self.corinth)
+                        
+                        new_export_ob = utils.ExportObject()
+                        new_export_ob.data = emissive_ob.data
+                        new_export_ob.material_slots = emissive_ob.material_slots
+                        new_export_ob.nwo = emissive_ob.nwo
+                        new_export_ob.type = emissive_ob.type
+                        new_export_ob.ob = emissive_ob
+                        new_export_ob.name = ob.name
+                        new_export_ob.eval_ob = emissive_ob.evaluated_get(self.depsgraph)
+                        new_export_ob.matrix_world = emissive_ob.matrix_world
+                        self.temp_objects.add(emissive_ob)
+                        self.temp_meshes.add(emissive_ob.data)
+                        ob = new_export_ob
                     else:
                         if not self.corinth and self.asset_type == AssetType.SKY:
                             if ob.name.lower() == "sun":
