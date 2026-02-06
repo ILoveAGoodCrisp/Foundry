@@ -2313,6 +2313,8 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
     deferred_transparencies = []
     deferred_opaques = []
     
+    poop_collision = props.get("bungie_mesh_type") == MeshType.poop_collision.value
+    
     # changed_materials = False
     
     # Do material probs first to ensure they can be overriden by face props
@@ -2340,8 +2342,9 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
         for prop in material.nwo.material_props:
             match prop.type:
                 case 'collision_type':
-                    if props.get("bungie_mesh_poop_collision_type") is None:
-                        face_properties.setdefault("bungie_mesh_poop_collision_type", FaceSet(np.full(num_faces, face_prop_defaults["bungie_mesh_poop_collision_type"], dtype=np.int32))).update_from_material(mesh, material_indices, PoopCollisionType[prop.collision_type].value)
+                    if scene.corinth and not poop_collision:
+                        if props.get("bungie_mesh_poop_collision_type") is None:
+                            face_properties.setdefault("bungie_mesh_poop_collision_type", FaceSet(np.full(num_faces, face_prop_defaults["bungie_mesh_poop_collision_type"], dtype=np.int32))).update_from_material(mesh, material_indices, PoopCollisionType[prop.collision_type].value)
                 case 'face_mode':
                     if props.get("bungie_face_mode") is None:
                         face_mode = FaceMode[prop.face_mode]
@@ -2471,8 +2474,9 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
     for prop in mesh_props.face_props:
         match prop.type:
             case 'collision_type':
-                if props.get("bungie_mesh_poop_collision_type") is None:
-                    face_properties.setdefault("bungie_mesh_poop_collision_type", FaceSet(np.full(num_faces, face_prop_defaults["bungie_mesh_poop_collision_type"], dtype=np.int32))).update(mesh, prop, PoopCollisionType[prop.collision_type].value)
+                if scene.corinth and not poop_collision:
+                    if props.get("bungie_mesh_poop_collision_type") is None:
+                        face_properties.setdefault("bungie_mesh_poop_collision_type", FaceSet(np.full(num_faces, face_prop_defaults["bungie_mesh_poop_collision_type"], dtype=np.int32))).update(mesh, prop, PoopCollisionType[prop.collision_type].value)
             case 'face_mode':
                 if props.get("bungie_face_mode") is None:
                     face_mode = FaceMode[prop.face_mode]
@@ -2618,8 +2622,9 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
     for material, material_indices in special_mats_dict.items():
         if material.name.lower().startswith('+seamsealer') and props.get("bungie_face_type") is None:
             if scene.corinth:
-                face_properties.setdefault("bungie_face_mode", FaceSet(np.full(num_faces, face_prop_defaults["bungie_face_mode"], dtype=np.int32))).update_from_material(mesh, material_indices, FaceMode.collision_only.value)
-                face_properties.setdefault("bungie_mesh_poop_collision_type", FaceSet(np.full(num_faces, face_prop_defaults["bungie_mesh_poop_collision_type"], dtype=np.int32))).update_from_material(mesh, material_indices, PoopCollisionType.invisible_wall.value)
+                if not poop_collision:
+                    face_properties.setdefault("bungie_face_mode", FaceSet(np.full(num_faces, face_prop_defaults["bungie_face_mode"], dtype=np.int32))).update_from_material(mesh, material_indices, FaceMode.collision_only.value)
+                    face_properties.setdefault("bungie_mesh_poop_collision_type", FaceSet(np.full(num_faces, face_prop_defaults["bungie_mesh_poop_collision_type"], dtype=np.int32))).update_from_material(mesh, material_indices, PoopCollisionType.invisible_wall.value)
             else:
                 face_properties.setdefault("bungie_face_type", FaceSet(np.full(num_faces, face_prop_defaults["bungie_face_type"], dtype=np.int32))).update_from_material(mesh, material_indices, FaceType.seam_sealer.value)
         elif is_structure and material.name.lower().startswith('+seam') and props.get("bungie_mesh_type") != MeshType.seam.value:
@@ -2627,8 +2632,9 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
             face_properties.setdefault("bungie_mesh_type", FaceSet(np.full(num_faces, face_prop_defaults["bungie_mesh_type"], dtype=np.int32))).update_from_material(mesh, material_indices, MeshType.seam.value)
         elif material.name.lower().startswith('+'):
             if not is_structure and scene.corinth:
-                face_properties.setdefault("bungie_face_mode", FaceSet(np.full(num_faces, face_prop_defaults["bungie_face_mode"], dtype=np.int32))).update_from_material(mesh, material_indices, FaceMode.collision_only.value)
-                face_properties.setdefault("bungie_mesh_poop_collision_type", FaceSet(np.full(num_faces, face_prop_defaults["bungie_mesh_poop_collision_type"], dtype=np.int32))).update_from_material(mesh, material_indices, PoopCollisionType.invisible_wall.value)
+                if not poop_collision:
+                    face_properties.setdefault("bungie_face_mode", FaceSet(np.full(num_faces, face_prop_defaults["bungie_face_mode"], dtype=np.int32))).update_from_material(mesh, material_indices, FaceMode.collision_only.value)
+                    face_properties.setdefault("bungie_mesh_poop_collision_type", FaceSet(np.full(num_faces, face_prop_defaults["bungie_mesh_poop_collision_type"], dtype=np.int32))).update_from_material(mesh, material_indices, PoopCollisionType.invisible_wall.value)
             else:
                 enum_val = FaceType.sky.value if (is_structure and scene.asset_type == AssetType.SCENARIO) else FaceType.seam_sealer.value
                 if props.get("bungie_face_type") is None:
