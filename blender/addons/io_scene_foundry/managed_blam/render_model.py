@@ -349,30 +349,41 @@ class RenderModelTag(Tag):
                 self.collection.objects.link(ob)
                 
             for instance in self.instances:
+                assigned = False
                 i_permutations = []
+                found_region = None
                 ob = instance.ob
                 if not ob: continue
                 for region in self.regions:
                     for perm in region.permutations:
                         for instance_index in perm.instance_indices:
                             if instance_index == instance.index:
-                                if not ob.nwo.marker_uses_regions:
+                                assigned = True
+                                if found_region is None or found_region == region:
                                     ob.nwo.marker_uses_regions = True
+                                    found_region = region
                                     utils.set_region(ob, region.name)
+                                else:
+                                    ob.nwo.marker_uses_regions = False
                                 i_permutations.append(perm.name)
                                 break
                     
-                    if ob.nwo.marker_uses_regions:
-                        if len(i_permutations) != len(region.permutations):
-                            # Pick if this is include or exclude type depending on whichever means less permutation entries need to be added
-                            # If a tie prefer exclude
-                            exclude_permutations = [p.name for p in region.permutations if p.name not in i_permutations]
-                            if len(i_permutations) < len(exclude_permutations):
-                                ob.nwo.marker_permutation_type = "include"
-                                utils.set_marker_permutations(ob, i_permutations)
-                            else:
-                                utils.set_marker_permutations(ob, exclude_permutations)
-                        break
+                    if assigned:
+                        if ob.nwo.marker_uses_regions:
+                            if len(i_permutations) != len(region.permutations):
+                                # Pick if this is include or exclude type depending on whichever means less permutation entries need to be added
+                                # If a tie prefer exclude
+                                exclude_permutations = [p.name for p in region.permutations if p.name not in i_permutations]
+                                if len(i_permutations) < len(exclude_permutations):
+                                    ob.nwo.marker_permutation_type = "include"
+                                    utils.set_marker_permutations(ob, i_permutations)
+                                else:
+                                    utils.set_marker_permutations(ob, exclude_permutations)
+                            break
+                    else:
+                        ob.nwo.marker_uses_regions = True
+                        ob.nwo.marker_permutation_type = "include"
+                        
                 
             objects.extend(ios)
             
