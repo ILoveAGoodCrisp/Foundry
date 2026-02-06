@@ -1025,7 +1025,10 @@ class BSPCollisionMaterial:
                     self.global_material = shader.tag.SelectField("physics material name").Data
             else:
                 with ShaderTag(path=self.render_method) as shader:
-                    self.global_material = shader.tag.SelectField("material name").Data
+                    material_name_field = shader.tag.SelectField("material name")
+                    if material_name_field is None:
+                        material_name_field = shader.tag.SelectField("material name 0")
+                    self.global_material = material_name_field.Data
         
         if self.name:
             self.blender_material = get_blender_material(self.name, self.render_method)

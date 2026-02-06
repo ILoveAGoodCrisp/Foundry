@@ -139,7 +139,7 @@ class AlphaBlendSource(Enum):
     FROM_OPACITY_MAP_ALPHA_AND_ALBEDO_ALPHA = 4
 
 class ShaderTag(Tag):
-    tag_ext = 'shader'
+    # tag_ext = 'shader'
     scale_u = 'scale x'
     scale_v = 'scale y'
     translation_u = 'translation x'
