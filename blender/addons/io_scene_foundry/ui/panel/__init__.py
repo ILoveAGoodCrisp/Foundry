@@ -1288,7 +1288,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             default_icon_off_name = "decorator_off"
             
         grid.prop(nwo, "connected_geometry_mesh_type_default_visible", text="", icon_value=get_icon_id(default_icon_name) if nwo.connected_geometry_mesh_type_default_visible else get_icon_id(default_icon_off_name), emboss=False)
-        if utils.poll_ui(('scenario', 'model', 'prefab')):
+        if utils.poll_ui(('model',)):
             grid.prop(nwo, "connected_geometry_mesh_type_collision_visible", text="", icon_value=get_icon_id("collider") if nwo.connected_geometry_mesh_type_collision_visible else get_icon_id("collider_off"), emboss=False)
         if asset_type == 'model':
             grid.prop(nwo, "connected_geometry_mesh_type_physics_visible", text="", icon_value=get_icon_id("physics") if nwo.connected_geometry_mesh_type_physics_visible else get_icon_id("physics_off"), emboss=False)

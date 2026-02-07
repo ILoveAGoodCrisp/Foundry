@@ -535,6 +535,9 @@ class ExportScene:
                             self.warnings.append(warning)
                             continue
                 if ob.type == 'LIGHT':
+                    if ob.data.energy < 0:
+                        self.warnings.append(f"Light {ob.name} has power less than zero. Ignoring")
+                        continue
                     if ob.data.type == 'AREA':
                         emissive_ob = utils.area_light_to_emissive(ob, self.corinth)
                         
