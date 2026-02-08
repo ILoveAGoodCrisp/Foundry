@@ -199,7 +199,7 @@ def gather_lights(context, collection_map):
             if utils.ignore_for_export_fast(original, collection_map, parent):
                 continue
             
-            if original.data.data.energy < 0:
+            if original.data.energy < 0:
                 print(f"Light {original.name} has power less than zero. Ignoring")
                 continue
             

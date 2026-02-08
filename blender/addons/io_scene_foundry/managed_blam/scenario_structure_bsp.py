@@ -470,9 +470,10 @@ class ScenarioStructureBspTag(Tag):
             return objects
         
         utils.print_step("Importing Prefabs")
+        layer = utils.add_permutation("prefabs")
         prefabs_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_prefabs")
         prefabs_collection.nwo.type = "permutation"
-        prefabs_collection.nwo.permutation = "prefabs"
+        prefabs_collection.nwo.permutation = layer
         parent_collection.children.link(prefabs_collection)
         
         for element in self.block_prefabs.Elements:
