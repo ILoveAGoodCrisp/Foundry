@@ -199,6 +199,10 @@ def gather_lights(context, collection_map):
             if utils.ignore_for_export_fast(original, collection_map, parent):
                 continue
             
+            if original.data.data.energy < 0:
+                print(f"Light {original.name} has power less than zero. Ignoring")
+                continue
+            
             export_collection = parent.nwo.export_collection
             has_export_collection = bool(parent.nwo.export_collection)
             if has_export_collection:

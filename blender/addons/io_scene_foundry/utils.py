@@ -5871,7 +5871,7 @@ def get_light_final_color_and_intensity(light: bpy.types.Light | float, intensit
             
     intensity_factor = max(base.r, base.g, base.b)
         
-    max_color = max(base.r, base.g, base.b)
+    max_color = max(base.r, base.g, base.b, 1)
     if max_color > 0.0:
         base.r /= max_color
         base.g /= max_color
@@ -5879,8 +5879,8 @@ def get_light_final_color_and_intensity(light: bpy.types.Light | float, intensit
         
     intensity = intensity_factor * intensity
     
-    if intensity > 100: # make color whiter in extreme intensity
-        base.s = lerp(100, 1000, 1, 0, intensity)
+    # if intensity > 100: # make color whiter in extreme intensity
+    #     base.s = lerp(100, 1000, 1, 0, intensity)
         
     red = base.r if ignore_colorspace_conversion else linear_to_srgb(base.r)
     green = base.g if ignore_colorspace_conversion else linear_to_srgb(base.g)
@@ -5888,9 +5888,9 @@ def get_light_final_color_and_intensity(light: bpy.types.Light | float, intensit
     alpha = 1.0
     
     if return_255:
-        red *= 255
-        green *= 255
-        blue *= 255
+        red *= 255.0
+        green *= 255.0
+        blue *= 255.0
         alpha = 255.0
         
     if return_argb:
