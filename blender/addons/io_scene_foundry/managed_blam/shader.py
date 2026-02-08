@@ -870,7 +870,7 @@ class ShaderTag(Tag):
                 for value_type, ap in animated_parameters.items():
                     self._setup_input_with_function(node.inputs[TilingNodeInputs[value_type.name].value], ap, uses_time=True)
                     
-            self.add_texcoord_node(tree, node.inputs["Vector"])
+            self.add_texcoord_node(tree, node.inputs[0])
             return node
     
     def _recursive_tiling_parameters_get(self, parameter: OptionParameter, animated_parameters: dict):
