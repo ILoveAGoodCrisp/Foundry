@@ -87,7 +87,7 @@ def gather_prefabs(context):
             proxy.type = original.type
             proxy.nwo = nwo
             proxy.matrix_world = inst.matrix_world.copy()
-            if has_export_collection:
+            if has_export_collection and collection.region:
                 proxies[proxy] = collection.region
             else:
                 proxies[proxy] = nwo.region_name

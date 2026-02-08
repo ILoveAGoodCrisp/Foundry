@@ -369,9 +369,9 @@ class ExportScene:
             nwo.collection_region = ""
             nwo.collection_permutation = ""
             if has_export_collection:
-                if collection.region is not None:
+                if collection.region:
                     nwo.collection_region = collection.region
-                if collection.permutation is not None:
+                if collection.permutation:
                     nwo.collection_permutation = collection.permutation
             
             if proxy.type == 'ARMATURE':

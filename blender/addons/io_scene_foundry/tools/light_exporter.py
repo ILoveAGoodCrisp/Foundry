@@ -214,7 +214,7 @@ def gather_lights(context, collection_map):
             proxy.type = 'LIGHT'
             proxy.nwo = nwo
             proxy.matrix_world = inst.matrix_world.copy()
-            if has_export_collection:
+            if has_export_collection and collection.region:
                 proxies[proxy] = collection.region
             else:
                 proxies[proxy] = nwo.region_name
@@ -263,7 +263,7 @@ def gather_lightmap_regions(context, collection_map):
             proxy.type = original.type
             proxy.nwo = nwo
             proxy.matrix_world = inst.matrix_world.copy()
-            if has_export_collection:
+            if has_export_collection and collection.region:
                 proxies[proxy] = collection.region
             else:
                 proxies[proxy] = nwo.region_name
