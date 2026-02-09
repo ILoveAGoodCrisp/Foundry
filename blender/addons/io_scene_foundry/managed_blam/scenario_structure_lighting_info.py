@@ -531,7 +531,7 @@ class ScenarioStructureLightingInfoTag(Tag):
             
             if not blender_light.use_nodes:
                 if blender_light in self.inverse_squared_lights:
-                    blender_light.energy = utils.calc_light_energy(blender_light, blender_light.nwo.light_intensity, 0.03048)
+                    blender_light.energy = utils.calc_light_energy(blender_light, blender_light.nwo.light_intensity, 1)
                 else:
                     gobo_image = None
                     if self.path_exists(gobo_tag_path):
