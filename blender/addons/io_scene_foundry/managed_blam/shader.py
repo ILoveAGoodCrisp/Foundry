@@ -161,7 +161,11 @@ class ShaderTag(Tag):
         self.definition = self.render_method.SelectField('definition')
         
     def get_global_material(self):
-        global_material = self.tag.SelectField("StringId:material name").GetStringData()
+        global_material_field = self.tag.SelectField("StringId:material name")
+        if global_material_field is None:
+            global_material_field = self.tag.SelectField("StringId:material name 0")
+            
+        global_material = global_material_field.GetStringData()
         
         if not global_material and self.reference.Path is not None and self.path_exists(self.reference.Path):
             with ShaderTag(path=self.reference.Path) as ref_shader:
