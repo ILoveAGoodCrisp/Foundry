@@ -158,8 +158,7 @@ class Granny:
             self.export_skeletons.append(Skeleton(model.skeleton, node, nodes))
             mesh_binding_indices = []
             for bone in model.skeleton.bones:
-                if bone.node and nodes.get(bone.bone) and bone.node.mesh:
-                    
+                if bone.node and (nodes.get(bone.bone) or bone.is_proxy) and bone.node.mesh:
                     vertex_data = None
                     
                     if bone.node.for_pca and animation is not None:

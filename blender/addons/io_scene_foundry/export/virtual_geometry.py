@@ -1604,7 +1604,7 @@ def granny_transform_parts(matrix_local: Matrix):
     
 class VirtualBone:
     '''Describes an blender object/bone which is a child'''
-    def __init__(self, id: bpy.types.Object | bpy.types.PoseBone, name):
+    def __init__(self, id: bpy.types.Object | bpy.types.PoseBone, name, is_proxy=False):
         self.name: str = name
         self.bone = id
         self.parent_index: int = -1
@@ -1613,6 +1613,7 @@ class VirtualBone:
         self.matrix_world: Matrix = IDENTITY_MATRIX
         self.props = {}
         self.granny_bone = GrannyBone()
+        self.is_proxy = is_proxy
         
     def create_bone_props(self, frame_ids):
         self.props["bungie_frame_ID1"] = int(frame_ids[0])
@@ -1899,7 +1900,7 @@ class VirtualSkeleton:
             for proxy in self.node.mesh.proxies:
                 node = scene.add(proxy, *scene.object_halo_data[proxy], self.node)
                 if not node or node.invalid: continue
-                b = VirtualBone(proxy, node.name)
+                b = VirtualBone(proxy, node.name, True)
                 b.parent_index = parent_index
                 b.node = node
                 b.matrix_world = b.node.matrix_world

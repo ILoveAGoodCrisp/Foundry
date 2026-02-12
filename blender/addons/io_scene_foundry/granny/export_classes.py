@@ -122,7 +122,7 @@ class Skeleton:
     def _get_bones(self, skeleton, all_nodes):
         # if a virtual bone has no node then it comes from a blender bone. If it does have a node then it came from
         # an object and we need to check if its in scope for this export
-        self.bones = [bone.granny_bone for bone in skeleton.bones if not bone.node or all_nodes.get(bone.bone)]
+        self.bones = [bone.granny_bone for bone in skeleton.bones if not bone.node or (all_nodes.get(bone.bone) or bone.is_proxy)]
     
 class Color:
     red: float
