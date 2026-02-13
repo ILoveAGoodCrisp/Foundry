@@ -9,6 +9,7 @@ import uuid
 import bmesh
 import bpy
 from mathutils import Matrix, Vector
+import numpy as np
 
 from ..managed_blam.globals import GlobalsTag
 
@@ -1481,7 +1482,7 @@ class ExportScene:
                         mesh_props["bungie_lighting_attenuation_enabled"] = 1
                         mesh_props["bungie_lighting_attenuation_cutoff"] = cutoff * self.atten_scalar * WU_SCALAR
                         mesh_props["bungie_lighting_attenuation_falloff"] = falloff * self.atten_scalar * WU_SCALAR
-                        mesh_props["bungie_lighting_emissive_focus"] = degrees(prop.material_lighting_emissive_focus) / 180
+                        mesh_props["bungie_lighting_emissive_focus"] = 1 - degrees(prop.material_lighting_emissive_focus) / 180
         
         if face_sides_props_full and len(face_sides_props) == len(face_sides_props_full):
             side_value = "one_sided"

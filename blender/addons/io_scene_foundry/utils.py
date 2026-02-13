@@ -3306,7 +3306,7 @@ def area_light_to_emissive(light_ob: bpy.types.Object, corinth: bool):
     prop = add_face_prop(plane_data, 'emissive')
     prop.material_lighting_attenuation_cutoff = light_nwo.light_far_attenuation_end
     prop.material_lighting_attenuation_falloff = light_nwo.light_far_attenuation_start
-    prop.material_lighting_emissive_focus = light_nwo.light_focus
+    prop.material_lighting_emissive_focus = light.spread
     prop.material_lighting_emissive_per_unit = light.normalize
     if light.use_nodes:
         intensity = light_nwo.light_intensity

@@ -1733,7 +1733,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     col.prop(data, "size_y", text="Y")
                 col.separator()
                 col.prop(nwo, "light_quality")
-                col.prop(nwo, "light_focus")
+                col.prop(data, "spread")
                 col.prop(ob.nwo, "light_bounce_ratio")
                 col.separator()
                 col.prop(nwo, "light_use_shader_gel")

@@ -1900,7 +1900,7 @@ class JMSMaterialSlot:
             self.emissive_quality = self.material.ass_jms.quality
             self.emissive_per_unit = self.material.ass_jms.power_per_unit_area
             self.emissive_shader_gel = self.material.ass_jms.use_shader_gel
-            self.emissive_focus = radians(self.material.ass_jms.emissive_focus * 180)
+            self.emissive_focus = radians(180 * (1 - self.material.ass_jms.emissive_focus))
             self.emissive_attenuation = self.material.ass_jms.attenuation_enabled
             if self.emissive_attenuation:
                 self.emissive_attenuation_falloff = self.material.ass_jms.falloff_distance

@@ -2469,7 +2469,7 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
                         face_properties.setdefault("bungie_lighting_attenuation_enabled", FaceSet(np.full(num_faces, face_prop_defaults["bungie_lighting_attenuation_enabled"], dtype=np.int32))).update_from_material(mesh, material_indices, 1)
                         face_properties.setdefault("bungie_lighting_attenuation_cutoff", FaceSet(np.full(num_faces, face_prop_defaults["bungie_lighting_attenuation_cutoff"], np.single))).update_from_material(mesh, material_indices, cutoff * scene.atten_scalar * WU_SCALAR)
                         face_properties.setdefault("bungie_lighting_attenuation_falloff", FaceSet(np.full(num_faces, face_prop_defaults["bungie_lighting_attenuation_falloff"], np.single))).update_from_material(mesh, material_indices, falloff * scene.atten_scalar * WU_SCALAR)
-                        face_properties.setdefault("bungie_lighting_emissive_focus", FaceSet(np.full(num_faces, face_prop_defaults["bungie_lighting_emissive_focus"], np.single))).update_from_material(mesh, material_indices, degrees(prop.material_lighting_emissive_focus) / 180)
+                        face_properties.setdefault("bungie_lighting_emissive_focus", FaceSet(np.full(num_faces, face_prop_defaults["bungie_lighting_emissive_focus"], np.single))).update_from_material(mesh, material_indices, 1 - degrees(prop.material_lighting_emissive_focus) / 180)
         
     
     for prop in mesh_props.face_props:
@@ -2609,7 +2609,7 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
                     face_properties.setdefault("bungie_lighting_attenuation_enabled", FaceSet(np.full(num_faces, face_prop_defaults["bungie_lighting_attenuation_enabled"], dtype=np.int32))).update(mesh, prop, 1)
                     face_properties.setdefault("bungie_lighting_attenuation_cutoff", FaceSet(np.full(num_faces, face_prop_defaults["bungie_lighting_attenuation_cutoff"], np.single))).update(mesh, prop, cutoff * scene.atten_scalar * WU_SCALAR)
                     face_properties.setdefault("bungie_lighting_attenuation_falloff", FaceSet(np.full(num_faces, face_prop_defaults["bungie_lighting_attenuation_falloff"], np.single))).update(mesh, prop, falloff * scene.atten_scalar * WU_SCALAR)
-                    face_properties.setdefault("bungie_lighting_emissive_focus", FaceSet(np.full(num_faces, face_prop_defaults["bungie_lighting_emissive_focus"], np.single))).update(mesh, prop, degrees(prop.material_lighting_emissive_focus) / 180)
+                    face_properties.setdefault("bungie_lighting_emissive_focus", FaceSet(np.full(num_faces, face_prop_defaults["bungie_lighting_emissive_focus"], np.single))).update(mesh, prop, 1 - degrees(prop.material_lighting_emissive_focus) / 180)
                     
     if deferred_transparencies:
         transparent_indices = np.unique(np.concatenate([a for a in deferred_transparencies]))

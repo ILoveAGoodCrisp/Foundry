@@ -1641,7 +1641,7 @@ class MeshSubpart:
             e = material.emissive
             prop.material_lighting_attenuation_cutoff = e.attenuation_cutoff * atten_factor * (1 / WU_SCALAR)
             prop.material_lighting_attenuation_falloff = e.attenuation_falloff * atten_factor * (1 / WU_SCALAR)
-            prop.material_lighting_emissive_focus = radians(e.focus * 180)
+            prop.material_lighting_emissive_focus = radians(180 * (1 - e.focus))
             prop.material_lighting_emissive_color = e.color
             prop.material_lighting_emissive_per_unit = e.power_per_unit_area
             prop.light_intensity = e.power
