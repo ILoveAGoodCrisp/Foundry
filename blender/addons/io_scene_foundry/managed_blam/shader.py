@@ -165,6 +165,9 @@ class ShaderTag(Tag):
         if global_material_field is None:
             global_material_field = self.tag.SelectField("StringId:material name 0")
             
+        if global_material_field is None:
+            return ""
+            
         global_material = global_material_field.GetStringData()
         
         if not global_material and self.reference.Path is not None and self.path_exists(self.reference.Path):

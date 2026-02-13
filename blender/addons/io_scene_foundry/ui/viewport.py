@@ -547,10 +547,10 @@ def object_context_apply_types(self, context):
     asset_type = utils.get_scene_props().asset_type
     layout.separator()
     selection_count = len(context.selected_objects)
+    ob = context.object
     if selection_count > 1:
         layout.label(text=f'{selection_count} Halo Objects Selected', icon_value=get_icon_id('category_object_properties_pinned'))
     else:
-        ob = context.object
         object_type = utils.get_object_type(ob, True)
         if object_type in ('Mesh', 'Marker'):
             if object_type == 'Mesh':
@@ -577,7 +577,7 @@ def object_context_apply_types(self, context):
                 layout.operator_menu_enum("nwo.mesh_to_marker", property="marker_type", text="Convert to Marker", icon='EMPTY_AXIS').called_once = False
         elif markers_valid:
             layout.operator_menu_enum("nwo.mesh_to_marker", property="marker_type", text="Set Marker Type", icon='EMPTY_AXIS').called_once = False
-        if utils.is_instancer(context.object):
+        if ob and ob.type == 'EMPTY' and ob.nwo.marker_type == '_connected_geometry_marker_type_game_instance' and ob.nwo.marker_game_instance_tag_name.strip():
             layout.operator("nwo.instancer_to_instance", icon='MESH_DATA')
             
 def object_context_sets(self, context):

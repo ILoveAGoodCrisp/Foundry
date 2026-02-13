@@ -5271,7 +5271,7 @@ class NWO_OT_InstancerToInstance(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return utils.is_instancer(context.object)
+        return context.object and context.object.type == 'EMPTY' and context.object.nwo.marker_type == '_connected_geometry_marker_type_game_instance' and context.object.nwo.marker_game_instance_tag_name.strip()
 
     def execute(self, context):
         cache = {}
@@ -5280,8 +5280,9 @@ class NWO_OT_InstancerToInstance(bpy.types.Operator):
         count = 0
         rotation_matrix = Matrix.Identity(4)
         scene_nwo = utils.get_scene_props()
+        
         for ob in context.selected_objects:
-            if not utils.is_instancer(ob):
+            if not (ob.type == 'EMPTY' and ob.nwo.marker_type == '_connected_geometry_marker_type_game_instance' and ob.nwo.marker_game_instance_tag_name.strip()):
                 continue
             
             if not ob.nwo.marker_game_instance_tag_name.lower().endswith(utils.object_exts):
