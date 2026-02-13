@@ -223,6 +223,8 @@ class ModelInstance:
         bm.to_mesh(render_mesh)
         bm.free()
         
+        utils.add_face_prop(render_mesh, "precise_position")
+        
         utils.consolidate_face_attributes(render_mesh)
         
         collection.objects.link(render_ob)
