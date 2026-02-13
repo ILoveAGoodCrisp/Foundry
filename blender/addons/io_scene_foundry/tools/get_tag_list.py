@@ -243,7 +243,7 @@ class NWO_TagExplore(bpy.types.Operator):
 def get_glob_from_prop(prop):
     match prop:
         case 'marker_game_instance_tag_name':
-            return "*.biped;*.crate;*.creature;*.device_*;*.effect_sc*;*.equipment;*.giant;*.scenery;*.vehicle;*.weapon;*.prefab;*.cheap_light;*.light"
+            return "*.biped;*.crate;*.creature;*.device_*;*.effect_sc*;*.equipment;*.giant;*.scenery;*.vehicle;*.weapon;*.prefab;*.cheap_light;*.light;dec*_set"
         case 'fog_appearance_tag':
             return "*.pl*parameters"
         case 'marker_looping_effect':
