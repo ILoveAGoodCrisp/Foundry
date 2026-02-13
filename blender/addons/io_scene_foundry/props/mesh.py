@@ -416,7 +416,7 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
     material_lighting_emissive_focus: bpy.props.FloatProperty(
         name="Material Lighting Emissive Focus",
         options=set(),
-        description="Controls the spread of the light. 180 degrees will emit light in a hemisphere from each point, 0 degrees will emit light nearly perpendicular to the surface",
+        description="Controls the spread of the light. 0 degrees will emit light in a hemisphere from each point, 180 degrees will emit light nearly perpendicular to the surface",
         min=0,
         default=radians(180), 
         max=radians(180),
