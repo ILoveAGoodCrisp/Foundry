@@ -202,6 +202,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         description="Duplicates this structure mesh as instanced geometry at export",
         options=set(),
         override={'LIBRARY_OVERRIDABLE'},
+        default=True,
     )
     
     marker_instance: bpy.props.BoolProperty(
@@ -410,7 +411,8 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="Determines how much texel space this instance (if per pixel) will be given on the lightmap bitmap. Higher values do not automatically increase light resolution, instead the resolution is taken away from other instances. This value acts like a weight, deciding how the lightmap bitmap resolution gets divided up between instances",
         default=1,
-        min=0,
+        min=0.001,
+        max=50000,
         override={'LIBRARY_OVERRIDABLE'},
     )
     

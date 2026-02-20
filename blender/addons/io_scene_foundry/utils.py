@@ -3288,6 +3288,7 @@ def area_light_to_emissive(light_ob: bpy.types.Object, corinth: bool):
     plane_nwo = plane_data.nwo
     if corinth:
         plane_nwo.mesh_type = "_connected_geometry_mesh_type_default"
+        plane_ob.nwo.poop_lightmap_resolution_scale = 0.001
         invis_mat = bpy.data.materials.get("Invisible")
         if invis_mat is None:
             invis_mat = bpy.data.materials.new("Invisible")
