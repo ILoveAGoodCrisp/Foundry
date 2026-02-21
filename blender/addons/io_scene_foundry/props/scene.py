@@ -433,12 +433,28 @@ class NWO_AnimationBlendAxisItems(PropertyGroup):
 #############################################################
 
 #############################################################
+# ANIMATION NODES
+#############################################################
+class NWO_AnimationNodeData_ListItems(bpy.types.PropertyGroup):
+    name: bpy.props.StringProperty(name="Bone", options=set(),)
+    
+    node_type: bpy.props.EnumProperty(
+        name="Node Type",
+        options=set(),
+        items=[
+            ('object_space_node', "Object Space Node", ""),
+            ('replacement_correction_node', "Replacement Correction Node", ""),
+            ('fik_anchor_node', "Forward IK Anchor Node", ""),
+        ]
+    )
+
+#############################################################
 # ANIMATION RENAMES
 #############################################################
 
 
 class NWO_AnimationRenamesItems(bpy.types.PropertyGroup):
-    name: bpy.props.StringProperty(name="Name")
+    name: bpy.props.StringProperty(name="Name", options=set(),)
 
 #############################################################
 # ANIMATION EVENTS
@@ -1244,6 +1260,17 @@ class NWO_AnimationPropertiesGroup(bpy.types.PropertyGroup):
     #     description='Tells the exporter to compute aim node directions for this overlay. These allow animations to be affected by the aiming direction of the animated object. You must set the pedestal, pitch, and yaw usages in the Foundry armature properties to use this correctly\nExamples: aim_still_up, acc_up_down, vehicle steering'
     # )
 
+    animation_nodes: bpy.props.CollectionProperty(
+        type=NWO_AnimationNodeData_ListItems,
+    )
+
+    active_animation_node_index: bpy.props.IntProperty(
+        name="Index for Animation Node",
+        default=0,
+        min=0,
+        options=set(),
+    )
+    
     animation_events: bpy.props.CollectionProperty(
         type=NWO_Animation_ListItems,
     )
@@ -3301,6 +3328,17 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     )
     
     show_water_direction: bpy.props.BoolProperty(options={'HIDDEN'})
+    
+    animation_nodes: bpy.props.CollectionProperty(
+        type=NWO_AnimationNodeData_ListItems,
+    )
+
+    active_animation_node_index: bpy.props.IntProperty(
+        name="Index for Animation Node",
+        default=0,
+        min=0,
+        options=set(),
+    )
     
     animation_events: bpy.props.CollectionProperty(
         type=NWO_Animation_ListItems,

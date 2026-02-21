@@ -23,6 +23,7 @@ classes = [
     scene.NWO_AnimationBlendAxisItems,
     # scene.NWO_AnimationCompositesItems,
     scene.NWO_ActionGroup,
+    scene.NWO_AnimationNodeData_ListItems,
     scene.NWO_AnimationRenamesItems,
     scene.NWO_AnimationEventData_ListItems,
     scene.NWO_Animation_ListItems,
