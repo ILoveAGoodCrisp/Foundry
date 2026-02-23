@@ -1,0 +1,5 @@
+packages/*
+obj/*
+bin/*
+.vs/*
+packages/*

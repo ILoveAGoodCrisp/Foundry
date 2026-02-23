@@ -282,6 +282,12 @@ class FoundryPreferences(AddonPreferences):
         name="Granny Viewer Path",
         description="Full system path to granny viewer. Having this allows Foundry to open gr2 files in the viewer",
     )
+    
+    allow_foundation_plugin_install: BoolProperty(
+        name="Allow Foundation Plugin Install",
+        default=True,
+        description="By default when launching Foundation with Foundry, the Foundry Plugin will be installed for Foundation if it does not already exist (or is out of date). Toggle this off to prevent this behaviour"
+    )
 
     def draw(self, context):
         prefs = self
@@ -339,6 +345,8 @@ class FoundryPreferences(AddonPreferences):
         row.prop(prefs, "import_shaders_with_time_period")
         row = box.row(align=True)
         row.prop(prefs, "allow_tool_patches")
+        row = box.row(align=True)
+        row.prop(prefs, "allow_foundation_plugin_install")
         row = box.row(align=True)
         row.prop(prefs, "granny_viewer_path")
         

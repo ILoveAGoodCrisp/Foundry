@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36804.6
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FoundryPlugin", "FoundryPlugin.csproj", "{4C31694A-24CC-4031-9436-8D9E9384A89F}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{4C31694A-24CC-4031-9436-8D9E9384A89F}.Debug|x64.ActiveCfg = Debug|x64
+		{4C31694A-24CC-4031-9436-8D9E9384A89F}.Debug|x64.Build.0 = Debug|x64
+		{4C31694A-24CC-4031-9436-8D9E9384A89F}.Release|x64.ActiveCfg = Release|x64
+		{4C31694A-24CC-4031-9436-8D9E9384A89F}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {B445F014-D272-45B9-AE01-0316F66347D8}
+	EndGlobalSection
+EndGlobal

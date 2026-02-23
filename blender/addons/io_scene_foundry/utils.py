@@ -1327,6 +1327,7 @@ class ProjectXML():
         self.image_path = ""
         self.default_material = ""
         self.default_water = ""
+        self.blender_path = ""
 
     def parse(self, project_root):
         has_changes = False
@@ -1394,6 +1395,20 @@ class ProjectXML():
                 case 'episql.343i.selfhost.corp.microsoft.com':
                     water.text = r"levels\sway\ca_sanctuary\materials\rocks\ca_sanctuary_rockflat_water.material"
             self.default_water = water.text
+            has_changes = True
+            
+        blender_path = root.find('./blenderPath', 0)
+        if blender_path is not None:
+            if blender_path.text != bpy.app.binary_path:
+                blender_path.text = bpy.app.binary_path
+                self.blender_path = blender_path.text
+                has_changes = True
+            else:
+                self.blender_path = blender_path.text
+        else:
+            blender_path = ET.SubElement(root, 'blenderPath')
+            blender_path.text = bpy.app.binary_path
+            self.blender_path = blender_path.text
             has_changes = True
         
         if has_changes:

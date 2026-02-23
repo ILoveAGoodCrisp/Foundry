@@ -3,7 +3,7 @@
 import os
 from pathlib import Path
 import bpy
-
+import xml.etree.ElementTree as ET
 from ..ui.bar import draw_game_launcher_pruning, draw_game_launcher_settings
 from ..managed_blam.scenario import ScenarioTag
 from ..utils import (
@@ -23,7 +23,117 @@ from ..utils import (
     update_debug_menu,
     valid_nwo_asset,
     current_project_valid,
+    addon_root,
+    copy_file,
+    project_game_for_mcc,
 )
+
+FOUNDRY_PLUGIN_PATH = r"bin\tools\bonobo\FoundryPlugin\FoundryPlugin.dll"
+FOUNDRY_PLUGIN_SHORT_PATH = r"FoundryPlugin\FoundryPlugin.dll"
+PLUGINS_XML_PATH = r"bin\tools\bonobo\plugins.bonobo.xml"
+
+OMAHA_SOURCE_PLUGIN_PATH = r"resources\foundation\FoundryPluginOmaha.dll"
+MIDNIGHT_SOURCE_PLUGIN_PATH = r"resources\foundation\FoundryPluginMidnight.dll"
+GROUNDHOG_SOURCE_PLUGIN_PATH = r"resources\foundation\FoundryPluginGroundhog.dll"
+
+OMAHA_FOUNDATION_VERSION = "1.903.0.0"
+MIDNIGHT_FOUNDATION_VERSION = "1.890.0.0"
+GROUNDHOG_FOUNDATION_VERSION = "1.41.0.0"
+
+def foundation_plugin_update():
+    print("Called")
+    if not get_prefs().allow_foundation_plugin_install:
+        return False
+    
+    print("prefs allow it")
+    
+    project_path = get_project_path()
+    plugin_path = Path(project_path, FOUNDRY_PLUGIN_PATH)
+    
+    plugins_xml = Path(project_path, PLUGINS_XML_PATH)
+    
+    if not plugins_xml.exists():
+        return False
+    
+    print("plugin xml exists")
+    
+    import clr
+    import System # type:ignore
+    from System.Reflection import Assembly # type:ignore
+    from System.Diagnostics import FileVersionInfo # type:ignore
+    
+    foundation_path = Path(project_path, "Foundation.exe")
+    foundation_info = FileVersionInfo.GetVersionInfo(str(foundation_path))
+    foundation_version = System.Version.Parse(foundation_info.FileVersion)
+    
+    print("yellow")
+    print(foundation_version)
+    
+    match project_game_for_mcc(bpy.context):
+        case 'HaloReach':
+            source_plugin_path = Path(addon_root(), OMAHA_SOURCE_PLUGIN_PATH)
+            if foundation_version != System.Version.Parse(OMAHA_FOUNDATION_VERSION):
+                return False
+        case 'Halo4':
+            source_plugin_path = Path(addon_root(), MIDNIGHT_SOURCE_PLUGIN_PATH)
+            if foundation_version != System.Version.Parse(MIDNIGHT_FOUNDATION_VERSION):
+                return False
+        case 'Halo2A':
+            source_plugin_path = Path(addon_root(), GROUNDHOG_SOURCE_PLUGIN_PATH)
+            if foundation_version != System.Version.Parse(GROUNDHOG_FOUNDATION_VERSION):
+                return False
+        case _:
+            return False
+        
+    print("version match")
+    
+    if not source_plugin_path.exists():
+        return False
+    
+    print("source exists")
+    
+    update_required = False
+    
+    if not plugin_path.exists():
+        update_required = True
+    else:
+        source_assembly = Assembly.LoadFrom(str(source_plugin_path))
+        source_version = source_assembly.GetName().Version
+        assembly = Assembly.LoadFrom(str(plugin_path))
+        version = assembly.GetName().Version
+        
+        update_required = source_version > version
+        
+    if not update_required:
+        return False
+    
+    dir = plugin_path.parent
+    
+    if not dir.exists():
+        dir.mkdir(parents=True, exist_ok=True)
+        
+    copy_file(source_plugin_path, plugin_path)
+    
+    tree = ET.parse(plugins_xml)
+    root = tree.getroot()
+
+    plugins = root.find("plugins")
+    if plugins is None:
+        return True
+
+    for container in plugins.findall("container"):
+        if container.get("path") == FOUNDRY_PLUGIN_SHORT_PATH:
+            return True
+
+    new_container = ET.Element("container")
+    new_container.set("path", FOUNDRY_PLUGIN_SHORT_PATH)
+
+    plugins.insert(0, new_container)
+
+    ET.indent(tree, space="\t", level=0)
+
+    tree.write(plugins_xml, encoding="utf-8", xml_declaration=True)
+    return True
 
 class NWO_OpenFoundationTag(bpy.types.Operator):
     bl_idname = "nwo.open_foundation_tag"
@@ -52,7 +162,7 @@ def get_tag_if_exists(asset_path, asset_name, type, extra=""):
     else:
         return ""
 
-def launch_foundation(settings, context):
+def launch_foundation(settings, context, report):
     scene_nwo = get_scene_props()
     launch_args = ["Foundation.exe"]
     # set the launch args
@@ -222,6 +332,8 @@ def launch_foundation(settings, context):
                 )
 
     # first, get and set the project so we can avoid the Foundation prompt
+    if foundation_plugin_update():
+        report({'INFO'}, "Installed Foundry Plugin for Foundation")
     run_ek_cmd(launch_args, True)
     run_ek_cmd([os.path.join("bin", "tools", "bonobo", "TagWatcher.exe")], True)
 
@@ -554,7 +666,7 @@ class NWO_HaloLauncher_Foundation(bpy.types.Operator):
     def execute(self, context):
         from .halo_launcher import launch_foundation
 
-        return launch_foundation(get_launcher_props(), context)
+        return launch_foundation(get_launcher_props(), context, self.report)
 
 
 class NWO_HaloLauncher_Data(bpy.types.Operator):
