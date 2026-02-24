@@ -411,6 +411,8 @@ class AnimationTag(Tag):
         
         pca_animations = {}
         
+        node_names = self.get_nodes()
+        
         animation_nodes = None
         with RenderModelTag(path=render_model) as model:
             exporter = self._AnimationExporter()
@@ -488,9 +490,40 @@ class AnimationTag(Tag):
                                 animation.animation_movement_data = 'full'
                     case 2:
                         animation.animation_type = 'overlay'
+                        
+                        for node_element in shared_data.Elements[0].SelectField("Block:object space offset nodes").Elements:
+                            n_index = node_element.Fields[0].Value
+                            if n_index < 0 or n_index >= nodes_count:
+                                continue
+                            
+                            a_node = animation.animation_nodes.add()
+                            a_node.name = node_names[n_index]
+                            a_node.node_type = 'object_space_offset_node'
+                            animation.active_animation_node_index = len(animation.animation_nodes) - 1
+                        
                     case 3:
                         animation.animation_type = 'replacement'
-
+                        
+                        for node_element in shared_data.Elements[0].SelectField("Block:object-space parent nodes").Elements:
+                            n_index = node_element.Fields[0].Value
+                            if n_index < 0 or n_index >= nodes_count:
+                                continue
+                            
+                            a_node = animation.animation_nodes.add()
+                            a_node.name = node_names[n_index]
+                            a_node.node_type = 'replacement_correction_node'
+                            animation.active_animation_node_index = len(animation.animation_nodes) - 1
+                            
+                for node_element in shared_data.Elements[0].SelectField("Block:forward-invert kinetic anchor nodes").Elements:
+                    n_index = node_element.Fields[0].Value
+                    if n_index < 0 or n_index >= nodes_count:
+                        continue
+                    
+                    a_node = animation.animation_nodes.add()
+                    a_node.name = node_names[n_index]
+                    a_node.node_type = 'fik_anchor_node'
+                    animation.active_animation_node_index = len(animation.animation_nodes) - 1
+                    
                 track = animation.action_tracks.add()
                 track.object = armature
                 track.action = action
