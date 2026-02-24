@@ -4982,6 +4982,11 @@ class NWO_OT_ImportShader(bpy.types.Operator):
         mat.nwo.shader_path = shader_path
         tag_to_nodes(utils.is_corinth(context), mat, shader_path)
         
+        if not hasattr(self, "area"):
+            self.area = None
+            self.mouse_x = 0
+            self.mouse_y = 0
+        
         match self.area:
             case 'VIEW_3D':
                 hit, face_location, face_normal, face_index, face_object, face_matrix = utils.ray_cast_mouse(context, (self.mouse_x, self.mouse_y))
@@ -5313,12 +5318,20 @@ class NWO_OT_InstancerToInstance(bpy.types.Operator):
                     rotation_matrix = Matrix.Rotation(importer.from_x_rot, 4, 'Z')
                 
                 converter.instance.matrix_world = ob.matrix_world @ rotation_matrix
+                
+                # For Mjolnir Tool
+                if hasattr(ob, "forge"):
+                    converter.instance.forge.color = ob.forge.color
+                    
                 converter.clean_up()
                 
             else:
                 new_instance = linked_instance.copy()
                 collection.objects.link(new_instance)
                 new_instance.matrix_world = ob.matrix_world @ rotation_matrix
+                # For Mjolnir Tool
+                if hasattr(ob, "forge"):
+                    new_instance.forge.color = ob.forge.color
 
             count += 1 
             bpy.data.objects.remove(ob)
