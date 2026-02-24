@@ -59,6 +59,45 @@ class NWO_OT_RemoveAnimationNode(bpy.types.Operator):
             animation.active_animation_node_index += -1
         context.area.tag_redraw()
         return {"FINISHED"}
+    
+class NWO_OT_SingleAddAnimationNode(bpy.types.Operator):
+    bl_idname = "nwo.single_add_animation_node"
+    bl_label = "Add"
+    bl_description = "Add a new animation node item"
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene
+
+    def execute(self, context):
+        scene_nwo = utils.get_scene_props()
+        animation = scene_nwo
+        animation.animation_nodes.add()
+        animation.active_animation_node_index = len(animation.animation_nodes) - 1
+        context.area.tag_redraw()
+        return {"FINISHED"}
+
+class NWO_OT_SingleRemoveAnimationNode(bpy.types.Operator):
+    bl_idname = "nwo.single_remove_animation_node"
+    bl_label = "Remove"
+    bl_description = "Remove an animation node item from the list"
+    bl_options = {"UNDO"}
+    
+    @classmethod
+    def poll(cls, context):
+        scene_nwo = utils.get_scene_props()
+        return context.scene and scene_nwo.animation_nodes
+
+    def execute(self, context):
+        scene_nwo = utils.get_scene_props()
+        animation = scene_nwo
+        index = animation.active_animation_node_index
+        animation.animation_nodes.remove(index)
+        if animation.active_animation_node_index > len(animation.animation_nodes) - 1:
+            animation.active_animation_node_index += -1
+        context.area.tag_redraw()
+        return {"FINISHED"}
 
 class NWO_OT_ExportFrameEvents(bpy.types.Operator):
     bl_idname = "nwo.export_animation_frame_events"
@@ -498,6 +537,7 @@ class NWO_OT_AnimationMoveToOwnBlend(bpy.types.Operator):
         asset_path = utils.get_asset_path_full()
         blend_path = Path(utils.get_asset_path_full(), "animations", animation.name).with_suffix(".blend")
         gr2_path = Path(asset_path, "export", "animations", animation.name).with_suffix(".gr2")
+        is_overlay = animation.animation_type == 'overlay'
         animation.external = True
         animation.gr2_path = utils.relative_path(gr2_path)
         
@@ -519,6 +559,7 @@ class NWO_OT_AnimationMoveToOwnBlend(bpy.types.Operator):
             scene_nwo.is_child_asset = True
             scene_nwo.parent_asset = rel_path
             scene_nwo.parent_sidecar = sidecar_path
+            scene_nwo.animation_overlay = is_overlay
         
         bpy.ops.wm.save_mainfile(compress=context.preferences.filepaths.use_file_compression)
         self.report({'INFO'}, f"Loaded new blend: {blend_path}")

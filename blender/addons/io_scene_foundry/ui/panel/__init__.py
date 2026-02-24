@@ -210,11 +210,15 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col.operator("nwo.open_parent_asset", icon='BLENDER')
             col.prop(nwo, "parent_sidecar")
             if nwo.asset_type == 'single_animation':
+                col.prop(nwo, "animation_overlay")
                 self.draw_rig_ui(self.context, nwo)
                 self.draw_single_animation_events(nwo, box)
+                self.draw_single_animation_nodes(nwo, box)
         elif nwo.asset_type == 'single_animation':
+            col.prop(nwo, "animation_overlay")
             self.draw_rig_ui(self.context, nwo)
             self.draw_single_animation_events(nwo, box)
+            self.draw_single_animation_nodes(nwo, box)
         else:
             if nwo.asset_type == 'model':
                 self.draw_expandable_box(self.box.box(), nwo, 'output_tags')
@@ -308,6 +312,34 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             
             # if nwo.asset_type in {'model', 'sky', 'scenario', 'animation', 'cinematic'}:
             #     self.draw_expandable_box(self.box.box(), nwo, "child_assets", panel_display_name="Child Assets" if nwo.asset_type != 'cinematic' else "Other Cinematic Scenes")
+            
+    def draw_single_animation_nodes(self, nwo, box):
+        box = box.box()
+        col = box.column()
+        col.label(text="Animation Nodes")
+        row = col.row()
+        rows = 3
+        row.template_list(
+            "NWO_UL_AnimProps_Node",
+            "",
+            nwo,
+            "animation_nodes",
+            nwo,
+            "active_animation_node_index",
+            rows=rows,
+        )
+        col = row.column(align=True)
+        col.operator("nwo.single_add_animation_node", text="", icon="ADD")
+        col.operator("nwo.single_remove_animation_node", icon="REMOVE", text="")
+        
+        if nwo.animation_nodes:
+            node = nwo.animation_nodes[nwo.active_animation_node_index]
+            col = box.column()
+            ob = self.context.object
+            if not ob or ob.type != 'ARMATURE':
+                return col.label(text="Select Armature to set node bone")
+            col.prop_search(node, "name", ob.pose, 'bones', results_are_suggestions=True, icon='BONE_DATA')
+            col.prop(node, "node_type", expand=True)
             
     def draw_single_animation_events(self, nwo, box):
         box = box.box()
@@ -928,6 +960,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         col.prop_search(nwo, "node_usage_pedestal", nwo.main_armature.data, "bones")
         col.prop_search(nwo, "node_usage_pose_blend_pitch", nwo.main_armature.data, "bones")
         col.prop_search(nwo, "node_usage_pose_blend_yaw", nwo.main_armature.data, "bones")
+        if nwo.asset_type == 'single_animation':
+            return
         col.prop_search(nwo, "node_usage_physics_control", nwo.main_armature.data, "bones")
         col.prop_search(nwo, "node_usage_camera_control", nwo.main_armature.data, "bones")
         col.prop_search(nwo, "node_usage_origin_marker", nwo.main_armature.data, "bones")
@@ -1259,9 +1293,9 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
     def draw_rig_ui(self, context, nwo):
         box = self.box.box()
         if self.draw_expandable_box(box, nwo, 'model_rig') and nwo.main_armature:
-            # self.draw_expandable_box(box.box(), nwo, 'rig_controls', 'Bone Controls')
             self.draw_expandable_box(box.box(), nwo, 'rig_usages', 'Node Usages')
-            self.draw_expandable_box(box.box(), nwo, 'ik_chains', panel_display_name='IK Chains')
+            if nwo.asset_type != 'single_animation':
+                self.draw_expandable_box(box.box(), nwo, 'ik_chains', panel_display_name='IK Chains')
 
     def draw_sets_manager(self):
         self.box.operator('nwo.update_sets', icon='FILE_REFRESH')

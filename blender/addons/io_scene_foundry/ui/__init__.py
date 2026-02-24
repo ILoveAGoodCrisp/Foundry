@@ -36,6 +36,8 @@ classes = [
     animation.NWO_UL_AnimProps_Node,
     animation.NWO_OT_AddAnimationNode,
     animation.NWO_OT_RemoveAnimationNode,
+    animation.NWO_OT_SingleAddAnimationNode,
+    animation.NWO_OT_SingleRemoveAnimationNode,
     animation.NWO_OT_ExportFrameEvents,
     animation.NWO_UL_AnimProps_EventsData,
     animation.NWO_OT_AddAnimationEventData,

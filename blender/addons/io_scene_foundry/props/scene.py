@@ -3329,6 +3329,11 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     
     show_water_direction: bpy.props.BoolProperty(options={'HIDDEN'})
     
+    animation_overlay: bpy.props.BoolProperty(
+        name="Overlay",
+        description="This animation is meant to be an overlay"
+    )
+    
     animation_nodes: bpy.props.CollectionProperty(
         type=NWO_AnimationNodeData_ListItems,
     )

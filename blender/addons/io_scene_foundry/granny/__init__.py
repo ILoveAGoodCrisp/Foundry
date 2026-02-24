@@ -145,7 +145,7 @@ class Granny:
         
         animation_node_flags = {}
         if animation is not None:
-            for item in animation.anim.animation_nodes:
+            for item in animation.animation_nodes:
                 animation_node_flags.setdefault(item.name, set()).add(item.node_type)
         
         self.export_materials = []

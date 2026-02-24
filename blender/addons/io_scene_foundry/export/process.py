@@ -1757,12 +1757,9 @@ class ExportScene:
                 return
             process = "--- Sampling Animations"
             num_animations = len(valid_animations)
-            for armature in self.armature_poses.keys():
-                armature.pose_position = 'POSE'
-            # for ob in self.context.view_layer.objects:
-            #     ob: bpy.types.Object
-            #     if ob.type != 'ARMATURE':
-            #         utils.unlink(ob)
+            
+        for armature in self.armature_poses.keys():
+            armature.pose_position = 'POSE'
             
         armature_mods = utils.mute_armature_mods() if self.export_settings.faster_animation_export else None
         # self.context.view_layer.update()

@@ -325,7 +325,7 @@ class VirtualAnimation:
             self.animation_type = None
             self.movement = None
             self.space = None
-            self.overlay = False
+            self.overlay = scene.scene_nwo.animation_overlay
             self.frame_count: int = animation.id_data.frame_end - animation.id_data.frame_start + 1
             self.frame_range: tuple[int, int] = (animation.id_data.frame_start, animation.id_data.frame_end)
         else:
@@ -366,6 +366,8 @@ class VirtualAnimation:
         self.suspension_destroyed_extension_depth = 0.0
         self.suspension_destroyed_compression_depth = 0.0
         self.suspension_destroyed_region_name = ""
+        
+        self.animation_nodes = animation.animation_nodes
         
         uses_suspension = not scene.disable_automatic_suspension_computation and utils.tokenise(self.name)[0] == "suspension"
         if uses_suspension:
@@ -507,7 +509,7 @@ class VirtualAnimation:
                     morph_target_datas[node].append(VirtualMorphTargetData(ob, scene, node))
             
         self.create_vector_track_groups(scene, vector_events)
-            
+        
         if self.overlay and pose_overlay_frame_data:
             frame_data = zip(*pose_overlay_frame_data.values())
             data_map = defaultdict(list)
