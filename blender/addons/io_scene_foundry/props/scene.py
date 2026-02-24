@@ -442,9 +442,9 @@ class NWO_AnimationNodeData_ListItems(bpy.types.PropertyGroup):
         name="Node Type",
         options=set(),
         items=[
-            ('object_space_node', "Object Space Node", ""),
-            ('replacement_correction_node', "Replacement Correction Node", ""),
-            ('fik_anchor_node', "Forward IK Anchor Node", ""),
+            ('fik_anchor_node', "Forward IK Anchor Node", "If you figure out what this does please let me know"),
+            ('object_space_offset_node', "Object Space Offset Node", "Only valid for pose overlays. If you figure out what this does please let me know"),
+            ('replacement_correction_node', "Replacement Correction Node", "Only valid for replacement animations. If you figure out what this does please let me know"),
         ]
     )
 

@@ -1612,6 +1612,7 @@ class VirtualBone:
         self.matrix_local: Matrix = IDENTITY_MATRIX
         self.matrix_world: Matrix = IDENTITY_MATRIX
         self.props = {}
+        self.animation_props = {}
         self.granny_bone = GrannyBone()
         self.is_proxy = is_proxy
         
@@ -1626,8 +1627,9 @@ class VirtualBone:
         self.granny_bone.parent_index = self.parent_index
         self.granny_bone.local_transform = GrannyTransform(7, *granny_transform_parts(self.matrix_local))
         self.granny_bone.inverse_world_4x4 = self._granny_world_transform()
-        if self.props:
-            scene.granny.create_extended_data(self.props, self.granny_bone)
+        # 24-02-2026 Now creating extended data at granny export (to support animation nodes)
+        # if self.props:
+        #     scene.granny.create_extended_data(self.props, self.granny_bone)
         
     def _granny_world_transform(self):
         inverse_matrix = self.matrix_world.inverted_safe()

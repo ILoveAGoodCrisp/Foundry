@@ -112,17 +112,40 @@ class Bone():
         )
     
 class Skeleton:
-    def __init__(self, skeleton, skeleton_node, all_nodes: dict):
+    def __init__(self, skeleton, skeleton_node, all_nodes: dict, animation_node_flags=None, granny=None):
         self.granny = None
         self.lod = 0
         self.name = skeleton_node.name.encode()
         self.bones = []
-        self._get_bones(skeleton, all_nodes)
+        self._get_bones(skeleton, all_nodes, animation_node_flags, granny)
         
-    def _get_bones(self, skeleton, all_nodes):
+    def _get_bones(self, skeleton, all_nodes, animation_node_flags=None, granny=None):
         # if a virtual bone has no node then it comes from a blender bone. If it does have a node then it came from
         # an object and we need to check if its in scope for this export
-        self.bones = [bone.granny_bone for bone in skeleton.bones if not bone.node or (all_nodes.get(bone.bone) or bone.is_proxy)]
+        self.bones = []
+
+        # 24-02-2026 Updated to handle animation bone props
+        for bone in skeleton.bones:
+            if not bone.node or (all_nodes.get(bone.bone) or bone.is_proxy):
+
+                granny_bone = bone.granny_bone
+                props = bone.props.copy()
+
+                if animation_node_flags and granny:
+                    node_types = animation_node_flags.get(bone.name)
+
+                    if node_types:
+                        if 'object_space_offset_node' in node_types:
+                            props["bungie_is_object_space_offset_node"] = 1
+
+                        if 'replacement_correction_node' in node_types:
+                            props["bungie_is_replacement_correction_node"] = 1
+
+                        if 'fik_anchor_node' in node_types:
+                            props["bungie_is_fik_anchor_node"] = 1
+
+                granny.create_extended_data(props, granny_bone)
+                self.bones.append(granny_bone)
     
 class Color:
     red: float

@@ -142,6 +142,12 @@ class Granny:
         entity.extended_data.object = data
         
     def from_tree(self, scene, nodes, animation=None):
+        
+        animation_node_flags = {}
+        if animation is not None:
+            for item in animation.anim.animation_nodes:
+                animation_node_flags.setdefault(item.name, set()).add(item.node_type)
+        
         self.export_materials = []
         self.export_textures = []
         self.export_meshes = []
@@ -155,7 +161,17 @@ class Granny:
         for model in scene.models.values():
             node = nodes.get(model.ob)
             if node is None: continue
-            self.export_skeletons.append(Skeleton(model.skeleton, node, nodes))
+            
+            self.export_skeletons.append(
+                Skeleton(
+                    model.skeleton,
+                    node,
+                    nodes,
+                    animation_node_flags if animation else None,
+                    scene.granny
+                )
+            )
+            
             mesh_binding_indices = []
             for bone in model.skeleton.bones:
                 if bone.node and (nodes.get(bone.bone) or bone.is_proxy) and bone.node.mesh:
