@@ -14,6 +14,52 @@ from ...icons import get_icon_id
 
 pose_hints = 'aim', 'look', 'acc', 'steer', 'pain'
 
+class NWO_UL_AnimProps_Node(bpy.types.UIList):
+    def draw_item(
+        self, context, layout, data, item, icon, active_data, active_propname
+    ):
+        layout.label(text=f"{item.name if item.name else 'NONE'} -> {item.node_type}", icon='BONE_DATA')
+                
+class NWO_OT_AddAnimationNode(bpy.types.Operator):
+    bl_idname = "nwo.add_animation_node"
+    bl_label = "Add"
+    bl_description = "Add a new animation node item"
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        scene_nwo = utils.get_scene_props()
+        return scene_nwo.animations and scene_nwo.active_animation_index > -1
+
+    def execute(self, context):
+        scene_nwo = utils.get_scene_props()
+        animation = scene_nwo.animations[scene_nwo.active_animation_index]
+        animation.animation_nodes.add()
+        animation.active_animation_node_index = len(animation.animation_nodes) - 1
+        context.area.tag_redraw()
+        return {"FINISHED"}
+
+class NWO_OT_RemoveAnimationNode(bpy.types.Operator):
+    bl_idname = "nwo.remove_animation_node"
+    bl_label = "Remove"
+    bl_description = "Remove an animation node item from the list"
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        scene_nwo = utils.get_scene_props()
+        return scene_nwo.animations and scene_nwo.active_animation_index > -1 and scene_nwo.animations[scene_nwo.active_animation_index].animation_nodes
+
+    def execute(self, context):
+        scene_nwo = utils.get_scene_props()
+        animation = scene_nwo.animations[scene_nwo.active_animation_index]
+        index = animation.active_animation_node_index
+        animation.animation_nodes.remove(index)
+        if animation.active_animation_node_index > len(animation.animation_nodes) - 1:
+            animation.active_animation_node_index += -1
+        context.area.tag_redraw()
+        return {"FINISHED"}
+
 class NWO_OT_ExportFrameEvents(bpy.types.Operator):
     bl_idname = "nwo.export_animation_frame_events"
     bl_label = "Export Events"

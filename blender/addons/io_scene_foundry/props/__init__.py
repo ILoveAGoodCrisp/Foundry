@@ -1,10 +1,9 @@
 
 
 import bpy
-from . import bone, collection, image, light, material, mesh, object, scene
+from . import collection, image, light, material, mesh, object, scene
 
 classes = [
-    bone.NWO_BonePropertiesGroup,
     collection.NWO_CollectionPropertiesGroup,
     image.NWO_ImagePropertiesGroup,
     light.NWO_LightPropertiesGroup,
@@ -55,12 +54,6 @@ def register():
         name="Halo NWO Properties",
         description="Set Halo Object Properties",
         override={'LIBRARY_OVERRIDABLE'},
-        
-    )
-    bpy.types.Bone.nwo = bpy.props.PointerProperty(
-        type=bone.NWO_BonePropertiesGroup,
-        name="Halo NWO Properties",
-        description="Set Halo Object Properties",
     )
     bpy.types.Collection.nwo = bpy.props.PointerProperty(
         type=collection.NWO_CollectionPropertiesGroup,
@@ -76,11 +69,6 @@ def register():
         type=material.NWO_MaterialPropertiesGroup,
         name="Halo NWO Properties",
         description="Set Halo Material Properties",
-    )
-    bpy.types.Bone.nwo = bpy.props.PointerProperty(
-        type=bone.NWO_BonePropertiesGroup,
-        name="Halo NWO Properties",
-        description="Set Halo Bone Properties",
     )
     bpy.types.Mesh.nwo = bpy.props.PointerProperty(
         type=mesh.NWO_MeshPropertiesGroup,

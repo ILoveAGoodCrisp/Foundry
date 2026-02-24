@@ -3241,6 +3241,36 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 ):
                     col.prop(item, "frame_frame")
                     col.prop(item, "import_name")
+                    
+        # ANIMATION NODES
+        col.separator()
+        if not animation.animation_nodes:
+            col.operator("nwo.add_animation_node", text="New Animation Node", icon='BONE_DATA')
+        else:
+            node_box = box.box()
+            col = node_box.column()
+            row = col.row()
+            row.label(text="Animation Nodes")
+            row = col.row()
+            rows = 3
+            row.template_list(
+                "NWO_UL_AnimProps_Node",
+                "",
+                animation,
+                "animation_nodes",
+                animation,
+                "active_animation_node_index",
+                rows=rows,
+            )
+            col = row.column(align=True)
+            col.operator("nwo.add_animation_node", text="", icon="ADD")
+            col.operator("nwo.remove_animation_node", icon="REMOVE", text="")
+            node = animation.animation_nodes[animation.active_animation_node_index]
+            col = node_box.column()
+            if not ob or ob.type != 'ARMATURE':
+                return col.label(text="Select Armature to set node bone")
+            col.prop_search(node, "name", ob.pose, 'bones', results_are_suggestions=True, icon='BONE_DATA')
+            col.prop(node, "node_type", expand=True)
 
     def draw_tools(self):
         nwo = self.scene_nwo
