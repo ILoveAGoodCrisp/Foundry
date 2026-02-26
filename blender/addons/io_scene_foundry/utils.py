@@ -5913,3 +5913,8 @@ def get_light_final_color_and_intensity(light: bpy.types.Light | float, intensit
         return [alpha, red, green, blue], intensity
     else:
         return [red, green, blue], intensity
+    
+def copy_bl_props(source_id, dest_id):
+    for k, v in source_id.items():
+        if type(v).__name__ != 'IDPropertyGroup':
+            dest_id[k] = v

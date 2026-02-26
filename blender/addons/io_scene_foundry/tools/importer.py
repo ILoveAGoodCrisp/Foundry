@@ -5321,7 +5321,7 @@ class NWO_OT_InstancerToInstance(bpy.types.Operator):
                 
                 # For Mjolnir Tool
                 if hasattr(ob, "forge"):
-                    converter.instance.forge.color = ob.forge.color
+                    utils.copy_bl_props(ob.forge, converter.instance.forge)
                     
                 converter.clean_up()
                 
@@ -5331,7 +5331,7 @@ class NWO_OT_InstancerToInstance(bpy.types.Operator):
                 new_instance.matrix_world = ob.matrix_world @ rotation_matrix
                 # For Mjolnir Tool
                 if hasattr(ob, "forge"):
-                    new_instance.forge.color = ob.forge.color
+                    utils.copy_bl_props(ob.forge, converter.instance.forge)
 
             count += 1 
             bpy.data.objects.remove(ob)
