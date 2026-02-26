@@ -104,7 +104,6 @@ def register():
 def unregister():
     del bpy.types.Scene.nwo
     del bpy.types.Object.nwo
-    del bpy.types.Bone.nwo
     del bpy.types.Light.nwo
     del bpy.types.Material.nwo
     del bpy.types.Mesh.nwo
