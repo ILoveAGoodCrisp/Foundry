@@ -235,8 +235,12 @@ class NWO_ShaderToNodes(bpy.types.Operator):
         layout = self.layout
         layout.prop(self, "always_extract_bitmaps")
 
-def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str, always_extract_bitmaps=False) -> set:
+def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str, always_extract_bitmaps=False) -> set | None:
     """Turns a shader/material tag into blender material nodes"""
+    
+    if not Path(utils.get_tags_path(), utils.relative_path(tag_path)).exists():
+        return
+    
     print(f"--- Building material nodes for: {mat.name}")
     shader = None
     if corinth:
