@@ -120,6 +120,8 @@ class SidecarImport:
         empty_import_relevant = empty_region_perms and (self.export_settings.export_render or self.export_settings.export_markers or self.export_settings.export_markers)
         
         if empty_import_relevant:
+            print("\nModel needs empty regions. Running full import\n")
+            self.import_failed, self.error = utils.run_tool_sidecar(["import", self.sidecar_path, *self._get_import_flags()], self.export_settings.event_level)
             print("\nImporting Render Geometry & Animation Only\n")
             render_only_failed, render_only_failed_error = utils.run_tool_sidecar(["import", self.sidecar_path, *self._get_import_flags(render_only=True)], self.export_settings.event_level)
             
