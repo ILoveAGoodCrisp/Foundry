@@ -393,7 +393,7 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
         filter = self.animation_filter.replace(" ", ":")
         
         for scene in new_scenes:
-            for anim in scene_nwo.animations:
+            for anim in scene.nwo.animations:
                 colon_name = anim.name.replace(" ", ":")
                 
                 if filter and filter not in colon_name:
