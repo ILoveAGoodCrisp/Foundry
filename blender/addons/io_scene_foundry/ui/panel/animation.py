@@ -662,7 +662,7 @@ class NWO_OT_AnimationsFromActions(bpy.types.Operator):
         for animation in scene_nwo.animations:
             for track in animation.action_tracks:
                 if track.action:
-                    used_actions.add(action)
+                    used_actions.add(track.action)
                     
         for action in bpy.data.actions:
             if action in used_actions:
