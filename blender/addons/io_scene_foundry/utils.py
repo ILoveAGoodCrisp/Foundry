@@ -5918,3 +5918,36 @@ def copy_bl_props(source_id, dest_id):
     for k, v in source_id.items():
         if type(v).__name__ != 'IDPropertyGroup':
             dest_id[k] = v
+            
+def source_blend_from_sidecar(sidecar_path):
+    
+    sidecar_path = str(sidecar_path)
+    
+    if not os.path.exists(sidecar_path):
+        return
+    
+    try:
+        tree = ET.parse(sidecar_path)
+        root = tree.getroot()
+
+        header = root.find("Header")
+        if header is None:
+            return None
+
+        source_blend_element = header.find("SourceBlend")
+        if source_blend_element is None:
+            return None
+
+        source_blend = (source_blend_element.text or "").strip()
+        if not source_blend:
+            return None
+
+        if os.path.isabs(source_blend):
+            return source_blend if os.path.exists(source_blend) else None
+
+        combined = os.path.join(get_data_path(), source_blend)
+        return combined if os.path.exists(combined) else None
+
+    except Exception as ex:
+        print(f"Failed reading sidecar: {sidecar_path}")
+        return None

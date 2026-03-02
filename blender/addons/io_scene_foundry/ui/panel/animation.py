@@ -372,7 +372,7 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
     )
     
     use_external_gr2: bpy.props.BoolProperty(
-        name="Link to existing GR2",
+        name="Link to existing GR2 Files",
         description="Links the animation to an already existing GR2 file from the blend the animations are being imported from. If no GR2 exists, then the animations will be kept internal"
     )
     
@@ -403,7 +403,7 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
         
         for scene in new_scenes:
             if scene.nwo.sidecar_path:
-                export_animations_path = Path(data_path, utils.relative_path(scene.nwo.sidecar_path), "export", "animations")
+                export_animations_path = Path(data_path, Path(utils.relative_path(scene.nwo.sidecar_path)).parent, "export", "animations")
                 
             for anim in scene.nwo.animations:
                 colon_name = anim.name.replace(" ", ":")
@@ -419,6 +419,7 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
                         
                     if self.use_external_gr2 and export_animations_path is not None and not anim.external:
                         expected_gr2_path = Path(export_animations_path, f"{anim.name}.gr2")
+                        print(expected_gr2_path)
                         if expected_gr2_path.exists():
                             new_anim.external = True
                             new_anim.gr2_path = utils.relative_path(expected_gr2_path)
@@ -515,12 +516,16 @@ class NWO_OT_OpenExternalAnimationBlend(bpy.types.Operator):
         root_asset = Path(animation.gr2_path).parent.parent.parent
         blend = Path(utils.get_data_path(), root_asset, "animations", animation.name).with_suffix(".blend")
         
-        if blend.exists():
-            bpy.ops.wm.save_mainfile(compress=context.preferences.filepaths.use_file_compression)
-            bpy.ops.wm.open_mainfile(filepath=str(blend))
-        else:
-            self.report({'WARNING'}, f"No blender file associated with this GR2. Expected: {blend}")
-            return {'CANCELLED'}
+        if not blend.exists():
+            sidecar = Path(utils.get_data_path(), root_asset, f"{root_asset.name}.sidecar.xml")
+            blend = utils.source_blend_from_sidecar(sidecar)
+            
+            if blend is None or not Path(blend).exists():
+                self.report({'WARNING'}, f"No blender file associated with this GR2. Expected: {blend}")
+                return {'CANCELLED'}
+            
+        bpy.ops.wm.save_mainfile(compress=context.preferences.filepaths.use_file_compression)
+        bpy.ops.wm.open_mainfile(filepath=str(blend))
         
         self.report({'INFO'}, f"Loaded blend: {blend}")
         return {'FINISHED'}

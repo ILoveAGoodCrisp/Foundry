@@ -2426,10 +2426,14 @@ class ExportScene:
         # Check for missing render regions
         may_need_empty_region_perms = self.corinth and self.is_model
         if may_need_empty_region_perms:
-            set_collision_physics_regions_perms = {(k, tuple(v)) for k, v in self.collision_physics_regions_perms.items()}
-            set_render_regions_perms = {(k, tuple(v)) for k, v in self.render_regions_perms.items()}
-            empty_region_perms = {k[0]: set(k[1]) for k in set_collision_physics_regions_perms.difference(set_render_regions_perms)}
-        
+
+            collision_regions = set(self.collision_physics_regions_perms.keys())
+            render_regions = set(self.render_regions_perms.keys())
+
+            empty_region_names = collision_regions - render_regions
+
+            empty_region_perms = {region: set(self.collision_physics_regions_perms[region])for region in empty_region_names}
+            
         sidecar_importer = SidecarImport(self.asset_path, self.asset_name, self.asset_type, self.sidecar_path, self.scene_settings, self.export_settings, self.selected_bsps, self.corinth, structure, self.tags_dir, self.selected_actors, self.cinematic_scene, self.active_animation, structure, design, self.has_no_virtual_scene)
         if self.corinth and self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB}:
             sidecar_importer.save_lighting_infos()
