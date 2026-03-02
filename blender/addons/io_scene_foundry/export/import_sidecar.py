@@ -222,7 +222,7 @@ class SidecarImport:
 
         return flags
     
-    def cull_unused_tags(self):
+    def cull_unused_tags(self, animation_asset=False):
         try:
             tag_path = Path(self.tags_dir, self.relative_asset_path, self.asset_name)
             scenery = tag_path.with_suffix(".scenery")
@@ -231,10 +231,12 @@ class SidecarImport:
             # remove the unused tags
             if scenery.exists():
                 scenery.unlink()
-            if model.exists():
-                model.unlink()
-            if render_model.exists():
-                render_model.unlink()
+                
+            if animation_asset:
+                if model.exists():
+                    model.unlink()
+                if render_model.exists():
+                    render_model.unlink()
         except:
             print("Failed to remove unused tags")
             

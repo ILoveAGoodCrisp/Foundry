@@ -2453,8 +2453,10 @@ class ExportScene:
             sidecar_importer.run()
         if sidecar_importer.lighting_infos:
             sidecar_importer.restore_lighting_infos()
-        if self.asset_type == AssetType.ANIMATION:
-            sidecar_importer.cull_unused_tags()
+            
+        animation_asset = self.asset_type == AssetType.ANIMATION
+        if animation_asset or (self.asset_type == AssetType.MODEL and self.sidecar.no_top_level_tag):
+            sidecar_importer.cull_unused_tags(animation_asset)
         elif self.asset_type == AssetType.SCENARIO and self.export_settings.force_imposter_policy_never:
             sidecar_importer.cull_imposter_defs()
             
