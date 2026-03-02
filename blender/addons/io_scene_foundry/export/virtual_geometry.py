@@ -318,7 +318,8 @@ class VectorTrack:
             
 class VirtualAnimation:
     def __init__(self, animation, scene: 'VirtualScene', sample: bool, animation_controls=[], shape_key_objects=[], vector_events=[]):
-        if isinstance(animation, NWO_ScenePropertiesGroup):
+        is_scene_anim = isinstance(animation, NWO_ScenePropertiesGroup)
+        if is_scene_anim:
             self.name = Path(bpy.data.filepath).with_suffix("").name
             self.anim = animation
             self.compression = 'Default'
@@ -390,6 +391,9 @@ class VirtualAnimation:
         if sample:
             self.create_track_group(scene.skeleton_model.skeleton.animated_bones + animation_controls, scene, shape_key_objects, vector_events)
             self.to_granny_animation(scene)
+            
+        if not is_scene_anim:
+            animation.pose_overlay = self.pose_overlay
             
     def create_vector_track_groups(self, scene: 'VirtualScene', vector_events: list[VectorEvent]):
         # Vector events

@@ -371,6 +371,11 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
         description="Imports animations using armature animation onto the selected armature rather than looking for a matching name"
     )
     
+    use_external_gr2: bpy.props.BoolProperty(
+        name="Link to existing GR2",
+        description="Links the animation to an already existing GR2 file from the blend the animations are being imported from. If no GR2 exists, then the animations will be kept internal"
+    )
+    
     def execute(self, context):
         scene_nwo = utils.get_scene_props()
         armature = None
@@ -392,7 +397,14 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
         
         filter = self.animation_filter.replace(" ", ":")
         
+        export_animations_path = None
+        
+        data_path = utils.get_data_path()
+        
         for scene in new_scenes:
+            if scene.nwo.sidecar_path:
+                export_animations_path = Path(data_path, utils.relative_path(scene.nwo.sidecar_path), "export", "animations")
+                
             for anim in scene.nwo.animations:
                 colon_name = anim.name.replace(" ", ":")
                 
@@ -404,6 +416,12 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
                     new_anim_count += 1
                     for key, value in anim.items():
                         new_anim[key] = value
+                        
+                    if self.use_external_gr2 and export_animations_path is not None and not anim.external:
+                        expected_gr2_path = Path(export_animations_path, f"{anim.name}.gr2")
+                        if expected_gr2_path.exists():
+                            new_anim.external = True
+                            new_anim.gr2_path = utils.relative_path(expected_gr2_path)
                         
                     if not self.import_events:
                         new_anim.animation_events.clear()
@@ -451,6 +469,8 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
                                         break
 
                                     last_potential_name = potential_name
+                                    
+            export_animations_path = None
                         
         for scene in new_scenes:
             bpy.data.scenes.remove(scene)
@@ -470,6 +490,7 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
         layout.prop(self, "import_events")
         layout.prop(self, "import_renames")
         layout.prop(self, "prioritise_selected_armature")
+        layout.prop(self, "use_external_gr2")
         layout.prop(self, "animation_filter")
 
 class NWO_OT_OpenExternalAnimationBlend(bpy.types.Operator):
