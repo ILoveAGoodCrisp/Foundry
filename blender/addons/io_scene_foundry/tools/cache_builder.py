@@ -232,6 +232,7 @@ class CacheBuilder:
                     for co in spawn_coordinates:
                         element = scenery.AddElement()
                         element.Fields[1].Value = initial_palette_index
+                        element.SelectField("Struct:object data[0]/Struct:object id[0]/CharEnum:source").Value = 1 # set to editor
                         element.SelectField("Struct:object data[0]/RealPoint3d:position").Data = co[0]
                         element.SelectField("Struct:object data[0]/RealEulerAngles3d:rotation").Data = co[1]
                         element.SelectField("Struct:object data[0]/Struct:object id[0]/LongInteger:unique id").Data = utils.unique_id()
@@ -243,6 +244,7 @@ class CacheBuilder:
                     for co in spawn_coordinates:
                         element = scenery.AddElement()
                         element.Fields[1].Value = respawn_palette_index
+                        element.SelectField("Struct:object data[0]/Struct:object id[0]/CharEnum:source").Value = 1 # set to editor
                         element.SelectField("Struct:object data[0]/RealPoint3d:position").Data = co[0]
                         element.SelectField("Struct:object data[0]/RealEulerAngles3d:rotation").Data = co[1]
                         element.SelectField("Struct:object data[0]/Struct:object id[0]/LongInteger:unique id").Data = utils.unique_id()
@@ -261,6 +263,7 @@ class CacheBuilder:
                         print(f"--- Added multiplayer camera from blender viewport")
                     element = scenery.AddElement()
                     element.Fields[1].Value = camera_palette_index
+                    element.SelectField("Struct:object data[0]/Struct:object id[0]/CharEnum:source").Value = 1 # set to editor
                     element.SelectField("Struct:object data[0]/RealPoint3d:position").Data = loc
                     element.SelectField("Struct:object data[0]/RealEulerAngles3d:rotation").Data = rot
                     element.SelectField("Struct:object data[0]/Struct:object id[0]/LongInteger:unique id").Data = utils.unique_id()
