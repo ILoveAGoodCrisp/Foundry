@@ -239,6 +239,7 @@ class CacheBuilder:
                         element.SelectField("Struct:object data[0]/Struct:object id[0]/CharEnum:type").Value = 6 # Scenery
                         element.SelectField("Struct:multiplayer data[0]/CharEnum:owner team").Value = 8 # Neutral
                     print("--- Added initial spawn points")
+                    tag.tag_has_changes = True
                         
                 if has_respawn_ref and not has_respawns:
                     for co in spawn_coordinates:
@@ -251,6 +252,7 @@ class CacheBuilder:
                         element.SelectField("Struct:object data[0]/Struct:object id[0]/CharEnum:type").Value = 6 # Scenery
                         element.SelectField("Struct:multiplayer data[0]/CharEnum:owner team").Value = 8 # Neutral
                     print("--- Added respawn points")
+                    tag.tag_has_changes = True
                     
                 if has_camera_ref and not has_camera:
                     # try:
@@ -268,7 +270,8 @@ class CacheBuilder:
                     element.SelectField("Struct:object data[0]/RealEulerAngles3d:rotation").Data = rot
                     element.SelectField("Struct:object data[0]/Struct:object id[0]/LongInteger:unique id").Data = utils.unique_id()
                     element.SelectField("Struct:object data[0]/Struct:object id[0]/CharEnum:type").Value = 6 # Scenery
-                    element.SelectField("Struct:multiplayer data[0]/CharEnum:owner team").Value = 8 # Neutral 
+                    element.SelectField("Struct:multiplayer data[0]/CharEnum:owner team").Value = 8 # Neutral
+                    tag.tag_has_changes = True
                     # except:
                     #     pass
         
