@@ -66,6 +66,7 @@ class Sidecar:
         self.context = context
         self.nwo = utils.get_scene_props()
         self.lods = set()
+        self.no_top_level_tag = False
         
         self.clone = None
         self.verification = None
