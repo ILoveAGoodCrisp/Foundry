@@ -397,6 +397,9 @@ class VirtualAnimation:
             
     def create_vector_track_groups(self, scene: 'VirtualScene', vector_events: list[VectorEvent]):
         # Vector events
+        
+        vector_tracks = []
+        
         for event in vector_events:
             granny_vector_track = GrannyVectorTrack()
             granny_vector_track.name = event.effect_name.encode()
@@ -421,10 +424,16 @@ class VirtualAnimation:
             granny_track_group.vector_track_count = 1
             granny_track_group.vector_tracks = pointer(granny_vector_track)
             granny_track_group.flags = 2
+            
+            vector_tracks.append(granny_vector_track)
+            
             self.granny_event_track_groups.append(pointer(granny_track_group))
             scene.vector_tracks.append(VectorTrack(granny_vector_track, event.name.encode()))
+            
+        return vector_tracks
         
     def create_track_group(self, bones: list['AnimatedBone'], scene: 'VirtualScene', shape_key_objects, vector_events: list[VectorEvent]):
+        vector_tracks = []
         positions = defaultdict(list)
         orientations = defaultdict(list)
         scales = defaultdict(list)
@@ -512,7 +521,7 @@ class VirtualAnimation:
                 for ob, node in shape_key_data.items():
                     morph_target_datas[node].append(VirtualMorphTargetData(ob, scene, node))
             
-        self.create_vector_track_groups(scene, vector_events)
+        vector_tracks = self.create_vector_track_groups(scene, vector_events)
         
         if self.overlay and pose_overlay_frame_data:
             frame_data = zip(*pose_overlay_frame_data.values())
@@ -613,9 +622,16 @@ class VirtualAnimation:
         granny_track_group.name = scene.skeleton_node.name.encode()
         granny_track_group.transform_track_count = len(granny_tracks)
         granny_track_group.transform_tracks = granny_transform_tracks
+        
+        if vector_tracks:
+            granny_track_group.vector_track_count = len(vector_tracks)
+            granny_track_group.vector_tracks = (GrannyVectorTrack * len(vector_tracks))(*vector_tracks)
+        
         granny_track_group.flags = 2
         self.granny_track_group = pointer(granny_track_group)
         # self.granny_track_group = scene.granny.end_track_group(group_builder)
+        
+
         
         for node, data in morph_target_datas.items():
             morphs = [morph.granny_morph_target for morph in data]

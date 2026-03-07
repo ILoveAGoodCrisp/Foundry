@@ -304,14 +304,14 @@ class Granny:
             export_skeleton.granny = ptr_skeleton
             self._populate_skeleton(granny_skeleton, export_skeleton)
             # handle vector tracks
-            keyed_vector_track_idexes = []
+            keyed_vector_track_indices = []
             for idx, track in enumerate(vector_tracks):
                 bone_index = c_int32(0)
                 if self.find_bone_by_name(ptr_skeleton, track.bone_name, pointer(bone_index)):
                     track.granny_vector_track.track_key = self.vector_track_key_for_bone(ptr_skeleton, bone_index, track.granny_vector_track.name)
-                    keyed_vector_track_idexes.append(idx)
+                    keyed_vector_track_indices.append(idx)
                     
-            for idx in reversed(keyed_vector_track_idexes):
+            for idx in reversed(keyed_vector_track_indices):
                 vector_tracks.pop(idx)
 
         self.file_info.skeleton_count = num_skeletons
