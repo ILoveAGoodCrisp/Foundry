@@ -262,11 +262,13 @@ class Granny:
         # self.file_info.art_tool_info.contents.back_vector = (c_float * 3)(0, 0, 1)
         # self.file_info.art_tool_info.contents.units_per_meter = 100
         
-    def write_track_groups(self, export_track_group, export_vector_track_groups):
-        if export_vector_track_groups is None:
-            all_track_groups = [export_track_group]
-        else:
-            all_track_groups = [export_track_group] + export_vector_track_groups
+    def write_track_groups(self, export_track_group, vector_tracks=[]):
+        
+        if vector_tracks:
+            export_track_group.contents.vector_track_count = len(vector_tracks)
+            export_track_group.contents.vector_tracks = (GrannyVectorTrack * len(vector_tracks))(*[vt.granny_vector_track for vt in vector_tracks])
+        
+        all_track_groups = [export_track_group]
         self.file_info.track_group_count = len(all_track_groups)
         self.file_info.track_groups = (POINTER(GrannyTrackGroup) * len(all_track_groups))(*all_track_groups)
         
@@ -304,15 +306,10 @@ class Granny:
             export_skeleton.granny = ptr_skeleton
             self._populate_skeleton(granny_skeleton, export_skeleton)
             # handle vector tracks
-            keyed_vector_track_indices = []
-            for idx, track in enumerate(vector_tracks):
+            for track in vector_tracks:
                 bone_index = c_int32(0)
-                if self.find_bone_by_name(ptr_skeleton, track.bone_name, pointer(bone_index)):
+                if self.find_bone_by_name(ptr_skeleton, track.bone_name, byref(bone_index)):
                     track.granny_vector_track.track_key = self.vector_track_key_for_bone(ptr_skeleton, bone_index, track.granny_vector_track.name)
-                    keyed_vector_track_indices.append(idx)
-                    
-            for idx in reversed(keyed_vector_track_indices):
-                vector_tracks.pop(idx)
 
         self.file_info.skeleton_count = num_skeletons
         self.file_info.skeletons = skeletons

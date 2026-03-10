@@ -2207,8 +2207,8 @@ class ExportScene:
             self.granny.write_meshes(animation)
             
         if animation_export:
-            self.granny.write_skeletons(export_info=self.export_info, vector_tracks=self.virtual_scene.vector_tracks)
-            self.granny.write_track_groups(animation.granny_track_group, animation.granny_event_track_groups)
+            self.granny.write_skeletons(export_info=self.export_info, vector_tracks=animation.vector_tracks)
+            self.granny.write_track_groups(animation.granny_track_group, vector_tracks=animation.vector_tracks)
             self.granny.write_animations(animation.granny_animation)
         else:
             self.granny.write_skeletons(export_info=self.export_info)

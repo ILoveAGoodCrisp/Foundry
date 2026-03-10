@@ -130,7 +130,7 @@ class VirtualShotAnimation:
     def __init__(self, animation_name, granny_track_group, granny_animation, index: int, is_pca):
         self.name = animation_name
         self.granny_track_group = granny_track_group
-        self.granny_event_track_groups = None
+        # self.granny_event_track_groups = None
         self.granny_animation = granny_animation
         self.is_pca = is_pca
         self.gr2_path = None
@@ -349,10 +349,13 @@ class VirtualAnimation:
         self.anim = animation
         self.morph_target_data = []
         self.is_pca = False
+        
+        self.vector_tracks = []
             
         self.granny_animation = None
         self.granny_track_group = None
-        self.granny_event_track_groups = []
+        self.granny_vector_tracks = None
+        # self.granny_event_track_groups = []
         
         self.granny_morph_targets_counts = {}
         self.granny_morph_targets = {}
@@ -396,22 +399,12 @@ class VirtualAnimation:
             animation.pose_overlay = self.pose_overlay
             
     def create_vector_track_groups(self, scene: 'VirtualScene', vector_events: list[VectorEvent]):
-        # Vector events
-        
-        vector_tracks = []
-        
         for event in vector_events:
             granny_vector_track = GrannyVectorTrack()
             granny_vector_track.name = event.effect_name.encode()
             granny_vector_track.track_key = 0
             granny_vector_track.dimension = 1
-            # builder = scene.granny.begin_curve(scene.granny.keyframe_type, 0, 1, len(event.effect_data))
-            # scene.granny.push_control_array(builder, (c_float * len(event.effect_data))(*event.effect_data))
-            # vector_curve = scene.granny.end_curve(builder)
-            # granny_vector_track.value_curve = vector_curve.contents
-            # del vector_curve
-            
-            # Creating the curve manually. granny.push_control_array seems to build a vector float array with the first two values corrupted
+
             curve_data = GrannyCurveDataDaKeyframes32f()
             curve_data.dimension = 1
             curve_data.control_count = len(event.effect_data)
@@ -419,18 +412,7 @@ class VirtualAnimation:
             granny_vector_track.value_curve.curve_data.type = scene.granny.keyframe_type
             granny_vector_track.value_curve.curve_data.object = cast(pointer(curve_data), c_void_p)
             
-            granny_track_group = GrannyTrackGroup()
-            granny_track_group.name = event.name.encode()
-            granny_track_group.vector_track_count = 1
-            granny_track_group.vector_tracks = pointer(granny_vector_track)
-            granny_track_group.flags = 2
-            
-            vector_tracks.append(granny_vector_track)
-            
-            self.granny_event_track_groups.append(pointer(granny_track_group))
-            scene.vector_tracks.append(VectorTrack(granny_vector_track, event.name.encode()))
-            
-        return vector_tracks
+            self.vector_tracks.append(VectorTrack(granny_vector_track=granny_vector_track, bone_name=event.name.encode()))
         
     def create_track_group(self, bones: list['AnimatedBone'], scene: 'VirtualScene', shape_key_objects, vector_events: list[VectorEvent]):
         vector_tracks = []
@@ -521,7 +503,7 @@ class VirtualAnimation:
                 for ob, node in shape_key_data.items():
                     morph_target_datas[node].append(VirtualMorphTargetData(ob, scene, node))
             
-        vector_tracks = self.create_vector_track_groups(scene, vector_events)
+        self.create_vector_track_groups(scene, vector_events)
         
         if self.overlay and pose_overlay_frame_data:
             frame_data = zip(*pose_overlay_frame_data.values())
@@ -623,15 +605,9 @@ class VirtualAnimation:
         granny_track_group.transform_track_count = len(granny_tracks)
         granny_track_group.transform_tracks = granny_transform_tracks
         
-        if vector_tracks:
-            granny_track_group.vector_track_count = len(vector_tracks)
-            granny_track_group.vector_tracks = (GrannyVectorTrack * len(vector_tracks))(*vector_tracks)
-        
         granny_track_group.flags = 2
         self.granny_track_group = pointer(granny_track_group)
         # self.granny_track_group = scene.granny.end_track_group(group_builder)
-        
-
         
         for node, data in morph_target_datas.items():
             morphs = [morph.granny_morph_target for morph in data]
@@ -646,7 +622,7 @@ class VirtualAnimation:
         granny_animation.duration = scene.time_step * frame_total + 0.00001
         granny_animation.time_step = scene.time_step
         granny_animation.oversampling = 1
-        all_track_groups = [self.granny_track_group] + self.granny_event_track_groups
+        all_track_groups = [self.granny_track_group]
         granny_animation.track_group_count = len(all_track_groups)
         granny_animation.track_groups = (POINTER(GrannyTrackGroup) * len(all_track_groups))(*all_track_groups)
         
@@ -2040,7 +2016,6 @@ class VirtualScene:
         self.selected_cinematic_objects_only = False
         self.cinematic_scope = 'BOTH'
         
-        self.vector_tracks = []
         self.poop_obs = {}
         self.no_structure_export = not export_settings.export_structure
         
