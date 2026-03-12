@@ -1946,9 +1946,9 @@ class ExportScene:
                         proxy_target.parent_type = 'BONE'
                         proxy_target.parent_bone = self.virtual_scene.root_bone.name
                         constraint = proxy_target.constraints.new('COPY_TRANSFORMS')
-                        if event.ik_target_marker.type == 'EMPTY':
+                        if event.ik_target_marker.type == 'EMPTY' and self.virtual_scene.maintain_marker_axis:
                             constraint.mix_mode = 'BEFORE'
-                            proxy_target.rotation_euler.z += self.rotation_correction
+                            proxy_target.rotation_euler.z -= self.rotation_correction
                         
                         
                         # constraint.target_space = 'LOCAL'
@@ -1981,9 +1981,9 @@ class ExportScene:
                             pole_target.parent_bone = self.virtual_scene.root_bone.name
                             constraint = pole_target.constraints.new('COPY_TRANSFORMS')
                             constraint.target = event.ik_pole_vector
-                            if event.ik_pole_vector.type == 'EMPTY':
+                            if event.ik_pole_vector.type == 'EMPTY' and self.virtual_scene.maintain_marker_axis:
                                 constraint.mix_mode = 'BEFORE'
-                                pole_target.rotation_euler.z += self.rotation_correction
+                                pole_target.rotation_euler.z -= self.rotation_correction
                     
                     # effector.matrix_world = event.ik_target_marker.matrix_world
                         
