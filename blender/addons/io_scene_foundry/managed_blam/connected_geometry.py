@@ -2234,3 +2234,20 @@ def get_blender_material(name, shader_path=""):
             mat.nwo.shader_path = shader_path
         
     return mat
+
+def create_fake_mesh(mesh_block: TagFieldBlock, raw_block: TagFieldBlock, render_method_index: int, mesh_index=None):
+    if mesh_index is None:
+        mesh_element = mesh_block.AddElement()
+        raw_element = raw_block.AddElement()
+    else:
+        mesh_element = mesh_block.Elements[mesh_index]
+        raw_element = raw_block.Elements[mesh_index]
+        
+    parts = mesh_element.SelectField("parts")
+    subparts = mesh_element.SelectField("subparts")
+    verts = raw_element.SelectField("raw vertices")
+    indices = raw_element.SelectField("raw indices")
+    
+    # Parts
+    parts.RemoveAllElements()
+    part = parts.AddElement()

@@ -137,7 +137,7 @@ class ExportScene:
         self.atten_scalar = 1 if corinth else 100
         self.unit_factor = utils.get_unit_conversion_factor(context)
         
-        
+        self.rotation_correction = utils.blender_halo_rotation_diff(self.forward)
         
         self.type_is_relevant = self.asset_type in {AssetType.MODEL, AssetType.SCENARIO, AssetType.SKY, AssetType.PARTICLE_MODEL, AssetType.PREFAB}
         self.uses_main_armature = self.asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.ANIMATION, AssetType.SINGLE_ANIMATION}
@@ -394,7 +394,7 @@ class ExportScene:
         else:    
             self.export_objects = [ob for ob in proxy_export_objects if ob.nwo.export_this and ob.type in valid_objects]
         
-        self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir, self.granny, self.export_settings, utils.time_step(), self.scene_settings.default_animation_compression, utils.blender_halo_rotation_diff(self.forward), self.scene_settings.maintain_marker_axis, self.granny_textures, utils.get_project(self.scene_settings.scene_project), self.to_halo_scale, self.unit_factor, self.atten_scalar, self.context)
+        self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir, self.granny, self.export_settings, utils.time_step(), self.scene_settings.default_animation_compression, self.rotation_correction, self.scene_settings.maintain_marker_axis, self.granny_textures, utils.get_project(self.scene_settings.scene_project), self.to_halo_scale, self.unit_factor, self.atten_scalar, self.context)
         self.has_no_virtual_scene = False
         
     def create_instance_proxies(self, ob: bpy.types.Object, ob_halo_data: dict, region: str, permutation: str):
@@ -1913,6 +1913,7 @@ class ExportScene:
                     props["bungie_animation_event_ik_target_usage"] = event.ik_target_usage
                     
                     proxy_target = bpy.data.objects.new(f'proxy_target_export_node_{event.ik_target_usage}', None)
+                    self.temp_objects.add(proxy_target)
                     proxy_target.parent = self.virtual_scene.skeleton_object
                     proxy_target_props = {}
                     rnd = random.Random()
@@ -1925,6 +1926,7 @@ class ExportScene:
                     proxy_target_props["bungie_animation_control_type"] = '_connected_geometry_animation_control_type_target_proxy'
                     proxy_target_props["bungie_animation_control_proxy_target_usage"] = props["bungie_animation_event_ik_target_usage"]
                     proxy_target_props["bungie_animation_control_proxy_target_marker"] = props["bungie_animation_event_ik_target_marker"]
+                    
                     actual_chain = self.scene_settings.ik_chains
                     current_chain = None
                     for chain in actual_chain:
@@ -1944,7 +1946,11 @@ class ExportScene:
                         proxy_target.parent_type = 'BONE'
                         proxy_target.parent_bone = self.virtual_scene.root_bone.name
                         constraint = proxy_target.constraints.new('COPY_TRANSFORMS')
-                        constraint.target = event.ik_target_marker
+                        if event.ik_target_marker.type == 'EMPTY':
+                            constraint.mix_mode = 'BEFORE'
+                            proxy_target.rotation_euler.z += self.rotation_correction
+                        
+                        
                         # constraint.target_space = 'LOCAL'
                         # constraint.owner_space = 'LOCAL'
                             
@@ -1955,6 +1961,7 @@ class ExportScene:
                         event_ob_props[proxy_target] = proxy_target_props
                         
                         effector = bpy.data.objects.new(f'ik_effector_export_node_{event.ik_chain}_{event.event_type[41:]}', None)
+                        self.temp_objects.add(effector)
                         effector.parent = self.virtual_scene.skeleton_object
                         effector.parent_type = "BONE"
                         effector.parent_bone = self.virtual_scene.root_bone.name
@@ -1968,11 +1975,15 @@ class ExportScene:
                         pole_target = None
                         if event.ik_pole_vector:
                             pole_target = bpy.data.objects.new(f'ik_pole_vector_export_node_{event.ik_chain}_{event.event_type[41:]}', None)
+                            self.temp_objects.add(pole_target)
                             pole_target.parent = self.virtual_scene.skeleton_object
                             pole_target.parent_type = "BONE"
                             pole_target.parent_bone = self.virtual_scene.root_bone.name
                             constraint = pole_target.constraints.new('COPY_TRANSFORMS')
                             constraint.target = event.ik_pole_vector
+                            if event.ik_pole_vector.type == 'EMPTY':
+                                constraint.mix_mode = 'BEFORE'
+                                pole_target.rotation_euler.z += self.rotation_correction
                     
                     # effector.matrix_world = event.ik_target_marker.matrix_world
                         

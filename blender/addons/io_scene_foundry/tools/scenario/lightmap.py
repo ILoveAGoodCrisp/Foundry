@@ -233,7 +233,7 @@ class LightMapper:
         except:
             self.lightmap_failed = True
             self.lightmap_message = "Lightmapping failed during faux_data_sync"
-            return False
+            return self
 
         print("\nFaux Farm")
         print(
