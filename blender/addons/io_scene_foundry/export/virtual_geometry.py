@@ -136,6 +136,11 @@ class VirtualShotAnimation:
         self.gr2_path = None
         self.shot_index = index
         
+        self.vector_tracks = [] # TODO Support exporting wrinkle map events for cinematics
+        
+        # Always empty for cinematic animation
+        self.animation_nodes = []
+        
 class VirtualShotActor:
     def __init__(self, actor: Actor, scene: 'VirtualScene'):
         self.name = actor.name
@@ -495,7 +500,6 @@ class VirtualAnimation:
                 
             first_frame = False
                 
-            # TODO Get vector track info for wrinkle_maps, IK events, and object_functions
             for event in vector_events:
                 event.effect_data.append(event.event.event_value)
             
