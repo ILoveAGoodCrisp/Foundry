@@ -1549,7 +1549,7 @@ class NWO_Import(bpy.types.Operator):
                 if do_vis_bake:
                     for sdata in scene_datas:
                         context.window.scene = sdata.blender_scene
-                        utils.print_step(f"Baking object visibility to keyframes for {data.blender_scene.name}")
+                        utils.print_step(f"Baking object visibility to keyframes for {sdata.blender_scene.name}")
                         bake_vis_to_keyframes(context)
 
                 if switch_blender_scene is not None and context.window.scene != switch_blender_scene:
