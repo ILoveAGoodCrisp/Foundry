@@ -1044,7 +1044,7 @@ class VirtualMesh:
         if evaluated:
             for mod in eval_ob.modifiers:
                 if mod.type == 'NODES':
-                    if mod.name.lower().startswith("array"):
+                    if mod.name.lower().startswith("array") and not mod["Socket_38"]:
                         mod["Socket_5"] = 1
                         mod["Socket_38"] = True
 
