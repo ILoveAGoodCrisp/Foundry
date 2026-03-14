@@ -5859,6 +5859,9 @@ def get_frame_start_end_from_keyframes(action, ob_slot):
     
     slot = get_slot_from_id(action, ob_slot)
     
+    if action is None or slot is None:
+        return 0, 0
+    
     frames = set()
     for fcurve in get_fcurves(action, slot):
         for kfp in fcurve.keyframe_points:
