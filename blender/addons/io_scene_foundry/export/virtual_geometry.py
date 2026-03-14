@@ -1472,7 +1472,8 @@ class VirtualNode:
                 if id.parent_type == 'BONE' and id.parent_bone:
                     bone_parent = id.parent_bone
                     
-                self.mod_stack = ModifierStack(id)
+                if id.modifiers:
+                    self.mod_stack = ModifierStack(id)
                 
                 existing_mesh = scene.meshes.get((id.data, self.negative_scaling, materials, bone_parent, self.mod_stack))
                 existing_linked_mesh = scene.meshes_linked.get(id.data)
