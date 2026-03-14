@@ -2811,7 +2811,6 @@ class ModifierStack:
                 props.append((f"idprop:{key}", self._serialize_value(value)))
 
         props.sort()
-
         return (mod.type, tuple(props))
 
     def _serialize_value(self, value):
@@ -2821,8 +2820,14 @@ class ModifierStack:
         if hasattr(value, "to_tuple"):
             return tuple(value)
 
+        if isinstance(value, set):
+            return tuple(sorted(self._serialize_value(v) for v in value))
+
         if isinstance(value, (list, tuple)):
             return tuple(self._serialize_value(v) for v in value)
+
+        if isinstance(value, dict):
+            return tuple(sorted((k, self._serialize_value(v)) for k, v in value.items()))
 
         return value
 
