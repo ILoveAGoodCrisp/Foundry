@@ -5608,6 +5608,7 @@ class ExportObject:
         self.invert_topology = False
         self.for_pca = False
         self.pca_animations = []
+        self.modifiers = tuple()
         
     def copy(self):
         return copy.copy(self)

@@ -1,7 +1,6 @@
 '''Classes to store intermediate geometry data to be passed to granny files'''
 
 from collections import defaultdict
-import copy
 import csv
 from ctypes import Array, Structure, c_char_p, c_float, c_int, POINTER, c_ubyte, c_void_p, cast, create_string_buffer, memmove, pointer, sizeof
 import logging
@@ -11,8 +10,6 @@ import bmesh
 import bpy
 from mathutils import Matrix, Vector
 import numpy as np
-
-from ..props.object import NWO_ObjectPropertiesGroup
 
 from ..props.scene import NWO_ScenePropertiesGroup
 
@@ -1435,6 +1432,7 @@ class VirtualNode:
         self.granny_vertex_data = None
         self.granny_vertex_data_copies = {}
         self.negative_scaling = False
+        self.mod_stack = None
         
         self.for_pca = isinstance(id, utils.ExportObject) and id.for_pca
         
@@ -1473,8 +1471,10 @@ class VirtualNode:
                 bone_parent = ""
                 if id.parent_type == 'BONE' and id.parent_bone:
                     bone_parent = id.parent_bone
+                    
+                self.mod_stack = ModifierStack(id)
                 
-                existing_mesh = scene.meshes.get((id.data, self.negative_scaling, materials, bone_parent))
+                existing_mesh = scene.meshes.get((id.data, self.negative_scaling, materials, bone_parent, self.mod_stack))
                 existing_linked_mesh = scene.meshes_linked.get(id.data)
                     
                 if existing_mesh:
@@ -2074,7 +2074,7 @@ class VirtualScene:
                 negative_scaling = id.matrix_world.is_negative
                 if id.invert_topology:
                     negative_scaling = not negative_scaling
-                self.meshes[(node.mesh.mesh, negative_scaling, node.mesh.bpy_materials, node.mesh.bone_parent)] = node.mesh
+                self.meshes[(node.mesh.mesh, negative_scaling, node.mesh.bpy_materials, node.mesh.bone_parent, node.mod_stack)] = node.mesh
                 self.meshes_linked[node.mesh.mesh] = node.mesh
             
         return node
@@ -2778,3 +2778,61 @@ def deep_copy_granny_tri_topology(original):
         copy.tri_annotation_sets = cast(tri_annotation_sets, POINTER(GrannyTriAnnotationSet))
 
     return pointer(copy)
+
+class ModifierStack:
+    __slots__ = ("stack",)
+
+    def __init__(self, obj: bpy.types.Object):
+        self.stack = tuple(self._serialize_modifier(m) for m in obj.modifiers)
+
+    def _serialize_modifier(self, mod: bpy.types.Modifier):
+        props = []
+
+        for prop in mod.bl_rna.properties:
+            ident = prop.identifier
+
+            if ident in {"rna_type", "name"}:
+                continue
+            if prop.is_readonly or prop.is_hidden:
+                continue
+
+            try:
+                value = getattr(mod, ident)
+            except AttributeError:
+                continue
+
+            props.append((ident, self._serialize_value(value)))
+
+        if mod.type == 'NODES':
+            for key, value in mod.items():
+                if key == "_RNA_UI":
+                    continue
+
+                props.append((f"idprop:{key}", self._serialize_value(value)))
+
+        props.sort()
+
+        return (mod.type, tuple(props))
+
+    def _serialize_value(self, value):
+        if isinstance(value, bpy.types.ID):
+            return value.name
+
+        if hasattr(value, "to_tuple"):
+            return tuple(value)
+
+        if isinstance(value, (list, tuple)):
+            return tuple(self._serialize_value(v) for v in value)
+
+        return value
+
+    def __eq__(self, other):
+        if not isinstance(other, ModifierStack):
+            return NotImplemented
+        return self.stack == other.stack
+
+    def __hash__(self):
+        return hash(self.stack)
+
+    def __repr__(self):
+        return f"ModifierStack({self.stack})"

@@ -370,6 +370,7 @@ class ExportScene:
             proxy.empty_display_type = original.empty_display_type
             proxy.pose = original.pose
             proxy.empty_display_size = original.empty_display_size
+            proxy.modifiers = tuple(obj.modifiers)
             
             nwo.collection_region = ""
             nwo.collection_permutation = ""
