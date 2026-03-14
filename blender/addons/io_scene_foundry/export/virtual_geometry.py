@@ -8,7 +8,7 @@ from math import degrees, inf, nextafter
 from pathlib import Path
 import bmesh
 import bpy
-from mathutils import Matrix, Vector
+from mathutils import Color, Euler, Matrix, Quaternion, Vector
 import numpy as np
 
 from ..props.scene import NWO_ScenePropertiesGroup
@@ -1473,7 +1473,7 @@ class VirtualNode:
                     bone_parent = id.parent_bone
                     
                 if id.modifiers:
-                    self.mod_stack = ModifierStack(id)
+                    self.mod_stack = ModifierStack(id.ob if hasattr(id, "ob") else id)
                 
                 existing_mesh = scene.meshes.get((id.data, self.negative_scaling, materials, bone_parent, self.mod_stack))
                 existing_linked_mesh = scene.meshes_linked.get(id.data)
@@ -2781,12 +2781,17 @@ def deep_copy_granny_tri_topology(original):
     return pointer(copy)
 
 class ModifierStack:
-    __slots__ = ("stack",)
+    __slots__ = ("stack", "_hash")
 
     def __init__(self, obj: bpy.types.Object):
         self.stack = tuple(self._serialize_modifier(m) for m in obj.modifiers)
+        self._hash = hash(self.stack)
 
     def _serialize_modifier(self, mod: bpy.types.Modifier):
+
+        if mod.type == "NODES":
+            return self._serialize_nodes_modifier(mod)
+
         props = []
 
         for prop in mod.bl_rna.properties:
@@ -2794,7 +2799,7 @@ class ModifierStack:
 
             if ident in {"rna_type", "name"}:
                 continue
-            if prop.is_readonly or prop.is_hidden:
+            if prop.is_hidden or prop.is_readonly:
                 continue
 
             try:
@@ -2802,23 +2807,80 @@ class ModifierStack:
             except AttributeError:
                 continue
 
-            props.append((ident, self._serialize_value(value)))
-
-        if mod.type == 'NODES':
-            for key, value in mod.items():
-                if key == "_RNA_UI":
-                    continue
-
-                props.append((f"idprop:{key}", self._serialize_value(value)))
+            value = self._serialize_value(value)
+            props.append((ident, value))
 
         props.sort()
+
         return (mod.type, tuple(props))
 
+    def _serialize_nodes_modifier(self, mod: bpy.types.NodesModifier):
+
+        props = []
+
+        for prop in mod.bl_rna.properties:
+            ident = prop.identifier
+
+            if ident in {"rna_type", "name"}:
+                continue
+            if prop.is_hidden or prop.is_readonly:
+                continue
+
+            try:
+                value = getattr(mod, ident)
+            except AttributeError:
+                continue
+
+            value = self._serialize_value(value)
+            props.append((ident, value))
+
+        group = mod.node_group
+
+        if group:
+            for item in group.interface.items_tree:
+
+                if item.item_type != "SOCKET":
+                    continue
+
+                if item.in_out != "INPUT":
+                    continue
+
+                identifier = item.identifier
+
+                if identifier in mod:
+                    value = mod[identifier]
+                    value = self._serialize_value(value)
+
+                    props.append((f"socket:{identifier}", value))
+
+        props.sort()
+
+        return ("NODES", tuple(props))
+
     def _serialize_value(self, value):
+
+        if value is None:
+            return None
+
         if isinstance(value, bpy.types.ID):
             return value.name
 
-        if hasattr(value, "to_tuple"):
+        if isinstance(value, Vector):
+            return tuple(value)
+
+        if isinstance(value, Color):
+            return tuple(value)
+
+        if isinstance(value, Quaternion):
+            return tuple(value)
+
+        if isinstance(value, Euler):
+            return (value.x, value.y, value.z, value.order)
+
+        if isinstance(value, Matrix):
+            return tuple(tuple(row) for row in value)
+
+        if type(value).__name__ == "IDPropertyArray":
             return tuple(value)
 
         if isinstance(value, set):
@@ -2838,7 +2900,7 @@ class ModifierStack:
         return self.stack == other.stack
 
     def __hash__(self):
-        return hash(self.stack)
+        return self._hash
 
     def __repr__(self):
         return f"ModifierStack({self.stack})"
