@@ -1042,6 +1042,12 @@ class VirtualMesh:
         evaluated = eval_ob is not None
             
         if evaluated:
+            for mod in eval_ob.modifiers:
+                if mod.type == 'NODES':
+                    if mod.name.lower().startswith("array"):
+                        mod["Socket_5"] = 1
+                        mod["Socket_38"] = True
+
             if true_mesh:
                 add_triangle_mod(scene, eval_ob)
 

@@ -333,12 +333,16 @@ class ExportScene:
             nwo = original.nwo
             parent = original
             
+            uses_array_mod = any(mod for mod in obj.modifiers if mod.type == 'NODES' and mod.name.lower().startswith("array"))
+            
             if inst.is_instance:
                 obj = inst.instance_object
                 original = obj.original
                 nwo = original.nwo
                 parent = inst.parent
-            
+            elif uses_array_mod:
+                continue
+
             elif original.is_instancer and original.instance_collection and original.instance_collection.all_objects and not nwo.marker_instance:
                 continue
             
