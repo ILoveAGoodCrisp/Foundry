@@ -321,7 +321,7 @@ class CinematicCustomScript:
                     self.script = event.text.as_string()
             case 'WEAPON_TRIGGER_START' | 'WEAPON_TRIGGER_STOP':
                 if valid_object:
-                    weapon_name = object_tag_weapon_names.get(utils.relative_path(event.script_object.nwo.cinematic_object))
+                    weapon_name = object_tag_weapon_names.get(event.script_object.name.replace(".", "_"))
                     if weapon_name is not None:
                         self.script = f'weapon_set_primary_barrel_firing (cinematic_weapon_get "{weapon_name}") {int(event.script_type == "WEAPON_TRIGGER_START")}'
             case 'SET_VARIANT':

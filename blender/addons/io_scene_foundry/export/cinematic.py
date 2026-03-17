@@ -717,7 +717,7 @@ class QUA:
                     if attachment_path is None:
                         continue
                     elif attachment_path.RelativePathWithExtension == actor.weapon_tag:
-                        object_tag_weapon_names[actor.original_tag] = attachment_element.SelectField("attachment object name").GetStringData()
+                        object_tag_weapon_names[actor.name] = attachment_element.SelectField("attachment object name").GetStringData()
                         break
                 else:
                     attachment_element = block_attachments.AddElement()
@@ -726,7 +726,7 @@ class QUA:
                     attachment_element.SelectField("attachment object name").SetStringData(f"{actor.name}_weapon")
                     attachment_element.SelectField("attachment marker name").SetStringData("primary_trigger")
                     attachment_element.SelectField("attachment type").Path = tag._TagPath_from_string(actor.weapon_tag)
-                    object_tag_weapon_names[actor.original_tag] = attachment_element.SelectField("attachment object name").GetStringData()
+                    object_tag_weapon_names[actor.name] = attachment_element.SelectField("attachment object name").GetStringData()
                         
             actor_elements[actor] = element
 
