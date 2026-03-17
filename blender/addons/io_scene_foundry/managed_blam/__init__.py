@@ -19,7 +19,6 @@ from ..utils import (
 import bpy
 import os
 from ..utils import get_project_path
-import atexit
 
 last_saved_tag = None
 
@@ -418,15 +417,14 @@ def mb_init(tag_path=None):
         mb_active = True
         mb_operational = True
 
-        atexit.register(close_managed_blam)
-
     except Exception as e:
         print_error(f"Failed to initialise ManagedBlam: {e}")
         return {"CANCELLED"}
 
         
 def close_managed_blam():
-    Halo.ManagedBlamSystem.Stop()
+    if mb_active:
+        Halo.ManagedBlamSystem.Stop()
     
 def tag_path_from_string(path: str | Path) -> TagPath:
     """Returns a Bungie TagPath from the given tag filepath. Filepath must include file extension"""

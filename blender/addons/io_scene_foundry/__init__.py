@@ -20,6 +20,7 @@ modules = [
 ]
             
 def register():
+    bpy.app.handlers.exit_pre.append(startup.managed_blam_exit)
     bpy.app.handlers.load_post.append(startup.load_handler)
     bpy.app.handlers.load_post.append(startup.load_set_output_state)
     bpy.app.handlers.save_post.append(startup.save_object_positions_to_tags)
@@ -33,5 +34,6 @@ def unregister():
     bpy.app.handlers.save_post.remove(startup.save_object_positions_to_tags)
     bpy.app.handlers.load_post.remove(startup.load_set_output_state)
     bpy.app.handlers.load_post.remove(startup.load_handler)
+    bpy.app.handlers.exit_pre.remove(startup.managed_blam_exit)
     for module in reversed(modules):
         module.unregister()

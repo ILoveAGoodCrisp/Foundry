@@ -206,3 +206,8 @@ def save_object_positions_to_tags(dummy):
         if nwo.decorators_export_on_save and asset_type == 'scenario' and nwo.decorators_from_blender:
             print("Exporting Decorators")
             export_decorators(utils.is_corinth(bpy.context))
+            
+            
+@persistent
+def managed_blam_exit(is_user_exit: bool):
+    managed_blam.close_managed_blam()
