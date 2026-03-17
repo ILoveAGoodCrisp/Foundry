@@ -333,7 +333,7 @@ class ExportScene:
             nwo = original.nwo
             parent = original
             
-            uses_array_mod = any(mod for mod in obj.modifiers if mod.type == 'NODES' and mod.name.lower().startswith("array") and not mod["Socket_38"])
+            uses_array_mod = any(mod for mod in obj.modifiers if mod.type == 'NODES' and mod.name.lower().startswith("array") and not mod.get("Socket_38"))
             
             if inst.is_instance:
                 obj = inst.instance_object

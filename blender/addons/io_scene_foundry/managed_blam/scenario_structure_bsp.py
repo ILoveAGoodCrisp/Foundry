@@ -636,6 +636,16 @@ class ScenarioStructureBspTag(Tag):
             for element in igd.SelectField("Struct:collision info[0]/Block:surfaces").Elements:
                 surfaces.AddElement()
             self.tag_has_changes = True
+            
+            
+    def read_havok_collision_data(self):
+        havok_data = self.tag.SelectField("Struct:resource interface[0]/Block:raw_resources[0]/Struct:raw_items[0]/Block:Havok Data").Elements[0]
+        for element in havok_data.SelectField("Block:Serialized Per Collision Type Havok Geometry").Elements:
+            print("\n\nHAVOK DATA ELEMENT", element.ElementIndex)
+            print("\nMAIN", element.Fields[0].DisplayName)
+            print(bytes(element.Fields[0].GetData()))
+            print("\nSTATIC", element.Fields[1].DisplayName)
+            print(bytes(element.Fields[1].GetData()))
     
 def are_faces_overlapping(face1, face2):
     if not face1.normal.dot(face2.normal) > 0.999:
