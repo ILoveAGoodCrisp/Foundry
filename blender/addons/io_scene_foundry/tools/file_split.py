@@ -70,22 +70,24 @@ class NWO_OT_FileAggregate(bpy.types.Operator):
         # Unlink old collection
         print(f"Unlinking collections")
         bpy.data.batch_remove(to_remove_collections)
+        
+        with bpy.data.libraries.load(path) as (data_from, data_to):
+            data_to.collections = [coll_names]
 
         print("Appending collections to file")
         for path, coll_info in bsp_collection_parents.items():
             for coll_name, parent in coll_info:
                 print(f"Appending {coll_name}")
-                
-                all_collections = set(bpy.data.collections)
                 with bpy.data.libraries.load(path) as (data_from, data_to):
                     data_to.collections = [coll_name]
-                    
-                new_collection = list(set(bpy.data.collections).difference(all_collections))[0]
                 
-                if parent is None:
-                    context.scene.collection.children.link(new_collection)
-                else:
-                    parent.children.link(new_collection)
+                new_coll = bpy.data.collections.get(coll_name)
+                
+                if new_coll is not None:
+                    if parent is None:
+                        context.scene.collection.children.link(new_coll)
+                    else:
+                        parent.children.link(new_coll)
         
         self.report({'INFO'}, "File Aggregate Complete")
         return {"FINISHED"}
