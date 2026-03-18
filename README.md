@@ -3,15 +3,12 @@
 **Foundry** is a Blender extension that facilitates a complete asset import & export pipeline for Halo Reach, Halo 4, and Halo 2 Anniversary Multiplayer.
 
 ## Requirements
-- Blender 5.0 or above
+- Blender 5.1 or above
 - One or more of the following Halo Editing Kits: [HREK](https://store.steampowered.com/app/1695793/Halo_Reach_Mod_Tools__MCC/),
 [H4EK](https://store.steampowered.com/app/1695792/Halo_4_Mod_Tools__MCC/),
 [H2AMPEK](https://store.steampowered.com/app/1695790/Halo_2_Anniversary_MP_Mod_Tools__MCC/)
 
 To install the afformentioned editing kits, you must own the respective MCC title on Steam.
-
-> [!CAUTION]
-> Remove any previous installations of Foundry before following the installation guide. The legacy addon version may conflict with the extension.
 
 ## Installation
 
