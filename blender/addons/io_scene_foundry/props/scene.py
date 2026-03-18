@@ -3374,3 +3374,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         description="On export the frame event list will be cleared and rebuilt from Blender",
         default=True,
     )
+    
+    last_bsp_split_was_layer: bpy.props.BoolProperty(
+        options={'HIDDEN'},
+    )
