@@ -17,7 +17,7 @@ blender_version_min = "5.1.0"
 
 license = ["SPDX:GPL-3.0-or-later"]
 
-platforms = ["windows-amd64", "windows-x64", "windows-arm64"]
+platforms = ["windows-amd64", "windows-x64"]
 
 wheels = [
   "./wheels/cffi-2.0.0-cp313-cp313-win_amd64.whl",
