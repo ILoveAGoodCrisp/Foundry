@@ -175,8 +175,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         row.scale_y = 1.1
         row.menu("NWO_MT_ProjectChooser", text=self.scene_nwo.scene_project, icon_value=utils.project_icon(bpy.context))
         
-        if self.scene_nwo.asset_type == 'scenario':
-            col.label(text="BSP Collections")
+        if utils.nwo_asset_type() in ('model', 'scenario', 'sky'):
+            col.label(text="File Collections")
             row = col.row()
             row.scale_y = 1.1
             row.operator("nwo.file_split", icon='LINKED')

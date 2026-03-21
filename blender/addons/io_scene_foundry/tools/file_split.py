@@ -27,8 +27,8 @@ class NWO_OT_OpenLinkedCollection(bpy.types.Operator):
     
 class NWO_OT_FileAggregate(bpy.types.Operator):
     bl_idname = "nwo.file_aggregate"
-    bl_label = "BSP File Aggregate"
-    bl_description = "Moves linked BSP collections into this file"
+    bl_label = "File Aggregate"
+    bl_description = "Moves Region/Permutation/BSP/Layer linked collections into this file"
     bl_options = {"UNDO"}
     
     use_layers: bpy.props.BoolProperty(
@@ -38,7 +38,7 @@ class NWO_OT_FileAggregate(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return utils.valid_nwo_asset(context) and utils.nwo_asset_type() == 'scenario'
+        return utils.valid_nwo_asset(context) and utils.nwo_asset_type() in ('model', 'scenario', 'sky')
     
     def execute(self, context):
         if self.use_layers:
@@ -102,28 +102,28 @@ class NWO_OT_FileAggregate(bpy.types.Operator):
 
 class NWO_OT_FileSplit(bpy.types.Operator):
     bl_idname = "nwo.file_split"
-    bl_label = "BSP File Split"
-    bl_description = "Moves BSP Collections into their own blends, linking them to this one"
+    bl_label = "File Split"
+    bl_description = "Moves Region/Permutation/BSP/Layer Collections into their own blends, linking them to this one"
     bl_options = {"UNDO"}
     
     use_layers: bpy.props.BoolProperty(
         name="Split to Layers",
-        description="Splits files into layer collections instead of BSP collections"
+        description="Splits files into layer/permutation collections instead of BSP/Region collections"
     )
 
     @classmethod
     def poll(cls, context):
-        return utils.valid_nwo_asset(context) and utils.nwo_asset_type() == 'scenario'
+        return utils.valid_nwo_asset(context) and utils.nwo_asset_type() in ('model', 'scenario', 'sky')
 
     def execute(self, context):
         
         if self.use_layers:
             bsp_or_layer = 'permutation'
-            dir = Path(utils.get_asset_path_full(), "layers")
+            dir = Path(utils.get_asset_path_full(), "layers" if utils.nwo_asset_type() == 'scenario' else 'regions')
             utils.get_scene_props().last_bsp_split_was_layer = True
         else:
             bsp_or_layer = 'region'
-            dir = Path(utils.get_asset_path_full(), "bsps")
+            dir = Path(utils.get_asset_path_full(), "bsps" if utils.nwo_asset_type() == 'scenario' else 'permutations')
             utils.get_scene_props().last_bsp_split_was_layer = False
         
         if not dir.exists():
