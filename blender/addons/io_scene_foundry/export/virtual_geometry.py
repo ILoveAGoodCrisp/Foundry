@@ -1050,6 +1050,18 @@ class VirtualMesh:
             mesh = eval_ob.to_mesh(preserve_all_data_layers=True, depsgraph=scene.depsgraph)
         else:
             mesh = ob.data
+            
+        if mesh_type_value == MeshType.water_physics_volume.value:
+            # remove unneeded tris
+            bm = bmesh.new()
+            bm.from_mesh(mesh)
+            bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.1)
+            # bm.verts.ensure_lookup_table()
+            bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.is_boundary], context='VERTS')
+            # bm.edges.ensure_lookup_table()
+            bmesh.ops.triangle_fill(bm, use_beauty=False, use_dissolve=False, edges=bm.edges)
+            bm.to_mesh(mesh)
+            bm.free()
         
         self.name = mesh.name
         if not mesh.polygons:
@@ -1061,7 +1073,7 @@ class VirtualMesh:
         indices = np.empty(len(mesh.polygons))
         mesh.polygons.foreach_get("loop_total", indices)
         unique_indices = np.unique(indices)
-        
+
         if len(unique_indices) > 1 or unique_indices[0] != 3:
             # Only if we couldn't triangulate the mesh earlier
             bm = bmesh.new()
