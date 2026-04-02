@@ -5955,3 +5955,9 @@ def source_blend_from_sidecar(sidecar_path):
     except Exception as ex:
         print(f"Failed reading sidecar: {sidecar_path}")
         return None
+    
+def game_frame(frame: int):
+    return int(frame * (30 / bpy.context.scene.render.fps))
+
+def blender_frame(frame: int):
+    return int(frame / (30 / bpy.context.scene.render.fps))

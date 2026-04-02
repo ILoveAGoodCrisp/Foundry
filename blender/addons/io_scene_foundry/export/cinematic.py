@@ -759,32 +759,32 @@ class QUA:
                     flags.SetShotChecked(idx, True) # SetShotChecked is part of TagFieldCustomCinematicShotFlags, which is not used by Reach
         
         # Add cinematic events
-        frame_start = int(bpy.context.scene.frame_start)
+        frame_start = utils.game_frame(int(bpy.context.scene.frame_start))
         sound_sequences = {}
         if bpy.context.scene.sequence_editor:
             sound_sequences = bpy.context.scene.sequence_editor.strips_all
         for event in bpy.context.scene.nwo.cinematic_events:
+            frame = utils.game_frame(event.frame)
             match event.type:
                 case 'DIALOGUE':
                     c = CinematicDialogue()
                     c.from_event(event, actor_objects)
                     if c.dialogue is not None:
-                        frame = event.frame
                         if event.sound_strip:
                             strip = sound_sequences.get(event.sound_strip)
                             if strip is not None:
-                                frame = int(strip.frame_start)
+                                frame = utils.game_frame(int(strip.frame_start))
                         dialogue[c] = frame - frame_start + int(self.corinth)
                 case 'EFFECT':
                     c = CinematicEffect()
                     c.from_event(event, actor_objects)
                     if c.effect is not None:
-                        effects[c] = event.frame - frame_start + int(self.corinth)
+                        effects[c] = frame - frame_start + int(self.corinth)
                 case 'SCRIPT':
                     c = CinematicCustomScript()
                     c.from_event(event, object_tag_weapon_names, actor_objects, self.corinth)
                     if c.script.strip():
-                        custom_scripts[c] = event.frame - frame_start + int(self.corinth)
+                        custom_scripts[c] = frame - frame_start + int(self.corinth)
         
         
         # Add back data blocks

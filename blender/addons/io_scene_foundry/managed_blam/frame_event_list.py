@@ -151,9 +151,9 @@ class AnimationEvent:
         
     def from_element(self, element: TagFieldBlockElement, graph=False):
         if graph:
-            self.frame = element.SelectField("ShortInteger:frame").Data
+            self.frame = utils.blender_frame(element.SelectField("ShortInteger:frame").Data)
         else:
-            self.frame = element.SelectField("ShortInteger:frame").Data + element.SelectField("ShortInteger:frame offset").Data
+            self.frame = utils.blender_frame(element.SelectField("ShortInteger:frame").Data + element.SelectField("ShortInteger:frame offset").Data)
             self.name = element.SelectField("StringId:event name").GetStringData()
             id = element.SelectField("LongInteger:unique ID").Data
             if id != 0:
@@ -170,12 +170,12 @@ class AnimationEvent:
         pass
     
     def from_blender(self, blender_animation, blender_animation_event, unique_sounds: dict, unique_effects: dict):
-        self.frame = blender_animation_event.frame_frame - blender_animation.frame_start
+        self.frame = utils.game_frame(blender_animation_event.frame_frame - blender_animation.frame_start)
         self.type = blender_animation_event.frame_name
         self.name = blender_animation_event.frame_name.replace(" ", "_")
         self.unique_id = blender_animation_event.event_id
         if blender_animation_event.multi_frame == 'range':
-            self.end_frame = blender_animation_event.frame_range - blender_animation.frame_start
+            self.end_frame = utils.game_frame(blender_animation_event.frame_range - blender_animation.frame_start)
         
         for data in blender_animation_event.event_data:
             match data.data_type:

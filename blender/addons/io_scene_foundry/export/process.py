@@ -1875,12 +1875,12 @@ class ExportScene:
             props["bungie_animation_event_id"] = abs(event.event_id)
             props["bungie_animation_event_type"] = event_type
             props["bungie_animation_event_start"] = 0
-            props["bungie_animation_event_end"] = animation.frame_end - animation.frame_start
+            props["bungie_animation_event_end"] = utils.game_frame(animation.frame_end - animation.frame_start)
             
             match event_type:
                 case '_connected_geometry_animation_event_type_frame':
                     frame = event.frame_frame - animation.frame_start + 1
-                    props["bungie_animation_event_frame_frame"] = frame
+                    props["bungie_animation_event_frame_frame"] = utils.game_frame(frame)
                     props["bungie_animation_event_frame_name"] = event.frame_name
                     if event.multi_frame == "range" and event.frame_range > frame:
                         for i in range(event.frame_range - frame):
@@ -1888,7 +1888,7 @@ class ExportScene:
                             copy_props = props.copy()
                             copy_id = abs(event.event_id) + i
                             copy_props["bungie_animation_event_id"] = copy_id
-                            copy_props["bungie_animation_event_frame_frame"] = event.frame_frame + i
+                            copy_props["bungie_animation_event_frame_frame"] = utils.game_frame(event.frame_frame + i)
                             copy_ob.name = f'event_export_node_frame_{str(copy_id)}'
                             event_ob_props[copy_ob] = copy_props
                             
