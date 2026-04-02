@@ -288,7 +288,7 @@ class VirtualShot:
                 animation_name = f"{shot_actor.name}_{self.index + 1}"
                 granny_animation.name = animation_name.encode()
                 granny_animation.duration = scene.time_step * frame_total + 0.00001
-                granny_animation.time_step = scene.time_step
+                granny_animation.time_step = 1 / 30 # always 30 fps
                 granny_animation.oversampling = 1
                 granny_animation.track_group_count = 1
                 granny_animation.track_groups = pointer(ptr_granny_track_group)
@@ -621,7 +621,7 @@ class VirtualAnimation:
         granny_animation = GrannyAnimation()
         granny_animation.name = self.name.encode()
         granny_animation.duration = scene.time_step * frame_total + 0.00001
-        granny_animation.time_step = scene.time_step
+        granny_animation.time_step = 1 / 30 # always 30 fps
         granny_animation.oversampling = 1
         all_track_groups = [self.granny_track_group]
         granny_animation.track_group_count = len(all_track_groups)
