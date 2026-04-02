@@ -179,10 +179,10 @@ class Actor:
                     scenery_object.SelectField("material effects").Path = obj_object.SelectField("material effects").Path
                     scenery_object.SelectField("simulation_interpolation").Path = obj_object.SelectField("material effects").Path
                     # Copy tag blocks
-                    obj_object.SelectField("functions").CopyEntireTagBlock()
-                    scenery_object.SelectField("functions").PasteReplaceEntireBlock()
-                    obj_object.SelectField("attachments").CopyEntireTagBlock()
-                    scenery_object.SelectField("attachments").PasteReplaceEntireBlock()
+                    # obj_object.SelectField("functions").CopyEntireTagBlock() # NOTE not copying functions because it can cause a crash
+                    # scenery_object.SelectField("functions").PasteReplaceEntireBlock()
+                    # obj_object.SelectField("attachments").CopyEntireTagBlock()
+                    # scenery_object.SelectField("attachments").PasteReplaceEntireBlock()
                     obj_object.SelectField("hull surfaces").CopyEntireTagBlock()
                     scenery_object.SelectField("hull surfaces").PasteReplaceEntireBlock()
                     obj_object.SelectField("jetwash").CopyEntireTagBlock()
