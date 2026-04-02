@@ -13,7 +13,7 @@ class NWO_OT_ConvertToHaloRig(bpy.types.Operator):
     bl_options = {"REGISTER", "UNDO"}
     
     has_pose_bones: bpy.props.BoolProperty(default=True)
-    wireframe: bpy.props.BoolProperty(name="Wireframe Control Shapes", description="Makes the control shapes wireframe rather than solid")
+    wireframe: bpy.props.BoolProperty(name="Wireframe Control Shapes", description="Makes the control shapes wireframe rather than solid", default=True)
     convert_root_bone: bpy.props.BoolProperty(name="Use Root Bone as Pedestal", description="Convert the existing root bone to the pedestal bone rather than making it the child of the pedestal. This does not ensure that the root bone has Halo compliant transforms. Use rig validation afterwards to ensure correct transforms")
 
     @classmethod

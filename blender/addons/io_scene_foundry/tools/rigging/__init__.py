@@ -4,7 +4,7 @@ from collections import defaultdict
 from math import radians
 from typing import cast
 import bpy
-from mathutils import Vector
+from mathutils import Matrix, Vector
 from ...constants import WU_SCALAR
 from ... import utils
 
@@ -74,6 +74,7 @@ class HaloRig:
         self.context = context
         self.scene_nwo = utils.get_scene_props()
         self.scale = ((1 / 0.03048) if self.scene_nwo.scale == 'max' else 1) if scale is None else scale
+        self.scale_matrix = Matrix.Scale(self.scale, 4)
         self.forward = self.scene_nwo.forward_direction if forward is None else forward
         self.has_pose_bones = has_pose_bones
         self.set_scene_rig_props = set_scene_rig_props
@@ -108,7 +109,7 @@ class HaloRig:
                     shape_ob.nwo.export_this = False
                     
                 pedestal.custom_shape = shape_ob
-                pedestal.custom_shape_scale_xyz = Vector((1, 1, 1)) * shape_scale
+                pedestal.custom_shape_scale_xyz = Vector((1, 1, 1)) * shape_scale * self.scale
                 pedestal.use_custom_shape_bone_size = False
                 
                 if reach_fp_fix:
@@ -131,7 +132,7 @@ class HaloRig:
                         shape_ob.nwo.export_this = False
                         
                     aim_control.custom_shape = shape_ob
-                    aim_control.custom_shape_scale_xyz = Vector((1, 1, 1)) * shape_scale
+                    aim_control.custom_shape_scale_xyz = Vector((1, 1, 1)) * shape_scale * self.scale
                     aim_control.use_custom_shape_bone_size = False
                 
                     if reach_fp_fix:
@@ -162,7 +163,7 @@ class HaloRig:
                 if not constraints_only:
                     if pitch:
                         pitch.custom_shape = shape_ob
-                        pitch.custom_shape_scale_xyz = Vector((0.2, 0.2, 0.2)) * shape_scale
+                        pitch.custom_shape_scale_xyz = Vector((0.2, 0.2, 0.2)) * shape_scale * self.scale
                         pitch.use_custom_shape_bone_size = False
                         if not reach_fp_fix:
                             pitch.custom_shape_rotation_euler.x = radians(90)
@@ -172,7 +173,7 @@ class HaloRig:
                             
                     if yaw:
                         yaw.custom_shape = shape_ob
-                        yaw.custom_shape_scale_xyz = Vector((0.2, 0.2, 0.2)) * shape_scale
+                        yaw.custom_shape_scale_xyz = Vector((0.2, 0.2, 0.2)) * shape_scale * self.scale
                         yaw.use_custom_shape_bone_size = False
                         
                         if reach_fp_fix:
@@ -309,6 +310,7 @@ class HaloRig:
             else:
                 pedestal = self.rig_data.edit_bones.new(pedestal_name)
                 pedestal.tail = bone_tail
+                pedestal.transform(self.scale_matrix)
         else:
             pedestal = self.rig_data.edit_bones.get(pedestal)
             
@@ -325,6 +327,7 @@ class HaloRig:
                     pitch = self.rig_data.edit_bones.new(aim_pitch_name)
                     pitch.parent = pedestal
                     pitch.tail = bone_tail
+                    pitch.transform(self.scale_matrix)
             else:
                 pitch = self.rig_data.edit_bones.get(pitch)
             
@@ -337,6 +340,7 @@ class HaloRig:
                     yaw = self.rig_data.edit_bones.new(aim_yaw_name)
                     yaw.parent = pedestal
                     yaw.tail = bone_tail
+                    yaw.transform(self.scale_matrix)
             else:
                 yaw = self.rig_data.edit_bones.get(yaw)
                 

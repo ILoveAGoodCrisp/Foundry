@@ -207,8 +207,7 @@ class RenderModelTag(Tag):
         
         if build_control_rig:
         # make the rig not terrible
-            scale = 1 / 0.03048
-            rig = HaloRig(self.context, scale, 'x', uses_aim_bones, False)
+            rig = HaloRig(self.context, 1, 'x', uses_aim_bones, False)
             rig.rig_ob = arm.ob
             rig.rig_data = arm.data
             rig.rig_pose = arm.ob.pose
