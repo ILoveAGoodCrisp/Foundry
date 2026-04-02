@@ -33,8 +33,8 @@ class NWO_OT_SelectChildObjects(bpy.types.Operator):
 
     def execute(self, context):
         ob = context.object
-        children = len(ob.children_recursive)
-        for child in ob.children_recursive:
+        children = ob.children_recursive
+        for child in children:
             child.select_set(True)
         self.report({'INFO'}, f"Selected {len(children)} child objects")
         return {"FINISHED"}
