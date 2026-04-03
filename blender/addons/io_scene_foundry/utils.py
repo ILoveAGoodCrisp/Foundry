@@ -4577,6 +4577,9 @@ def ultimate_armature_parent(ob: bpy.types.Object):
 def time_step() -> float:
     return bpy.context.scene.render.fps_base / int(bpy.context.scene.render.fps)
 
+def real_frame_rate() -> int:
+    return bpy.context.scene.render.fps / bpy.context.scene.render.fps_base
+
 def tokenise(name: str) -> tuple:
     '''Tokenises an animation name'''
     token_name = name.replace(":", " ").lower()
@@ -5956,8 +5959,11 @@ def source_blend_from_sidecar(sidecar_path):
         print(f"Failed reading sidecar: {sidecar_path}")
         return None
     
+def round_int(x: float):
+    return int(round(x, 0))
+    
 def game_frame(frame: int):
-    return int(frame * (30 / bpy.context.scene.render.fps))
+    return round_int(frame * (30 / real_frame_rate()))
 
 def blender_frame(frame: int):
-    return int(frame / (30 / bpy.context.scene.render.fps))
+    return round_int(frame / (30 / real_frame_rate()))

@@ -173,8 +173,11 @@ class VirtualShot:
         self.in_scope = in_scope
     
     def perform(self, scene: 'VirtualScene', film_aperture: float):
+        
+        step = int(bpy.context.scene.render.fps / 30)
+        
         if scene.cinematic_scope != 'OBJECT' and self.in_scope:
-            for frame in range(self.frame_start, self.frame_end + 1):
+            for frame in range(self.frame_start, self.frame_end + 1, step):
                 scene.context.scene.frame_set(frame)
                 # Camera Animation
                 self.frames.append(Frame(self.camera, scene.corinth, film_aperture))
@@ -288,7 +291,7 @@ class VirtualShot:
                 animation_name = f"{shot_actor.name}_{self.index + 1}"
                 granny_animation.name = animation_name.encode()
                 granny_animation.duration = scene.time_step * frame_total + 0.00001
-                granny_animation.time_step = 1 / 30 # always 30 fps
+                granny_animation.time_step = scene.time_step
                 granny_animation.oversampling = 1
                 granny_animation.track_group_count = 1
                 granny_animation.track_groups = pointer(ptr_granny_track_group)
@@ -329,7 +332,7 @@ class VirtualAnimation:
             self.movement = None
             self.space = None
             self.overlay = scene.scene_nwo.animation_overlay
-            self.frame_count: int = animation.id_data.frame_end - animation.id_data.frame_start + 1
+            self.frame_count: int = utils.game_frame(animation.id_data.frame_end - animation.id_data.frame_start + 1)
             self.frame_range: tuple[int, int] = (animation.id_data.frame_start, animation.id_data.frame_end)
         else:
             self.name = animation.name
@@ -344,7 +347,7 @@ class VirtualAnimation:
             self.space = animation.animation_space
             self.overlay = animation.animation_type == 'overlay'
             
-            self.frame_count: int = animation.frame_end - animation.frame_start + 1
+            self.frame_count: int = utils.game_frame(animation.frame_end - animation.frame_start + 1)
             self.frame_range: tuple[int, int] = (animation.frame_start, animation.frame_end)
         
         self.pose_overlay = False # Now calculating this rather than this being user defined
@@ -417,7 +420,6 @@ class VirtualAnimation:
             self.vector_tracks.append(VectorTrack(granny_vector_track=granny_vector_track, bone_name=event.name.encode()))
         
     def create_track_group(self, bones: list['AnimatedBone'], scene: 'VirtualScene', shape_key_objects, vector_events: list[VectorEvent]):
-        vector_tracks = []
         positions = defaultdict(list)
         orientations = defaultdict(list)
         scales = defaultdict(list)
@@ -443,8 +445,11 @@ class VirtualAnimation:
         suspension_compression_height = 0.0
         suspension_destroyed_extension_height = 0.0
         suspension_destroyed_compression_height = 0.0
-
-        for frame in range(self.frame_range[0], self.frame_range[1] + 1):
+        
+        step = int(bpy.context.scene.render.fps / 30)
+        start, end = self.frame_range
+        
+        for frame in range(start, end + 1, step):
             scene.context.scene.frame_set(frame)
             
             # suspension calcs
@@ -621,7 +626,7 @@ class VirtualAnimation:
         granny_animation = GrannyAnimation()
         granny_animation.name = self.name.encode()
         granny_animation.duration = scene.time_step * frame_total + 0.00001
-        granny_animation.time_step = 1 / 30 # always 30 fps
+        granny_animation.time_step = scene.time_step
         granny_animation.oversampling = 1
         all_track_groups = [self.granny_track_group]
         granny_animation.track_group_count = len(all_track_groups)
