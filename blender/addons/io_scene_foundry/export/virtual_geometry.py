@@ -173,12 +173,17 @@ class VirtualShot:
         self.in_scope = in_scope
     
     def perform(self, scene: 'VirtualScene', film_aperture: float):
-        
-        step = int(bpy.context.scene.render.fps / 30)
-        
         if scene.cinematic_scope != 'OBJECT' and self.in_scope:
-            for frame in range(self.frame_start, self.frame_end + 1, step):
+            fps = utils.real_frame_rate()
+            start, end = self.frame_start, self.frame_end
+            time = start / fps
+            end_time = end / fps
+            time_step = 1.0 / 30
+            
+            while time <= end_time:
+                frame = round(time * fps)
                 scene.context.scene.frame_set(frame)
+                time += time_step
                 # Camera Animation
                 self.frames.append(Frame(self.camera, scene.corinth, film_aperture))
                 # Bone Animation
@@ -446,11 +451,16 @@ class VirtualAnimation:
         suspension_destroyed_extension_height = 0.0
         suspension_destroyed_compression_height = 0.0
         
-        step = int(bpy.context.scene.render.fps / 30)
+        fps = utils.real_frame_rate()
         start, end = self.frame_range
+        time = start / fps
+        end_time = end / fps
+        time_step = 1.0 / 30
         
-        for frame in range(start, end + 1, step):
+        while time <= end_time:
+            frame = round(time * fps)
             scene.context.scene.frame_set(frame)
+            time += time_step
             
             # suspension calcs
             if self.suspension:
