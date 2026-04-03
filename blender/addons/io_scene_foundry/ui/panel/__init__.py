@@ -3116,10 +3116,10 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             if bpy.ops.nwo.paste_events.poll():
                 row.operator("nwo.paste_events", icon="PASTEDOWN")
         else:
-            box = box.box()
-            row = box.row()
+            event_box = box.box()
+            row = event_box.row()
             row.label(text="Animation Events")
-            row = box.row()
+            row = event_box.row()
             rows = 3
             row.template_list(
                 "NWO_UL_AnimProps_Events",
@@ -3138,17 +3138,17 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col.operator("nwo.animation_event_move", text="", icon="TRIA_UP").direction = 'up'
             col.operator("nwo.animation_event_move", icon="TRIA_DOWN", text="").direction = 'down'
             
-            row = box.row()
+            row = event_box.row()
             row.operator("nwo.copy_events", icon="COPYDOWN")
             row.operator("nwo.paste_events", icon="PASTEDOWN")
-            row = box.row()
+            row = event_box.row()
             row.operator("nwo.export_animation_frame_events", icon="EXPORT")
 
             if animation.animation_events:
                 item = animation.animation_events[animation.active_animation_event_index]
                 # row = layout.row()
                 # row.prop(item, "name") # debug only
-                flow = box.grid_flow(
+                flow = event_box.grid_flow(
                     row_major=True,
                     columns=0,
                     even_columns=True,
@@ -3177,10 +3177,10 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     
                     
                     if item.event_data:
-                        box = box.box()
-                        row = box.row()
+                        event_data_box = event_box.box()
+                        row = event_data_box.row()
                         row.label(text="Animation Event Data")
-                        row = box.row()
+                        row = event_data_box.row()
                         rows = 3
                         row.template_list(
                             "NWO_UL_AnimProps_EventsData",
@@ -3197,7 +3197,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                         
                         data = item.event_data[item.active_event_data_index]
                         
-                        col = box.column()
+                        col = event_data_box.column()
                         col.separator()
                         col.use_property_split = True
                         row = col.row()
@@ -3233,7 +3233,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                         
                         
                     else:
-                        box.operator("nwo.add_animation_event_data", icon="ADD", text="Add Event Data")
+                        event_box.operator("nwo.add_animation_event_data", icon="ADD", text="Add Event Data")
                     
                 elif (
                     item.event_type
@@ -3283,6 +3283,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     col.prop(item, "import_name")
                     
         # ANIMATION NODES
+        col = box.column()
         col.separator()
         if not animation.animation_nodes:
             col.operator("nwo.add_animation_node", text="New Animation Node", icon='BONE_DATA')
