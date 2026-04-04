@@ -520,95 +520,158 @@ def run_tool(tool_args: list, in_background=False, null_output=False, event_leve
         else:
             return check_call(command)  # ,stderr=PIPE)
 
+import threading
+import queue
+from subprocess import PIPE
+
+def parse_tool_line(line: str):
+    parts = line.split(":", 2)
+
+    if len(parts) >= 3:
+        section = parts[0]
+        subsection = parts[1]
+        message = parts[2].strip()
+        return section, subsection, message
+
+    return None, None, line
+
+def _stream_reader(pipe, q, source):
+    for line in iter(pipe.readline, b''):
+        q.put((source, line))
+    q.put((source, None))
+
 def run_tool_sidecar(tool_args: list, event_level='WARNING'):
-    """Runs Tool using the specified function and arguments. Do not include 'tool' in the args passed"""
     failed = False
     project_dir = get_project_path()
     tags_dir = get_tags_path()
     os.chdir(project_dir)
+
     command = f"""{get_tool_type()} {' '.join(f'"{arg}"' for arg in tool_args)}"""
-    # print(command)
+
     error = ""
     cull_warnings = event_level == 'DEFAULT'
     log_warnings = event_level == 'LOG'
     tmp_log = None
+
     if cull_warnings:
-        p = Popen(command, stderr=subprocess.PIPE)
+        p = Popen(command, stdout=PIPE, stderr=PIPE)
     elif log_warnings:
         tmp_log = Path(tempfile.gettempdir(), "halo_errors.txt")
         with open(tmp_log, "w") as file:
             p = Popen(command, stderr=file)
     else:
         p = Popen(command)
-    # error_log = os.path.join(asset_path, "error.log")
+
     if not (cull_warnings or log_warnings):
         set_tool_event_level(event_level)
-            
-    # Read and print stderr contents while writing to the file
+
+    composite_timeout_active = False
+    last_activity_time = time.time()
+    timeout_seconds = 10
+
+    q = queue.Queue()
+
     if cull_warnings:
-        for line in p.stderr:
-            line = line.decode().rstrip("\n")
-            if failed and not error:
-                error = get_error_explanation(line)
-            elif not failed and is_error_line(line):
-                print_error(line)
-                failed = True
-            elif cull_warnings:
-                if "(skipping tangent-space calculations)" in line or "if it is a decorator" in line:
-                    # this really shouldn't be a warning, so don't print/write it
-                    continue
-                elif "but has flags that only make sense on render geometry" in line:
-                    # Pointless error and just ends up being spam
-                    continue
-                elif "Uncompressed vertices are not supported for meshes with type" in line:
-                    # This is just incorrect and outputs when a mesh is a valid type for uncompressed
-                    # Export logic prevents uncompressed from being applied to invalid types
-                    continue
-                elif "which only makes sense on two-sided (or one sided transparent) geometry" in line:
-                    # Annonying and outputs on things like collision geometry when it does not matter
-                    continue
-                elif "Do you really want this?" in line:
-                    # No but don't whine about shaders on imported geometry
-                    continue
-                elif "Failed to find any animated nodes" in line: # 07/01/2025 removed and "idle" from this
-                    # Skip because we often want the idle to not have animation e.g. for vehicles
-                    continue
-                elif "graph was imported with old codec which is no longer supported!" in line:
-                    # Skip since the animation import codec is fine
-                    continue
-                elif "animation graph update failed!" in line:
-                    # Always outputs on new animation graph creation
-                    continue
-                elif "Mesh marked to include per-vertex alpha has entirely opaque values!" in line:
-                    # Always outputs on new animation graph creation
-                    continue
-                elif "sidecar does not specify a model path" in line:
-                    # Invalid error for cinematic sidecars
-                    continue
-                elif "unrecognized output tag type cinematic_scene for object cinematic_scene" in line:
-                    # Bungie what you doing
-                    continue
-                elif "Suspension marker(s)" in line:
-                    # Useless warning. Tool is unable to automatically calculate suspension ground depth
-                    continue
-                elif "tags: tag_save: couldn't overwrite" in line:
-                    # Useless warning. Tool is unable to automatically calculate suspension ground depth
-                    fix_tag_copy_fail(project_dir, tags_dir, line)
+        threading.Thread(target=_stream_reader, args=(p.stdout, q, "stdout"), daemon=True).start()
+        threading.Thread(target=_stream_reader, args=(p.stderr, q, "stderr"), daemon=True).start()
+
+    active_streams = 2 if cull_warnings else 0
+
+    current_section = None
+    current_subsection = None
+
+    while True:
+        now = time.time()
+
+        if composite_timeout_active and (now - last_activity_time) > timeout_seconds:
+            p.kill()
+            raise RuntimeError("Failed to parse composite animation")
+
+        try:
+            source, item = q.get(timeout=0.1)
+        except queue.Empty:
+            source, item = None, None
+
+        if item is None:
+            if source is not None:
+                active_streams -= 1
+            else:
+
+                pass
+
+            if p.poll() is not None and active_streams <= 0:
+                break
+            continue
+
+        line = item.decode(errors="ignore").rstrip("\n")
+        last_activity_time = now
+
+        section, subsection, message = parse_tool_line(line)
+
+        if section and subsection:
+            if (section, subsection) != (current_section, current_subsection):
+                current_section = section
+                current_subsection = subsection
+                print_tag(f"{section}::{subsection}")
+                
+        if section and subsection and not message:
+            continue
+                
+        if "animation:import: processing composite" in line:
+            composite_timeout_active = True
+            last_activity_time = now
+
+        target_line = message if section else line
+        
+        indent = "\t" if section else ""
+
+        if failed and not error:
+            error = get_error_explanation(target_line)
+
+        elif not failed and is_error_line(target_line):
+            print_error(target_line)
+            failed = True
+
+        else:
+            if "(skipping tangent-space calculations)" in target_line:
+                continue
+            elif "if it is a decorator" in target_line:
+                continue
+            elif "but has flags that only make sense on render geometry" in target_line:
+                continue
+            elif "Uncompressed vertices are not supported for meshes with type" in target_line:
+                continue
+            elif "which only makes sense on two-sided (or one sided transparent) geometry" in target_line:
+                continue
+            elif "Do you really want this?" in target_line:
+                continue
+            elif "Failed to find any animated nodes" in target_line:
+                continue
+            elif "graph was imported with old codec which is no longer supported!" in target_line:
+                continue
+            elif "animation graph update failed!" in target_line:
+                continue
+            elif "Mesh marked to include per-vertex alpha has entirely opaque values!" in target_line:
+                continue
+            elif "sidecar does not specify a model path" in target_line:
+                continue
+            elif "unrecognized output tag type cinematic_scene for object cinematic_scene" in target_line:
+                continue
+            elif "Suspension marker(s)" in target_line:
+                continue
+            elif "tags: tag_save: couldn't overwrite" in line:
+                fix_tag_copy_fail(project_dir, tags_dir, line)
+            else:
+                if source == "stdout":
+                    print(f"{indent}{target_line}")
                 else:
-                    # need to handle animation stuff. Most animation output is written to stderr...
-                    if line.startswith("animation:import:"):
-                        warning_line = line.rpartition("animation:import: ")[2]
-                        if warning_line.startswith("Failed to extract"):
-                            print_warning(line)
-                        elif warning_line.startswith("Failed"):
-                            print_error(line)
-                        else:
-                            print(line)
+                    if section == "animation":
+                        print(f"{indent}{target_line}")
                     else:
-                        print_warning(line)
+                        print_warning(f"{indent}{target_line}")
 
     p.wait()
-    
+
     if tmp_log is not None and tmp_log.exists() and os.path.getsize(tmp_log) > 0:
         os.startfile(tmp_log)
 
@@ -651,6 +714,7 @@ def fix_tag_copy_fail(project_dir, tags_dir, line):
         copy_file(tmp_file, tag_file)
         print(f"Fixed tag copy fail: {tmp_file} copied to {tag_file}")
     except:
+        print("failure...")
         print_warning(line)
 
 def set_project_in_registry():
