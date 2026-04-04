@@ -14,6 +14,7 @@ import sys
 import tempfile
 import threading
 import time
+import unicodedata
 from uuid import uuid4
 import winreg
 import zipfile
@@ -5967,3 +5968,36 @@ def game_frame(frame: int):
 
 def blender_frame(frame: int):
     return round_int(frame / (30 / real_frame_rate()))
+
+_WINDOWS_RESERVED = {
+    "CON", "PRN", "AUX", "NUL",
+    *(f"COM{i}" for i in range(1, 10)),
+    *(f"LPT{i}" for i in range(1, 10)),
+}
+
+def clean_text(value: str, replacement: str = "_") -> str:
+    value = unicodedata.normalize("NFKD", value)
+    value = value.encode("ascii", "ignore").decode("ascii")
+    value = re.sub(r"[.\s]+", replacement, value)
+    value = re.sub(r'[<>:"/\\|?*\x00-\x1F]', "", value)
+    value = re.sub(r"[^A-Za-z0-9_\-]", "", value)
+
+    # Prevent empty string
+    if not value:
+        value = "default"
+
+    # Avoid reserved names (case-insensitive)
+    if value.upper() in _WINDOWS_RESERVED:
+        value = f"{value}_"
+
+    return value
+
+
+def find_layer_collection(layer_coll, collection):
+    if layer_coll.collection == collection:
+        return layer_coll
+    for child in layer_coll.children:
+        result = find_layer_collection(child, collection)
+        if result:
+            return result
+    return None

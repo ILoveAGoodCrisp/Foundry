@@ -275,12 +275,14 @@ class Sidecar:
                     self._get_object_output_types(metadata, "decorator_set", "decorator_set")
                 case AssetType.PARTICLE_MODEL:
                     self._get_object_output_types(metadata, "particle_model", "particle_model")
-                case AssetType.PREFAB:
+                case AssetType.PREFAB | AssetType.MULTI_PREFAB:
                     self._get_object_output_types(metadata, "prefab", "prefab")
                 case AssetType.ANIMATION:
                     self._get_object_output_types(metadata, "model")
                 case AssetType.CINEMATIC:
                     self._get_object_output_types(metadata, "cinematic")
+                case AssetType.MULTI_MODEL:
+                    self._get_object_output_types(metadata, "model", ["model", "crate"])
 
         # self._write_folders(metadata)
         self._write_face_collections(metadata)
@@ -289,7 +291,7 @@ class Sidecar:
             self._write_actor_contents(metadata, actor_render_model_path)
         else:
             match self.asset_type:
-                case AssetType.MODEL:
+                case AssetType.MODEL | AssetType.MULTI_MODEL:
                     self._write_model_contents(metadata)
                 case AssetType.SCENARIO:
                     self._write_scenario_contents(metadata)
@@ -299,7 +301,7 @@ class Sidecar:
                     self._write_decorator_contents(metadata)
                 case AssetType.PARTICLE_MODEL:
                     self._write_particle_contents(metadata)
-                case AssetType.PREFAB:
+                case AssetType.PREFAB | AssetType.MULTI_PREFAB:
                     self._write_prefab_contents(metadata)
                 case AssetType.ANIMATION:
                     self._write_animation_contents(metadata)
@@ -392,7 +394,7 @@ class Sidecar:
             ET.SubElement(tagcollection, "OutputTag", Type="scenery").text = self.tag_path
         else:
             match self.asset_type:
-                case AssetType.MODEL:
+                case AssetType.MODEL | AssetType.MULTI_MODEL:
                 # models are the only sidecar type with optional high level tags exports, all others are fixed
                     for tag in output_tags:
                         ET.SubElement(tagcollection, "OutputTag", Type=tag).text = self.tag_path
@@ -407,7 +409,7 @@ class Sidecar:
                 case AssetType.PARTICLE_MODEL:
                     ET.SubElement(tagcollection, "OutputTag", Type="particle_model").text = self.tag_path
 
-                case AssetType.PREFAB:
+                case AssetType.PREFAB | AssetType.MULTI_PREFAB:
                     ET.SubElement(tagcollection, "OutputTag", Type="prefab").text = self.tag_path
 
                 case AssetType.SKY | AssetType.ANIMATION:
@@ -466,7 +468,7 @@ class Sidecar:
             for idx, region in enumerate(self.regions):
                 ET.SubElement(face_collection_entries, "FaceCollectionEntry", Index=str(idx), Name=region, Active=self._region_active_state(region))
 
-        if self.asset_type in {AssetType.MODEL, AssetType.SCENARIO, AssetType.PREFAB}:
+        if self.asset_type in {AssetType.MODEL, AssetType.SCENARIO, AssetType.PREFAB, AssetType.MULTI_MODEL, AssetType.MULTI_PREFAB}:
             f2 = ET.SubElement(faceCollections, "FaceCollection", Name="global materials override", StringTable="connected_geometry_global_material_table", Description="Global material overrides")
 
             FaceCollectionsEntries2 = ET.SubElement(f2, "FaceCollectionEntries")
@@ -688,7 +690,8 @@ class Sidecar:
 
             output = ET.SubElement(content_object, "OutputTagCollection")
             ET.SubElement(output, "OutputTag", Type="scenario_structure_bsp").text = self.tag_path
-            ET.SubElement(output, "OutputTag", Type="scenario_structure_lighting_info").text = self.tag_path
+            if self.asset_type == AssetType.PREFAB:
+                ET.SubElement(output, "OutputTag", Type="scenario_structure_lighting_info").text = self.tag_path
 
     def _write_animation_contents(self, metadata):
         # NULL RENDER

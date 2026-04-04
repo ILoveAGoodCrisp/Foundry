@@ -140,12 +140,12 @@ LEGACY_ANIMATION_TYPES = (
 
 object_asset_validation = {
     # Mesh
-    '_connected_geometry_mesh_type_default': ('model', 'scenario', 'sky', 'particle_model', 'decorator_set', 'animation', 'prefab', 'resource'),
-    '_connected_geometry_mesh_type_collision': ('model', 'resource'),
-    '_connected_geometry_mesh_type_physics': ('model', 'resource'),
-    '_connected_geometry_mesh_type_object_instance': ('model', 'resource'),
+    '_connected_geometry_mesh_type_default': ('model', 'scenario', 'sky', 'particle_model', 'decorator_set', 'animation', 'prefab', 'resource', 'multi_model', 'multi_prefab'),
+    '_connected_geometry_mesh_type_collision': ('model', 'resource', 'multi_model'),
+    '_connected_geometry_mesh_type_physics': ('model', 'resource', 'multi_model'),
+    '_connected_geometry_mesh_type_object_instance': ('model', 'resource', 'multi_model'),
     '_connected_geometry_mesh_type_structure': ('scenario', 'resource'),
-    '_connected_geometry_mesh_type_poop': ('scenario', 'prefab', 'resource'),
+    '_connected_geometry_mesh_type_poop': ('scenario', 'prefab', 'resource', 'multi_prefab'),
     '_connected_geometry_mesh_type_seam': ('scenario', 'resource'),
     '_connected_geometry_mesh_type_portal': ('scenario', 'resource'),
     '_connected_geometry_mesh_type_water_surface': ('scenario', 'resource'),
@@ -157,17 +157,17 @@ object_asset_validation = {
     '_connected_geometry_mesh_type_cookie_cutter': ('scenario', 'resource'),
     '_connected_geometry_mesh_type_poop_rain_blocker': ('scenario', 'resource'),
     # Marker
-    '_connected_geometry_marker_type_model': ('model', 'scenario', 'sky', 'animation', 'prefab', 'resource'),
-    '_connected_geometry_marker_type_effects': ('model', 'sky', 'resource'),
-    '_connected_geometry_marker_type_garbage': ('model', 'resource'),
-    '_connected_geometry_marker_type_hint': ('model', 'resource'),
-    '_connected_geometry_marker_type_pathfinding_sphere': ('model', 'resource'),
-    '_connected_geometry_marker_type_physics_constraint': ('model', 'resource'),
-    '_connected_geometry_marker_type_target': ('model', 'resource'),
-    '_connected_geometry_marker_type_game_instance': ('scenario', 'prefab', 'resource'),
-    '_connected_geometry_marker_type_airprobe': ('scenario', 'prefab', 'resource'),
-    '_connected_geometry_marker_type_envfx': ('scenario', 'prefab', 'resource'),
-    '_connected_geometry_marker_type_lightCone': ('scenario', 'prefab', 'resource'),
+    '_connected_geometry_marker_type_model': ('model', 'scenario', 'sky', 'animation', 'prefab', 'resource', 'multi_model', 'multi_prefab'),
+    '_connected_geometry_marker_type_effects': ('model', 'sky', 'resource', 'multi_model'),
+    '_connected_geometry_marker_type_garbage': ('model', 'resource', 'multi_model'),
+    '_connected_geometry_marker_type_hint': ('model', 'resource', 'multi_model'),
+    '_connected_geometry_marker_type_pathfinding_sphere': ('model', 'resource', 'multi_model'),
+    '_connected_geometry_marker_type_physics_constraint': ('model', 'resource', 'multi_model'),
+    '_connected_geometry_marker_type_target': ('model', 'resource', 'multi_model'),
+    '_connected_geometry_marker_type_game_instance': ('scenario', 'prefab', 'resource', 'multi_prefab'),
+    '_connected_geometry_marker_type_airprobe': ('scenario', 'prefab', 'resource', 'multi_prefab'),
+    '_connected_geometry_marker_type_envfx': ('scenario', 'prefab', 'resource', 'multi_prefab'),
+    '_connected_geometry_marker_type_lightCone': ('scenario', 'prefab', 'resource', 'multi_prefab'),
     }
 
 object_game_validation = {
@@ -207,11 +207,9 @@ HALO_FACTOR = (1 / 0.03048) # Converts a meter to halo units
 REACH_FL_FACTOR = 1.276614018691589 # Multiply Blender camera length to get the game focal length
 CORINTH_FL_FACTOR = 0.5
 
-
 class GameVersion(Enum):
     REACH = 0
     CORINTH = 1
-    
     
 # Material prop defaults
 EMISSIVE_POWER = 0

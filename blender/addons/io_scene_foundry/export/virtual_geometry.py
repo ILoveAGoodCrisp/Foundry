@@ -1566,7 +1566,7 @@ class VirtualNode:
     def _set_group(self, scene: 'VirtualScene', animation: str | None):
         if animation is None:
             match scene.asset_type:
-                case AssetType.MODEL | AssetType.ANIMATION | AssetType.SKY:
+                case AssetType.MODEL | AssetType.ANIMATION | AssetType.SKY | AssetType.MULTI_MODEL:
                     mesh_type = self.props.get("bungie_mesh_type")
                     if mesh_type:
                         match mesh_type:
@@ -1609,7 +1609,7 @@ class VirtualNode:
                         
                     self.group = f'{self.tag_type}_{self.region}_{self.permutation}'
                     
-                case AssetType.PREFAB:
+                case AssetType.PREFAB | AssetType.MULTI_PREFAB:
                     self.tag_type = 'structure'
                     self.group = f'{self.tag_type}_{self.permutation}'
                     
@@ -1713,7 +1713,7 @@ def sort_bones_by_hierarchy(fake_bones: list[FakeBone]):
 class VirtualSkeleton:
     '''Describes a list of bones'''
     def __init__(self, ob: bpy.types.Object, scene: 'VirtualScene', node: VirtualNode, is_main_armature = False):
-        self.name: str = ob.name
+        self.name: str = "world" if is_main_armature else ob.name
         self.ob = ob
         self.node = node
         self.pbones = {}

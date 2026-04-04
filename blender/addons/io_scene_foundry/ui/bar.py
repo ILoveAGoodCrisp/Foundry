@@ -515,7 +515,7 @@ class NWO_HaloExportSettingsScope(bpy.types.Panel):
 
     @classmethod
     def poll(self, context):
-        return utils.poll_ui(('model', 'scenario', 'prefab', 'animation', 'cinematic'))
+        return utils.poll_ui(('model', 'scenario', 'prefab', 'animation', 'cinematic', 'multi_model', 'multi_prefab'))
 
     def draw(self, context):
         layout = self.layout
@@ -531,7 +531,7 @@ class NWO_HaloExportSettingsScope(bpy.types.Panel):
             even_rows=False,
             align=False,
         )
-        if scene_nwo.asset_type == "model":
+        if scene_nwo.asset_type in {"model", 'multi_mopdel'}:
             flow.prop(scene_nwo_export, "export_render", text="Render", icon_value=get_icon_id("render"))
             flow.prop(scene_nwo_export, "export_collision", text="Collision", icon_value=get_icon_id("collision"))
             flow.prop(scene_nwo_export, "export_physics", text="Physics", icon_value=get_icon_id("physics"))
@@ -563,6 +563,10 @@ class NWO_HaloExportSettingsScope(bpy.types.Panel):
             if scene_nwo_export.current_scene_only:
                 col.prop(scene_nwo_export, "current_shot_only")
                 col.prop(scene_nwo_export, "selected_cinematic_objects_only")
+                
+        if scene_nwo.asset_type in {'multi_model', 'multi_prefab'}:
+            col.separator()
+            col.prop(scene_nwo_export, "active_collections_only")
 
 
 class NWO_HaloExportSettingsFlags(bpy.types.Panel):
@@ -574,7 +578,7 @@ class NWO_HaloExportSettingsFlags(bpy.types.Panel):
 
     @classmethod
     def poll(self, context):
-        return utils.poll_ui(('model', 'scenario', 'prefab', 'sky', 'particle_model', 'decorator_set', 'animation'))
+        return utils.poll_ui(('model', 'scenario', 'prefab', 'sky', 'particle_model', 'decorator_set', 'animation', 'multi_model', 'multi_prefab'))
 
     def draw(self, context):
         layout = self.layout
@@ -582,8 +586,9 @@ class NWO_HaloExportSettingsFlags(bpy.types.Panel):
         scene_nwo_export = utils.get_export_props()
         h4 = utils.is_corinth(context)
         scenario = scene_nwo.asset_type == "scenario"
-        prefab = scene_nwo.asset_type == "prefab"
-        model = scene_nwo.asset_type == "model"
+        prefab = scene_nwo.asset_type in {"prefab", "multi_prefab"}
+        model = scene_nwo.asset_type in {"model", "multi_model"}
+        actual_model = scene_nwo.asset_type == 'model'
         animation = scene_nwo.asset_type == "animation"
 
         layout.use_property_split = False
@@ -603,12 +608,12 @@ class NWO_HaloExportSettingsFlags(bpy.types.Panel):
                     col.prop(scene_nwo_export, "relink_lighting")
                 else:
                     col.prop(scene_nwo_export, "allow_proxy_decals")
-        if model or animation:
+        if actual_model or animation:
             col.prop(scene_nwo_export, "disable_automatic_suspension_computation")
             if h4:
                 col.prop(scene_nwo_export, "debug_composites")
-            if model:
-                col.prop(scene_nwo_export, "auto_precise")
+        if model:
+            col.prop(scene_nwo_export, "auto_precise")
         col.prop(scene_nwo_export, "import_force", text="Force full export")
         if h4:
             if scenario or prefab:
@@ -740,7 +745,7 @@ class NWO_HaloExportTriangulation(bpy.types.Panel):
 
     @classmethod
     def poll(self, context):
-        return utils.poll_ui(('model', 'scenario', 'prefab', 'sky', 'particle_model', 'decorator_set', 'animation'))
+        return utils.poll_ui(('model', 'scenario', 'prefab', 'sky', 'particle_model', 'decorator_set', 'animation', 'multi_model', 'multi_prefab'))
 
     def draw(self, context):
         layout = self.layout
@@ -808,6 +813,12 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
     current_shot_only: bpy.props.BoolProperty(
         name="Current Shot Only",
         description="Only exports object animation for the current shot",
+        options=set(),
+    )
+    
+    active_collections_only: bpy.props.BoolProperty(
+        name="Active Collections Only",
+        description="Exports only active collections (defined by collections containing selected objects)",
         options=set(),
     )
     

@@ -67,7 +67,7 @@ class NWO_OT_ApplyTypeMesh(bpy.types.Operator):
         asset_type = nwo.asset_type
         h4 = utils.is_corinth(context)
         index = 0
-        if asset_type == 'model' or asset_type == 'resource':
+        if asset_type == 'model' or asset_type == 'resource' or asset_type == 'multi_model':
             # index += 1
             items.append(
                 utils.nwo_enum(
@@ -220,7 +220,7 @@ class NWO_OT_ApplyTypeMesh(bpy.types.Operator):
                         index,
                     )
                 )
-        elif asset_type == 'prefab':
+        elif asset_type == 'prefab' or asset_type == 'multi_prefab':
             # index += 1
             items.append(
                 utils.nwo_enum(

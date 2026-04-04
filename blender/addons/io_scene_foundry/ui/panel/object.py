@@ -998,12 +998,12 @@ class NWO_MT_MeshTypes(bpy.types.Menu):
     def draw(self, context):
         layout = self.layout
         h4 = utils.is_corinth(context)
-        if utils.poll_ui("model"):
+        if utils.poll_ui(("model", "multi_model")):
             layout.operator('nwo.apply_type_mesh_single', text='Render', icon_value=get_icon_id('render')).m_type = 'render'
             layout.operator('nwo.apply_type_mesh_single', text='Collision', icon_value=get_icon_id('collider')).m_type = 'collision'
             layout.operator('nwo.apply_type_mesh_single', text='Physics', icon_value=get_icon_id('physics')).m_type = 'physics'
             layout.operator('nwo.apply_type_mesh_single', text='Instanced Object', icon_value=get_icon_id('instance')).m_type = 'io'
-        if utils.poll_ui("scenario"):
+        if utils.poll_ui(("scenario",)):
             layout.operator('nwo.apply_type_mesh_single', text='Instanced Geometry', icon_value=get_icon_id('instance')).m_type = 'instance'
             layout.operator('nwo.apply_type_mesh_single', text='Structure', icon_value=get_icon_id('structure')).m_type = 'structure'
             layout.operator('nwo.apply_type_mesh_single', text='Seam', icon_value=get_icon_id('seam')).m_type = 'seam'
@@ -1018,7 +1018,7 @@ class NWO_MT_MeshTypes(bpy.types.Menu):
                 layout.operator('nwo.apply_type_mesh_single', text='Rain Sheet', icon_value=get_icon_id('rain_sheet')).m_type = 'rain_sheet'
                 layout.operator('nwo.apply_type_mesh_single', text='Pathfinding Cutout Volume', icon_value=get_icon_id('cookie_cutter')).m_type = 'cookie_cutter'
                 layout.operator('nwo.apply_type_mesh_single', text='Fog Sheet', icon_value=get_icon_id('fog')).m_type = 'fog'
-        elif utils.poll_ui("prefab"):
+        elif utils.poll_ui(("prefab", "multi_prefab")):
             layout.operator('nwo.apply_type_mesh_single', text='Instanced Geometry', icon_value=get_icon_id('instance')).m_type = 'instance'
             
 class NWO_MT_MarkerTypes(bpy.types.Menu):

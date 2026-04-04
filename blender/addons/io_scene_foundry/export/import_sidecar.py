@@ -162,7 +162,7 @@ class SidecarImport:
             if self.export_settings.import_force_animations:
                 flags.append("force_errors")
         else:
-            if self.asset_type in {AssetType.MODEL, AssetType.SKY}:
+            if self.asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.MULTI_MODEL}:
                 if not self.export_settings.lightmap_structure:
                     flags.append("draft")
                 elif not self.export_settings.import_force:

@@ -106,7 +106,7 @@ class ExportScene:
         self.export_settings = export_settings
         self.scene_settings = scene_settings
         
-        self.limit_perms_to_selection = export_settings.export_all_perms == 'selected' and self.asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.SCENARIO, AssetType.PREFAB}
+        self.limit_perms_to_selection = export_settings.export_all_perms == 'selected' and self.asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.SCENARIO, AssetType.PREFAB, AssetType.MULTI_MODEL, AssetType.MULTI_PREFAB}
         self.limit_bsps_to_selection = export_settings.export_all_bsps == 'selected' and self.asset_type == AssetType.SCENARIO
         
         self.project_root = self.tags_dir.parent
@@ -122,7 +122,7 @@ class ExportScene:
         self.has_animations = False
         self.setup_scenario = False
         
-        self.is_model = self.asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.ANIMATION}
+        self.is_model = self.asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.ANIMATION, AssetType.MULTI_MODEL}
         self.export_tag_types = self._get_export_tag_types()
         
         self.pre_title_printed = False
@@ -139,7 +139,7 @@ class ExportScene:
         
         self.rotation_correction = utils.blender_halo_rotation_diff(self.forward)
         
-        self.type_is_relevant = self.asset_type in {AssetType.MODEL, AssetType.SCENARIO, AssetType.SKY, AssetType.PARTICLE_MODEL, AssetType.PREFAB}
+        self.type_is_relevant = self.asset_type in {AssetType.MODEL, AssetType.SCENARIO, AssetType.SKY, AssetType.PARTICLE_MODEL, AssetType.PREFAB, AssetType.MULTI_MODEL, AssetType.MULTI_PREFAB}
         self.uses_main_armature = self.asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.ANIMATION, AssetType.SINGLE_ANIMATION}
         # self.is_child_asset = scene_settings.is_child_asset
         # self.parent_asset_path = None
@@ -178,7 +178,7 @@ class ExportScene:
     def _get_export_tag_types(self):
         tag_types = set()
         match self.asset_type:
-            case AssetType.MODEL:
+            case AssetType.MODEL | AssetType.MULTI_MODEL:
                 if self.export_settings.export_render:
                     tag_types.add('render')
                 if self.export_settings.export_collision:
@@ -199,7 +199,7 @@ class ExportScene:
                     tag_types.add('structure')
                 if self.export_settings.export_design:
                     tag_types.add('design')
-            case AssetType.PREFAB:
+            case AssetType.PREFAB | AssetType.MULTI_PREFAB:
                 if self.export_settings.export_structure:
                     tag_types.add('structure')
             case AssetType.SKY:
@@ -267,8 +267,9 @@ class ExportScene:
         self.shape_key_unmutes = []
         self.render_regions_perms = defaultdict(set) # region is key, perm is set
         self.collision_physics_regions_perms = defaultdict(set)
+        self.collection_view_layers_to_restore = set()
         
-    def ready_scene(self):
+    def ready_scene(self, collection_view_layer=None):
         # Annoying but need to loop all instancers and set them to not instance if they are intended as markers
         self.marker_instancers = [ob for ob in bpy.data.objects if ob.type == 'EMPTY' and ob.instance_type == 'COLLECTION' and ob.nwo.marker_instance]
         for ob in self.marker_instancers:
@@ -281,6 +282,15 @@ class ExportScene:
             animation_index = self.scene_settings.active_animation_index
             if animation_index > -1:
                 self.current_animation = self.scene_settings.animations[animation_index]
+
+        if collection_view_layer is not None:
+            view_layer = self.context.view_layer
+            for coll_view_layer in view_layer.layer_collection.children:
+                if coll_view_layer != collection_view_layer:
+                    self.collection_view_layers_to_restore.add(coll_view_layer)
+                    coll_view_layer.exclude = True
+                    
+            self.context.view_layer.update()
 
         for ob in self.context.view_layer.objects:
             if ob.hide_get():
@@ -825,7 +835,7 @@ class ExportScene:
 
         is_mesh = (object_type == ObjectType.mesh)
         is_marker = (object_type == ObjectType.marker)
-        instanced_object = (is_mesh and nwo.mesh_type == '_connected_geometry_mesh_type_object_instance' and self.asset_type == AssetType.MODEL)
+        instanced_object = (is_mesh and nwo.mesh_type == '_connected_geometry_mesh_type_object_instance' and self.asset_type in {AssetType.MODEL, AssetType.MULTI_MODEL})
 
         props = {"bungie_object_type": object_type.value}
         mesh_props = {}
@@ -952,7 +962,7 @@ class ExportScene:
         copy = None
         
         match self.asset_type:
-            case AssetType.MODEL:
+            case AssetType.MODEL | AssetType.MULTI_MODEL:
                 match mesh_type:
                     case "_connected_geometry_mesh_type_physics":
                         self.collision_physics_regions_perms[region].add(permutation)
@@ -1063,7 +1073,7 @@ class ExportScene:
                 self.sidecar.lods.add(lod)
                 props["bungie_mesh_decorator_lod"] = lod
                     
-            case AssetType.PREFAB:
+            case AssetType.PREFAB | AssetType.MULTI_PREFAB:
                 mesh_type = '_connected_geometry_mesh_type_poop'
                 self._setup_poop_props(ob, nwo, data_nwo, props, mesh_props)
                 
@@ -1245,7 +1255,7 @@ class ExportScene:
                     props["bungie_marker_type"] = "_connected_geometry_marker_type_model"
                 props["bungie_marker_velocity"] = utils.vector(nwo.marker_velocity)
         
-        elif self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB}:
+        elif self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB, AssetType.MULTI_PREFAB}:
             if marker_type == "_connected_geometry_marker_type_game_instance":
                 rnd = random.Random()
                 unique_name = self.make_unique_name(ob.name)
@@ -1342,7 +1352,7 @@ class ExportScene:
         region_face_level = False
         precise_face_level = False
         precise_face_prop = False
-        precise = self.asset_type == AssetType.MODEL and self.export_settings.auto_precise
+        precise = self.asset_type in {AssetType.MODEL, AssetType.MULTI_MODEL} and self.export_settings.auto_precise
         skip_mesh_face_props = False
         face_count = 0
         face_sides_props = []
@@ -2182,7 +2192,7 @@ class ExportScene:
                 region = nodes[0].region
                 tag_type = nodes[0].tag_type
                 self.sidecar.add_file_data(tag_type, perm, region, granny_path, bpy.data.filepath)
-                in_permutation_selection = self.asset_type not in {AssetType.MODEL, AssetType.SCENARIO, AssetType.SKY, AssetType.PREFAB} or not self.limit_perms_to_selection or perm in self.selected_permutations or tag_type in {'markers', 'skeleton'}
+                in_permutation_selection = self.asset_type not in {AssetType.MODEL, AssetType.SCENARIO, AssetType.SKY, AssetType.PREFAB, AssetType.MULTI_MODEL, AssetType.MULTI_PREFAB} or not self.limit_perms_to_selection or perm in self.selected_permutations or tag_type in {'markers', 'skeleton'}
                 in_bsp_selection = self.asset_type != AssetType.SCENARIO or not self.limit_bsps_to_selection or region in self.selected_bsps
                 if in_permutation_selection and in_bsp_selection and tag_type in self.export_tag_types:
                     job = f"--- {name}"
@@ -2294,6 +2304,11 @@ class ExportScene:
         
         for armature, pose in self.armature_poses.items():
             armature.pose_position = pose
+        
+        if self.collection_view_layers_to_restore:
+            for coll_view_layer in self.collection_view_layers_to_restore:
+                coll_view_layer.exclude = False
+            self.context.view_layer.update()
             
         for ob in self.hidden_objects:
             ob.hide_set(True)
@@ -2443,7 +2458,7 @@ class ExportScene:
             empty_region_names = collision_regions - render_regions
 
             empty_region_perms = {region: set(self.collision_physics_regions_perms[region])for region in empty_region_names}
-            
+        
         sidecar_importer = SidecarImport(self.asset_path, self.asset_name, self.asset_type, self.sidecar_path, self.scene_settings, self.export_settings, self.selected_bsps, self.corinth, structure, self.tags_dir, self.selected_actors, self.cinematic_scene, self.active_animation, structure, design, self.has_no_virtual_scene)
         if self.corinth and self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB}:
             sidecar_importer.save_lighting_infos()

@@ -1308,8 +1308,9 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             return
         is_scenario = nwo.asset_type == 'scenario'
         self.draw_object_visibility(box.box(), nwo)
-        self.draw_expandable_box(box.box(), nwo, "regions_table", "BSPs" if is_scenario else "Regions")
-        self.draw_expandable_box(box.box(), nwo, "permutations_table", "Layers" if is_scenario else "Permutations")
+        if self.asset_type in {'model', 'sky', 'scenario', 'prefab', 'resource'}:
+            self.draw_expandable_box(box.box(), nwo, "regions_table", "BSPs" if is_scenario else "Regions")
+            self.draw_expandable_box(box.box(), nwo, "permutations_table", "Layers" if is_scenario else "Permutations")
         
     def draw_object_visibility(self, box: bpy.types.UILayout, nwo):
         asset_type = nwo.asset_type
@@ -1317,7 +1318,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         grid = box.grid_flow(align=True, even_columns=True)
         default_icon_name = "render_geometry"
         default_icon_off_name = "render_geometry_off"
-        if utils.poll_ui(('scenario', 'prefab')):
+        if utils.poll_ui(('scenario', 'prefab', 'multi_prefab')):
             default_icon_name = "instance"
             default_icon_off_name = "instance_off"
         elif asset_type == 'decorator_set':
@@ -1325,9 +1326,9 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             default_icon_off_name = "decorator_off"
             
         grid.prop(nwo, "connected_geometry_mesh_type_default_visible", text="", icon_value=get_icon_id(default_icon_name) if nwo.connected_geometry_mesh_type_default_visible else get_icon_id(default_icon_off_name), emboss=False)
-        if utils.poll_ui(('model',)):
+        if asset_type in {'model', 'multi_model'}:
             grid.prop(nwo, "connected_geometry_mesh_type_collision_visible", text="", icon_value=get_icon_id("collider") if nwo.connected_geometry_mesh_type_collision_visible else get_icon_id("collider_off"), emboss=False)
-        if asset_type == 'model':
+        if asset_type in {'model', 'multi_model'}:
             grid.prop(nwo, "connected_geometry_mesh_type_physics_visible", text="", icon_value=get_icon_id("physics") if nwo.connected_geometry_mesh_type_physics_visible else get_icon_id("physics_off"), emboss=False)
             grid.prop(nwo, "connected_geometry_mesh_type_object_instance_visible", text="", icon_value=get_icon_id("instance") if nwo.connected_geometry_mesh_type_object_instance_visible else get_icon_id("instance_off"), emboss=False)
         if asset_type == 'scenario':
@@ -1346,16 +1347,16 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 grid.prop(nwo, "connected_geometry_mesh_type_poop_rain_blocker_visible", text="", icon_value=get_icon_id("rain_blocker") if nwo.connected_geometry_mesh_type_poop_rain_blocker_visible else get_icon_id("rain_blocker_off"), emboss=False)
 
         grid.prop(nwo, "connected_geometry_marker_type_model_visible", text="", icon_value=get_icon_id("marker") if nwo.connected_geometry_marker_type_model_visible else get_icon_id("marker_off"), emboss=False)
-        if utils.poll_ui(('model', 'sky')):
+        if utils.poll_ui(('model', 'sky', 'multi_model')):
             grid.prop(nwo, "connected_geometry_marker_type_effects_visible", text="", icon_value=get_icon_id("effects") if nwo.connected_geometry_marker_type_effects_visible else get_icon_id("effects_off"), emboss=False)
-        if asset_type == 'model':
+        if asset_type in {'model', 'multi_model'}:
             grid.prop(nwo, "connected_geometry_marker_type_garbage_visible", text="", icon_value=get_icon_id("garbage") if nwo.connected_geometry_marker_type_garbage_visible else get_icon_id("garbage_off"), emboss=False)
             grid.prop(nwo, "connected_geometry_marker_type_hint_visible", text="", icon_value=get_icon_id("hint") if nwo.connected_geometry_marker_type_hint_visible else get_icon_id("hint_off"), emboss=False)
             grid.prop(nwo, "connected_geometry_marker_type_pathfinding_sphere_visible", text="", icon_value=get_icon_id("pathfinding_sphere") if nwo.connected_geometry_marker_type_pathfinding_sphere_visible else get_icon_id("pathfinding_sphere_off"), emboss=False)
             grid.prop(nwo, "connected_geometry_marker_type_physics_constraint_visible", text="", icon_value=get_icon_id("physics_constraint") if nwo.connected_geometry_marker_type_physics_constraint_visible else get_icon_id("physics_constraint_off"), emboss=False)
             grid.prop(nwo, "connected_geometry_marker_type_target_visible", text="", icon_value=get_icon_id("target") if nwo.connected_geometry_marker_type_target_visible else get_icon_id("target_off"), emboss=False)
                 
-        if utils.poll_ui(('model', 'scenario')) and self.h4:
+        if utils.poll_ui(('model', 'scenario', 'multi_model')) and self.h4:
             grid.prop(nwo, "connected_geometry_marker_type_airprobe_visible", text="", icon_value=get_icon_id("airprobe") if nwo.connected_geometry_marker_type_airprobe_visible else get_icon_id("airprobe_off"), emboss=False)
         if asset_type == 'scenario':
             grid.prop(nwo, "connected_geometry_marker_type_game_instance_visible", text="", icon_value=get_icon_id("game_object") if nwo.connected_geometry_marker_type_game_instance_visible else get_icon_id("game_object_off"), emboss=False)
@@ -1673,7 +1674,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         data = ob.data
 
         is_light = ob.type == 'LIGHT'
-        has_mesh_types = utils.is_mesh(ob) and utils.poll_ui(('model', 'scenario'))
+        has_mesh_types = utils.is_mesh(ob) and utils.poll_ui(('model', 'scenario', 'multi_model'))
 
         if is_light:
             is_sun = data.type == 'SUN'
@@ -1902,35 +1903,36 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 col.label(text="Particle Model")
                 return
             
-            if nwo.mesh_type == '_connected_geometry_mesh_type_object_instance':
-                row = col.row()
-                row.use_property_split = False
-                row.prop(nwo, "marker_uses_regions", text='Region', icon_value=get_icon_id("collection_creator") if nwo.region_name_locked else 0)
-                if nwo.marker_uses_regions:
-                    col.menu("NWO_MT_Regions", text=utils.true_region(nwo), icon_value=get_icon_id("region"))
-                    col.separator()
-                    rows = 3
-                    row = col.row(heading='Permutations')
-                    row.use_property_split = False
-                    row.prop(nwo, "marker_permutation_type", text=" ", expand=True)
+            if self.asset_type in {'model', 'sky', 'scenario', 'prefab', 'resource'}:
+                if nwo.mesh_type == '_connected_geometry_mesh_type_object_instance':
                     row = col.row()
-                    row.template_list(
-                        "NWO_UL_MarkerPermutations",
-                        "",
-                        nwo,
-                        "marker_permutations",
-                        nwo,
-                        "marker_permutations_index",
-                        rows=rows,
-                    )
-                    col_perm = row.column(align=True)
-                    col_perm.menu("NWO_MT_MarkerPermutations", text="", icon="ADD")
-                    col_perm.operator("nwo.marker_perm_remove", icon="REMOVE", text="")
-                    if nwo.marker_permutation_type == "include" and not nwo.marker_permutations:
+                    row.use_property_split = False
+                    row.prop(nwo, "marker_uses_regions", text='Region', icon_value=get_icon_id("collection_creator") if nwo.region_name_locked else 0)
+                    if nwo.marker_uses_regions:
+                        col.menu("NWO_MT_Regions", text=utils.true_region(nwo), icon_value=get_icon_id("region"))
+                        col.separator()
+                        rows = 3
+                        row = col.row(heading='Permutations')
+                        row.use_property_split = False
+                        row.prop(nwo, "marker_permutation_type", text=" ", expand=True)
                         row = col.row()
-                        row.label(text="No permutations in include list", icon="ERROR")
-            else:
-                self.draw_table_menus(col, nwo, ob)
+                        row.template_list(
+                            "NWO_UL_MarkerPermutations",
+                            "",
+                            nwo,
+                            "marker_permutations",
+                            nwo,
+                            "marker_permutations_index",
+                            rows=rows,
+                        )
+                        col_perm = row.column(align=True)
+                        col_perm.menu("NWO_MT_MarkerPermutations", text="", icon="ADD")
+                        col_perm.operator("nwo.marker_perm_remove", icon="REMOVE", text="")
+                        if nwo.marker_permutation_type == "include" and not nwo.marker_permutations:
+                            row = col.row()
+                            row.label(text="No permutations in include list", icon="ERROR")
+                else:
+                    self.draw_table_menus(col, nwo, ob)
 
             if nwo.mesh_type == "_connected_geometry_mesh_type_physics":
                 row = col.row(align=True)
@@ -2035,7 +2037,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             elif nwo.mesh_type in (
                 "_connected_geometry_mesh_type_default",
                 "_connected_geometry_mesh_type_structure",
-            ) and utils.poll_ui(('scenario', 'prefab')):
+            ) and utils.poll_ui(('scenario', 'prefab', 'multi_prefab')):
                 if h4 and nwo.mesh_type == "_connected_geometry_mesh_type_structure" and utils.poll_ui(('scenario',)):
                     row = col.row()
                     row.use_property_split = False
@@ -2117,7 +2119,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             # MESH LEVEL / FACE LEVEL PROPERTIES
 
         elif utils.is_marker(ob) and utils.poll_ui(
-            ("model", "scenario", "sky", "prefab")
+            ("model", "scenario", "sky", "prefab", "multi_model", "multi_prefab")
         ):
             # MARKER PROPERTIES
             flow = box.grid_flow(
@@ -2426,7 +2428,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
   
         nwo = ob.data.nwo
         # Instance Proxy Operators
-        if ob.type != 'MESH' or ob.nwo.mesh_type != "_connected_geometry_mesh_type_default" or not utils.poll_ui(('scenario', 'prefab')):
+        if ob.type != 'MESH' or ob.nwo.mesh_type != "_connected_geometry_mesh_type_default" or not utils.poll_ui(('scenario', 'prefab', 'multi_prefab')):
             return
         
         col.separator()
@@ -2530,7 +2532,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 case 'global_material':
                     row = box.row(align=True)
                     row.prop(item, "global_material")
-                    if utils.poll_ui(('scenario', 'prefab')):
+                    if utils.poll_ui(('scenario', 'prefab', 'multi_prefab')):
                         if for_material:
                             row.operator("nwo.global_material_globals",text="", icon="VIEWZOOM").type = 'MATERIAL'
                         else:
@@ -3559,7 +3561,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 region_name = "Frontfacing BSP"
             else:
                 region_name = "BSP"
-        elif utils.poll_ui(('model',)) and utils.is_mesh(ob):
+        elif utils.poll_ui(('model', 'multi_model')) and utils.is_mesh(ob):
             if ob.data.nwo.face_props and nwo.mesh_type in ('_connected_geometry_mesh_type_object_structure', '_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_default'):
                 for prop in ob.data.nwo.face_props:
                     if prop.type == 'region':

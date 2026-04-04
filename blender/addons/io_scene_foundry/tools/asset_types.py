@@ -26,7 +26,9 @@ camera_track_set_description = "Camera tracks represent the position of a third 
 resource_description = "Resource assets cannot be exported but offer access to all object/mesh/marker types and tools.\n\nThey are designed to contain data (such as materials of meshes) that can then be referenced in other scenes"
 cinematic_description = "Cinematic"
 prefab_description = "Prefabs act like standalone bits of instanced geometry that can be referenced in BSPs.\n\nTo reference a prefab in a Scenario asset, add a Game Object Marker and add the relative tag path to your the tag path field"
-single_animation_description = "Exports a single gr2 with the same name as this blend file. Animation properties can be found in the asset editor panel. Does not use the animation action track system to load actions, just exports animations as is. What you see is what you get",
+single_animation_description = "Exports a single gr2 with the same name as this blend file. Animation properties can be found in the asset editor panel. Does not use the animation action track system to load actions, just exports animations as is. What you see is what you get"
+multi_model_description = "Exports a crate tag for each collection that is a direct child of the scene collection (excluding collections that have been set to a halo collection type). The name of the asset created will match the name of collection, with any '.' characters replaced by '_'\nThis asset type does not support lights"
+multi_prefab_description = "Exports a prefab tag for each collection that is a direct child of the scene collection (excluding collections that have been set to a halo collection type). The name of the asset created will match the name of collection, with any '.' characters replaced by '_'\nThis asset type does not support lights"
   
 model = NWOAsset("model", "Model", "model", False, model_description)
 scenario = NWOAsset("scenario", "Scenario", "scenario", False, scenario_description)
@@ -38,15 +40,21 @@ camera_track_set = NWOAsset("camera_track_set", "Camera Track Set", 'CON_CAMERAS
 resource = NWOAsset("resource", "Resource", "LINKED", False, resource_description)
 cinematic = NWOAsset("cinematic", "Cinematic", "VIEW_CAMERA_UNSELECTED", False, cinematic_description)
 prefab = NWOAsset("prefab", "Prefab", "prefab", True, prefab_description)
-single_animation = NWOAsset("single_animation", "Single Animation", "ACTION", False, animation_description)
+single_animation = NWOAsset("single_animation", "Single Animation", "ACTION", False, single_animation_description)
+multi_model = NWOAsset("multi_model", "Crates", "crate", False, multi_model_description)
+multi_prefab = NWOAsset("multi_prefab", "Multiple Prefabs", "prefab", True, multi_prefab_description)
 
-asset_types = [model, scenario, sky, decorator_set, particle_model, animation, camera_track_set, resource, cinematic, prefab, single_animation]
+asset_types = [model, scenario, sky, decorator_set, particle_model, animation, camera_track_set, resource, cinematic, prefab, single_animation, multi_model, multi_prefab]
 
 def asset_type_items(self, context):
     items = []
     corinth = utils.is_corinth(context)
-    for i, a in enumerate([a for a in asset_types if corinth or not a.corinth_only]):
-        items.append((a.internal_name, a.display_name, a.description, a.icon, i))
+    for i, a in enumerate(asset_types):
+        if not corinth and a.corinth_only:
+            corinth_warning = " [HALO 4+ ONLY]"
+        else:
+            corinth_warning = ""
+        items.append((a.internal_name, f"{a.display_name}{corinth_warning}", a.description, a.icon, i))
     
     return items
 
@@ -73,10 +81,12 @@ class AssetType(Enum):
     CINEMATIC = 8
     PREFAB = 9
     SINGLE_ANIMATION = 10
+    MULTI_MODEL = 11
+    MULTI_PREFAB = 12
     
     @property
     def supports_permutations(self):
-        return self.value in {0, 1, 2, 9}
+        return self.value in {0, 1, 2, 9, 11, 12}
     
     @property
     def supports_animations(self):
@@ -84,12 +94,12 @@ class AssetType(Enum):
     
     @property
     def supports_bsp(self):
-        return self.value in {1, 9}
+        return self.value in {1, 9, 12}
     
     @property
     def supports_global_materials(self):
-        return self.value in {0, 1, 9}
+        return self.value in {0, 1, 9, 11, 12}
     
     @property
     def supports_regions(self):
-        return self.value in (0, 2)
+        return self.value in {0, 2, 11}

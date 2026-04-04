@@ -34,7 +34,8 @@ from ..icons import get_icon_id, get_icon_id_in_directory
 from ..ui.bar import NWO_MT_ProjectChooserMenuDisallowNew
 
 from ..utils import (
-    check_path,
+    clean_text,
+    find_layer_collection,
     get_asset_path_full,
     get_data_path,
     get_asset_info,
@@ -44,9 +45,9 @@ from ..utils import (
     human_time,
     is_corinth,
     print_error,
+    print_section,
     print_warning,
     update_debug_menu,
-    # valid_child_asset,
     validate_ek,
 )
 from .. import managed_blam
@@ -137,11 +138,11 @@ class NWO_ExportScene(Operator, ExportHelper):
         else:
             self.game_path_not_set = True
             
-    def export_invalid(self):
+    def export_invalid(self, asset_path):
         if (
            # not check_path(self.filepath)
             not file_exists(f"{get_tool_path()}.exe")
-            or self.asset_path.lower() + os.sep == get_data_path().lower()
+            or asset_path.lower() + os.sep == get_data_path().lower()
         ):  # check the user is saving the file to a location in their editing kit data directory AND tool exists. AND prevent exports to root data dir
             nwo = utils.get_scene_props()
             game = nwo.scene_project
@@ -159,7 +160,7 @@ class NWO_ExportScene(Operator, ExportHelper):
                     f"Invalid {game} Tool Path",
                     0,
                 )
-            elif self.asset_path.lower() + path.sep == get_data_path().lower():
+            elif asset_path.lower() + path.sep == get_data_path().lower():
                 ctypes.windll.user32.MessageBoxW(
                     0,
                     f'You cannot export directly to your root {game} editing kit data directory. Please create a valid asset directory such as "data\my_asset" and direct your export to this folder',
@@ -215,8 +216,8 @@ class NWO_ExportScene(Operator, ExportHelper):
         if single_animation:
             sidecar_path_full = ""
             sidecar_path = ""
-            self.asset_name = ""
-            self.asset_path = ""
+            asset_name = ""
+            asset_path = ""
             
             if scene_nwo.is_child_asset and scene_nwo.parent_sidecar:
                 par_sidecar = Path(utils.get_data_path(), scene_nwo.parent_sidecar)
@@ -226,20 +227,20 @@ class NWO_ExportScene(Operator, ExportHelper):
             
         else:
             if scene_nwo.sidecar_path:
-                self.asset_path = get_asset_path_full()
-                self.asset_name = Path(self.asset_path).name
+                asset_path = get_asset_path_full()
+                asset_name = Path(asset_path).name
             else:
-                self.asset_path, self.asset_name = get_asset_info(self.filepath)
+                asset_path, asset_name = get_asset_info(self.filepath)
 
-            sidecar_path_full = str(Path(self.asset_path, self.asset_name).with_suffix(".sidecar.xml"))
-            print(sidecar_path_full)
+            sidecar_path_full = str(Path(asset_path, asset_name).with_suffix(".sidecar.xml"))
+            # print(sidecar_path_full)
             
             sidecar_path = str(Path(sidecar_path_full).relative_to(get_data_path()))
-            
+
             scene_nwo.sidecar_path = sidecar_path
         
             # Check that we can export
-            if self.export_invalid():
+            if self.export_invalid(asset_path):
                 scene_nwo_export.export_quick = False
                 self.report({"WARNING"}, "Export aborted")
                 return {"CANCELLED"}
@@ -266,7 +267,44 @@ class NWO_ExportScene(Operator, ExportHelper):
         try:
             try:
                 process_results = None
-                export_asset(context, sidecar_path_full, sidecar_path, self.asset_name, self.asset_path, scene_nwo, scene_nwo_export, is_corinth(context), single_animation, self.for_cache_build)
+                
+                if scene_nwo.asset_type in {'multi_model', 'multi_prefab'}:
+                    count = 0
+                    active_collection = None
+                    if scene_nwo_export.active_collections_only:
+                        active_collections = {c for ob in context.selected_objects for c in ob.users_collection}
+                        print("Export Active Collection Only")
+                        
+                    for coll in context.scene.collection.children:
+                        
+                        if active_collection is not None:
+                            if coll not in active_collections:
+                                continue
+                        
+                        if coll.nwo.type != 'none':
+                            continue
+                        
+                        coll_layer = find_layer_collection(context.view_layer.layer_collection, coll)
+                        if coll_layer is None or coll_layer.exclude:
+                            continue
+                        
+                        print_section(f"Exporting Collection - {coll.name}")
+                        count += 1
+                        
+                        coll_asset_name = clean_text(coll.name)
+                        
+                        coll_asset_path = Path(asset_path, coll_asset_name)
+                        
+                        coll_sidecar_path_full = str(Path(coll_asset_path, coll_asset_name).with_suffix(".sidecar.xml"))
+                        coll_sidecar_path = str(Path(coll_sidecar_path_full).relative_to(get_data_path()))
+                        
+                        export_asset(context, coll_sidecar_path_full, coll_sidecar_path, coll_asset_name, str(coll_asset_path), scene_nwo, scene_nwo_export, is_corinth(context), False, False, coll_layer)
+                    
+                    if count == 0:
+                        self.fail_explanation = "No Collections to export"
+                    
+                else:
+                    export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_path, scene_nwo, scene_nwo_export, is_corinth(context), single_animation, self.for_cache_build)
             
             except Exception as e:
                 if isinstance(e, RuntimeError):
@@ -331,7 +369,7 @@ class NWO_ExportScene(Operator, ExportHelper):
                 )
                 if get_prefs().debug_menu_on_export:
                     if scene_nwo.asset_type == 'model':
-                        update_debug_menu(self.asset_path, self.asset_name)
+                        update_debug_menu(asset_path, asset_name)
                     elif scene_nwo.asset_type == 'cinematic':
                         asset_path = utils.get_asset_path()
                         asset_name = Path(asset_path).name
@@ -594,10 +632,10 @@ def unregister():
     bpy.types.TOPBAR_MT_file_export.remove(menu_func_export)
     bpy.utils.unregister_class(NWO_ExportScene)
 
-def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_path, scene_settings, export_settings, corinth, single_animation, for_cache_build):
+def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_path, scene_settings, export_settings, corinth, single_animation, for_cache_build, collection_view_layer=None):
     asset_type = scene_settings.asset_type
     if asset_type == 'camera_track_set':
-        return export_current_action_as_camera_track(context,asset_path) # Return early if this is a camera track export
+        return export_current_action_as_camera_track(context, asset_path) # Return early if this is a camera track export
     start_scene = context.scene
     export_scene = ExportScene(context, sidecar_path_full, sidecar_path, asset_type, asset_name, asset_path, corinth, export_settings, scene_settings, start_scene)
     scenes = {}
@@ -627,25 +665,25 @@ def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_pat
         
     if export_settings.export_mode in {'FULL', 'GRANNY'}:
         for bscene, scene_id in scenes.items():
-                print(f"\n\nProcessing {bscene.name}")
-                print("-----------------------------------------------------------------------\n")
-                context.window.scene = bscene
-                export_scene.new_scene(scene_id)
-                try:
-                    export_scene.ready_scene()
-                    export_scene.get_initial_export_objects()
-                    export_scene.map_halo_properties()
-                    if not current_scene_only or bscene == start_scene:
-                        export_scene.set_template_node_order()
-                        export_scene.create_virtual_tree()
-                        if export_scene.asset_type == AssetType.CINEMATIC:
-                            export_scene.sample_shots()
-                        else:
-                            export_scene.sample_animations(single_animation)
-                        export_scene.report_warnings()
-                        export_scene.export_files(single_animation)
-                finally:
-                    export_scene.restore_scene()
+            print(f"\n\nProcessing {bscene.name}")
+            print("-----------------------------------------------------------------------\n")
+            context.window.scene = bscene
+            export_scene.new_scene(scene_id)
+            try:
+                export_scene.ready_scene(collection_view_layer)
+                export_scene.get_initial_export_objects()
+                export_scene.map_halo_properties()
+                if not current_scene_only or bscene == start_scene:
+                    export_scene.set_template_node_order()
+                    export_scene.create_virtual_tree()
+                    if export_scene.asset_type == AssetType.CINEMATIC:
+                        export_scene.sample_shots()
+                    else:
+                        export_scene.sample_animations(single_animation)
+                    export_scene.report_warnings()
+                    export_scene.export_files(single_animation)
+            finally:
+                export_scene.restore_scene()
         if not single_animation:
             export_scene.write_sidecar()
             
@@ -661,7 +699,7 @@ def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_pat
             print("-----------------------------------------------------------------------\n")
             export_scene.new_scene("default")
             try:
-                export_scene.ready_scene()
+                export_scene.ready_scene(collection_view_layer)
                 export_scene.get_initial_export_objects()
                 export_scene.map_halo_properties()
             finally:
