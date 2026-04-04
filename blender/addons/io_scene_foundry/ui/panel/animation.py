@@ -185,7 +185,7 @@ class NWO_UL_AnimProps_Events(bpy.types.UIList):
                 else:
                     layout.label(text=f"{item.frame_frame} - {item.frame_name.title()}", icon_value=get_icon_id("animation_event"))
             case '_connected_geometry_animation_event_type_object_function':
-                layout.label(text=item.object_function_name.rpartition("_")[2].upper())
+                layout.label(text=f"Event Function {item.object_function_name.rpartition("_")[2].upper()}", icon='GRAPH')
             case '_connected_geometry_animation_event_type_import':
                 layout.label(text=f"{item.frame_frame} - {item.import_name}", icon_value=get_icon_id("anim_overlay"))
             case '_connected_geometry_animation_event_type_wrinkle_map':
@@ -1836,7 +1836,7 @@ class NWO_OT_AddActionTrack(bpy.types.Operator):
         has_shape_key_data = ob.type == 'MESH' and ob.data.shape_keys and ob.data.shape_keys.animation_data and ob.data.shape_keys.animation_data.action
         if ob.animation_data is not None and ob.animation_data.action is not None:
             for track in animation.action_tracks:
-                if track.action == ob.animation_data.action:
+                if track.action == ob.animation_data.action and track.object == ob:
                     break
             else:
                 group = animation.action_tracks.add()
@@ -1931,7 +1931,7 @@ class NWO_UL_ActionTrack(bpy.types.UIList):
             else:
                 name += "NONE"
                 icon = 'WARNING'
-                
+        
         layout.label(text=name, icon=icon)
 
 class NWO_UL_AnimationList(bpy.types.UIList):
