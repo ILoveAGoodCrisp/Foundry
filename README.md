@@ -39,7 +39,7 @@ Foundry only needs to be installed once. Thereafter, you can use Blender to down
 - [Matthew](https://github.com/matty45) - GR2 Research and assistance with developing Blender to GR2 exporting
 - [Chiefster](https://github.com/chiefster-4014) - Creation of Blender Material Nodes for Halo models and general blender shader advice
 - Soul - Creation of Blender Material Nodes for Halo models
-- [Abstract Ingenuity](https://github.com/Abstract-Ingenuity) - Insight into Halo animation data and debugging numerous Foundry bugs (and likely many more bugs to come...)
+- [Abstract Ingenuity](https://github.com/Abstract-Ingenuity) - Insight into Halo animation data and debugging numerous bugs
 
 ## Special Thanks
 Testing and reporting bugs:
@@ -52,6 +52,7 @@ Testing and reporting bugs:
 - [ivanovitch](https://github.com/ivanivanovitch)
 - [Greenknight](https://github.com/GreenKnight5417)
 - [Gashnor](https://github.com/Gashnor)
+- [Priception](https://github.com/Priception)
 
 ## Acknowledgements
 This project includes code from [node-arrange](https://github.com/Leonardo-Pike-Excell/node-arrange)  
