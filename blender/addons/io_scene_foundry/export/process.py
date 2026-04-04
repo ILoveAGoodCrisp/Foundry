@@ -1909,7 +1909,11 @@ class ExportScene:
                     vector_events.append(VectorEvent(ob.name, event, "bungie_animation_event_wrinkle_map_effect", True))
                     
                 case '_connected_geometry_animation_event_type_object_function':
-                    props["bungie_animation_event_object_function_name"] = event.object_function_name
+                    func_name = event.object_function_name
+                    if not self.corinth and func_name[-1] not in ('a','b', 'c', 'd'):
+                        self.warnings.append(f"Function {func_name[-1].upper()} on animation {animation.name} not support for Reach. Reach only supports functions A - D. Clamping to D")
+                        func_name = 'animation_event_function_d'
+                    props["bungie_animation_event_object_function_name"] = func_name
                     props["bungie_animation_event_object_function_effect"] = event.event_value
                     vector_events.append(VectorEvent(ob.name, event, "bungie_animation_event_object_function_effect", True))
                     
