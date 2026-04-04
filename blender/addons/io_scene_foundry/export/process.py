@@ -397,6 +397,7 @@ class ExportScene:
                     self.main_armature = proxy
                 elif proxy in support_armatures:
                     self.support_armatures.append(proxy)
+                    continue
             
             proxy_export_objects.append(proxy)
         
