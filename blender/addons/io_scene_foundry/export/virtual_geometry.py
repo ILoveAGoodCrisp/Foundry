@@ -330,9 +330,10 @@ class VectorEvent:
         self.on_event_model = on_event_model
                     
 class VectorTrack:
-    def __init__(self, granny_vector_track, bone_name: c_char_p):
+    def __init__(self, granny_vector_track, bone_name, granny_track_group):
         self.granny_vector_track = granny_vector_track
         self.bone_name = bone_name
+        self.granny_track_group = granny_track_group
             
 class VirtualAnimation:
     def __init__(self, animation, scene: 'VirtualScene', sample: bool, animation_controls=[], shape_key_objects=[], vector_events=[]):
@@ -430,7 +431,12 @@ class VirtualAnimation:
             granny_vector_track.value_curve.curve_data.type = scene.granny.keyframe_type
             granny_vector_track.value_curve.curve_data.object = cast(pointer(curve_data), c_void_p)
             
-            self.vector_tracks.append(VectorTrack(granny_vector_track=granny_vector_track, bone_name=event.name.encode()))
+            if event.on_event_model:
+                granny_track_group = event.name.encode()
+            else:
+                granny_track_group = None
+            
+            self.vector_tracks.append(VectorTrack(granny_vector_track, event.name.encode(), granny_track_group))
         
     def create_track_group(self, bones: list['AnimatedBone'], scene: 'VirtualScene', shape_key_objects, vector_events: list[VectorEvent]):
         positions = defaultdict(list)
@@ -653,9 +659,8 @@ class VirtualAnimation:
         granny_animation.duration = scene.time_step * frame_total + 0.00001
         granny_animation.time_step = scene.time_step
         granny_animation.oversampling = 1
-        all_track_groups = [self.granny_track_group]
-        granny_animation.track_group_count = len(all_track_groups)
-        granny_animation.track_groups = (POINTER(GrannyTrackGroup) * len(all_track_groups))(*all_track_groups)
+        # granny_animation.track_group_count = len(all_track_groups)
+        # granny_animation.track_groups = (POINTER(GrannyTrackGroup) * len(all_track_groups))(*all_track_groups)
         
         self.granny_animation = pointer(granny_animation)
 

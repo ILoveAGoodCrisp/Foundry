@@ -1906,12 +1906,12 @@ class ExportScene:
                 case '_connected_geometry_animation_event_type_wrinkle_map':
                     props["bungie_animation_event_wrinkle_map_face_region"] = event.wrinkle_map_face_region
                     props["bungie_animation_event_wrinkle_map_effect"] = event.event_value
-                    vector_events.append(VectorEvent(ob.name, event, "bungie_animation_event_wrinkle_map_effect"))
+                    vector_events.append(VectorEvent(ob.name, event, "bungie_animation_event_wrinkle_map_effect", True))
                     
                 case '_connected_geometry_animation_event_type_object_function':
                     props["bungie_animation_event_object_function_name"] = event.object_function_name
                     props["bungie_animation_event_object_function_effect"] = event.event_value
-                    vector_events.append(VectorEvent(ob.name, event, "bungie_animation_event_object_function_effect"))
+                    vector_events.append(VectorEvent(ob.name, event, "bungie_animation_event_object_function_effect", True))
                     
                 case '_connected_geometry_animation_event_type_import':
                     props["bungie_animation_event_import_name"] = event.import_name
@@ -2229,7 +2229,7 @@ class ExportScene:
             
         if animation_export:
             self.granny.write_skeletons(export_info=self.export_info, vector_tracks=animation.vector_tracks)
-            self.granny.write_track_groups(animation.granny_track_group, vector_tracks=animation.vector_tracks)
+            self.granny.write_track_groups(animation.granny_animation, animation.granny_track_group, vector_tracks=animation.vector_tracks)
             self.granny.write_animations(animation.granny_animation)
         else:
             self.granny.write_skeletons(export_info=self.export_info)

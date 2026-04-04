@@ -262,15 +262,29 @@ class Granny:
         # self.file_info.art_tool_info.contents.back_vector = (c_float * 3)(0, 0, 1)
         # self.file_info.art_tool_info.contents.units_per_meter = 100
         
-    def write_track_groups(self, export_track_group, vector_tracks=[], vector_track_groups=[]):
-        
-        if vector_tracks:
-            export_track_group.contents.vector_track_count = len(vector_tracks)
-            export_track_group.contents.vector_tracks = (GrannyVectorTrack * len(vector_tracks))(*[vt.granny_vector_track for vt in vector_tracks])
-        
+    def write_track_groups(self, export_animation, export_track_group, vector_tracks=[]):
         all_track_groups = [export_track_group]
+        
+        tracks_with_own_groups = [v for v in vector_tracks if v.granny_track_group is not None]
+        tracks_with_main_group = [v for v in vector_tracks if v.granny_track_group is None]
+                
+        if tracks_with_main_group:
+            export_track_group.contents.vector_track_count = len(tracks_with_main_group)
+            export_track_group.contents.vector_tracks = (GrannyVectorTrack * len(tracks_with_main_group))(*[vt.granny_vector_track for vt in tracks_with_main_group])
+        
+        for track in tracks_with_own_groups:
+            granny_track_group = GrannyTrackGroup()
+            granny_track_group.name = track.granny_track_group
+            granny_track_group.vector_track_count = 1
+            granny_track_group.vector_tracks = pointer(track.granny_vector_track)
+            granny_track_group.flags = 2
+            all_track_groups.append(pointer(granny_track_group))
+        
         self.file_info.track_group_count = len(all_track_groups)
         self.file_info.track_groups = (POINTER(GrannyTrackGroup) * len(all_track_groups))(*all_track_groups)
+        
+        export_animation.contents.track_group_count = len(all_track_groups)
+        export_animation.contents.track_groups = (POINTER(GrannyTrackGroup) * len(all_track_groups))(*all_track_groups)
         
     def write_animations(self, export_animation):
         self.file_info.animation_count = 1
