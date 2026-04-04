@@ -523,7 +523,9 @@ def run_tool(tool_args: list, in_background=False, null_output=False, event_leve
 def run_tool_sidecar(tool_args: list, event_level='WARNING'):
     """Runs Tool using the specified function and arguments. Do not include 'tool' in the args passed"""
     failed = False
-    os.chdir(get_project_path())
+    project_dir = get_project_path()
+    tags_dir = get_tags_path()
+    os.chdir(project_dir)
     command = f"""{get_tool_type()} {' '.join(f'"{arg}"' for arg in tool_args)}"""
     # print(command)
     error = ""
@@ -589,6 +591,9 @@ def run_tool_sidecar(tool_args: list, event_level='WARNING'):
                 elif "Suspension marker(s)" in line:
                     # Useless warning. Tool is unable to automatically calculate suspension ground depth
                     continue
+                elif "tags: tag_save: couldn't overwrite" in line:
+                    # Useless warning. Tool is unable to automatically calculate suspension ground depth
+                    fix_tag_copy_fail(project_dir, tags_dir, line)
                 else:
                     # need to handle animation stuff. Most animation output is written to stderr...
                     if line.startswith("animation:import:"):
@@ -629,6 +634,24 @@ def get_error_explanation(line):
     
     
     return ""
+
+def fix_tag_copy_fail(project_dir, tags_dir, line):
+    match = re.search(r"couldn't overwrite '([^']+)' with '([^']+)'", line)
+    if not match:
+        return None, None
+
+    dest, tmp = match.groups()
+    
+    tmp_file = Path(project_dir, tmp)
+    tag_file = Path(tags_dir, dest)
+    if not tmp_file.exists():
+        return print_warning(line)
+
+    try:
+        copy_file(tmp_file, tag_file)
+        print(f"Fixed tag copy fail: {tmp_file} copied to {tag_file}")
+    except:
+        print_warning(line)
 
 def set_project_in_registry():
     """Sets the current project in the users registry"""
