@@ -246,7 +246,7 @@ class VirtualShot:
                     granny_tracks.append(granny_track)
                     
                 granny_track = GrannyTransformTrack()
-                granny_track.name = shot_actor.name_encoded
+                granny_track.name = b"world"
                 arm_tracks = []
                 loc, rot, sca = IDENTITY_MATRIX.decompose()
                 positions = []
@@ -286,7 +286,7 @@ class VirtualShot:
                 granny_transform_tracks = (GrannyTransformTrack * len(granny_tracks))(*granny_tracks)
                     
                 granny_track_group = GrannyTrackGroup()
-                granny_track_group.name = shot_actor.name_encoded
+                granny_track_group.name = b"world"
                 granny_track_group.transform_track_count = len(granny_tracks)
                 granny_track_group.transform_tracks = granny_transform_tracks
                 granny_track_group.flags = 2
@@ -573,7 +573,7 @@ class VirtualAnimation:
 
 
         granny_track = GrannyTransformTrack()
-        granny_track.name = scene.skeleton_node.name.encode()
+        granny_track.name = b"world"
         arm_tracks = []
         loc, rot, sca = IDENTITY_MATRIX.decompose()
         positions = []
@@ -617,7 +617,7 @@ class VirtualAnimation:
         granny_transform_tracks = (GrannyTransformTrack * len(granny_tracks))(*granny_tracks)
             
         granny_track_group = GrannyTrackGroup()
-        granny_track_group.name = scene.skeleton_node.name.encode()
+        granny_track_group.name = b"world"
         granny_track_group.transform_track_count = len(granny_tracks)
         granny_track_group.transform_tracks = granny_transform_tracks
         
@@ -1439,7 +1439,7 @@ class VirtualMesh:
     
 class VirtualNode:
     def __init__(self, id: utils.ExportObject | bpy.types.PoseBone, props: dict, region: str = None, permutation: str = None, scene: 'VirtualScene' = None, proxies = [], template_node: 'VirtualNode' = None, bones: list[str] = [], parent_matrix: Matrix = IDENTITY_MATRIX, animation_owner=None):
-        self.name: str = id.name
+        self.name: str = "world" if (not isinstance(id, bpy.types.PoseBone) and id.type == 'ARMATURE') else id.name
         self.ob = id
         self.matrix_world: Matrix = IDENTITY_MATRIX
         self.matrix_local: Matrix = IDENTITY_MATRIX
@@ -1713,7 +1713,7 @@ def sort_bones_by_hierarchy(fake_bones: list[FakeBone]):
 class VirtualSkeleton:
     '''Describes a list of bones'''
     def __init__(self, ob: bpy.types.Object, scene: 'VirtualScene', node: VirtualNode, is_main_armature = False):
-        self.name: str = "world" if is_main_armature else ob.name
+        self.name: str = "world" if ob.type == 'ARMATURE' else ob.name
         self.ob = ob
         self.node = node
         self.pbones = {}
@@ -1958,7 +1958,7 @@ class VirtualSkeleton:
 class VirtualModel:
     '''Describes a blender object which has no parent'''
     def __init__(self, ob: bpy.types.Object, scene: 'VirtualScene', props=None, region=None, permutation=None, animation_owner=None):
-        self.name: str = ob.name
+        self.name: str = "world" if ob.type == 'ARMATURE' else ob.name
         self.ob = ob
         self.node = None
         self.skeleton = None
