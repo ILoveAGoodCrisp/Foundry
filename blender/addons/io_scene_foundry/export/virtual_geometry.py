@@ -322,11 +322,12 @@ vector_event_types = {
 }
 
 class VectorEvent:
-    def __init__(self, name: str, event, effect_name: str):
+    def __init__(self, name: str, event, effect_name: str, on_event_model=False):
         self.name = name
         self.event = event
         self.effect_name = effect_name
         self.effect_data: list[float] = []
+        self.on_event_model = on_event_model
                     
 class VectorTrack:
     def __init__(self, granny_vector_track, bone_name: c_char_p):

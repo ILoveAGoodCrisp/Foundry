@@ -262,7 +262,7 @@ class Granny:
         # self.file_info.art_tool_info.contents.back_vector = (c_float * 3)(0, 0, 1)
         # self.file_info.art_tool_info.contents.units_per_meter = 100
         
-    def write_track_groups(self, export_track_group, vector_tracks=[]):
+    def write_track_groups(self, export_track_group, vector_tracks=[], vector_track_groups=[]):
         
         if vector_tracks:
             export_track_group.contents.vector_track_count = len(vector_tracks)
