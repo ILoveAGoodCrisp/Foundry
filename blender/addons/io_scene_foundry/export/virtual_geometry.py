@@ -176,13 +176,20 @@ class VirtualShot:
         if scene.cinematic_scope != 'OBJECT' and self.in_scope:
             fps = utils.real_frame_rate()
             start, end = self.frame_start, self.frame_end
-            time = start / fps
+            start_time = start / fps
             end_time = end / fps
-            time_step = 1.0 / 30
-            
-            while time <= end_time:
-                frame = round(time * fps)
-                scene.context.scene.frame_set(frame)
+            time_step = 1.0 / 30.0
+
+            time = start_time
+            while time <= end_time + 1e-6:
+                frame_float = time * fps
+                frame = int(frame_float)
+                subframe = frame_float - frame
+                if frame > end:
+                    frame = end
+                    subframe = 0.0
+
+                scene.context.scene.frame_set(frame, subframe=subframe)
                 time += time_step
                 # Camera Animation
                 self.frames.append(Frame(self.camera, scene.corinth, film_aperture))
@@ -453,13 +460,20 @@ class VirtualAnimation:
         
         fps = utils.real_frame_rate()
         start, end = self.frame_range
-        time = start / fps
+        start_time = start / fps
         end_time = end / fps
-        time_step = 1.0 / 30
-        
-        while time <= end_time:
-            frame = round(time * fps)
-            scene.context.scene.frame_set(frame)
+        time_step = 1.0 / 30.0
+
+        time = start_time
+        while time <= end_time + 1e-6:
+            frame_float = time * fps
+            frame = int(frame_float)
+            subframe = frame_float - frame
+            if frame > end:
+                frame = end
+                subframe = 0.0
+
+            scene.context.scene.frame_set(frame, subframe=subframe)
             time += time_step
             
             # suspension calcs
