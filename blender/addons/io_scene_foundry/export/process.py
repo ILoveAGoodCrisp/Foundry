@@ -308,7 +308,8 @@ class ExportScene:
         self.temp_objects = set()
         main_armature = None
         if self.uses_main_armature:
-            main_armature = self.scene_settings.main_armature
+            main_armature = utils.get_rig(self.context)
+
         support_armatures = []
         self.export_objects = []
             
