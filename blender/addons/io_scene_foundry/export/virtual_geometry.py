@@ -1512,14 +1512,11 @@ class VirtualNode:
                 bone_parent = ""
                 if id.parent_type == 'BONE' and id.parent_bone:
                     bone_parent = id.parent_bone
-                    
-                if id.modifiers:
-                    self.mod_stack = ModifierStack(id.ob if hasattr(id, "ob") else id)
                 
-                existing_mesh = scene.meshes.get((id.data, self.negative_scaling, materials, bone_parent, self.mod_stack))
+                existing_mesh = scene.meshes.get((id.data, self.negative_scaling, materials))
                 existing_linked_mesh = scene.meshes_linked.get(id.data)
                     
-                if existing_mesh:
+                if existing_mesh and not id.modifiers and not bone_parent:
                     self.mesh = existing_mesh
                     self.mesh.siblings.append(self.name)
                 else:
@@ -2116,7 +2113,7 @@ class VirtualScene:
                 negative_scaling = id.matrix_world.is_negative
                 if id.invert_topology:
                     negative_scaling = not negative_scaling
-                self.meshes[(node.mesh.mesh, negative_scaling, node.mesh.bpy_materials, node.mesh.bone_parent, node.mod_stack)] = node.mesh
+                self.meshes[(node.mesh.mesh, negative_scaling, node.mesh.bpy_materials)] = node.mesh
                 self.meshes_linked[node.mesh.mesh] = node.mesh
             
         return node
