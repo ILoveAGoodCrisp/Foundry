@@ -27,11 +27,8 @@ class NWO_OT_AddScaleModel(bpy.types.Operator, AddObjectHelper):
         root_files = [f for f in scale_models.iterdir() if f.is_file()]
         if root_files:
             for file in sorted(root_files, key=lambda f: f.name):
-                items.append((
-                    str(file),
-                    utils.formalise_string(file.with_suffix("").name),
-                    ""
-                ))
+                if file.suffix.lower() == '.bmf':
+                    items.append((str(file),utils.formalise_string(file.with_suffix("").name), ""))
 
         for folder in sorted([f for f in scale_models.iterdir() if f.is_dir()], key=lambda f: f.name):
             files = [f for f in folder.iterdir() if f.is_file()]
@@ -41,11 +38,12 @@ class NWO_OT_AddScaleModel(bpy.types.Operator, AddObjectHelper):
             items.append(("", utils.formalise_string(folder.name), ""))
 
             for file in sorted(files, key=lambda f: f.name):
-                items.append((
-                    str(file),
-                    utils.formalise_string(file.with_suffix("").name),
-                    ""
-                ))
+                if file.suffix.lower() == '.bmf':
+                    items.append((
+                        str(file),
+                        utils.formalise_string(file.with_suffix("").name),
+                        ""
+                    ))
 
         return items
     
