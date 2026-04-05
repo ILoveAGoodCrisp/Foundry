@@ -50,6 +50,9 @@ def assign_parents_from_child_sibling(nodes: list[Node], index=0, parent_index=-
 
     # Then next sibling
     assign_parents_from_child_sibling(nodes, node.sibling_index, parent_index)
+    
+def safe_int(x):
+    return int(float(x))
 
 class JMA:
     def __init__(self):
@@ -74,29 +77,29 @@ class JMA:
         self.version = int(get())
         h1 = self.version < 16394
         if h1:
-            self.frame_count = int(get())
-            self.fps = int(get())
-            self.actor_count = int(get())
+            self.frame_count = safe_int(get())
+            self.fps = safe_int(get())
+            self.actor_count = safe_int(get())
             self.actor_names = get().split()
-            self.node_count = int(get())
-            self.node_checksum = int(get())
+            self.node_count = safe_int(get())
+            self.node_checksum = safe_int(get())
         else:
-            self.node_checksum = int(get())
-            self.frame_count = int(get())
-            self.fps = int(get())
-            self.actor_count = int(get())
+            self.node_checksum = safe_int(get())
+            self.frame_count = safe_int(get())
+            self.fps = safe_int(get())
+            self.actor_count = safe_int(get())
             self.actor_names = get().split()
-            self.node_count = int(get())
+            self.node_count = safe_int(get())
         
         if h1:
             for _ in range(self.node_count):
-                self.nodes.append(Node(get(), child_index=int(get()), sibling_index=int(get())))
+                self.nodes.append(Node(get(), child_index=safe_int(get()), sibling_index=safe_int(get())))
             
             assign_parents_from_child_sibling(self.nodes)
                 
         else:
             for _ in range(self.node_count):
-                self.nodes.append(Node(get(), parent_index=int(get())))
+                self.nodes.append(Node(get(), parent_index=safe_int(get())))
             
         for node in self.nodes:
             if node.parent_index > -1:
