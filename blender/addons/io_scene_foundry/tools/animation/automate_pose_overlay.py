@@ -357,11 +357,14 @@ class PoseBuilder:
         # Keyframe this as the base pose
         if self.uses_control:
             self.control.keyframe_insert(data_path='rotation_quaternion', frame=scene.frame_current)
+            self.control.keyframe_insert(data_path='rotation_euler', frame=scene.frame_current)
         else:
             if self.uses_pitch:
                 self.pitch.keyframe_insert(data_path='rotation_quaternion', frame=scene.frame_current)
+                self.pitch.keyframe_insert(data_path='rotation_euler', frame=scene.frame_current)
             if self.uses_yaw:
                 self.yaw.keyframe_insert(data_path='rotation_quaternion', frame=scene.frame_current)
+                self.yaw.keyframe_insert(data_path='rotation_euler', frame=scene.frame_current)
             
     def _add_wrap_event(self, frame: int, animation, wrap_type: str):
         event = animation.animation_events.add()
@@ -377,6 +380,7 @@ class PoseBuilder:
                 scene.frame_set(animation.frame_start + idx + 1)
                 self.control.matrix_basis =  yaw @ pitch @ self.pedestal.matrix_basis
                 self.control.keyframe_insert(data_path='rotation_quaternion', frame=scene.frame_current)
+                self.control.keyframe_insert(data_path='rotation_euler', frame=scene.frame_current)
                 if wrap_events and wrap:
                     self._add_wrap_event(scene.frame_current, animation, wrap)
         else:
@@ -385,9 +389,11 @@ class PoseBuilder:
                 if self.uses_yaw:
                     self.yaw.matrix = self.pedestal.matrix @ yaw
                     self.yaw.keyframe_insert(data_path='rotation_quaternion', frame=scene.frame_current)
+                    self.yaw.keyframe_insert(data_path='rotation_euler', frame=scene.frame_current)
                 if self.uses_pitch:
                     self.pitch.matrix = self.pedestal.matrix @ pitch
                     self.pitch.keyframe_insert(data_path='rotation_quaternion', frame=scene.frame_current)
+                    self.pitch.keyframe_insert(data_path='rotation_euler', frame=scene.frame_current)
                 if wrap_events and wrap:
                     self._add_wrap_event(scene.frame_current, animation, wrap)
         
