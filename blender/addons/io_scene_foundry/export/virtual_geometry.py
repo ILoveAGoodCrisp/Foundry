@@ -1715,12 +1715,13 @@ class AnimatedBone:
                 self.parent = parent_override
 
 class FakeBone:
-    def __init__(self, ob: bpy.types.Object, bone: bpy.types.PoseBone, parent: 'FakeBone' = None, special_bone_names=[], parent_ob: bpy.types.Object = None):
+    def __init__(self, ob: bpy.types.Object, bone: bpy.types.PoseBone, special_bone_names=[], parent_ob: bpy.types.Object = None):
         self.name = bone.name
         self.ob = ob
-        self.parent = parent
+        self.parent: 'FakeBone | None' = None
         self.bone = bone
         self.export = ob.data.bones[bone.name].use_deform or self.name in special_bone_names
+
         if parent_ob is None:
             self.matrix = bone.matrix
         else:
@@ -1785,54 +1786,59 @@ class VirtualSkeleton:
                             support_armature_bone_parent_names.add(root)
 
             start_bones_dict = {}
-            root_fb = None
-            
-            def create_fake_bone(arm, pb, parent_fb=None, parent_arm=None) -> FakeBone:
-                nonlocal root_fb
-                
-                if parent_fb is None:
-                    parent = pb.parent
-                    if parent:
-                        parent_fb = start_bones_dict.get(parent)
-                    elif root_fb is not None:
-                        parent_fb = root_fb
-                fb = FakeBone(arm, pb, parent_fb, special_bone_names, parent_arm)
-                if not fb.parent:
-                    root_fb = fb
-                start_bones_dict[pb] = fb
-                if fb.export and parent_fb is not None and not parent_fb.export: # Ensure parents of deform bones are themselves deform
-                    scene.warnings.append(f"Bone {parent_fb.name} is marked non-deform but has deforming children. Including {parent_fb.name} in export")
-                    parent_fb.export = True
-                    
-                return fb
-            
-            fb_names = []
             fbs = []
+
+            def register_armature(arm, parent_arm=None, attach_to_fb=None):
+                for pb in arm.pose.bones:
+                    fb = FakeBone(arm, pb, special_bone_names, parent_arm)
+                    start_bones_dict[pb] = fb
+                    fbs.append(fb)
+                    if pb.parent is None and attach_to_fb is not None:
+                        fb._pending_parent = attach_to_fb
+                    else:
+                        fb._pending_parent = None
+
+
+            register_armature(main_arm)
+
             for pbone in main_arm.pose.bones:
-                fb = create_fake_bone(main_arm, pbone)
-                fb_names.append(fb.name)
-                fbs.append(fb)
-                if fb.name in support_armature_bone_parent_names:
+                if pbone.name in support_armature_bone_parent_names:
+                    parent_fb = start_bones_dict[pbone]
+
                     for child in scene.support_armatures:
-                        for pbone_s in child.pose.bones:
-                            cfb = create_fake_bone(child, pbone_s, fb if pbone_s.parent is None else None, main_arm)
-                            fb_names.append(cfb.name)
-                            fbs.append(cfb)
+                        register_armature(child, parent_arm=main_arm, attach_to_fb=parent_fb)
+                        
+            root_fb = None
+
+            for pb, fb in start_bones_dict.items():
+                if pb.parent:
+                    fb.parent = start_bones_dict.get(pb.parent)
+                elif hasattr(fb, "_pending_parent") and fb._pending_parent:
+                    fb.parent = fb._pending_parent
+                else:
+                    fb.parent = None
+
+                if fb.parent is None and root_fb is None:
+                    root_fb = fb
+                    
+            for fb in fbs:
+                if fb.export and fb.parent and not fb.parent.export:
+                    scene.warnings.append(f"Bone {fb.parent.name} is marked non-deform but has deforming children. Including {fb.parent.name} in export")
+                    fb.parent.export = True
                             
-            if len(set(fb_names)) != len(fb_names):
-                error_str = [f"{fb.ob.name} --> {fb.name}" for fb in fbs]
-                raise RuntimeError(f"Duplicate bone names found. Ensure that all exported armatures have unique bone names. Armature Bones list:\n{error_str}\n")
+            # if len(set(fb_names)) != len(fb_names):
+            #     error_str = [f"{fb.ob.name} --> {fb.name}" for fb in fbs]
+            #     raise RuntimeError(f"Duplicate bone names found. Ensure that all exported armatures have unique bone names. Armature Bones list:\n{error_str}\n")
                 
             start_bones = list(start_bones_dict.values())
             
             # Sort bones by hierarchy i.e. all bones in a certain depth level in the child-parent relationship come before the next depth level
             sorted_bones = sort_bones_by_hierarchy(start_bones)
             valid_bones = [fb for fb in sorted_bones if fb.export]
-            # More bone collections for later
+
             list_bones = [fb.name for fb in valid_bones]
             dict_bones = {v: i for i, v in enumerate(list_bones)}
             self.pbones = {fb.name: fb.bone for fb in valid_bones}
-
 
             root_bone = None
             root_bone_found = False
