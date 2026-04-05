@@ -237,6 +237,9 @@ class ObjectTag(Tag):
     
     
     def set_fp_weapon_render_model(self, render_model_path: str):
+        if not Path(self.tag_path, utils.relative_path(render_model_path)).exists():
+            return
+        
         fp_block = self.tag.SelectField("Struct:player interface[0]/Block:first person")
         
         while fp_block.Elements.Count < 2:
