@@ -61,7 +61,7 @@ class NWO_OT_AddScaleModel(bpy.types.Operator, AddObjectHelper):
         return {"FINISHED"}
 
     def write_data(self, context, filepath):
-        name = self.model_name
+        name = utils.formalise_string(Path(self.model_name).with_suffix("").name)
         model = BarebonesModelFormat()
         model.from_file(filepath)
         ob = object_data_add(context, model.to_mesh(name), operator=self, name=name)

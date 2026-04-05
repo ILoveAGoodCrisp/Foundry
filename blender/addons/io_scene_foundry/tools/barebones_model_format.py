@@ -20,8 +20,10 @@ class NWO_OT_ExportBMF(bpy.types.Operator):
     def execute(self, context):
         ob: bpy.types.Object = context.object
         eval = ob.evaluated_get(context.evaluated_depsgraph_get())
+        mesh = eval.to_mesh()
         bmf = BarebonesModelFormat()
-        bmf.from_mesh(eval.data)
+        bmf.from_mesh(mesh)
+        eval.to_mesh_clear()
         
         root = utils.addon_root()
         fp = Path(root, "resources", "scale_models", ob.name).with_suffix(".bmf")
