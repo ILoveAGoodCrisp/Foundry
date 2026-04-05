@@ -176,28 +176,31 @@ class VirtualShot:
         if scene.cinematic_scope != 'OBJECT' and self.in_scope:
             fps = utils.real_frame_rate()
             start, end = self.frame_start, self.frame_end
+
             start_time = start / fps
             end_time = end / fps
-            time_step = 1.0 / 30.0
+            duration = end_time - start_time
 
-            time = start_time
-            while time <= end_time + 1e-6:
+            for i in range(self.frame_count):
+                t = i / (self.frame_count - 1) if self.frame_count > 1 else 0.0
+                time = start_time + t * duration
+
                 frame_float = time * fps
                 frame = int(frame_float)
                 subframe = frame_float - frame
+
                 if frame > end:
                     frame = end
                     subframe = 0.0
 
                 scene.context.scene.frame_set(frame, subframe=subframe)
-                time += time_step
-                # Camera Animation
                 self.frames.append(Frame(self.camera, scene.corinth, film_aperture))
-                # Bone Animation
                 for shot_actor in self.shot_actors:
                     if not shot_actor.in_scope:
                         continue
+
                     bone_inverse_matrices = {}
+
                     for bone in shot_actor.bones:
                         if bone.parent:
                             matrix_world = scene.rotation_matrix @ bone.ob.matrix_world @ bone.pbone.matrix
@@ -208,13 +211,15 @@ class VirtualShot:
                             bone_inverse_matrices[bone.pbone] = matrix.inverted_safe()
 
                         loc, rot, sca = matrix.decompose()
+
                         position = (c_float * 3)(loc.x, loc.y, loc.z)
                         orientation = (c_float * 4)(rot.x, rot.y, rot.z, rot.w)
                         scale_shear = (c_float * 9)(sca.x, 0.0, 0.0, 0.0, sca.y, 0.0, 0.0, 0.0, sca.z)
+
                         shot_actor.positions[bone].extend(position)
                         shot_actor.orientations[bone].extend(orientation)
                         shot_actor.scales[bone].extend(scale_shear)
-                
+
         frame_total = self.frame_count - 1
                 
         for shot_actor in self.shot_actors:
@@ -443,20 +448,19 @@ class VirtualAnimation:
         orientations = defaultdict(list)
         scales = defaultdict(list)
         tracks = []
-        failed_pose_overlay = False
         pose_overlay_frame_data = defaultdict(list)
-        # scale_matrix = Matrix.Diagonal(scene.armature_matrix.to_scale()).to_4x4()
         morph_target_datas = defaultdict(list)
         shape_key_data = {}
+
         for ob in shape_key_objects:
             node = scene.nodes.get(ob)
             if node is not None:
                 shape_key_data[ob] = node
                 self.nodes.append(node)
-                
+
         if shape_key_data:
             self.is_pca = True
-        
+
         first_frame = True
         suspension_extension_frame = False
         suspension_reference_height = 0.0
@@ -464,29 +468,34 @@ class VirtualAnimation:
         suspension_compression_height = 0.0
         suspension_destroyed_extension_height = 0.0
         suspension_destroyed_compression_height = 0.0
-        
+
         fps = utils.real_frame_rate()
         start, end = self.frame_range
+
         start_time = start / fps
         end_time = end / fps
-        time_step = 1.0 / 30.0
+        duration = end_time - start_time
 
-        time = start_time
-        while time <= end_time + 1e-6:
+        real_frame_count = 0
+
+        for i in range(self.frame_count):
+            t = i / (self.frame_count - 1) if self.frame_count > 1 else 0.0
+            time = start_time + t * duration
+
             frame_float = time * fps
             frame = int(frame_float)
             subframe = frame_float - frame
+
             if frame > end:
                 frame = end
                 subframe = 0.0
 
             scene.context.scene.frame_set(frame, subframe=subframe)
-            time += time_step
-            
-            # suspension calcs
+
+            real_frame_count += 1
+
             if self.suspension:
                 if first_frame:
-                    scene.atten_scalar
                     suspension_reference_height = self.suspension_marker.matrix_world.translation.z
                     suspension_extension_frame = True
                 elif suspension_extension_frame:
@@ -494,52 +503,53 @@ class VirtualAnimation:
                     if self.suspension_destroyed_region_name:
                         suspension_destroyed_extension_height = self.suspension_destroyed_contact_marker.matrix_world.translation.z
                     suspension_extension_frame = False
-                elif frame == self.frame_range[1]:
+                elif i == self.frame_count - 1:
                     suspension_compression_height = self.suspension_contact_marker.matrix_world.translation.z
-                
+
                     self.suspension_extension_depth = (suspension_reference_height - suspension_extension_height) * scene.unit_factor * WU_SCALAR
                     self.suspension_compression_depth = (suspension_reference_height - suspension_compression_height) * scene.unit_factor * WU_SCALAR
-                    
+
                     if self.suspension_destroyed_region_name:
                         suspension_destroyed_compression_height = self.suspension_destroyed_contact_marker.matrix_world.translation.z
-                            
+
                         self.suspension_destroyed_extension_depth = (suspension_reference_height - suspension_destroyed_extension_height) * scene.unit_factor * WU_SCALAR
                         self.suspension_destroyed_compression_depth = (suspension_reference_height - suspension_destroyed_compression_height) * scene.unit_factor * WU_SCALAR
- 
+
             bone_inverse_matrices = {}
+
             for bone in bones:
                 if bone.is_object:
                     matrix = scene.rotation_matrix @ bone.pbone.matrix_world
                 elif bone.parent:
                     matrix_world = scene.rotation_matrix @ bone.ob.matrix_world @ bone.pbone.matrix
                     bone_inverse_matrices[bone.pbone] = matrix_world.inverted_safe()
-                    matrix = bone_inverse_matrices[bone.parent] @ matrix_world    
-                        
+                    matrix = bone_inverse_matrices[bone.parent] @ matrix_world
                 else:
                     matrix = scene.rotation_matrix @ bone.ob.matrix_world @ bone.pbone.matrix
                     bone_inverse_matrices[bone.pbone] = matrix.inverted_safe()
 
                 loc, rot, sca = matrix.decompose()
-                
+
                 if self.overlay and bone.is_aim_bone and not first_frame:
                     pose_overlay_frame_data[bone.name].append(tuple(rot.to_euler('XYZ')))
-                
+
                 position = (c_float * 3)(loc.x, loc.y, loc.z)
                 orientation = (c_float * 4)(rot.x, rot.y, rot.z, rot.w)
                 scale_shear = (c_float * 9)(sca.x, 0.0, 0.0, 0.0, sca.y, 0.0, 0.0, 0.0, sca.z)
+
                 positions[bone].extend(position)
                 orientations[bone].extend(orientation)
                 scales[bone].extend(scale_shear)
-                
+
             first_frame = False
-                
+
             for event in vector_events:
                 event.effect_data.append(event.event.event_value)
-            
+
             if shape_key_data:
                 for ob, node in shape_key_data.items():
                     morph_target_datas[node].append(VirtualMorphTargetData(ob, scene, node))
-            
+
         self.create_vector_track_groups(scene, vector_events)
         
         if self.overlay and pose_overlay_frame_data:
@@ -591,7 +601,6 @@ class VirtualAnimation:
             del scale_curve
 
             granny_tracks.append(granny_track)
-
 
         granny_track = GrannyTransformTrack()
         granny_track.name = b"world"
