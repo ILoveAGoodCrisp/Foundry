@@ -1769,61 +1769,93 @@ class VirtualSkeleton:
         if ob.type == 'ARMATURE':
             main_arm = ob
             scene_nwo = utils.get_scene_props()
+            support_parent_map = {}
             aim_bone_names = {scene_nwo.node_usage_pose_blend_pitch, scene_nwo.node_usage_pose_blend_yaw}
             special_bone_names = {scene_nwo.node_usage_pedestal, scene_nwo.node_usage_pose_blend_pitch, scene_nwo.node_usage_pose_blend_yaw}
             # Get all bones at fake_bones, so we can more easily create a virtual skeleton containing multiple armatures
-            support_armature_bone_parent_names = set()
-            if is_main_armature:
-                export_bones = [b for b in main_arm.data.bones if b.use_deform or b.name in special_bone_names]
-                export_bone_names = [b.name for b in export_bones]
-                root_bone_names = [b.name for b in export_bones if b.parent is None]
-                if root_bone_names:
-                    root = root_bone_names[0]
-                    for child in scene.support_armatures:
-                        if child.parent_type == 'BONE' and child.parent_bone in export_bone_names:
-                            support_armature_bone_parent_names.add(child.parent_bone)
-                        else:
-                            support_armature_bone_parent_names.add(root)
 
-            start_bones_dict = {}
+            export_bone_names = set()
+            root = None
+
+            if is_main_armature:
+                export_bones = [
+                    b for b in main_arm.data.bones
+                    if b.use_deform or b.name in special_bone_names
+                ]
+
+                export_bone_names = {b.name for b in export_bones}
+
+                root_bones = [b.name for b in export_bones if b.parent is None]
+                if root_bones:
+                    root = root_bones[0]
+
+            start_bones_dict = {}  # (arm, bone_name) -> FakeBone
             fbs = []
 
             def register_armature(arm, parent_arm=None, attach_to_fb=None):
                 for pb in arm.pose.bones:
                     fb = FakeBone(arm, pb, special_bone_names, parent_arm)
-                    start_bones_dict[pb] = fb
+
+                    key = (arm, pb.name)
+                    start_bones_dict[key] = fb
                     fbs.append(fb)
+
+                    # Only root bones of support armatures get attached
                     if pb.parent is None and attach_to_fb is not None:
                         fb._pending_parent = attach_to_fb
                     else:
                         fb._pending_parent = None
 
-
+            # Main armature first
             register_armature(main_arm)
 
-            for pbone in main_arm.pose.bones:
-                if pbone.name in support_armature_bone_parent_names:
-                    parent_fb = start_bones_dict[pbone]
+            support_parent_map = {}
 
-                    for child in scene.support_armatures:
-                        register_armature(child, parent_arm=main_arm, attach_to_fb=parent_fb)
-                        
+            if is_main_armature and root:
+                for child in scene.support_armatures:
+
+                    if child.parent_type == 'BONE' and child.parent_bone in export_bone_names:
+                        parent_pb = main_arm.pose.bones.get(child.parent_bone)
+                    else:
+                        parent_pb = main_arm.pose.bones.get(root)
+
+                    if parent_pb is None:
+                        continue
+
+                    key = (main_arm, parent_pb.name)
+                    parent_fb = start_bones_dict.get(key)
+
+                    if parent_fb is None:
+                        raise RuntimeError(f"Missing parent bone mapping: {parent_pb.name}")
+
+                    support_parent_map[child] = parent_fb
+
+            for child, parent_fb in support_parent_map.items():
+                register_armature(child, parent_arm=main_arm, attach_to_fb=parent_fb)
+
             root_fb = None
 
-            for pb, fb in start_bones_dict.items():
+            for (arm, bone_name), fb in start_bones_dict.items():
+                pb = fb.bone
+
                 if pb.parent:
-                    fb.parent = start_bones_dict.get(pb.parent)
-                elif hasattr(fb, "_pending_parent") and fb._pending_parent:
+                    parent_key = (arm, pb.parent.name)
+                    fb.parent = start_bones_dict.get(parent_key)
+
+                elif fb._pending_parent:
                     fb.parent = fb._pending_parent
+
                 else:
                     fb.parent = None
 
                 if fb.parent is None and root_fb is None:
                     root_fb = fb
-                    
+
             for fb in fbs:
                 if fb.export and fb.parent and not fb.parent.export:
-                    scene.warnings.append(f"Bone {fb.parent.name} is marked non-deform but has deforming children. Including {fb.parent.name} in export")
+                    scene.warnings.append(
+                        f"Bone {fb.parent.name} is marked non-deform but has deforming children. Including {fb.parent.name} in export"
+                    )
                     fb.parent.export = True
                             
             # if len(set(fb_names)) != len(fb_names):
