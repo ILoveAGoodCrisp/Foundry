@@ -19,13 +19,34 @@ class NWO_OT_AddScaleModel(bpy.types.Operator, AddObjectHelper):
     bl_label = "Add Halo Scale Model"
     bl_description = "Adds a Halo scale model to the scene"
     bl_options = {"REGISTER", "UNDO"}
-    
+
     def get_model_items(self, context):
         items = []
         scale_models = Path(utils.addon_root(), "resources", "scale_models")
-        for file in scale_models.iterdir():
-            items.append((str(file), utils.formalise_string(file.with_suffix("").name), ""))
-            
+
+        root_files = [f for f in scale_models.iterdir() if f.is_file()]
+        if root_files:
+            for file in sorted(root_files, key=lambda f: f.name):
+                items.append((
+                    str(file),
+                    utils.formalise_string(file.with_suffix("").name),
+                    ""
+                ))
+
+        for folder in sorted([f for f in scale_models.iterdir() if f.is_dir()], key=lambda f: f.name):
+            files = [f for f in folder.iterdir() if f.is_file()]
+            if not files:
+                continue
+
+            items.append(("", utils.formalise_string(folder.name), ""))
+
+            for file in sorted(files, key=lambda f: f.name):
+                items.append((
+                    str(file),
+                    utils.formalise_string(file.with_suffix("").name),
+                    ""
+                ))
+
         return items
     
     model_name: bpy.props.EnumProperty(
