@@ -1,5 +1,7 @@
 
 
+from pathlib import Path
+
 import bpy
 from bpy_extras.object_utils import object_data_add
 import os
@@ -9,45 +11,26 @@ from ..utils import add_auto_smooth, get_scene_props, rotation_diff_from_forward
 from ..tools.barebones_model_format import BarebonesModelFormat
 from bpy_extras.object_utils import AddObjectHelper
 
+from .. import utils
+
+
 class NWO_OT_AddScaleModel(bpy.types.Operator, AddObjectHelper):
     bl_idname = "nwo.add_scale_model"
     bl_label = "Add Halo Scale Model"
     bl_description = "Adds a Halo scale model to the scene"
     bl_options = {"REGISTER", "UNDO"}
     
+    def get_model_items(self, context):
+        items = []
+        scale_models = Path(utils.addon_root(), "resources", "scale_models")
+        for file in scale_models.iterdir():
+            items.append((str(file), utils.formalise_string(file.with_suffix("").name), ""))
+            
+        return items
+    
     model_name: bpy.props.EnumProperty(
         name="Name",
-        default="Spartan III",
-        items=[
-            ("Chip", "Chip", ""),
-            ("Frag Grenade", "Frag Grenade", ""),
-            ("Magnum", "Magnum", ""),
-            ("Assault Rifle", "Assault Rifle", ""),
-            ("Energy Sword", "Energy Sword", ""),
-            ("Grunt", "Grunt", ""),
-            ("UNSC Army Trooper", "UNSC Army Trooper", ""),
-            ("Spartan III", "Spartan III", ""),
-            ("Spartan II", "Spartan II", ""),
-            ("Elite", "Elite", ""),
-            ("Hunter", "Hunter", ""),
-            ("Barrel", "Barrel", ""),
-            ("Short Jersey Barrier", "Short Jersey Barrier", ""),
-            ("Jersey Barrier", "Jersey Barrier", ""),
-            ("Tech Crate", "Tech Crate", ""),
-            ("Packing Crate", "Packing Crate", ""),
-            ("Giant Crate", "Giant Crate", ""),
-            ("Ghost", "Ghost", ""),
-            ("Warthog", "Warthog", ""),
-            ("Pelican Dropship", "Pelican Dropship", ""),
-            ("Scarab", "Scarab", ""),
-            ("UNSC Frigate", "UNSC Frigate", ""),
-            ("Covenant Corvette", "Covenant Corvette", ""),
-            ("UNSC Cruiser", "UNSC Cruiser", ""),
-            ("Covenant Battlecruiser", "Covenant Battlecruiser", ""),
-            ("Covenant Supercarrier", "Covenant Supercarrier", ""),
-            ("Forerunner Keyship", "Forerunner Keyship", ""),
-            ("Planet Reach", "Planet Reach", ""),    
-        ]
+        items=get_model_items,
     )
 
     @classmethod
@@ -68,24 +51,11 @@ class NWO_OT_AddScaleModel(bpy.types.Operator, AddObjectHelper):
         layout.prop(self, "rotation")
     
     def add_scale_model(self, context):
-        script_file = os.path.realpath(__file__)
-        addon_dir = os.path.dirname(os.path.dirname(script_file))
-        resources_zip = os.path.join(addon_dir, "resources.zip")
-
-        filepath = os.path.join(addon_dir, "resources", "scale_models", self.model_name + '.bmf')
+        filepath = self.model_name
         if os.path.exists(filepath):
             self.write_data(context, filepath)
-        elif os.path.exists(resources_zip):
-            os.chdir(addon_dir)
-            file_relative = f"scale_models/{self.model_name}.bmf"
-            with zipfile.ZipFile(resources_zip, "r") as zip:
-                filepath = zip.extract(file_relative)
-                self.write_data(context, filepath)
-
-            os.remove(filepath)
-            os.rmdir(os.path.dirname(filepath))
         else:
-            print("Resources not found")
+            print("File not found")
             return {"CANCELLED"}
 
         return {"FINISHED"}

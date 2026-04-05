@@ -52,6 +52,7 @@ from .shader_builder import NWO_ListMaterialShaders, NWO_Shader_BuildSingle, NWO
 from .halo_launcher import NWO_HaloLauncherPropertiesGroup, NWO_MaterialGirl
 from .imposter_farm import NWO_OT_InstanceImposterGenerate
 from .file_split import NWO_OT_FileAggregate, NWO_OT_FileSplit, NWO_OT_OpenLinkedCollection
+from .barebones_model_format import NWO_OT_ExportBMF
 
 is_blender_startup = True
 
@@ -227,6 +228,7 @@ classes = (
     NWO_OT_ExportDecorators,
     NWO_OT_GetDecoratorTypes,
     NWO_OT_InstancerToInstance,
+    NWO_OT_ExportBMF,
 )
 
 def register():
