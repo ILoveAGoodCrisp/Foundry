@@ -4,6 +4,7 @@ from typing import cast
 from mathutils import Euler, Matrix, Quaternion, Vector
 import bpy
 
+from . import gen_lines, sint
 from .. import utils
 
 e90 = Euler((0, 0, math.radians(-90)))
@@ -32,11 +33,6 @@ class Node:
             self.aim_bone = no_prefix in ("aim_pitch", "aim_yaw", scene_nwo.node_usage_pose_blend_pitch, scene_nwo.node_usage_pose_blend_yaw)
         else:
             self.aim_bone = False
-    
-def gen_lines(filepath: Path | str):
-    with open(filepath, "r") as file:
-        for line in file:
-            yield line.partition(";")[0].strip()
             
 def assign_parents_from_child_sibling(nodes: list[Node], index=0, parent_index=-1):
     if index == -1:
@@ -50,9 +46,6 @@ def assign_parents_from_child_sibling(nodes: list[Node], index=0, parent_index=-
 
     # Then next sibling
     assign_parents_from_child_sibling(nodes, node.sibling_index, parent_index)
-    
-def safe_int(x):
-    return int(float(x))
 
 class JMA:
     def __init__(self):
@@ -77,29 +70,29 @@ class JMA:
         self.version = int(get())
         h1 = self.version < 16394
         if h1:
-            self.frame_count = safe_int(get())
-            self.fps = safe_int(get())
-            self.actor_count = safe_int(get())
+            self.frame_count = sint(get())
+            self.fps = sint(get())
+            self.actor_count = sint(get())
             self.actor_names = get().split()
-            self.node_count = safe_int(get())
-            self.node_checksum = safe_int(get())
+            self.node_count = sint(get())
+            self.node_checksum = sint(get())
         else:
-            self.node_checksum = safe_int(get())
-            self.frame_count = safe_int(get())
-            self.fps = safe_int(get())
-            self.actor_count = safe_int(get())
+            self.node_checksum = sint(get())
+            self.frame_count = sint(get())
+            self.fps = sint(get())
+            self.actor_count = sint(get())
             self.actor_names = get().split()
-            self.node_count = safe_int(get())
+            self.node_count = sint(get())
         
         if h1:
             for _ in range(self.node_count):
-                self.nodes.append(Node(get(), child_index=safe_int(get()), sibling_index=safe_int(get())))
+                self.nodes.append(Node(get(), child_index=sint(get()), sibling_index=sint(get())))
             
             assign_parents_from_child_sibling(self.nodes)
                 
         else:
             for _ in range(self.node_count):
-                self.nodes.append(Node(get(), parent_index=safe_int(get())))
+                self.nodes.append(Node(get(), parent_index=sint(get())))
             
         for node in self.nodes:
             if node.parent_index > -1:
