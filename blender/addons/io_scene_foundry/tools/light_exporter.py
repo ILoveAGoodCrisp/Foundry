@@ -10,6 +10,7 @@ from ..managed_blam.model import ModelTag
 from ..managed_blam.scenario_structure_lighting_info import ScenarioStructureLightingInfoTag
 from ..constants import VALID_MESHES, WU_SCALAR
 from .. import utils
+import traceback
 
 class BlamLightInstance:
     def __init__(self, ob, bsp=None, scale=None, rotation=None) -> None:
@@ -274,53 +275,56 @@ def gather_lightmap_regions(context, collection_map):
     return proxies
 
 def export_lights(asset_path, asset_name, light_objects = None, bsps = None, lightmap_regions=None):
-    tags_dir = utils.get_tags_path()
-    context = bpy.context
-    corinth = utils.is_corinth(bpy.context)
-    scene_nwo = utils.get_scene_props()
-    asset_type = scene_nwo.asset_type
-    if light_objects is None or lightmap_regions is None:
-        collection_map = utils.create_parent_mapping(context)
-    
-    if light_objects is None:
-        light_objects = gather_lights(context, collection_map)
+    try:
+        tags_dir = utils.get_tags_path()
+        context = bpy.context
+        corinth = utils.is_corinth(bpy.context)
+        scene_nwo = utils.get_scene_props()
+        asset_type = scene_nwo.asset_type
+        if light_objects is None or lightmap_regions is None:
+            collection_map = utils.create_parent_mapping(context)
+        
+        if light_objects is None:
+            light_objects = gather_lights(context, collection_map)
+                    
+        lights = [BlamLightInstance(ob, region) for ob, region in light_objects.items()]
+        if asset_type == 'scenario':
+            if bsps is None:
+                bsps = [r.name for r in scene_nwo.regions_table if r.name.lower() != 'shared']
+            lighting_info_paths = [str(Path(asset_path, f'{b}.scenario_structure_lighting_info')) for b in bsps]
+            for idx, info_path in enumerate(lighting_info_paths):
+                b = bsps[idx]
+                lights_list = [light for light in lights if light.bsp == b]
+                if not lights_list:
+                    if Path(tags_dir, utils.relative_path(info_path)).exists():
+                        with ScenarioStructureLightingInfoTag(path=info_path) as tag: tag.clear_lights()
+                else:
+                    light_instances = [light for light in lights_list]
+                    light_data = {bpy.data.lights.get(light.data_name) for light in lights_list}
+                    light_definitions = [BlamLightDefinition(data) for data in light_data]
+                    with ScenarioStructureLightingInfoTag(path=info_path) as tag:tag.build_tag(light_instances, light_definitions)
+                    
+                if lightmap_regions is None:
+                    lightmap_regions = gather_lightmap_regions(context, collection_map)
                 
-    lights = [BlamLightInstance(ob, region) for ob, region in light_objects.items()]
-    if asset_type == 'scenario':
-        if bsps is None:
-            bsps = [r.name for r in scene_nwo.regions_table if r.name.lower() != 'shared']
-        lighting_info_paths = [str(Path(asset_path, f'{b}.scenario_structure_lighting_info')) for b in bsps]
-        for idx, info_path in enumerate(lighting_info_paths):
-            b = bsps[idx]
-            lights_list = [light for light in lights if light.bsp == b]
-            if not lights_list:
+                if not corinth:
+                    for idx, info_path in enumerate(lighting_info_paths):
+                        b = bsps[idx]
+                        lm_regions_list = {lm_region for lm_region, region in lightmap_regions.items() if region == b}
+                        with ScenarioStructureLightingInfoTag(path=info_path) as tag:
+                            tag.lightmap_regions_from_blender(lm_regions_list)
+
+        elif corinth and asset_type in ('model', 'sky', 'prefab'):
+            info_path = str(Path(asset_path, f'{asset_name}.scenario_structure_lighting_info'))
+            if not lights:
                 if Path(tags_dir, utils.relative_path(info_path)).exists():
                     with ScenarioStructureLightingInfoTag(path=info_path) as tag: tag.clear_lights()
             else:
-                light_instances = [light for light in lights_list]
-                light_data = {bpy.data.lights.get(light.data_name) for light in lights_list}
+                light_instances = [light for light in lights]
+                light_data = {bpy.data.lights.get(light.data_name) for light in lights}
                 light_definitions = [BlamLightDefinition(data) for data in light_data]
-                with ScenarioStructureLightingInfoTag(path=info_path) as tag:tag.build_tag(light_instances, light_definitions)
-                
-            if lightmap_regions is None:
-                lightmap_regions = gather_lightmap_regions(context, collection_map)
-            
-            if not corinth:
-                for idx, info_path in enumerate(lighting_info_paths):
-                    b = bsps[idx]
-                    lm_regions_list = {lm_region for lm_region, region in lightmap_regions.items() if region == b}
-                    with ScenarioStructureLightingInfoTag(path=info_path) as tag:
-                        tag.lightmap_regions_from_blender(lm_regions_list)
-
-    elif corinth and asset_type in ('model', 'sky', 'prefab'):
-        info_path = str(Path(asset_path, f'{asset_name}.scenario_structure_lighting_info'))
-        if not lights:
-            if Path(tags_dir, utils.relative_path(info_path)).exists():
-                with ScenarioStructureLightingInfoTag(path=info_path) as tag: tag.clear_lights()
-        else:
-            light_instances = [light for light in lights]
-            light_data = {bpy.data.lights.get(light.data_name) for light in lights}
-            light_definitions = [BlamLightDefinition(data) for data in light_data]
-            with ScenarioStructureLightingInfoTag(path=info_path) as tag: tag.build_tag(light_instances, light_definitions)
-            if asset_type in ('model', 'sky'):
-                with ModelTag(path=str(Path(asset_path, f'{asset_name}.model'))) as tag: tag.assign_lighting_info_tag(info_path)
+                with ScenarioStructureLightingInfoTag(path=info_path) as tag: tag.build_tag(light_instances, light_definitions)
+                if asset_type in ('model', 'sky'):
+                    with ModelTag(path=str(Path(asset_path, f'{asset_name}.model'))) as tag: tag.assign_lighting_info_tag(info_path)
+    except Exception as e:
+        utils.print_warning(f"Failed to export lights\n{traceback.format_exception(e)}")
