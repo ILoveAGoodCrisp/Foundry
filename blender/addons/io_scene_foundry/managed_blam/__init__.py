@@ -19,6 +19,7 @@ from ..utils import (
 import bpy
 import os
 from ..utils import get_project_path
+import time
 
 last_saved_tag = None
 
@@ -69,7 +70,10 @@ class Tag():
         self._find_tag()
         try:
             if os.path.exists(self.system_path):
-                self.tag.Load(self.tag_path)
+                if check_file_free(self.system_path, timeout=1.0):
+                    self.tag.Load(self.tag_path)
+                else:
+                    raise RuntimeError(f"TagFile in use, cannot open: {self.tag_path.RelativePathWithExtension}")
             elif self.tag_must_exist:
                 raise RuntimeError(f"No file exists for {self.path}, but this {self.__class__} has been told one must exist")
             else:
@@ -430,3 +434,16 @@ def tag_path_from_string(path: str | Path) -> TagPath:
     """Returns a Bungie TagPath from the given tag filepath. Filepath must include file extension"""
     rel_path = relative_path(path)
     return Tags.TagPath.FromPathAndExtension(rel_path.rpartition(".")[0], rel_path.rpartition(".")[2])
+
+def check_file_free(path: str, timeout: float = 1.0, interval: float = 0.1) -> bool:
+    start = time.time()
+    while time.time() - start < timeout:
+        try:
+            fd = os.open(path, os.O_RDWR | os.O_EXCL)
+            os.close(fd)
+            return True
+        except OSError:
+            print_warning(f"Tag File not free, waiting one second before trying again for: {path}")
+            time.sleep(interval)
+
+    return False
