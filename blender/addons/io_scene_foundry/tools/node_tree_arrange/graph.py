@@ -202,7 +202,6 @@ for cls in (bNodeStack, bNodeSocketRuntimeHandle, bNodeSocket):
 
 
 def get_socket_y(socket: NodeSocket) -> float:
-    return b_socket.runtime.contents.location[1] / ui_scale
     node = socket.node
     sockets = node.outputs if socket.is_output else node.inputs
     visible_sockets = [s for s in sockets if not s.hide]
