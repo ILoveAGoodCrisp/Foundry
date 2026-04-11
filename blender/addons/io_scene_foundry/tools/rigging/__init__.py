@@ -429,7 +429,7 @@ class HaloRig:
             else:
                 if no_digit_name.startswith("FK_"):
                     fk_collection.assign(bone)
-                elif no_digit_name.startswith("IK_"):
+                elif no_digit_name.startswith(("IK_", "PT_")):
                     ik_collection.assign(bone)
                 else:
                     ctrl_collection.assign(bone)
@@ -460,7 +460,7 @@ class HaloRig:
         """Generates an FK/IK skeleton for the halo rig"""
         
         deform_fk_mapping = {}
-        deform_ik_mapping = {}
+        fk_ik_mapping = {}
         
         processed_bones = set()
         
@@ -561,9 +561,14 @@ class HaloRig:
                 
                 return f"FK_{end}{side}"
             
+            
+            
             bpy.ops.object.editmode_toggle()
             
+            root = self.rig_data.edit_bones[0]
             fk_bone_names = []
+            fk_bones_for_hand_ik = []
+            fk_bones_for_foot_ik = []
             for chain in bone_chains:
                 previous_fk_bone = None
                 for idx, bone_name in enumerate(chain):
@@ -602,7 +607,26 @@ class HaloRig:
                         
                     deform_fk_mapping[edit_bone.name] = fk_bone.name
                     fk_bone_names.append(fk_bone.name)
+                    if "_hand." in fk_bone.name:
+                        fk_bones_for_hand_ik.append(fk_bone)
+                    elif "_foot." in fk_bone.name:
+                        fk_bones_for_foot_ik.append(fk_bone)
                     previous_fk_bone = fk_bone
+                    
+            # IK
+            for fkb in fk_bones_for_hand_ik:
+                if fkb.parent is None:
+                    continue
+                ikb = self.rig_data.edit_bones.new(fkb.name.replace("FK_", "IK_"))
+                ikb: bpy.types.EditBone
+                ikb.matrix = fkb.matrix
+                ikb.parent = root
+                
+                pole_target = self.rig_data.edit_bones.new(ikb.name.replace("IK_", "PT_"))
+                pole_target.matrix = fkb.parent.matrix
+                pole_target.parent = root
+                
+                fk_ik_mapping[fkb.name] = ikb.name, pole_target.name
                     
             bpy.ops.object.editmode_toggle()
             
@@ -632,7 +656,33 @@ class HaloRig:
                 
             con.target_space = 'LOCAL_OWNER_ORIENT'
             con.owner_space = 'LOCAL'
-
+            
+        for fkb_name, (ikb_name, pt_name) in fk_ik_mapping.items():
+            fkb = self.rig_pose.bones[fkb_name]
+            ikb = self.rig_pose.bones[ikb_name]
+            ptb = self.rig_pose.bones[pt_name]
+            
+            con = cast(bpy.types.Constraint, fkb.constraints.new('IK'))
+            con.target = self.rig_ob
+            con.subtarget = ikb_name
+            con.chain_count = fk_parents_count(fkb)
+            con.use_tail = False
+            
+            con.pole_target = self.rig_ob
+            con.pole_subtarget = pt_name
+            
+def fk_parents_count(fkb: bpy.types.PoseBone):
+    count = 0
+    while fkb.parent is not None:
+        parent = fkb.parent
+        if parent.name.startswith("FK_"):
+            count += 1
+            fkb = parent
+        else:
+            break
+        
+    return count
+            
 
 def predict_tail_from_previous(previous_fk_bone, current_edit_bone):
     if previous_fk_bone is None:
