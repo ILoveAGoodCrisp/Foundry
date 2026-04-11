@@ -44,3 +44,11 @@ def register():
     load_all_icons()
 
     bpy.app.handlers.load_post.append(_reload_icons)
+    
+def unregister():
+    for icon in list(preview_collections.values()):
+        try:
+            previews.remove(icon)
+        except Exception:
+            pass
+    preview_collections.clear()

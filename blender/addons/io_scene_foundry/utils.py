@@ -232,7 +232,7 @@ def is_corinth(context=None):
     if context is None:
         context = bpy.context
     project = get_project(get_scene_props().scene_project)
-    return project and project.corinth
+    return bool(project and project.corinth)
 
 def deselect_all_objects():
     bpy.ops.object.select_all(action="DESELECT")

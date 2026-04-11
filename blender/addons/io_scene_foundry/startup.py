@@ -101,19 +101,11 @@ def load_handler(dummy):
     context = bpy.context
     nwo = utils.get_scene_props()
 
-    # -------------------------------------------------------------------------
-    # Scene state
-    # -------------------------------------------------------------------------
-
     if not nwo.is_main_scene:
         nwo.is_main_scene = True
 
     nwo.export_in_progress = False
     nwo.camera_sync_active = False
-
-    # -------------------------------------------------------------------------
-    # Project detection
-    # -------------------------------------------------------------------------
 
     projects = utils.setup_projects_list()
     blend_path = bpy.data.filepath
