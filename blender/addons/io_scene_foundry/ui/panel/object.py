@@ -1368,7 +1368,7 @@ class NWO_OT_ShowWaterDirection(bpy.types.Operator):
     bl_idname = "nwo.show_water_direction"
     bl_label = "Show Water Direction"
     bl_description = "Temporarily replaces selected water surface object materials with arrows to indicate the direction of physical water flow. Requires material or rendered shading mode to be active"
-    bl_options = {"UNDO"}
+    bl_options = {"REGISTER"}
 
     @classmethod
     def poll(cls, context):

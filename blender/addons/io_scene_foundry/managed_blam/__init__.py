@@ -435,15 +435,19 @@ def tag_path_from_string(path: str | Path) -> TagPath:
     rel_path = relative_path(path)
     return Tags.TagPath.FromPathAndExtension(rel_path.rpartition(".")[0], rel_path.rpartition(".")[2])
 
-def check_file_free(path: str, timeout: float = 1.0, interval: float = 0.1) -> bool:
+def check_file_free(path: str, timeout: float = 0.3, interval: float = 0.1) -> bool:
     start = time.time()
+    failed_once = False
     while time.time() - start < timeout:
         try:
             fd = os.open(path, os.O_RDWR | os.O_EXCL)
             os.close(fd)
+            if failed_once:
+                print("File now accessible")
             return True
         except OSError:
-            print_warning(f"Tag File not free, waiting one second before trying again for: {path}")
+            print_warning(f"Tag File not free, waiting before trying again for: {path}")
+            failed_once = True
             time.sleep(interval)
 
     return False

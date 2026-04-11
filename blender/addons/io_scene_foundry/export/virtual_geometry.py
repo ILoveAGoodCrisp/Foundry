@@ -4,7 +4,7 @@ from collections import defaultdict
 import csv
 from ctypes import Array, Structure, c_char_p, c_float, c_int, POINTER, c_ubyte, c_void_p, cast, create_string_buffer, memmove, pointer, sizeof
 import logging
-from math import degrees, inf, nextafter
+from math import degrees, inf, nextafter, radians
 from pathlib import Path
 import bmesh
 import bpy
@@ -113,7 +113,12 @@ def add_triangle_mod(scene, ob: bpy.types.Object) -> bpy.types.Modifier:
     tri_mod.quad_method = scene.quad_method
     tri_mod.ngon_method = scene.ngon_method
     tri_mod.keep_custom_normals = True
-
+    
+def add_decimate_mod(ob: bpy.types.Object) -> bpy.types.Modifier:
+    mods = ob.modifiers
+    decimate_mod = mods.new('Decimate', 'DECIMATE')
+    decimate_mod.decimate_type = 'DISSOLVE'
+    
 def read_frame_id_list() -> list:
     filepath = Path(utils.addon_root(), "export", "frameidlist.csv")
     frame_ids = []
@@ -1095,15 +1100,12 @@ class VirtualMesh:
         else:
             mesh = ob.data
             
-        if mesh_type_value == MeshType.water_physics_volume.value:
+        if mesh_type_value in {MeshType.water_physics_volume.value, MeshType.boundary_surface.value}:
             # remove unneeded tris
             bm = bmesh.new()
             bm.from_mesh(mesh)
             bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.1)
-            # bm.verts.ensure_lookup_table()
-            bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.is_boundary], context='VERTS')
-            # bm.edges.ensure_lookup_table()
-            bmesh.ops.triangle_fill(bm, use_beauty=False, use_dissolve=False, edges=bm.edges)
+            bmesh.ops.dissolve_limit(bm, angle_limit=radians(5), use_dissolve_boundaries=False, verts=bm.verts, edges=bm.edges, delimit=set())
             bm.to_mesh(mesh)
             bm.free()
         
@@ -1719,6 +1721,8 @@ class FakeBone:
         self.name = bone.name
         self.ob = ob
         self.parent: 'FakeBone | None' = None
+        self.direct_parent: 'FakeBone | None' = None
+        self._pending_parent: 'FakeBone | None' = None
         self.bone = bone
         self.export = ob.data.bones[bone.name].use_deform or self.name in special_bone_names
 
@@ -1772,7 +1776,6 @@ class VirtualSkeleton:
             support_parent_map = {}
             aim_bone_names = {scene_nwo.node_usage_pose_blend_pitch, scene_nwo.node_usage_pose_blend_yaw}
             special_bone_names = {scene_nwo.node_usage_pedestal, scene_nwo.node_usage_pose_blend_pitch, scene_nwo.node_usage_pose_blend_yaw}
-            # Get all bones at fake_bones, so we can more easily create a virtual skeleton containing multiple armatures
 
             export_bone_names = set()
             root = None
@@ -1785,12 +1788,32 @@ class VirtualSkeleton:
 
                 export_bone_names = {b.name for b in export_bones}
 
-                root_bones = [b.name for b in export_bones if b.parent is None]
+                root_bones = [
+                    b.name for b in export_bones
+                    if b.parent is None or b.parent.name not in export_bone_names
+                ]
                 if root_bones:
                     root = root_bones[0]
 
-            start_bones_dict = {}  # (arm, bone_name) -> FakeBone
+            start_bones_dict = {}
             fbs = []
+
+            def resolve_export_parent(fake_bone: FakeBone):
+                parent = fake_bone.direct_parent
+                while parent is not None and not parent.export:
+                    parent = parent.direct_parent
+                return parent
+
+            def resolve_export_parent_from_pose_bone(arm, pose_bone: bpy.types.PoseBone | None):
+                current = pose_bone
+                while current is not None:
+                    parent_fb = start_bones_dict.get((arm, current.name))
+                    if parent_fb is None:
+                        raise RuntimeError(f"Missing parent bone mapping: {current.name}")
+                    if parent_fb.export:
+                        return parent_fb
+                    current = current.parent
+                return None
 
             def register_armature(arm, parent_arm=None, attach_to_fb=None):
                 for pb in arm.pose.bones:
@@ -1813,20 +1836,21 @@ class VirtualSkeleton:
 
             if is_main_armature and root:
                 for child in scene.support_armatures:
-
-                    if child.parent_type == 'BONE' and child.parent_bone in export_bone_names:
+                    parent_pb = None
+                    if child.parent_type == 'BONE':
                         parent_pb = main_arm.pose.bones.get(child.parent_bone)
-                    else:
+
+                    if parent_pb is None:
                         parent_pb = main_arm.pose.bones.get(root)
 
                     if parent_pb is None:
                         continue
 
-                    key = (main_arm, parent_pb.name)
-                    parent_fb = start_bones_dict.get(key)
-
+                    parent_fb = resolve_export_parent_from_pose_bone(main_arm, parent_pb)
                     if parent_fb is None:
-                        raise RuntimeError(f"Missing parent bone mapping: {parent_pb.name}")
+                        raise RuntimeError(
+                            f"Could not resolve an exported parent bone for support armature {child.name}"
+                        )
 
                     support_parent_map[child] = parent_fb
 
@@ -1840,24 +1864,19 @@ class VirtualSkeleton:
 
                 if pb.parent:
                     parent_key = (arm, pb.parent.name)
-                    fb.parent = start_bones_dict.get(parent_key)
+                    fb.direct_parent = start_bones_dict.get(parent_key)
 
                 elif fb._pending_parent:
-                    fb.parent = fb._pending_parent
+                    fb.direct_parent = fb._pending_parent
 
                 else:
-                    fb.parent = None
+                    fb.direct_parent = None
+
+                fb.parent = resolve_export_parent(fb)
 
                 if fb.parent is None and root_fb is None:
                     root_fb = fb
 
-            for fb in fbs:
-                if fb.export and fb.parent and not fb.parent.export:
-                    scene.warnings.append(
-                        f"Bone {fb.parent.name} is marked non-deform but has deforming children. Including {fb.parent.name} in export"
-                    )
-                    fb.parent.export = True
-                            
             # if len(set(fb_names)) != len(fb_names):
             #     error_str = [f"{fb.ob.name} --> {fb.name}" for fb in fbs]
             #     raise RuntimeError(f"Duplicate bone names found. Ensure that all exported armatures have unique bone names. Armature Bones list:\n{error_str}\n")
@@ -1919,7 +1938,7 @@ class VirtualSkeleton:
                 else:
                     b.create_bone_props(scene.frame_ids[frame_ids_index])
                     
-                if fb.parent:
+                if fb.parent:\
                     # Add one to this since the root is the armature
                     b.parent_index = dict_bones[fb.parent.name] + 1
                     b.matrix_world = scene.rotation_matrix @ fb.matrix
@@ -2871,127 +2890,127 @@ def deep_copy_granny_tri_topology(original):
 
     return pointer(copy)
 
-class ModifierStack:
-    __slots__ = ("stack", "_hash")
+# class ModifierStack:
+#     __slots__ = ("stack", "_hash")
 
-    def __init__(self, obj: bpy.types.Object):
-        self.stack = tuple(self._serialize_modifier(m) for m in obj.modifiers)
-        self._hash = hash(self.stack)
+#     def __init__(self, obj: bpy.types.Object):
+#         self.stack = tuple(self._serialize_modifier(m) for m in obj.modifiers)
+#         self._hash = hash(self.stack)
 
-    def _serialize_modifier(self, mod: bpy.types.Modifier):
+#     def _serialize_modifier(self, mod: bpy.types.Modifier):
 
-        if mod.type == "NODES":
-            return self._serialize_nodes_modifier(mod)
+#         if mod.type == "NODES":
+#             return self._serialize_nodes_modifier(mod)
 
-        props = []
+#         props = []
 
-        for prop in mod.bl_rna.properties:
-            ident = prop.identifier
+#         for prop in mod.bl_rna.properties:
+#             ident = prop.identifier
 
-            if ident in {"rna_type", "name"}:
-                continue
-            if prop.is_hidden or prop.is_readonly:
-                continue
+#             if ident in {"rna_type", "name"}:
+#                 continue
+#             if prop.is_hidden or prop.is_readonly:
+#                 continue
 
-            try:
-                value = getattr(mod, ident)
-            except AttributeError:
-                continue
+#             try:
+#                 value = getattr(mod, ident)
+#             except AttributeError:
+#                 continue
 
-            value = self._serialize_value(value)
-            props.append((ident, value))
+#             value = self._serialize_value(value)
+#             props.append((ident, value))
 
-        props.sort()
+#         props.sort()
 
-        return (mod.type, tuple(props))
+#         return (mod.type, tuple(props))
 
-    def _serialize_nodes_modifier(self, mod: bpy.types.NodesModifier):
+#     def _serialize_nodes_modifier(self, mod: bpy.types.NodesModifier):
 
-        props = []
+#         props = []
 
-        for prop in mod.bl_rna.properties:
-            ident = prop.identifier
+#         for prop in mod.bl_rna.properties:
+#             ident = prop.identifier
 
-            if ident in {"rna_type", "name"}:
-                continue
-            if prop.is_hidden or prop.is_readonly:
-                continue
+#             if ident in {"rna_type", "name"}:
+#                 continue
+#             if prop.is_hidden or prop.is_readonly:
+#                 continue
 
-            try:
-                value = getattr(mod, ident)
-            except AttributeError:
-                continue
+#             try:
+#                 value = getattr(mod, ident)
+#             except AttributeError:
+#                 continue
 
-            value = self._serialize_value(value)
-            props.append((ident, value))
+#             value = self._serialize_value(value)
+#             props.append((ident, value))
 
-        group = mod.node_group
+#         group = mod.node_group
 
-        if group:
-            for item in group.interface.items_tree:
+#         if group:
+#             for item in group.interface.items_tree:
 
-                if item.item_type != "SOCKET":
-                    continue
+#                 if item.item_type != "SOCKET":
+#                     continue
 
-                if item.in_out != "INPUT":
-                    continue
+#                 if item.in_out != "INPUT":
+#                     continue
 
-                identifier = item.identifier
+#                 identifier = item.identifier
 
-                if identifier in mod:
-                    value = mod[identifier]
-                    value = self._serialize_value(value)
+#                 if identifier in mod:
+#                     value = mod[identifier]
+#                     value = self._serialize_value(value)
 
-                    props.append((f"socket:{identifier}", value))
+#                     props.append((f"socket:{identifier}", value))
 
-        props.sort()
+#         props.sort()
 
-        return ("NODES", tuple(props))
+#         return ("NODES", tuple(props))
 
-    def _serialize_value(self, value):
+#     def _serialize_value(self, value):
 
-        if value is None:
-            return None
+#         if value is None:
+#             return None
 
-        if isinstance(value, bpy.types.ID):
-            return value.name
+#         if isinstance(value, bpy.types.ID):
+#             return value.name
 
-        if isinstance(value, Vector):
-            return tuple(value)
+#         if isinstance(value, Vector):
+#             return tuple(value)
 
-        if isinstance(value, Color):
-            return tuple(value)
+#         if isinstance(value, Color):
+#             return tuple(value)
 
-        if isinstance(value, Quaternion):
-            return tuple(value)
+#         if isinstance(value, Quaternion):
+#             return tuple(value)
 
-        if isinstance(value, Euler):
-            return (value.x, value.y, value.z, value.order)
+#         if isinstance(value, Euler):
+#             return (value.x, value.y, value.z, value.order)
 
-        if isinstance(value, Matrix):
-            return tuple(tuple(row) for row in value)
+#         if isinstance(value, Matrix):
+#             return tuple(tuple(row) for row in value)
 
-        if type(value).__name__ == "IDPropertyArray":
-            return tuple(value)
+#         if type(value).__name__ == "IDPropertyArray":
+#             return tuple(value)
 
-        if isinstance(value, set):
-            return tuple(sorted(self._serialize_value(v) for v in value))
+#         if isinstance(value, set):
+#             return tuple(sorted(self._serialize_value(v) for v in value))
 
-        if isinstance(value, (list, tuple)):
-            return tuple(self._serialize_value(v) for v in value)
+#         if isinstance(value, (list, tuple)):
+#             return tuple(self._serialize_value(v) for v in value)
 
-        if isinstance(value, dict):
-            return tuple(sorted((k, self._serialize_value(v)) for k, v in value.items()))
+#         if isinstance(value, dict):
+#             return tuple(sorted((k, self._serialize_value(v)) for k, v in value.items()))
 
-        return value
+#         return value
 
-    def __eq__(self, other):
-        if not isinstance(other, ModifierStack):
-            return NotImplemented
-        return self.stack == other.stack
+#     def __eq__(self, other):
+#         if not isinstance(other, ModifierStack):
+#             return NotImplemented
+#         return self.stack == other.stack
 
-    def __hash__(self):
-        return self._hash
+#     def __hash__(self):
+#         return self._hash
 
-    def __repr__(self):
-        return f"ModifierStack({self.stack})"
+#     def __repr__(self):
+#         return f"ModifierStack({self.stack})"

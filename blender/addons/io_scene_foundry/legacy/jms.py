@@ -29,7 +29,6 @@ class Material:
         if self.blender_material is None:
             self.blender_material = bpy.data.materials.new(self.clean_name)
         
-        
 class Marker:
     def __init__(self):
         self.name = "default"
