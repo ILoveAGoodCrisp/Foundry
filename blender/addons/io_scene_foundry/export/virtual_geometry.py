@@ -1101,7 +1101,6 @@ class VirtualMesh:
             mesh = ob.data
             
         if mesh_type_value in {MeshType.water_physics_volume.value, MeshType.boundary_surface.value}:
-            # remove unneeded tris
             bm = bmesh.new()
             bm.from_mesh(mesh)
             bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.1)
@@ -1717,6 +1716,8 @@ class AnimatedBone:
                 self.parent = parent_override
 
 class FakeBone:
+    __slots__ = ("name", "ob", "parent", "direct_parent", "_pending_parent", "bone", "export", "matrix")
+
     def __init__(self, ob: bpy.types.Object, bone: bpy.types.PoseBone, special_bone_names=[], parent_ob: bpy.types.Object = None):
         self.name = bone.name
         self.ob = ob
@@ -1732,14 +1733,22 @@ class FakeBone:
             self.matrix = ob.matrix_world @ bone.matrix
         
 def sort_bones_by_hierarchy(fake_bones: list[FakeBone]):
-    bone_dict = {}
-    for fake_bone in fake_bones:
-        if fake_bone.parent:
-            bone_dict[fake_bone] = bone_dict[fake_bone.parent] + 1
+    bone_depths = {}
+
+    def get_depth(fake_bone: FakeBone):
+        depth = bone_depths.get(fake_bone)
+        if depth is not None:
+            return depth
+
+        if fake_bone.parent is None:
+            depth = 0
         else:
-            bone_dict[fake_bone] = 0
-            
-    return sorted(fake_bones, key=lambda x: bone_dict[x])
+            depth = get_depth(fake_bone.parent) + 1
+
+        bone_depths[fake_bone] = depth
+        return depth
+
+    return sorted(fake_bones, key=get_depth)
         
 class VirtualSkeleton:
     '''Describes a list of bones'''
@@ -1894,23 +1903,29 @@ class VirtualSkeleton:
             root_bone = None
             root_bone_found = False
             bone_inverse_matrices = {}
-            
+            rotation_matrix = scene.rotation_matrix
+            frame_ids = scene.frame_ids
+            frame_ids_len = len(frame_ids)
+            actor_node_order = None
+            template_node_order = None
+
+            if scene.is_cinematic:
+                actor = scene.actors.get(ob)
+                if actor and actor.node_order:
+                    actor_node_order = actor.node_order
+            else:
+                template_node_order = scene.template_node_order
+
             requested_indices = {}
-
             for idx, fb in enumerate(valid_bones):
-                name = fb.name
-
-                if scene.is_cinematic:
-                    actor = scene.actors.get(ob)
-                    if actor and actor.node_order:
-                        requested_indices[name] = actor.node_order.get(name)
-                    else:
-                        requested_indices[name] = None
+                if actor_node_order is not None:
+                    requested_index = actor_node_order.get(fb.name)
+                elif template_node_order is not None:
+                    requested_index = template_node_order.get(fb.name)
                 else:
-                    requested_indices[name] = scene.template_node_order.get(name)
+                    requested_index = None
 
-                if requested_indices[name] is None:
-                    requested_indices[name] = idx
+                requested_indices[fb.name] = idx if requested_index is None else requested_index
 
             used_indices = set()
             max_needed = max(requested_indices.values()) + len(valid_bones)
@@ -1933,15 +1948,15 @@ class VirtualSkeleton:
                 preferred = requested_indices[b.name]
                 frame_ids_index = allocate_index(preferred)
 
-                if frame_ids_index is None or frame_ids_index >= len(scene.frame_ids):
+                if frame_ids_index is None or frame_ids_index >= frame_ids_len:
                     b.create_bone_props([0, 0])
                 else:
-                    b.create_bone_props(scene.frame_ids[frame_ids_index])
+                    b.create_bone_props(frame_ids[frame_ids_index])
                     
-                if fb.parent:\
+                if fb.parent:
                     # Add one to this since the root is the armature
                     b.parent_index = dict_bones[fb.parent.name] + 1
-                    b.matrix_world = scene.rotation_matrix @ fb.matrix
+                    b.matrix_world = rotation_matrix @ fb.matrix
                     bone_inverse_matrices[fb.bone] = b.matrix_world.inverted_safe()
                     b.matrix_local = bone_inverse_matrices[fb.parent.bone] @ b.matrix_world
                 else:
@@ -1950,7 +1965,7 @@ class VirtualSkeleton:
                     root_bone_found = True
                     root_bone = fb.bone
                     b.parent_index = 0
-                    b.matrix_world = scene.rotation_matrix @ fb.matrix
+                    b.matrix_world = rotation_matrix @ fb.matrix
                     b.matrix_local = b.matrix_world
                     bone_inverse_matrices[fb.bone] = b.matrix_world.inverted_safe()
                     scene.root_bone = root_bone
@@ -2378,25 +2393,45 @@ def has_armature_deform_mod(ob: utils.ExportObject):
     return False
 
 class FaceSet:
+    __slots__ = ("array", "annotation_type")
+    _material_index_cache: dict[tuple[int, int], np.ndarray] = {}
+    _attribute_mask_cache: dict[tuple[int, int, str], np.ndarray] = {}
+
     def __init__(self, array: np.ndarray):
         self.array = array
         self.annotation_type = None
         self._set_tri_annotation_type()
         
     def update(self, mesh: bpy.types.Mesh, prop, value: object, additive=False):
-        attribute = mesh.attributes.get(prop.attribute_name)
-        if attribute is not None:
+        attribute_name = prop.attribute_name
+        if not attribute_name:
+            return
+
+        cache_key = (mesh.as_pointer(), len(mesh.polygons), attribute_name)
+        mask = self._attribute_mask_cache.get(cache_key)
+        if mask is None:
+            attribute = mesh.attributes.get(attribute_name)
+            if attribute is None:
+                return
+
             values_array = np.zeros(len(mesh.polygons), dtype=np.int8)
             attribute.data.foreach_get("value", values_array)
             mask = values_array.astype(bool)
-            if additive:
-                self.array[mask] += value
-            else:
-                self.array[mask] = value
-            
+            self._attribute_mask_cache[cache_key] = mask
+
+        if additive:
+            self.array[mask] += value
+        else:
+            self.array[mask] = value
+             
     def update_from_material(self, mesh: bpy.types.Mesh, material_indices: set[int], value: object, additive=False):
-        values_array = np.empty(len(mesh.polygons), dtype=np.int32)
-        mesh.polygons.foreach_get("material_index", values_array)
+        cache_key = (mesh.as_pointer(), len(mesh.polygons))
+        values_array = self._material_index_cache.get(cache_key)
+        if values_array is None:
+            values_array = np.empty(len(mesh.polygons), dtype=np.int32)
+            mesh.polygons.foreach_get("material_index", values_array)
+            self._material_index_cache[cache_key] = values_array
+
         mask = np.isin(values_array, material_indices)
         if additive:
             self.array[mask] += value
@@ -2432,6 +2467,15 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
     face_properties = {}
     deferred_transparencies = []
     deferred_opaques = []
+    mesh_cache_key = (mesh.as_pointer(), num_faces)
+    FaceSet._material_index_cache.pop(mesh_cache_key, None)
+
+    attribute_cache_keys = [
+        key for key in FaceSet._attribute_mask_cache
+        if key[0] == mesh_cache_key[0] and key[1] == mesh_cache_key[1]
+    ]
+    for key in attribute_cache_keys:
+        FaceSet._attribute_mask_cache.pop(key, None)
     
     poop_collision = props.get("bungie_mesh_type") == MeshType.poop_collision.value
     
@@ -2509,7 +2553,7 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
                         gmv = scene.global_materials.get(face_prop_defaults["bungie_face_global_material"], 0)
                         face_gmv = scene.global_materials.get(prop.global_material.strip().replace(' ', "_"))
                         if face_gmv is not None:
-                            if scene.corinth and props.get("bungie_mesh_type") in {MeshType.poop.value or MeshType.poop_collision.value}:
+                            if scene.corinth and props.get("bungie_mesh_type") in {MeshType.poop.value, MeshType.poop_collision.value}:
                                 face_properties.setdefault("bungie_mesh_global_material", FaceSet(np.full(num_faces, gmv, dtype=np.int32))).update_from_material(mesh, material_indices, face_gmv)
                                 face_properties.setdefault("bungie_mesh_poop_collision_override_global_material", FaceSet(np.full(num_faces, 0, dtype=np.int32))).update_from_material(mesh, material_indices, 1)
                             else:
@@ -2649,7 +2693,7 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
                     gmv = scene.global_materials.get(face_prop_defaults["bungie_face_global_material"], 0)
                     face_gmv = scene.global_materials.get(prop.global_material.strip().replace(' ', "_"))
                     if face_gmv is not None:
-                        if scene.corinth and props.get("bungie_mesh_type") in {MeshType.poop.value or MeshType.poop_collision.value}:
+                        if scene.corinth and props.get("bungie_mesh_type") in {MeshType.poop.value, MeshType.poop_collision.value}:
                             face_properties.setdefault("bungie_mesh_global_material", FaceSet(np.full(num_faces, gmv, dtype=np.int32))).update(mesh, prop, face_gmv)
                             face_properties.setdefault("bungie_mesh_poop_collision_override_global_material", FaceSet(np.full(num_faces, 0, dtype=np.int32))).update(mesh, prop, 1)
                         else:
