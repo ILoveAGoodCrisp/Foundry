@@ -5604,6 +5604,24 @@ def hide_from_rays(ob: bpy.types.Object):
     
 def make_halo_emissive(data: bpy.types.Mesh, primary_scale="", secondary_scale="", color_node_tree=None, strength_node_tree=None, gobo_image=None, intensity_from_power=False):
     pass
+
+def make_blender_light(data: bpy.types.Light):
+    if data.type == 'SUN':
+        return
+
+    data.use_custom_distance = False
+    data.energy = calc_light_energy(data, data.nwo.light_intensity, get_import_scale(bpy.context))
+    tree = data.node_tree
+    tree.nodes.clear()
+    
+    emission = tree.nodes.new('ShaderNodeEmission')
+    output = tree.nodes.new('ShaderNodeOutputLight')
+    
+    emission.location = (0, 0)
+    output.location = (200, 0)
+
+    tree.links.new(emission.outputs[0], output.inputs[0])
+    
     
 def make_halo_light(data: bpy.types.Light, primary_scale="", secondary_scale="", color_node_tree=None, strength_node_tree=None, gobo_image=None, intensity_from_power=False) -> bpy.types.Node:
     

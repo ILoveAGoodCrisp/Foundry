@@ -26,9 +26,7 @@ class NWO_OT_HaloLightToggle(bpy.types.Operator):
             self.report({'INFO'}, f"Converted {len(light_data)} light{'' if len(light_data) == 1 else 's'}")
         else:
             for light in light_data:
-                # light.use_nodes = False
-                light.use_custom_distance = False
-                light.energy = utils.calc_light_energy(light, light.nwo.light_intensity, utils.get_import_scale(context))
+                utils.make_blender_light(light)
             self.report({'INFO'}, f"Disabled Halo light properties for {len(light_data)} light{'' if len(light_data) == 1 else 's'}")
         
         return {"FINISHED"}
