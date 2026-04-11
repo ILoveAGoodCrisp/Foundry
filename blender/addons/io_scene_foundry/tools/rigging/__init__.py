@@ -567,8 +567,8 @@ class HaloRig:
             
             root = self.rig_data.edit_bones[0]
             fk_bone_names = []
-            fk_bones_for_hand_ik = []
-            fk_bones_for_foot_ik = []
+            ik_bone_names = []
+            fk_bones_for_ik = {}
             for chain in bone_chains:
                 previous_fk_bone = None
                 for idx, bone_name in enumerate(chain):
@@ -608,14 +608,14 @@ class HaloRig:
                     deform_fk_mapping[edit_bone.name] = fk_bone.name
                     fk_bone_names.append(fk_bone.name)
                     if "_hand." in fk_bone.name:
-                        fk_bones_for_hand_ik.append(fk_bone)
+                        fk_bones_for_ik[fk_bone] = radians(180)
                     elif "_foot." in fk_bone.name:
-                        fk_bones_for_foot_ik.append(fk_bone)
+                        fk_bones_for_ik[fk_bone] = 0
                     previous_fk_bone = fk_bone
                     
             # IK
-            for fkb in fk_bones_for_hand_ik:
-                if fkb.parent is None:
+            for fkb, angle in fk_bones_for_ik.items():
+                if fkb.parent is None or fkb.parent.parent is None:
                     continue
                 ikb = self.rig_data.edit_bones.new(fkb.name.replace("FK_", "IK_"))
                 ikb: bpy.types.EditBone
@@ -623,15 +623,21 @@ class HaloRig:
                 ikb.parent = root
                 
                 pole_target = self.rig_data.edit_bones.new(ikb.name.replace("IK_", "PT_"))
-                pole_target.matrix = fkb.parent.matrix
+                pole_pos = calculate_pole_position(fkb.parent.parent, fkb.parent, fkb)
+                pole_target.head = pole_pos
+                pole_target.tail = pole_pos + (fkb.parent.y_axis.normalized() * max(fkb.parent.length * 0.35, 0.01))
                 pole_target.parent = root
                 
-                fk_ik_mapping[fkb.name] = ikb.name, pole_target.name
+                fk_ik_mapping[fkb.name] = ikb.name, pole_target.name, angle
+                
+                ik_bone_names.append(ikb.name)
+                ik_bone_names.append(pole_target.name)
+                
                     
             bpy.ops.object.editmode_toggle()
             
             for b in self.rig_data.bones:
-                if b.name in fk_bone_names:
+                if b.name in fk_bone_names or b.name in ik_bone_names:
                     b.use_deform = False
                 
         if reverse_controls:
@@ -657,7 +663,7 @@ class HaloRig:
             con.target_space = 'LOCAL_OWNER_ORIENT'
             con.owner_space = 'LOCAL'
             
-        for fkb_name, (ikb_name, pt_name) in fk_ik_mapping.items():
+        for fkb_name, (ikb_name, pt_name, angle) in fk_ik_mapping.items():
             fkb = self.rig_pose.bones[fkb_name]
             ikb = self.rig_pose.bones[ikb_name]
             ptb = self.rig_pose.bones[pt_name]
@@ -670,6 +676,7 @@ class HaloRig:
             
             con.pole_target = self.rig_ob
             con.pole_subtarget = pt_name
+            con.pole_angle = angle
             
 def fk_parents_count(fkb: bpy.types.PoseBone):
     count = 0
@@ -697,6 +704,31 @@ def predict_tail_from_previous(previous_fk_bone, current_edit_bone):
     direction.normalize()
 
     return current_edit_bone.head + direction
+
+def calculate_pole_position(root_bone: bpy.types.EditBone, mid_bone: bpy.types.EditBone, end_bone: bpy.types.EditBone, distance_scale=1.25):
+    a = root_bone.head.copy()
+    b = mid_bone.head.copy()
+    c = end_bone.head.copy()
+
+    ac = c - a
+    if ac.length < 1e-6:
+        return b.copy()
+
+    ac_dir = ac.normalized()
+    projection = a + ac_dir * ((b - a).dot(ac_dir))
+    pole_dir = b - projection
+
+    # Straight chains do not define a bend plane, so fall back to the joint axes.
+    if pole_dir.length < 1e-6:
+        pole_dir = mid_bone.x_axis.copy()
+        if pole_dir.length < 1e-6:
+            pole_dir = mid_bone.z_axis.copy()
+        if pole_dir.length < 1e-6:
+            pole_dir = Vector((0.0, 0.0, 1.0))
+
+    pole_dir.normalize()
+    dist = max((b - a).length, (c - b).length) * distance_scale
+    return b + pole_dir * dist
 
 def is_descendant(bone: bpy.types.PoseBone, ancestor: bpy.types.PoseBone) -> bool:
     parent = bone.parent
