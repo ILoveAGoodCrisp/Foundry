@@ -322,11 +322,13 @@ class ExportScene:
         self.collection_map = utils.create_parent_mapping(self.context)
         
         self.depsgraph = self.context.evaluated_depsgraph_get()
+        ignore_for_export_fast = utils.ignore_for_export_fast
+        collection_map = self.collection_map
         
         valid_objects = GENERAL_OBJECTS
         if self.asset_type in {AssetType.MODEL, AssetType.ANIMATION, AssetType.SINGLE_ANIMATION, AssetType.CINEMATIC, AssetType.SKY}:
-            valid_objects.add('ARMATURE')
-            
+            valid_objects = GENERAL_OBJECTS | {'ARMATURE'}
+             
             if main_armature:
                 self.armature_poses[main_armature.data] = main_armature.data.pose_position
                 main_armature.data.pose_position = 'REST'
@@ -344,7 +346,10 @@ class ExportScene:
             nwo = original.nwo
             parent = original
             
-            uses_array_mod = any(mod for mod in obj.modifiers if mod.type == 'NODES' and mod.name.lower().startswith("array") and not mod.get("Socket_38"))
+            uses_array_mod = any(
+                mod.type == 'NODES' and mod.name.lower().startswith("array") and not mod.get("Socket_38")
+                for mod in obj.modifiers
+            )
             
             if inst.is_instance:
                 obj = inst.instance_object
@@ -357,13 +362,13 @@ class ExportScene:
             elif original.is_instancer and original.instance_collection and original.instance_collection.all_objects and not nwo.marker_instance:
                 continue
             
-            if utils.ignore_for_export_fast(original, self.collection_map, parent):
+            if ignore_for_export_fast(original, collection_map, parent):
                 continue
-            
+             
             export_collection = parent.nwo.export_collection
             has_export_collection = bool(parent.nwo.export_collection)
             if has_export_collection:
-                collection = self.collection_map[export_collection]
+                collection = collection_map[export_collection]
             
             proxy = utils.ExportObject()
             proxy.name = original.name
@@ -527,14 +532,19 @@ class ExportScene:
         num_export_objects = len(self.export_objects)
         # use_action_map = self.asset_type in {AssetType.MODEL, AssetType.ANIMATION}
         object_parent_dict = {}
-        support_armatures = set()
-        for ob in self.support_armatures:
-            if ob is not None:
-                support_armatures.add(ob)
-        
-        for ob in bpy.data.objects:
-            if ob.parent:
-                self.objects_with_children.add(ob.parent)
+        support_armatures = {ob for ob in self.support_armatures if ob is not None}
+        self.objects_with_children = {ob.parent for ob in bpy.data.objects if ob.parent}
+
+        def set_parent(obj: utils.ExportObject, parent, has_parent: bool, is_armature: bool):
+            # Write object as if it has no parent if it is a poop. This solves an issue where instancing fails in Reach
+            if self.is_model and (not is_armature and (has_parent or self.main_armature)):
+                if parent in support_armatures or not has_parent:
+                    object_parent_dict[obj] = self.main_armature
+                else:
+                    object_parent_dict[obj] = parent
+            else:
+                self.no_parent_objects.append(obj)
+
         with utils.Spinner():
             utils.update_job_count(process, "", 0, num_export_objects)
             for idx, ob in enumerate(self.export_objects):
@@ -650,18 +660,6 @@ class ExportScene:
                                             break
                             
                     
-                def set_parent(obj: utils.ExportObject):
-                    # Write object as if it has no parent if it is a poop. This solves an issue where instancing fails in Reach
-                    if self.is_model and (not is_armature and (has_parent or (self.main_armature and not is_armature))):
-                        if parent in support_armatures:
-                            object_parent_dict[obj] = self.main_armature
-                        elif not has_parent:
-                            object_parent_dict[obj] = self.main_armature
-                        else:
-                            object_parent_dict[obj] = parent
-                    else:
-                        self.no_parent_objects.append(obj)
-                
                 copy_only = False
                 if copy is not None:
                     copy_props = props.copy()
@@ -709,22 +707,10 @@ class ExportScene:
                             copy_only = True
                     
                     self.ob_halo_data[copy_ob] = [copy_props, copy_region, permutation, proxies]
-                    set_parent(copy_ob)
-                        
-                def set_parent(obj: utils.ExportObject):
-                    # Write object as if it has no parent if it is a poop. This solves an issue where instancing fails in Reach
-                    if self.is_model and (not is_armature and (has_parent or (self.main_armature and not is_armature))):
-                        if parent in support_armatures:
-                            object_parent_dict[obj] = self.main_armature
-                        elif not has_parent:
-                            object_parent_dict[obj] = self.main_armature
-                        else:
-                            object_parent_dict[obj] = parent
-                    else:
-                        self.no_parent_objects.append(obj)
+                    set_parent(copy_ob, parent, has_parent, is_armature)
                 
                 if not copy_only:
-                    set_parent(ob)
+                    set_parent(ob, parent, has_parent, is_armature)
                     self.ob_halo_data[ob] = [props, region, permutation, proxies]
                     
                 utils.update_job_count(process, "", idx, num_export_objects)
@@ -739,7 +725,12 @@ class ExportScene:
                         v[1] = region
                         v[2] = permutation
                         self.ob_halo_data[new_export_ob] = v
-                        set_parent(new_export_ob)
+                        set_parent(
+                            new_export_ob,
+                            export_ob.parent,
+                            export_ob.parent is not None,
+                            export_ob.type == 'ARMATURE',
+                        )
                     
             else:
                 is_exclude = export_ob.nwo.marker_permutation_type == "exclude"
@@ -758,7 +749,12 @@ class ExportScene:
                     v[2] = permutation
                     self.render_regions_perms[region].add(permutation)
                     self.ob_halo_data[new_export_ob] = v
-                    set_parent(new_export_ob)
+                    set_parent(
+                        new_export_ob,
+                        export_ob.parent,
+                        export_ob.parent is not None,
+                        export_ob.type == 'ARMATURE',
+                    )
                     
             self.ob_halo_data.pop(export_ob)
             if export_ob in self.no_parent_objects:
