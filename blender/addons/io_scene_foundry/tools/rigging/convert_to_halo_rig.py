@@ -13,7 +13,7 @@ class NWO_OT_ConvertToHaloRig(bpy.types.Operator):
     bl_options = {"REGISTER", "UNDO"}
     
     has_pose_bones: bpy.props.BoolProperty(default=True)
-    wireframe: bpy.props.BoolProperty(name="Wireframe Control Shapes", description="Makes the control shapes wireframe rather than solid", default=True)
+    # wireframe: bpy.props.BoolProperty(name="Wireframe Control Shapes", description="Makes the control shapes wireframe rather than solid", default=True)
     convert_root_bone: bpy.props.BoolProperty(name="Use Root Bone as Pedestal", description="Convert the existing root bone to the pedestal bone rather than making it the child of the pedestal. This does not ensure that the root bone has Halo compliant transforms. Use rig validation afterwards to ensure correct transforms")
 
     @classmethod
@@ -40,7 +40,7 @@ class NWO_OT_ConvertToHaloRig(bpy.types.Operator):
                 root_bone = None
                 
         rig.build_bones(root_bone)
-        rig.build_and_apply_control_shapes(root_bone, wireframe=self.wireframe)
+        rig.build_and_apply_control_shapes(root_bone)
         if root_bone != target_root_bone:
             rig.make_parent(target_root_bone)
         return {"FINISHED"}
@@ -51,5 +51,5 @@ class NWO_OT_ConvertToHaloRig(bpy.types.Operator):
     def draw(self, context):
         layout = self.layout
         layout.prop(self, 'has_pose_bones', text='Add Aim Bones')
-        layout.prop(self, 'wireframe')
+        # layout.prop(self, 'wireframe')
         layout.prop(self, 'convert_root_bone')

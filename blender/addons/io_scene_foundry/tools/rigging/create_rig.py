@@ -170,20 +170,20 @@ class NWO_OT_AddRig(bpy.types.Operator):
     bl_options = {"REGISTER", "UNDO"}
     
     has_pose_bones: bpy.props.BoolProperty(default=True)
-    wireframe: bpy.props.BoolProperty(name="Wireframe Control Shapes", description="Makes the control shapes wireframe rather than solid", default=True)
+    # wireframe: bpy.props.BoolProperty(name="Wireframe Control Shapes", description="Makes the control shapes wireframe rather than solid", default=True)
 
     @classmethod
     def poll(cls, context):
         return context.mode == 'OBJECT'
 
     def execute(self, context):
-        add_rig(context, self.has_pose_bones, self.wireframe)
+        add_rig(context, self.has_pose_bones)
         return {"FINISHED"}
     
     def draw(self, context):
         layout = self.layout
         layout.prop(self, 'has_pose_bones', text='Add Aim Bones')
-        layout.prop(self, 'wireframe')
+        # layout.prop(self, 'wireframe')
     
 class NWO_OT_SelectArmature(bpy.types.Operator):
     bl_label = "Select Armature"
@@ -196,12 +196,12 @@ class NWO_OT_SelectArmature(bpy.types.Operator):
         return context.mode == 'OBJECT'
     
     has_pose_bones: bpy.props.BoolProperty(default=True)
-    wireframe: bpy.props.BoolProperty(name="Wireframe Control Shapes", description="Makes the control shapes wireframe rather than solid")
+    # wireframe: bpy.props.BoolProperty(name="Wireframe Control Shapes", description="Makes the control shapes wireframe rather than solid")
     create_arm: bpy.props.BoolProperty(options={'HIDDEN', 'SKIP_SAVE'})
 
     def execute(self, context):
         if self.create_arm:
-            add_rig(context, self.has_pose_bones, self.wireframe)
+            add_rig(context, self.has_pose_bones)
             return {'FINISHED'}
         
         objects = context.view_layer.objects
@@ -232,10 +232,10 @@ class NWO_OT_SelectArmature(bpy.types.Operator):
         layout.label(text='No Armature in Scene. Press OK to create one')
         layout.prop(self, 'has_pose_bones', text='With Aim Bones')
         
-def add_rig(context, has_pose_bones, wireframe):
+def add_rig(context, has_pose_bones):
     scene_nwo = utils.get_scene_props()
     scale = 1
     rig = HaloRig(context, forward=scene_nwo.forward_direction, has_pose_bones=has_pose_bones, set_scene_rig_props=True)
     rig.build_armature()
     rig.build_bones()
-    rig.build_and_apply_control_shapes(wireframe=wireframe)
+    rig.build_and_apply_control_shapes()
