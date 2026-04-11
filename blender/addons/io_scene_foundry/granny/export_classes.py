@@ -25,6 +25,14 @@ granny_inverse_transform_default = (c_float * 4 * 4)(
 rotation_matrix = Matrix.Rotation(radians(90), 4, 'Z')
 z_up_to_y_up = Matrix.Rotation(-radians(90), 4, 'X')
 
+
+def _matrix3_to_c_float9(matrix: Matrix):
+    return (c_float * 9)(
+        matrix[0][0], matrix[0][1], matrix[0][2],
+        matrix[1][0], matrix[1][1], matrix[1][2],
+        matrix[2][0], matrix[2][1], matrix[2][2],
+    )
+
 def granny_transform_parts(matrix_local: Matrix):
     loc = matrix_local.to_translation()
     position = (c_float * 3)(loc[0], loc[1], loc[2])
@@ -52,6 +60,7 @@ def granny_transform_parts(matrix_local: Matrix):
     return position, orientation, scale_shear
 
 class Material():
+    __slots__ = ("name", "name_str", "granny")
     name: bytes
     def __init__(self, material):
         self.name = material.name.encode()
@@ -85,6 +94,8 @@ class BoneType(Enum):
     LIGHT = 3
     
 class Bone():
+    __slots__ = ("name", "parent_index", "lod_error", "local_transform", "inverse_transform")
+
     def __init__(self, bone):
         self.name = bone.name.encode()
         self.parent_index = bone.parent_index
@@ -153,6 +164,22 @@ class Color:
     blue: float
     
 class Vertex:
+    __slots__ = (
+        "position",
+        "normal",
+        "bone_weights",
+        "bone_indices",
+        "uvs0",
+        "uvs1",
+        "uvs2",
+        "uvs3",
+        "lighting_uv",
+        "vertex_color0",
+        "vertex_color1",
+        "blend_shape",
+        "vertex_id",
+    )
+
     def __init__(self, index: int, mesh, transformed_positions: np.ndarray, transformed_normals: np.ndarray):
         self.position = (c_float * 3)(*transformed_positions[index])
         self.normal = (c_float * 3)(*transformed_normals[index])
@@ -216,6 +243,7 @@ class Vertex:
         #     setattr(self, f"vertex_color{str(idx)}", (c_float * 3)(color[0], color[1], color[2]))
     
 class VertexData:
+    __slots__ = ("vertices", "affine3", "linear3x3", "inverse_linear3x3", "granny")
     vertices: list[Vertex]
     
     def __init__(self, node):
@@ -226,60 +254,21 @@ class VertexData:
         self.inverse_linear3x3 = (c_float * 9)(0, 0, 0, 0, 0, 0, 0, 0, 0)
         matrix = node.matrix_world
         self.affine3 = (c_float * 3)(matrix[0][3], matrix[1][3], matrix[2][3])
-        self.linear3x3 = (c_float * 9)(
-            matrix[0][0], matrix[0][1], matrix[0][2],
-            matrix[1][0], matrix[1][1], matrix[1][2],
-            matrix[2][0], matrix[2][1], matrix[2][2]
-        )
-        
-        # Extracting the 3x3 submatrix
-        R = [
-            [matrix[0][0], matrix[0][1], matrix[0][2]],
-            [matrix[1][0], matrix[1][1], matrix[1][2]],
-            [matrix[2][0], matrix[2][1], matrix[2][2]]
-        ]
-
-        # Helper function to calculate the determinant of a 3x3 matrix
-        def determinant_3x3(m):
-            return (
-                m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) -
-                m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) +
-                m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0])
-            )
-
-        # Helper function to calculate the adjugate of a 3x3 matrix
-        def adjugate_3x3(m):
-            return [
-                [(m[1][1] * m[2][2] - m[1][2] * m[2][1]), -(m[0][1] * m[2][2] - m[0][2] * m[2][1]), (m[0][1] * m[1][2] - m[0][2] * m[1][1])],
-                [-(m[1][0] * m[2][2] - m[1][2] * m[2][0]), (m[0][0] * m[2][2] - m[0][2] * m[2][0]), -(m[0][0] * m[1][2] - m[0][2] * m[1][0])],
-                [(m[1][0] * m[2][1] - m[1][1] * m[2][0]), -(m[0][0] * m[2][1] - m[0][1] * m[2][0]), (m[0][0] * m[1][1] - m[0][1] * m[1][0])]
-            ]
-
-        # Calculate the inverse if the determinant is not zero
-        det = determinant_3x3(R)
-        if det != 0:
-            adj = adjugate_3x3(R)
-            inv_R = [[adj[row][col] / det for col in range(3)] for row in range(3)]
-        else:
-            inv_R = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]  # Handle singular matrix case
-
-        # Flatten the inverse matrix into a 1D array suitable for c_float * 9
-        self.inverse_linear3x3 = (c_float * 9)(
-            inv_R[0][0], inv_R[0][1], inv_R[0][2],
-            inv_R[1][0], inv_R[1][1], inv_R[1][2],
-            inv_R[2][0], inv_R[2][1], inv_R[2][2]
-        )
+        matrix3 = matrix.to_3x3()
+        self.linear3x3 = _matrix3_to_c_float9(matrix3)
+        self.inverse_linear3x3 = _matrix3_to_c_float9(matrix3.inverted_safe())
 
         if node.matrix_world == identity_matrix:
             self.vertices = [Vertex(i, mesh, mesh.positions, mesh.normals) for i in range(mesh.num_vertices)]
         else:
-            transformed_positions = mesh.positions @ node.matrix_world.to_3x3()
-            transformed_normals = mesh.normals @ node.matrix_world.to_3x3()
+            transformed_positions = mesh.positions @ matrix3
+            transformed_normals = mesh.normals @ matrix3
             self.vertices = [Vertex(i, mesh, transformed_positions, transformed_normals) for i in range(mesh.num_vertices)]
             
         self.granny = None
     
 class Group:
+    __slots__ = ("material_index", "tri_start", "tri_count")
     material_index: int
     tri_start: int
     tri_count: int
@@ -298,6 +287,7 @@ class Group:
 #         self.indices = (face.vertices[0], face.vertices[1], face.vertices[2])
         
 class TriAnnotationSet:
+    __slots__ = ("name", "tri_annotations")
     def __init__(self, name: str, array: np.ndarray):
         self.name = name.encode()
         c_type = c_int
@@ -328,11 +318,13 @@ class TriTopology:
         #             self.tri_annotation_sets.append(TriAnnotationSet(bm, layer, "bungie_face_sides", FaceSides.two_sided.value, 0))
         
 class BoneBinding:
+    __slots__ = ("name",)
     name: bytes
     def __init__(self, name: str):
         self.name = name.encode()
     
 class Mesh():
+    __slots__ = ("granny", "name", "node", "props", "siblings", "primary_vertex_data", "primary_topology", "materials", "bone_bindings")
     def __init__(self, node, valid_siblings, vertex_data):
         self.granny = None
         self.name = node.name.encode()
@@ -346,6 +338,7 @@ class Mesh():
         self.bone_bindings = [BoneBinding(name) for name in node.bone_bindings]
 
 class Model:
+    __slots__ = ("name", "skeleton_index", "initial_placement", "mesh_bindings")
     name: str
     skeleton_index: int
     initial_placement: GrannyTransform

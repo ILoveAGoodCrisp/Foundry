@@ -142,9 +142,9 @@ class Granny:
         entity.extended_data.object = data
         
     def from_tree(self, scene, nodes, animation=None):
-        
-        animation_node_flags = {}
+        animation_node_flags = None
         if animation is not None:
+            animation_node_flags = {}
             for item in animation.animation_nodes:
                 animation_node_flags.setdefault(item.name, set()).add(item.node_type)
         
@@ -155,6 +155,10 @@ class Granny:
         self.export_skeletons = []
         self.export_tri_topologies = []
         self.export_vertex_datas = []
+        export_skeletons_append = self.export_skeletons.append
+        export_meshes_append = self.export_meshes.append
+        export_models_append = self.export_models.append
+        export_vertex_datas_append = self.export_vertex_datas.append
         meshes = set()
         materials = set()
         valid_siblings = {n.name for n in nodes.values() if n.mesh}
@@ -162,12 +166,12 @@ class Granny:
             node = nodes.get(model.ob)
             if node is None: continue
             
-            self.export_skeletons.append(
+            export_skeletons_append(
                 Skeleton(
                     model.skeleton,
                     node,
                     nodes,
-                    animation_node_flags if animation else None,
+                    animation_node_flags,
                     scene.granny
                 )
             )
@@ -183,15 +187,15 @@ class Granny:
                     if vertex_data is None:
                         vertex_data = bone.node.granny_vertex_data
                     
-                    self.export_vertex_datas.append(vertex_data)
+                    export_vertex_datas_append(vertex_data)
                     # self.export_tri_topologies.append(bone.node.granny_tri_topology)
                     export_mesh = Mesh(bone.node, valid_siblings, vertex_data)
-                    self.export_meshes.append(export_mesh)
+                    export_meshes_append(export_mesh)
                     materials.update(bone.node.mesh.materials)
                     meshes.add(bone.node.mesh)
                     mesh_binding_indices.append(len(self.export_meshes) - 1)
                     
-            self.export_models.append(Model(model, len(self.export_skeletons) - 1, mesh_binding_indices))
+            export_models_append(Model(model, len(self.export_skeletons) - 1, mesh_binding_indices))
             
         if meshes:
             self.export_tri_topologies = [mesh.granny_tri_topology for mesh in meshes]
@@ -262,7 +266,9 @@ class Granny:
         # self.file_info.art_tool_info.contents.back_vector = (c_float * 3)(0, 0, 1)
         # self.file_info.art_tool_info.contents.units_per_meter = 100
         
-    def write_track_groups(self, export_animation, export_track_group, vector_tracks=[]):
+    def write_track_groups(self, export_animation, export_track_group, vector_tracks=None):
+        if vector_tracks is None:
+            vector_tracks = []
         all_track_groups = [export_track_group]
         
         tracks_with_own_groups = [v for v in vector_tracks if v.granny_track_group is not None]
@@ -280,11 +286,12 @@ class Granny:
             granny_track_group.flags = 2
             all_track_groups.append(pointer(granny_track_group))
         
+        track_groups = (POINTER(GrannyTrackGroup) * len(all_track_groups))(*all_track_groups)
         self.file_info.track_group_count = len(all_track_groups)
-        self.file_info.track_groups = (POINTER(GrannyTrackGroup) * len(all_track_groups))(*all_track_groups)
+        self.file_info.track_groups = track_groups
         
         export_animation.contents.track_group_count = len(all_track_groups)
-        export_animation.contents.track_groups = (POINTER(GrannyTrackGroup) * len(all_track_groups))(*all_track_groups)
+        export_animation.contents.track_groups = track_groups
         
     def write_animations(self, export_animation):
         self.file_info.animation_count = 1
@@ -302,7 +309,9 @@ class Granny:
         self.file_info.texture_count = num_textures
         self.file_info.textures = textures
 
-    def write_skeletons(self, export_info=None, vector_tracks=[]):
+    def write_skeletons(self, export_info=None, vector_tracks=None):
+        if vector_tracks is None:
+            vector_tracks = []
         info_int = int(bool(export_info))
         num_skeletons = len(self.export_skeletons) + info_int
         skeletons = (POINTER(GrannySkeleton) * num_skeletons)()
