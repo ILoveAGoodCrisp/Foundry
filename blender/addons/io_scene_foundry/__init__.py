@@ -27,7 +27,6 @@ def register():
     bpy.app.handlers.blend_import_post.append(startup.import_handler)
     for module in modules:
         module.register()
-    icons.icons_activate()
 
 def unregister():
     bpy.app.handlers.blend_import_post.remove(startup.import_handler)

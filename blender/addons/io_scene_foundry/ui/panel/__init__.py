@@ -3481,7 +3481,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         col.operator("nwo.open_url", text="AMF Importer", icon_value=get_icon_id("amf")).url = AMF_ADDON
         col.operator("nwo.open_url", text="Reclaimer", icon_value=get_icon_id("marathon")).url = RECLAIMER
         col.operator("nwo.open_url", text="Animation Repository", icon_value=get_icon_id("github")).url = ANIMATION_REPO
-        self.box.operator('nwo.register_icons', icon='FILE_REFRESH')
+        #self.box.operator('nwo.register_icons', icon='FILE_REFRESH')
 
     def draw_settings(self):
         prefs = utils.get_prefs()
