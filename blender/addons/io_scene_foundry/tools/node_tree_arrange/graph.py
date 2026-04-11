@@ -130,7 +130,6 @@ class GNode:
 class _RealGNode(GNode):
     node: Node  # type: ignore
 
-
 @dataclass(slots=True)
 class Cluster:
     node: NodeFrame | None
@@ -203,9 +202,21 @@ for cls in (bNodeStack, bNodeSocketRuntimeHandle, bNodeSocket):
 
 
 def get_socket_y(socket: NodeSocket) -> float:
-    b_socket = bNodeSocket.from_address(socket.as_pointer())
-    ui_scale = bpy.context.preferences.system.ui_scale  # type: ignore
     return b_socket.runtime.contents.location[1] / ui_scale
+    node = socket.node
+    sockets = node.outputs if socket.is_output else node.inputs
+    visible_sockets = [s for s in sockets if not s.hide]
+
+    if not visible_sockets:
+        return get_top(node)
+
+    try:
+        socket_index = visible_sockets.index(socket)
+    except ValueError:
+        socket_index = min(len(visible_sockets) - 1, list(sockets).index(socket))
+
+    socket_spacing = dimensions(node).y / (len(visible_sockets) + 1)
+    return get_top(node) - ((socket_index + 1) * socket_spacing)
 
 
 @dataclass(frozen=True)
