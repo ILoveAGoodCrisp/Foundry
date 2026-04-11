@@ -89,6 +89,8 @@ class HaloRig:
         
         self.fk_bones: list[bpy.types.PoseBone] = []
         self.ik_bones: list[bpy.types.PoseBone] = []
+        
+        self.bones_with_fk_controllers = set()
     
     def build_and_apply_control_shapes(self, pedestal=None, pitch=None, yaw=None, aim_control=None, wireframe=False, aim_control_only=False, reverse_control=False, reach_fp_fix=False, constraints_only=False):
         min_size, max_size = utils.to_aabb(self.rig_ob)
@@ -376,18 +378,22 @@ class HaloRig:
     def generate_bone_collections(self):
         """Sorts bones into bone collections"""
         bone_collections = self.rig_data.collections
-        halo_collection = bone_collections.get("Deform Bones")
+        halo_collection = bone_collections.get("Deform")
         
         if halo_collection is None:
             halo_collection = bone_collections.new("Deform Bones")
             
-        halo_special = bone_collections.get("Deform Main Bones")
-        if halo_special is None:
-            halo_special = bone_collections.new("Deform Main Bones", parent=halo_collection)
+        halo_free = bone_collections.get("Free Deform Bones")
+        if halo_free is None:
+            halo_free = bone_collections.new("Free Deform Bones", parent=halo_collection)
             
-        halo_helpers = bone_collections.get("Deform Helper Bones")
+        halo_controlled = bone_collections.get("Controlled Deform Bones")
+        if halo_controlled is None:
+            halo_controlled = bone_collections.new("Controlled Deform Bones", parent=halo_collection)
+            
+        halo_helpers = bone_collections.get("Helper Deform Bones")
         if halo_helpers is None:
-            halo_helpers = bone_collections.new("Deform Helper Bones", parent=halo_collection)
+            halo_helpers = bone_collections.new("Helper Deform Bones", parent=halo_collection)
             
         pedestal_aim_collection = bone_collections.get("Pedestal & Aim Bones")
         if pedestal_aim_collection is None:
@@ -396,10 +402,18 @@ class HaloRig:
         fk_collection = bone_collections.get("FK")
         if fk_collection is None:
             fk_collection = bone_collections.new("FK")
+            
+        fk_collection = bone_collections.get("FK")
+        if fk_collection is None:
+            fk_collection = bone_collections.new("FK")
 
         ik_collection = bone_collections.get("IK")
         if ik_collection is None:
             ik_collection = bone_collections.new("IK")
+            
+        ctrl_collection = bone_collections.get("Misc Control")
+        if ctrl_collection is None:
+            ctrl_collection = bone_collections.new("Misc Control")
         
         for bone in self.rig_data.bones:
             no_digit_name = bone.name.strip("0123456789")
@@ -408,16 +422,21 @@ class HaloRig:
                     pedestal_aim_collection.assign(bone)
                 elif no_digit_name.endswith(helper_bones):
                     halo_helpers.assign(bone)
+                elif bone.name in self.bones_with_fk_controllers:
+                    halo_controlled.assign(bone)
                 else:
-                    halo_collection.assign(bone)
+                    halo_free.assign(bone)
             else:
                 if no_digit_name.startswith("FK_"):
                     fk_collection.assign(bone)
                 elif no_digit_name.startswith("IK_"):
                     ik_collection.assign(bone)
+                else:
+                    ctrl_collection.assign(bone)
                     
         if fk_collection.bones:
-            halo_collection.is_visible = False
+            halo_controlled.is_visible = False
+            halo_free.is_visible = False
 
     def apply_halo_bone_shape(self):
         """Applies a custom shape to every halo bone that is not the pedestal or an aim bone"""
@@ -427,10 +446,14 @@ class HaloRig:
             utils.mesh_to_cube(shape_mesh)
             shape = bpy.data.objects.new("halo_deform_bone_shape", shape_mesh)
             
+        min_size, max_size = utils.to_aabb(self.rig_ob)
+        shape_scale = abs((max_size - min_size).length)
+            
         for pbone, bone in zip(self.rig_pose.bones, self.rig_data.bones):
             if pbone.custom_shape is None and bone.use_deform and (not bone.name.endswith(special_bones) and not bone.name.startswith(("FK_", "IK_", "CTRL_"))):
+                pelvis_factor = 4 if bone.name.lower().endswith(("pelvis")) else 0.5
                 pbone.custom_shape = shape
-                pbone.custom_shape_scale_xyz = Vector((0.5, 0.5, 0.5)) * self.scale
+                pbone.custom_shape_scale_xyz = Vector((0.5, 0.5, 0.5)) * shape_scale * self.scale * pelvis_factor
                 bone.show_wire = True
         
     def build_fk_ik_rig(self, reverse_controls=False, constraints_only=False):
@@ -595,6 +618,7 @@ class HaloRig:
         for db_name, fkb_name in deform_fk_mapping.items():
             fkb = self.rig_pose.bones[fkb_name]
             db = self.rig_pose.bones[db_name]
+            self.bones_with_fk_controllers.add(db_name)
             clear_copy_transforms(fkb)
             clear_copy_transforms(db)
             if reverse_controls:
