@@ -3398,7 +3398,7 @@ def area_light_to_emissive(light_ob: bpy.types.Object, corinth: bool):
     prop.material_lighting_attenuation_falloff = light_nwo.light_far_attenuation_start
     prop.material_lighting_emissive_focus = light.spread
     prop.material_lighting_emissive_per_unit = light.normalize
-    if light.use_nodes:
+    if light.use_custom_distance:
         intensity = light_nwo.light_intensity
     else:
         intensity = calc_light_intensity(light, get_import_scale(bpy.context))
@@ -5610,7 +5610,8 @@ def make_halo_light(data: bpy.types.Light, primary_scale="", secondary_scale="",
     if data.type == 'SUN':
         return
     
-    data.use_nodes = True
+    # data.use_nodes = True
+    data.use_custom_distance = True
     tree = data.node_tree
     tree.nodes.clear()
     light_node = tree.nodes.new('ShaderNodeGroup')

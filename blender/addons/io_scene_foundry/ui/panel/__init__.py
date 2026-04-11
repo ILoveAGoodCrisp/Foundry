@@ -1678,7 +1678,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
 
         if is_light:
             is_sun = data.type == 'SUN'
-            halo_light = data.use_nodes and not is_sun
+            halo_light = data.use_custom_distance and not is_sun
             row.prop(data, "type", expand=True)
             col = box.column()
             col.use_property_split = True
@@ -1832,7 +1832,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     col.separator()
                     col.prop(nwo, "light_indirect_only")
                     col.prop(nwo, "light_static_analytic")
-                    if not data.use_nodes:
+                    if not data.use_custom_distance:
                         col.prop(nwo, "light_physically_correct")
 
             else:

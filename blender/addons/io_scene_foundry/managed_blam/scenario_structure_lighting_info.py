@@ -529,7 +529,7 @@ class ScenarioStructureLightingInfoTag(Tag):
             nwo.light_gel_reference = self.get_path_str(gobo_tag_path)
             nwo.light_lens_flare_reference = self.get_path_str(element.SelectField("lens flare reference").Path)
             
-            if not blender_light.use_nodes:
+            if not blender_light.use_custom_distance:
                 if blender_light in self.inverse_squared_lights:
                     blender_light.energy = utils.calc_light_energy(blender_light, blender_light.nwo.light_intensity, 1)
                 else:

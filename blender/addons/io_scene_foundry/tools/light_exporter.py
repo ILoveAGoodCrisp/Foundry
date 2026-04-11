@@ -93,7 +93,7 @@ class BlamLightDefinition:
         self.near_attenuation_start = data.shadow_soft_size * atten_scalar * WU_SCALAR * unit_factor
         self.near_attenuation_end = self.near_attenuation_start
         
-        if data.use_nodes:
+        if data.use_custom_distance:
             intensity = nwo.light_intensity
             self.far_attenuation_start = nwo.light_far_attenuation_start * atten_scalar * WU_SCALAR * unit_factor
             self.far_attenuation_end = nwo.light_far_attenuation_end * atten_scalar * WU_SCALAR * unit_factor
@@ -142,7 +142,7 @@ class BlamLightDefinition:
         self.indirect_only = 1 if nwo.light_indirect_only else 0
         self.static_analytic = 1 if nwo.light_static_analytic else 0
         
-        self.inverse_squared_falloff = not data.use_nodes
+        self.inverse_squared_falloff = not data.use_custom_distance
 
 class NWO_OT_ExportLights(bpy.types.Operator):
     bl_idname = "nwo.export_lights"

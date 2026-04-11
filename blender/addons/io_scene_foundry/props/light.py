@@ -59,8 +59,7 @@ class NWO_LightPropertiesGroup(bpy.types.PropertyGroup):
                 self.light_far_attenuation_start = self.light_far_attenuation_end
         
         light = self.id_data
-        if light.use_nodes:
-            light.use_custom_distance = True
+        if light.use_custom_distance:
             light.cutoff_distance = self.light_far_attenuation_end
 
     light_far_attenuation_end: bpy.props.FloatProperty(
