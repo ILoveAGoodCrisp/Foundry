@@ -119,7 +119,29 @@ object_tag_types = (
     ".weapon",
 )
 
+filetype_suffixes = (
+    ("amf", (".amf",)),
+    ("jms", legacy_model_formats),
+    ("jma", legacy_animation_formats),
+    ("bitmap", (".bitmap",)),
+    ("camera_track", (".camera_track",)),
+    ("model", (".model",)),
+    ("render_model", (".render_model",)),
+    ("scenario", (".scenario",)),
+    ("scenario_structure_bsp", (".scenario_structure_bsp",)),
+    ("scenario_structure_lighting_info", (".scenario_structure_lighting_info",)),
+    ("particle_model", (".particle_model",)),
+    ("object", object_tag_types),
+    ("animation", (".model_animation_graph",)),
+    ("prefab", (".prefab",)),
+    ("structure_design", (".structure_design",)),
+    ("polyart_asset", (".polyart_asset",)),
+    ("decorator_set", (".decorator_set",)),
+    ("cinematic", (".cinematic",)),
+)
+
 tag_files_cache = set()
+tag_files_by_name_cache = {}
 objects_cache = {}
 
 def set_asset(tag_ext: str, ob: bpy.types.Object=None, is_sky=False):
@@ -725,7 +747,7 @@ class NWO_Import(bpy.types.Operator):
         imported_objects = []
         imported_actions = []
         armature = None
-        starting_materials = bpy.data.materials[:]
+        starting_materials = set(bpy.data.materials)
         for_cinematic = scene_nwo.asset_type == 'cinematic'
         self.anchor = None
         self.nothing_imported = False
@@ -928,9 +950,8 @@ class NWO_Import(bpy.types.Operator):
                                     converter.instance.matrix_world = mouse_matrix
                                 
                         else:
-                            game_object_cache = {(c.nwo.game_object_path, c.nwo.game_object_variant): c for c in bpy.data.collections if c.nwo.game_object_path}
                             key = marker.nwo.marker_game_instance_tag_name, marker.nwo.marker_game_instance_tag_variant_name
-                            game_object_collection = game_object_cache.get(key)
+                            game_object_collection = importer.get_cached_game_object_collection(*key)
                             imported_object_objects = []
                             if game_object_collection is None:
                                 game_object_collection = importer.import_object(marker, None)
@@ -938,8 +959,7 @@ class NWO_Import(bpy.types.Operator):
                                 imported_object_objects = game_object_collection.all_objects
                                 context.scene.collection.children.unlink(game_object_collection)
                                 # bpy.data.collections.link(game_object_collection)
-                                game_object_collection = merged_collection
-                                game_object_collection.nwo.game_object_path, game_object_collection.nwo.game_object_variant = key
+                                game_object_collection = importer.cache_game_object_collection(merged_collection, *key)
                                 
                             marker.instance_type = 'COLLECTION'
                             marker.instance_collection = game_object_collection
@@ -1145,18 +1165,16 @@ class NWO_Import(bpy.types.Operator):
                 elif 'prefab' in importer.extensions:
                     importer.setup_as_asset = self.setup_as_asset
                     if self.place_at_mouse:
-                        game_object_cache = {c.nwo.game_object_path: c for c in bpy.data.collections if c.nwo.game_object_path}
                         key = marker.nwo.marker_game_instance_tag_name
-                        game_object_collection = game_object_cache.get(key)
+                        game_object_collection = importer.get_cached_game_object_collection(key)
                         imported_object_objects = []
                         if game_object_collection is None:
                             game_object_collection = importer.import_prefab(marker)
                             merged_collection = merge_collection(game_object_collection, suffix="Prefab") 
                             imported_object_objects = game_object_collection.all_objects
                             context.scene.collection.children.unlink(game_object_collection)
-                            game_object_collection = merged_collection
+                            game_object_collection = importer.cache_game_object_collection(merged_collection, key)
                             # bpy.data.collections.link(game_object_collection)
-                            game_object_collection.nwo.game_object_path = key
                             
                         marker.instance_type = 'COLLECTION'
                         marker.instance_collection = game_object_collection
@@ -1193,18 +1211,16 @@ class NWO_Import(bpy.types.Operator):
                 if 'decorator_set' in importer.extensions:
                     importer.setup_as_asset = self.setup_as_asset
                     if self.place_at_mouse:
-                        game_object_cache = {(c.nwo.game_object_path, c.nwo.game_object_variant): c for c in bpy.data.collections if c.nwo.game_object_path}
                         key = marker.nwo.marker_game_instance_tag_name, marker.nwo.marker_game_instance_tag_variant_name
-                        game_object_collection = game_object_cache.get(key)
+                        game_object_collection = importer.get_cached_game_object_collection(*key)
                         imported_object_objects = []
                         if game_object_collection is None:
                             game_object_collection = importer.import_decorator_set(marker, self.build_blender_materials, self.always_extract_bitmaps, self.decorator_type.lower() if self.decorator_type.strip() else None, int(self.decorator_lod), True)
                             merged_collection = merge_collection(game_object_collection, suffix="Decorator") 
                             imported_object_objects = game_object_collection.all_objects
                             context.scene.collection.children.unlink(game_object_collection)
-                            game_object_collection = merged_collection
+                            game_object_collection = importer.cache_game_object_collection(merged_collection, *key)
                             # bpy.data.collections.link(game_object_collection)
-                            game_object_collection.nwo.game_object_path, game_object_collection.nwo.game_object_variant = key
                             
                         marker.instance_type = 'COLLECTION'
                         marker.instance_collection = game_object_collection
@@ -2029,13 +2045,15 @@ class PCAInfo:
         self.pca_path = None
 
 class NWOImporter:
-    def __init__(self, context, filepaths=[], scope=[], existing_scene=False):
+    def __init__(self, context, filepaths=None, scope=None, existing_scene=False):
         self.scene_nwo = utils.get_scene_props()
         self.scene_nwo_export = utils.get_export_props()
-        self.filepaths = filepaths
+        self.filepaths = list(filepaths) if filepaths else []
         self.context = context
         self.scene = context.scene
         self.scene_collection = self.scene.collection
+        self.tags_dir = utils.get_project(self.scene_nwo.scene_project).tags_directory
+        self.tags_path = Path(self.tags_dir)
         self.mesh_objects = []
         self.marker_objects = []
         self.extensions = set()
@@ -2076,7 +2094,10 @@ class NWOImporter:
         self.attachments = []
         self.fp_arms_imported = False
         self.deferred_parenting = {}
-        if filepaths:
+        self.game_object_collection_cache = None
+        self.region_names = {entry.name for entry in self.scene_nwo.regions_table}
+        self.permutation_names = {entry.name for entry in self.scene_nwo.permutations_table}
+        if self.filepaths:
             self.sorted_filepaths = self.group_filetypes(scope)
         else:
             self.sorted_filepaths = []
@@ -2106,70 +2127,24 @@ class NWOImporter:
             filetype_dict = {ext: {} for ext in scope}
         else:
             filetype_dict = {ext: {} for ext in formats}
-        # Search for folders first and add their files to filepaths
-        folders = [path for path in self.filepaths if os.path.isdir(path)]
-        for f in folders:
-            for root, _, files in os.walk(f):
-                for file in files:
-                    self.filepaths.append(os.path.join(root, file))
-                    
-        valid_exts = filetype_dict.keys()
-            
+        expanded_paths = []
         for path in self.filepaths:
-            if 'amf' in valid_exts and path.lower().endswith('.amf'):
-                self.extensions.add('amf')
-                filetype_dict["amf"][path] = None
-            elif 'jms' in valid_exts and path.lower().endswith(legacy_model_formats):
-                self.extensions.add('jms')
-                filetype_dict["jms"][path] = None
-            elif 'jma' in valid_exts and path.lower().endswith(legacy_animation_formats):
-                self.extensions.add('jma')
-                filetype_dict["jma"][path] = None
-            elif 'bitmap' in valid_exts and path.lower().endswith('.bitmap'):
-                self.extensions.add('bitmap')
-                filetype_dict["bitmap"][path] = None
-            elif 'camera_track' in valid_exts and path.lower().endswith('.camera_track'):
-                self.extensions.add('camera_track')
-                filetype_dict["camera_track"][path] = None
-            elif 'model' in valid_exts and path.lower().endswith('.model'):
-                self.extensions.add('model')
-                filetype_dict["model"][path] = None
-            elif 'render_model' in valid_exts and path.lower().endswith('.render_model'):
-                self.extensions.add('render_model')
-                filetype_dict["render_model"][path] = None
-            elif 'scenario' in valid_exts and path.lower().endswith('.scenario'):
-                self.extensions.add('scenario')
-                filetype_dict["scenario"][path] = None
-            elif 'scenario_structure_bsp' in valid_exts and path.lower().endswith('.scenario_structure_bsp'):
-                self.extensions.add('scenario_structure_bsp')
-                filetype_dict["scenario_structure_bsp"][path] = None
-            elif 'scenario_structure_lighting_info' in valid_exts and path.lower().endswith('.scenario_structure_lighting_info'):
-                self.extensions.add('scenario_structure_lighting_info')
-                filetype_dict["scenario_structure_lighting_info"][path] = None
-            elif 'particle_model' in valid_exts and path.lower().endswith('.particle_model'):
-                self.extensions.add('particle_model')
-                filetype_dict["particle_model"][path] = None
-            elif 'object' in valid_exts and path.lower().endswith(object_tag_types):
-                self.extensions.add('object')
-                filetype_dict["object"][path] = None
-            elif 'animation' in valid_exts and path.lower().endswith(".model_animation_graph"):
-                self.extensions.add('animation')
-                filetype_dict["animation"][path] = None
-            elif 'prefab' in valid_exts and path.lower().endswith(".prefab"):
-                self.extensions.add('prefab')
-                filetype_dict["prefab"][path] = None
-            elif 'structure_design' in valid_exts and path.lower().endswith(".structure_design"):
-                self.extensions.add('structure_design')
-                filetype_dict["structure_design"][path] = None
-            elif 'polyart_asset' in valid_exts and path.lower().endswith(".polyart_asset"):
-                self.extensions.add('polyart_asset')
-                filetype_dict["polyart_asset"][path] = None
-            elif 'decorator_set' in valid_exts and path.lower().endswith(".decorator_set"):
-                self.extensions.add('decorator_set')
-                filetype_dict["decorator_set"][path] = None
-            elif 'cinematic' in valid_exts and path.lower().endswith(".cinematic"):
-                self.extensions.add('cinematic')
-                filetype_dict["cinematic"][path] = None
+            if os.path.isdir(path):
+                for root, _, files in os.walk(path):
+                    expanded_paths.extend(os.path.join(root, file) for file in files)
+            else:
+                expanded_paths.append(path)
+
+        self.filepaths = expanded_paths
+        valid_exts = set(filetype_dict)
+
+        for path in expanded_paths:
+            path_lower = path.lower()
+            for filetype, suffixes in filetype_suffixes:
+                if filetype in valid_exts and path_lower.endswith(suffixes):
+                    self.extensions.add(filetype)
+                    filetype_dict[filetype][path] = None
+                    break
             
         # First stored as dict then converted to list. Avoids duplicate files
         for k, v in filetype_dict.items():
@@ -2178,30 +2153,204 @@ class NWOImporter:
         return filetype_dict
         
     # Utility functions
+
+    def _ensure_game_object_collection_cache(self):
+        if self.game_object_collection_cache is not None:
+            return self.game_object_collection_cache
+
+        self.game_object_collection_cache = {
+            (collection.nwo.game_object_path, collection.nwo.game_object_variant): collection
+            for collection in bpy.data.collections
+            if collection.nwo.game_object_path
+        }
+        return self.game_object_collection_cache
+
+    def get_cached_game_object_collection(self, tag_path: str, variant: str=""):
+        return self._ensure_game_object_collection_cache().get((tag_path, variant))
+
+    def cache_game_object_collection(self, collection: bpy.types.Collection, tag_path: str, variant: str=""):
+        collection.nwo.game_object_path = tag_path
+        collection.nwo.game_object_variant = variant
+        self._ensure_game_object_collection_cache()[(tag_path, variant)] = collection
+        return collection
+
+    def _ensure_region_entry(self, region: str):
+        if not region or region in self.region_names:
+            return
+
+        entry = self.scene_nwo.regions_table.add()
+        entry.old = region
+        entry.name = region
+        self.region_names.add(region)
+
+    def _ensure_permutation_entry(self, permutation: str):
+        if not permutation or permutation in self.permutation_names:
+            return
+
+        entry = self.scene_nwo.permutations_table.add()
+        entry.old = permutation
+        entry.name = permutation
+        self.permutation_names.add(permutation)
     
     def set_region(self, ob, region):
-        regions_table = self.scene_nwo.regions_table
-        entry = regions_table.get(region, 0)
-        if not entry:
-            # Create the entry
-            regions_table.add()
-            entry = regions_table[-1]
-            entry.old = region
-            entry.name = region
-            
+        self._ensure_region_entry(region)
         ob.nwo.region_name = region
 
     def set_permutation(self, ob, permutation):
-        permutations_table = self.scene_nwo.permutations_table
-        entry = permutations_table.get(permutation, 0)
-        if not entry:
-            # Create the entry
-            permutations_table.add()
-            entry = permutations_table[-1]
-            entry.old = permutation
-            entry.name = permutation
-            
+        self._ensure_permutation_entry(permutation)
         ob.nwo.permutation_name = permutation
+
+    def _ensure_tag_files_cache(self):
+        global tag_files_cache
+        global tag_files_by_name_cache
+        if tag_files_by_name_cache:
+            return tag_files_by_name_cache
+
+        if not tag_files_cache:
+            for root, _, files in os.walk(self.tags_dir):
+                for file in files:
+                    tag_files_cache.add(Path(root, file).with_suffix(""))
+
+        tag_files_by_name_cache = {}
+        for path_no_ext in tag_files_cache:
+            tag_files_by_name_cache.setdefault(path_no_ext.name, []).append(path_no_ext)
+
+        return tag_files_by_name_cache
+
+    def _resolve_xref_tag_path(self, xref: 'XREF'):
+        tag_path = ""
+        fallback_tag_path = ""
+        if xref.preferred_dir is not None:
+            path = Path(xref.preferred_dir, xref.name, f"{xref.name}{xref.preferred_type}")
+            fallback_tag_path = str(path)
+            if path.exists():
+                return utils.relative_path(path), fallback_tag_path
+
+            if xref.preferred_dir.exists():
+                for xtype in xref_tag_types:
+                    path = Path(xref.preferred_dir, xref.name, f"{xref.name}{xtype}")
+                    if path.exists():
+                        return utils.relative_path(path), fallback_tag_path
+
+        tag_files_by_name = self._ensure_tag_files_cache()
+        for path_no_ext in tag_files_by_name.get(xref.name, ()):
+            path = path_no_ext.with_suffix(xref.preferred_type)
+            if path.exists():
+                tag_path = utils.relative_path(path)
+                break
+
+            for xtype in xref_tag_types:
+                path = path_no_ext.with_suffix(xtype)
+                if path.exists():
+                    tag_path = utils.relative_path(path)
+                    break
+
+            if tag_path:
+                break
+
+        return tag_path, fallback_tag_path
+
+    def _set_color_id_property(self, ob: bpy.types.Object, name: str, value):
+        ob[name] = value
+        ob.id_properties_ui(name).update(subtype="COLOR", min=0, max=1)
+
+    def _apply_change_color_properties(self, ob: bpy.types.Object, change_colors):
+        if change_colors is None:
+            return
+
+        for name, value in zip(("Primary Color", "Secondary Color", "Tertiary Color", "Quaternary Color"), change_colors):
+            self._set_color_id_property(ob, name, value)
+
+    def _add_id_prop_driver(self, ob: bpy.types.Object, armature: bpy.types.Object, prop: str):
+        result = ob.driver_add(f'["{prop}"]')
+        if isinstance(result, list):
+            for idx, fcurve in enumerate(result):
+                driver = fcurve.driver
+                driver.type = 'SCRIPTED'
+                var = driver.variables.new()
+                var.name = "var"
+                var.type = 'SINGLE_PROP'
+                var.targets[0].id = armature
+                var.targets[0].data_path = f'["{prop}"][{idx}]'
+                driver.expression = var.name
+            return
+
+        driver = result.driver
+        driver.type = 'SCRIPTED'
+        var = driver.variables.new()
+        var.name = "var"
+        var.type = 'SINGLE_PROP'
+        var.targets[0].id = armature
+        var.targets[0].data_path = f'["{prop}"]'
+        driver.expression = var.name
+
+    def _apply_jms_material_props(self, mesh: bpy.types.Mesh, nwo, jms_mat: 'JMSMaterialSlot', indices=None, apply_object_props=True):
+        if jms_mat.two_sided or jms_mat.transparent_two_sided:
+            utils.add_face_prop(mesh, "face_sides", indices)
+
+        if jms_mat.transparent_one_sided or jms_mat.transparent_two_sided:
+            utils.add_face_prop(mesh, "transparent", indices)
+        if jms_mat.render_only and not mesh.nwo.proxy_collision:
+            utils.add_face_prop(mesh, "face_mode", indices).face_mode = 'render_only'
+        if jms_mat.collision_only:
+            utils.add_face_prop(mesh, "face_mode", indices).face_mode = 'collision_only'
+        if jms_mat.sphere_collision_only:
+            utils.add_face_prop(mesh, "face_mode", indices).face_mode = 'sphere_collision_only'
+
+        if jms_mat.ladder:
+            utils.add_face_prop(mesh, "ladder", indices)
+        if jms_mat.breakable:
+            utils.add_face_prop(mesh, "face_mode", indices).face_mode = 'breakable'
+
+        if apply_object_props:
+            nwo.portal_ai_deafening = jms_mat.ai_deafening
+
+        if jms_mat.no_shadow:
+            utils.add_face_prop(mesh, "no_shadow", indices)
+
+        if jms_mat.lightmap_only:
+            utils.add_face_prop(mesh, "face_mode", indices).face_mode = 'lightmap_only'
+        if jms_mat.shadow_only:
+            utils.add_face_prop(mesh, "face_mode", indices).face_mode = 'shadow_only'
+        if jms_mat.precise:
+            utils.add_face_prop(mesh, "precise_position", indices)
+
+        if apply_object_props:
+            if jms_mat.portal_one_way:
+                nwo.portal_type = '_connected_geometry_portal_type_one_way'
+            nwo.portal_is_door = jms_mat.portal_door
+            if jms_mat.portal_vis_blocker:
+                nwo.portal_type = '_connected_geometry_portal_type_no_way'
+            nwo.portal_blocks_sounds = jms_mat.blocks_sound
+
+        if jms_mat.ignored_by_lightmaps:
+            utils.add_face_prop(mesh, "no_lightmap", indices)
+
+        if jms_mat.decal_offset:
+            utils.add_face_prop(mesh, "decal_offset", indices)
+
+        if jms_mat.slip_surface:
+            utils.add_face_prop(mesh, "slip_surface", indices)
+
+        if jms_mat.lightmap_resolution_scale:
+            utils.add_face_prop(mesh, "lightmap_resolution_scale", indices).lightmap_resolution_scale = str(jms_mat.lightmap_resolution_scale)
+        if jms_mat.lightmap_additive_transparency:
+            utils.add_face_prop(mesh, "lightmap_additive_transparency", indices).lightmap_additive_transparency = jms_mat.lightmap_additive_transparency
+        if jms_mat.lightmap_translucency_tint_color:
+            utils.add_face_prop(mesh, "lightmap_translucency_tint_color", indices).lightmap_translucency_tint_color = jms_mat.lightmap_translucency_tint_color
+        if jms_mat.lightmap_transparency_override:
+            utils.add_face_prop(mesh, "lightmap_transparency_override", indices)
+
+        if jms_mat.emissive_power:
+            prop = utils.add_face_prop(mesh, "emissive", indices)
+            prop.material_lighting_emissive_power = jms_mat.emissive_power
+            prop.material_lighting_emissive_color = jms_mat.emissive_color
+            prop.material_lighting_emissive_quality = jms_mat.emissive_quality
+            prop.material_lighting_emissive_per_unit = jms_mat.emissive_per_unit
+            prop.material_lighting_use_shader_gel = jms_mat.emissive_shader_gel
+            prop.material_lighting_emissive_focus = jms_mat.emissive_focus
+            prop.material_lighting_attenuation_falloff = jms_mat.emissive_attenuation_falloff
+            prop.material_lighting_attenuation_cutoff = jms_mat.emissive_attenuation_cutoff
         
     # Camera track import
     def import_camera_tracks(self, paths, animation_scale):
@@ -2215,7 +2364,7 @@ class NWOImporter:
         return cameras, actions
             
     def import_camera_track(self, file, animation_scale):
-        with utils.TagImportMover(utils.get_project(self.scene_nwo.scene_project).tags_directory, file) as mover:
+        with utils.TagImportMover(self.tags_dir, file) as mover:
             with CameraTrackTag(path=mover.tag_path) as camera_track:
                 camera, action = camera_track.to_blender_animation(self.context, animation_scale)
             
@@ -2231,13 +2380,13 @@ class NWOImporter:
                 print(f'Importing Model Tag: {Path(file).with_suffix("").name} [{self.tag_variant}] ')
             else:
                 print(f'Importing Model Tag: {Path(file).with_suffix("").name} ')
-            with utils.TagImportMover(utils.get_project(self.scene_nwo.scene_project).tags_directory, file) as mover:
+            with utils.TagImportMover(self.tags_dir, file) as mover:
                 with ModelTag(path=mover.tag_path, raise_on_error=False) as model:
                     if not model.valid: continue
                     if mover.needs_to_move:
                         source_tag_root = mover.potential_source_tag_dir
                     else:
-                        source_tag_root = utils.get_project(self.scene_nwo.scene_project).tags_directory
+                        source_tag_root = self.tags_dir
                         
                     render, collision, animation, physics = model.get_model_paths(optional_tag_root=source_tag_root, override_type=self.tag_model_override_type)
                     
@@ -2327,7 +2476,7 @@ class NWOImporter:
             else:
                 utils.print_section(f'Importing Object Tag: {Path(file).name} ')
                 
-            with utils.TagImportMover(utils.get_project(self.scene_nwo.scene_project).tags_directory, file) as mover:
+            with utils.TagImportMover(self.tags_dir, file) as mover:
                 with ObjectTag(path=mover.tag_path, raise_on_error=False) as obj:
                     if is_game_object:
                         if game_object.nwo.marker_game_instance_tag_variant_name.strip():
@@ -2356,13 +2505,13 @@ class NWOImporter:
                     #     print(f"--- Created Blender node groups for {len(functions)} object functions")
                     
                     prop_names = []
-                    with utils.TagImportMover(utils.get_project(self.scene_nwo.scene_project).tags_directory, model_path) as model_mover:
+                    with utils.TagImportMover(self.tags_dir, model_path) as model_mover:
                         with ModelTag(path=model_mover.tag_path, raise_on_error=False) as model:
                             if not model.valid: continue
                             if model_mover.needs_to_move:
                                 source_tag_root = mover.potential_source_tag_dir
                             else:
-                                source_tag_root = utils.get_project(self.scene_nwo.scene_project).tags_directory
+                                source_tag_root = self.tags_dir
                                 
                             render, collision, animation, physics = model.get_model_paths(optional_tag_root=source_tag_root)
                             
@@ -2402,7 +2551,7 @@ class NWOImporter:
                                 # FP Stuff
                                 if not (is_game_object or for_instance_conversion) and self.import_fp_arms.value and not self.fp_arms_imported and obj.tag_path.Extension == "weapon":
                                     # get fp arms path from globals
-                                    globals_path = Path(utils.get_tags_path(), "globals\\globals.globals")
+                                    globals_path = self.tags_path / "globals" / "globals.globals"
                                     if globals_path.exists():
                                         with GlobalsTag(path=globals_path) as globals:
                                             result = globals.get_fp_arms_path(self.import_fp_arms)
@@ -2479,19 +2628,12 @@ class NWOImporter:
                                 has_change_colors = change_colors is not None
                                 
                                 if has_change_colors:
-                                    prop_names.extend(["Primary Color", "Secondary Color", "Tertiary Color", "Quaternary Color"])
+                                    prop_names.extend(("Primary Color", "Secondary Color", "Tertiary Color", "Quaternary Color"))
                                 
                                 for ob in render_objects:
                                     if ob.type != 'EMPTY':
                                         if has_change_colors:
-                                            ob["Primary Color"] = change_colors[0]
-                                            ob["Secondary Color"] = change_colors[1]
-                                            ob["Tertiary Color"] = change_colors[2]
-                                            ob["Quaternary Color"] = change_colors[3]
-                                            ob.id_properties_ui("Primary Color").update(subtype="COLOR", min=0, max=1)
-                                            ob.id_properties_ui("Secondary Color").update(subtype="COLOR", min=0, max=1)
-                                            ob.id_properties_ui("Tertiary Color").update(subtype="COLOR", min=0, max=1)
-                                            ob.id_properties_ui("Quaternary Color").update(subtype="COLOR", min=0, max=1)
+                                            self._apply_change_color_properties(ob, change_colors)
 
                                         if ob.type == 'MESH':
                                             self.obs_for_props[ob] = functions
@@ -2512,28 +2654,7 @@ class NWOImporter:
                                                 
                                         elif ob.type == 'MESH':
                                             for prop in prop_names:
-                                                # Add driver
-                                                result = ob.driver_add(f'["{prop}"]')
-                                                if isinstance(result, list):
-                                                    for idx, fcurve in enumerate(result):
-                                                        driver = fcurve.driver
-                                                        driver.type = 'SCRIPTED'
-                                                        # Add variable
-                                                        var = driver.variables.new()
-                                                        var.name = "var"
-                                                        var.type = 'SINGLE_PROP'
-                                                        var.targets[0].id = armature
-                                                        var.targets[0].data_path = f'["{prop}"][{idx}]'
-                                                        driver.expression = var.name
-                                                else:
-                                                    driver = result.driver
-                                                    driver.type = 'SCRIPTED'
-                                                    var = driver.variables.new()
-                                                    var.name = "var"
-                                                    var.type = 'SINGLE_PROP'
-                                                    var.targets[0].id = armature
-                                                    var.targets[0].data_path = f'["{prop}"]'
-                                                    driver.expression = var.name
+                                                self._add_id_prop_driver(ob, armature, prop)
                                                                                 
                             if not is_game_object and collision and self.tag_collision:
                                 imported_file_objects.extend(self.import_collision_model(collision, armature, model_collection, allowed_region_permutations))
@@ -2562,7 +2683,7 @@ class NWOImporter:
                                 child_objects = model.get_variant_children(temp_variant)
                                 if child_objects:
                                     utils.print_bullet("Importing Child Objects")
-                                    for child in model.get_variant_children(temp_variant):
+                                    for child in child_objects:
                                         if child.child_object is None:
                                             continue
                                         utils.print_step(f"--- {child.child_object.ShortNameWithExtension}")
@@ -2657,7 +2778,7 @@ class NWOImporter:
                 child_collection.children.link(model_collection)
 
                 if has_change_colors:
-                    prop_names.extend(["Primary Color", "Secondary Color", "Tertiary Color", "Quaternary Color"])
+                    prop_names.extend(("Primary Color", "Secondary Color", "Tertiary Color", "Quaternary Color"))
                 
                 if render:
                     render_objects, armature = self.import_render_model(render, model_collection, None, allowed_region_permutations)
@@ -2665,14 +2786,7 @@ class NWOImporter:
                     for ob in render_objects:
                         if ob.type != 'EMPTY':
                             if has_change_colors:
-                                ob["Primary Color"] = change_colors[0]
-                                ob["Secondary Color"] = change_colors[1]
-                                ob["Tertiary Color"] = change_colors[2]
-                                ob["Quaternary Color"] = change_colors[3]
-                                ob.id_properties_ui("Primary Color").update(subtype="COLOR", min=0, max=1)
-                                ob.id_properties_ui("Secondary Color").update(subtype="COLOR", min=0, max=1)
-                                ob.id_properties_ui("Tertiary Color").update(subtype="COLOR", min=0, max=1)
-                                ob.id_properties_ui("Quaternary Color").update(subtype="COLOR", min=0, max=1)
+                                self._apply_change_color_properties(ob, change_colors)
 
                             if ob.type == 'MESH':
                                 self.obs_for_props[ob] = functions
@@ -2692,28 +2806,7 @@ class NWOImporter:
                                 
                         elif ob.type == 'MESH':
                             for prop in prop_names:
-                                # Add driver
-                                result = ob.driver_add(f'["{prop}"]')
-                                if isinstance(result, list):
-                                    for idx, fcurve in enumerate(result):
-                                        driver = fcurve.driver
-                                        driver.type = 'SCRIPTED'
-                                        # Add variable
-                                        var = driver.variables.new()
-                                        var.name = "var"
-                                        var.type = 'SINGLE_PROP'
-                                        var.targets[0].id = armature
-                                        var.targets[0].data_path = f'["{prop}"][{idx}]'
-                                        driver.expression = var.name
-                                else:
-                                    driver = result.driver
-                                    driver.type = 'SCRIPTED'
-                                    var = driver.variables.new()
-                                    var.name = "var"
-                                    var.type = 'SINGLE_PROP'
-                                    var.targets[0].id = armature
-                                    var.targets[0].data_path = f'["{prop}"]'
-                                    driver.expression = var.name
+                                self._add_id_prop_driver(ob, armature, prop)
                                     
                     if not is_game_object and collision and self.tag_collision:
                         imported_objects.extend(self.import_collision_model(collision, armature, model_collection, allowed_region_permutations))
@@ -2785,7 +2878,7 @@ class NWOImporter:
         armature = None
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_render")
         model_collection.children.link(collection)
-        with utils.TagImportMover(utils.get_project(self.scene_nwo.scene_project).tags_directory, file) as mover:
+        with utils.TagImportMover(self.tags_dir, file) as mover:
             with RenderModelTag(path=mover.tag_path) as render_model:
                 render_model_objects, armature = render_model.to_blend_objects(collection, self.tag_render, self.tag_markers, model_collection, existing_armature, allowed_region_permutations, self.from_vert_normals, build_control_rig=self.build_control_rig)
                 render_model_objects.extend(render_model.skylights_to_blender(collection))
@@ -2798,7 +2891,7 @@ class NWOImporter:
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_collision")
         collection.hide_render = True
         model_collection.children.link(collection)
-        with utils.TagImportMover(utils.get_project(self.scene_nwo.scene_project).tags_directory, file) as mover:
+        with utils.TagImportMover(self.tags_dir, file) as mover:
             with CollisionTag(path=mover.tag_path) as collision_model:
                 collision_model_objects = collision_model.to_blend_objects(collection, armature, allowed_region_permutations)
             
@@ -2810,7 +2903,7 @@ class NWOImporter:
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_physics")
         collection.hide_render = True
         model_collection.children.link(collection)
-        with utils.TagImportMover(utils.get_project(self.scene_nwo.scene_project).tags_directory, file) as mover:
+        with utils.TagImportMover(self.tags_dir, file) as mover:
             with PhysicsTag(path=mover.tag_path) as physics_model:
                 physics_model_objects = physics_model.to_blend_objects(collection, armature, allowed_region_permutations)
             
@@ -2820,7 +2913,7 @@ class NWOImporter:
         actions = []
         animations = []
         filter = self.tag_animation_filter.replace(" ", ":")
-        with utils.TagImportMover(utils.get_project(self.scene_nwo.scene_project).tags_directory, file) as mover:
+        with utils.TagImportMover(self.tags_dir, file) as mover:
             with AnimationTag(path=mover.tag_path) as graph:
                 utils.print_section(f"Importing Animation Graph: {graph.tag_path.ShortNameWithExtension}")
                 if self.graph_import_animations:
@@ -2869,7 +2962,7 @@ class NWOImporter:
             else:
                 utils.print_section(f'Importing Scenario Tag: {Path(file).with_suffix("").name}')
             structure_collision = []
-            with utils.TagImportMover(utils.get_project(self.scene_nwo.scene_project).tags_directory, file) as mover:
+            with utils.TagImportMover(self.tags_dir, file) as mover:
                 with ScenarioTag(path=mover.tag_path, raise_on_error=False) as scenario:
                     if not scenario.valid: continue
                     bsps = scenario.get_bsp_paths(self.tag_zone_set)
@@ -2937,7 +3030,6 @@ class NWOImporter:
                             if game_objects:
                                 print("Importing Game Object Geometry")
                                 imported_objects.extend(game_objects)
-                                game_object_cache = {(c.nwo.game_object_path, c.nwo.game_object_variant): c for c in bpy.data.collections if c.nwo.game_object_path}
                                 for ob, skeleton_pose in zip(game_objects, skeleton_poses):
                                     has_skeleton_pose = bool(skeleton_pose)
 
@@ -2945,7 +3037,7 @@ class NWOImporter:
                                         game_object_collection = None
                                     else:
                                         key = ob.nwo.marker_game_instance_tag_name, ob.nwo.marker_game_instance_tag_variant_name
-                                        game_object_collection = game_object_cache.get(key)
+                                        game_object_collection = self.get_cached_game_object_collection(*key)
                                     
                                     if game_object_collection is None:
                                         if ob.nwo.marker_game_instance_tag_name.endswith(".prefab"):
@@ -2959,8 +3051,7 @@ class NWOImporter:
                                         # bpy.data.collections.link(game_object_collection)
                                         game_object_collection = merged_collection
                                         if not has_skeleton_pose:
-                                            game_object_collection.nwo.game_object_path, game_object_collection.nwo.game_object_variant = key
-                                            game_object_cache[key] = game_object_collection
+                                            game_object_collection = self.cache_game_object_collection(game_object_collection, *key)
                                         
                                     ob.instance_type = 'COLLECTION'
                                     ob.instance_collection = game_object_collection
@@ -2974,10 +3065,9 @@ class NWOImporter:
                             if decorator_objects:
                                 print("Importing Decorator Set Geometry")
                                 imported_objects.extend(decorator_objects)
-                                game_object_cache = {(c.nwo.game_object_path, c.nwo.game_object_variant): c for c in bpy.data.collections if c.nwo.game_object_path}
                                 for ob in decorator_objects:
                                     key = ob.nwo.marker_game_instance_tag_name, ob.nwo.marker_game_instance_tag_variant_name
-                                    game_object_collection = game_object_cache.get(key)
+                                    game_object_collection = self.get_cached_game_object_collection(*key)
                                     
                                     if game_object_collection is None:
                                         game_object_collection = self.import_decorator_set(ob, build_blender_materials, always_extract_bitmaps, single_type=ob.nwo.marker_game_instance_tag_variant_name, lod=self.decorator_lod, only_single_type=True)
@@ -2985,9 +3075,7 @@ class NWOImporter:
                                         imported_objects.extend(game_object_collection.all_objects)
                                         self.scene_collection.children.unlink(game_object_collection)
                                         # bpy.data.collections.link(game_object_collection)
-                                        game_object_collection = merged_collection
-                                        game_object_collection.nwo.game_object_path, game_object_collection.nwo.game_object_variant = key
-                                        game_object_cache[key] = game_object_collection
+                                        game_object_collection = self.cache_game_object_collection(merged_collection, *key)
                                         
                                     ob.instance_type = 'COLLECTION'
                                     ob.instance_collection = game_object_collection
@@ -3032,7 +3120,7 @@ class NWOImporter:
                 self.scene_collection.children.link(collection)
             else:
                 scenario_collection.children.link(collection)
-        with utils.TagImportMover(utils.get_project(self.scene_nwo.scene_project).tags_directory, file) as mover:
+        with utils.TagImportMover(self.tags_dir, file) as mover:
             with ScenarioStructureBspTag(path=mover.tag_path) as bsp:
                 bsp_objects, game_objects, bvh = bsp.to_blend_objects(collection, self.tag_bsp_render_only, info_path, self.tag_bsp_import_geometry, self.tag_import_lights, always_get_structure_collision, sky_index)
                 
@@ -3041,11 +3129,10 @@ class NWOImporter:
                 
                 if game_objects:
                     print("Importing Game Object Geometry")
-                    game_object_cache = {(c.nwo.game_object_path, c.nwo.game_object_variant): c for c in bpy.data.collections if c.nwo.game_object_path}
                     for ob in game_objects:
                         
                         key = ob.nwo.marker_game_instance_tag_name, ob.nwo.marker_game_instance_tag_variant_name
-                        game_object_collection = game_object_cache.get(key)
+                        game_object_collection = self.get_cached_game_object_collection(*key)
                         
                         if game_object_collection is None:
                             suffix = "Marker"
@@ -3058,9 +3145,7 @@ class NWOImporter:
                             bsp_objects.extend(game_object_collection.all_objects)
                             self.scene_collection.children.unlink(game_object_collection)
                             # bpy.data.collections.link(game_object_collection)
-                            game_object_collection = merged_collection
-                            game_object_collection.nwo.game_object_path, game_object_collection.nwo.game_object_variant = key
-                            game_object_cache[key] = game_object_collection
+                            game_object_collection = self.cache_game_object_collection(merged_collection, *key)
                             
                         ob.instance_type = 'COLLECTION'
                         ob.instance_collection = game_object_collection
@@ -3087,7 +3172,7 @@ class NWOImporter:
             
         camera_lights = None
 
-        with utils.TagImportMover(utils.get_project(self.scene_nwo.scene_project).tags_directory, file) as mover:
+        with utils.TagImportMover(self.tags_dir, file) as mover:
             with ScenarioStructureLightingInfoTag(path=mover.tag_path) as info:
                 info_objects = info.to_blender(collection, cinematic_cameras)
                 camera_lights = info.camera_lights
@@ -3106,7 +3191,7 @@ class NWOImporter:
             else:
                 scenario_collection.children.link(collection)
         collection.hide_render = True
-        with utils.TagImportMover(utils.get_project(self.scene_nwo.scene_project).tags_directory, file) as mover:
+        with utils.TagImportMover(self.tags_dir, file) as mover:
             with StructureDesignTag(path=mover.tag_path) as design:
                 design_objects = design.to_blender(collection)
         
@@ -3165,7 +3250,7 @@ class NWOImporter:
         collection.nwo.region = utils.add_region(filename)
         main_collection.children.link(collection)
         
-        with utils.TagImportMover(utils.get_project(self.scene_nwo.scene_project).tags_directory, file) as mover:
+        with utils.TagImportMover(self.tags_dir, file) as mover:
             with PolyArtTag(path=mover.tag_path) as polyart:
                 return polyart.to_blender(collection)
     
@@ -3175,7 +3260,7 @@ class NWOImporter:
         particle_model_objects = []
         collection = bpy.data.collections.new(f"{filename}_particle")
         self.scene_collection.children.link(collection)
-        with utils.TagImportMover(utils.get_project(self.scene_nwo.scene_project).tags_directory, file) as mover:
+        with utils.TagImportMover(self.tags_dir, file) as mover:
             with ParticleModelTag(path=mover.tag_path) as particle_model:
                 particle_model_objects = particle_model.to_blend_objects(collection, filename)
                 
@@ -3199,7 +3284,7 @@ class NWOImporter:
             
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name))
         self.scene_collection.children.link(collection)
-        with utils.TagImportMover(utils.get_project(self.scene_nwo.scene_project).tags_directory, file) as mover:
+        with utils.TagImportMover(self.tags_dir, file) as mover:
             with DecoratorSetTag(path=mover.tag_path) as decorator:
                 decorator_objects = decorator.to_blender(collection, build_materials, extract_bitmaps, single_type, lod, only_single_type)
 
@@ -3214,7 +3299,7 @@ class NWOImporter:
     def import_cinematic(self, file, film_aperture: float):
         filename = Path(file).with_suffix("").name
         utils.print_section(f"Importing Cinematic: {filename}")
-        with utils.TagImportMover(utils.get_project(self.scene_nwo.scene_project).tags_directory, file) as mover:
+        with utils.TagImportMover(self.tags_dir, file) as mover:
             with CinematicTag(path=mover.tag_path) as cinematic:
                 scene_datas, scenario_path, zone_set = cinematic.to_blender(film_aperture, self.tag_cinematic_import_scenario, specific_scene=self.tag_cinematic_scene)
                 
@@ -3236,7 +3321,7 @@ class NWOImporter:
             utils.update_progress(job, idx / bitmap_count)
             # bitmap_name = utils.dot_partition(os.path.basename(fp))
             # if 'lp_array' in bitmap_name or 'global_render_texture' in bitmap_name: continue # Filter out the bitmaps that crash ManagedBlam
-            with utils.TagImportMover(utils.get_project(self.scene_nwo.scene_project).tags_directory, fp) as mover:
+            with utils.TagImportMover(self.tags_dir, fp) as mover:
                 info = bitmap_to_image(mover.tag_path, True)
                 if info.image:
                     extracted_bitmaps[info.image_path] = info.for_normal
@@ -3306,14 +3391,7 @@ class NWOImporter:
                 self.scene_collection.children.link(new_coll)
             if not is_model and possible_bsp:
                 new_coll.name = possible_bsp
-                regions_table = self.scene_nwo.regions_table
-                entry = regions_table.get(possible_bsp, 0)
-                if not entry:
-                    regions_table.add()
-                    entry = regions_table[-1]
-                    entry.old = possible_bsp
-                    entry.name = possible_bsp
-                    
+                self._ensure_region_entry(possible_bsp)
                 new_coll.nwo.type = 'region'
                 new_coll.nwo.region = possible_bsp
             
@@ -3492,20 +3570,13 @@ class NWOImporter:
             possible_bsp = file_name
             if possible_bsp.lower() == 'shared': possible_bsp = "default_shared"
             new_coll.name = possible_bsp
-            regions_table = self.scene_nwo.regions_table
-            entry = regions_table.get(possible_bsp, 0)
-            if not entry:
-                regions_table.add()
-                entry = regions_table[-1]
-                entry.old = possible_bsp
-                entry.name = possible_bsp
-                
+            self._ensure_region_entry(possible_bsp)
             new_coll.nwo.type = 'region'
             new_coll.nwo.region = possible_bsp
         
         print("Setting object properties")
         
-        self.processed_meshes = []
+        self.processed_meshes = set()
         if file_name:
             self.new_coll = new_coll
         else:
@@ -3616,55 +3687,18 @@ class NWOImporter:
             marker.empty_display_type = 'ARROWS'
             
         if is_model and region is not None:
-            if region not in [region.name for region in self.scene_nwo.regions_table]:
-                region_entry = self.scene_nwo.regions_table.add()
-                region_entry.name = region
-                region_entry.old = region
+            self._ensure_region_entry(region)
             marker.nwo.region_name = region
             marker.nwo.marker_uses_regions = True
             
             if is_model and perm is not None:
-                if perm not in [perm.name for perm in self.scene_nwo.permutations_table]:
-                    perm_entry = self.scene_nwo.permutations_table.add()
-                    perm_entry.name = perm
-                    perm_entry.old = perm
+                self._ensure_permutation_entry(perm)
                 marker.nwo.marker_permutations.add().name = perm
                 marker.nwo.marker_permutation_type = 'include'
                 
         if xref is not None:
             marker.nwo.marker_type = "_connected_geometry_marker_type_game_instance"
-            tag_path = ""
-            fallback_tag_path = ""
-            if xref.preferred_dir is not None:
-                path = Path(xref.preferred_dir, xref.name, f"{xref.name}{xref.preferred_type}")
-                fallback_tag_path = str(path)
-                if path.exists():
-                    tag_path = utils.relative_path(path)
-                elif xref.preferred_dir.exists():
-                    for xtype in xref_tag_types:
-                        path = Path(xref.preferred_dir, xref.name, f"{xref.name}{xtype}")
-                        if path.exists():
-                            tag_path = utils.relative_path(path)
-                            break
-                        
-            if not tag_path:
-                if not tag_files_cache:
-                    for root, _, files in os.walk(utils.get_tags_path()):
-                        for file in files:
-                            tag_files_cache.add(Path(root, file).with_suffix(""))
-                
-                for path_no_ext in tag_files_cache:
-                    if path_no_ext.name == xref.name:
-                        path = path_no_ext.with_suffix(xref.preferred_type)
-                        if path.exists():
-                            tag_path = utils.relative_path(path)
-                        else:
-                            for xtype in xref_tag_types:
-                                path = path_no_ext.with_suffix(xtype)
-                                if path.exists():
-                                    tag_path = utils.relative_path(path)
-                                    break
-                            
+            tag_path, fallback_tag_path = self._resolve_xref_tag_path(xref)
             if tag_path:
                 marker.nwo.marker_game_instance_tag_name = tag_path
             elif fallback_tag_path:
@@ -3805,102 +3839,33 @@ class NWOImporter:
         if ob.name.startswith('$'):
             return [ob]
         
-        if ob.data in self.processed_meshes:
+        mesh_data = ob.data
+        if mesh_data in self.processed_meshes:
             ob.nwo.mesh_type_temp = 'skip'
             return [ob]
 
         objects_to_setup = [ob]
-        self.processed_meshes.append(ob.data)
-        jms_materials: list[JMSMaterialSlot] = []
-        for slot in ob.material_slots:
-            if not slot.material:
-                continue
-            jms_materials.append(JMSMaterialSlot(slot))
-        
-        if len(jms_materials) == 1:
-            jms_mat = jms_materials[0]
-            ob.nwo.mesh_type_temp = jms_mat.mesh_type
-            nwo = ob.data.nwo
-            mesh = ob.data
-            if jms_mat.two_sided or jms_mat.transparent_two_sided:
-                utils.add_face_prop(mesh, "face_sides")
-            
-            if jms_mat.transparent_one_sided or jms_mat.transparent_two_sided:
-                utils.add_face_prop(mesh, "transparent")
-            if jms_mat.render_only and not ob.data.nwo.proxy_collision:
-                utils.add_face_prop(mesh, "face_mode").face_mode = 'render_only'
-            if jms_mat.collision_only:
-                utils.add_face_prop(mesh, "face_mode").face_mode = 'collision_only'
-            if jms_mat.sphere_collision_only:
-                utils.add_face_prop(mesh, "face_mode").face_mode = 'sphere_collision_only'
-            
-            if jms_mat.ladder:
-                utils.add_face_prop(mesh, "ladder")
-            if jms_mat.breakable:
-                utils.add_face_prop(mesh, "face_mode").face_mode = 'breakable'
-                
-            nwo.portal_ai_deafening = jms_mat.ai_deafening
-            
-            if jms_mat.no_shadow:
-                utils.add_face_prop(mesh, "no_shadow")
-                
-            if jms_mat.lightmap_only:
-                utils.add_face_prop(mesh, "face_mode").face_mode = 'lightmap_only'
-            if jms_mat.shadow_only:
-                utils.add_face_prop(mesh, "face_mode").face_mode = 'shadow_only'
-            if jms_mat.precise:
-                utils.add_face_prop(mesh, "precise_position")
+        self.processed_meshes.add(mesh_data)
+        jms_materials = [JMSMaterialSlot(slot) for slot in ob.material_slots if slot.material]
+        if not jms_materials:
+            return objects_to_setup
 
-            if jms_mat.portal_one_way:
-                nwo.portal_type = '_connected_geometry_portal_type_one_way'
-            nwo.portal_is_door = jms_mat.portal_door
-            if jms_mat.portal_vis_blocker:
-                nwo.portal_type = '_connected_geometry_portal_type_no_way'
-            if jms_mat.ignored_by_lightmaps:
-                utils.add_face_prop(mesh, "no_lightmap")
-            nwo.portal_blocks_sounds = jms_mat.blocks_sound
-            
-            if jms_mat.decal_offset:
-                utils.add_face_prop(mesh, "decal_offset")
-            
-            if jms_mat.slip_surface:
-                utils.add_face_prop(mesh, "slip_surface")
-            # Lightmap
-            if jms_mat.lightmap_resolution_scale:
-                utils.add_face_prop(mesh, "lightmap_resolution_scale").lightmap_resolution_scale = str(jms_mat.lightmap_resolution_scale)
-            if jms_mat.lightmap_additive_transparency:
-                utils.add_face_prop(mesh, "lightmap_additive_transparency").lightmap_additive_transparency = jms_mat.lightmap_additive_transparency
-            if jms_mat.lightmap_translucency_tint_color:
-                utils.add_face_prop(mesh, "lightmap_translucency_tint_color").lightmap_translucency_tint_color = jms_mat.lightmap_translucency_tint_color
-            if jms_mat.lightmap_transparency_override:
-                utils.add_face_prop(mesh, "lightmap_transparency_override")
-            # Emissive
-            if jms_mat.emissive_power:
-                prop = utils.add_face_prop(mesh, "emissive")
-                prop.material_lighting_emissive_power = jms_mat.emissive_power
-                prop.material_lighting_emissive_color = jms_mat.emissive_color
-                prop.material_lighting_emissive_quality = jms_mat.emissive_quality
-                prop.material_lighting_emissive_per_unit = jms_mat.emissive_per_unit
-                prop.material_lighting_use_shader_gel = jms_mat.emissive_shader_gel
-                prop.material_lighting_emissive_focus = jms_mat.emissive_focus
-                prop.material_lighting_attenuation_falloff = jms_mat.emissive_attenuation_falloff
-                prop.material_lighting_attenuation_cutoff = jms_mat.emissive_attenuation_cutoff
+        jms_materials_by_name = {mat.name: mat for mat in jms_materials}
 
-        mesh_types = list(set([m.mesh_type for m in jms_materials if m.mesh_type]))
+        mesh_types = list({m.mesh_type for m in jms_materials if m.mesh_type})
         if len(mesh_types) == 1:
             ob.nwo.mesh_type_temp = mesh_types[0]
         elif len(mesh_types) > 1:
-            linked_objects = [o for o in bpy.data.objects if o != ob and o.data == ob.data]
             bm_original = bmesh.new()
-            bm_original.from_mesh(ob.data)
-            utils.save_loop_normals(bm_original, ob.data)
+            bm_original.from_mesh(mesh_data)
+            utils.save_loop_normals(bm_original, mesh_data)
             for jms_mat in jms_materials:
                 if jms_mat.mesh_type == 'default':
                     continue
                 new_ob = ob.copy()
                 if self.existing_scene:
                     for coll in ob.users_collection: coll.objects.link(new_ob)
-                new_ob.data = ob.data.copy()
+                new_ob.data = mesh_data.copy()
                 bm = bm_original.copy()
                 faces_to_remove = [face for face in bm.faces if face.material_index != jms_mat.index]
                 faces_to_remove_original = [face for face in bm_original.faces if face.material_index == jms_mat.index]
@@ -3915,163 +3880,38 @@ class NWOImporter:
                     new_ob.nwo.mesh_type_temp = jms_mat.mesh_type
                     objects_to_setup.append(new_ob)
                     self.new_coll.objects.link(new_ob)
-                    for obj in linked_objects:
-                        new_ob_copy = new_ob.copy()
-                        new_ob_copy.parent = obj.parent
-                        new_ob_copy.parent_type = obj.parent_type
-                        new_ob_copy.parent_bone = obj.parent_bone
-                        new_ob_copy.matrix_world = obj.matrix_world
                 else:
                     bpy.data.objects.remove(new_ob)
                 
-            bm_original.to_mesh(ob.data)
+            bm_original.to_mesh(mesh_data)
             bm_original.free()
-            if not ob.data.polygons:
+            if not mesh_data.polygons:
                 objects_to_setup.remove(ob)
                 bpy.data.objects.remove(ob)
             else:
-                utils.apply_loop_normals(ob.data)
-                utils.loop_normal_magic(ob.data)
+                utils.apply_loop_normals(mesh_data)
+                utils.loop_normal_magic(mesh_data)
                 utils.clean_materials(ob)
             
-        for ob in objects_to_setup:
-            mesh = ob.data
-            nwo = ob.nwo
-            if len(ob.data.materials) == 1 or self.matching_material_properties(ob.data.materials, jms_materials):
-                jms_mats = [mat for mat in jms_materials if mat.name == ob.data.materials[0].name]
-                if jms_mats:
-                    jms_mat = jms_mats[0]
-                    ob.nwo.mesh_type_temp = jms_mat.mesh_type
-                    if jms_mat.two_sided or jms_mat.transparent_two_sided:
-                        utils.add_face_prop(mesh, "face_sides")
-                    
-                    if jms_mat.transparent_one_sided or jms_mat.transparent_two_sided:
-                        utils.add_face_prop(mesh, "transparent")
-                    if jms_mat.render_only and not ob.data.nwo.proxy_collision:
-                        utils.add_face_prop(mesh, "face_mode").face_mode = 'render_only'
-                    if jms_mat.collision_only:
-                        utils.add_face_prop(mesh, "face_mode").face_mode = 'collision_only'
-                    if jms_mat.sphere_collision_only:
-                        utils.add_face_prop(mesh, "face_mode").face_mode = 'sphere_collision_only'
-                    
-                    if jms_mat.ladder:
-                        utils.add_face_prop(mesh, "ladder")
-                    if jms_mat.breakable:
-                        utils.add_face_prop(mesh, "face_mode").face_mode = 'breakable'
-                        
-                    nwo.portal_ai_deafening = jms_mat.ai_deafening
-                    
-                    if jms_mat.no_shadow:
-                        utils.add_face_prop(mesh, "no_shadow")
-                        
-                    if jms_mat.lightmap_only:
-                        utils.add_face_prop(mesh, "face_mode").face_mode = 'lightmap_only'
-                    if jms_mat.shadow_only:
-                        utils.add_face_prop(mesh, "face_mode").face_mode = 'shadow_only'
-                    if jms_mat.precise:
-                        utils.add_face_prop(mesh, "precise_position")
+        for setup_ob in objects_to_setup:
+            mesh = setup_ob.data
+            nwo = setup_ob.nwo
+            if len(mesh.materials) == 1 or self.matching_material_properties(mesh.materials, jms_materials):
+                material = mesh.materials[0] if mesh.materials else None
+                jms_mat = jms_materials_by_name.get(material.name) if material is not None else None
+                if jms_mat is not None:
+                    setup_ob.nwo.mesh_type_temp = jms_mat.mesh_type
+                    self._apply_jms_material_props(mesh, nwo, jms_mat)
 
-                    if jms_mat.portal_one_way:
-                        nwo.portal_type = '_connected_geometry_portal_type_one_way'
-                    nwo.portal_is_door = jms_mat.portal_door
-                    if jms_mat.portal_vis_blocker:
-                        nwo.portal_type = '_connected_geometry_portal_type_no_way'
-                    if jms_mat.ignored_by_lightmaps:
-                        utils.add_face_prop(mesh, "no_lightmap")
-                    nwo.portal_blocks_sounds = jms_mat.blocks_sound
-                    
-                    if jms_mat.decal_offset:
-                        utils.add_face_prop(mesh, "decal_offset")
-                    
-                    if jms_mat.slip_surface:
-                        utils.add_face_prop(mesh, "slip_surface")
-                    # Lightmap
-                    if jms_mat.lightmap_resolution_scale:
-                        utils.add_face_prop(mesh, "lightmap_resolution_scale").lightmap_resolution_scale = str(jms_mat.lightmap_resolution_scale)
-                    if jms_mat.lightmap_additive_transparency:
-                        utils.add_face_prop(mesh, "lightmap_additive_transparency").lightmap_additive_transparency = jms_mat.lightmap_additive_transparency
-                    if jms_mat.lightmap_translucency_tint_color:
-                        utils.add_face_prop(mesh, "lightmap_translucency_tint_color").lightmap_translucency_tint_color = jms_mat.lightmap_translucency_tint_color
-                    if jms_mat.lightmap_transparency_override:
-                        utils.add_face_prop(mesh, "lightmap_transparency_override")
-                    # Emissive
-                    if jms_mat.emissive_power:
-                        prop = utils.add_face_prop(mesh, "emissive")
-                        prop.material_lighting_emissive_power = jms_mat.emissive_power
-                        prop.material_lighting_emissive_color = jms_mat.emissive_color
-                        prop.material_lighting_emissive_quality = jms_mat.emissive_quality
-                        prop.material_lighting_emissive_per_unit = jms_mat.emissive_per_unit
-                        prop.material_lighting_use_shader_gel = jms_mat.emissive_shader_gel
-                        prop.material_lighting_emissive_focus = jms_mat.emissive_focus
-                        prop.material_lighting_attenuation_falloff = jms_mat.emissive_attenuation_falloff
-                        prop.material_lighting_attenuation_cutoff = jms_mat.emissive_attenuation_cutoff
-                    
-            elif len(ob.data.materials) > 1:
+            elif len(mesh.materials) > 1:
                 material_face_indices = np.empty(len(mesh.polygons), dtype=np.int32)
                 mesh.polygons.foreach_get("material_index", material_face_indices)
-                for idx, material in enumerate(ob.data.materials):
-                    jms_mats = [mat for mat in jms_materials if mat.name == material.name]
-                    if jms_mats:
-                        jms_mat = jms_mats[0]
-                        
+                for idx, material in enumerate(mesh.materials):
+                    jms_mat = jms_materials_by_name.get(material.name)
+                    if jms_mat is not None:
                         indices = material_face_indices == idx
-                        
-                        if jms_mat.two_sided or jms_mat.transparent_two_sided:
-                            utils.add_face_prop(mesh, 'face_sides', indices)
-                                
-                        if jms_mat.transparent_one_sided or jms_mat.transparent_two_sided:
-                            utils.add_face_prop(mesh, 'transparent', indices)
-                                
-                        if jms_mat.render_only:
-                            utils.add_face_prop(mesh, "face_mode", indices).face_mode = 'render_only'
-                        if jms_mat.collision_only:
-                            utils.add_face_prop(mesh, "face_mode", indices).face_mode = 'collision_only'
-                        if jms_mat.sphere_collision_only:
-                            utils.add_face_prop(mesh, "face_mode", indices).face_mode = 'sphere_collision_only'
-                        
-                        if jms_mat.ladder:
-                            utils.add_face_prop(mesh, "ladder", indices)
-                        if jms_mat.breakable:
-                            utils.add_face_prop(mesh, "face_mode", indices).face_mode = 'breakable'
-                        
-                        if jms_mat.no_shadow:
-                            utils.add_face_prop(mesh, "no_shadow", indices)
-                            
-                        if jms_mat.lightmap_only:
-                            utils.add_face_prop(mesh, "face_mode", indices).face_mode = 'lightmap_only'
-                        if jms_mat.shadow_only:
-                            utils.add_face_prop(mesh, "face_mode", indices).face_mode = 'shadow_only'
-                        if jms_mat.precise:
-                            utils.add_face_prop(mesh, "precise_position", indices)
-
-                        if jms_mat.ignored_by_lightmaps:
-                            utils.add_face_prop(mesh, "no_lightmap", indices)
-                        
-                        if jms_mat.decal_offset:
-                            utils.add_face_prop(mesh, "decal_offset", indices)
-                        
-                        if jms_mat.slip_surface:
-                            utils.add_face_prop(mesh, "slip_surface", indices)
-                        # Lightmap
-                        if jms_mat.lightmap_resolution_scale:
-                            utils.add_face_prop(mesh, "lightmap_resolution_scale", indices).lightmap_resolution_scale = str(jms_mat.lightmap_resolution_scale)
-                        if jms_mat.lightmap_additive_transparency:
-                            utils.add_face_prop(mesh, "lightmap_additive_transparency", indices).lightmap_additive_transparency = jms_mat.lightmap_additive_transparency
-                        if jms_mat.lightmap_translucency_tint_color:
-                            utils.add_face_prop(mesh, "lightmap_translucency_tint_color", indices).lightmap_translucency_tint_color = jms_mat.lightmap_translucency_tint_color
-                        if jms_mat.lightmap_transparency_override:
-                            utils.add_face_prop(mesh, "lightmap_transparency_override", indices)
-                        # Emissive
-                        if jms_mat.emissive_power:
-                            prop = utils.add_face_prop(mesh, "emissive", indices)
-                            prop.material_lighting_emissive_power = jms_mat.emissive_power
-                            prop.material_lighting_emissive_color = jms_mat.emissive_color
-                            prop.material_lighting_emissive_quality = jms_mat.emissive_quality
-                            prop.material_lighting_emissive_per_unit = jms_mat.emissive_per_unit
-                            prop.material_lighting_use_shader_gel = jms_mat.emissive_shader_gel
-                            prop.material_lighting_emissive_focus = jms_mat.emissive_focus
-                            prop.material_lighting_attenuation_falloff = jms_mat.emissive_attenuation_falloff
-                            prop.material_lighting_attenuation_cutoff = jms_mat.emissive_attenuation_cutoff
+                        if indices.any():
+                            self._apply_jms_material_props(mesh, nwo, jms_mat, indices=indices, apply_object_props=False)
         
         return objects_to_setup
     
@@ -4079,14 +3919,13 @@ class NWOImporter:
         '''Checks if all jms materials have matching properties'''
         if len(materials) <= 1:
             return True
-        material_names = [m.name for m in materials]
-        jms_materials = [jms_mat for jms_mat in scoped_jms_materials if jms_mat.name in material_names]
-        first_mat = jms_materials[0]
-        for mat in jms_materials[1:]:
-            if mat != first_mat:
-                return False
-            
-        return True
+        material_names = {m.name for m in materials}
+        matching_jms_materials = [jms_mat for jms_mat in scoped_jms_materials if jms_mat.name in material_names]
+        if len(matching_jms_materials) <= 1:
+            return True
+
+        first_mat = matching_jms_materials[0]
+        return all(mat == first_mat for mat in matching_jms_materials[1:])
         
     def setup_collision_materials(self, ob: bpy.types.Object, mesh_type_legacy: str):
         if not ob.material_slots:
@@ -5066,7 +4905,8 @@ def merge_collection(collection: bpy.types.Collection, suffix="Marker"):
     for child in collection.children_recursive:
         bpy.data.collections.remove(child)
         
-def setup_materials(context: bpy.types.Context, importer: NWOImporter, starting_materials: list[bpy.types.Material], imported_objects: list[bpy.types.Object], build_materials: bool, always_extract_bitmaps=False, emissive_meshes=set()):
+def setup_materials(context: bpy.types.Context, importer: NWOImporter, starting_materials, imported_objects: list[bpy.types.Object], build_materials: bool, always_extract_bitmaps=False, emissive_meshes=None):
+    starting_materials = starting_materials if isinstance(starting_materials, set) else set(starting_materials)
     new_materials = [mat for mat in bpy.data.materials if mat not in starting_materials]
     # Clear duplicate materials
     missing_some_shader_paths = False
@@ -5082,7 +4922,7 @@ def setup_materials(context: bpy.types.Context, importer: NWOImporter, starting_
             print('Updating material tag paths for imported objects')
         else:
             print('Updating shader tag paths for imported objects')
-        imported_meshes: list[bpy.types.Mesh] = set([ob.data for ob in imported_objects if ob.type in VALID_MESHES])
+        imported_meshes = {ob.data for ob in imported_objects if ob.type in VALID_MESHES}
         if imported_meshes:
             find_shaders(new_materials)
                 
@@ -5225,12 +5065,16 @@ class NWO_ImportGameInstanceTag(bpy.types.Operator):
             self.report({'WARNING'}, f"Tag does not exist: {tag_path_full}")
             return {'CANCELLED'}
         
-        game_object_collections = {(c.nwo.game_object_path, c.nwo.game_object_variant): c for c in bpy.data.collections if c.nwo.game_object_path}
-        
-        collection = game_object_collections.get((tag_path_rel, variant))
+        collection = next(
+            (
+                c for c in bpy.data.collections
+                if c.nwo.game_object_path == tag_path_rel and c.nwo.game_object_variant == variant
+            ),
+            None,
+        )
         if collection is None:
             importer = NWOImporter(context)
-            starting_materials = bpy.data.materials[:]
+            starting_materials = set(bpy.data.materials)
             
             suffix = "Marker"
             if tag_path_full.suffix.lower() == ".prefab":
@@ -5246,9 +5090,7 @@ class NWO_ImportGameInstanceTag(bpy.types.Operator):
             
             merged_collection = merge_collection(collection, suffix=suffix)
             context.scene.collection.children.unlink(collection)
-            collection.nwo.game_object_path = tag_path_rel
-            collection.nwo.game_object_variant = variant
-            collection = merged_collection
+            collection = importer.cache_game_object_collection(merged_collection, tag_path_rel, variant)
             
             setup_materials(context, importer, starting_materials, collection.all_objects, self.build_blender_materials, self.always_extract_bitmaps)
             
@@ -5452,5 +5294,7 @@ def duplicate_cached_import(template_objects, render_ref, collection_name, paren
 
 def clear_cache():
     global objects_cache
+    global tag_files_by_name_cache
     objects_cache = {}
+    tag_files_by_name_cache = {}
     connected_geometry.clear_cache()
