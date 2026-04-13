@@ -100,9 +100,7 @@ class RenderModelTag(Tag):
         self.armature = self._create_armature(existing_armature, build_control_rig)
         objects.append(self.armature)
         
-        self.regions: list[Region] = []
-        for element in self.block_regions.Elements:
-            self.regions.append(Region(element))
+        self.regions: list[Region] = [Region(element) for element in self.block_regions.Elements]
         
         if render:
             # print("Creating Render Geometry")
@@ -230,46 +228,53 @@ class RenderModelTag(Tag):
         render_model = self._GameRenderModel()
         
         materials = [Material(e) for e in self.block_materials.Elements]
-    
-        
-        original_meshes: list[Mesh] = []
+        materials_by_index = {material.index: material for material in materials}
+
         clone_meshes: list[Mesh] = []
+        original_meshes_by_perm_name = {}
         mesh_node_map = self.tag.SelectField("Struct:render geometry[0]/Block:per mesh node map")
-        
-        valid_instance_indexes = set() if allowed_region_permutations else None
-        
+        instance_placements_block = self.tag.SelectField("Block:instance placements")
+        regions_by_name = {region.name: region for region in self.regions}
+
         if isinstance(allowed_region_permutations, str): # if str use all regions but only the given perm
-            allowed_region_permutations = {(r.name, allowed_region_permutations) for r in self.regions}
-            
+            allowed_region_permutations = {(region.name, allowed_region_permutations) for region in self.regions}
+        elif allowed_region_permutations:
+            allowed_region_permutations = set(allowed_region_permutations)
+
+        valid_instance_indexes = set() if allowed_region_permutations else None
         ob_region_perms = {}
+        instance_region_permutations = defaultdict(lambda: defaultdict(list))
         region_perm_raw_mesh: dict[tuple[str, str, int]: int] = {}
-        if self.corinth and allowed_region_permutations: # need to create real raw mesh indices for clones
-            for r in self.regions:
-                for p in r.permutations:
-                    for i in range(p.mesh_count):
-                        region_perm_raw_mesh[tuple((r.name, p.name, i))] = p.mesh_index
+        for region in self.regions:
+            for permutation in region.permutations:
+                region_perm = (region.name, permutation.name)
+                if allowed_region_permutations and region_perm in allowed_region_permutations:
+                    valid_instance_indexes.update(permutation.instance_indices)
+
+                for instance_index in permutation.instance_indices:
+                    instance_region_permutations[instance_index][region.name].append(permutation.name)
+
+                if self.corinth and allowed_region_permutations and permutation.mesh_index > -1:
+                    for i in range(permutation.mesh_count):
+                        region_perm_raw_mesh[(region.name, permutation.name, i)] = permutation.mesh_index
         
         for region in self.regions:
             for permutation in region.permutations:
-                if allowed_region_permutations:
-                    region_perm = tuple((region.name, permutation.name))
-                    if region_perm not in allowed_region_permutations:
-                        continue
-                    valid_instance_indexes.update(permutation.instance_indices)
+                region_perm = (region.name, permutation.name)
+                if allowed_region_permutations and region_perm not in allowed_region_permutations:
+                    continue
                     
                 if permutation.mesh_index < 0: continue
                 for i in range(permutation.mesh_count):
                     real_mesh_idx = None
-                    mesh = Mesh(self.block_meshes.Elements[permutation.mesh_index + i], self.bounds, permutation, materials, mesh_node_map, from_vert_normals=from_vert_normals, tag_path=self.tag_path.RelativePathWithExtension)
-                    for part in mesh.parts:
-                        part.material = materials[part.material_index]
+                    mesh = Mesh(self.block_meshes.Elements[permutation.mesh_index + i], self.bounds, permutation, materials_by_index, mesh_node_map, from_vert_normals=from_vert_normals, tag_path=self.tag_path.RelativePathWithExtension)
                     
                     if mesh.permutation.clone_name:
-                        if not allowed_region_permutations or tuple((region.name, mesh.permutation.clone_name)) in allowed_region_permutations:
+                        if not allowed_region_permutations or (region.name, mesh.permutation.clone_name) in allowed_region_permutations:
                             clone_meshes.append(mesh)
                             continue
                         
-                        real_mesh_idx = region_perm_raw_mesh[tuple((region.name, mesh.permutation.clone_name, i))]
+                        real_mesh_idx = region_perm_raw_mesh[(region.name, mesh.permutation.clone_name, i)]
                     
                     obs = mesh.create(render_model, self.block_per_mesh_temporary, self.nodes, self.armature, real_mesh_index=real_mesh_idx)
                     # NOTE This code doesn't work correctly
@@ -308,14 +313,14 @@ class RenderModelTag(Tag):
                                 bm.to_mesh(new_mesh)
                                 bm.free()
                                 new_obs.append(new_ob)
-                                ob_region_perms[new_ob] = utils.dot_partition(ob.name).split(":")
+                                ob_region_perms[new_ob] = region_perm
                             
                         obs = new_obs
                     else:
                         for ob in obs:
-                            ob_region_perms[ob] = utils.dot_partition(ob.name).split(":")
+                            ob_region_perms[ob] = region_perm
                         
-                    original_meshes.append(mesh)
+                    original_meshes_by_perm_name.setdefault(mesh.permutation.name, mesh)
                     objects.extend(obs)
                     for ob in obs:
                         self.collection.objects.link(ob)
@@ -324,14 +329,14 @@ class RenderModelTag(Tag):
         self.instances = []
         if not no_io:
             if specific_io_index is not None:
-                valid_instance_indexes = [specific_io_index]
+                valid_instance_indexes = {specific_io_index}
             self.instance_mesh_index = self.tag.SelectField("LongBlockIndex:instance mesh index").Value
             if self.instance_mesh_index > -1:
                 if valid_instance_indexes is None:
-                    for element in self.tag.SelectField("Block:instance placements").Elements:
+                    for element in instance_placements_block.Elements:
                         self.instances.append(InstancePlacement(element, self.nodes))
                 else:
-                    for element in self.tag.SelectField("Block:instance placements").Elements:
+                    for element in instance_placements_block.Elements:
                         if element.ElementIndex in valid_instance_indexes:
                             self.instances.append(InstancePlacement(element, self.nodes))
 
@@ -341,77 +346,76 @@ class RenderModelTag(Tag):
             utils.set_permutation(ob, permutation)
             
         if self.instances:
-            instance_mesh = Mesh(self.block_meshes.Elements[self.instance_mesh_index], self.bounds, None, materials, mesh_node_map, from_vert_normals=from_vert_normals, tag_path=self.tag_path.RelativePathWithExtension)
+            instance_mesh = Mesh(self.block_meshes.Elements[self.instance_mesh_index], self.bounds, None, materials_by_index, mesh_node_map, from_vert_normals=from_vert_normals, tag_path=self.tag_path.RelativePathWithExtension)
             ios = instance_mesh.create(render_model, self.block_per_mesh_temporary, self.nodes, self.armature, self.instances, is_io=True)
             for ob in ios:
                 ob.data.nwo.mesh_type = "_connected_geometry_mesh_type_object_instance"
                 self.collection.objects.link(ob)
                 
             for instance in self.instances:
-                assigned = False
-                i_permutations = []
-                found_region = None
                 ob = instance.ob
-                if not ob: continue
-                for region in self.regions:
-                    for perm in region.permutations:
-                        for instance_index in perm.instance_indices:
-                            if instance_index == instance.index:
-                                assigned = True
-                                if found_region is None or found_region == region:
-                                    ob.nwo.marker_uses_regions = True
-                                    found_region = region
-                                    utils.set_region(ob, region.name)
-                                else:
-                                    ob.nwo.marker_uses_regions = False
-                                i_permutations.append(perm.name)
-                                break
-                    
-                    if assigned:
-                        if ob.nwo.marker_uses_regions:
-                            if len(i_permutations) != len(region.permutations):
-                                # Pick if this is include or exclude type depending on whichever means less permutation entries need to be added
-                                # If a tie prefer exclude
-                                exclude_permutations = [p.name for p in region.permutations if p.name not in i_permutations]
-                                if len(i_permutations) < len(exclude_permutations):
-                                    ob.nwo.marker_permutation_type = "include"
-                                    utils.set_marker_permutations(ob, i_permutations)
-                                else:
-                                    utils.set_marker_permutations(ob, exclude_permutations)
-                            break
-                    else:
-                        ob.nwo.marker_uses_regions = True
+                if not ob:
+                    continue
+
+                region_permutations = instance_region_permutations.get(instance.index)
+                if not region_permutations:
+                    ob.nwo.marker_uses_regions = True
+                    ob.nwo.marker_permutation_type = "include"
+                    continue
+
+                region_names = list(region_permutations)
+                if len(region_names) != 1:
+                    ob.nwo.marker_uses_regions = False
+                    continue
+
+                region_name = region_names[0]
+                permutations = region_permutations[region_name]
+                region = regions_by_name.get(region_name)
+                if region is None:
+                    continue
+
+                ob.nwo.marker_uses_regions = True
+                utils.set_region(ob, region_name)
+                if len(permutations) != len(region.permutations):
+                    # Pick if this is include or exclude type depending on whichever means less permutation entries need to be added
+                    # If a tie prefer exclude
+                    exclude_permutations = [p.name for p in region.permutations if p.name not in permutations]
+                    if len(permutations) < len(exclude_permutations):
                         ob.nwo.marker_permutation_type = "include"
+                        utils.set_marker_permutations(ob, permutations)
+                    else:
+                        utils.set_marker_permutations(ob, exclude_permutations)
                         
                 
             objects.extend(ios)
             
         for cmesh in clone_meshes:
-            for tmesh in original_meshes:
-                if tmesh.permutation.name == cmesh.permutation.clone_name:
-                    permutation = self.scene_nwo.permutations_table.get(tmesh.permutation.name)
-                    if permutation is None:
-                        continue
-                    clone = permutation.clones.get(cmesh.permutation.name)
-                    if clone is None:
-                        clone = permutation.clones.add()
-                        clone.name = cmesh.permutation.name
-                        print(f"\n--- Added permutation clone: {permutation.name} --> {clone.name}")
-                    for true_part, clone_part in zip(tmesh.parts, cmesh.parts):
-                        source_material = true_part.material
-                        destination_material = clone_part.material
-                        if source_material is None or destination_material is None or source_material.blender_material is None or destination_material.blender_material is None or source_material.blender_material is destination_material.blender_material:
-                            continue
-                        # check existing
-                        for override in clone.material_overrides:
-                            if source_material.blender_material is override.source_material:
-                                break
-                        else:
-                            override = clone.material_overrides.add()
-                            override.source_material = source_material.blender_material
-                            override.destination_material = destination_material.blender_material
-                            print(f"--- Material Override added for clone {clone.name}: {override.source_material.name} --> {override.destination_material.name}")
-                    break
+            tmesh = original_meshes_by_perm_name.get(cmesh.permutation.clone_name)
+            if tmesh is None:
+                continue
+
+            permutation = self.scene_nwo.permutations_table.get(tmesh.permutation.name)
+            if permutation is None:
+                continue
+            clone = permutation.clones.get(cmesh.permutation.name)
+            if clone is None:
+                clone = permutation.clones.add()
+                clone.name = cmesh.permutation.name
+                print(f"\n--- Added permutation clone: {permutation.name} --> {clone.name}")
+            for true_part, clone_part in zip(tmesh.parts, cmesh.parts):
+                source_material = true_part.material
+                destination_material = clone_part.material
+                if source_material is None or destination_material is None or source_material.blender_material is None or destination_material.blender_material is None or source_material.blender_material is destination_material.blender_material:
+                    continue
+                # check existing
+                for override in clone.material_overrides:
+                    if source_material.blender_material is override.source_material:
+                        break
+                else:
+                    override = clone.material_overrides.add()
+                    override.source_material = source_material.blender_material
+                    override.destination_material = destination_material.blender_material
+                    print(f"--- Material Override added for clone {clone.name}: {override.source_material.name} --> {override.destination_material.name}")
                 
         if "sky" in self.tag_path.ShortName:
             for ob in objects:

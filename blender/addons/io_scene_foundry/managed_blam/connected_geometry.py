@@ -28,12 +28,15 @@ mat_props_cache = {}
 
 mesh_cache = {}
 armature_cache = {}
+raw_mesh_data_cache = {}
 
 def clear_cache():
     global mesh_cache
     global armature_cache
+    global raw_mesh_data_cache
     mesh_cache = {}
     armature_cache = {}
+    raw_mesh_data_cache = {}
 
 class PartType(Enum): # Thank you Halo 2!
     not_drawn = 0
@@ -1522,7 +1525,10 @@ class MeshPart:
             
         self.part_type = PartType(element.SelectField("part type").Data)
         self.tessellation = Tessellation(element.SelectField("tessellation").Value)
-        self.material = next((m for m in materials if m.index == self.material_index), None)
+        if isinstance(materials, dict):
+            self.material = materials.get(self.material_index)
+        else:
+            self.material = next((m for m in materials if m.index == self.material_index), None)
         if self.material is None:
             invalid_mat = bpy.data.materials.get("invalid")
             if invalid_mat is None:
@@ -1535,7 +1541,10 @@ class MeshSubpart:
         self.index_start = element.SelectField("index start").Data
         self.index_count = element.SelectField("index count").Data
         self.part_index = element.SelectField("part index").Value
-        self.part = next((p for p in parts if p.index == self.part_index), None)
+        if isinstance(parts, dict):
+            self.part = parts.get(self.part_index)
+        else:
+            self.part = next((p for p in parts if p.index == self.part_index), None)
         self.is_water_subpart = self.index_start in water_indices
         self.is_water_surface = self.part and self.part.water_surface
         
@@ -1668,15 +1677,18 @@ class Mesh:
         self.subparts: list[MeshSubpart] = []
         self.from_vert_normals = from_vert_normals
         self.index = element.ElementIndex
+        self.corinth = utils.is_corinth()
         
-        water_indices = [e.Fields[0].Data for e in element.SelectField("Block:water indices start").Elements]
+        water_indices = {e.Fields[0].Data for e in element.SelectField("Block:water indices start").Elements}
         
         for part_element in element.SelectField("parts").Elements:
             self.parts.append(MeshPart(part_element, materials))
+        part_lookup = {part.index: part for part in self.parts}
         for subpart_element in element.SelectField("subparts").Elements:
-            sp = MeshSubpart(subpart_element, self.parts, water_indices)
+            sp = MeshSubpart(subpart_element, part_lookup, water_indices)
             if sp.part is not None:
                 self.subparts.append(sp)
+        self.subparts_by_index = {subpart.index: subpart for subpart in self.subparts}
             
         self.valid = (bool(self.parts) and bool(self.subparts)) or does_not_need_parts
         
@@ -1684,7 +1696,7 @@ class Mesh:
             
         self.is_pca = False
         self.uncompressed = False
-        if utils.is_corinth():
+        if self.corinth:
             mesh_flags = element.SelectField("mesh flags")
             self.is_pca = mesh_flags.TestBit("mesh is PCA")
             self.uncompressed = mesh_flags.TestBit("use uncompressed vertex format")
@@ -1694,6 +1706,14 @@ class Mesh:
         self.raw_normals = []
         self.raw_node_indices = []
         self.raw_node_weights = []
+        self.raw_lightmap_texcoords = []
+        self.raw_vertex_colors = []
+        self.raw_texcoords1 = []
+        self.raw_water_texcoords = []
+        self.tris: list[Face] = []
+        self.all_triangle_indices: list[list[int]] = []
+        self.triangle_indices_by_subpart: dict[int, list[list[int]]] = {}
+        self.face_indices_by_subpart: dict[int, list[int]] = {}
         
         self.node_map = []
         if block_node_map is not None and block_node_map.Elements.Count and self.index < block_node_map.Elements.Count:
@@ -1711,6 +1731,112 @@ class Mesh:
         self.temp_meshes = None
         self.instances = []
         self.real_mesh_index = -1
+
+    def _get_raw_mesh_cache_key(self, raw_mesh_index: int):
+        return (self.tag_path or id(self.temp_meshes), raw_mesh_index)
+
+    def _get_blender_material(self, material):
+        return material.blender_material if hasattr(material, "blender_material") else material
+
+    def _face_mask(self, face_count: int, face_indices: list[int] | None):
+        if face_indices is None or len(face_indices) == face_count:
+            return None
+
+        mask = np.zeros(face_count, dtype=np.int8)
+        mask[face_indices] = 1
+        return mask
+
+    def _set_uv_layer_data(self, uv_layer, uvs, loop_vertex_indices):
+        if uv_layer is None or not len(loop_vertex_indices):
+            return
+
+        uv_values = np.asarray([(uv[0], uv[1]) for uv in uvs], dtype=np.float32)
+        uv_layer.data.foreach_set("uv", uv_values[loop_vertex_indices].ravel())
+
+    def _set_water_attribute(self, mesh: bpy.types.Mesh, face_indices: list[int] | None):
+        if face_indices is None:
+            values = np.ones(len(mesh.polygons), dtype=np.int8)
+        elif face_indices:
+            values = np.zeros(len(mesh.polygons), dtype=np.int8)
+            values[face_indices] = 1
+        else:
+            return
+
+        attribute = mesh.attributes.get("foundry_water")
+        if attribute is None:
+            attribute = mesh.attributes.new("foundry_water", 'BOOLEAN', 'FACE')
+        attribute.data.foreach_set("value", values)
+
+    def _apply_subpart_props(self, mesh: bpy.types.Mesh, subpart: MeshSubpart, face_indices: list[int] | None):
+        face_count = len(mesh.polygons)
+        all_indices = self._face_mask(face_count, face_indices)
+        material = subpart.part.material
+
+        if subpart.part.part_type == PartType.transparent:
+            utils.add_face_prop(mesh, "transparent", all_indices)
+        elif subpart.part.part_type == PartType.opaque_non_shadowing:
+            utils.add_face_prop(mesh, "no_shadow", all_indices)
+        elif subpart.part.part_type == PartType.opaque_shadow_only:
+            utils.add_face_prop(mesh, "face_mode", all_indices).face_mode = 'shadow_only'
+        elif subpart.part.part_type == PartType.lightmap_only:
+            utils.add_face_prop(mesh, "face_mode", all_indices).face_mode = 'lightmap_only'
+        if subpart.part.draw_distance.value > 0:
+            utils.add_face_prop(mesh, "draw_distance", all_indices).draw_distance = subpart.part.draw_distance.name
+        if subpart.part.tessellation.value > 0:
+            utils.add_face_prop(mesh, "mesh_tessellation_density", all_indices).mesh_tessellation_density = subpart.part.tessellation.name
+
+        if subpart.part.lm_type_per_vertex:
+            utils.add_face_prop(mesh, "lightmap_type", all_indices)
+
+        if not hasattr(material, "lm_res"):
+            return
+
+        if not self.corinth and material.lm_res != LIGHTMAP_RESOLUTION_SCALE and material.lm_res != 0.0:
+            res = "1" if material.lm_res < 1 else "7" if material.lm_res > 7 else str(material.lm_res)
+            utils.add_face_prop(mesh, "lightmap_resolution_scale", all_indices).lightmap_resolution_scale = res
+
+        if material.lm_ignore_default_res != LIGHTMAP_IGNORE_DEFAULT_RESOLUTION_SCALE:
+            utils.add_face_prop(mesh, "lightmap_ignore_default_resolution_scale", all_indices).lightmap_ignore_default_resolution_scale = material.lm_ignore_default_res
+
+        if material.lm_chart_group_index != LIGHTMAP_CHART_GROUP_INDEX:
+            utils.add_face_prop(mesh, "lightmap_chart_group", all_indices).lightmap_chart_group = material.lm_chart_group_index
+
+        if material.lm_transparency != LIGHTMAP_ADDITIVE_TRANSPARENCY_COLOR:
+            utils.add_face_prop(mesh, "lightmap_additive_transparency", all_indices).lightmap_additive_transparency = utils.argb32_to_rgb(material.lm_transparency)
+
+        if material.lm_transparency_override != LIGHTMAP_TRANSPARENCY_OVERRIDE:
+            utils.add_face_prop(mesh, "lightmap_transparency_override", all_indices).lightmap_transparency_override = material.lm_transparency_override
+
+        if material.lm_analytical_absorb != LIGHTMAP_ANALYTICAL_LIGHT_ABSORB and material.lm_analytical_absorb != 1.0:
+            utils.add_face_prop(mesh, "lightmap_analytical_bounce_modifier", all_indices).lightmap_analytical_bounce_modifier = material.lm_analytical_absorb
+
+        if material.lm_normal_absorb != LIGHTMAP_NORMAL_LIGHT_ABSORD and material.lm_normal_absorb != 1.0:
+            utils.add_face_prop(mesh, "lightmap_general_bounce_modifier", all_indices).lightmap_general_bounce_modifier = material.lm_normal_absorb
+
+        if material.lm_translucency != LIGHTMAP_TRANSLUCENCY_TINT_COLOR:
+            utils.add_face_prop(mesh, "lightmap_translucency_tint_color", all_indices).lightmap_translucency_tint_color = utils.argb32_to_rgb(material.lm_translucency)
+
+        if material.lm_both_sides != LIGHTMAP_LIGHTING_FROM_BOTH_SIDES:
+            utils.add_face_prop(mesh, "lightmap_lighting_from_both_sides", all_indices).lightmap_lighting_from_both_sides = material.lm_both_sides
+
+        if material.emissive is not None:
+            prop = utils.add_face_prop(mesh, "emissive", all_indices)
+            atten_factor = 1 if self.corinth else 0.01
+            emissive = material.emissive
+            prop.material_lighting_attenuation_cutoff = emissive.attenuation_cutoff * atten_factor * (1 / WU_SCALAR)
+            prop.material_lighting_attenuation_falloff = emissive.attenuation_falloff * atten_factor * (1 / WU_SCALAR)
+            prop.material_lighting_emissive_focus = radians(180 * (1 - emissive.focus))
+            prop.material_lighting_emissive_color = emissive.color
+            prop.material_lighting_emissive_per_unit = emissive.power_per_unit_area
+            prop.light_intensity = emissive.power
+            prop.material_lighting_emissive_quality = emissive.quality
+            prop.material_lighting_use_shader_gel = emissive.use_shader_gel
+            prop.material_lighting_bounce_ratio = emissive.bounce_ratio
+        elif material.emissive_invalid:
+            prop = utils.add_face_prop(mesh, "emissive", all_indices)
+            prop.light_intensity = 0
+            prop.debug_emissive_index = material.emissive_index
+            utils.print_warning(f"Mesh {mesh.name} has invalid emissive on material {subpart.part.material.name} (part {subpart.part_index})")
                 
     def _true_uvs(self, texcoords):
         return [self._interp_uv(tc) for tc in texcoords]
@@ -1735,7 +1861,9 @@ class Mesh:
         if instances:
             for instance in instances:
                 utils.print_step(instance.name)
-                subpart = self.subparts[instance.index]
+                subpart = self.subparts_by_index.get(instance.index)
+                if subpart is None:
+                    continue
                 ob = self._create_mesh(instance.name, parent, nodes, subpart, instance.bone, instance.matrix, is_io)
                 ob.scale = Vector.Fill(3, instance.scale)
                 instance.ob = ob
@@ -1786,53 +1914,89 @@ class Mesh:
             return
         
         raw_mesh_index = self.index if self.real_mesh_index is None else self.real_mesh_index
-        temp_mesh = self.temp_meshes.Elements[raw_mesh_index]
-            
-        raw_vertices = temp_mesh.SelectField("raw vertices")
-        raw_indices = temp_mesh.SelectField("raw indices")
-        if raw_indices.Elements.Count == 0:
-            raw_indices = temp_mesh.SelectField("raw indices32")
+        cache_key = self._get_raw_mesh_cache_key(raw_mesh_index)
+        cache_entry = raw_mesh_data_cache.get(cache_key)
+        if cache_entry is None:
+            temp_mesh = self.temp_meshes.Elements[raw_mesh_index]
 
-        self.raw_positions = list(self.render_model.GetPositionsFromMesh(self.temp_meshes, raw_mesh_index))
-        self.raw_texcoords = list(self.render_model.GetTexCoordsFromMesh(self.temp_meshes, raw_mesh_index))
-        self.raw_normals = list(self.render_model.GetNormalsFromMesh(self.temp_meshes, raw_mesh_index))
-        self.raw_lightmap_texcoords = [e.Fields[5].Data for e in raw_vertices.Elements]
-        self.raw_vertex_colors = [e.Fields[8].Data for e in raw_vertices.Elements]
-        self.raw_texcoords1 = [e.Fields[9].Data for e in raw_vertices.Elements] if utils.is_corinth() else []
+            raw_vertices = temp_mesh.SelectField("raw vertices")
+            raw_indices = temp_mesh.SelectField("raw indices")
+            if raw_indices.Elements.Count == 0:
+                raw_indices = temp_mesh.SelectField("raw indices32")
+
+            raw_positions = list(self.render_model.GetPositionsFromMesh(self.temp_meshes, raw_mesh_index))
+            raw_texcoords = list(self.render_model.GetTexCoordsFromMesh(self.temp_meshes, raw_mesh_index))
+            raw_normals = list(self.render_model.GetNormalsFromMesh(self.temp_meshes, raw_mesh_index))
+            index_stream = [utils.unsigned_int16(element.Fields[0].Data) for element in raw_indices.Elements]
+
+            cache_entry = {
+                "positions": [tuple(raw_positions[i:i + 3]) for i in range(0, len(raw_positions), 3)],
+                "texcoords": [tuple(raw_texcoords[i:i + 2]) for i in range(0, len(raw_texcoords), 2)],
+                "normals": [tuple(raw_normals[i:i + 3]) for i in range(0, len(raw_normals), 3)],
+                "lightmap_texcoords": [tuple(float(v) for v in e.Fields[5].Data) for e in raw_vertices.Elements],
+                "vertex_colors": [tuple(float(v) for v in e.Fields[8].Data) for e in raw_vertices.Elements],
+                "texcoords1": [tuple(float(v) for v in e.Fields[9].Data) for e in raw_vertices.Elements] if self.corinth else [],
+                "index_stream": index_stream,
+                "node_indices": None,
+                "node_weights": None,
+                "water_indices_local": [],
+                "water_texcoords_local": [],
+            }
+
+            if temp_mesh.SelectField("raw water data").Elements.Count > 0:
+                water_data = temp_mesh.SelectField("raw water data").Elements[0]
+                cache_entry["water_indices_local"] = [utils.unsigned_int16(e.Fields[0].Data) for e in water_data.Fields[0].Elements]
+                cache_entry["water_texcoords_local"] = [tuple(float(v) for v in e.Fields[0].Data) for e in water_data.Fields[1].Elements]
+
+            raw_mesh_data_cache[cache_key] = cache_entry
+
+        self.raw_positions = cache_entry["positions"]
+        self.raw_texcoords = cache_entry["texcoords"]
+        self.raw_normals = cache_entry["normals"]
+        self.raw_lightmap_texcoords = cache_entry["lightmap_texcoords"]
+        self.raw_vertex_colors = cache_entry["vertex_colors"]
+        self.raw_texcoords1 = cache_entry["texcoords1"]
         self.raw_water_texcoords = []
 
         if not self.instances and self.rigid_node_index == -1:
-            self.raw_node_indices = list(self.render_model.GetNodeIndiciesFromMesh(self.temp_meshes, raw_mesh_index))
-            self.raw_node_weights = list(self.render_model.GetNodeWeightsFromMesh(self.temp_meshes, raw_mesh_index))
+            if cache_entry["node_indices"] is None or cache_entry["node_weights"] is None:
+                raw_node_indices = list(self.render_model.GetNodeIndiciesFromMesh(self.temp_meshes, raw_mesh_index))
+                raw_node_weights = list(self.render_model.GetNodeWeightsFromMesh(self.temp_meshes, raw_mesh_index))
+                cache_entry["node_indices"] = [tuple(raw_node_indices[i:i + 4]) for i in range(0, len(raw_node_indices), 4)]
+                cache_entry["node_weights"] = [tuple(raw_node_weights[i:i + 4]) for i in range(0, len(raw_node_weights), 4)]
 
-        indices = [utils.unsigned_int16(element.Fields[0].Data) for element in raw_indices.Elements]
-        buffer = IndexBuffer(self.index_buffer_type, indices)
+            self.raw_node_indices = cache_entry["node_indices"]
+            self.raw_node_weights = cache_entry["node_weights"]
+
+        buffer = IndexBuffer(self.index_buffer_type, cache_entry["index_stream"])
         self.tris = buffer.get_faces(self)
-        if temp_mesh.SelectField("raw water data").Elements.Count > 0:
-            water_data = temp_mesh.SelectField("raw water data").Elements[0]
+        self.all_triangle_indices = [face.indices for face in self.tris]
+        self.triangle_indices_by_subpart = {}
+        self.face_indices_by_subpart = {}
+        for face in self.tris:
+            if face.subpart is None:
+                continue
+            subpart_index = face.subpart.index
+            self.triangle_indices_by_subpart.setdefault(subpart_index, []).append(face.indices)
+            self.face_indices_by_subpart.setdefault(subpart_index, []).append(face.index)
 
-            raw_water_indices = water_data.Fields[0]
-            water_indices_local = [utils.unsigned_int16(e.Fields[0].Data) for e in raw_water_indices.Elements]
-
-            raw_water_vertices = water_data.Fields[1]
-            self.raw_water_texcoords = [e.Fields[0].Data for e in raw_water_vertices.Elements]
-
+        if cache_entry["water_texcoords_local"]:
             water_subparts = [sp for sp in self.subparts if sp.is_water_surface]
 
             water_global_index_stream = []
             for sp in water_subparts:
                 s, c = sp.index_start, sp.index_count
-                water_global_index_stream.extend(indices[s:s + c])
+                water_global_index_stream.extend(cache_entry["index_stream"][s:s + c])
 
             local_to_global = {}
-            for gi, li in zip(water_global_index_stream, water_indices_local):
+            for gi, li in zip(water_global_index_stream, cache_entry["water_indices_local"]):
                 if li not in local_to_global:
                     local_to_global[li] = gi
 
-            vert_count = len(self.raw_positions) // 3
+            vert_count = len(self.raw_positions)
             full = [(0.0, 0.0)] * vert_count
             
-            for local_id, uv in enumerate(self.raw_water_texcoords):
+            for local_id, uv in enumerate(cache_entry["water_texcoords_local"]):
                 gi = local_to_global.get(local_id)
                 if gi is not None:
                     full[gi] = (float(uv[0]), float(uv[1]))
@@ -1841,7 +2005,6 @@ class Mesh:
 
     def _create_mesh(self, name, parent, nodes, subpart: MeshSubpart | None, parent_bone=None, local_matrix=None, is_io=False, surface_triangle_mapping=[], section_index=0):
         has_tag_path = self.tag_path is not None
-        needs_new_mesh = True
         matrix = local_matrix or (parent.matrix_world if parent else Matrix.Identity(4))
         if has_tag_path:
             if subpart is None:
@@ -1865,26 +2028,27 @@ class Mesh:
             
         self._get_raw_mesh_data()
 
-        indices = [t.indices for t in self.tris if not subpart or t.subpart == subpart]
+        if subpart is None:
+            indices = self.all_triangle_indices
+        else:
+            indices = self.triangle_indices_by_subpart.get(subpart.index, [])
 
         vertex_indices = sorted({idx for tri in indices for idx in tri})
         idx_start, idx_end = vertex_indices[0], vertex_indices[-1]
-        
-        idx_start, idx_end = vertex_indices[0], vertex_indices[-1]
-        
+
         mesh = bpy.data.meshes.new(name)
         ob = bpy.data.objects.new(name, mesh)
         
         if has_tag_path and not self.is_pca:
             mesh_cache[mesh_key] = mesh
 
-        positions = [self.raw_positions[i:i+3] for i in range(idx_start * 3, (idx_end + 1) * 3, 3)]
-        texcoords = [self.raw_texcoords[i:i+2] for i in range(idx_start * 2, (idx_end + 1) * 2, 2)]
-        normals = [self.raw_normals[i:i+3] for i in range(idx_start * 3, (idx_end + 1) * 3, 3)]
-        lighting_texcoords = [[float(v) for v in self.raw_lightmap_texcoords[n]] for n in range(idx_start, idx_end+1)]
-        vertex_colors = [[float(v) for v in self.raw_vertex_colors[n]] for n in range(idx_start, idx_end+1)]
-        texcoords1 = [[float(v) for v in self.raw_texcoords1[n]] for n in range(idx_start, idx_end+1)] if self.raw_texcoords1 else []
-        water_texcoords = [[float(v) for v in self.raw_water_texcoords[n]] for n in range(idx_start, idx_end+1)] if self.raw_water_texcoords else []
+        positions = self.raw_positions[idx_start:idx_end + 1]
+        texcoords = self.raw_texcoords[idx_start:idx_end + 1]
+        normals = self.raw_normals[idx_start:idx_end + 1]
+        lighting_texcoords = self.raw_lightmap_texcoords[idx_start:idx_end + 1]
+        vertex_colors = self.raw_vertex_colors[idx_start:idx_end + 1]
+        texcoords1 = self.raw_texcoords1[idx_start:idx_end + 1] if self.raw_texcoords1 else []
+        water_texcoords = self.raw_water_texcoords[idx_start:idx_end + 1] if self.raw_water_texcoords else []
 
         if idx_start > 0:
             indices = [[i - idx_start for i in tri] for tri in indices]
@@ -1913,16 +2077,15 @@ class Mesh:
                 
             water_uvs = self._true_uvs(water_texcoords) if self.bounds else [Vector((u, 1-v)) for (u, v) in water_texcoords]
             
-        if uv_layer:
-            for face in mesh.polygons:
-                for vert_idx, loop_idx in zip(face.vertices, face.loop_indices):
-                    uv_layer.data[loop_idx].uv = uvs[vert_idx]
-                    if has_texcoords1:
-                        uvs1_layer.data[loop_idx].uv = uvs1[vert_idx]
-                    if has_water_texcoords:
-                        water_uvs_layer.data[loop_idx].uv = water_uvs[vert_idx]
-                    if lighting_uv_layer:
-                        lighting_uv_layer.data[loop_idx].uv = lighting_texcoords[vert_idx]
+        loop_vertex_indices = np.empty(len(mesh.loops), dtype=np.int32)
+        mesh.loops.foreach_get("vertex_index", loop_vertex_indices)
+        self._set_uv_layer_data(uv_layer, uvs, loop_vertex_indices)
+        if has_texcoords1:
+            self._set_uv_layer_data(uvs1_layer, uvs1, loop_vertex_indices)
+        if has_water_texcoords:
+            self._set_uv_layer_data(water_uvs_layer, water_uvs, loop_vertex_indices)
+        if lighting_uv_layer:
+            self._set_uv_layer_data(lighting_uv_layer, lighting_texcoords, loop_vertex_indices)
 
         # normalised_normals = [Vector(n).normalized() for n in normals]
         mesh.normals_split_custom_set_from_vertices(normals)
@@ -1942,37 +2105,56 @@ class Mesh:
                     ob.parent_bone = parent_bone or nodes[self.rigid_node_index].name
                     ob.matrix_world = matrix
                 else:
-                    if needs_new_mesh:
-                        node_indices = [self.raw_node_indices[i:i+4] for i in range(idx_start * 4, (idx_end + 1) * 4, 4)]
-                        node_weights = [self.raw_node_weights[i:i+4] for i in range(idx_start * 4, (idx_end + 1) * 4, 4)]
-                        vgroups = ob.vertex_groups
-                        for idx, (ni, nw) in enumerate(zip(node_indices, node_weights)):
-                            for i, w in zip(ni, nw):
-                                if 0 <= i <= 254 and w > 0:
-                                    if self.node_map:
-                                        i = self.node_map[i]
-                                    group = vgroups.get(nodes[i].name) or vgroups.new(name=nodes[i].name)
-                                    group.add([idx], w, 'REPLACE')
+                    node_indices = self.raw_node_indices[idx_start:idx_end + 1]
+                    node_weights = self.raw_node_weights[idx_start:idx_end + 1]
+                    vgroups = ob.vertex_groups
+                    group_cache = {}
+                    for idx, (ni, nw) in enumerate(zip(node_indices, node_weights)):
+                        for i, w in zip(ni, nw):
+                            if 0 <= i <= 254 and w > 0:
+                                if self.node_map:
+                                    i = self.node_map[i]
+                                group_name = nodes[i].name
+                                group = group_cache.get(group_name)
+                                if group is None:
+                                    group = vgroups.get(group_name) or vgroups.new(name=group_name)
+                                    group_cache[group_name] = group
+                                group.add([idx], w, 'REPLACE')
                                     
                     ob.modifiers.new(name="Armature", type="ARMATURE").object = parent
 
-        # water_subparts = []
-        
         if not self.does_not_need_parts:
             if subpart:
-                # if subpart.is_water_subpart:
-                #     subpart.create(ob, self.tris)
-                #     ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_water_surface'
-                #     ob.nwo.water_volume_depth = 0
-                #     if ob.data.materials:
-                #         ob.name = ob.data.materials[0].name
-                #     else:
-                #         ob.name = "water_surface"
-                # else:
-                mesh.materials.append(subpart.part.material.blender_material)
+                mesh.materials.append(self._get_blender_material(subpart.part.material))
+                if subpart.is_water_surface:
+                    self._set_water_attribute(mesh, None)
+                self._apply_subpart_props(mesh, subpart, None)
             else:
+                face_count = len(mesh.polygons)
+                material_slot_lookup = {}
+                material_indices = np.zeros(face_count, dtype=np.int32)
+                water_face_indices = []
                 for subpart in self.subparts:
-                    subpart.create(ob, self.tris)
+                    face_indices = self.face_indices_by_subpart.get(subpart.index)
+                    if not face_indices:
+                        continue
+
+                    blend_material = self._get_blender_material(subpart.part.material)
+                    blend_material_index = material_slot_lookup.get(blend_material)
+                    if blend_material_index is None:
+                        blend_material_index = len(mesh.materials)
+                        mesh.materials.append(blend_material)
+                        material_slot_lookup[blend_material] = blend_material_index
+
+                    material_indices[face_indices] = blend_material_index
+                    if subpart.is_water_surface:
+                        water_face_indices.extend(face_indices)
+                    self._apply_subpart_props(mesh, subpart, face_indices)
+
+                if face_count:
+                    mesh.polygons.foreach_set("material_index", material_indices)
+                if water_face_indices:
+                    self._set_water_attribute(mesh, water_face_indices)
             
         # for IG figure out what tris are render only
         if surface_triangle_mapping:
