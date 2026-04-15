@@ -235,6 +235,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 col.separator()
                 col.prop(nwo, "sun_bounce_scale")
                 col.prop(nwo, "skylight_bounce_scale")
+                col.separator()
+                col.operator("nwo.sky_generate", icon='LIGHT_SUN')
                 
             if self.h4 and nwo.asset_type in ('model', 'sky'):
                 self.draw_expandable_box(self.box.box(), nwo, 'lighting')
@@ -1503,11 +1505,16 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             function_props = [k for k in custom_props if k in game_functions]
             built_in_props = set(change_colors_props + weapon_props + function_props)
             tag_props = [k for k in custom_props if k.lower() == k and k not in built_in_props]
+            has_driver_remap = ob.type == 'ARMATURE'
             
-            if change_colors_props or weapon_props or function_props:
+            if change_colors_props or weapon_props or function_props or has_driver_remap:
                 custom_box = box.box()
                 custom_box.label(text="Custom Properties")
                 custom_box.use_property_split = True
+                if has_driver_remap:
+                    custom_box.operator("nwo.remap_child_drivers_to_armature", icon='DRIVER')
+                    if change_colors_props or weapon_props or function_props or tag_props:
+                        custom_box.separator()
                 if change_colors_props:
                     change_colors_box = custom_box.box()
                     change_colors_box.label(text="Change Colors")

@@ -38,6 +38,115 @@ class NWO_OT_SelectChildObjects(bpy.types.Operator):
             child.select_set(True)
         self.report({'INFO'}, f"Selected {len(children)} child objects")
         return {"FINISHED"}
+
+class NWO_OT_RemapChildDriversToArmature(bpy.types.Operator):
+    bl_idname = "nwo.remap_child_drivers_to_armature"
+    bl_label = "Remap Drivers"
+    bl_description = "Remaps custom property drivers on this armature's direct children so any armature object driver targets point to the selected armature"
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        ob = context.object
+        return ob and ob.type == 'ARMATURE'
+
+    @staticmethod
+    def _id_prop_name_from_data_path(data_path: str) -> str | None:
+        if not data_path.startswith('["'):
+            return None
+
+        prop_name, separator, _ = data_path[2:].partition('"]')
+        if not separator:
+            return None
+
+        return prop_name
+
+    @classmethod
+    def _clone_id_prop_value(cls, value):
+        if hasattr(value, "to_dict"):
+            return {k: cls._clone_id_prop_value(v) for k, v in value.to_dict().items()}
+        if hasattr(value, "items"):
+            return {k: cls._clone_id_prop_value(v) for k, v in value.items()}
+        if hasattr(value, "to_list"):
+            return [cls._clone_id_prop_value(v) for v in value.to_list()]
+        if isinstance(value, list):
+            return [cls._clone_id_prop_value(v) for v in value]
+        if isinstance(value, tuple):
+            return [cls._clone_id_prop_value(v) for v in value]
+        return value
+
+    def _copy_missing_armature_prop(self, target_armature: bpy.types.Object, source_armature: bpy.types.Object, data_path: str) -> bool:
+        prop_name = self._id_prop_name_from_data_path(data_path)
+        if not prop_name or prop_name in target_armature.keys() or prop_name not in source_armature.keys():
+            return False
+
+        # Copy the source armature's current live value when we need to create
+        # the property on the selected armature for a remapped driver.
+        source_value = self._clone_id_prop_value(source_armature[prop_name])
+        target_armature[prop_name] = source_value
+
+        source_ui = source_armature.id_properties_ui(prop_name)
+        target_ui = target_armature.id_properties_ui(prop_name)
+        if hasattr(source_ui, "as_dict"):
+            ui_data = {k: v for k, v in source_ui.as_dict().items() if v is not None}
+            if ui_data:
+                try:
+                    target_ui.update(**ui_data)
+                except TypeError:
+                    supported_keys = {"description", "default", "min", "max", "soft_min", "soft_max", "subtype"}
+                    target_ui.update(**{k: v for k, v in ui_data.items() if k in supported_keys})
+
+        return True
+
+    def execute(self, context):
+        armature = context.object
+        updated_children = 0
+        updated_drivers = 0
+        updated_targets = 0
+        added_props = 0
+
+        for child in armature.children:
+            animation_data = child.animation_data
+            if animation_data is None:
+                continue
+
+            child_updated = False
+            for fcurve in animation_data.drivers:
+                if not fcurve.data_path.startswith('["'):
+                    continue
+
+                driver_updated = False
+                for variable in fcurve.driver.variables:
+                    for target in variable.targets:
+                        target_id = target.id
+                        if not isinstance(target_id, bpy.types.Object):
+                            continue
+                        if target_id.type != 'ARMATURE' or target_id == armature:
+                            continue
+
+                        if self._copy_missing_armature_prop(armature, target_id, target.data_path):
+                            added_props += 1
+
+                        # Blender can otherwise leave the single-property target in
+                        # an invalid state until the target ID gets a data refresh.
+                        armature.update_tag(refresh={'DATA'})
+                        target.id = armature
+                        updated_targets += 1
+                        driver_updated = True
+                        child_updated = True
+
+                if driver_updated:
+                    updated_drivers += 1
+
+            if child_updated:
+                updated_children += 1
+
+        if updated_targets:
+            self.report({'INFO'}, f"Remapped {updated_targets} driver target{'' if updated_targets == 1 else 's'} across {updated_drivers} driver{'' if updated_drivers == 1 else 's'} on {updated_children} child object{'' if updated_children == 1 else 's'} and copied {added_props} missing armature propert{'y' if added_props == 1 else 'ies'}")
+            return {"FINISHED"}
+
+        self.report({'WARNING'}, "No child custom property drivers were found that target a different armature")
+        return {"CANCELLED"}
     
 # MARKER
 

@@ -27,6 +27,7 @@ from .scenario.lightmap import NWO_OT_Lightmap
 from .tag_templates import NWO_OT_LoadTemplate
 from .cubemap import NWO_OT_Cubemap
 from .scale_models import NWO_OT_AddScaleModel
+from .sky_gen import NWO_OT_SkyGenerate
 from .animation.automate_pose_overlay import NWO_OT_GeneratePoses, NWO_OT_ConvertLegacyPoseOverlays
 from .animation.generate_frames import NWO_OT_GenerateFrames
 from .rigging.convert_to_halo_rig import NWO_OT_ConvertToHaloRig
@@ -168,6 +169,7 @@ classes = (
     NWO_ScaleScene,
     NWO_OT_ConvertToHaloRig,
     NWO_OT_Cubemap,
+    NWO_OT_SkyGenerate,
     NWO_OT_LoadTemplate,
     # NWO_OT_RemoveExistingZoneSets,
     # NWO_OT_ZoneSetMove,

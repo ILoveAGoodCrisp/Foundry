@@ -160,6 +160,7 @@ classes = [
     # object.NWO_OT_MeshPropAdd,
     object.NWO_OT_SetHintName,
     object.NWO_OT_SelectChildObjects,
+    object.NWO_OT_RemapChildDriversToArmature,
     object.NWO_OT_ShowWaterDirection,
     panel.NWO_FoundryPanelProps,
     panel.NWO_FoundryPanelPopover,
