@@ -10,6 +10,7 @@ import bmesh
 import bpy
 from mathutils import Matrix, Vector
 import numpy as np
+import time
 
 from ..managed_blam.globals import GlobalsTag
 
@@ -2873,6 +2874,7 @@ class ExportScene:
 
         if self.export_settings.export_structure:
             if self.export_settings.update_lighting_info:
+                time.sleep(0.1) # fix an issue where light tag can't yet be written to
                 light_asset = self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB} or (self.corinth and self.asset_type in {AssetType.MODEL, AssetType.SKY})
                 if light_asset:
                     if self.limit_bsps_to_selection:

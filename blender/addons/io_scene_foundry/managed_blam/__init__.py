@@ -70,10 +70,7 @@ class Tag():
         self._find_tag()
         try:
             if os.path.exists(self.system_path):
-                if check_file_free(self.system_path, timeout=1.0):
-                    self.tag.Load(self.tag_path)
-                else:
-                    raise RuntimeError(f"TagFile in use, cannot open: {self.tag_path.RelativePathWithExtension}")
+                self.tag.Load(self.tag_path)
             elif self.tag_must_exist:
                 raise RuntimeError(f"No file exists for {self.path}, but this {self.__class__} has been told one must exist")
             else:
