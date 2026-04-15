@@ -3325,7 +3325,15 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     )
 
     sky_gen_settings_initialized: bpy.props.BoolProperty(options={'HIDDEN'})
-    sky_gen_build_sky_from_map: bpy.props.BoolProperty(default=False, options={'HIDDEN'})
+    sky_gen_build_sky_from_map: bpy.props.EnumProperty(
+        items=[
+            ("NONE", "None", ""),
+            ("WORLD", "Scene World Image", ""),
+            ("FILE", "Image File", ""),
+        ],
+        default="NONE",
+        options={'HIDDEN'},
+    )
     sky_gen_input_sky_map_name: bpy.props.StringProperty(subtype="FILE_PATH", options={'HIDDEN'})
     sky_gen_generate_type: bpy.props.EnumProperty(
         items=[

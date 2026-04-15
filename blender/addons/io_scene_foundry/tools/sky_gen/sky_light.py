@@ -503,6 +503,59 @@ _DIRECTIONS_CACHE: dict[tuple[int, int], np.ndarray] = {}
 _WEIGHTS_CACHE: dict[tuple[int, int], np.ndarray] = {}
 
 
+def get_sun_angles_from_image(image: np.ndarray, sample_radius: int = 6) -> tuple[float, float] | None:
+    image = np.asarray(image, dtype=np.float32)
+    if image.ndim < 3 or image.shape[0] <= 0 or image.shape[1] <= 0:
+        return None
+
+    height, width = image.shape[:2]
+    search_height = max(1, min(height, int(math.ceil(height * 0.5))))
+    luminance = linear_color_luminance(image[:search_height])
+    if luminance.size == 0:
+        return None
+
+    peak_luminance = float(luminance.max())
+    if peak_luminance <= EPSILON:
+        return None
+
+    peak_index = int(np.argmax(luminance))
+    peak_y, peak_x = np.unravel_index(peak_index, luminance.shape)
+    directions = _DIRECTIONS_CACHE.setdefault((width, height), _pixel_directions(width, height))
+
+    direction_accum = np.zeros(3, dtype=np.float64)
+    weight_sum = 0.0
+    y0 = max(0, peak_y - sample_radius)
+    y1 = min(search_height, peak_y + sample_radius + 1)
+    x_offsets = np.arange(-sample_radius, sample_radius + 1, dtype=np.int32)
+
+    for yy in range(y0, y1):
+        xx = (peak_x + x_offsets) % width
+        weights = np.asarray(luminance[yy, xx], dtype=np.float64)
+        if float(weights.sum()) <= EPSILON:
+            continue
+
+        neighborhood_directions = np.asarray(directions[yy, xx], dtype=np.float64)
+        direction_accum += (neighborhood_directions * weights[:, None]).sum(axis=0)
+        weight_sum += float(weights.sum())
+
+    if weight_sum <= EPSILON:
+        direction = np.asarray(directions[peak_y, peak_x], dtype=np.float64)
+    else:
+        direction = direction_accum / weight_sum
+
+    norm = float(np.linalg.norm(direction))
+    if norm <= EPSILON:
+        return None
+
+    direction /= norm
+    theta = math.acos(float(np.clip(direction[2], -1.0, 1.0)))
+    phi = math.atan2(float(direction[1]), float(direction[0]))
+    if phi < 0.0:
+        phi += TWO_PI
+
+    return theta, phi
+
+
 def generate_sky_lights(colors: np.ndarray, params: SkyAtmosphereParameters, light_count: int, vertical_fov: float) -> list[SkyLightSample]:
     colors = np.asarray(colors, dtype=np.float32)
     height, width = colors.shape[:2]
@@ -549,9 +602,11 @@ def sample_sky_image(theta: float, phi: float, image: np.ndarray, sample_radius:
     image = np.asarray(image, dtype=np.float32)
     height, width = image.shape[:2]
     phi_step = TWO_PI / max(width - 1, 1)
-    theta_step = HALF_PI / max(height - 1, 1)
+    # Treat imported sky maps as standard 360x180 lat-long images, where the
+    # full image height spans zenith to nadir rather than only zenith to horizon.
+    theta_step = math.pi / max(height - 1, 1)
     phi = float(np.clip(phi, 0.0, TWO_PI))
-    theta = float(np.clip(theta, 0.0, HALF_PI))
+    theta = float(np.clip(theta, 0.0, math.pi))
     center_x = int(phi / phi_step) if phi_step > EPSILON else 0
     center_y = int(theta / theta_step) if theta_step > EPSILON else 0
 

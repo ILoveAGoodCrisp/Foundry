@@ -15,6 +15,7 @@ from .sky_light import (
     build_analytic_sky_image,
     build_sky_dome_data,
     generate_sky_lights,
+    get_sun_angles_from_image,
     get_sun_light,
     modifier_apply_sky_color,
     modifier_apply_sky_lighting,
@@ -84,6 +85,8 @@ def _initialize_sky_gen_settings(scene_nwo):
 def _load_sky_gen_settings(operator: bpy.types.Operator, scene_nwo):
     for name in SKY_GEN_PERSISTENT_PROPS:
         value = getattr(scene_nwo, _sky_gen_scene_prop_name(name))
+        if name == "build_sky_from_map" and isinstance(value, bool):
+            value = "FILE" if value else "NONE"
         if name in SKY_GEN_VECTOR_PROPS:
             value = tuple(value)
         setattr(operator, name, value)
@@ -216,6 +219,9 @@ def _ensure_dome_material() -> bpy.types.Material:
     tree.links.new(node_output.inputs["Surface"], node_emission.outputs[0])
 
     material.use_backface_culling = False
+    
+    material.nwo.shader_path = r'levels\shared\shaders\simple\white.material' if utils.is_corinth(bpy.context) else r'levels\shared\shaders\simple\white.shader'
+    
     return material
 
 
@@ -225,18 +231,91 @@ def _load_sky_image_pixels(filepath: str) -> np.ndarray:
         raise FileNotFoundError(f"Sky map not found: {resolved_path}")
 
     image = bpy.data.images.load(str(resolved_path), check_existing=True)
+    return _load_sky_image_from_image(image, str(resolved_path))
+
+
+def _load_sky_image_from_image(image: bpy.types.Image, source_name: str) -> np.ndarray:
     width, height = image.size
     if width <= 0 or height <= 0:
-        raise RuntimeError(f"Sky map has no pixel data: {resolved_path}")
+        raise RuntimeError(f"Sky map has no pixel data: {source_name}")
 
     channels = max(int(image.channels), 4)
     pixels = np.asarray(image.pixels[:], dtype=np.float32)
     pixel_count = width * height * channels
     if pixels.size < pixel_count:
-        raise RuntimeError(f"Sky map pixel data is incomplete: {resolved_path}")
+        raise RuntimeError(f"Sky map pixel data is incomplete: {source_name}")
 
     pixels = pixels[:pixel_count].reshape(height, width, channels)
     return np.flipud(pixels[..., :3]).copy()
+
+
+def _find_sky_image_in_node_tree(
+    tree: bpy.types.NodeTree | None,
+    output_types: set[str],
+    visited_trees: set[int] | None = None,
+) -> bpy.types.Image | None:
+    if tree is None:
+        return None
+
+    if visited_trees is None:
+        visited_trees = set()
+
+    tree_id = tree.as_pointer()
+    if tree_id in visited_trees:
+        return None
+    visited_trees.add(tree_id)
+
+    nodes = tree.nodes
+    output_node = next(
+        (node for node in nodes if node.type in output_types and getattr(node, "is_active_output", False)),
+        None,
+    )
+    if output_node is None:
+        output_node = next((node for node in nodes if node.type in output_types), None)
+
+    visited_nodes: set[int] = set()
+    stack = []
+    if output_node is not None:
+        for input_socket in output_node.inputs:
+            for link in input_socket.links:
+                stack.append(link.from_node)
+
+    while stack:
+        node = stack.pop()
+        node_id = node.as_pointer()
+        if node_id in visited_nodes:
+            continue
+        visited_nodes.add(node_id)
+
+        if node.type in {"TEX_ENVIRONMENT", "TEX_IMAGE"} and getattr(node, "image", None) is not None:
+            return node.image
+
+        if node.type == "GROUP" and getattr(node, "node_tree", None) is not None:
+            image = _find_sky_image_in_node_tree(node.node_tree, {"GROUP_OUTPUT"}, visited_trees)
+            if image is not None:
+                return image
+
+        for input_socket in node.inputs:
+            for link in input_socket.links:
+                stack.append(link.from_node)
+
+    for node in nodes:
+        if node.type in {"TEX_ENVIRONMENT", "TEX_IMAGE"} and getattr(node, "image", None) is not None:
+            return node.image
+        if node.type == "GROUP" and getattr(node, "node_tree", None) is not None:
+            image = _find_sky_image_in_node_tree(node.node_tree, {"GROUP_OUTPUT"}, visited_trees)
+            if image is not None:
+                return image
+
+    return None
+
+
+def _find_world_sky_image(scene: bpy.types.Scene) -> bpy.types.Image | None:
+    world = scene.world
+    if world is None or not world.use_nodes or world.node_tree is None:
+        return None
+
+    return _find_sky_image_in_node_tree(world.node_tree, {"OUTPUT_WORLD"})
 
 
 def _default_region_name() -> str:
@@ -259,10 +338,15 @@ class NWO_OT_SkyGenerate(bpy.types.Operator):
     bl_description = "Generates a skydome and skylights ready for export to the game"
     bl_options = {"REGISTER", "UNDO"}
 
-    build_sky_from_map: bpy.props.BoolProperty(
-        name="Use Sky Map (HDRI)",
-        description="Sample a supplied sky map (HDRI) instead of generating one analytically",
-        default=False,
+    build_sky_from_map: bpy.props.EnumProperty(
+        name="Sky Source",
+        description="Choose whether to use the analytic sky, the active Blender World image, or a selected image file",
+        items=[
+            ("NONE", "Generated", "Generate the sky analytically"),
+            ("WORLD", "Scene World Image", "Sample the active Blender scene World image"),
+            ("FILE", "Image File", "Sample a selected image file"),
+        ],
+        default="NONE",
     )
 
     filter_glob: bpy.props.StringProperty(
@@ -441,7 +525,7 @@ class NWO_OT_SkyGenerate(bpy.types.Operator):
         _load_sky_gen_settings(self, scene_nwo)
         return context.window_manager.invoke_props_dialog(self, width=520)
 
-    def draw(self, _context):
+    def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
 
@@ -454,8 +538,14 @@ class NWO_OT_SkyGenerate(bpy.types.Operator):
         source_box = layout.box()
         source_col = source_box.column()
         source_col.label(text="Sky Source")
-        source_col.prop(self, "build_sky_from_map")
-        if self.build_sky_from_map:
+        source_col.prop(self, "build_sky_from_map", expand=True)
+        if self.build_sky_from_map == "WORLD":
+            world_image = _find_world_sky_image(context.scene)
+            if world_image is None:
+                source_col.label(text="No World image found", icon="ERROR")
+            else:
+                source_col.label(text=f"Using: {world_image.name}", icon="WORLD")
+        elif self.build_sky_from_map == "FILE":
             source_col.prop(self, "input_sky_map_name")
 
         if self.generate_type != "SKYLIGHT":
@@ -488,7 +578,7 @@ class NWO_OT_SkyGenerate(bpy.types.Operator):
 
         analytic_box = layout.box()
         analytic_col = analytic_box.column()
-        analytic_col.enabled = not self.build_sky_from_map
+        analytic_col.enabled = self.build_sky_from_map == "NONE"
         analytic_col.label(text="Analytic Sky")
         analytic_col.prop(self, "sky_type")
         analytic_col.prop(self, "luminance_only")
@@ -512,12 +602,22 @@ class NWO_OT_SkyGenerate(bpy.types.Operator):
 
     def execute(self, context):
         scene_nwo = utils.get_scene_props()
-        _store_sky_gen_settings(self, scene_nwo)
         params = self._build_parameters()
 
         horizontal_fov = math.radians(self.horizontal_fov)
         vertical_fov = math.radians(self.vertical_fov)
-        sky_pixels = self._get_sky_pixels(params)
+        sky_pixels = self._get_sky_pixels(context, params)
+
+        if self.build_sky_from_map != "NONE":
+            derived_sun_angles = get_sun_angles_from_image(sky_pixels)
+            if derived_sun_angles is not None:
+                self.sun_theta = math.degrees(derived_sun_angles[0])
+                self.sun_phi = math.degrees(derived_sun_angles[1])
+                params = self._build_parameters()
+            else:
+                self.report({"WARNING"}, "Could not derive a sun direction from the image; using the current sun zenith and azimuth")
+
+        _store_sky_gen_settings(self, scene_nwo)
 
         collection = _ensure_generation_collection(context)
         _clear_generated_objects(collection)
@@ -542,6 +642,12 @@ class NWO_OT_SkyGenerate(bpy.types.Operator):
             lighting_samples = list(sky_light_samples)
             lighting_samples.append(sun_sample)
             lit_mesh_count = self._light_selected_meshes(context, params, lighting_samples)
+            
+        is_blender_scale = scene_nwo.scale == 'blender'
+        rotation = utils.blender_halo_rotation_diff(scene_nwo.forward_direction)
+        print(rotation)
+        if not is_blender_scale or rotation != 0.0:
+            utils.transform_scene(context, 1 if is_blender_scale else (1 / 0.03048), rotation, 'x', scene_nwo.forward_direction, objects=collection.all_objects, actions=[])
 
         message_parts = []
         if dome_object is not None:
@@ -578,11 +684,17 @@ class NWO_OT_SkyGenerate(bpy.types.Operator):
             sun_blur=self.sun_blur,
         )
 
-    def _get_sky_pixels(self, params: SkyAtmosphereParameters) -> np.ndarray:
-        if self.build_sky_from_map:
+    def _get_sky_pixels(self, context: bpy.types.Context, params: SkyAtmosphereParameters) -> np.ndarray:
+        if self.build_sky_from_map == "WORLD":
+            world_image = _find_world_sky_image(context.scene)
+            if world_image is None:
+                raise ValueError("The active Blender scene World does not have an environment or image texture to sample")
+            return _load_sky_image_from_image(world_image, world_image.name)
+
+        if self.build_sky_from_map == "FILE":
             sky_map = self.input_sky_map_name.strip()
             if not sky_map:
-                raise ValueError("Sky map path is required when 'Use Existing Sky Map' is enabled")
+                raise ValueError("Sky map path is required when 'Image File' is selected as the sky source")
             return _load_sky_image_pixels(sky_map)
 
         return build_analytic_sky_image(ANALYTIC_SKY_WIDTH, ANALYTIC_SKY_HEIGHT, params)
