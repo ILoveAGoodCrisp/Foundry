@@ -1313,6 +1313,9 @@ class NWO_Import(bpy.types.Operator):
                             imported_cinematic_scenario_objects, scenario_collection = importer.import_scenarios([scenario], self.build_blender_materials, self.always_extract_bitmaps, return_collection=True, merge_sky_to_scenario_collection=True)
                             
                             imported_cinematic_objects.extend(imported_cinematic_scenario_objects)
+                            if importer.needs_scaling and imported_cinematic_scenario_objects:
+                                context.window.scene = importer.scene
+                                utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', scene_nwo.forward_direction, objects=imported_cinematic_scenario_objects, actions=[])
                             
                             scene_nwo.cinematic_scenario = scenario
                             scene_nwo.cinematic_zone_set = zone_set
@@ -1329,6 +1332,8 @@ class NWO_Import(bpy.types.Operator):
                             context.window.scene = sdata.blender_scene
                             camera_collection = bpy.data.collections.new(sdata.name)
                             context.scene.collection.children.link(camera_collection)
+                            scene_imported_objects = []
+                            scene_imported_actions = []
                             for ob in sdata.camera_objects:
                                 camera_collection.objects.link(ob)
                                 
@@ -1336,6 +1341,8 @@ class NWO_Import(bpy.types.Operator):
                                 
                             imported_cinematic_objects.extend(sdata.camera_objects)
                             imported_cinematic_actions.extend(sdata.actions)
+                            scene_imported_objects.extend(sdata.camera_objects)
+                            scene_imported_actions.extend(sdata.actions)
                             
                             camera_light_mask = {cam: set() for cam in sdata.camera_objects}
                             light_objects_all = []
@@ -1353,6 +1360,7 @@ class NWO_Import(bpy.types.Operator):
                                 camera_light_mask[camera_shot].add(light_ob)
                                 light_objects_all.append(light_ob)
                                 imported_cinematic_objects.append(light_ob)
+                                scene_imported_objects.append(light_ob)
                                 if receiver_collection is not None:
                                     light_ob.light_linking.receiver_collection = model_collection
                             
@@ -1364,6 +1372,7 @@ class NWO_Import(bpy.types.Operator):
                                     importer.tag_variant = cin_object.variant
                                     imported_cinematic_object_objects, armature, render_path, model_collection = importer.import_object([cin_object.object_path], None, return_cin_stuff=True, parent_collection=cinematic_objects_collection)
                                     imported_cinematic_objects.extend(imported_cinematic_object_objects)
+                                    scene_imported_objects.extend(imported_cinematic_object_objects)
                                     cin_object.armature = armature
                                     armature.name = cin_object.name
                                     model_collection.name = cin_object.name
@@ -1371,6 +1380,7 @@ class NWO_Import(bpy.types.Operator):
                                     
                                     cin_object.animations = {utils.action_shot_index(a): a for a in cin_animations}
                                     imported_cinematic_actions.extend(cin_actions)
+                                    scene_imported_actions.extend(cin_actions)
                                     all_actors.add(armature)
                                     for cam in cin_object.cameras.values():
                                         camera_actor_mask[cam].add(armature)
@@ -1425,6 +1435,7 @@ class NWO_Import(bpy.types.Operator):
                                     light_objects_corinth.extend(light_objects)
                                     # scene_collection_map[sdata.blender_scene].add(light_collection)
                                     imported_cinematic_objects.extend(light_objects)
+                                    scene_imported_objects.extend(light_objects)
                                     
                                 for cam, lights in camera_light_mask.items():
                                     cam_lights = cam.nwo.cinematic_lights
@@ -1458,6 +1469,7 @@ class NWO_Import(bpy.types.Operator):
                                 scenario_instance_empty.instance_type = 'COLLECTION'
                                 scenario_instance_empty.instance_collection = scenario_collection
                                 imported_cinematic_objects.append(scenario_instance_empty)
+                                scene_imported_objects.append(scenario_instance_empty)
                                 
                                 anchor = bpy.data.objects.new(name=sdata.anchor_name, object_data=None)
                                 anchor.nwo.is_frame = True
@@ -1466,6 +1478,7 @@ class NWO_Import(bpy.types.Operator):
                                 context.scene.collection.objects.link(anchor)
                                 sdata.blender_scene.nwo.cinematic_anchor = anchor
                                 imported_cinematic_objects.append(anchor)
+                                scene_imported_objects.append(anchor)
                                 anchor_objects[anchor] = imported_cinematic_scenario_objects
                                 anchor.nwo.export_this = False
                                 scenario_instance_empty.parent = anchor
@@ -1475,18 +1488,19 @@ class NWO_Import(bpy.types.Operator):
                                 anchor.nwo.is_frame = True
                                 anchor.nwo.export_this = False
                                 0
+                                scene_imported_objects.append(anchor)
                             
                             for ob in light_objects_corinth:
                                 ob.parent = anchor
                                 ob.parent_type = 'OBJECT'
 
+                            if importer.needs_scaling and (scene_imported_objects or scene_imported_actions):
+                                utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', scene_nwo.forward_direction, objects=scene_imported_objects, actions=scene_imported_actions)
+
                             # scene_collection_map[sdata.blender_scene].add(anchor)
                             first_scene = False
                             
                     imported_objects.extend(imported_cinematic_objects)
-                        
-                    if importer.needs_scaling:
-                        utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', scene_nwo.forward_direction, objects=imported_cinematic_objects, actions=imported_cinematic_actions)
 
                     # for anchor, scen_objects in anchor_objects.items():
                     #     for ob in scen_objects:
@@ -2174,6 +2188,71 @@ class NWOImporter:
         self._ensure_game_object_collection_cache()[(tag_path, variant)] = collection
         return collection
 
+    def _should_cache_object_import(self, existing_armature, pose, make_non_export, for_instance_conversion, return_cin_stuff):
+        return (
+            return_cin_stuff
+            and existing_armature is None
+            and pose is None
+            and not make_non_export
+            and not for_instance_conversion
+            and not self.tag_import_attachments
+            and not getattr(self.import_fp_arms, "value", False)
+        )
+
+    def _get_object_import_cache_key(self, file: str, variant: str):
+        return (
+            str(file).lower(),
+            variant,
+            self.tag_render,
+            self.tag_markers,
+            self.tag_state,
+            self.import_variant_children,
+            self.tag_import_attachments,
+            self.build_control_rig,
+            bool(self.tag_import_lights and self.corinth),
+            getattr(self.import_fp_arms, "value", None),
+        )
+
+    def get_cached_object_import(self, cache_key, parent_collection: bpy.types.Collection):
+        cache_entry = objects_cache.get(cache_key)
+        if cache_entry is None:
+            return None
+
+        imported_objects, armature, render, model_collection, object_map = duplicate_cached_collection(
+            cache_entry["collection"],
+            cache_entry["render"],
+            parent_collection,
+            copy_object_data=cache_entry.get("copy_object_data", False),
+        )
+        for template_object, functions in cache_entry.get("prop_object_map", {}).items():
+            new_object = object_map.get(template_object)
+            if new_object is not None:
+                self.obs_for_props[new_object] = functions
+
+        return imported_objects, armature, render, model_collection
+
+    def cache_object_import(self, cache_key, collection: bpy.types.Collection, render: str, copy_object_data=False):
+        if cache_key in objects_cache:
+            return objects_cache[cache_key]
+
+        template_collection, object_map = clone_collection_hierarchy(
+            collection,
+            copy_object_data=copy_object_data,
+            collection_name=f"{collection.name}_cache",
+        )
+        cache_entry = {
+            "collection": template_collection,
+            "render": render,
+            "copy_object_data": copy_object_data,
+            "prop_object_map": {
+                object_map[source_object]: self.obs_for_props[source_object]
+                for source_object in collection.all_objects
+                if source_object in self.obs_for_props and source_object in object_map
+            },
+        }
+        objects_cache[cache_key] = cache_entry
+        return cache_entry
+
     def _ensure_region_entry(self, region: str):
         if not region or region in self.region_names:
             return
@@ -2520,6 +2599,15 @@ class NWOImporter:
                             if not temp_variant and (for_instance_conversion or is_game_object or self.scene_nwo.asset_type == 'cinematic'):
                                 if model.block_variants.Elements.Count:
                                     temp_variant = model.block_variants.Elements[0].Fields[0].GetStringData()
+
+                            cache_key = None
+                            if self._should_cache_object_import(existing_armature, pose, make_non_export, for_instance_conversion, return_cin_stuff):
+                                cache_key = self._get_object_import_cache_key(file, temp_variant)
+                                cached = self.get_cached_object_import(cache_key, scene_collection)
+                                if cached is not None:
+                                    imported_file_objects, armature, render, model_collection = cached
+                                    imported_objects.extend(imported_file_objects)
+                                    continue
                             
                             allowed_region_permutations = model.get_variant_regions_and_permutations(temp_variant, self.tag_state)
                             if temp_variant:
@@ -2713,6 +2801,9 @@ class NWOImporter:
                                 
                             # if need_to_cache:
                             #     objects_cache[cache_key] = imported_file_objects, render, model_collection.name
+
+                            if cache_key is not None and render and imported_file_objects:
+                                self.cache_object_import(cache_key, model_collection, render, copy_object_data=True)
                                 
                             imported_objects.extend(imported_file_objects)
 
@@ -5260,6 +5351,83 @@ def add_scene_data_to_nla(sdata, scene_nwo):
 
             # print(f"Added {action.name} to {arm.name} at frame {shot_frame}")
 
+def _remap_driver_targets(id_block, object_map):
+    animation_data = getattr(id_block, "animation_data", None)
+    if animation_data is None:
+        return
+
+    for fcurve in animation_data.drivers:
+        for variable in fcurve.driver.variables:
+            for target in variable.targets:
+                if target.id in object_map:
+                    target.id = object_map[target.id]
+
+def _copy_collection_object(source_object: bpy.types.Object, copy_object_data=False):
+    new_object = source_object.copy()
+    if copy_object_data and source_object.data is not None and hasattr(source_object.data, "copy"):
+        new_object.data = source_object.data.copy()
+    return new_object
+
+def clone_collection_hierarchy(source_collection: bpy.types.Collection, parent_collection=None, copy_object_data=False, collection_name=None):
+    object_map = {}
+
+    def clone_collection(source: bpy.types.Collection, target_parent=None, target_name=None):
+        new_collection = bpy.data.collections.new(target_name or source.name)
+        new_collection.hide_render = source.hide_render
+        new_collection.hide_viewport = source.hide_viewport
+        if hasattr(source, "color_tag"):
+            new_collection.color_tag = source.color_tag
+
+        if target_parent is not None:
+            target_parent.children.link(new_collection)
+
+        for source_object in source.objects:
+            new_object = _copy_collection_object(source_object, copy_object_data=copy_object_data)
+            new_collection.objects.link(new_object)
+            object_map[source_object] = new_object
+
+        for child in source.children:
+            clone_collection(child, new_collection)
+
+        return new_collection
+
+    new_root = clone_collection(source_collection, parent_collection, collection_name)
+
+    for source_object, new_object in object_map.items():
+        if source_object.parent in object_map:
+            new_object.parent = object_map[source_object.parent]
+        else:
+            new_object.parent = None
+
+        new_object.parent_type = source_object.parent_type
+        new_object.parent_bone = source_object.parent_bone
+
+        for modifier in new_object.modifiers:
+            target_object = getattr(modifier, "object", None)
+            if target_object in object_map:
+                modifier.object = object_map[target_object]
+
+        for constraint in new_object.constraints:
+            target_object = getattr(constraint, "target", None)
+            if target_object in object_map:
+                constraint.target = object_map[target_object]
+
+        _remap_driver_targets(new_object, object_map)
+        if new_object.data is not None:
+            _remap_driver_targets(new_object.data, object_map)
+
+    return new_root, object_map
+
+def duplicate_cached_collection(template_collection: bpy.types.Collection, render_ref, parent_collection: bpy.types.Collection, copy_object_data=False):
+    new_collection, object_map = clone_collection_hierarchy(
+        template_collection,
+        parent_collection,
+        copy_object_data=copy_object_data,
+    )
+    new_objects = list(new_collection.all_objects)
+    armature = next((obj for obj in new_objects if obj.type == 'ARMATURE' and obj.parent is None), None)
+    return new_objects, armature, render_ref, new_collection, object_map
+
 def duplicate_cached_import(template_objects, render_ref, collection_name, parent_collection):
     new_collection = bpy.data.collections.new(collection_name)
     parent_collection.children.link(new_collection)
@@ -5292,9 +5460,29 @@ def duplicate_cached_import(template_objects, render_ref, collection_name, paren
 
     return list(obj_map.values()), armature, render_ref, new_collection
 
+def remove_collection_hierarchy(collection: bpy.types.Collection):
+    if collection not in frozenset(bpy.data.collections):
+        return
+
+    ids_to_remove = []
+    for obj in collection.all_objects:
+        ids_to_remove.append(obj)
+        data = getattr(obj, "data", None)
+        if data is not None and data.users == 1:
+            ids_to_remove.append(data)
+
+    ids_to_remove.extend(collection.children_recursive)
+    ids_to_remove.append(collection)
+    bpy.data.batch_remove(list(dict.fromkeys(ids_to_remove)))
+
 def clear_cache():
     global objects_cache
     global tag_files_by_name_cache
+    for cache_entry in objects_cache.values():
+        if isinstance(cache_entry, dict):
+            collection = cache_entry.get("collection")
+            if collection is not None:
+                remove_collection_hierarchy(collection)
     objects_cache = {}
     tag_files_by_name_cache = {}
     connected_geometry.clear_cache()
