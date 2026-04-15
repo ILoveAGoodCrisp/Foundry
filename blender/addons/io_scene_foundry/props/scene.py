@@ -3323,6 +3323,73 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         name="Object Expression",
         description="A halo script expression which evaluates to the object you wish to animate. This might be the object name directly in the scenario or something like (player_get 2)",
     )
+
+    sky_gen_settings_initialized: bpy.props.BoolProperty(options={'HIDDEN'})
+    sky_gen_build_sky_from_map: bpy.props.BoolProperty(default=False, options={'HIDDEN'})
+    sky_gen_input_sky_map_name: bpy.props.StringProperty(subtype="FILE_PATH", options={'HIDDEN'})
+    sky_gen_generate_type: bpy.props.EnumProperty(
+        items=[
+            ("BOTH", "Skylights & Skydome", ""),
+            ("SKYLIGHT", "Skylights Only", ""),
+            ("SKYDOME", "Skydome Only", ""),
+        ],
+        default="BOTH",
+        options={'HIDDEN'},
+    )
+    sky_gen_lit_objects_by_sky: bpy.props.BoolProperty(default=False, options={'HIDDEN'})
+    sky_gen_generate_light_count: bpy.props.IntProperty(default=32, min=1, max=1024, options={'HIDDEN'})
+    sky_gen_lattitude_slices: bpy.props.IntProperty(default=24, min=2, max=256, options={'HIDDEN'})
+    sky_gen_longitude_slices: bpy.props.IntProperty(default=48, min=2, max=512, options={'HIDDEN'})
+    sky_gen_horizontal_fov: bpy.props.FloatProperty(default=360.0, min=1.0, max=360.0, options={'HIDDEN'})
+    sky_gen_vertical_fov: bpy.props.FloatProperty(default=180.0, min=1.0, max=180.0, options={'HIDDEN'})
+    sky_gen_sun_theta: bpy.props.FloatProperty(default=45.0, min=0.0, max=180.0, options={'HIDDEN'})
+    sky_gen_sun_phi: bpy.props.FloatProperty(default=0.0, min=0.0, max=360.0, options={'HIDDEN'})
+    sky_gen_turpidity: bpy.props.FloatProperty(default=3.0, min=2.0, max=6.0, options={'HIDDEN'})
+    sky_gen_sky_type: bpy.props.EnumProperty(
+        items=[
+            ("PREETHAM", "Preetham", ""),
+            ("CIE", "CIE", ""),
+            ("CUSTOM", "Custom", ""),
+        ],
+        default="PREETHAM",
+        options={'HIDDEN'},
+    )
+    sky_gen_cie_sky_number: bpy.props.IntProperty(default=12, min=0, max=14, options={'HIDDEN'})
+    sky_gen_sky_intensity: bpy.props.FloatProperty(default=1.0, min=0.0, options={'HIDDEN'})
+    sky_gen_sun_intensity: bpy.props.FloatProperty(default=1.0, min=0.0, options={'HIDDEN'})
+    sky_gen_luminance_only: bpy.props.BoolProperty(default=False, options={'HIDDEN'})
+    sky_gen_exposure: bpy.props.FloatProperty(default=1.0, min=0.0, options={'HIDDEN'})
+    sky_gen_sun_cone_angle: bpy.props.FloatProperty(default=1.0, min=0.0, options={'HIDDEN'})
+    sky_gen_custom_sun_color_override: bpy.props.BoolProperty(default=False, options={'HIDDEN'})
+    sky_gen_sun_color: bpy.props.FloatVectorProperty(
+        subtype="COLOR",
+        default=(1.0, 0.95, 0.9),
+        min=0.0,
+        max=1.0,
+        size=3,
+        options={'HIDDEN'},
+    )
+    sky_gen_sky_dome_radius: bpy.props.FloatProperty(default=200.0, min=10.0, options={'HIDDEN'})
+    sky_gen_zenith_color: bpy.props.FloatVectorProperty(
+        subtype="COLOR",
+        default=(0.22, 0.35, 1.0),
+        min=0.0,
+        max=1.0,
+        size=3,
+        options={'HIDDEN'},
+    )
+    sky_gen_haze_color: bpy.props.FloatVectorProperty(
+        subtype="COLOR",
+        default=(1.0, 0.65, 0.3),
+        min=0.0,
+        max=1.0,
+        size=3,
+        options={'HIDDEN'},
+    )
+    sky_gen_override_zenith_color: bpy.props.BoolProperty(default=False, options={'HIDDEN'})
+    sky_gen_override_horizon_color: bpy.props.BoolProperty(default=False, options={'HIDDEN'})
+    sky_gen_horizon_haze_height: bpy.props.FloatProperty(default=1.0, min=0.0, max=4.0, options={'HIDDEN'})
+    sky_gen_sun_blur: bpy.props.FloatProperty(default=1.0, min=0.01, max=4.0, options={'HIDDEN'})
     
     sun_size: bpy.props.FloatProperty(
         name="Sun Size",

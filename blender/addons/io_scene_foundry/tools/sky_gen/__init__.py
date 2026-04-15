@@ -28,6 +28,7 @@ SKY_GEN_DOME_MATERIAL = "sky_gen_emission"
 SKY_GEN_COLOR_ATTRIBUTE = "Color"
 ANALYTIC_SKY_WIDTH = 512
 ANALYTIC_SKY_HEIGHT = 256
+SUPPORTED_SKY_IMAGE_FILTER = "*.jpg;*.jpeg;*.png;*.webp;*.exr;*.hdr;*.tif;*.tiff;*.bmp;*.tga;*.cin;*.dpx;*.sgi;*.rgb;*.bw;*.jp2;*.j2c;*.avif"
 
 SKY_TYPE_MAP = {
     "PREETHAM": 0,
@@ -35,15 +36,70 @@ SKY_TYPE_MAP = {
     "CUSTOM": 3,
 }
 
+SKY_GEN_PERSISTENT_PROPS = (
+    "build_sky_from_map",
+    "input_sky_map_name",
+    "generate_type",
+    "lit_objects_by_sky",
+    "generate_light_count",
+    "lattitude_slices",
+    "longitude_slices",
+    "horizontal_fov",
+    "vertical_fov",
+    "sun_theta",
+    "sun_phi",
+    "turpidity",
+    "sky_type",
+    "cie_sky_number",
+    "sky_intensity",
+    "sun_intensity",
+    "luminance_only",
+    "exposure",
+    "sun_cone_angle",
+    "custom_sun_color_override",
+    "sun_color",
+    "sky_dome_radius",
+    "zenith_color",
+    "haze_color",
+    "override_zenith_color",
+    "override_horizon_color",
+    "horizon_haze_height",
+    "sun_blur",
+)
+SKY_GEN_VECTOR_PROPS = {"sun_color", "zenith_color", "haze_color"}
 
-def _generation_collection_name(context: bpy.types.Context) -> str:
-    scene_nwo = utils.get_scene_props()
-    base_name = scene_nwo.asset_name.strip() if scene_nwo.asset_name else context.scene.name
-    return f"{base_name}{SKY_GEN_COLLECTION_SUFFIX}"
+
+def _sky_gen_scene_prop_name(name: str) -> str:
+    return f"sky_gen_{name}"
+
+
+def _initialize_sky_gen_settings(scene_nwo):
+    if scene_nwo.sky_gen_settings_initialized:
+        return
+
+    scene_nwo.sky_gen_sun_cone_angle = scene_nwo.sun_size
+    scene_nwo.sky_gen_settings_initialized = True
+
+
+def _load_sky_gen_settings(operator: bpy.types.Operator, scene_nwo):
+    for name in SKY_GEN_PERSISTENT_PROPS:
+        value = getattr(scene_nwo, _sky_gen_scene_prop_name(name))
+        if name in SKY_GEN_VECTOR_PROPS:
+            value = tuple(value)
+        setattr(operator, name, value)
+
+
+def _store_sky_gen_settings(operator: bpy.types.Operator, scene_nwo):
+    for name in SKY_GEN_PERSISTENT_PROPS:
+        setattr(scene_nwo, _sky_gen_scene_prop_name(name), getattr(operator, name))
+
+    scene_nwo.sky_gen_settings_initialized = True
+    scene_nwo.sun_size = operator.sun_cone_angle
+
 
 
 def _ensure_generation_collection(context: bpy.types.Context) -> bpy.types.Collection:
-    name = _generation_collection_name(context)
+    name = "Generated Sky"
     collection = bpy.data.collections.get(name)
     if collection is None:
         collection = bpy.data.collections.new(name)
@@ -54,24 +110,25 @@ def _ensure_generation_collection(context: bpy.types.Context) -> bpy.types.Colle
     collection[SKY_GEN_MARKER] = True
     return collection
 
-
-def _remove_object_and_data(ob: bpy.types.Object):
-    data = ob.data
-    bpy.data.objects.remove(ob, do_unlink=True)
-    if data is None or data.users:
-        return
-
-    if isinstance(data, bpy.types.Mesh):
-        bpy.data.meshes.remove(data)
-    elif isinstance(data, bpy.types.Light):
-        bpy.data.lights.remove(data)
-
-
 def _clear_generated_objects(collection: bpy.types.Collection):
+    light_datas = set()
+    mesh_datas = set()
+    objects = set()
     for ob in list(collection.all_objects):
         if ob.get(SKY_GEN_MARKER):
-            _remove_object_and_data(ob)
-
+            objects.add(ob)
+            match ob.type:
+                case 'MESH':
+                    mesh_datas.add(ob.data)
+                case 'LIGHT':
+                    light_datas.add(ob.data)
+    
+    if objects:
+        bpy.data.batch_remove(objects)
+    if light_datas:
+        bpy.data.batch_remove(light_datas)
+    if mesh_datas:
+        bpy.data.batch_remove(mesh_datas)
 
 def _mark_generated(ob: bpy.types.Object, kind: str):
     ob[SKY_GEN_MARKER] = True
@@ -113,6 +170,10 @@ def _encode_light_color_energy(rgb: np.ndarray) -> tuple[tuple[float, float, flo
     return tuple((rgb / length).tolist()), length * 0.5
 
 
+def _integrate_light_sample_color(sample: SkyLightSample) -> np.ndarray:
+    return np.asarray(sample.color, dtype=np.float32) * float(sample.solid_angle)
+
+
 def _ensure_color_attribute(mesh: bpy.types.Mesh, name: str) -> bpy.types.Attribute:
     attribute = mesh.color_attributes.get(name)
     if attribute is not None and getattr(attribute, "domain", "POINT") != "POINT":
@@ -145,14 +206,14 @@ def _ensure_dome_material() -> bpy.types.Material:
     node_attribute.attribute_name = SKY_GEN_COLOR_ATTRIBUTE
     node_attribute.location = (-320, 0)
 
-    node_emission = tree.nodes.new(type="ShaderNodeEmission")
+    node_emission = tree.nodes.new(type="ShaderNodeBsdfDiffuse")
     node_emission.location = (-80, 0)
 
     node_output = tree.nodes.new(type="ShaderNodeOutputMaterial")
     node_output.location = (140, 0)
 
     tree.links.new(node_emission.inputs["Color"], node_attribute.outputs["Color"])
-    tree.links.new(node_output.inputs["Surface"], node_emission.outputs["Emission"])
+    tree.links.new(node_output.inputs["Surface"], node_emission.outputs[0])
 
     material.use_backface_culling = False
     return material
@@ -199,15 +260,23 @@ class NWO_OT_SkyGenerate(bpy.types.Operator):
     bl_options = {"REGISTER", "UNDO"}
 
     build_sky_from_map: bpy.props.BoolProperty(
-        name="Use Existing Sky Map",
-        description="Sample a supplied sky map instead of generating one analytically",
+        name="Use Sky Map (HDRI)",
+        description="Sample a supplied sky map (HDRI) instead of generating one analytically",
         default=False,
     )
+
+    filter_glob: bpy.props.StringProperty(
+        default=SUPPORTED_SKY_IMAGE_FILTER,
+        options={"HIDDEN"},
+        maxlen=1024,
+    )
+    
     input_sky_map_name: bpy.props.StringProperty(
         name="Sky Map",
         description="Path to the sky map image to sample. Can be a HDRI map or a regular image",
         subtype="FILE_PATH",
     )
+    
     generate_type: bpy.props.EnumProperty(
         name="Generate",
         items=[
@@ -326,8 +395,8 @@ class NWO_OT_SkyGenerate(bpy.types.Operator):
     )
     sky_dome_radius: bpy.props.FloatProperty(
         name="Sky Dome Radius",
-        default=100,
-        min=0.1,
+        default=200,
+        min=10,
     )
     zenith_color: bpy.props.FloatVectorProperty(
         name="Zenith Color",
@@ -368,7 +437,8 @@ class NWO_OT_SkyGenerate(bpy.types.Operator):
 
     def invoke(self, context, _event):
         scene_nwo = utils.get_scene_props()
-        self.sun_cone_angle = scene_nwo.sun_size
+        _initialize_sky_gen_settings(scene_nwo)
+        _load_sky_gen_settings(self, scene_nwo)
         return context.window_manager.invoke_props_dialog(self, width=520)
 
     def draw(self, _context):
@@ -387,8 +457,6 @@ class NWO_OT_SkyGenerate(bpy.types.Operator):
         source_col.prop(self, "build_sky_from_map")
         if self.build_sky_from_map:
             source_col.prop(self, "input_sky_map_name")
-            if not self.input_sky_map_name.strip():
-                source_col.label(text="Choose a sky map to continue", icon="ERROR")
 
         if self.generate_type != "SKYLIGHT":
             dome_box = layout.box()
@@ -443,9 +511,9 @@ class NWO_OT_SkyGenerate(bpy.types.Operator):
             sun_col.prop(self, "sun_color")
 
     def execute(self, context):
-        params = self._build_parameters()
         scene_nwo = utils.get_scene_props()
-        scene_nwo.sun_size = self.sun_cone_angle
+        _store_sky_gen_settings(self, scene_nwo)
+        params = self._build_parameters()
 
         horizontal_fov = math.radians(self.horizontal_fov)
         vertical_fov = math.radians(self.vertical_fov)
@@ -570,6 +638,7 @@ class NWO_OT_SkyGenerate(bpy.types.Operator):
         sun_sample: SkyLightSample,
     ):
         radius = params.sky_dome_radius * 0.85
+        sun_radius = radius * 1.5
         scene_nwo = utils.get_scene_props()
 
         for index, sample in enumerate(sky_light_samples):
@@ -591,11 +660,13 @@ class NWO_OT_SkyGenerate(bpy.types.Operator):
 
             ob = bpy.data.objects.new(data.name, data)
             _mark_generated(ob, "sun_vmf")
-            _position_light_object(ob, sun_sample.direction, radius * 1.1)
+            _position_light_object(ob, sun_sample.direction, sun_radius)
             collection.objects.link(ob)
             return
 
-        sun_color, sun_energy = _encode_light_color_energy(np.asarray(sun_sample.color, dtype=np.float32))
+        # Match the render-model import path: the standalone Blender sun should
+        # use the sun's integrated RGB intensity, not the raw radiance sample.
+        sun_color, sun_energy = _encode_light_color_energy(_integrate_light_sample_color(sun_sample))
         data = bpy.data.lights.new("Sun", "SUN")
         data.energy = sun_energy
         data.color = sun_color
@@ -603,7 +674,7 @@ class NWO_OT_SkyGenerate(bpy.types.Operator):
 
         ob = bpy.data.objects.new(data.name, data)
         _mark_generated(ob, "sun")
-        _position_light_object(ob, sun_sample.direction, radius * 1.1)
+        _position_light_object(ob, sun_sample.direction, sun_radius)
         collection.objects.link(ob)
 
     def _light_selected_meshes(
