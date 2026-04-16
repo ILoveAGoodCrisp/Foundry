@@ -764,17 +764,17 @@ class NWO_OT_SkyGenerate(bpy.types.Operator):
             _position_light_object(ob, sample.direction, radius)
             collection.objects.link(ob)
 
-        if scene_nwo.sun_as_vmf_light:
-            data = bpy.data.lights.new(f"skylight:{len(sky_light_samples)}", "SUN")
-            data.energy = float(sun_sample.solid_angle)
-            data.color = sun_sample.color
-            data.angle = math.radians(self.sun_cone_angle)
+        # if scene_nwo.sun_as_vmf_light:
+        #     data = bpy.data.lights.new(f"skylight:{len(sky_light_samples)}", "SUN")
+        #     data.energy = float(sun_sample.solid_angle)
+        #     data.color = sun_sample.color
+        #     data.angle = math.radians(self.sun_cone_angle)
 
-            ob = bpy.data.objects.new(data.name, data)
-            _mark_generated(ob, "sun_vmf")
-            _position_light_object(ob, sun_sample.direction, sun_radius)
-            collection.objects.link(ob)
-            return
+        #     ob = bpy.data.objects.new(data.name, data)
+        #     _mark_generated(ob, "sun_vmf")
+        #     _position_light_object(ob, sun_sample.direction, sun_radius)
+        #     collection.objects.link(ob)
+        #     return
 
         # Match the render-model import path: the standalone Blender sun should
         # use the sun's integrated RGB intensity, not the raw radiance sample.

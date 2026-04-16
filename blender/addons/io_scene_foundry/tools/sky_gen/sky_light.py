@@ -10,6 +10,7 @@ HALF_PI = 0.5 * math.pi
 EPSILON = 1.0e-5
 NORMALIZATION_FACTOR = 0.0175
 SUN_SOLID_ANGLE = 0.00001 * TWO_PI
+MAX_SUN_AIRMASS_ZENITH_DEGREES = 93.884
 MIN_SPLITABLE_BOX_SIZE = 4
 LUMINANCE_WEIGHTS = np.array((0.212656, 0.715158, 0.0721856), dtype=np.float32)
 RGB_TO_XYZ = np.array(
@@ -198,6 +199,15 @@ def clamp_positive(value: float) -> float:
     return max(value, 0.0)
 
 
+def _sun_air_mass(sun_theta: float) -> float:
+    # The Kasten-Young air-mass approximation used here becomes invalid above
+    # 93.885 degrees zenith and would otherwise produce complex values.
+    zenith_degrees = float(np.clip(math.degrees(sun_theta), 0.0, MAX_SUN_AIRMASS_ZENITH_DEGREES))
+    zenith_radians = math.radians(zenith_degrees)
+    denominator = math.cos(zenith_radians) + 0.15 * pow(93.885 - zenith_degrees, -1.253)
+    return 1.0 / max(denominator, EPSILON)
+
+
 def linear_color_luminance(colors):
     colors = np.asarray(colors, dtype=np.float32)
     return colors[..., 0] * LUMINANCE_WEIGHTS[0] + colors[..., 1] * LUMINANCE_WEIGHTS[1] + colors[..., 2] * LUMINANCE_WEIGHTS[2]
@@ -382,7 +392,7 @@ def get_sun_light_rgb(params: SkyAtmosphereParameters) -> np.ndarray:
     beta = 0.04608365822050 * params.turbidity - 0.04586025928522
     theta_clamped = float(np.clip(params.sun_theta, 0.0, 1.5))
     tweak_scale = float(np.interp(theta_clamped, np.linspace(0.0, 1.5, SUN_ARTIFICIAL_TWEAK_CURVE.size), SUN_ARTIFICIAL_TWEAK_CURVE))
-    m = 1.0 / (math.cos(params.sun_theta) + 0.15 * pow(93.885 - params.sun_theta / math.pi * 180.0, -1.253))
+    m = _sun_air_mass(params.sun_theta)
 
     spectral = np.empty_like(wavelengths)
     for index, wavelength in enumerate(wavelengths):

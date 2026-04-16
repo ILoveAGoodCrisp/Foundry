@@ -533,7 +533,7 @@ class NWO_HaloExportSettingsScope(bpy.types.Panel):
         )
         if scene_nwo.asset_type in {"model", 'multi_mopdel'}:
             flow.prop(scene_nwo_export, "export_render", text="Render", icon_value=get_icon_id("render"))
-            flow.prop(scene_nwo_export, "export_collision", text="Collision", icon_value=get_icon_id("collision"))
+            flow.prop(scene_nwo_export, "export_collision", text="Collision", icon_value=get_icon_id("collider"))
             flow.prop(scene_nwo_export, "export_physics", text="Physics", icon_value=get_icon_id("physics"))
             flow.prop(scene_nwo_export, "export_markers", icon_value=get_icon_id("marker"))
             flow.prop(scene_nwo_export, "export_skeleton", icon='OUTLINER_OB_ARMATURE')
