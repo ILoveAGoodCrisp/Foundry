@@ -2333,6 +2333,8 @@ class VirtualScene:
                 continue
             if node.props.get("bungie_mesh_type") != MeshType.physics.value:
                 continue
+            if node.ob.nwo.rigid_body_type != 'HAVOK':
+                continue
 
             raw_object = self._raw_object(node.ob)
             if not node.bone_bindings:
@@ -2426,30 +2428,44 @@ class VirtualScene:
         }
         props.update(self._constraint_space_props(child_space, "childSpace"))
         props.update(self._constraint_space_props(parent_space, "parentSpace"))
-
-        if nwo.physics_constraint_type == "_connected_geometry_marker_type_physics_hinge_constraint":
-            props["typeName"] = "hkNodeHingeConstraint"
-            props["isLimited"] = int(nwo.physics_constraint_uses_limits)
-            if nwo.physics_constraint_uses_limits:
-                props["limitMin"] = nwo.hinge_constraint_minimum
-                props["limitMax"] = nwo.hinge_constraint_maximum
-            else:
-                props["limitMin"] = -pi
-                props["limitMax"] = pi
+        
+        if nwo.rigid_body_type != 'HAVOK':
+            constraint_type = 'hkNodeHingeConstraint' if nwo.physics_constraint_type == "_connected_geometry_marker_type_physics_hinge_constraint" else 'hkNodeRagDollConstraint'
         else:
-            props["typeName"] = "hkNodeRagDollConstraint"
-            if nwo.physics_constraint_uses_limits:
-                props["twistMin"] = nwo.twist_constraint_start
-                props["twistMax"] = nwo.twist_constraint_end
-                props["planeAngleMin"] = nwo.plane_constraint_minimum
-                props["planeAngleMax"] = nwo.plane_constraint_maximum
-                props["coneAngle"] = nwo.cone_angle
-            else:
-                props["twistMin"] = -pi
-                props["twistMax"] = pi
-                props["planeAngleMin"] = -(pi / 2)
-                props["planeAngleMax"] = pi / 2
-                props["coneAngle"] = pi
+            constraint_type = nwo.havok_constraint_type
+
+        props["typeName"] = constraint_type
+        match constraint_type:
+            case 'hkNodeHingeConstraint':
+                props["isLimited"] = int(nwo.physics_constraint_uses_limits)
+                if nwo.physics_constraint_uses_limits:
+                    props["limitMin"] = nwo.hinge_constraint_minimum
+                    props["limitMax"] = nwo.hinge_constraint_maximum
+                else:
+                    props["limitMin"] = -pi
+                    props["limitMax"] = pi
+            case 'hkNodeRagDollConstraint':
+                if nwo.physics_constraint_uses_limits:
+                    props["twistMin"] = nwo.twist_constraint_start
+                    props["twistMax"] = nwo.twist_constraint_end
+                    props["planeAngleMin"] = nwo.plane_constraint_minimum
+                    props["planeAngleMax"] = nwo.plane_constraint_maximum
+                    props["coneAngle"] = nwo.cone_angle
+                else:
+                    props["twistMin"] = -pi
+                    props["twistMax"] = pi
+                    props["planeAngleMin"] = -(pi / 2)
+                    props["planeAngleMax"] = pi / 2
+                    props["coneAngle"] = pi
+            case 'hkNodeBallAndSocketConstraint' | 'hkNodeStiffSpringConstraint':
+                props["changeRestLength"] = int(nwo.point_change_rest_length)
+                props["restLength"] = nwo.point_rest_length
+            case 'hkNodePrismaticConstraint':
+                props["changeMinLinearLimit"] = int(nwo.prismatic_change_min)
+                props["changeMaxLinearLimit"] = int(nwo.prismatic_change_max)
+                props["minLinearLimit"] = nwo.prismatic_limit_min
+                props["maxLinearLimit"] = nwo.prismatic_limit_max
+                props["maxFrictionTorque"] = nwo.prismatic_limit_friction
 
         return props
 

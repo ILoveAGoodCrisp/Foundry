@@ -1946,8 +1946,12 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 row.prop(nwo, "global_material", text="Physics Material")
                 row.menu("NWO_MT_AddGlobalMaterial", text="", icon='DOWNARROW_HLT')
                 col.prop(nwo, "mesh_primitive_type", text="Primitive Type")
+                use_havok = nwo.rigid_body_type == 'HAVOK' and self.h4
                 if self.h4:
-                    col.prop(nwo, "mopp_physics")
+                    row = col.row()
+                    row.prop(nwo, "rigid_body_type", expand=True)
+                    if use_havok:
+                        col.prop(nwo, "mopp_physics")
 
             elif nwo.mesh_type == "_connected_geometry_mesh_type_portal":
                 row = col.row()
@@ -2334,62 +2338,103 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                         "bones",
                         text="Bone",
                     )
-                row = col.row()
-                row.prop(
-                    nwo,
-                    "physics_constraint_type",
-                    text="Constraint Type",
-                    expand=True,
-                )
-                col.prop(
-                    nwo,
-                    "physics_constraint_uses_limits",
-                    text="Uses Limits",
-                )
+                    
+                use_havok = nwo.rigid_body_type == 'HAVOK' and self.h4
+                if self.h4:
+                    row = col.row()
+                    row.prop(nwo, "rigid_body_type", expand=True)
+                    col.separator()
+                if use_havok:
+                    row = col.row()
+                    row.prop(nwo, "havok_constraint_type")
+                    match nwo.havok_constraint_type:
+                        case 'hkNodeBallAndSocketConstraint' | 'hkNodeStiffSpringConstraint':
+                            col.prop(nwo, "point_change_rest_length")
+                            row = col.row()
+                            row.enabled = nwo.point_change_rest_length
+                            row.prop(nwo, "point_rest_length")
+                        case 'hkNodeHingeConstraint':
+                            col.prop(nwo, "physics_constraint_uses_limits", text="Uses Limits")
+                            if nwo.physics_constraint_uses_limits:
+                                col.prop(nwo, "hinge_constraint_minimum", text="Minimum")
+                                col.prop(nwo, "hinge_constraint_maximum", text="Maximum")
+                        case 'hkNodePrismaticConstraint':
+                            col.prop(nwo, "prismatic_change_min")
+                            row = col.row()
+                            row.enabled = nwo.prismatic_change_min
+                            row.prop(nwo, "prismatic_limit_min")
+                            col.prop(nwo, "prismatic_change_max")
+                            row = col.row()
+                            row.enabled = nwo.prismatic_change_max
+                            row.prop(nwo, "prismatic_limit_max")
+                            col.prop(nwo, "prismatic_limit_friction")
+                        case 'hkNodeRagDollConstraint':
+                            col.prop(nwo, "physics_constraint_uses_limits", text="Uses Limits")
+                            if nwo.physics_constraint_uses_limits:
+                                col.prop(nwo, "twist_constraint_start", text="Twist Start")
+                                col.prop(nwo, "twist_constraint_end", text="Twist End")
+                                col.separator()
+                                col.prop(nwo, "cone_angle", text="Cone Angle")
+                                col.separator()
+                                col.prop(nwo,"plane_constraint_minimum", text="Plane Minimum")
+                                col.prop(nwo, "plane_constraint_maximum",text="Plane Maximum")
+                else:
+                    row = col.row()
+                    row.prop(
+                        nwo,
+                        "physics_constraint_type",
+                        text="Constraint Type",
+                        expand=True,
+                    )
+                    col.prop(
+                        nwo,
+                        "physics_constraint_uses_limits",
+                        text="Uses Limits",
+                    )
 
-                if nwo.physics_constraint_uses_limits:
-                    if (
-                        nwo.physics_constraint_type
-                        == "_connected_geometry_marker_type_physics_hinge_constraint"
-                    ):
-                        col.prop(
-                            nwo,
-                            "hinge_constraint_minimum",
-                            text="Minimum",
-                        )
-                        col.prop(
-                            nwo,
-                            "hinge_constraint_maximum",
-                            text="Maximum",
-                        )
+                    if nwo.physics_constraint_uses_limits:
+                        if (
+                            nwo.physics_constraint_type
+                            == "_connected_geometry_marker_type_physics_hinge_constraint"
+                        ):
+                            col.prop(
+                                nwo,
+                                "hinge_constraint_minimum",
+                                text="Minimum",
+                            )
+                            col.prop(
+                                nwo,
+                                "hinge_constraint_maximum",
+                                text="Maximum",
+                            )
 
-                    elif (
-                        nwo.physics_constraint_type
-                        == "_connected_geometry_marker_type_physics_socket_constraint"
-                    ):
-                        col.prop(
-                            nwo,
-                            "twist_constraint_start",
-                            text="Twist Start",
-                        )
-                        col.prop(
-                            nwo,
-                            "twist_constraint_end",
-                            text="Twist End",
-                        )
-                        col.separator()
-                        col.prop(nwo, "cone_angle", text="Cone Angle")
-                        col.separator()
-                        col.prop(
-                            nwo,
-                            "plane_constraint_minimum",
-                            text="Plane Minimum",
-                        )
-                        col.prop(
-                            nwo,
-                            "plane_constraint_maximum",
-                            text="Plane Maximum",
-                        )
+                        elif (
+                            nwo.physics_constraint_type
+                            == "_connected_geometry_marker_type_physics_socket_constraint"
+                        ):
+                            col.prop(
+                                nwo,
+                                "twist_constraint_start",
+                                text="Twist Start",
+                            )
+                            col.prop(
+                                nwo,
+                                "twist_constraint_end",
+                                text="Twist End",
+                            )
+                            col.separator()
+                            col.prop(nwo, "cone_angle", text="Cone Angle")
+                            col.separator()
+                            col.prop(
+                                nwo,
+                                "plane_constraint_minimum",
+                                text="Plane Minimum",
+                            )
+                            col.prop(
+                                nwo,
+                                "plane_constraint_maximum",
+                                text="Plane Maximum",
+                            )
 
 
             # elif (

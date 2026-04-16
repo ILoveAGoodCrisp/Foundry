@@ -342,6 +342,15 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         # update=update_mesh_primitive_type,
     )
     
+    rigid_body_type: bpy.props.EnumProperty(
+        name="Rigid Body Type",
+        override={'LIBRARY_OVERRIDABLE'},
+        items=[
+            ('LEGACY', "Legacy", "Legacy Reach style physics"),
+            ('HAVOK', "Havok", "New havok physics options for H4+")
+        ]
+    )
+    
     mopp_physics: bpy.props.BoolProperty(
         name="Allow Non-Convex Shape",
         options=set(),
@@ -1205,6 +1214,67 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         min=radians(-180),
         max=radians(180),
         override={'LIBRARY_OVERRIDABLE'},
+    )
+    
+    havok_constraint_type: bpy.props.EnumProperty(
+        name="Constraint Type",
+        options=set(),
+        description="",
+        default="hkNodeHingeConstraint",
+        override={'LIBRARY_OVERRIDABLE'},
+        items=[
+            (
+                "hkNodeBallAndSocketConstraint",
+                "Ball and Socket",
+                "",
+            ),
+            (
+                "hkNodeHingeConstraint",
+                "Hinge",
+                "",
+            ),
+            (
+                "hkNodeStiffSpringConstraint",
+                "Stiff Spring",
+                "",
+            ),
+            (
+                "hkNodePrismaticConstraint",
+                "Prismatic",
+                "",
+            ),
+            (
+                "hkNodeRagDollConstraint",
+                "Ragdoll",
+                "",
+            ),
+        ],
+    )
+    
+    point_change_rest_length: bpy.props.BoolProperty(
+        name="Change Rest Length",
+    )
+    
+    point_rest_length: bpy.props.FloatProperty(
+        name="Rest Length"
+    )
+    
+    prismatic_change_min: bpy.props.BoolProperty(
+        name="Change Min Limit"
+    )
+    
+    prismatic_change_max: bpy.props.BoolProperty(
+        name="Change Max Limit"
+    )
+    
+    prismatic_limit_min: bpy.props.FloatProperty(
+        name="Min Linear Limit"
+    )
+    prismatic_limit_max: bpy.props.FloatProperty(
+        name="Max Linear Limit"
+    )
+    prismatic_limit_friction: bpy.props.FloatProperty(
+        name="Max Friction Torque"
     )
 
     def effect_clean_tag_path(self, context):

@@ -975,7 +975,7 @@ class ExportScene:
                         
                         if nwo.mesh_primitive_type != '_connected_geometry_primitive_type_none':
                             copy = ObjectCopy.PHYSICS
-                        elif self.corinth and nwo.mopp_physics:
+                        elif self.corinth and nwo.mopp_physics and nwo.rigid_body_type == 'HAVOK':
                             props["bungie_mesh_primitive_type"] = "_connected_geometry_primitive_type_mopp"
                             # props["bungie_havok_isshape"] = 1
                     case '_connected_geometry_mesh_type_object_instance':
