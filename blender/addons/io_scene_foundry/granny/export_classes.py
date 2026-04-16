@@ -134,6 +134,7 @@ class Skeleton:
         # if a virtual bone has no node then it comes from a blender bone. If it does have a node then it came from
         # an object and we need to check if its in scope for this export
         self.bones = []
+        exporting_physics = any(getattr(node, "tag_type", None) == 'physics' for node in all_nodes.values())
 
         # 24-02-2026 Updated to handle animation bone props
         for bone in skeleton.bones:
@@ -141,6 +142,8 @@ class Skeleton:
 
                 granny_bone = bone.granny_bone
                 props = bone.props.copy()
+                if exporting_physics and bone.physics_subshapes:
+                    props["_granny_subshapes"] = bone.physics_subshapes
 
                 if animation_node_flags and granny:
                     node_types = animation_node_flags.get(bone.name)

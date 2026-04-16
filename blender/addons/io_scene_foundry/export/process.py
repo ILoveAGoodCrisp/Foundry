@@ -702,8 +702,10 @@ class ExportScene:
                             loc, rot, sca = copy_ob.matrix_world.decompose()
                             scale = list(sca)
                             scale.append(1)
-                            copy_ob.data.transform(Matrix.Diagonal(scale)) # this just corrects the mesh appearance if debugging the gr2
+                            copy_ob.transform = Matrix.Diagonal(scale)
+                            # copy_ob.data.transform() # this just corrects the mesh appearance if debugging the gr2
                             copy_ob.matrix_world = Matrix.LocRotScale(loc, rot, (1, 1, 1))
+                            copy_ob.eval_ob = copy_ob.ob.evaluated_get(self.depsgraph)
                             # copy_ob.name = f"{ob.name}_{name}"
                             copy_only = True
                     
@@ -975,7 +977,7 @@ class ExportScene:
                             copy = ObjectCopy.PHYSICS
                         elif self.corinth and nwo.mopp_physics:
                             props["bungie_mesh_primitive_type"] = "_connected_geometry_primitive_type_mopp"
-                            props["bungie_havok_isshape"] = 1
+                            # props["bungie_havok_isshape"] = 1
                     case '_connected_geometry_mesh_type_object_instance':
                         self._setup_instanced_object_props(nwo, props, region)
                         # Corinth does not support object instances
@@ -1629,6 +1631,9 @@ class ExportScene:
                 self.virtual_scene.add_model(ob)
                 utils.update_job_count(process, "", idx, num_no_parents)
             utils.update_job_count(process, "", num_no_parents, num_no_parents)
+
+        if self.corinth and 'physics' in self.export_tag_types:
+            self.virtual_scene.build_corinth_physics_subshapes()
 
         if self.asset_type == AssetType.SCENARIO:
             obs = self.virtual_scene.add_automatic_structure(self.default_region, self.default_permutation, 1 if self.scene_settings.scale == 'blender' else 1 / 0.03048)

@@ -4,7 +4,7 @@ from collections import defaultdict
 import csv
 from ctypes import Array, Structure, c_char_p, c_float, c_int, POINTER, c_ubyte, c_void_p, cast, create_string_buffer, memmove, pointer, sizeof
 import logging
-from math import degrees, inf, nextafter, radians
+from math import asin, atan2, degrees, inf, nextafter, pi, radians
 from pathlib import Path
 import bmesh
 import bpy
@@ -34,6 +34,12 @@ from .cinematic import Actor, Frame
 from ..constants import IDENTITY_MATRIX, VALID_MESHES, WU_SCALAR
 NORMAL_FIX_MATRIX = Matrix(((1, 0, 0), (0, -1, 0), (0, 0, -1)))
 logging.basicConfig(level=logging.DEBUG)
+
+HAVOK_MAYA_COORDINATE_MATRIX_INV = Matrix(((0.0, 1.0, 0.0), (0.0, 0.0, 1.0), (1.0, 0.0, 0.0)))
+CORINTH_CONSTRAINT_MARKER_TYPES = {
+    "_connected_geometry_marker_type_physics_hinge_constraint",
+    "_connected_geometry_marker_type_physics_socket_constraint",
+}
 
 face_prop_defaults = {
     "bungie_face_region": 0,
@@ -1107,6 +1113,9 @@ class VirtualMesh:
             bmesh.ops.dissolve_limit(bm, angle_limit=radians(5), use_dissolve_boundaries=False, verts=bm.verts, edges=bm.edges, delimit=set())
             bm.to_mesh(mesh)
             bm.free()
+            
+        if ob.transform is not None:
+            mesh.transform(ob.transform)
         
         self.name = mesh.name
         if not mesh.polygons:
@@ -1675,6 +1684,7 @@ class VirtualBone:
         self.matrix_world: Matrix = IDENTITY_MATRIX
         self.props = {}
         self.animation_props = {}
+        self.physics_subshapes = []
         self.granny_bone = GrannyBone()
         self.is_proxy = is_proxy
         
@@ -2219,6 +2229,322 @@ class VirtualScene:
         if model.node:
             self.models[ob] = model
             return model.node
+
+    def _raw_object(self, export_id):
+        if isinstance(export_id, utils.ExportObject):
+            return export_id.ob
+        return export_id
+
+    def _export_matrix_world(self, node: VirtualNode) -> Matrix:
+        export_id = node.ob
+        if isinstance(export_id, utils.ExportObject):
+            if export_id.type == 'ARMATURE' and not export_id.parent:
+                return IDENTITY_MATRIX.copy()
+            matrix_world = export_id.matrix_world
+        else:
+            matrix_world = export_id.matrix_world
+
+        if self.maintain_marker_axis and node.props.get("bungie_object_type") == ObjectType.marker.value:
+            return self.rotation_matrix @ matrix_world @ self.marker_rotation_matrix
+
+        return self.rotation_matrix @ matrix_world
+
+    def _find_virtual_bone(self, bone_name: str) -> VirtualBone | None:
+        for model in self.models.values():
+            skeleton = model.skeleton
+            if skeleton is None:
+                continue
+
+            for bone in skeleton.bones:
+                if bone.name == bone_name:
+                    return bone
+
+        return None
+
+    def _physics_distance_scale(self):
+        return self.light_scale / 10 if self.corinth else self.light_scale
+
+    def _constraint_space_props(self, matrix: Matrix, prefix: str) -> dict:
+        translation = matrix.to_translation() * self._physics_distance_scale()
+        havok_rotation = matrix.to_3x3().normalized() @ HAVOK_MAYA_COORDINATE_MATRIX_INV
+
+        y_rotation = asin(min(1.0, max(-1.0, -havok_rotation[0][1])))
+        if abs(abs(havok_rotation[0][1]) - 1.0) < 1e-6:
+            x_rotation = atan2(-havok_rotation[2][0], havok_rotation[2][2])
+            z_rotation = 0.0
+        else:
+            x_rotation = atan2(havok_rotation[0][2], havok_rotation[0][0])
+            z_rotation = atan2(havok_rotation[2][1], havok_rotation[1][1])
+
+        return {
+            f"{prefix}TranslationX": translation.y,
+            f"{prefix}TranslationY": translation.z,
+            f"{prefix}TranslationZ": translation.x,
+            f"{prefix}RotationX": x_rotation,
+            f"{prefix}RotationY": y_rotation,
+            f"{prefix}RotationZ": z_rotation,
+        }
+
+    def _corinth_shape_type(self, node: VirtualNode):
+        primitive_type = node.props.get("bungie_mesh_primitive_type", "_connected_geometry_primitive_type_none")
+        return {
+            "_connected_geometry_primitive_type_box": 2,
+            "_connected_geometry_primitive_type_sphere": 3,
+            "_connected_geometry_primitive_type_pill": 5,
+            "_connected_geometry_primitive_type_mopp": 6,
+        }.get(primitive_type, 4)
+
+    def _build_corinth_body_subshapes(self, node: VirtualNode) -> list[dict]:
+        raw_object = self._raw_object(node.ob)
+        rigid_body = getattr(raw_object, "rigid_body", None)
+
+        body_props = {
+            "typeName": "hkNodeRigidBody",
+            "changeMass": 1,
+            "mass": rigid_body.mass if rigid_body is not None else 1.0,
+            "changeCenterOfMass": 0,
+            "changeInertiaTensor": 0,
+            "scaleInertiaTensor": 0,
+            "friction": rigid_body.friction if rigid_body is not None else 0.5,
+            "restitution": rigid_body.restitution if rigid_body is not None else 0.0,
+            "changeLinearDamping": int(rigid_body is not None),
+            "linearDamping": rigid_body.linear_damping if rigid_body is not None else 0.0,
+            "changeAngularDamping": int(rigid_body is not None),
+            "angularDamping": rigid_body.angular_damping if rigid_body is not None else 0.05,
+        }
+
+        return [
+            {
+                "typeName": "hkNodeShape",
+                "shapeType": self._corinth_shape_type(node),
+            },
+            body_props,
+        ]
+
+    def _build_corinth_physics_body_records(self):
+        bodies_by_binding = {}
+        bodies_by_raw_object = defaultdict(list)
+        bodies_by_parent_bone = {}
+
+        for node in self.nodes.values():
+            if node.tag_type != 'physics':
+                continue
+            if node.props.get("bungie_object_type") != ObjectType.mesh.value:
+                continue
+            if node.props.get("bungie_mesh_type") != MeshType.physics.value:
+                continue
+
+            raw_object = self._raw_object(node.ob)
+            if not node.bone_bindings:
+                self.warnings.append(f"Physics object [{raw_object.name}] has no bone bindings. Skipping Corinth rigid body export")
+                continue
+
+            binding_name = node.bone_bindings[0]
+            binding_bone = self._find_virtual_bone(binding_name)
+            if binding_bone is None:
+                self.warnings.append(f"Physics object [{raw_object.name}] is bound to [{binding_name}], but that bone was not found in the export skeleton")
+                continue
+
+            existing = bodies_by_binding.get(binding_name)
+            if existing is not None and existing["raw_object"] != raw_object:
+                self.warnings.append(
+                    f"Physics objects [{existing['raw_object'].name}] and [{raw_object.name}] both resolve to bone [{binding_name}]. "
+                    "Corinth rigid-body export only supports one physics body per bound bone"
+                )
+                continue
+
+            body_info = {
+                "binding_name": binding_name,
+                "binding_bone": binding_bone,
+                "node": node,
+                "raw_object": raw_object,
+                "parent_bone_name": raw_object.parent_bone.strip() if raw_object.parent_type == 'BONE' and raw_object.parent_bone else "",
+            }
+            bodies_by_binding[binding_name] = body_info
+            bodies_by_raw_object[raw_object].append(body_info)
+
+            parent_bone_name = body_info["parent_bone_name"]
+            if parent_bone_name:
+                existing = bodies_by_parent_bone.get(parent_bone_name)
+                if existing is not None and existing["raw_object"] != raw_object:
+                    self.warnings.append(
+                        f"Physics objects [{existing['raw_object'].name}] and [{raw_object.name}] are both parented to bone [{parent_bone_name}]. "
+                        "Corinth rigid-body export only supports one physics body per source armature bone"
+                    )
+                else:
+                    bodies_by_parent_bone[parent_bone_name] = body_info
+
+        return bodies_by_binding, bodies_by_raw_object, bodies_by_parent_bone
+
+    def _resolve_constraint_body(self, marker_node: VirtualNode, target, target_bone_name: str, bodies_by_binding: dict, bodies_by_raw_object: dict, bodies_by_parent_bone: dict, label: str):
+        marker_name = self._raw_object(marker_node.ob).name
+        if target is None:
+            return None
+
+        if target.type == 'ARMATURE':
+            binding_name = target_bone_name.strip()
+            if not binding_name:
+                self.warnings.append(f"Physics constraint [{marker_name}] has no {label} bone selected")
+                return None
+
+            body_info = bodies_by_binding.get(binding_name) or bodies_by_parent_bone.get(binding_name)
+            if body_info is None:
+                self.warnings.append(f"Physics constraint [{marker_name}] targets bone [{binding_name}] as its {label}, but no exported Corinth physics body is bound to it")
+            return body_info
+
+        candidates = bodies_by_raw_object.get(target, [])
+        if len(candidates) == 1:
+            return candidates[0]
+
+        if len(candidates) > 1:
+            matching = [
+                info for info in candidates
+                if info["node"].region == marker_node.region and info["node"].permutation == marker_node.permutation
+            ]
+            if len(matching) == 1:
+                return matching[0]
+
+            self.warnings.append(f"Physics constraint [{marker_name}] resolves to multiple Corinth physics bodies for [{target.name}]. Leaving it on the legacy marker pipeline")
+            return None
+
+        binding_name = target.parent_bone.strip()
+        if binding_name:
+            body_info = bodies_by_binding.get(binding_name) or bodies_by_parent_bone.get(binding_name)
+            if body_info is not None:
+                return body_info
+
+        self.warnings.append(f"Physics constraint [{marker_name}] targets [{target.name}] as its {label}, but that object is not part of the exported Corinth physics set")
+        return None
+
+    def _build_corinth_constraint_subshape(self, raw_marker: bpy.types.Object, child_space: Matrix, parent_space: Matrix, parent_binding_name: str):
+        nwo = raw_marker.nwo
+        props = {
+            "constraint_parent": parent_binding_name,
+            "parentSpaceTranslationLocked": 0,
+            "parentSpaceRotationLocked": 0,
+            "maxFrictionTorque": 0.0,
+        }
+        props.update(self._constraint_space_props(child_space, "childSpace"))
+        props.update(self._constraint_space_props(parent_space, "parentSpace"))
+
+        if nwo.physics_constraint_type == "_connected_geometry_marker_type_physics_hinge_constraint":
+            props["typeName"] = "hkNodeHingeConstraint"
+            props["isLimited"] = int(nwo.physics_constraint_uses_limits)
+            if nwo.physics_constraint_uses_limits:
+                props["limitMin"] = nwo.hinge_constraint_minimum
+                props["limitMax"] = nwo.hinge_constraint_maximum
+            else:
+                props["limitMin"] = -pi
+                props["limitMax"] = pi
+        else:
+            props["typeName"] = "hkNodeRagDollConstraint"
+            if nwo.physics_constraint_uses_limits:
+                props["twistMin"] = nwo.twist_constraint_start
+                props["twistMax"] = nwo.twist_constraint_end
+                props["planeAngleMin"] = nwo.plane_constraint_minimum
+                props["planeAngleMax"] = nwo.plane_constraint_maximum
+                props["coneAngle"] = nwo.cone_angle
+            else:
+                props["twistMin"] = -pi
+                props["twistMax"] = pi
+                props["planeAngleMin"] = -(pi / 2)
+                props["planeAngleMax"] = pi / 2
+                props["coneAngle"] = pi
+
+        return props
+
+    def _select_constraint_owner(self, raw_marker: bpy.types.Object, child_info, parent_info, bodies_by_binding: dict, bodies_by_parent_bone: dict):
+        owner_info = child_info
+        reference_info = parent_info
+
+        marker_parent_bone = raw_marker.parent_bone.strip() if raw_marker.parent_type == 'BONE' and raw_marker.parent_bone else ""
+        if not marker_parent_bone:
+            return owner_info, reference_info
+
+        marker_owner = bodies_by_binding.get(marker_parent_bone) or bodies_by_parent_bone.get(marker_parent_bone)
+        if marker_owner is None:
+            return owner_info, reference_info
+
+        if marker_owner is parent_info:
+            return parent_info, child_info
+
+        if marker_owner is child_info:
+            return child_info, parent_info
+
+        return owner_info, reference_info
+
+    def build_corinth_physics_subshapes(self):
+        if not self.corinth or 'physics' not in self.export_tag_types:
+            return
+
+        bodies_by_binding, bodies_by_raw_object, bodies_by_parent_bone = self._build_corinth_physics_body_records()
+        if not bodies_by_binding:
+            return
+
+        for body_info in bodies_by_binding.values():
+            binding_bone = body_info["binding_bone"]
+            binding_bone.physics_subshapes.clear()
+            binding_bone.physics_subshapes.extend(self._build_corinth_body_subshapes(body_info["node"]))
+
+        converted_constraint_keys = []
+        for node_key, node in list(self.nodes.items()):
+            if node.props.get("bungie_object_type") != ObjectType.marker.value:
+                continue
+            if node.props.get("bungie_marker_type") not in CORINTH_CONSTRAINT_MARKER_TYPES:
+                continue
+
+            raw_marker = self._raw_object(node.ob)
+            marker_matrix = self._export_matrix_world(node)
+
+            child_info = self._resolve_constraint_body(
+                node,
+                raw_marker.nwo.physics_constraint_child,
+                raw_marker.nwo.physics_constraint_child_bone,
+                bodies_by_binding,
+                bodies_by_raw_object,
+                bodies_by_parent_bone,
+                "child",
+            )
+            if child_info is None:
+                continue
+
+            target_parent_info = None
+            if raw_marker.nwo.physics_constraint_parent is not None:
+                target_parent_info = self._resolve_constraint_body(
+                    node,
+                    raw_marker.nwo.physics_constraint_parent,
+                    raw_marker.nwo.physics_constraint_parent_bone,
+                    bodies_by_binding,
+                    bodies_by_raw_object,
+                    bodies_by_parent_bone,
+                    "parent",
+                )
+                if target_parent_info is None:
+                    continue
+
+            owner_info, reference_info = self._select_constraint_owner(
+                raw_marker,
+                child_info,
+                target_parent_info,
+                bodies_by_binding,
+                bodies_by_parent_bone,
+            )
+
+            child_space = owner_info["binding_bone"].matrix_world.inverted_safe() @ marker_matrix
+            if reference_info is None:
+                parent_space = marker_matrix.copy()
+                parent_binding_name = ""
+            else:
+                parent_space = reference_info["binding_bone"].matrix_world.inverted_safe() @ marker_matrix
+                parent_binding_name = reference_info["binding_name"]
+
+            owner_info["binding_bone"].physics_subshapes.append(
+                self._build_corinth_constraint_subshape(raw_marker, child_space, parent_space, parent_binding_name)
+            )
+            converted_constraint_keys.append(node_key)
+
+        for node_key in converted_constraint_keys:
+            self.nodes.pop(node_key, None)
             
     def add_animation(self, anim, sample=True, controls=[], shape_key_objects=[], vector_events=[]):
         animation = VirtualAnimation(anim, self, sample, controls, shape_key_objects, vector_events)

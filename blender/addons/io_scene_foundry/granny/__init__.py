@@ -31,9 +31,11 @@ class Granny:
         self.magic_value = POINTER(GrannyFileMagic).in_dll(self.dll, "GrannyGRNFileMV_ThisPlatform")
         self.keyframe_type = POINTER(GrannyDataTypeDefinition).in_dll(self.dll, "GrannyCurveDataDaKeyframes32fType")
         self.curve_type = POINTER(GrannyDataTypeDefinition).in_dll(self.dll, "GrannyCurveDataDaK32fC32fType")
+        self.variant_type = POINTER(GrannyDataTypeDefinition).in_dll(self.dll, "GrannyVariantType")
         self.string_table = self.new_string_table()
         self._create_callback()
         self.filename = ""
+        self._variant_references = []
     
         
     def new(self, filepath: Path, forward: str, scale: float, mirror: bool):
@@ -67,28 +69,24 @@ class Granny:
         # File Info
         self.granny_export_info = None
         self._create_file_info()
+        self._variant_references = []
         
     def create_extended_data(self, props: dict, entity, sibling_instances=[], name=None):
-        granny_props = utils.get_halo_props_for_granny(props)
-        if not granny_props: return
+        source_props = props or {}
+        subshapes = []
+        if isinstance(source_props, dict):
+            subshapes = source_props.get("_granny_subshapes", [])
+            source_props = {key: value for key, value in source_props.items() if key != "_granny_subshapes"}
+
+        granny_props = utils.get_halo_props_for_granny(source_props)
+        if not (granny_props or sibling_instances or subshapes):
+            return
         
         builder = self.begin_variant(self.string_table)
         
-        for key, value in granny_props.items():
-            if isinstance(value, c_int):
-                self.add_integer_member(builder, key, value)
-            elif isinstance(value, c_float):
-                self.add_scalar_member(builder, key, value)
-            elif isinstance(value, bytes):
-                self.add_string_member(builder, key, value)
-            elif isinstance(value, Array):
-                first = value[0]
-                if isinstance(first, int):
-                    self.add_integer_array_member(builder, key, int(sizeof(value) / 4), value)
-                elif isinstance(first, float):
-                    self.add_scalar_array_member(builder, key, int(sizeof(value) / 4), value)
-            else:
-                print(value, type(value))
+        self._add_variant_members(builder, granny_props)
+        if subshapes:
+            self._add_subshapes_member(builder, subshapes)
                 
         if sibling_instances:
             if self.corinth:
@@ -140,6 +138,50 @@ class Granny:
         self.end_variant(builder, entity.extended_data.type, byref(data))
         
         entity.extended_data.object = data
+
+    def _add_variant_members(self, builder, members: dict):
+        for key, value in members.items():
+            self._add_variant_member(builder, key, value)
+
+    def _add_variant_member(self, builder, key, value):
+        if isinstance(value, c_int):
+            self.add_integer_member(builder, key, value)
+        elif isinstance(value, c_float):
+            self.add_scalar_member(builder, key, value)
+        elif isinstance(value, bytes):
+            self.add_string_member(builder, key, value)
+        elif isinstance(value, Array):
+            first = value[0]
+            if isinstance(first, int):
+                self.add_integer_array_member(builder, key, int(sizeof(value) / 4), value)
+            elif isinstance(first, float):
+                self.add_scalar_array_member(builder, key, int(sizeof(value) / 4), value)
+        else:
+            print(value, type(value))
+
+    def _build_variant(self, props: dict) -> GrannyVariant:
+        builder = self.begin_variant(self.string_table)
+        self._add_variant_members(builder, utils.get_halo_props_for_granny(props))
+
+        variant_type = POINTER(GrannyDataTypeDefinition)()
+        variant_object = c_void_p()
+        self.end_variant(builder, byref(variant_type), byref(variant_object))
+
+        return GrannyVariant(type=variant_type, object=variant_object.value)
+
+    def _add_subshapes_member(self, builder, subshapes: list[dict]):
+        shape_variants = (GrannyVariant * len(subshapes))()
+        for index, props in enumerate(subshapes):
+            shape_variants[index] = self._build_variant(props)
+
+        self._variant_references.append(shape_variants)
+        self.add_dynamic_array_member(
+            builder,
+            b"SubShapes",
+            len(subshapes),
+            self.variant_type,
+            cast(shape_variants, c_void_p),
+        )
         
     def from_tree(self, scene, nodes, animation=None):
         animation_node_flags = None
