@@ -351,10 +351,109 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         ]
     )
     
+    # All new Halo 4 physics definitions!
+    
     mopp_physics: bpy.props.BoolProperty(
         name="Allow Non-Convex Shape",
         options=set(),
         description="Tells the game to generate a physics representation of this mesh without converting it to a convex hull",
+        override={'LIBRARY_OVERRIDABLE'},
+    )
+    
+    havok_change_mass: bpy.props.BoolProperty(
+        name="Change Mass",
+        options=set(),
+        override={'LIBRARY_OVERRIDABLE'},
+    )
+    
+    havok_mass: bpy.props.FloatProperty(
+        name="Mass (KG)",
+        options=set(),
+        default=1.0,
+        description="Mass in Kilograms",
+        override={'LIBRARY_OVERRIDABLE'},
+    )
+    
+    havok_change_center_of_mass: bpy.props.BoolProperty(
+        name="Change Center of Mass",
+        options=set(),
+        override={'LIBRARY_OVERRIDABLE'},
+    )
+    
+    havok_center_of_mass: bpy.props.FloatVectorProperty(
+        name="Center of Mass",
+        options=set(),
+        default=(0, 0, 0),
+        override={'LIBRARY_OVERRIDABLE'},
+    )
+    
+    havok_change_inertia_tensor: bpy.props.BoolProperty(
+        name="Change Inertia Tensor",
+        options=set(),
+        override={'LIBRARY_OVERRIDABLE'},
+    )
+    
+    havok_inertia_tensor: bpy.props.FloatVectorProperty(
+        name="Inertia Tensor",
+        options=set(),
+        default=(1, 1, 1),
+        override={'LIBRARY_OVERRIDABLE'},
+    )
+    
+    havok_scale_inertia_tensor: bpy.props.BoolProperty(
+        name="Scale Inertia Tensor",
+        options=set(),
+        override={'LIBRARY_OVERRIDABLE'},
+    )
+    
+    havok_inertia_tensor_scale: bpy.props.FloatProperty(
+        name="Inertia Tensor Scale",
+        options=set(),
+        default=1,
+        override={'LIBRARY_OVERRIDABLE'},
+    )
+    
+    havok_friction: bpy.props.FloatProperty(
+        name="Friction",
+        options=set(),
+        default=0,
+        override={'LIBRARY_OVERRIDABLE'},
+    )
+    
+    havok_restitution: bpy.props.FloatProperty(
+        name="Restitution",
+        options=set(),
+        default=0,
+        override={'LIBRARY_OVERRIDABLE'},
+    )
+    
+    havok_change_linear_damping: bpy.props.BoolProperty(
+        name="Change Linear Damping",
+        options=set(),
+        override={'LIBRARY_OVERRIDABLE'},
+    )
+    
+    havok_linear_damping: bpy.props.FloatProperty(
+        name="Linear Damping",
+        options=set(),
+        default=0,
+        min=0,
+        max=10,
+        override={'LIBRARY_OVERRIDABLE'},
+    )
+    
+    havok_change_angular_damping: bpy.props.BoolProperty(
+        name="Change Angular Damping",
+        options=set(),
+        override={'LIBRARY_OVERRIDABLE'},
+    )
+    
+    havok_angular_damping: bpy.props.FloatProperty(
+        name="Angular Damping",
+        options=set(),
+        default=0.05,
+        min=0,
+        max=10,
         override={'LIBRARY_OVERRIDABLE'},
     )
     
@@ -1253,28 +1352,41 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     
     point_change_rest_length: bpy.props.BoolProperty(
         name="Change Rest Length",
+        options=set(),
+        override={'LIBRARY_OVERRIDABLE'},
     )
     
     point_rest_length: bpy.props.FloatProperty(
-        name="Rest Length"
+        name="Rest Length",
+        default=1.0,
+        options=set(),
+        override={'LIBRARY_OVERRIDABLE'},
     )
     
     prismatic_change_min: bpy.props.BoolProperty(
-        name="Change Min Limit"
+        name="Change Min Limit",
+        options=set(),
+        override={'LIBRARY_OVERRIDABLE'},
     )
     
     prismatic_change_max: bpy.props.BoolProperty(
-        name="Change Max Limit"
+        name="Change Max Limit",
+        options=set(),
+        override={'LIBRARY_OVERRIDABLE'},
     )
     
     prismatic_limit_min: bpy.props.FloatProperty(
-        name="Min Linear Limit"
+        name="Min Linear Limit",
+        options=set(),
+        override={'LIBRARY_OVERRIDABLE'},
     )
     prismatic_limit_max: bpy.props.FloatProperty(
         name="Max Linear Limit"
     )
     prismatic_limit_friction: bpy.props.FloatProperty(
-        name="Max Friction Torque"
+        name="Max Friction Torque",
+        options=set(),
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     def effect_clean_tag_path(self, context):
