@@ -2466,6 +2466,7 @@ class VirtualScene:
                 props["changeRestLength"] = int(nwo.point_change_rest_length)
                 props["restLength"] = nwo.point_rest_length
             case 'hkNodeStiffSpringConstraint':
+                props["changeRestLength"] = 1
                 props["restLength"] = nwo.point_rest_length
             case 'hkNodePrismaticConstraint':
                 props["changeMinLinearLimit"] = int(nwo.prismatic_change_min)
