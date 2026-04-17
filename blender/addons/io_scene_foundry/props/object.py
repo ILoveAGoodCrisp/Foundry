@@ -344,6 +344,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     
     rigid_body_type: bpy.props.EnumProperty(
         name="Rigid Body Type",
+        options=set(),
         override={'LIBRARY_OVERRIDABLE'},
         items=[
             ('LEGACY', "Legacy", "Legacy Reach style physics"),
@@ -354,7 +355,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     # All new Halo 4 physics definitions!
     
     mopp_physics: bpy.props.BoolProperty(
-        name="Allow Non-Convex Shape",
+        name="Don't Convex Hull",
         options=set(),
         description="Tells the game to generate a physics representation of this mesh without converting it to a convex hull",
         override={'LIBRARY_OVERRIDABLE'},
@@ -381,10 +382,11 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     )
     
     havok_center_of_mass: bpy.props.FloatVectorProperty(
-        name="Center of Mass",
+        name="Center of Mass Offset",
         options=set(),
         default=(0, 0, 0),
         override={'LIBRARY_OVERRIDABLE'},
+        subtype='TRANSLATION'
     )
     
     havok_change_inertia_tensor: bpy.props.BoolProperty(
@@ -398,6 +400,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         default=(1, 1, 1),
         override={'LIBRARY_OVERRIDABLE'},
+        subtype='XYZ'
     )
     
     havok_scale_inertia_tensor: bpy.props.BoolProperty(

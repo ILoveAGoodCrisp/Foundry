@@ -36,7 +36,7 @@ NORMAL_FIX_MATRIX = Matrix(((1, 0, 0), (0, -1, 0), (0, 0, -1)))
 logging.basicConfig(level=logging.DEBUG)
 
 HAVOK_MAYA_COORDINATE_MATRIX_INV = Matrix(((0.0, 1.0, 0.0), (0.0, 0.0, 1.0), (1.0, 0.0, 0.0)))
-CORINTH_CONSTRAINT_MARKER_TYPES = {
+LEGACY_CONSTRAINT_MARKER_TYPES = {
     "_connected_geometry_marker_type_physics_hinge_constraint",
     "_connected_geometry_marker_type_physics_socket_constraint",
 }
@@ -2295,22 +2295,27 @@ class VirtualScene:
         }.get(primitive_type, 4)
 
     def _build_corinth_body_subshapes(self, node: VirtualNode) -> list[dict]:
-        raw_object = self._raw_object(node.ob)
-        rigid_body = getattr(raw_object, "rigid_body", None)
-
+        nwo = node.ob.nwo
         body_props = {
             "typeName": "hkNodeRigidBody",
-            "changeMass": 1,
-            "mass": rigid_body.mass if rigid_body is not None else 1.0,
-            "changeCenterOfMass": 0,
-            "changeInertiaTensor": 0,
-            "scaleInertiaTensor": 0,
-            "friction": rigid_body.friction if rigid_body is not None else 0.5,
-            "restitution": rigid_body.restitution if rigid_body is not None else 0.0,
-            "changeLinearDamping": int(rigid_body is not None),
-            "linearDamping": rigid_body.linear_damping if rigid_body is not None else 0.0,
-            "changeAngularDamping": int(rigid_body is not None),
-            "angularDamping": rigid_body.angular_damping if rigid_body is not None else 0.05,
+            "changeMass": int(nwo.havok_change_mass),
+            "mass": nwo.havok_mass,
+            "changeCenterOfMass": int(nwo.havok_change_center_of_mass),
+            "centerOfMassX": nwo.havok_center_of_mass.x * WU_SCALAR,
+            "centerOfMassY": nwo.havok_center_of_mass.y * WU_SCALAR,
+            "centerOfMassZ": nwo.havok_center_of_mass.z * WU_SCALAR,
+            "changeInertiaTensor": int(nwo.havok_change_inertia_tensor),
+            "inertiaTensorX": nwo.havok_inertia_tensor.x,
+            "inertiaTensorY": nwo.havok_inertia_tensor.y,
+            "inertiaTensorZ": nwo.havok_inertia_tensor.z,
+            "scaleInertiaTensor": int(nwo.havok_scale_inertia_tensor),
+            "inertiaTensorScale": nwo.havok_inertia_tensor_scale,
+            "friction": nwo.havok_friction,
+            "restitution": nwo.havok_restitution,
+            "changeLinearDamping": int(nwo.havok_change_linear_damping),
+            "linearDamping": nwo.havok_linear_damping,
+            "changeAngularDamping": int(nwo.havok_change_angular_damping),
+            "angularDamping": nwo.havok_angular_damping,
         }
 
         return [
@@ -2457,8 +2462,10 @@ class VirtualScene:
                     props["planeAngleMin"] = -(pi / 2)
                     props["planeAngleMax"] = pi / 2
                     props["coneAngle"] = pi
-            case 'hkNodeBallAndSocketConstraint' | 'hkNodeStiffSpringConstraint':
+            case 'hkNodeBallAndSocketConstraint':
                 props["changeRestLength"] = int(nwo.point_change_rest_length)
+                props["restLength"] = nwo.point_rest_length
+            case 'hkNodeStiffSpringConstraint':
                 props["restLength"] = nwo.point_rest_length
             case 'hkNodePrismaticConstraint':
                 props["changeMinLinearLimit"] = int(nwo.prismatic_change_min)
@@ -2506,7 +2513,7 @@ class VirtualScene:
         for node_key, node in list(self.nodes.items()):
             if node.props.get("bungie_object_type") != ObjectType.marker.value:
                 continue
-            if node.props.get("bungie_marker_type") not in CORINTH_CONSTRAINT_MARKER_TYPES:
+            if node.props.get("bungie_marker_type") not in LEGACY_CONSTRAINT_MARKER_TYPES:
                 continue
 
             raw_marker = self._raw_object(node.ob)

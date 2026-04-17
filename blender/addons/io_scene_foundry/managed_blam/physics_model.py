@@ -2,7 +2,7 @@
 
 import bpy
 
-from .connected_geometry import CollisionMaterial, Hinge, LimitedHinge, Ragdoll, RigidBody
+from .connected_geometry import BallAndSocket, CollisionMaterial, Constraint, LimitedHinge, Prismatic, Ragdoll, RigidBody, StiffSpring
 from .. import utils
 from . import Tag
 
@@ -78,7 +78,7 @@ class PhysicsTag(Tag):
         
         # Constraints
         for element in self.block_hinge_constraints.Elements:
-            hinge = Hinge(element, nodes)
+            hinge = Constraint(element, nodes)
             ob = hinge.to_object(armature)
             self._parent_constraint(hinge, ob, armature)
             collection.objects.link(ob)
@@ -98,9 +98,30 @@ class PhysicsTag(Tag):
             collection.objects.link(ob)
             objects.append(ob)
             
+        if element in self.tag.SelectField("Block:stiff spring constraints").Elements:
+            constraint = StiffSpring(element, nodes)
+            ob = constraint.to_object(armature)
+            self._parent_constraint(constraint, ob, armature)
+            collection.objects.link(ob)
+            objects.append(ob)
+            
+        if element in self.tag.SelectField("Block:ball and socket constraints").Elements:
+            constraint = BallAndSocket(element, nodes)
+            ob = constraint.to_object(armature)
+            self._parent_constraint(constraint, ob, armature)
+            collection.objects.link(ob)
+            objects.append(ob)
+            
+        if element in self.tag.SelectField("Block:prismatic constraints").Elements:
+            constraint = Prismatic(element, nodes)
+            ob = constraint.to_object(armature)
+            self._parent_constraint(constraint, ob, armature)
+            collection.objects.link(ob)
+            objects.append(ob)
+            
         return objects
             
-    def _parent_constraint(self, constraint: Hinge, ob: bpy.types.Object, armature):
+    def _parent_constraint(self, constraint: Constraint, ob: bpy.types.Object, armature):
         bone = constraint.bone_parent
         ob.parent = armature
         ob.parent_type = 'BONE'

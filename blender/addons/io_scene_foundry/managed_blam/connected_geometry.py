@@ -654,7 +654,7 @@ class ConstraintType(Enum):
     prismatic = 5
     powered_chain = 6
     
-class Hinge:
+class Constraint:
     def __init__(self, element: TagFieldBlockElement, nodes: list[str]):
         self.constraint_body = element.SelectField("Struct:constraint bodies").Elements[0]
         self.index = element.ElementIndex
@@ -718,7 +718,7 @@ class Hinge:
         nwo.physics_constraint_type = "_connected_geometry_marker_type_physics_hinge_constraint"
     
     
-class LimitedHinge(Hinge):
+class LimitedHinge(Constraint):
     def __init__(self, element: TagFieldBlockElement, nodes: list[str]):
         super().__init__(element, nodes)
         self.limit_min_angle = element.SelectField("limit min angle").Data
@@ -730,7 +730,7 @@ class LimitedHinge(Hinge):
         nwo.hinge_constraint_minimum = radians(self.limit_min_angle)
         nwo.hinge_constraint_maximum = radians(self.limit_max_angle)
 
-class Ragdoll(Hinge):
+class Ragdoll(Constraint):
     def __init__(self, element: TagFieldBlockElement, nodes: list[str]):
         super().__init__(element, nodes)
         self.min_twist = element.SelectField("min twist").Data
@@ -741,12 +741,47 @@ class Ragdoll(Hinge):
             
     def _set_constraint_props(self, nwo):
         nwo.physics_constraint_type = "_connected_geometry_marker_type_physics_socket_constraint"
+        nwo.havok_constraint_type = 'hkNodeRagDollConstraint'
         nwo.physics_constraint_uses_limits = True
         nwo.cone_angle = radians(self.cone)
         nwo.plane_constraint_minimum = radians(self.min_plane)
         nwo.plane_constraint_maximum = radians(self.max_plane)
         nwo.twist_constraint_start = radians(self.min_twist)
         nwo.twist_constraint_end = radians(self.max_twist)
+        
+class StiffSpring(Constraint):
+    def __init__(self, element: TagFieldBlockElement, nodes: list[str]):
+        super().__init__(element, nodes)
+        self.spring_length = element.SelectField("Real:spring_length").Data
+        
+    def _set_constraint_props(self, nwo):
+        nwo.rigid_body_type = 'HAVOK'
+        nwo.havok_constraint_type = "hkNodeStiffSpringConstraint"
+        nwo.point_rest_length = self.spring_length
+        
+class BallAndSocket(Constraint):
+    def __init__(self, element: TagFieldBlockElement, nodes: list[str]):
+        super().__init__(element, nodes)
+        
+    def _set_constraint_props(self, nwo):
+        nwo.rigid_body_type = 'HAVOK'
+        nwo.havok_constraint_type = "hkNodeBallAndSocketConstraint"
+        
+class Prismatic(Constraint):
+    def __init__(self, element: TagFieldBlockElement, nodes: list[str]):
+        super().__init__(element, nodes)
+        self.min_limit = element.SelectField("Real:min_limit").Data
+        self.max_limit = element.SelectField("Real:min_limit").Data
+        self.max_friction_force = element.SelectField("Real:max_friction_force").Data
+        
+    def _set_constraint_props(self, nwo):
+        nwo.rigid_body_type = 'HAVOK'
+        nwo.havok_constraint_type = "hkNodePrismaticConstraint"
+        nwo.prismatic_change_min = self.min_limit != 0.0
+        nwo.prismatic_change_max = self.max_limit != 0.0
+        nwo.prismatic_limit_min = self.min_limit
+        nwo.prismatic_limit_max = self.max_limit
+        nwo.prismatic_limit_friction = self.max_friction_force
             
 class Constraint:
     def to_object(self) -> bpy.types.Object:
@@ -772,6 +807,8 @@ class ShapeType(Enum):
     
 class Shape:
     def __init__(self, element: TagFieldBlockElement, materials: list[str], for_bsp=False):
+        self.friction = 0
+        self.restitution = 0
         if for_bsp:
             self.name = "instance_physics"
             self.material_index = element.SelectField("LongInteger:material index").Data
@@ -781,6 +818,9 @@ class Shape:
             self.name = base.SelectField("name").Data
             self.material_index = base.SelectField("material").Value
             self.material = materials[self.material_index]
+            
+            self.friction = element.SelectField("Struct:base[0]/RealFraction:friction").Data
+            self.restitution = element.SelectField("Struct:base[0]/RealFraction:restitution").Data
     
 class Sphere(Shape):
     def __init__(self, element: TagFieldBlockElement, materials):
@@ -920,6 +960,26 @@ class Polyhedron(Shape):
         self.ob = bpy.data.objects.new(self.name, mesh)
         return self.ob
     
+class HavokRigidBody:
+    def __init__(self, element: TagFieldBlockElement):
+        self.change_mass = element.SelectField("flags").TestBit("explicit mass")
+        self.mass = element.SelectField("Real:mass").Data
+        
+        self.change_center_of_mass = element.SelectField("flags").TestBit("absolute center of mass")
+        self.center_of_mass = element.SelectField("RealVector3d:center off mass offset").Data
+        
+        self.inertia_tensor = element.SelectField("Real:inertia tensor scale x").Data, element.SelectField("Real:inertia tensor scale y").Data, element.SelectField("Real:inertia tensor scale z").Data
+        self.change_inertia_tensor = any(n != 1.0 for n in self.inertia_tensor)
+        
+        self.inertia_tensor_scale = element.SelectField("Real:inertia tensor scale").Data
+        self.scale_inertia_tensor = self.inertia_tensor_scale != 1.0
+        
+        self.linear_damping = element.SelectField("Real:linear damping").Data
+        self.change_linear_damping = self.linear_damping != 0.0
+        
+        self.angular_damping = element.SelectField("Real:angular damping").Data
+        self.change_angular_damping = self.angular_damping != 0.0
+
 class RigidBody:
     def __init__(self, element: TagFieldBlockElement, region, permutation, materials, four_vectors_map, tag, list_shapes_offset, corinth: bool):
         self.valid = False
@@ -936,6 +996,11 @@ class RigidBody:
         shape_index = shape_element.SelectField("shape").Value
         self.get_shape(shape_index, materials, four_vectors_map, tag, list_shapes_offset, corinth)
         self.valid = True
+        self.is_havok_rigid_body = corinth and element.SelectField("flags").TestBit("Havok rigid body")
+        self.havok_info = None
+        
+        if self.is_havok_rigid_body:
+            self.havok_info = HavokRigidBody(element)
         
     def get_shape(self, shape_index, materials, four_vectors_map, tag, list_shapes_offset, corinth: bool):
         match self.shape_type:
@@ -984,6 +1049,9 @@ class RigidBody:
         for shape in self.shapes:
             shape.to_object()
             
+            if self.is_havok_rigid_body:
+                self.setup_havok_props(shape)
+            
             render_mat = bpy.data.materials.get("Physics")
             if not render_mat:
                 render_mat = bpy.data.materials.new("Physics")
@@ -997,7 +1065,25 @@ class RigidBody:
             shape.ob.data.materials.append(render_mat)
             shape.ob.data.nwo.mesh_type = "_connected_geometry_mesh_type_physics"
             shape.ob.nwo.global_material = shape.material.name
-        
+            
+    def setup_havok_props(self, shape: Shape):
+        nwo = shape.ob.nwo
+        havok = self.havok_info
+        nwo.rigid_body_type = 'HAVOK'
+        nwo.havok_friction = shape.friction
+        nwo.havok_restitution = shape.restitution
+        nwo.havok_change_mass = havok.change_mass
+        nwo.havok_mass = havok.mass
+        nwo.havok_change_center_of_mass = havok.change_center_of_mass
+        nwo.havok_center_of_mass = havok.center_of_mass
+        nwo.havok_change_inertia_tensor = havok.change_inertia_tensor
+        nwo.havok_inertia_tensor = havok.inertia_tensor
+        nwo.havok_scale_inertia_tensor = havok.scale_inertia_tensor
+        nwo.havok_inertia_tensor_scale = havok.inertia_tensor_scale
+        nwo.havok_change_linear_damping = havok.change_linear_damping
+        nwo.havok_linear_damping = havok.linear_damping
+        nwo.havok_change_angular_damping = havok.change_angular_damping
+        nwo.havok_angular_damping = havok.angular_damping
             
 class CollisionMaterial:
     def __init__(self, element: TagFieldBlockElement):

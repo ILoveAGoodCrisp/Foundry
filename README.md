@@ -40,6 +40,7 @@ Foundry only needs to be installed once. Thereafter, you can use Blender to down
 - [Chiefster](https://github.com/chiefster-4014) - Creation of Blender Material Nodes for Halo models and general blender shader advice
 - Soul - Creation of Blender Material Nodes for Halo models
 - [Abstract Ingenuity](https://github.com/Abstract-Ingenuity) - Insight into Halo animation data and debugging numerous bugs
+- [Enash](https://github.com/EnashMods) - Guidance on tag animation resource extraction
 
 ## Special Thanks
 Testing and reporting bugs:

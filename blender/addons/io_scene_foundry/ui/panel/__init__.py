@@ -1951,7 +1951,48 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     row = col.row()
                     row.prop(nwo, "rigid_body_type", expand=True)
                     if use_havok:
-                        col.prop(nwo, "mopp_physics")
+                        if nwo.mesh_primitive_type == '_connected_geometry_primitive_type_none':
+                            col.prop(nwo, "mopp_physics")
+                            col.separator()
+                
+                        col.prop(nwo, "havok_friction")
+                        col.prop(nwo, "havok_restitution")
+                        col.prop(nwo, "havok_change_mass")
+                        
+                        col.separator()
+                        row = col.row()
+                        row.enabled = nwo.havok_change_mass
+                        row.prop(nwo, "havok_mass")
+                        
+                        col.separator()
+                        col.prop(nwo, "havok_change_center_of_mass")
+                        row = col.row()
+                        row.enabled = nwo.havok_change_center_of_mass
+                        row.prop(nwo, "havok_center_of_mass")
+                        
+                        col.separator()
+                        col.prop(nwo, "havok_change_inertia_tensor")
+                        row = col.row()
+                        row.enabled = nwo.havok_change_inertia_tensor
+                        row.prop(nwo, "havok_inertia_tensor")
+                        
+                        col.separator()
+                        col.prop(nwo, "havok_scale_inertia_tensor")
+                        row = col.row()
+                        row.enabled = nwo.havok_scale_inertia_tensor
+                        row.prop(nwo, "havok_inertia_tensor_scale")
+                        
+                        col.separator()
+                        col.prop(nwo, "havok_change_linear_damping")
+                        row = col.row()
+                        row.enabled = nwo.havok_change_linear_damping
+                        row.prop(nwo, "havok_linear_damping")
+                        
+                        col.separator()
+                        col.prop(nwo, "havok_change_angular_damping")
+                        row = col.row()
+                        row.enabled = nwo.havok_change_angular_damping
+                        row.prop(nwo, "havok_angular_damping")
 
             elif nwo.mesh_type == "_connected_geometry_mesh_type_portal":
                 row = col.row()
@@ -2348,11 +2389,13 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     row = col.row()
                     row.prop(nwo, "havok_constraint_type")
                     match nwo.havok_constraint_type:
-                        case 'hkNodeBallAndSocketConstraint' | 'hkNodeStiffSpringConstraint':
+                        case 'hkNodeBallAndSocketConstraint':
                             col.prop(nwo, "point_change_rest_length")
                             row = col.row()
                             row.enabled = nwo.point_change_rest_length
                             row.prop(nwo, "point_rest_length")
+                        case 'hkNodeStiffSpringConstraint':
+                            col.prop(nwo, "point_rest_length")
                         case 'hkNodeHingeConstraint':
                             col.prop(nwo, "physics_constraint_uses_limits", text="Uses Limits")
                             if nwo.physics_constraint_uses_limits:
