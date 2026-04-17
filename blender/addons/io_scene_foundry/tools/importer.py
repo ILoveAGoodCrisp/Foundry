@@ -667,7 +667,7 @@ class NWO_Import(bpy.types.Operator):
     )
     graph_import_events: bpy.props.BoolProperty(
         name="Import Animation Events",
-        description="This currently only supports importing of frame events"
+        description="Imports frame events from the graph tag and frame event list"
     )
     graph_import_ik_chains: bpy.props.BoolProperty(
         name="Import IK Chains",
@@ -3007,6 +3007,9 @@ class NWOImporter:
         with utils.TagImportMover(self.tags_dir, file) as mover:
             with AnimationTag(path=mover.tag_path) as graph:
                 utils.print_section(f"Importing Animation Graph: {graph.tag_path.ShortNameWithExtension}")
+                if self.graph_import_ik_chains:
+                    utils.print_bullet("Importing IK Chains")
+                    graph.ik_chains_to_blender(armature)
                 if self.graph_import_animations:
                     utils.print_bullet("Importing Animations")
                     if self.corinth and self.graph_import_pca_data:
@@ -3029,13 +3032,9 @@ class NWOImporter:
                     utils.print_bullet("Generating Animation Renames")
                     graph.generate_renames(filter)
                 if self.graph_import_events:
-                    utils.print_bullet("Importing Animation Events")
+                    utils.print_bullet("Importing Frame Events")
                     count = graph.events_to_blender()
                     utils.print_bullet(f"Imported {count} frame events")
-                            
-                if self.graph_import_ik_chains:
-                    utils.print_bullet("Importing IK Chains")
-                    graph.ik_chains_to_blender(armature)
         
         if return_animations:
             return actions, animations
@@ -4511,7 +4510,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     )
     graph_import_events: bpy.props.BoolProperty(
         name="Import Animation Events",
-        description="This currently only supports importing of frame events"
+        description="Imports frame events from the graph tag and frame event list"
     )
     graph_import_ik_chains: bpy.props.BoolProperty(
         name="Import IK Chains",
