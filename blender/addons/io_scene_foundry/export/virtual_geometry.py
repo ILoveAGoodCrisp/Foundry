@@ -2343,7 +2343,7 @@ class VirtualScene:
 
             raw_object = self._raw_object(node.ob)
             if not node.bone_bindings:
-                self.warnings.append(f"Physics object [{raw_object.name}] has no bone bindings. Skipping Corinth rigid body export")
+                self.warnings.append(f"Physics object [{raw_object.name}] has no bone bindings. Skipping rigid body export")
                 continue
 
             binding_name = node.bone_bindings[0]
@@ -2356,7 +2356,7 @@ class VirtualScene:
             if existing is not None and existing["raw_object"] != raw_object:
                 self.warnings.append(
                     f"Physics objects [{existing['raw_object'].name}] and [{raw_object.name}] both resolve to bone [{binding_name}]. "
-                    "Corinth rigid-body export only supports one physics body per bound bone"
+                    "Rigid-body export only supports one physics body per bound bone"
                 )
                 continue
 
@@ -2376,7 +2376,7 @@ class VirtualScene:
                 if existing is not None and existing["raw_object"] != raw_object:
                     self.warnings.append(
                         f"Physics objects [{existing['raw_object'].name}] and [{raw_object.name}] are both parented to bone [{parent_bone_name}]. "
-                        "Corinth rigid-body export only supports one physics body per source armature bone"
+                        "Rigid-body export only supports one physics body per source armature bone"
                     )
                 else:
                     bodies_by_parent_bone[parent_bone_name] = body_info
