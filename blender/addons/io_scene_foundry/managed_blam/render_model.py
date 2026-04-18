@@ -480,6 +480,7 @@ class RenderModelTag(Tag):
                 cos_theta = max(-1.0, min(1.0, cos_theta))
                 half_angle_radians = math.acos(cos_theta)
                 self.scene_nwo.sun_size = 2.0 * half_angle_radians * 180.0 / math.pi
+                continue
             
             data = bpy.data.lights.new(f"skylight:{element.ElementIndex}", 'SUN')
                 
@@ -506,7 +507,7 @@ class RenderModelTag(Tag):
             
             data = bpy.data.lights.new("Sun", 'SUN')
             ob = bpy.data.objects.new(data.name, data)
-            
+
             direction = Vector((sun_dx, sun_dy, sun_dz))
             scale_by_direction(ob, direction, 150)
             

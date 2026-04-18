@@ -584,8 +584,6 @@ class ExportScene:
                         ob = new_export_ob
                     else:
                         if not self.corinth and self.asset_type == AssetType.SKY:
-                            if ob.name.lower() == "sun":
-                                self.sun = ob
                             self.sky_lights.append(ob)
                             continue
 
@@ -3049,11 +3047,10 @@ class ExportScene:
         lightGen_directions = []
         lightGen_solid_angles = []
         
-        if self.sun is None:
-            self.sun = self.sky_lights[-1]
-            
-        self.sky_lights.remove(self.sun)
+        self.sky_lights.sort(key=lambda o: o.name)
         
+        self.sun = self.sky_lights[-1]
+
         for ob in self.sky_lights:
             down = Vector((0, 0, 1))
             mat = utils.halo_transforms(ob)
