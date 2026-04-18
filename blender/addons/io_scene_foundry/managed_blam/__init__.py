@@ -1,4 +1,6 @@
 from pathlib import Path
+
+from mathutils import Quaternion, Vector
 from ..managed_blam.Tags import *
 from ..utils import (
     any_partition,
@@ -358,6 +360,12 @@ class Tag():
     
     def self_referential(self, tag_path: TagPath):
         return self.tag_path == tag_path
+    
+    def _to_vector(self, data):
+        return Vector((*data,))
+        
+    def _to_quaternion(self, data):
+        return Quaternion((data[3], data[0], data[1], data[2]))
     
 def switch_project_from_filepath(context, path: Path):
     root = any_partition(str(path), "\\tags\\").lower()

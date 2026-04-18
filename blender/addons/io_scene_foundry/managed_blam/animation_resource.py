@@ -117,8 +117,7 @@ class SharedStaticCodecData:
 class MovementData:
     frame_info_type: FrameInfoType
     translations: list[Vector]
-    yaws: list[float]
-
+    rotations: list[Quaternion]
 
 @dataclass
 class ExpandedAnimation:
@@ -938,41 +937,74 @@ def _bit_array_from_ints(values: list[int], count: int) -> list[bool]:
         result.extend([False] * (count - len(result)))
     return result[:count]
 
+def _angle_axis_vector_to_quaternion(v: Vector) -> Quaternion:
+    angle = v.length
+    if angle <= 1e-8:
+        return _identity_quaternion()
+
+    axis = v / angle
+    return Quaternion(axis, angle)
+
+
+def _yaw_quaternion(yaw: float) -> Quaternion:
+    return Euler((0.0, 0.0, yaw)).to_quaternion()
+
 
 def _read_movement_data(reader: BinaryReader, frame_info_type: FrameInfoType, frame_count: int) -> MovementData:
     translations: list[Vector] = []
-    yaws: list[float] = []
-    
-    accumulated_yaw = 0.0
+    rotations: list[Quaternion] = []
 
     for _ in range(frame_count):
+        dx = 0.0
+        dy = 0.0
         dz = 0.0
-        delta_yaw = 0.0
-        dx = reader.read_f32() * 100.0
-        dy = reader.read_f32() * 100.0
-
-        if frame_info_type == FrameInfoType.DX_DY_DYAW:
-            delta_yaw = reader.read_f32()
-        elif frame_info_type == FrameInfoType.DX_DY_DZ_DYAW:
-            dz = reader.read_f32() * 100.0
-            delta_yaw = reader.read_f32()
-        elif frame_info_type not in (FrameInfoType.DX_DY, FrameInfoType.NONE):
-            raise ValueError(f"Unsupported native movement data type: {frame_info_type.name}")
-
-        accumulated_yaw += delta_yaw
-
-        cos_yaw = math.cos(accumulated_yaw)
-        sin_yaw = math.sin(accumulated_yaw)
-
-        rotated_dx = dx * cos_yaw - dy * sin_yaw
-        rotated_dy = dx * sin_yaw + dy * cos_yaw
-
-        translation = Vector((rotated_dx, rotated_dy, dz))
+        delta_rotation = _identity_quaternion()
         
-        translations.append(translation)
-        yaws.append(delta_yaw)
+        match frame_info_type:
+            case FrameInfoType.DX_DY:
+                dx = reader.read_f32() * 100.0
+                dy = reader.read_f32() * 100.0
+            case FrameInfoType.DX_DY_DYAW:
+                dx = reader.read_f32() * 100.0
+                dy = reader.read_f32() * 100.0
+                delta_yaw = reader.read_f32()
+                delta_rotation = _yaw_quaternion(delta_yaw)
+            case FrameInfoType.DX_DY_DZ_DYAW:
+                dx = reader.read_f32() * 100.0
+                dy = reader.read_f32() * 100.0
+                dz = reader.read_f32() * 100.0
+                delta_yaw = reader.read_f32()
+                delta_rotation = _yaw_quaternion(delta_yaw)
+            case FrameInfoType.DX_DY_DZ_DYAW:
+                dx = reader.read_f32() * 100.0
+                dy = reader.read_f32() * 100.0
+                dz = reader.read_f32() * 100.0
+                delta_yaw = reader.read_f32()
+                delta_rotation = _yaw_quaternion(delta_yaw)
+            case FrameInfoType.DX_DY_DZ_DANGLE_AXIS:
+                dx = reader.read_f32() * 100.0
+                dy = reader.read_f32() * 100.0
+                dz = reader.read_f32() * 100.0
 
-    return MovementData(frame_info_type, translations, yaws)
+                angle_axis = Vector((reader.read_f32(), reader.read_f32(), reader.read_f32()))
+                delta_rotation = _angle_axis_vector_to_quaternion(angle_axis)
+            case FrameInfoType.XYZ_ABSOLUTE:
+                dx = reader.read_f32() * 100.0
+                dy = reader.read_f32() * 100.0
+                dz = reader.read_f32() * 100.0
+            case FrameInfoType.NONE:
+                pass
+            case _:
+                raise ValueError(f"Unsupported native movement data type: {frame_info_type.name}")
+
+        translations.append(Vector((dx, dy, dz)))
+        rotations.append(delta_rotation)
+
+    return MovementData(
+        frame_info_type=frame_info_type,
+        translations=translations,
+        rotations=rotations,
+    )
 
 def apply_shared_static_codec(
     resource_data: AnimationResourceData, data: bytes, shared_static: SharedStaticCodecData
@@ -988,20 +1020,41 @@ def apply_shared_static_codec(
 
 
 def apply_movement_data(animation: ExpandedAnimation, movement_data: MovementData | None) -> ExpandedAnimation:
-    accumulated_translation = _zero_vector()
-    accumulated_yaw = 0.0
+    if movement_data is None:
+        return animation
 
-    for frame_index in range(min(animation.frame_count, len(movement_data.translations))):
-        accumulated_translation += movement_data.translations[frame_index]
+    if not movement_data.translations:
+        return animation
+
+    accumulated_translation = _zero_vector()
+    accumulated_rotation = _identity_quaternion()
+
+    frame_limit = min(animation.frame_count, len(movement_data.translations))
+
+    for frame_index in range(frame_limit):
+        local_delta_translation = movement_data.translations[frame_index].copy()
+        local_delta_rotation = movement_data.rotations[frame_index].copy()
+
+        if movement_data.frame_info_type == FrameInfoType.XYZ_ABSOLUTE:
+            accumulated_translation = local_delta_translation
+        else:
+            world_delta_translation = local_delta_translation.copy()
+            world_delta_translation.rotate(accumulated_rotation)
+            accumulated_translation += world_delta_translation
+
         animation.translations[0][frame_index] = (
             animation.translations[0][frame_index].copy() + accumulated_translation
         )
         animation.translation_flags[0] = True
 
-        if movement_data.frame_info_type in (FrameInfoType.DX_DY_DYAW, FrameInfoType.DX_DY_DZ_DYAW):
-            accumulated_yaw += movement_data.yaws[frame_index]
-            movement_rotation = Euler((0, 0, accumulated_yaw)).to_quaternion()
-            combined_rotation = movement_rotation.copy()
+        accumulated_rotation = (accumulated_rotation @ local_delta_rotation).normalized()
+
+        if movement_data.frame_info_type in (
+            FrameInfoType.DX_DY_DYAW,
+            FrameInfoType.DX_DY_DZ_DYAW,
+            FrameInfoType.DX_DY_DZ_DANGLE_AXIS,
+        ):
+            combined_rotation = accumulated_rotation.copy()
             combined_rotation.rotate(animation.rotations[0][frame_index])
             animation.rotations[0][frame_index] = combined_rotation
             animation.rotation_flags[0] = True

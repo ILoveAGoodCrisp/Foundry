@@ -655,10 +655,12 @@ class NWO_Import(bpy.types.Operator):
     
     graph_import_animations: bpy.props.BoolProperty(
         name="Import Animations",
+        default=True,
         description="Imports animations from the graph. Currently the root movement element of base movement animations is unsupported and overlay rotations do not import correctly"
     )
     graph_import_pca_data: bpy.props.BoolProperty(
         name="Import PCA Data",
+        default=True,
         description="Imports animations with their PCA (face animation) data"
     )
     graph_generate_renames: bpy.props.BoolProperty(
@@ -671,6 +673,7 @@ class NWO_Import(bpy.types.Operator):
     )
     graph_import_ik_chains: bpy.props.BoolProperty(
         name="Import IK Chains",
+        default=True,
         description="Sets up the IK chains graph tag block in blender"
     )
     
@@ -4497,6 +4500,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     
     graph_import_animations: bpy.props.BoolProperty(
         name="Import Animations",
+        default=True,
         description="Imports animations from the graph. Currently the root movement element of base movement animations is unsupported and overlay rotations do not import correctly"
     )
     graph_import_pca_data: bpy.props.BoolProperty(
@@ -4514,6 +4518,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     )
     graph_import_ik_chains: bpy.props.BoolProperty(
         name="Import IK Chains",
+        default=True,
         description="Sets up the IK chains graph tag block in blender"
     )
     

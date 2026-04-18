@@ -620,22 +620,14 @@ class AnimationTag(Tag):
             except Exception:
                 return None
 
-    def _get_shared_animation_element(self, animation_element: TagFieldBlockElement):
-        shared_block = self._select_field_candidates(animation_element, "Block:shared animation data", "shared animation data")
+    def _get_shared_animation_element(self, animation_element: TagFieldBlockElement) -> TagFieldBlockElement | None:
+        shared_block = animation_element.SelectField("Block:shared animation data")
         if shared_block is not None and shared_block.Elements.Count:
             return shared_block.Elements[0]
+        
+        graph_reference = animation_element.SelectField("Struct:shared animation reference[0]/Reference:graph reference")
+        reference_index = animation_element.SelectField("Struct:shared animation reference[0]/ShortInteger:shared animation index")
 
-        graph_reference = self._select_field_candidates(
-            animation_element,
-            "Struct:shared animation reference[0]/Reference:graph reference",
-            "shared animation reference[0]/graph reference",
-        )
-        reference_index = self._field_int(
-            animation_element,
-            "Struct:shared animation reference[0]/ShortInteger:shared animation index",
-            "shared animation reference[0]/shared animation index",
-            default=-1,
-        )
         if reference_index < 0 or reference_index >= self.block_animations.Elements.Count:
             return None
 
@@ -648,24 +640,18 @@ class AnimationTag(Tag):
                 return None
 
         reference_element = self.block_animations.Elements[reference_index]
-        shared_block = self._select_field_candidates(reference_element, "Block:shared animation data", "shared animation data")
+        shared_block = reference_element.SelectField("Block:shared animation data")
         if shared_block is not None and shared_block.Elements.Count:
             return shared_block.Elements[0]
-        return None
 
     def _build_default_animation_nodes(self, graph_node_names: list[str], model: RenderModelTag | None = None):
         identity_translation = Vector((0.0, 0.0, 0.0))
         identity_rotation = Quaternion((1.0, 0.0, 0.0, 0.0))
 
         parent_indices = []
-        for index, _name in enumerate(graph_node_names):
-            skeleton_element = self._block_element_at(self.block_skeleton_nodes, index)
-            parent_index = self._field_int(
-                skeleton_element,
-                "ShortBlockIndex:parent node index",
-                "parent node index",
-                default=-1,
-            )
+        for index, _ in enumerate(graph_node_names):
+            skeleton_element = self.block_skeleton_nodes.Elements[index]
+            parent_index = skeleton_element.SelectField("parent node index").Value
             if parent_index is None or parent_index < 0 or parent_index >= len(graph_node_names):
                 parent_index = -1
             parent_indices.append(parent_index)
@@ -676,21 +662,11 @@ class AnimationTag(Tag):
         graph_name_mismatches = []
         if self.block_additional_node_dat is not None:
             for index, element in enumerate(self.block_additional_node_dat.Elements):
-                name = self._field_string(element, "StringId:node name", "node name", "StringId:name", "name", default="")
-                translation = self._field_vector(
-                    element,
-                    "RealPoint3d:default translation",
-                    "default translation",
-                    default=identity_translation,
-                )
-                rotation = self._field_quaternion(
-                    element,
-                    "RealQuaternion:default rotation",
-                    "default rotation",
-                    default=identity_rotation,
-                )
-                scale = self._field_float(element, "Real:default scale", "default scale", default=1.0)
-                node_data = (translation.copy() * 100.0, rotation.copy(), scale)
+                name = element.Fields[0].GetStringData()
+                translation = self._to_vector(element.SelectField("default translation").Data)
+                rotation = self._to_quaternion(element.SelectField("default rotation").Data)
+                scale = element.SelectField("default scale").Data
+                node_data = (translation * 100.0, rotation, scale)
                 indexed_graph_nodes.append(node_data)
 
                 if name:
@@ -699,10 +675,7 @@ class AnimationTag(Tag):
 
                     if index < len(graph_node_names):
                         expected_name = graph_node_names[index]
-                        if (
-                            name != expected_name
-                            and utils.remove_node_prefix(name) != utils.remove_node_prefix(expected_name)
-                        ):
+                        if name != expected_name and utils.remove_node_prefix(name) != utils.remove_node_prefix(expected_name):
                             graph_name_mismatches.append((expected_name, name))
 
         render_nodes = {}
@@ -775,28 +748,17 @@ class AnimationTag(Tag):
                 node.parent = nodes[node.parent_index]
 
         if model is not None and graph_fallback_nodes:
-            utils.print_warning(
-                f"Native animation import could not match {len(graph_fallback_nodes)} graph nodes to render model defaults. Falling back to additional node data for those nodes."
-            )
+            utils.print_warning(f"Native animation import could not match {len(graph_fallback_nodes)} graph nodes to render model defaults. Falling back to additional node data for those nodes.")
         if graph_name_mismatches:
-            utils.print_warning(
-                f"Native animation import found {len(graph_name_mismatches)} additional node data entries whose names do not match the skeleton node at the same index. Using index order for graph defaults."
-            )
+            utils.print_warning(f"Native animation import found {len(graph_name_mismatches)} additional node data entries whose names do not match the skeleton node at the same index. Using index order for graph defaults.")
         if missing_nodes:
             source = "render model or additional node data" if model is not None else "additional node data"
-            utils.print_warning(
-                f"Native animation import could not match {len(missing_nodes)} graph nodes to {source} defaults. Missing nodes will use identity transforms."
-            )
+            utils.print_warning(f"Native animation import could not match {len(missing_nodes)} graph nodes to {source} defaults. Missing nodes will use identity transforms.")
 
         return defaults, nodes, overlay_defaults
 
     def _read_shared_static_codec(self):
-        rotations_block = self._select_field_candidates(
-            self.tag,
-            "Struct:codec data[0]/Struct:shared static codec[0]/Block:rotations",
-            "codec data[0]/shared static codec[0]/rotations",
-            "codec data/shared static codec/rotations",
-        )
+        rotations_block = self.tag.SelectField("Struct:codec data[0]/Struct:shared static codec[0]/Block:rotations")
         if rotations_block is None:
             return None
 
@@ -1138,19 +1100,54 @@ class AnimationTag(Tag):
             return None
         return animation_data.action
 
+    def _animation_event_action(self, blender_animation):
+        for track in getattr(blender_animation, "action_tracks", ()):
+            action = getattr(track, "action", None)
+            if action is not None:
+                return action
+        return None
+
+    def _ensure_scene_event_slot(self, action, create=False):
+        scene = getattr(self.scene_nwo, "id_data", None)
+        if scene is None or action is None:
+            return None, None, None
+
+        animation_data = getattr(scene, "animation_data", None)
+        if animation_data is None:
+            if not create:
+                return scene, None, None
+            scene.animation_data_create()
+            animation_data = scene.animation_data
+
+        slot = None
+        if animation_data.action == action and animation_data.last_slot_identifier:
+            slot = action.slots.get(animation_data.last_slot_identifier)
+
+        if slot is None and create:
+            try:
+                slot = action.slots.new("SCENE", scene.name)
+            except Exception:
+                slot = None
+
+        if slot is not None:
+            animation_data.last_slot_identifier = slot.identifier
+            animation_data.action = action
+
+        return scene, animation_data, slot
+
     def _clear_event_value_fcurves(self, blender_animation):
-        scene = bpy.context.scene
-        anim_data = scene.animation_data
-        if anim_data is None:
-            return
-        
-        action = anim_data.action
-            
+        action = self._animation_event_action(blender_animation)
         if action is None:
             return
 
+        _, _, slot = self._ensure_scene_event_slot(action, create=False)
+        if slot is None:
+            return
+
         prefix = f"{blender_animation.path_from_id()}.animation_events["
-        fcurves = utils.get_fcurves(action, anim_data.last_slot_identifier)
+        fcurves = utils.get_fcurves(action, slot)
+        if not fcurves:
+            return
         stale_curves = [
             fcurve
             for fcurve in fcurves
@@ -1202,6 +1199,9 @@ class AnimationTag(Tag):
             return []
 
         sample_count = max(int(frame_count), 1)
+        if len(values) <= sample_count:
+            return [float(values[min(index, len(values) - 1)]) for index in range(sample_count)]
+
         last_index = len(values) - 1
         result = []
         for frame_offset in range(sample_count):
@@ -1216,6 +1216,7 @@ class AnimationTag(Tag):
 
     def _apply_event_value(self, blender_animation, blender_event, default_value, values, start_frame, frame_count):
         event_values = self._event_values_for_range(values, start_frame, frame_count)
+
         if not event_values:
             blender_event.event_value = default_value
             return
@@ -1226,12 +1227,40 @@ class AnimationTag(Tag):
             return
 
         blender_event.event_value = first_value
-        for frame_offset, value in enumerate(event_values):
-            blender_event.event_value = value
-            blender_event.keyframe_insert(
-                data_path="event_value",
-                frame=blender_animation.frame_start + utils.blender_frame(start_frame + frame_offset),
-            )
+        action = self._animation_event_action(blender_animation)
+        _, _, scene_slot = self._ensure_scene_event_slot(action, create=True)
+        fcurve = None
+        if scene_slot is not None:
+            blender_animation.scene_action_slot_identifier = scene_slot.identifier
+            fcurves = utils.get_fcurves(action, scene_slot)
+            data_path = f"{blender_event.path_from_id()}.event_value"
+            if fcurves:
+                try:
+                    fcurve = fcurves.find(data_path, index=0)
+                except TypeError:
+                    fcurve = fcurves.find(data_path)
+                if fcurve is None:
+                    try:
+                        fcurve = fcurves.new(data_path=data_path, index=0)
+                    except TypeError:
+                        fcurve = fcurves.new(data_path)
+
+        if fcurve is not None:
+            while fcurve.keyframe_points:
+                fcurve.keyframe_points.remove(fcurve.keyframe_points[-1])
+
+            for frame_offset, value in enumerate(event_values):
+                frame = blender_animation.frame_start + utils.blender_frame(start_frame + frame_offset)
+                keyframe = fcurve.keyframe_points.insert(frame, value)
+                keyframe.interpolation = "LINEAR"
+            fcurve.update()
+        else:
+            for frame_offset, value in enumerate(event_values):
+                blender_event.event_value = value
+                blender_event.keyframe_insert(
+                    data_path="event_value",
+                    frame=blender_animation.frame_start + utils.blender_frame(start_frame + frame_offset),
+                )
         blender_event.event_value = first_value
 
     def _resource_section_boundaries_from_payload_member(self, payload_member):
@@ -1301,6 +1330,27 @@ class AnimationTag(Tag):
         if not animation_data or not boundaries or section_name not in RESOURCE_SECTION_ORDER:
             return b""
 
+        offset = 0
+        sequential_slice = b""
+        for current_name in RESOURCE_SECTION_ORDER:
+            size = int(boundaries.get(current_name, 0))
+            if current_name == section_name:
+                end = offset + size
+                if size > 0 and 0 <= offset < end <= len(animation_data):
+                    sequential_slice = animation_data[offset:end]
+                break
+            offset += max(size, 0)
+
+        positive_values = [max(int(boundaries.get(name, 0)), 0) for name in RESOURCE_SECTION_ORDER if name in boundaries]
+        total_size = sum(positive_values)
+        is_non_decreasing = all(next_value >= current_value for current_value, next_value in zip(positive_values, positive_values[1:]))
+        looks_like_sizes = bool(sequential_slice) and (
+            total_size == len(animation_data)
+            or (0 < total_size <= len(animation_data) and not is_non_decreasing)
+        )
+        if looks_like_sizes:
+            return sequential_slice
+
         section_index = RESOURCE_SECTION_ORDER.index(section_name)
         end = int(boundaries.get(section_name, -1))
         if end >= 0:
@@ -1312,19 +1362,137 @@ class AnimationTag(Tag):
             if 0 <= start < end <= len(animation_data):
                 return animation_data[start:end]
 
-        offset = 0
-        for current_name in RESOURCE_SECTION_ORDER:
-            size = int(boundaries.get(current_name, 0))
-            if current_name == section_name:
-                end = offset + size
-                if size > 0 and 0 <= offset < end <= len(animation_data):
-                    return animation_data[offset:end]
-                break
-            offset += max(size, 0)
+        if sequential_slice:
+            return sequential_slice
 
         return b""
 
-    def _decode_scalar_event_curve(self, animation_element, shared_data_element, data_index):
+    def _curve_tangent_component(self, tangent_component, p1, p2):
+        tangent = tangent_component / 7.0
+        return abs(tangent) * (tangent * 0.300000011920929) + (p2 - p1)
+
+    def _curve_position_scalar(self, time, tangent_1, tangent_2, p1, p2):
+        term_1 = (2.0 * (time ** 3.0)) - (3.0 * (time ** 2.0)) + 1.0
+        term_2 = (time ** 3.0) - (2.0 * (time ** 2.0)) + time
+        term_3 = (3.0 * (time ** 2.0)) - (2.0 * (time ** 3.0))
+        term_4 = (time ** 3.0) - (time ** 2.0)
+        return (term_1 * p1) + (term_2 * tangent_1) + (term_3 * p2) + (term_4 * tangent_2)
+
+    def _read_scalar_event_curve_track(self, reader, frame_count, key_count, flags, offset, scale):
+        values = []
+        p1 = 0.0
+        p2 = 0.0
+        tangent_byte = 0
+        current_keyframe = 0
+        keyframe_index = 0
+        next_keyframe = 0
+        keyframes = []
+
+        if (flags & 1) == 0:
+            keyframes = [0]
+            total = 0
+            for _ in range(key_count):
+                total += reader.read_u8()
+                keyframes.append(total)
+
+        for frame_index in range(frame_count):
+            if flags & 1:
+                normalized_value = reader.read_s16() / float(0x7FFF)
+            else:
+                if keyframes and keyframe_index < len(keyframes) and keyframes[keyframe_index] == frame_index and frame_index < frame_count - 1:
+                    p1 = reader.read_s16() / float(0x7FFF)
+                    tangent_byte = reader.read_u8()
+                    p2 = reader.read_s16() / float(0x7FFF)
+                    current_keyframe = keyframes[keyframe_index]
+                    next_keyframe = keyframes[keyframe_index + 1] if keyframe_index + 1 < len(keyframes) else current_keyframe
+                    keyframe_index += 1
+                    reader.skip(-2)
+
+                if next_keyframe <= current_keyframe:
+                    normalized_value = p2
+                else:
+                    tangent_1 = self._curve_tangent_component((tangent_byte >> 4) - 7, p1, p2)
+                    tangent_2 = self._curve_tangent_component((tangent_byte & 15) - 7, p1, p2)
+                    normalized_value = self._curve_position_scalar(
+                        (frame_index - current_keyframe) / float(next_keyframe - current_keyframe),
+                        tangent_1,
+                        tangent_2,
+                        p1,
+                        p2,
+                    )
+
+            values.append(float((normalized_value * scale) + offset))
+
+        return values
+
+    def _decode_embedded_scalar_event_curve(self, curve_data, data_index, expected_frame_count=0):
+        if not curve_data or data_index is None or data_index < 0 or len(curve_data) < 20:
+            return None
+
+        reader = BinaryReader(curve_data)
+        try:
+            version = reader.read_u8()
+            curve_count = reader.read_u8()
+            reader.read_u16()
+            metadata_offset = reader.read_u32()
+            record_offsets_offset = reader.read_u32()
+        except Exception:
+            return None
+
+        if curve_count <= 0:
+            curve_count = version
+        if curve_count <= 0 or data_index >= curve_count:
+            return None
+
+        metadata_entry_offset = metadata_offset + (data_index * 2)
+        record_offset_entry = record_offsets_offset + (data_index * 4)
+        if metadata_entry_offset + 2 > len(curve_data) or record_offset_entry + 4 > len(curve_data):
+            return None
+
+        try:
+            reader.seek(metadata_entry_offset)
+            metadata_frame_count = reader.read_u16()
+            reader.seek(record_offset_entry)
+            record_offset = reader.read_u32()
+        except Exception:
+            return None
+
+        frame_count_candidates = []
+        if metadata_frame_count > 0:
+            frame_count_candidates.append(metadata_frame_count)
+        if metadata_frame_count >= 0:
+            frame_count_candidates.append(metadata_frame_count + 1)
+
+        if expected_frame_count and frame_count_candidates:
+            frame_count = min(
+                frame_count_candidates,
+                key=lambda candidate: (abs(candidate - expected_frame_count), 0 if candidate == expected_frame_count else 1),
+            )
+        elif expected_frame_count:
+            frame_count = expected_frame_count
+        elif frame_count_candidates:
+            frame_count = max(frame_count_candidates)
+        else:
+            frame_count = 0
+
+        if frame_count <= 0 or record_offset < 0 or record_offset + 16 > len(curve_data):
+            return None
+
+        try:
+            reader.seek(record_offset)
+            reader.read_u16()
+            key_count = reader.read_u16()
+            flags = reader.read_u8()
+            reader.read_u8()
+            reader.read_u16()
+            offset = reader.read_f32()
+            scale = reader.read_f32()
+        except Exception:
+            return None
+
+        return self._read_scalar_event_curve_track(reader, frame_count, key_count, flags, offset, scale)
+
+    def _decode_scalar_event_curve(self, animation_element, shared_data_element, data_index, expected_frame_count=0):
         if data_index is None or data_index < 0:
             return None
 
@@ -1352,7 +1520,14 @@ class AnimationTag(Tag):
             boundaries = self._resource_section_boundaries_from_payload_member(payload_member)
 
         curve_data = self._resource_section_slice(animation_data, boundaries, "compressed_event_curve")
-        if not curve_data or frame_count <= 0:
+        if not curve_data:
+            return None
+
+        embedded_values = self._decode_embedded_scalar_event_curve(curve_data, data_index, expected_frame_count)
+        if embedded_values:
+            return embedded_values
+
+        if frame_count <= 0:
             return None
 
         try:
@@ -1393,25 +1568,33 @@ class AnimationTag(Tag):
         }
         scalar_curve_cache = {}
 
-        def curve_values(data_index):
+        def curve_values(data_index, frame_count):
             if data_index < 0:
                 return None
-            if data_index not in scalar_curve_cache:
-                scalar_curve_cache[data_index] = self._decode_scalar_event_curve(animation_element, shared_data_element, data_index)
-            return scalar_curve_cache[data_index]
+            cache_key = (data_index, max(int(frame_count), 0))
+            if cache_key not in scalar_curve_cache:
+                scalar_curve_cache[cache_key] = self._decode_scalar_event_curve(
+                    animation_element,
+                    shared_data_element,
+                    data_index,
+                    cache_key[1],
+                )
+            return scalar_curve_cache[cache_key]
 
         tag_events = []
 
         for element in self._iter_block_elements(shared_data_element, "Block:extended data events", "extended data events"):
             function_name = self._field_string(element, "StringId:name", "name", default="") or "Extended Data"
+            frame_count = max(self._field_int(element, "ShortInteger:frame count", "frame count", default=1), 1)
+            data_index = self._field_int(element, "ShortInteger:data index", "CharInteger:data index", "data index", default=-1)
             tag_events.append(
                 {
                     "event_type": EVENT_TYPE_OBJECT_FUNCTION,
                     "name": function_name,
                     "start_frame": self._field_int(element, "ShortInteger:start frame", "start frame", default=0),
-                    "frame_count": max(self._field_int(element, "ShortInteger:frame count", "frame count", default=1), 1),
+                    "frame_count": frame_count,
                     "default_value": self._field_float(element, "Real:default value", "default value", default=1.0),
-                    "values": curve_values(self._field_int(element, "ShortInteger:data index", "CharInteger:data index", "data index", default=-1)),
+                    "values": curve_values(data_index, frame_count),
                     "object_function_name": self._resolve_object_function_name(function_name),
                 }
             )
@@ -1451,22 +1634,22 @@ class AnimationTag(Tag):
             usage_name = IK_TARGET_USAGE_MAP.get(
                 self._normalized_field_name(self._field_enum_string(element, "CharEnum:chain usage", "chain usage", default=""))
             )
+            frame_count = max(self._field_int(element, "ShortInteger:frame count", "frame count", default=1), 1)
+            data_index = self._field_int(
+                element,
+                "ShortInteger:effector weight data index",
+                "CharInteger:effector weight data index",
+                "effector weight data index",
+                default=-1,
+            )
             tag_events.append(
                 {
                     "event_type": event_type,
                     "name": chain_name or "IK Chain Event",
                     "start_frame": self._field_int(element, "ShortInteger:start frame", "start frame", default=0),
-                    "frame_count": max(self._field_int(element, "ShortInteger:frame count", "frame count", default=1), 1),
+                    "frame_count": frame_count,
                     "default_value": self._field_float(element, "Real:default value", "default value", default=1.0),
-                    "values": curve_values(
-                        self._field_int(
-                            element,
-                            "ShortInteger:effector weight data index",
-                            "CharInteger:effector weight data index",
-                            "effector weight data index",
-                            default=-1,
-                        )
-                    ),
+                    "values": curve_values(data_index, frame_count),
                     "ik_chain": chain_name if chain_name in valid_ik_chain_names else "",
                     "ik_target_usage": usage_name or "",
                     "ik_target_marker_name_override": self._field_string(
@@ -1483,22 +1666,22 @@ class AnimationTag(Tag):
             region_name = WRINKLE_FACE_REGION_MAP.get(
                 self._normalized_field_name(self._field_enum_string(element, "CharEnum:region", "region", default=""))
             )
+            frame_count = max(self._field_int(element, "ShortInteger:frame count", "frame count", default=1), 1)
+            data_index = self._field_int(
+                element,
+                "ShortInteger:wrinkle data index",
+                "CharInteger:wrinkle data index",
+                "wrinkle data index",
+                default=-1,
+            )
             tag_events.append(
                 {
                     "event_type": EVENT_TYPE_WRINKLE_MAP,
                     "name": wrinkle_name,
                     "start_frame": self._field_int(element, "ShortInteger:start frame", "start frame", default=0),
-                    "frame_count": max(self._field_int(element, "ShortInteger:frame count", "frame count", default=1), 1),
+                    "frame_count": frame_count,
                     "default_value": self._field_float(element, "Real:default value", "default value", default=0.0),
-                    "values": curve_values(
-                        self._field_int(
-                            element,
-                            "ShortInteger:wrinkle data index",
-                            "CharInteger:wrinkle data index",
-                            "wrinkle data index",
-                            default=-1,
-                        )
-                    ),
+                    "values": curve_values(data_index, frame_count),
                     "wrinkle_map_face_region": region_name or "",
                 }
             )
@@ -1748,9 +1931,7 @@ class AnimationTag(Tag):
             if render_model_path.exists():
                 model_context = RenderModelTag(path=render_model_path)
             else:
-                utils.print_warning(
-                    f"Render model [{render_model_path}] was not found. Falling back to animation graph additional node data for native defaults."
-                )
+                utils.print_warning(f"Render model [{render_model_path}] was not found. Falling back to animation graph additional node data for native defaults.")
 
         with model_context as model:
             defaults, native_nodes, overlay_defaults = self._build_default_animation_nodes(node_names, model)
@@ -1804,6 +1985,7 @@ class AnimationTag(Tag):
                 utils.print_step(action.name)
                 animation = self.scene_nwo.animations.add()
                 animation.name = action.name
+                animation.scene_action_slot_identifier = ""
                 action.use_frame_range = True
                 animation.frame_start = 1
                 animation.frame_end = frame_count
