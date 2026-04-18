@@ -79,7 +79,7 @@ def animation_from_composite(self, context):
                         if track.object.animation_data:
                             track.object.animation_data.last_slot_identifier = slot_id
                             track.object.animation_data.action = track.action
-                        if track.object.data.animation_data:
+                        if track.object.data and track.object.data.animation_data:
                             track.object.data.animation_data.last_slot_identifier = slot_id
                             track.object.data.animation_data.action = track.action
                             
@@ -2259,7 +2259,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
                         if track.object.animation_data:
                             track.object.animation_data.last_slot_identifier = slot_id
                             track.object.animation_data.action = track.action
-                        if track.object.data.animation_data:
+                        if track.object.data and track.object.data.animation_data:
                             track.object.data.animation_data.last_slot_identifier = slot_id
                             track.object.data.animation_data.action = track.action
 
