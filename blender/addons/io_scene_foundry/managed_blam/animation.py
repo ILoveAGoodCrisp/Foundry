@@ -1444,7 +1444,7 @@ class AnimationTag(Tag):
         if curve_count <= 0 or data_index >= curve_count:
             return None
 
-        metadata_entry_offset = metadata_offset + (data_index * 2)
+        metadata_entry_offset = metadata_offset + (data_index * 4)
         record_offset_entry = record_offsets_offset + (data_index * 4)
         if metadata_entry_offset + 2 > len(curve_data) or record_offset_entry + 4 > len(curve_data):
             return None
@@ -1457,21 +1457,12 @@ class AnimationTag(Tag):
         except Exception:
             return None
 
-        frame_count_candidates = []
-        if metadata_frame_count > 0:
-            frame_count_candidates.append(metadata_frame_count)
-        if metadata_frame_count >= 0:
-            frame_count_candidates.append(metadata_frame_count + 1)
-
-        if expected_frame_count and frame_count_candidates:
-            frame_count = min(
-                frame_count_candidates,
-                key=lambda candidate: (abs(candidate - expected_frame_count), 0 if candidate == expected_frame_count else 1),
-            )
-        elif expected_frame_count:
+        if expected_frame_count:
             frame_count = expected_frame_count
-        elif frame_count_candidates:
-            frame_count = max(frame_count_candidates)
+        elif metadata_frame_count > 0:
+            frame_count = metadata_frame_count
+        elif metadata_frame_count >= 0:
+            frame_count = metadata_frame_count + 1
         else:
             frame_count = 0
 
@@ -1571,13 +1562,13 @@ class AnimationTag(Tag):
         def curve_values(data_index, frame_count):
             if data_index < 0:
                 return None
-            cache_key = (data_index, max(int(frame_count), 0))
+            cache_key = data_index
             if cache_key not in scalar_curve_cache:
                 scalar_curve_cache[cache_key] = self._decode_scalar_event_curve(
                     animation_element,
                     shared_data_element,
                     data_index,
-                    cache_key[1],
+                    max(int(frame_count), 0),
                 )
             return scalar_curve_cache[cache_key]
 
