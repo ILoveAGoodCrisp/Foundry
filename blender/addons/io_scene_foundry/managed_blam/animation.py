@@ -2,8 +2,9 @@
 
 from collections import defaultdict
 from contextlib import nullcontext
-from enum import Enum
+from enum import Enum, IntEnum
 from pathlib import Path
+import traceback
 from typing import cast
 import bpy
 from mathutils import Matrix, Quaternion, Vector
@@ -19,12 +20,12 @@ from .animation_resource import (
     CurveCodec,
     DefaultAnimationNode,
     ExpandedAnimation,
-    FrameInfoType as ResourceFrameInfoType,
+    FrameInfoType,
     RevisedCurveCodec,
     SharedStaticCodecData,
     apply_movement_data,
     apply_shared_static_codec,
-    build_expanded_animation,
+    build_animation,
     compose_overlay_animation,
     compose_replacement_animation,
     default_frame_channels,
@@ -65,41 +66,36 @@ RESOURCE_SECTION_ORDER = (
     "shared_static_data_size",
 )
 
-WRINKLE_FACE_REGION_MAP = {
-    "upper_brow": "Upper Brow",
-    "center_brow": "Center Brow",
-    "left_squint": "Left Squint",
-    "right_squint": "Right Squint",
-    "left_smile": "Left Smile",
-    "right_smile": "Right Smile",
-    "left_sneer": "Left Sneer",
-    "right_sneer": "Right Sneer",
-}
+WRINKLE_FACE_REGION_MAP = [
+    "upper_brow",
+    "center_brow",
+    "left_squint",
+    "right_squint",
+    "left_smile",
+    "right_smile",
+    "left_sneer",
+    "right_sneer",
+]
 
-IK_TARGET_USAGE_MAP = {
-    "self": "self",
-    "primary_weapon": "primary_weapon",
-    "secondary_weapon": "secondary_weapon",
-    "parent": "parent",
-    "assassination": "assassination",
-}
+IK_TARGET_USAGE_MAP = [
+    "none",
+    "world"
+    "self",
+    "primary_weapon",
+    "secondary_weapon",
+    "parent",
+    "assassination",
+]
 
 damage_states = "h_ping", "s_ping", "h_kill", "s_kill"
 directions = "front", "left", "right", "back"
 regions = "gut", "chest", "head", "l_arm", "l_hand", "l_leg", "l_foot", "r_arm", "r_hand", "r_leg", "r_foot"
 
-class AnimationType(Enum):
-    none = 0
-    base = 1
-    overlay = 2
-    replacement = 3
-    
-class FrameInfoType(Enum):
-    none = 0
-    dx_dy = 1
-    dx_dy_dyaw = 2
-    dx_dy_dz_dyaw = 3
-    dx_dy_dz_dangle_axis = 4
+class AnimationType(IntEnum):
+    NONE = 0
+    BASE = 1
+    OVERLAY = 2
+    REPLACEMENT = 3
     
 class Compression(Enum):
     medium_compression = 0
@@ -114,23 +110,43 @@ class Animation:
         self.parent_animation: Animation = None
         self.next_animation: Animation = None
         self.frame_count = 0
-        self.animation_type = AnimationType.none
-        self.frame_info_type = FrameInfoType.none
+        self.animation_type = AnimationType.NONE
+        self.frame_info_type = FrameInfoType.NONE
         self.compression = Compression.medium_compression
         self.resource_group = -1
         self.resource_group_member = -1
         self.element: TagFieldBlockElement = None
+        self.shared_element: TagFieldBlockElement = None
         self.state_types = set()
+        self.world_relative = False
+        self.contains_pca_data = False
+        self.pca_group = ""
+        self.composite_index = -1
         
-    def from_element(self, element: TagFieldBlockElement):
-        self.name = element.Fields[0].GetStringData()
+    def from_element(self, element: TagFieldBlockElement, shared_element: TagFieldBlockElement, corinth: bool):
+        self.name = utils.AnimationName(element.Fields[0].GetStringData())
         self.index = element.ElementIndex
-        self.frame_count = element.SelectField("Block:shared animation data[0]/ShortInteger:frame count").Data
+        self.frame_count = shared_element.SelectField("frame count").Data
+        self.animation_type = AnimationType(shared_element.SelectField("animation type").Value)
+        self.frame_info_type = FrameInfoType(shared_element.SelectField("frame info type").Value)
+        self.compression = Compression(shared_element.SelectField("current compression").Value)
+        self.resource_group = shared_element.SelectField("resource_group").Data
+        self.resource_group_member = shared_element.SelectField("resource_group_member").Data
+        self.element = element
+        self.shared_element = shared_element
+        
+        internal_flags = shared_element.SelectField("internal flags")
+        self.world_relative = internal_flags.TestBit("world relative")
+        
+        if corinth:
+            self.composite_index = element.SelectField("composite").Value
+            if internal_flags.TestBit("contains pca data"):
+                self.contains_pca_data = True
+                self.pca_group = element.SelectField("pca group name").GetStringData()
         
     def __repr__(self):
         return self.name
         
-
 class AnimationTag(Tag):
     tag_ext = 'model_animation_graph'
 
@@ -161,17 +177,23 @@ class AnimationTag(Tag):
         else:
             return [element.Fields[0].GetStringData() for element in self.block_animations.Elements]
         
-    def get_animations(self, filter="") -> list[str]:
-        """Returns a list of all animation"""
+    def get_animations(self) -> list[Animation]:
+        """Returns a list of all animations"""
         def make_animation(element):
-            anim = Animation()
-            anim.from_element(element)
-            return anim
+            shared_animation_element = self._get_shared_animation_element(element)
+            if shared_animation_element is not None:
+                anim = Animation()
+                anim.from_element(element, shared_animation_element, self.corinth)
+                return anim
         
-        if filter:
-            return [make_animation(element) for element in self.block_animations.Elements if filter in element.Fields[0].GetStringData()]
-        else:
-            return [make_animation(element) for element in self.block_animations.Elements]
+        animations = []
+        
+        for element in self.block_animations.Elements:        
+            anim = make_animation(element)
+            if anim is not None:
+                animations.append(anim)
+                
+        return animations
         
     def _initialize_tag(self):
         self.tag.SelectField('Struct:definitions[0]/ShortInteger:animation codec pack').Data = 6
@@ -368,257 +390,257 @@ class AnimationTag(Tag):
         if path:
             return path.RelativePathWithExtension
 
-    def _select_field_candidates(self, container, *paths):
-        if container is None:
-            return None
-        for path in paths:
-            if not path:
-                continue
-            variants = [path]
-            underscore_variant = path.replace(" ", "_")
-            if underscore_variant not in variants:
-                variants.append(underscore_variant)
-            space_variant = path.replace("_", " ")
-            if space_variant not in variants:
-                variants.append(space_variant)
-            for variant in variants:
-                try:
-                    field = container.SelectField(variant)
-                except Exception:
-                    field = None
-                if field is not None:
-                    return field
-        return None
+    # def _select_field_candidates(self, container, *paths):
+    #     if container is None:
+    #         return None
+    #     for path in paths:
+    #         if not path:
+    #             continue
+    #         variants = [path]
+    #         underscore_variant = path.replace(" ", "_")
+    #         if underscore_variant not in variants:
+    #             variants.append(underscore_variant)
+    #         space_variant = path.replace("_", " ")
+    #         if space_variant not in variants:
+    #             variants.append(space_variant)
+    #         for variant in variants:
+    #             try:
+    #                 field = container.SelectField(variant)
+    #             except Exception:
+    #                 field = None
+    #             if field is not None:
+    #                 return field
+    #     return None
 
-    def _field_int(self, container, *paths, default=None):
-        field = self._select_field_candidates(container, *paths)
-        if field is None:
-            return default
-        for attr in ("Value", "Data"):
-            try:
-                return int(getattr(field, attr))
-            except Exception:
-                pass
-        try:
-            return int(field.GetStringData())
-        except Exception:
-            return default
+    # def _field_int(self, container, *paths, default=None):
+    #     field = self._select_field_candidates(container, *paths)
+    #     if field is None:
+    #         return default
+    #     for attr in ("Value", "Data"):
+    #         try:
+    #             return int(getattr(field, attr))
+    #         except Exception:
+    #             pass
+    #     try:
+    #         return int(field.GetStringData())
+    #     except Exception:
+    #         return default
 
-    def _field_string(self, container, *paths, default=""):
-        field = self._select_field_candidates(container, *paths)
-        if field is None:
-            return default
-        try:
-            return field.GetStringData()
-        except Exception:
-            pass
-        try:
-            return str(field.Data)
-        except Exception:
-            return default
+    # def _field_string(self, container, *paths, default=""):
+    #     field = self._select_field_candidates(container, *paths)
+    #     if field is None:
+    #         return default
+    #     try:
+    #         return field.GetStringData()
+    #     except Exception:
+    #         pass
+    #     try:
+    #         return str(field.Data)
+    #     except Exception:
+    #         return default
 
-    def _field_enum_string(self, container, *paths, default=""):
-        field = self._select_field_candidates(container, *paths)
-        if field is None:
-            return default
-        try:
-            items = field.Items
-            index = int(field.Value)
-            try:
-                count = int(items.Count)
-            except Exception:
-                count = len(items)
-            if 0 <= index < count:
-                return str(items[index].EnumName)
-        except Exception:
-            pass
-        try:
-            return field.GetStringData()
-        except Exception:
-            return default
+    # def _field_enum_string(self, container, *paths, default=""):
+    #     field = self._select_field_candidates(container, *paths)
+    #     if field is None:
+    #         return default
+    #     try:
+    #         items = field.Items
+    #         index = int(field.Value)
+    #         try:
+    #             count = int(items.Count)
+    #         except Exception:
+    #             count = len(items)
+    #         if 0 <= index < count:
+    #             return str(items[index].EnumName)
+    #     except Exception:
+    #         pass
+    #     try:
+    #         return field.GetStringData()
+    #     except Exception:
+    #         return default
 
-    def _field_float(self, container, *paths, default=None):
-        field = self._select_field_candidates(container, *paths)
-        if field is None:
-            return default
-        for attr in ("Data", "Value"):
-            try:
-                return float(getattr(field, attr))
-            except Exception:
-                pass
-        try:
-            return float(field.GetStringData())
-        except Exception:
-            return default
+    # def _field_float(self, container, *paths, default=None):
+    #     field = self._select_field_candidates(container, *paths)
+    #     if field is None:
+    #         return default
+    #     for attr in ("Data", "Value"):
+    #         try:
+    #             return float(getattr(field, attr))
+    #         except Exception:
+    #             pass
+    #     try:
+    #         return float(field.GetStringData())
+    #     except Exception:
+    #         return default
 
-    def _field_data_bytes(self, container, *paths):
-        field = self._select_field_candidates(container, *paths)
-        if field is None:
-            return None
-        try:
-            return bytes(field.GetData())
-        except Exception:
-            return None
+    # def _field_data_bytes(self, container, *paths):
+    #     field = self._select_field_candidates(container, *paths)
+    #     if field is None:
+    #         return None
+    #     try:
+    #         return bytes(field.GetData())
+    #     except Exception:
+    #         return None
 
-    def _field_vector(self, container, *paths, default=None):
-        field = self._select_field_candidates(container, *paths)
-        if field is None:
-            return default.copy() if hasattr(default, "copy") else default
-        for attr in ("Data", "Value"):
-            try:
-                values = tuple(float(component) for component in getattr(field, attr))
-                if len(values) == 3:
-                    return Vector(values)
-            except Exception:
-                pass
-        try:
-            values = tuple(float(component.strip()) for component in field.GetStringData().split(","))
-            if len(values) == 3:
-                return Vector(values)
-        except Exception:
-            pass
-        return default.copy() if hasattr(default, "copy") else default
+    # def _field_vector(self, container, *paths, default=None):
+    #     field = self._select_field_candidates(container, *paths)
+    #     if field is None:
+    #         return default.copy() if hasattr(default, "copy") else default
+    #     for attr in ("Data", "Value"):
+    #         try:
+    #             values = tuple(float(component) for component in getattr(field, attr))
+    #             if len(values) == 3:
+    #                 return Vector(values)
+    #         except Exception:
+    #             pass
+    #     try:
+    #         values = tuple(float(component.strip()) for component in field.GetStringData().split(","))
+    #         if len(values) == 3:
+    #             return Vector(values)
+    #     except Exception:
+    #         pass
+    #     return default.copy() if hasattr(default, "copy") else default
 
-    def _field_quaternion(self, container, *paths, default=None):
-        field = self._select_field_candidates(container, *paths)
-        if field is None:
-            return default.copy() if hasattr(default, "copy") else default
-        for attr in ("Data", "Value"):
-            try:
-                values = tuple(float(component) for component in getattr(field, attr))
-                if len(values) == 4:
-                    return Quaternion((values[3], values[0], values[1], values[2]))
-            except Exception:
-                pass
-        try:
-            values = tuple(float(component.strip()) for component in field.GetStringData().split(","))
-            if len(values) == 4:
-                return Quaternion((values[3], values[0], values[1], values[2]))
-        except Exception:
-            pass
-        return default.copy() if hasattr(default, "copy") else default
+    # def _field_quaternion(self, container, *paths, default=None):
+    #     field = self._select_field_candidates(container, *paths)
+    #     if field is None:
+    #         return default.copy() if hasattr(default, "copy") else default
+    #     for attr in ("Data", "Value"):
+    #         try:
+    #             values = tuple(float(component) for component in getattr(field, attr))
+    #             if len(values) == 4:
+    #                 return Quaternion((values[3], values[0], values[1], values[2]))
+    #         except Exception:
+    #             pass
+    #     try:
+    #         values = tuple(float(component.strip()) for component in field.GetStringData().split(","))
+    #         if len(values) == 4:
+    #             return Quaternion((values[3], values[0], values[1], values[2]))
+    #     except Exception:
+    #         pass
+    #     return default.copy() if hasattr(default, "copy") else default
 
-    def _normalized_field_name(self, value):
-        if not value:
-            return ""
-        text = str(value).strip()
-        if not text:
-            return ""
-        text = text.rsplit("/", 1)[-1]
-        text = text.rsplit(":", 1)[-1]
-        return text.replace(" ", "_").lower()
+    # def _normalized_field_name(self, value):
+    #     if not value:
+    #         return ""
+    #     text = str(value).strip()
+    #     if not text:
+    #         return ""
+    #     text = text.rsplit("/", 1)[-1]
+    #     text = text.rsplit(":", 1)[-1]
+    #     return text.replace(" ", "_").lower()
 
-    def _iter_sequence(self, value):
-        if value is None:
-            return
-        try:
-            count = value.Count
-        except Exception:
-            count = None
-        if count is not None:
-            for index in range(count):
-                try:
-                    yield value[index]
-                except Exception:
-                    continue
-            return
-        try:
-            for item in value:
-                yield item
-        except Exception:
-            return
+    # def _iter_sequence(self, value):
+    #     if value is None:
+    #         return
+    #     try:
+    #         count = value.Count
+    #     except Exception:
+    #         count = None
+    #     if count is not None:
+    #         for index in range(count):
+    #             try:
+    #                 yield value[index]
+    #             except Exception:
+    #                 continue
+    #         return
+    #     try:
+    #         for item in value:
+    #             yield item
+    #     except Exception:
+    #         return
 
-    def _iter_resource_structs(self, container):
-        pending = [container]
-        seen = set()
-        while pending:
-            current = pending.pop(0)
-            if current is None:
-                continue
-            current_id = id(current)
-            if current_id in seen:
-                continue
-            seen.add(current_id)
+    # def _iter_resource_structs(self, container):
+    #     pending = [container]
+    #     seen = set()
+    #     while pending:
+    #         current = pending.pop(0)
+    #         if current is None:
+    #             continue
+    #         current_id = id(current)
+    #         if current_id in seen:
+    #             continue
+    #         seen.add(current_id)
 
-            has_fields = False
-            try:
-                if current.Fields is not None:
-                    has_fields = True
-            except Exception:
-                has_fields = False
-            if has_fields:
-                yield current
+    #         has_fields = False
+    #         try:
+    #             if current.Fields is not None:
+    #                 has_fields = True
+    #         except Exception:
+    #             has_fields = False
+    #         if has_fields:
+    #             yield current
 
-            for attr in ("Element", "Value", "Data", "Reference"):
-                try:
-                    child = getattr(current, attr)
-                except Exception:
-                    child = None
-                if child is not None:
-                    pending.append(child)
+    #         for attr in ("Element", "Value", "Data", "Reference"):
+    #             try:
+    #                 child = getattr(current, attr)
+    #             except Exception:
+    #                 child = None
+    #             if child is not None:
+    #                 pending.append(child)
 
-            try:
-                structs = current.Structs
-            except Exception:
-                structs = None
-            if structs is not None:
-                for struct in self._iter_sequence(structs):
-                    pending.append(struct)
+    #         try:
+    #             structs = current.Structs
+    #         except Exception:
+    #             structs = None
+    #         if structs is not None:
+    #             for struct in self._iter_sequence(structs):
+    #                 pending.append(struct)
 
-    def _find_direct_child_field(self, container, *names):
-        field = self._select_field_candidates(container, *names)
-        if field is not None:
-            return field
+    # def _find_direct_child_field(self, container, *names):
+    #     field = self._select_field_candidates(container, *names)
+    #     if field is not None:
+    #         return field
 
-        targets = {self._normalized_field_name(name) for name in names if name}
-        targets.discard("")
-        if not targets:
-            return None
+    #     targets = {self._normalized_field_name(name) for name in names if name}
+    #     targets.discard("")
+    #     if not targets:
+    #         return None
 
-        for struct in self._iter_resource_structs(container):
-            try:
-                fields = struct.Fields
-            except Exception:
-                continue
-            for field in self._iter_sequence(fields):
-                for attr in ("FieldName", "DisplayName", "FieldPathWithoutindices", "FieldPath"):
-                    try:
-                        candidate = getattr(field, attr)
-                    except Exception:
-                        candidate = None
-                    if self._normalized_field_name(candidate) in targets:
-                        return field
-        return None
+    #     for struct in self._iter_resource_structs(container):
+    #         try:
+    #             fields = struct.Fields
+    #         except Exception:
+    #             continue
+    #         for field in self._iter_sequence(fields):
+    #             for attr in ("FieldName", "DisplayName", "FieldPathWithoutindices", "FieldPath"):
+    #                 try:
+    #                     candidate = getattr(field, attr)
+    #                 except Exception:
+    #                     candidate = None
+    #                 if self._normalized_field_name(candidate) in targets:
+    #                     return field
+    #     return None
 
-    def _block_element_count(self, block_field):
-        if block_field is None:
-            return 0
-        try:
-            elements = block_field.Elements
-        except Exception:
-            return 0
-        try:
-            return int(elements.Count)
-        except Exception:
-            try:
-                return len(elements)
-            except Exception:
-                return 0
+    # def _block_element_count(self, block_field):
+    #     if block_field is None:
+    #         return 0
+    #     try:
+    #         elements = block_field.Elements
+    #     except Exception:
+    #         return 0
+    #     try:
+    #         return int(elements.Count)
+    #     except Exception:
+    #         try:
+    #             return len(elements)
+    #         except Exception:
+    #             return 0
 
-    def _block_element_at(self, block_field, index):
-        if block_field is None or index < 0:
-            return None
-        try:
-            elements = block_field.Elements
-        except Exception:
-            return None
-        try:
-            return elements[index]
-        except Exception:
-            try:
-                return list(elements)[index]
-            except Exception:
-                return None
+    # def _block_element_at(self, block_field, index):
+    #     if block_field is None or index < 0:
+    #         return None
+    #     try:
+    #         elements = block_field.Elements
+    #     except Exception:
+    #         return None
+    #     try:
+    #         return elements[index]
+    #     except Exception:
+    #         try:
+    #             return list(elements)[index]
+    #         except Exception:
+    #             return None
 
     def _get_shared_animation_element(self, animation_element: TagFieldBlockElement) -> TagFieldBlockElement | None:
         shared_block = animation_element.SelectField("Block:shared animation data")
@@ -761,28 +783,18 @@ class AnimationTag(Tag):
         rotations_block = self.tag.SelectField("Struct:codec data[0]/Struct:shared static codec[0]/Block:rotations")
         if rotations_block is None:
             return None
-
-        translations_block = self._select_field_candidates(
-            self.tag,
-            "Struct:codec data[0]/Struct:shared static codec[0]/Block:translations",
-            "codec data[0]/shared static codec[0]/translations",
-            "codec data/shared static codec/translations",
-        )
-        scales_block = self._select_field_candidates(
-            self.tag,
-            "Struct:codec data[0]/Struct:shared static codec[0]/Block:scale",
-            "codec data[0]/shared static codec[0]/scale",
-            "codec data/shared static codec/scale",
-        )
+        
+        translations_block = self.tag.SelectField("Struct:codec data[0]/Struct:shared static codec[0]/Block:translations")
+        scales_block = self.tag.SelectField("Struct:codec data[0]/Struct:shared static codec[0]/Block:scale")
 
         rotations = []
         for element in rotations_block.Elements:
             rotations.append(
                 (
-                    self._field_int(element, "ShortInteger:i", "i", default=0),
-                    self._field_int(element, "ShortInteger:j", "j", default=0),
-                    self._field_int(element, "ShortInteger:k", "k", default=0),
-                    self._field_int(element, "ShortInteger:w", "w", default=0),
+                    element.Fields[0].Data,
+                    element.Fields[1].Data,
+                    element.Fields[2].Data,
+                    element.Fields[3].Data,
                 )
             )
 
@@ -792,9 +804,9 @@ class AnimationTag(Tag):
                 translations.append(
                     Vector(
                         (
-                            self._field_float(element, "Real:x", "x", default=0.0),
-                            self._field_float(element, "Real:y", "y", default=0.0),
-                            self._field_float(element, "Real:z", "z", default=0.0),
+                            element.Fields[0].Data,
+                            element.Fields[1].Data,
+                            element.Fields[2].Data,
                         )
                     )
                 )
@@ -802,35 +814,9 @@ class AnimationTag(Tag):
         scales = []
         if scales_block is not None:
             for element in scales_block.Elements:
-                scales.append(self._field_float(element, "Real:scale", "scale", default=1.0))
+                scales.append(element.Fields[0].Data)
 
         return SharedStaticCodecData(rotations, translations, scales)
-
-    def _read_animation_resource_indices(self, *containers):
-        group_paths = (
-            "ShortBlockIndex:resource group index",
-            "resource group index",
-            "ShortInteger:resource group index",
-            "ShortBlockIndex:resource group",
-            "ShortInteger:resource group",
-            "resource group",
-        )
-        member_paths = (
-            "ShortBlockIndex:resource group member index",
-            "resource group member index",
-            "ShortInteger:resource group member index",
-            "ShortBlockIndex:resource group member",
-            "ShortInteger:resource group member",
-            "resource group member",
-        )
-        for container in containers:
-            if container is None:
-                continue
-            group_index = self._field_int(container, *group_paths, default=-1)
-            member_index = self._field_int(container, *member_paths, default=-1)
-            if group_index >= 0 and member_index >= 0:
-                return group_index, member_index
-        return -1, -1
 
     def _serialized_tag_bytes(self):
         cache = getattr(self, "_native_serialized_tag_bytes", None)
@@ -851,9 +837,7 @@ class AnimationTag(Tag):
         if cache is not None:
             return cache
 
-        self._native_anim_debug("Reading source animation resource groups from model_animation_graph")
         cache = read_model_animation_graph_resources(self._serialized_tag_bytes())
-        self._native_anim_debug(f"Loaded {len(cache)} source animation resource groups")
         self._native_source_resource_groups = cache
         return cache
 
@@ -867,10 +851,6 @@ class AnimationTag(Tag):
             raise ValueError(f"Animation resource group member index {member_index} is out of range")
 
         return members[member_index]
-
-    def _native_anim_debug(self, message):
-        return
-        print(f"[Foundry Native Animation] {message}")
 
     def _select_animation_resource_group_members(self, container, _depth=0):
         if container is None or _depth > 4:
@@ -917,43 +897,22 @@ class AnimationTag(Tag):
 
         raise ValueError(f"Animation resource group member index {member_index} is out of range")
 
-    def _resolve_animation_payload_member(self, member, member_index):
-        animation_data = self._field_data_bytes(member, "Data:animation_data", "animation_data")
-        if animation_data:
-            return member, animation_data
-
-        nested_group_members = self._select_animation_resource_group_members(member)
-        if nested_group_members is not None and member_index < self._block_element_count(nested_group_members):
-            nested_member = self._block_element_at(nested_group_members, member_index)
-            animation_data = self._field_data_bytes(nested_member, "Data:animation_data", "animation_data")
-            if animation_data:
-                return nested_member, animation_data
-
-        raise ValueError("Animation resource member has no animation data payload")
-
-    def _read_animation_resource_data(self, animation_element, shared_data_element, shared_static_codec):
-        animation_name = self._field_string(animation_element, "String:name", "name", default=f"animation[{animation_element.ElementIndex}]")
-        group_index, member_index = self._read_animation_resource_indices(shared_data_element, animation_element)
-        if group_index < 0 or member_index < 0:
+    def _read_animation_resource_data(self, tag_animation: Animation, shared_static_codec):
+        if tag_animation.resource_group < 0 or tag_animation.resource_group_member < 0:
             raise ValueError("Animation resource group indices are missing")
 
         animation_data = None
-        frame_count = self._field_int(shared_data_element, "ShortInteger:frame count", "frame count", default=0)
-        node_count = len(self.get_nodes())
+        frame_count = tag_animation.frame_count
+        node_count = self.nodes_count
         checksum = 0
-        movement_type = self._field_int(shared_data_element, "CharEnum:frame info type", "frame info type", default=0)
+        movement_type = tag_animation.frame_info_type
         static_flags_size = 0
         animated_flags_size = 0
         movement_data_size = 0
         static_data_size = 0
         shared_static_size = 0
 
-        source_member_error = None
-        try:
-            source_member = self._get_source_animation_resource_member(group_index, member_index)
-        except Exception as exc:
-            source_member_error = exc
-            source_member = None
+        source_member = self._get_source_animation_resource_member(tag_animation.resource_group, tag_animation.resource_group_member)
 
         if source_member is not None:
             animation_data = source_member.animation_data
@@ -969,112 +928,15 @@ class AnimationTag(Tag):
             movement_data_size = source_member.movement_data_size
             static_data_size = source_member.static_data_size
             shared_static_size = source_member.shared_static_data_size
-            self._native_anim_debug(
-                f"{animation_name}: source resource group={group_index} member={member_index} "
-                f"frames={frame_count} nodes={node_count} static_codec={static_codec_size} "
-                f"animated_codec={animated_codec_size} flag_triplet={flag_triplet_size} "
-                f"movement={movement_data_size} raw_bytes={len(animation_data)}"
-            )
-        else:
-            static_codec_size = 0
-            animated_codec_size = 0
-            member = self._resolve_animation_resource_member(group_index, member_index)
-            payload_member, animation_data = self._resolve_animation_payload_member(member, member_index)
-
-            frame_count = self._field_int(
-                payload_member,
-                "ShortInteger:frame count",
-                "frame count",
-                default=frame_count,
-            )
-            node_count = self._field_int(payload_member, "CharInteger:node count", "node count", default=node_count)
-            checksum = self._field_int(
-                payload_member,
-                "LongInteger:animation checksum",
-                "animation checksum",
-                "LongInteger:checksum",
-                "checksum",
-                default=0,
-            )
-            movement_type = self._field_int(
-                payload_member,
-                "CharEnum:movement data type",
-                "movement data type",
-                default=movement_type,
-            )
-            static_flags_size = self._field_int(
-                payload_member,
-                "Struct:data sizes[0]/LongInteger:static node flags",
-                "data sizes[0]/static node flags",
-                "Struct:packed data sizes reach[0]/LongInteger:static node flags",
-                "packed data sizes reach[0]/static node flags",
-                "Struct:packed data sizes[0]/CharInteger:static node flags",
-                "packed data sizes[0]/static node flags",
-                default=0,
-            )
-            animated_flags_size = self._field_int(
-                payload_member,
-                "Struct:data sizes[0]/LongInteger:animated node flags",
-                "data sizes[0]/animated node flags",
-                "Struct:packed data sizes reach[0]/LongInteger:animated node flags",
-                "packed data sizes reach[0]/animated node flags",
-                "Struct:packed data sizes[0]/CharInteger:animated node flags",
-                "packed data sizes[0]/animated node flags",
-                default=0,
-            )
-            movement_data_size = self._field_int(
-                payload_member,
-                "Struct:data sizes[0]/LongInteger:movement data",
-                "data sizes[0]/movement data",
-                "Struct:packed data sizes reach[0]/LongInteger:movement data",
-                "packed data sizes reach[0]/movement data",
-                "Struct:packed data sizes[0]/ShortInteger:movement data",
-                "packed data sizes[0]/movement data",
-                default=0,
-            )
-            static_data_size = self._field_int(
-                payload_member,
-                "Struct:data sizes[0]/LongInteger:static data size",
-                "data sizes[0]/static data size",
-                "Struct:packed data sizes reach[0]/LongInteger:static data size",
-                "packed data sizes reach[0]/static data size",
-                "Struct:packed data sizes[0]/ShortInteger:static data size",
-                "packed data sizes[0]/static data size",
-                "Struct:data sizes[0]/LongInteger:default data",
-                "data sizes[0]/default data",
-                "Struct:packed data sizes reach[0]/LongInteger:default data",
-                "packed data sizes reach[0]/default data",
-                "Struct:packed data sizes[0]/ShortInteger:default data",
-                "packed data sizes[0]/default data",
-                default=0,
-            )
-            shared_static_size = self._field_int(
-                payload_member,
-                "Struct:data sizes[0]/LongInteger:shared static data size",
-                "data sizes[0]/shared static data size",
-                default=0,
-            )
-            self._native_anim_debug(
-                f"{animation_name}: legacy resource fallback group={group_index} member={member_index} "
-                f"frames={frame_count} nodes={node_count} static_flags={static_flags_size} "
-                f"animated_flags={animated_flags_size} movement={movement_data_size} raw_bytes={len(animation_data)}"
-            )
 
         if not animation_data:
-            if source_member_error is not None:
-                raise ValueError(f"Animation resource payload is missing ({source_member_error})") from source_member_error
-            raise ValueError("Animation resource payload is missing")
-
-        try:
-            frame_info_type = ResourceFrameInfoType(movement_type)
-        except ValueError:
-            frame_info_type = ResourceFrameInfoType.NONE
+            raise ValueError("Animation resource data is missing")
 
         resource_data = AnimationResourceData(
             frame_count,
             node_count,
             checksum,
-            frame_info_type,
+            movement_type,
             static_flags_size,
             animated_flags_size,
             static_data_size,
@@ -1082,7 +944,7 @@ class AnimationTag(Tag):
             shared_static_data_size=shared_static_size,
             static_codec_size=static_codec_size,
             animated_codec_size=animated_codec_size,
-            debug_name=animation_name,
+            debug_name=tag_animation.name.tag_name,
         )
         resource_data.read(BinaryReader(animation_data))
         if shared_static_size:
@@ -1101,8 +963,8 @@ class AnimationTag(Tag):
         return animation_data.action
 
     def _animation_event_action(self, blender_animation):
-        for track in getattr(blender_animation, "action_tracks", ()):
-            action = getattr(track, "action", None)
+        for track in blender_animation.action_tracks:
+            action = track.action
             if action is not None:
                 return action
         return None
@@ -1135,47 +997,35 @@ class AnimationTag(Tag):
 
         return scene, animation_data, slot
 
-    def _clear_event_value_fcurves(self, blender_animation):
-        action = self._animation_event_action(blender_animation)
-        if action is None:
-            return
+    # def _clear_event_value_fcurves(self, blender_animation):
+    #     action = self._animation_event_action(blender_animation)
+    #     if action is None:
+    #         return
 
-        _, _, slot = self._ensure_scene_event_slot(action, create=False)
-        if slot is None:
-            return
+    #     _, _, slot = self._ensure_scene_event_slot(action, create=False)
+    #     if slot is None:
+    #         return
 
-        prefix = f"{blender_animation.path_from_id()}.animation_events["
-        fcurves = utils.get_fcurves(action, slot)
-        if not fcurves:
-            return
-        stale_curves = [
-            fcurve
-            for fcurve in fcurves
-            if fcurve.data_path.startswith(prefix) and fcurve.data_path.endswith(".event_value")
-        ]
-        for fcurve in stale_curves:
-            fcurves.remove(fcurve)
+    #     prefix = f"{blender_animation.path_from_id()}.animation_events["
+    #     fcurves = utils.get_fcurves(action, slot)
+    #     if not fcurves:
+    #         return
+    #     stale_curves = [
+    #         fcurve
+    #         for fcurve in fcurves
+    #         if fcurve.data_path.startswith(prefix) and fcurve.data_path.endswith(".event_value")
+    #     ]
+    #     for fcurve in stale_curves:
+    #         fcurves.remove(fcurve)
 
-    def _iter_block_elements(self, container, *paths):
-        block = self._select_field_candidates(container, *paths)
-        if block is None:
-            return []
-        try:
-            return list(self._iter_sequence(block.Elements))
-        except Exception:
-            return []
-
-    def _resolve_object_function_name(self, name):
-        normalized = self._normalized_field_name(name)
-        if not normalized:
-            return ""
-        if normalized.startswith("animation_event_function_"):
-            return normalized
-        if len(normalized) == 1 and normalized.isalpha():
-            return f"animation_event_function_{normalized}"
-        if normalized in {"left_grip", "right_grip"}:
-            return f"animation_event_function_{normalized}"
-        return ""
+    # def _iter_block_elements(self, container, *paths):
+    #     block = self._select_field_candidates(container, *paths)
+    #     if block is None:
+    #         return []
+    #     try:
+    #         return list(self._iter_sequence(block.Elements))
+    #     except Exception:
+    #         return []
 
     def _remove_animation_events(self, blender_animation, predicate):
         for index in range(len(blender_animation.animation_events) - 1, -1, -1):
@@ -1262,69 +1112,6 @@ class AnimationTag(Tag):
                     frame=blender_animation.frame_start + utils.blender_frame(start_frame + frame_offset),
                 )
         blender_event.event_value = first_value
-
-    def _resource_section_boundaries_from_payload_member(self, payload_member):
-        data_sizes = self._find_direct_child_field(
-            payload_member,
-            "data sizes",
-            "packed data sizes",
-            "packed data sizes reach",
-        )
-        if data_sizes is None:
-            return {}
-
-        aliases = {
-            "static_node_flags": (
-                "LongInteger:static node flags",
-                "CharInteger:static node flags",
-                "static node flags",
-            ),
-            "animated_node_flags": (
-                "LongInteger:animated node flags",
-                "CharInteger:animated node flags",
-                "animated node flags",
-            ),
-            "movement_data": (
-                "LongInteger:movement data",
-                "ShortInteger:movement data",
-                "movement data",
-            ),
-            "pill_offset_data": ("LongInteger:pill offset data", "pill offset data"),
-            "default_data": (
-                "LongInteger:default data",
-                "ShortInteger:default data",
-                "LongInteger:static data size",
-                "ShortInteger:static data size",
-                "default data",
-                "static data size",
-            ),
-            "uncompressed_data": ("LongInteger:uncompressed data", "uncompressed data"),
-            "compressed_data": ("LongInteger:compressed data", "compressed data"),
-            "blend_screen_data": ("LongInteger:blend screen data", "blend screen data"),
-            "object_space_offset_data": ("LongInteger:object space offset data", "object space offset data"),
-            "ik_chain_event_data": ("LongInteger:ik chain event data", "ik chain event data"),
-            "ik_chain_control_data": ("LongInteger:ik chain control data", "ik chain control data"),
-            "ik_chain_proxy_data": ("LongInteger:ik chain proxy data", "ik chain proxy data"),
-            "ik_chain_pole_vector_data": ("LongInteger:ik chain pole vector data", "ik chain pole vector data"),
-            "uncompressed_object_space_data": (
-                "LongInteger:uncompressed object space data",
-                "uncompressed object space data",
-            ),
-            "fik_anchor_data": ("LongInteger:fik anchor data", "fik anchor data"),
-            "uncompressed_object_space_node_flags": (
-                "LongInteger:uncompressed object space node flags",
-                "uncompressed object space node flags",
-            ),
-            "compressed_event_curve": ("LongInteger:compressed event curve", "compressed event curve"),
-            "shared_static_data_size": ("LongInteger:shared static data size", "shared static data size"),
-        }
-
-        boundaries = {}
-        for name, names in aliases.items():
-            value = self._field_int(data_sizes, *names, default=None)
-            if value is not None and value >= 0:
-                boundaries[name] = int(value)
-        return boundaries
 
     def _resource_section_slice(self, animation_data, boundaries, section_name):
         if not animation_data or not boundaries or section_name not in RESOURCE_SECTION_ORDER:
@@ -1483,20 +1270,18 @@ class AnimationTag(Tag):
 
         return self._read_scalar_event_curve_track(reader, frame_count, key_count, flags, offset, scale)
 
-    def _decode_scalar_event_curve(self, animation_element, shared_data_element, data_index, expected_frame_count=0):
+    def _decode_scalar_event_curve(self, tag_animation: Animation, data_index, expected_frame_count=0):
         if data_index is None or data_index < 0:
             return None
 
-        group_index, member_index = self._read_animation_resource_indices(shared_data_element, animation_element)
-        if group_index < 0 or member_index < 0:
+        if tag_animation.resource_group < 0 or tag_animation.resource_group_member < 0:
             return None
 
-        frame_count = self._field_int(shared_data_element, "ShortInteger:frame count", "frame count", default=0)
         animation_data = None
         boundaries = {}
 
         try:
-            source_member = self._get_source_animation_resource_member(group_index, member_index)
+            source_member = self._get_source_animation_resource_member(tag_animation.resource_group, tag_animation.resource_group_member)
         except Exception:
             source_member = None
 
@@ -1504,11 +1289,6 @@ class AnimationTag(Tag):
             animation_data = source_member.animation_data
             frame_count = source_member.frame_count or frame_count
             boundaries = getattr(source_member, "section_boundaries", {}) or {}
-        else:
-            member = self._resolve_animation_resource_member(group_index, member_index)
-            payload_member, animation_data = self._resolve_animation_payload_member(member, member_index)
-            frame_count = self._field_int(payload_member, "ShortInteger:frame count", "frame count", default=frame_count)
-            boundaries = self._resource_section_boundaries_from_payload_member(payload_member)
 
         curve_data = self._resource_section_slice(animation_data, boundaries, "compressed_event_curve")
         if not curve_data:
@@ -1550,190 +1330,499 @@ class AnimationTag(Tag):
 
         return None
 
-    def _collect_regular_animation_events(self, animation_element):
-        shared_data_element = self._get_shared_animation_element(animation_element) or animation_element
-        valid_ik_chain_names = {
-            chain.name
-            for chain in self.scene_nwo.ik_chains
-            if getattr(chain, "start_node", "") and getattr(chain, "effector_node", "")
+    def _read_animation_resource_section_data(self, tag_animation: Animation, section_name):
+        if section_name not in RESOURCE_SECTION_ORDER:
+            return b"", 0
+
+        if tag_animation.resource_group < 0 or tag_animation.resource_group_member < 0:
+            return b"", 0
+
+        animation_data = None
+        boundaries = {}
+
+        try:
+            source_member = self._get_source_animation_resource_member(tag_animation.resource_group, tag_animation.resource_group_member)
+        except Exception:
+            source_member = None
+
+        if source_member is not None:
+            animation_data = source_member.animation_data
+            frame_count = source_member.frame_count or frame_count
+            boundaries = getattr(source_member, "section_boundaries", {}) or {}
+
+        return self._resource_section_slice(animation_data, boundaries, section_name), frame_count
+
+    def _decode_embedded_curve_section_info(self, curve_data):
+        if not curve_data or len(curve_data) < 20:
+            return None
+
+        reader = BinaryReader(curve_data)
+        try:
+            version = reader.read_u8()
+            track_count = reader.read_u8()
+            reader.read_u16()
+            metadata_offset = reader.read_u32()
+            record_offsets_offset = reader.read_u32()
+        except Exception:
+            return None
+
+        if track_count <= 0:
+            track_count = version
+
+        if track_count <= 0:
+            return None
+
+        metadata_size = max(record_offsets_offset - metadata_offset, 0)
+        available_metadata_entries = metadata_size // 2
+        if available_metadata_entries <= 0:
+            return None
+
+        track_count = min(track_count, available_metadata_entries)
+        if record_offsets_offset + (track_count * 4) > len(curve_data):
+            return None
+
+        frame_counts = []
+        record_offsets = []
+        try:
+            for track_index in range(track_count):
+                reader.seek(metadata_offset + (track_index * 2))
+                frame_counts.append(reader.read_u16())
+                reader.seek(record_offsets_offset + (track_index * 4))
+                record_offsets.append(reader.read_u32())
+        except Exception:
+            return None
+
+        return {
+            "frame_counts": frame_counts,
+            "record_offsets": record_offsets,
+            "track_count": track_count,
         }
+
+    def _decode_embedded_rotation_curve_track(self, curve_data, data_index, expected_frame_count=0):
+        if data_index is None or data_index < 0:
+            return None
+
+        info = self._decode_embedded_curve_section_info(curve_data)
+        if info is None or data_index >= info["track_count"]:
+            return None
+
+        metadata_frame_count = info["frame_counts"][data_index]
+        record_offset = info["record_offsets"][data_index]
+        frame_count = expected_frame_count or metadata_frame_count or 0
+        if frame_count <= 0 or record_offset < 0 or record_offset + 8 > len(curve_data):
+            return None
+
+        reader = BinaryReader(curve_data)
+        codec = CurveCodec(frame_count)
+        try:
+            reader.seek(record_offset)
+            reader.read_u16()
+            key_count = reader.read_u16()
+            flags = reader.read_u8()
+            reader.read_u8()
+            reader.read_s16()
+            keyframes = codec._read_curve_keyframe_data(key_count, reader) if (flags & 1) == 0 else []
+            return [value.copy() for value in codec._read_curve_rotations(reader, keyframes, flags)]
+        except Exception:
+            return None
+
+    def _decode_embedded_translation_curve_track(self, curve_data, data_index, expected_frame_count=0, apply_scale_100=True):
+        if data_index is None or data_index < 0:
+            return None
+
+        info = self._decode_embedded_curve_section_info(curve_data)
+        if info is None or data_index >= info["track_count"]:
+            return None
+
+        metadata_frame_count = info["frame_counts"][data_index]
+        record_offset = info["record_offsets"][data_index]
+        frame_count = expected_frame_count or metadata_frame_count or 0
+        if frame_count <= 0 or record_offset < 0 or record_offset + 24 > len(curve_data):
+            return None
+
+        reader = BinaryReader(curve_data)
+        codec = CurveCodec(frame_count)
+        try:
+            reader.seek(record_offset)
+            reader.read_u16()
+            key_count = reader.read_u16()
+            flags = reader.read_u8()
+            reader.read_u8()
+            reader.read_u16()
+            offset_x = reader.read_f32()
+            offset_y = reader.read_f32()
+            offset_z = reader.read_f32()
+            scale = reader.read_f32()
+            keyframes = codec._read_curve_keyframe_data(key_count, reader) if (flags & 1) == 0 else []
+            return [
+                value.copy()
+                for value in codec._read_curve_translations(
+                    reader,
+                    keyframes,
+                    flags,
+                    offset_x,
+                    offset_y,
+                    offset_z,
+                    scale,
+                    apply_scale_100,
+                )
+            ]
+        except Exception:
+            return None
+
+    def _decode_embedded_scale_curve_track(self, curve_data, data_index, expected_frame_count=0):
+        if data_index is None or data_index < 0:
+            return None
+
+        info = self._decode_embedded_curve_section_info(curve_data)
+        if info is None or data_index >= info["track_count"]:
+            return None
+
+        metadata_frame_count = info["frame_counts"][data_index]
+        record_offset = info["record_offsets"][data_index]
+        frame_count = expected_frame_count or metadata_frame_count or 0
+        if frame_count <= 0 or record_offset < 0 or record_offset + 16 > len(curve_data):
+            return None
+
+        reader = BinaryReader(curve_data)
+        codec = CurveCodec(frame_count)
+        try:
+            reader.seek(record_offset)
+            reader.read_u16()
+            key_count = reader.read_u16()
+            flags = reader.read_u8()
+            reader.read_u8()
+            reader.read_u16()
+            offset = reader.read_f32()
+            scale = reader.read_f32()
+            keyframes = codec._read_curve_keyframe_data(key_count, reader) if (flags & 1) == 0 else []
+            return [float(value) for value in codec._read_curve_scales(reader, keyframes, flags, offset, scale)]
+        except Exception:
+            return None
+
+    def _decode_ik_weight_curve(self, tag_animation, data_index, expected_frame_count=0):
+        if data_index is None or data_index < 0:
+            return None
+
+        curve_data, _ = self._read_animation_resource_section_data(tag_animation, "ik_chain_control_data")
+        if not curve_data:
+            return None
+
+        return self._decode_embedded_scale_curve_track(curve_data, data_index, expected_frame_count)
+
+    def _decode_ik_effector_transform(self, tag_animation, data_index, expected_frame_count=0):
+        if data_index is None or data_index < 0:
+            return None
+
+        curve_data, _ = self._read_animation_resource_section_data(tag_animation, "ik_chain_event_data")
+        if not curve_data:
+            return None
+
+        rotations = self._decode_embedded_rotation_curve_track(curve_data, data_index, expected_frame_count)
+        translations = self._decode_embedded_translation_curve_track(curve_data, data_index + 1, expected_frame_count)
+        scales = self._decode_embedded_scale_curve_track(curve_data, data_index + 2, expected_frame_count)
+        if rotations is None and translations is None and scales is None:
+            return None
+
+        sample_count = max(
+            len(rotations or ()),
+            len(translations or ()),
+            len(scales or ()),
+            max(int(expected_frame_count), 0),
+        )
+        if sample_count <= 0:
+            return None
+
+        if rotations is None:
+            rotations = [Quaternion((1.0, 0.0, 0.0, 0.0)) for _ in range(sample_count)]
+        if translations is None:
+            translations = [Vector((0.0, 0.0, 0.0)) for _ in range(sample_count)]
+        if scales is None:
+            scales = [1.0 for _ in range(sample_count)]
+
+        transforms = []
+        for sample_index in range(sample_count):
+            rotation = rotations[min(sample_index, len(rotations) - 1)].copy()
+            translation = translations[min(sample_index, len(translations) - 1)].copy()
+            scale = float(scales[min(sample_index, len(scales) - 1)])
+            transforms.append((translation, rotation, scale))
+        return transforms
+
+    def _decode_ik_pole_point(self, tag_animation, data_index, expected_frame_count=0):
+        if data_index is None or data_index < 0:
+            return None
+
+        curve_data, _ = self._read_animation_resource_section_data(tag_animation, "ik_chain_pole_vector_data")
+        if not curve_data:
+            return None
+
+        translations = self._decode_embedded_translation_curve_track(curve_data, data_index, expected_frame_count)
+        if translations is None:
+            return None
+
+        identity = Quaternion((1.0, 0.0, 0.0, 0.0))
+        return [(translation.copy(), identity.copy(), 1.0) for translation in translations]
+
+    def _find_ik_proxy_marker_object(self, armature: bpy.types.Object, marker_name: str):
+        normalized_name = utils.remove_node_prefix(marker_name).strip().lower()
+        if not normalized_name:
+            return None
+
+        direct_match = bpy.data.objects.get(marker_name)
+        if direct_match is not None and utils.is_marker(direct_match):
+            return direct_match
+
+        preferred_candidates = [armature]
+        preferred_candidates.extend(list(getattr(armature, "children_recursive", ())))
+        for ob in preferred_candidates:
+            if ob is None or not utils.is_marker(ob):
+                continue
+            if utils.remove_node_prefix(ob.name).strip().lower() == normalized_name:
+                return ob
+
+        for ob in bpy.data.objects:
+            if not utils.is_marker(ob):
+                continue
+            if utils.remove_node_prefix(ob.name).strip().lower() == normalized_name:
+                return ob
+
+        return None
+
+    def _create_ik_control_empty(self, blender_animation, armature: bpy.types.Object, name: str, parent_object=None):
+        empty = bpy.data.objects.new(name, None)
+        empty.empty_display_type = 'PLAIN_AXES'
+        empty.empty_display_size = 2.5
+        empty.rotation_mode = 'QUATERNION'
+
+        if parent_object is not None:
+            empty.parent = parent_object
+        else:
+            empty.parent = armature
+            root_bone = next((bone for bone in armature.data.bones if bone.parent is None), None)
+            if root_bone is not None:
+                empty.parent_type = 'BONE'
+                empty.parent_bone = root_bone.name
+
+        target_collection = armature.users_collection[0] if armature.users_collection else bpy.context.scene.collection
+        target_collection.objects.link(empty)
+        return empty
+
+    def _create_object_action_track(self, blender_animation, obj: bpy.types.Object, action_name: str):
+        action = bpy.data.actions.new(action_name)
+        slot = action.slots.new("OBJECT", obj.name)
+        action.use_frame_range = True
+        action.frame_start = blender_animation.frame_start
+        action.frame_end = blender_animation.frame_end
+
+        obj.animation_data_create()
+        obj.animation_data.last_slot_identifier = slot.identifier
+        obj.animation_data.action = action
+
+        track = blender_animation.action_tracks.add()
+        track.object = obj
+        track.action = action
+
+        return action, slot
+
+    def _apply_object_transform_samples(self, blender_animation, obj: bpy.types.Object, action_name: str, start_frame: int, samples):
+        if not samples:
+            return None
+
+        action, slot = self._create_object_action_track(blender_animation, obj, action_name)
+        fcurves = utils.get_fcurves(action, slot)
+        if fcurves:
+            fcurves.clear()
+
+        for frame_offset, (location, rotation, scale) in enumerate(samples):
+            obj.location = location
+            obj.rotation_quaternion = rotation
+            obj.scale = Vector.Fill(3, scale)
+            frame = blender_animation.frame_start + utils.blender_frame(start_frame + frame_offset)
+            obj.keyframe_insert(data_path="location", frame=frame)
+            obj.keyframe_insert(data_path="rotation_quaternion", frame=frame)
+            obj.keyframe_insert(data_path="scale", frame=frame)
+
+        if fcurves:
+            for fcurve in fcurves:
+                for keyframe in fcurve.keyframe_points:
+                    keyframe.interpolation = "LINEAR"
+
+        return action
+
+    def _import_ik_event_controls(self, tag_animation, blender_animation, blender_event, event, armature: bpy.types.Object, imported_actions: list):
+        proxy_marker_name = event.get("ik_target_marker_name_override", "").strip()
+        proxy_marker_object = self._find_ik_proxy_marker_object(armature, proxy_marker_name)
+        if proxy_marker_object is not None:
+            blender_event.ik_target_marker = proxy_marker_object
+
+        effector_samples = event.get("ik_effector_transforms") or []
+        if effector_samples:
+            effector_empty = self._create_ik_control_empty(
+                blender_animation,
+                armature,
+                f"{blender_animation.name}_ik_effector_{event['name']}",
+                parent_object=proxy_marker_object,
+            )
+            action = self._apply_object_transform_samples(
+                blender_animation,
+                effector_empty,
+                f"{blender_animation.name}_ik_effector_{event['name']}",
+                event["start_frame"],
+                effector_samples,
+            )
+            if action is not None:
+                imported_actions.append(action)
+            if proxy_marker_object is None:
+                blender_event.ik_target_marker = effector_empty
+
+        pole_samples = event.get("ik_pole_transforms") or []
+        if pole_samples:
+            pole_empty = self._create_ik_control_empty(
+                blender_animation,
+                armature,
+                f"{blender_animation.name}_ik_pole_{event['name']}",
+            )
+            action = self._apply_object_transform_samples(
+                blender_animation,
+                pole_empty,
+                f"{blender_animation.name}_ik_pole_{event['name']}",
+                event["start_frame"],
+                pole_samples,
+            )
+            blender_event.ik_pole_vector = pole_empty
+            if action is not None:
+                imported_actions.append(action)
+
+    def _collect_regular_animation_events(self, tag_animation: Animation):
+        valid_ik_chain_names = {chain.name for chain in self.scene_nwo.ik_chains if getattr(chain, "start_node", "") and getattr(chain, "effector_node", "")}
         scalar_curve_cache = {}
+        ik_weight_curve_cache = {}
+        ik_effector_curve_cache = {}
+        ik_pole_curve_cache = {}
 
         def curve_values(data_index, frame_count):
             if data_index < 0:
                 return None
             cache_key = data_index
             if cache_key not in scalar_curve_cache:
-                scalar_curve_cache[cache_key] = self._decode_scalar_event_curve(
-                    animation_element,
-                    shared_data_element,
-                    data_index,
-                    max(int(frame_count), 0),
-                )
+                scalar_curve_cache[cache_key] = self._decode_scalar_event_curve(tag_animation, data_index, max(int(frame_count), 0))
             return scalar_curve_cache[cache_key]
 
-        tag_events = []
+        def ik_weight_values(data_index, frame_count):
+            if data_index < 0:
+                return None
+            cache_key = (data_index, max(int(frame_count), 0))
+            if cache_key not in ik_weight_curve_cache:
+                ik_weight_curve_cache[cache_key] = self._decode_ik_weight_curve(tag_animation, data_index, cache_key[1])
+            return ik_weight_curve_cache[cache_key]
 
-        for element in self._iter_block_elements(shared_data_element, "Block:extended data events", "extended data events"):
-            function_name = self._field_string(element, "StringId:name", "name", default="") or "Extended Data"
-            frame_count = max(self._field_int(element, "ShortInteger:frame count", "frame count", default=1), 1)
-            data_index = self._field_int(element, "ShortInteger:data index", "CharInteger:data index", "data index", default=-1)
+        def ik_effector_values(data_index, frame_count):
+            if data_index < 0:
+                return None
+            cache_key = (data_index, max(int(frame_count), 0))
+            if cache_key not in ik_effector_curve_cache:
+                ik_effector_curve_cache[cache_key] = self._decode_ik_effector_transform(tag_animation, data_index , cache_key[1])
+            return ik_effector_curve_cache[cache_key]
+
+        def ik_pole_values(data_index, frame_count):
+            if data_index < 0:
+                return None
+            cache_key = (data_index, max(int(frame_count), 0))
+            if cache_key not in ik_pole_curve_cache:
+                ik_pole_curve_cache[cache_key] = self._decode_ik_pole_point(tag_animation, data_index, cache_key[1])
+            return ik_pole_curve_cache[cache_key]
+
+        tag_events = []
+        
+        for element in tag_animation.shared_element.SelectField("extended data events").Elements:
+            function_name = element.SelectField("name").GetStringData()
+            frame_count = element.SelectField("frame count").Data
+            data_index = element.SelectField("data index").Data
             tag_events.append(
                 {
                     "event_type": EVENT_TYPE_OBJECT_FUNCTION,
                     "name": function_name,
-                    "start_frame": self._field_int(element, "ShortInteger:start frame", "start frame", default=0),
+                    "start_frame": element.SelectField("start frame").Data,
                     "frame_count": frame_count,
-                    "default_value": self._field_float(element, "Real:default value", "default value", default=1.0),
+                    "default_value": element.SelectField("default value").Data,
                     "values": curve_values(data_index, frame_count),
-                    "object_function_name": self._resolve_object_function_name(function_name),
+                    "object_function_name": function_name,
                 }
             )
-
-        for element in self._iter_block_elements(shared_data_element, "Block:import events", "import events"):
-            import_name = self._field_string(element, "StringId:import name", "import name", default="") or "Wrapped Left"
-            start_frame = self._field_int(
-                element,
-                "ShortInteger:frame",
-                "ShortInteger:import frame",
-                "ShortInteger:start frame",
-                "frame",
-                "import frame",
-                "start frame",
-                default=0,
-            )
-            tag_events.append(
-                {
-                    "event_type": EVENT_TYPE_IMPORT,
-                    "name": import_name,
-                    "start_frame": start_frame,
-                    "frame_count": 1,
-                    "import_name": import_name,
-                }
-            )
-
-        for element in self._iter_block_elements(shared_data_element, "Block:ik chain events", "ik chain events"):
-            event_type_name = self._normalized_field_name(self._field_enum_string(element, "CharEnum:event type", "event type", default=""))
-            if "passive" in event_type_name:
-                event_type = EVENT_TYPE_IK_PASSIVE
-            elif "active" in event_type_name:
-                event_type = EVENT_TYPE_IK_ACTIVE
-            else:
+            
+        for element in tag_animation.shared_element.SelectField("ik chain events").Elements:
+            chain_name = element.SelectField("chain name").GetStringData()
+            if chain_name not in valid_ik_chain_names:
                 continue
-
-            chain_name = self._field_string(element, "StringId:chain name", "chain name", default="")
-            usage_name = IK_TARGET_USAGE_MAP.get(
-                self._normalized_field_name(self._field_enum_string(element, "CharEnum:chain usage", "chain usage", default=""))
-            )
-            frame_count = max(self._field_int(element, "ShortInteger:frame count", "frame count", default=1), 1)
-            data_index = self._field_int(
-                element,
-                "ShortInteger:effector weight data index",
-                "CharInteger:effector weight data index",
-                "effector weight data index",
-                default=-1,
-            )
+            event_type = EVENT_TYPE_IK_PASSIVE if element.SelectField("event type").Value == 1 else EVENT_TYPE_IK_ACTIVE
+            usage_name = IK_TARGET_USAGE_MAP[element.SelectField("chain usage").Value]
+            data_index = element.SelectField("effector weight data index").Data
+            effector_transform_index = element.SelectField("effector transform data index").Data
+            pole_point_index = element.SelectField("pole point data index").Data
+            frame_count = tag_animation.frame_count + 1
+            
             tag_events.append(
                 {
                     "event_type": event_type,
-                    "name": chain_name or "IK Chain Event",
-                    "start_frame": self._field_int(element, "ShortInteger:start frame", "start frame", default=0),
+                    "name": chain_name,
+                    "start_frame": 1,
                     "frame_count": frame_count,
-                    "default_value": self._field_float(element, "Real:default value", "default value", default=1.0),
-                    "values": curve_values(data_index, frame_count),
-                    "ik_chain": chain_name if chain_name in valid_ik_chain_names else "",
-                    "ik_target_usage": usage_name or "",
-                    "ik_target_marker_name_override": self._field_string(
-                        element,
-                        "StringId:proxy marker",
-                        "proxy marker",
-                        default="",
-                    ),
+                    "default_value": 1,
+                    "values": ik_weight_values(data_index, frame_count),
+                    "ik_chain": chain_name,
+                    "ik_target_usage": usage_name,
+                    "ik_target_marker_name_override": element.SelectField("proxy marker").GetStringData(),
+                    "ik_effector_transforms": ik_effector_values(effector_transform_index, frame_count),
+                    "ik_pole_transforms": ik_pole_values(pole_point_index, frame_count),
                 }
             )
-
-        for element in self._iter_block_elements(shared_data_element, "Block:facial wrinkle events", "facial wrinkle events"):
-            wrinkle_name = self._field_string(element, "StringId:wrinkle name", "wrinkle name", default="") or "Wrinkle"
-            region_name = WRINKLE_FACE_REGION_MAP.get(
-                self._normalized_field_name(self._field_enum_string(element, "CharEnum:region", "region", default=""))
-            )
-            frame_count = max(self._field_int(element, "ShortInteger:frame count", "frame count", default=1), 1)
-            data_index = self._field_int(
-                element,
-                "ShortInteger:wrinkle data index",
-                "CharInteger:wrinkle data index",
-                "wrinkle data index",
-                default=-1,
-            )
+            
+        for element in tag_animation.shared_element.SelectField("facial wrinkle events").Elements:
+            wrinkle_name = element.SelectField("wrinkle name").GetStringData()
+            region_name = WRINKLE_FACE_REGION_MAP[element.SelectField("region").Value]
+            frame_count = element.SelectField("frame count").Data
+            data_index = element.SelectField("wrinkle data index").Data
             tag_events.append(
                 {
                     "event_type": EVENT_TYPE_WRINKLE_MAP,
                     "name": wrinkle_name,
-                    "start_frame": self._field_int(element, "ShortInteger:start frame", "start frame", default=0),
+                    "start_frame": element.SelectField("start frame").Data,
                     "frame_count": frame_count,
-                    "default_value": self._field_float(element, "Real:default value", "default value", default=0.0),
+                    "default_value": element.SelectField("default value").Data,
                     "values": curve_values(data_index, frame_count),
-                    "wrinkle_map_face_region": region_name or "",
+                    "wrinkle_map_face_region": region_name,
                 }
             )
 
         tag_events.sort(key=lambda event: (event["start_frame"], event["name"]))
         return tag_events
 
-    def _apply_regular_animation_events(self, animation_element, blender_animation):
-        tag_events = self._collect_regular_animation_events(animation_element)
+    def _apply_regular_animation_events(self, tag_animation: Animation, blender_animation, armature: bpy.types.Object, imported_actions: list):
+        tag_events = self._collect_regular_animation_events(tag_animation)
         if not tag_events:
             return 0
 
-        self._clear_event_value_fcurves(blender_animation)
-        self._remove_animation_events(blender_animation, lambda event: getattr(event, "event_type", "") != EVENT_TYPE_FRAME)
+        # self._clear_event_value_fcurves(blender_animation)
+        # self._remove_animation_events(blender_animation, lambda event: getattr(event, "event_type", "") != EVENT_TYPE_FRAME)
 
         for event in tag_events:
-            blender_event = self._new_tag_event(
-                blender_animation,
-                event["event_type"],
-                event["name"],
-                event["start_frame"],
-                event["frame_count"],
-            )
+            blender_event = self._new_tag_event(blender_animation, event["event_type"], event["name"], event["start_frame"], event["frame_count"])
 
             if event["event_type"] == EVENT_TYPE_OBJECT_FUNCTION and event["object_function_name"]:
                 blender_event.object_function_name = event["object_function_name"]
-                self._apply_event_value(
-                    blender_animation,
-                    blender_event,
-                    event["default_value"],
-                    event["values"],
-                    event["start_frame"],
-                    event["frame_count"],
-                )
-            elif event["event_type"] == EVENT_TYPE_IMPORT:
-                blender_event.import_name = event["import_name"]
+                self._apply_event_value(blender_animation, blender_event, event["default_value"], event["values"], event["start_frame"], event["frame_count"])
             elif event["event_type"] in {EVENT_TYPE_IK_ACTIVE, EVENT_TYPE_IK_PASSIVE}:
                 if event["ik_chain"]:
                     blender_event.ik_chain = event["ik_chain"]
                 if event["ik_target_usage"]:
                     blender_event.ik_target_usage = event["ik_target_usage"]
                 blender_event.ik_target_marker_name_override = event["ik_target_marker_name_override"]
-                self._apply_event_value(
-                    blender_animation,
-                    blender_event,
-                    event["default_value"],
-                    event["values"],
-                    event["start_frame"],
-                    event["frame_count"],
-                )
+                self._apply_event_value(blender_animation, blender_event, event["default_value"], event["values"], event["start_frame"], event["frame_count"])
+                self._import_ik_event_controls(tag_animation, blender_animation, blender_event, event, armature, imported_actions)
             elif event["event_type"] == EVENT_TYPE_WRINKLE_MAP:
                 if event["wrinkle_map_face_region"]:
                     blender_event.wrinkle_map_face_region = event["wrinkle_map_face_region"]
-                self._apply_event_value(
-                    blender_animation,
-                    blender_event,
-                    event["default_value"],
-                    event["values"],
-                    event["start_frame"],
-                    event["frame_count"],
-                )
+                self._apply_event_value(blender_animation, blender_event, event["default_value"], event["values"], event["start_frame"], event["frame_count"])
 
         return len(tag_events)
 
@@ -1745,74 +1834,42 @@ class AnimationTag(Tag):
             tokens[-1] = "idle"
         return self.find_animation(graph, tokens, ["actions"])
 
-    def _build_native_expanded_animation(self, element, defaults, overlay_defaults, graph, shared_static_codec, resource_cache, expanded_cache):
-        index = element.ElementIndex
-        if index in expanded_cache:
-            return expanded_cache[index]
-
-        shared_data_element = self._get_shared_animation_element(element)
-        if shared_data_element is None:
-            raise ValueError("Animation has no local shared animation data")
+    def _build_animation(self, tag_animation: Animation, defaults, overlay_defaults, graph, shared_static_codec, resource_cache, animation_cache, all_tag_animations):
+        index = tag_animation.index
+        if index in animation_cache:
+            return animation_cache[index]
 
         resource_data = resource_cache.get(index)
         if resource_data is None:
-            self._native_anim_debug(f"Building native resource data for {element.SelectField('name').GetStringData()}")
-            resource_data = self._read_animation_resource_data(element, shared_data_element, shared_static_codec)
+            resource_data = self._read_animation_resource_data(tag_animation, shared_static_codec)
             resource_cache[index] = resource_data
 
-        anim_type = self._field_int(shared_data_element, "CharEnum:animation type", "animation type", default=0)
-        self._native_anim_debug(
-            f"Expanding {element.SelectField('name').GetStringData()} as anim_type={anim_type} "
-            f"frame_count={resource_data.frame_count}"
-        )
-        expanded = build_expanded_animation(resource_data, defaults, "default" if anim_type in (0, 1) else "neutral")
-        if anim_type in (0, 1) and resource_data.movement_data is not None:
-            self._native_anim_debug(
-                f"Applying movement data from {element.SelectField('name').GetStringData()} to pedestal"
-            )
-            apply_movement_data(expanded, resource_data.movement_data)
-        if anim_type in (2, 3):
-            base_candidates = self._get_base_animation_candidates(graph, element.SelectField("name").GetStringData())
+
+        animation_data = build_animation(resource_data, defaults, "default" if tag_animation.animation_type in (0, 1) else "neutral")
+        if tag_animation.animation_type in (0, 1) and resource_data.movement_data is not None:
+            apply_movement_data(animation_data, resource_data.movement_data)
+        if tag_animation.animation_type in (2, 3):
+            base_candidates = self._get_base_animation_candidates(graph, tag_animation.name.tag_name)
             if base_candidates:
-                base_element = self.block_animations.Elements[base_candidates[0].index]
-                base_animation = self._build_native_expanded_animation(
-                    base_element,
-                    defaults,
-                    overlay_defaults,
-                    graph,
-                    shared_static_codec,
-                    resource_cache,
-                    expanded_cache,
-                )
+                base_tag_animation = all_tag_animations[base_candidates[0].index]
+                base_animation = self._build_animation(base_tag_animation, defaults, overlay_defaults, graph, shared_static_codec, resource_cache, animation_cache, all_tag_animations)
                 base_frame = base_animation.first_frame()
             else:
                 base_frame = default_frame_channels(defaults)
 
-            if anim_type == 2:
-                expanded = compose_overlay_animation(expanded, base_frame)
+            if tag_animation.animation_type == 2:
+                animation_data = compose_overlay_animation(animation_data, base_frame)
             else:
-                expanded = compose_replacement_animation(expanded, base_frame)
+                animation_data = compose_replacement_animation(animation_data, base_frame)
 
-        expanded_cache[index] = expanded
-        return expanded
+        animation_cache[index] = animation_data
+        return animation_data
 
-    def _native_animation_transforms(self, element, defaults, overlay_defaults, nodes, graph, shared_static_codec, resource_cache, expanded_cache):
-        self._native_anim_debug(f"Generating native transforms for {element.SelectField('name').GetStringData()}")
-        expanded = self._build_native_expanded_animation(
-            element,
-            defaults,
-            overlay_defaults,
-            graph,
-            shared_static_codec,
-            resource_cache,
-            expanded_cache,
-        )
+    def _animation_transforms(self, tag_animation, defaults, overlay_defaults, nodes, graph, shared_static_codec, resource_cache, animation_cache, all_tag_animations):
+        animation_data = self._build_animation(tag_animation, defaults, overlay_defaults, graph, shared_static_codec, resource_cache, animation_cache, all_tag_animations)
         transforms = {}
-        for frame_index, frame_matrices in enumerate(expanded.frame_matrices(), start=1):
+        for frame_index, frame_matrices in enumerate(animation_data.frame_matrices(), start=1):
             transforms[frame_index] = {node: matrix for node, matrix in zip(nodes, frame_matrices)}
-        self._native_anim_debug(
-            f"Generated {len(transforms)} native frames for {element.SelectField('name').GetStringData()}"
-        )
         return transforms
         
     def _get_animation_name_from_index(self, index):
@@ -1912,7 +1969,6 @@ class AnimationTag(Tag):
         if self.block_animations.Elements.Count < 1:
             return print("No animations found in graph")
 
-        graph = self.to_dict()
         pca_animations = {}
         node_names = self.get_nodes()
 
@@ -1928,7 +1984,7 @@ class AnimationTag(Tag):
             defaults, native_nodes, overlay_defaults = self._build_default_animation_nodes(node_names, model)
             shared_static_codec = self._read_shared_static_codec() if self.corinth else None
             native_resource_cache = {}
-            native_expanded_cache = {}
+            native_animation_cache = {}
             exporter = None
             animation_nodes = None
             nodes_count = len(node_names)
@@ -1949,152 +2005,121 @@ class AnimationTag(Tag):
                 animation_nodes = [self._GameAnimationNode() for _ in range(nodes_count)]
                 animation_nodes = Array[self._GameAnimationNodeType()](animation_nodes)
                 return True
+            
+            self.nodes_count = nodes_count
 
             if armature.animation_data is None:
                 armature.animation_data_create()
+                
+            tag_animations = self.get_animations()
+            graph = self.to_dict(tag_animations)
 
-            for element in self.block_animations.Elements:
-                name = element.SelectField("name").GetStringData()
-                if filter and filter not in name:
+            for tag_animation in tag_animations:
+                if not (filter in tag_animation.name.tag_name or filter.replace(" ", ":") in tag_animation.name.tag_name):
+                    continue
+                
+                overlay = tag_animation.animation_type == AnimationType.OVERLAY
+
+                if tag_animation.frame_count < 1:
                     continue
 
-                index = element.ElementIndex
-                shared_data_element = self._get_shared_animation_element(element)
-                anim_type = self._field_int(shared_data_element, "CharEnum:animation type", "animation type", default=0)
-                frame_info = self._field_int(shared_data_element, "CharEnum:frame info type", "frame info type", default=0)
-                overlay = anim_type == 2
-
-                frame_count = self._field_int(shared_data_element, "ShortInteger:frame count", "frame count", default=0)
-                if frame_count < 1 and ensure_exporter():
-                    frame_count = exporter.GetAnimationFrameCount(index)
-
-                new_name = name.replace(":", " ")
-                action = bpy.data.actions.new(new_name)
+                action = bpy.data.actions.new(tag_animation.name.data_name)
                 slot = action.slots.new("OBJECT", armature.name)
                 armature.animation_data.last_slot_identifier = slot.identifier
                 armature.animation_data.action = action
                 utils.print_step(action.name)
-                animation = self.scene_nwo.animations.add()
-                animation.name = action.name
-                animation.scene_action_slot_identifier = ""
+                blender_animation = self.scene_nwo.animations.add()
+                blender_animation.name = action.name
                 action.use_frame_range = True
-                animation.frame_start = 1
-                animation.frame_end = frame_count
-                animations.append(animation.name)
+                blender_animation.frame_start = 1
+                blender_animation.frame_end = tag_animation.frame_count
+                animations.append(blender_animation.name)
+                
+                if tag_animation.composite_index > -1:
+                    blender_animation.animation_type = "composite"
+                    self._import_composite(blender_animation, tag_animation.composite_index)
+                    continue
+                
+                if tag_animation.contains_pca_data:
+                    pca_animations[tag_animation.tag_name] = tag_animation.data_name
 
-                if self.corinth:
-                    composite_index = self._field_int(element, "ShortBlockIndex:composite", "composite", default=-1)
-                    if composite_index > -1:
-                        animation.animation_type = "composite"
-                        self._import_composite(animation, composite_index)
-                        continue
-
-                    internal_flags = self._select_field_candidates(shared_data_element, "WordFlags:internal flags", "internal flags")
-                    if internal_flags is not None and internal_flags.TestBit("contains pca data"):
-                        pca_animations[name] = new_name
-
-                match anim_type:
-                    case 0 | 1:
-                        internal_flags = self._select_field_candidates(shared_data_element, "WordFlags:internal flags", "internal flags")
-                        if internal_flags is not None and internal_flags.TestBit("world relative"):
-                            animation.animation_type = "world"
+                match tag_animation.animation_type:
+                    case AnimationType.NONE | AnimationType.BASE:
+                        if tag_animation.world_relative:
+                            blender_animation.animation_type = "world"
                         else:
-                            animation.animation_type = "base"
-                        match frame_info:
-                            case 0:
-                                animation.animation_movement_data = "none"
-                            case 1:
-                                animation.animation_movement_data = "xy"
-                            case 2:
-                                animation.animation_movement_data = "xyyaw"
-                            case 3:
-                                animation.animation_movement_data = "xyzyaw"
-                            case 4:
-                                animation.animation_movement_data = "full"
-                    case 2:
-                        animation.animation_type = "overlay"
-                        offset_nodes = self._select_field_candidates(
-                            shared_data_element,
-                            "Block:object space offset nodes",
-                            "object space offset nodes",
-                        )
-                        if offset_nodes is not None:
-                            for node_element in offset_nodes.Elements:
-                                n_index = node_element.Fields[0].Value
-                                if n_index < 0 or n_index >= nodes_count:
-                                    continue
-                                a_node = animation.animation_nodes.add()
-                                a_node.name = node_names[n_index]
-                                a_node.node_type = "object_space_offset_node"
-                                animation.active_animation_node_index = len(animation.animation_nodes) - 1
-                    case 3:
-                        animation.animation_type = "replacement"
-                        parent_nodes = self._select_field_candidates(
-                            shared_data_element,
-                            "Block:object-space parent nodes",
-                            "object-space parent nodes",
-                        )
-                        if parent_nodes is not None:
-                            for node_element in parent_nodes.Elements:
-                                n_index = node_element.Fields[0].Value
-                                if n_index < 0 or n_index >= nodes_count:
-                                    continue
-                                a_node = animation.animation_nodes.add()
-                                a_node.name = node_names[n_index]
-                                a_node.node_type = "replacement_correction_node"
-                                animation.active_animation_node_index = len(animation.animation_nodes) - 1
+                            blender_animation.animation_type = "base"
+                        match tag_animation.frame_info_type:
+                            case FrameInfoType.NONE:
+                                blender_animation.animation_movement_data = "none"
+                            case FrameInfoType.DX_DY:
+                                blender_animation.animation_movement_data = "xy"
+                            case FrameInfoType.DX_DY_DYAW:
+                                blender_animation.animation_movement_data = "xyyaw"
+                            case FrameInfoType.DX_DY_DZ_DYAW:
+                                blender_animation.animation_movement_data = "xyzyaw"
+                            case _:
+                                blender_animation.animation_movement_data = "full"
+                                
+                    case AnimationType.OVERLAY:
+                        blender_animation.animation_type = "overlay"
+                        offset_nodes = tag_animation.shared_element.SelectField("object space offset nodes")
+                        for node_element in offset_nodes.Elements:
+                            n_index = node_element.Fields[0].Value
+                            if n_index < 0 or n_index >= nodes_count:
+                                continue
+                            a_node = blender_animation.animation_nodes.add()
+                            a_node.name = node_names[n_index]
+                            a_node.node_type = "object_space_offset_node"
+                            blender_animation.active_animation_node_index = len(blender_animation.animation_nodes) - 1
+                            
+                    case AnimationType.REPLACEMENT:
+                        blender_animation.animation_type = "replacement"
+                        parent_nodes = tag_animation.shared_element.SelectField("object-space parent nodes")
+                        for node_element in parent_nodes.Elements:
+                            n_index = node_element.Fields[0].Value
+                            if n_index < 0 or n_index >= nodes_count:
+                                continue
+                            a_node = blender_animation.animation_nodes.add()
+                            a_node.name = node_names[n_index]
+                            a_node.node_type = "replacement_correction_node"
+                            blender_animation.active_animation_node_index = len(blender_animation.animation_nodes) - 1
 
-                fik_anchor_nodes = self._select_field_candidates(
-                    shared_data_element,
-                    "Block:forward-invert kinetic anchor nodes",
-                    "forward-invert kinetic anchor nodes",
-                )
-                if fik_anchor_nodes is not None:
-                    for node_element in fik_anchor_nodes.Elements:
-                        n_index = node_element.Fields[0].Value
-                        if n_index < 0 or n_index >= nodes_count:
-                            continue
-                        a_node = animation.animation_nodes.add()
-                        a_node.name = node_names[n_index]
-                        a_node.node_type = "fik_anchor_node"
-                        animation.active_animation_node_index = len(animation.animation_nodes) - 1
+                fik_anchor_nodes = tag_animation.shared_element.SelectField("forward-invert kinetic anchor nodes")
+                for node_element in fik_anchor_nodes.Elements:
+                    n_index = node_element.Fields[0].Value
+                    if n_index < 0 or n_index >= nodes_count:
+                        continue
+                    a_node = blender_animation.animation_nodes.add()
+                    a_node.name = node_names[n_index]
+                    a_node.node_type = "fik_anchor_node"
+                    blender_animation.active_animation_node_index = len(blender_animation.animation_nodes) - 1
 
-                self._apply_regular_animation_events(element, animation)
-
-                track = animation.action_tracks.add()
+                track = blender_animation.action_tracks.add()
                 track.object = armature
                 track.action = action
-                native_success = False
+                success = False
                 imported = False
-                if shared_data_element is not None:
-                    try:
-                        transforms = self._native_animation_transforms(
-                            element,
-                            defaults,
-                            overlay_defaults,
-                            native_nodes,
-                            graph,
-                            shared_static_codec,
-                            native_resource_cache,
-                            native_expanded_cache,
-                        )
-                        self._to_armature_action(transforms, armature, action, native_nodes, {}, set())
-                        native_success = True
-                        imported = True
-                    except Exception as ex:
-                        utils.print_warning(f"Native animation decode failed for {name}. Falling back to ManagedBlam ({ex})")
+                try:
+                    transforms = self._animation_transforms(tag_animation, defaults, overlay_defaults, native_nodes, graph, shared_static_codec, native_resource_cache,native_animation_cache, tag_animations)
+                    self._to_armature_action(transforms, armature, action, native_nodes, {}, set())
+                    success = True
+                    imported = True
+                except Exception:
+                    utils.print_warning(f"Foundry animation decode failed for {tag_animation.name.data_name}. Falling back to ManagedBlam ({traceback.format_exc()})")
 
-                if not native_success:
+                if not success:
+                    # Runs the old ManagedBlam animation extractor
                     if overlay:
-                        utils.print_warning(f"{name} is an overlay, rotations will not be imported")
+                        utils.print_warning(f"{tag_animation.name.data_name} is an overlay, rotations will not be imported")
 
                     if not ensure_exporter():
                         if model is None:
                             utils.print_warning(
-                                f"ManagedBlam fallback is unavailable for {name} because no render model was provided"
+                                f"ManagedBlam fallback is unavailable for {tag_animation.name.data_name} because no render model was provided"
                             )
                         else:
-                            utils.print_warning(f"Failed to use ManagedBlam animation exporter for {name}")
+                            utils.print_warning(f"Failed to use ManagedBlam animation exporter for {tag_animation.name.data_name}")
                         continue
 
                     if exporter.GetRenderModelBasePose(animation_nodes, nodes_count):
@@ -2108,16 +2133,14 @@ class AnimationTag(Tag):
                         transforms = {}
                         base_transforms = {}
                         nodes_with_animations = set()
-                        for frame in range(frame_count):
-                            if exporter.GetAnimationFrame(index, frame, animation_nodes, nodes_count):
-                                nodes_with_animations.update(
-                                    self._add_transforms(animation_nodes, nodes, frame + 1, overlay, node_base_matrices, transforms)
-                                )
-
-                        if anim_type == 3:
-                            replacement_base_animations = self._get_base_animation_candidates(graph, name)
+                        for frame in range(tag_animation.frame_count):
+                            if exporter.GetAnimationFrame(tag_animation.index, frame, animation_nodes, nodes_count):
+                                nodes_with_animations.update(self._add_transforms(animation_nodes, nodes, frame + 1, overlay, node_base_matrices, transforms)
+)
+                        if tag_animation.animation_type == 3:
+                            replacement_base_animations = self._get_base_animation_candidates(graph, tag_animation.name.tag_name)
                             if replacement_base_animations:
-                                for frame in range(frame_count):
+                                for frame in range(tag_animation.frame_count):
                                     if exporter.GetAnimationFrame(replacement_base_animations[0].index, frame, animation_nodes, nodes_count):
                                         self._add_base_transforms(animation_nodes, nodes, frame + 1, node_base_matrices, base_transforms)
 
@@ -2126,9 +2149,10 @@ class AnimationTag(Tag):
 
                 if imported:
                     actions.append(action)
-                    action.frame_end = frame_count
+                    action.frame_end = tag_animation.frame_count
+                    self._apply_regular_animation_events(tag_animation, blender_animation, armature, actions)
                 else:
-                    utils.print_warning(f"Failed to import animation {name}")
+                    utils.print_warning(f"Failed to import animation {tag_animation.name.data_name}")
 
         if self.corinth and import_pca:
             pca_groups = []
@@ -2218,7 +2242,6 @@ class AnimationTag(Tag):
 
                             transform_matrix = delta_base @ transform_matrix
 
-                # decompose the orthogonal result
                 loc, rot, sca = transform_matrix.decompose()
 
                 node.fc_loc_x.keyframe_points.insert(frame_idx, loc.x, options={'FAST', 'NEEDED'})
@@ -2394,7 +2417,8 @@ class AnimationTag(Tag):
         if filter:
             real_animations = {k: v for k, v in real_animations.items() if filter in k}
 
-        graph_dict = self.to_dict()
+        tag_animations = self.get_animations()
+        graph_dict = self.to_dict(tag_animations)
         renames = detect_renames(graph_dict)
         # renames, copies = detect_copies_from_graph(graph_dict, renames)
         copies = []
@@ -2434,16 +2458,22 @@ class AnimationTag(Tag):
         
     def _animation_from_index(self, index, state_type="") -> Animation:
         element = self.block_animations.Elements[index]
-        animation = Animation()
-        animation.from_element(element)
-        if state_type:
-            animation.state_types.add(state_type)
-        return animation
+        shared_animation_element = self._get_shared_animation_element(element)
+        if shared_animation_element is not None:
+            animation = Animation()
+            animation.from_element(element, shared_animation_element, self.corinth)
+            if state_type:
+                animation.state_types.add(state_type)
+            return animation
         
-    
-    def to_dict(self) -> dict:
+    def to_dict(self, tag_animations: list) -> dict:
         '''Parses the mode n state graph and turns it into a dict'''
         graph = {}
+        
+        def add_state(animation: Animation, state_name):
+            animation.state_types.add(state_name)
+            return animation
+        
         for mode in self.block_modes.Elements:
             mode_label = mode.Fields[0].GetStringData()
             graph[mode_label] = {}
@@ -2460,8 +2490,8 @@ class AnimationTag(Tag):
                         set_label = set.Fields[0].GetStringData()
                         graph[mode_label][weapon_class_label][weapon_type_label][set_label] = {}
                         
-                        graph[mode_label][weapon_class_label][weapon_type_label][set_label]["actions"] = {action.Fields[0].GetStringData(): self._animation_from_index(action.Fields[3].Elements[0].Fields[1].Value, "action") for action in set.Fields[4].Elements if action.Fields[3].Elements[0].Fields[1].Value > -1}
-                        graph[mode_label][weapon_class_label][weapon_type_label][set_label]["overlay_animations"] = {overlay.Fields[0].GetStringData(): self._animation_from_index(overlay.Fields[3].Elements[0].Fields[1].Value, "overlay") for overlay in set.Fields[5].Elements if overlay.Fields[3].Elements[0].Fields[1].Value > -1}
+                        graph[mode_label][weapon_class_label][weapon_type_label][set_label]["actions"] = {action.Fields[0].GetStringData(): add_state(tag_animations[action.Fields[3].Elements[0].Fields[1].Value], "action") for action in set.Fields[4].Elements if action.Fields[3].Elements[0].Fields[1].Value > -1}
+                        graph[mode_label][weapon_class_label][weapon_type_label][set_label]["overlay_animations"] = {overlay.Fields[0].GetStringData(): add_state(tag_animations[overlay.Fields[3].Elements[0].Fields[1].Value], "overlay") for overlay in set.Fields[5].Elements if overlay.Fields[3].Elements[0].Fields[1].Value > -1}
                         
                         graph[mode_label][weapon_class_label][weapon_type_label][set_label]["death_and_damage"] = {}
                         for death_and_damage in set.Fields[6].Elements:
@@ -2469,14 +2499,14 @@ class AnimationTag(Tag):
                             graph[mode_label][weapon_class_label][weapon_type_label][set_label]["death_and_damage"][death_and_damage_label] = {}
                             for direction in death_and_damage.Fields[1].Elements:
                                 direction_label = directions[direction.ElementIndex]
-                                graph[mode_label][weapon_class_label][weapon_type_label][set_label]["death_and_damage"][death_and_damage_label][direction_label] = {regions[region.ElementIndex]: self._animation_from_index(region.Fields[0].Elements[0].Fields[1].Value, "death and damage") for region in direction.Fields[0].Elements if region.Fields[0].Elements[0].Fields[1].Value > -1}
+                                graph[mode_label][weapon_class_label][weapon_type_label][set_label]["death_and_damage"][death_and_damage_label][direction_label] = {regions[region.ElementIndex]: add_state(tag_animations[region.Fields[0].Elements[0].Fields[1].Value], "death and damage") for region in direction.Fields[0].Elements if region.Fields[0].Elements[0].Fields[1].Value > -1}
                                 
                             
                         graph[mode_label][weapon_class_label][weapon_type_label][set_label]["transitions"] = {}
                         
                         for transition in set.Fields[7].Elements:
                             transition_state = transition.Fields[0].GetStringData()
-                            graph[mode_label][weapon_class_label][weapon_type_label][set_label]["transitions"][transition_state] = {f"2:{destination.Fields[0].GetStringData()}:{destination.Fields[1].GetStringData()}": self._animation_from_index(destination.Fields[2].Elements[0].Fields[1].Value, "transition") for destination in transition.Fields[1].Elements if destination.Fields[2].Elements[0].Fields[1].Value > -1}
+                            graph[mode_label][weapon_class_label][weapon_type_label][set_label]["transitions"][transition_state] = {f"2:{destination.Fields[0].GetStringData()}:{destination.Fields[1].GetStringData()}": add_state(tag_animations[destination.Fields[2].Elements[0].Fields[1].Value], "transition") for destination in transition.Fields[1].Elements if destination.Fields[2].Elements[0].Fields[1].Value > -1}
                             
                             
         return graph
@@ -2559,7 +2589,8 @@ class AnimationTag(Tag):
 
     def test_find_animation(self, tokens: list | str, categories=[], graph_dict={}):
         if not graph_dict:
-            graph_dict = self.to_dict()
+            tag_animations = self.get_animations()
+            graph = self.to_dict(tag_animations)
         print("")
         for animation in self.find_animation(graph_dict, tokens):
             print(animation.name, sorted(list(animation.state_types)))
@@ -2768,22 +2799,21 @@ def detect_renames(graph):
 
             if cat in ("actions", "overlay_animations"):
                 for state, anim in node[cat].items():
-                    name_to_paths[anim.name].append(":".join(path_tokens + [state]))
+                    name_to_paths[anim.name.tag_name].append(":".join(path_tokens + [state]))
 
             elif cat == "transitions":
                 for state, dests in node[cat].items():
                     for key, anim in dests.items():
-                        name_to_paths[anim.name].append(":".join(path_tokens + [state, key]))
+                        name_to_paths[anim.name.tag_name].append(":".join(path_tokens + [state, key]))
 
             elif cat == "death_and_damage":
                 for dmg_state, dirs in node[cat].items():
                     for dir_label, regions in dirs.items():
                         for reg_label, anim in regions.items():
-                            name_to_paths[anim.name].append(
+                            name_to_paths[anim.name.tag_name].append(
                                 ":".join(path_tokens + [dmg_state, dir_label, reg_label])
                             )
 
-        # Recurse into structural layers
         for k, sub in node.items():
             if isinstance(sub, dict) and k not in (
                 "actions",
@@ -2798,14 +2828,13 @@ def detect_renames(graph):
     renames = []
     for anim_name, paths in name_to_paths.items():
         if len(paths) < 2:
-            continue  # unique ⇒ no rename
+            continue
         canonical_src = ":".join(minimal_path(anim_name.split(":")))
         for p in paths:
             short_p = ":".join(minimal_path(p.split(":")))
             if short_p != canonical_src:
                 renames.append((anim_name, short_p))
     return renames
-
 
 def _strip_trailing_any(toks):
     while toks and toks[-1] == "any":
@@ -2814,15 +2843,12 @@ def _strip_trailing_any(toks):
 
 def minimal_path(toks):
 
-    # Strip variant markers (…:varX)
     toks = [t for t in toks if not (t.startswith("var") and t[3:].isdigit())]
 
-    # Transition pattern …:state:2:mode:new_state
     if len(toks) >= 5 and toks[-3] == "2":
         base, tail = toks[:-4], toks[-4:]
         return _strip_trailing_any(base) + tail
 
-    # Death & damage …:h_ping:back:gut
     if (
         len(toks) >= 5
         and toks[-3] in damage_states

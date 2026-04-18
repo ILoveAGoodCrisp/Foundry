@@ -17,5 +17,5 @@ def to_vector(line):
 def to_quaternion(line):
     numbers = line.split()
     assert len(numbers) == 4
-    w, x, y, z = numbers[3], numbers[0], numbers[1], numbers[2]
+    w, x, y, z = float(numbers[3]), float(numbers[0]), float(numbers[1]), float(numbers[2])
     return Quaternion((w, x, y, z))

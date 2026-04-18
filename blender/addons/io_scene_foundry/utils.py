@@ -5462,6 +5462,8 @@ class AnimationStateType(Enum):
 
 class AnimationName:
     def __init__(self, name: str):
+        self.data_name = name.replace(":", " ")
+        self.tag_name = name.replace(" ", ":")
         self.valid = False
         self.mode = "any"
         self.weapon_class = "any"
@@ -5538,6 +5540,9 @@ class AnimationName:
             self.destination_mode == value.destination_mode,
             self.destination_state == value.destination_state,
         )
+        
+    def __str__(self):
+        return self.data_name
         
     def __repr__(self):
         match self.type:

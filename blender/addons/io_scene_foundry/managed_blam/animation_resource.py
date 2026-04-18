@@ -22,7 +22,6 @@ class AnimationCodecType(IntEnum):
     REVISED_CURVE = 10
     SHARED_STATIC = 11
 
-
 class FrameInfoType(IntEnum):
     NONE = 0
     DX_DY = 1
@@ -32,14 +31,11 @@ class FrameInfoType(IntEnum):
     XYZ_ABSOLUTE = 5
     AUTO = 6
 
-
 def _identity_quaternion() -> Quaternion:
     return Quaternion((1.0, 0.0, 0.0, 0.0))
 
-
 def _zero_vector() -> Vector:
     return Vector((0.0, 0.0, 0.0))
-
 
 def _normalize_quaternion(x: float, y: float, z: float, w: float) -> Quaternion:
     length = math.sqrt((w * w) + (x * x) + (y * y) + (z * z))
@@ -47,7 +43,6 @@ def _normalize_quaternion(x: float, y: float, z: float, w: float) -> Quaternion:
         return _identity_quaternion()
     inv = 1.0 / length
     return Quaternion((w * inv, x * inv, y * inv, z * inv))
-
 
 class BinaryReader:
     def __init__(self, data: bytes):
@@ -1110,7 +1105,7 @@ def _lerp_float(a: float, b: float, t: float) -> float:
     return a + ((b - a) * t)
 
 
-def build_expanded_animation(
+def build_animation(
     resource_data: AnimationResourceData,
     default_nodes: list[DefaultAnimationNode],
     missing_mode: str = "default",
