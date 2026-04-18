@@ -19,7 +19,6 @@ from .animation_resource import (
     BinaryReader,
     CurveCodec,
     DefaultAnimationNode,
-    ExpandedAnimation,
     FrameInfoType,
     RevisedCurveCodec,
     SharedStaticCodecData,

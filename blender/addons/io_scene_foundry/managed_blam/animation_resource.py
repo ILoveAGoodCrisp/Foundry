@@ -115,7 +115,7 @@ class MovementData:
     rotations: list[Quaternion]
 
 @dataclass
-class ExpandedAnimation:
+class AnimationData:
     frame_count: int
     translations: list[list[Vector]]
     rotations: list[list[Quaternion]]
@@ -1014,7 +1014,7 @@ def apply_shared_static_codec(
     return resource_data
 
 
-def apply_movement_data(animation: ExpandedAnimation, movement_data: MovementData | None) -> ExpandedAnimation:
+def apply_movement_data(animation: AnimationData, movement_data: MovementData | None) -> AnimationData:
     if movement_data is None:
         return animation
 
@@ -1065,32 +1065,32 @@ def default_frame_channels(default_nodes: list[DefaultAnimationNode]) -> FrameCh
     )
 
 
-def _expand_track(values: list, keyframes: list[int], frame_count: int, default_value, interpolator):
+def _animation_track(values: list, keyframes: list[int], frame_count: int, default_value, interpolator):
     if not values:
         return [default_value for _ in range(frame_count)]
     if not keyframes:
         return [values[0] for _ in range(frame_count)]
     if len(values) == frame_count and len(keyframes) == frame_count:
         return values[:]
-    expanded = []
+    frames = []
     key_index = 0
     for frame_index in range(frame_count):
         if frame_index <= keyframes[0]:
-            expanded.append(values[0])
+            frames.append(values[0])
             continue
         if frame_index >= keyframes[-1]:
-            expanded.append(values[-1])
+            frames.append(values[-1])
             continue
         while key_index < len(keyframes) - 2 and frame_index > keyframes[key_index + 1]:
             key_index += 1
         if keyframes[key_index] == frame_index:
-            expanded.append(values[key_index])
+            frames.append(values[key_index])
             continue
         previous_frame = keyframes[key_index]
         next_frame = keyframes[key_index + 1]
         t = (frame_index - previous_frame) / float(next_frame - previous_frame)
-        expanded.append(interpolator(values[key_index], values[key_index + 1], t))
-    return expanded
+        frames.append(interpolator(values[key_index], values[key_index + 1], t))
+    return frames
 
 
 def _slerp_quaternion(a: Quaternion, b: Quaternion, t: float) -> Quaternion:
@@ -1109,7 +1109,7 @@ def build_animation(
     resource_data: AnimationResourceData,
     default_nodes: list[DefaultAnimationNode],
     missing_mode: str = "default",
-) -> ExpandedAnimation:
+) -> AnimationData:
     if resource_data.animation_data is None:
         raise ValueError("Animation resource has no animated codec data")
     if resource_data.node_count != len(default_nodes):
@@ -1153,7 +1153,7 @@ def build_animation(
         elif anim_rot_flags[node_index]:
             node_rotations = [
                 value.copy()
-                for value in _expand_track(
+                for value in _animation_track(
                     resource_data.animation_data.rotations[animated_rotation_index],
                     resource_data.animation_data.rotation_keyframes[animated_rotation_index],
                     resource_data.frame_count,
@@ -1172,7 +1172,7 @@ def build_animation(
         elif anim_trans_flags[node_index]:
             node_translations = [
                 value.copy()
-                for value in _expand_track(
+                for value in _animation_track(
                     resource_data.animation_data.translations[animated_translation_index],
                     resource_data.animation_data.translation_keyframes[animated_translation_index],
                     resource_data.frame_count,
@@ -1189,7 +1189,7 @@ def build_animation(
             node_scales = [value for _ in range(resource_data.frame_count)]
             static_scale_index += 1
         elif anim_scale_flags[node_index]:
-            node_scales = _expand_track(
+            node_scales = _animation_track(
                 resource_data.animation_data.scales[animated_scale_index],
                 resource_data.animation_data.scale_keyframes[animated_scale_index],
                 resource_data.frame_count,
@@ -1207,7 +1207,7 @@ def build_animation(
         translation_flags.append(translation_present)
         scale_flags.append(scale_present)
 
-    return ExpandedAnimation(
+    return AnimationData(
         resource_data.frame_count,
         translations,
         rotations,
@@ -1219,9 +1219,9 @@ def build_animation(
 
 
 def compose_overlay_animation(
-    animation: ExpandedAnimation,
+    animation: AnimationData,
     base_frame: FrameChannels,
-) -> ExpandedAnimation:
+) -> AnimationData:
     translations: list[list[Vector]] = []
     rotations: list[list[Quaternion]] = []
     scales: list[list[float]] = []
@@ -1257,7 +1257,7 @@ def compose_overlay_animation(
         rotations.append(node_rotations)
         scales.append(node_scales)
 
-    return ExpandedAnimation(
+    return AnimationData(
         animation.frame_count,
         translations,
         rotations,
@@ -1268,7 +1268,7 @@ def compose_overlay_animation(
     )
 
 
-def offset_overlay_animation(animation: ExpandedAnimation, default_nodes: list[DefaultAnimationNode]) -> ExpandedAnimation:
+def offset_overlay_animation(animation: AnimationData, default_nodes: list[DefaultAnimationNode]) -> AnimationData:
     if animation.node_count != len(default_nodes):
         raise ValueError(
             f"Overlay node count mismatch: animation={animation.node_count}, defaults={len(default_nodes)}"
@@ -1308,7 +1308,7 @@ def offset_overlay_animation(animation: ExpandedAnimation, default_nodes: list[D
         rotations.append(node_rotations)
         scales.append(node_scales)
 
-    return ExpandedAnimation(
+    return AnimationData(
         animation.frame_count,
         translations,
         rotations,
@@ -1319,7 +1319,7 @@ def offset_overlay_animation(animation: ExpandedAnimation, default_nodes: list[D
     )
 
 
-def compose_replacement_animation(animation: ExpandedAnimation, base_frame: FrameChannels) -> ExpandedAnimation:
+def compose_replacement_animation(animation: AnimationData, base_frame: FrameChannels) -> AnimationData:
     translations: list[list[Vector]] = []
     rotations: list[list[Quaternion]] = []
     scales: list[list[float]] = []
@@ -1341,7 +1341,7 @@ def compose_replacement_animation(animation: ExpandedAnimation, base_frame: Fram
         rotations.append(node_rotations)
         scales.append(node_scales)
 
-    return ExpandedAnimation(
+    return AnimationData(
         animation.frame_count,
         translations,
         rotations,
