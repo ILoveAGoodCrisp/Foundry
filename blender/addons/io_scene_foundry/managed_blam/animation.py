@@ -2607,131 +2607,127 @@ class AnimationTag(Tag):
                 self.tag_has_changes = True
         
     def events_to_blender(self) -> int:
-        '''Create frame AnimationEvents from graph and frame_event_list data'''
+        '''Create AnimationEvents from legacy graph events'''
         event_list_events = {}
         frame_event_list_path = self.get_frame_event_list()
         if not frame_event_list_path:
-            utils.print_warning("Animation graph contains no reference to a frame event list")
+            utils.print_warning(f"Animation graph contains no reference to a frame event list")
         elif not Path(frame_event_list_path).exists():
             utils.print_warning(f"Frame events list tag does not exist: {frame_event_list_path}")
         else:
             with FrameEventListTag(path=frame_event_list_path) as events:
                 event_list_events = events.collect_events()
-
+                
         unique_sounds = []
         for element in self.block_sound_references.Elements:
             ref = Reference()
             ref.from_element(element, self.corinth)
             unique_sounds.append(ref)
-
+            
         unique_effects = []
         for element in self.block_effect_references.Elements:
             ref = Reference()
             ref.from_element(element, self.corinth)
             unique_effects.append(ref)
-
+        
         blender_animations = {a.name.replace(":", " "): a for a in self.scene_nwo.animations if a.export_this}
         blender_markers = {ob.nwo.marker_model_group: ob for ob in bpy.data.objects if ob.type == 'EMPTY'}
         event_count = 0
-
-        def apply_flags(blender_data_event, reference: Reference):
-            blender_data_event.flag_allow_on_player = reference.allow_on_player
-            blender_data_event.flag_left_arm_only = reference.left_arm_only
-            blender_data_event.flag_right_arm_only = reference.right_arm_only
-            blender_data_event.flag_first_person_only = reference.first_person_only
-            blender_data_event.flag_third_person_only = reference.third_person_only
-            blender_data_event.flag_forward_only = reference.forward_only
-            blender_data_event.flag_reverse_only = reference.reverse_only
-            blender_data_event.flag_fp_no_aged_weapons = reference.fp_no_aged_weapons
-
-        def collapse_events(animation_events):
-            animation_events.sort(key=lambda event: event.frame, reverse=True)
-            result = []
-            group_end_frame = animation_events[0].frame
-
-            for current, next_event in zip(animation_events, animation_events[1:] + [None]):
-                if next_event:
-                    if (
-                        next_event.frame == current.frame - 1
-                        and current.type == next_event.type
-                        and not (current.sound_events or current.effect_events or current.dialogue_events)
-                    ):
-                        continue
-
-                current.end_frame = group_end_frame
-                group_end_frame = next_event.frame if next_event else 0
-                result.append(current)
-
-            return result
-
+        
         for animation in self.block_animations.Elements:
-            name = self._field_string(animation, "StringId:name", "name", default="")
-            if not name:
-                continue
-
+            name = animation.SelectField("StringId:name").GetStringData()
             name_with_spaces = name.replace(":", " ")
             blender_animation = blender_animations.get(name_with_spaces)
             if blender_animation is None:
                 blender_animation = blender_animations.get(name)
-                if blender_animation is None:
+                if not blender_animation:
+                    # utils.print_warning(f"--- Animation graph contains animation {name_with_spaces} but Blender does not")
                     continue
-
+                
             utils.print_bullet(f"Getting events for {blender_animation.name}")
-
-            shared_data_element = self._get_shared_animation_element(animation) or animation
+            
             animation_events: list[AnimationEvent] = []
-
-            for element in self._iter_block_elements(shared_data_element, "Block:frame events", "frame events"):
+            
+            for element in animation.SelectField("Block:shared animation data[0]/Block:frame events").Elements:
                 event = AnimationEvent()
                 event.from_element(element, True)
                 animation_events.append(event)
-
+                
             none_event = None
-
+            
             def make_none_event():
-                event = AnimationEvent()
-                animation_events.append(event)
-                return event
-
-            for element in self._iter_block_elements(shared_data_element, "Block:sound events", "sound events"):
-                sound_index = self._field_int(element, "ShortBlockIndex:sound", "sound", default=-1)
-                if sound_index < 0:
-                    continue
-
-                sound_event = SoundEvent()
-                sound_event.from_element(element, unique_sounds, True)
-                if sound_event.sound_reference is None:
-                    continue
-
-                if none_event is None:
-                    none_event = make_none_event()
-                none_event.sound_events.append(sound_event)
-
-            for element in self._iter_block_elements(shared_data_element, "Block:effect events", "effect events"):
-                effect_index = self._field_int(element, "ShortBlockIndex:effect", "effect", default=-1)
-                if effect_index < 0:
-                    continue
-
-                effect_event = EffectEvent()
-                effect_event.from_element(element, unique_effects, True)
-                if effect_event.effect_reference is None:
-                    continue
-
-                if none_event is None:
-                    none_event = make_none_event()
-                none_event.effect_events.append(effect_event)
-
-            for element in self._iter_block_elements(shared_data_element, "Block:dialogue events", "dialogue events"):
+                none_event = AnimationEvent()
+                animation_events.append(none_event)
+                return none_event
+            
+            for element in animation.SelectField("Block:shared animation data[0]/Block:sound events").Elements:
+                if element.SelectField("ShortBlockIndex:sound").Value > -1:
+                    sound_event = SoundEvent()
+                    sound_event.from_element(element, unique_sounds, True)
+                    
+                    if sound_event.sound_reference is None:
+                        continue
+                    
+                    if none_event is None:
+                        none_event = make_none_event()
+                        
+                    none_event.sound_events.append(sound_event)
+                    
+            for element in animation.SelectField("Block:shared animation data[0]/Block:effect events").Elements:
+                if element.SelectField("ShortBlockIndex:effect").Value > -1:
+                    effect_event = EffectEvent()
+                    effect_event.from_element(element, unique_effects, True)
+                    
+                    if effect_event.effect_reference is None:
+                        continue
+                    
+                    if none_event is None:
+                        none_event = make_none_event()
+                        
+                    none_event.effect_events.append(effect_event)
+                        
+            for element in animation.SelectField("Block:shared animation data[0]/Block:dialogue events").Elements:
                 dialogue_event = DialogueEvent()
                 dialogue_event.from_element(element, True)
-
+                
                 if none_event is None:
                     none_event = make_none_event()
+                    
                 none_event.dialogue_events.append(dialogue_event)
+                    
+            # See if we can make any ranged frame events
+            def collapse_events(aes):
+                aes.sort(key=lambda x: x.frame, reverse=True)
+                result = []
+                group_end_frame = aes[0].frame
+                
+                for curr, next in zip(aes, aes[1:] + [None]):
+                    if next:
+                        if next.frame == curr.frame - 1 and curr.type == next.type and not (curr.sound_events or curr.effect_events or curr.dialogue_events):
+                            continue
+
+                    # Finalize current group
+                    curr.end_frame = group_end_frame
+                    group_end_frame = next.frame if next else 0
+                    result.append(curr)
+                        
+                return result
 
             if len(animation_events) > 1:
                 animation_events = collapse_events(animation_events)
-
+                    
+            # Apply to blender
+            def apply_flags(blender_data_event, reference: Reference):
+                blender_data_event.flag_allow_on_player = reference.allow_on_player
+                blender_data_event.flag_left_arm_only = reference.left_arm_only
+                blender_data_event.flag_right_arm_only = reference.right_arm_only
+                blender_data_event.flag_first_person_only = reference.first_person_only
+                blender_data_event.flag_third_person_only = reference.third_person_only
+                blender_data_event.flag_forward_only = reference.forward_only
+                blender_data_event.flag_reverse_only = reference.reverse_only
+                blender_data_event.flag_fp_no_aged_weapons = reference.fp_no_aged_weapons
+                
+            # Merge with event list events, frame event list gets priority
             list_events = event_list_events.get(name)
             if list_events is not None:
                 graph_events = animation_events
@@ -2739,53 +2735,51 @@ class AnimationTag(Tag):
                     animation_events = list_events
                 else:
                     valid_graph_events = []
-                    for graph_event in animation_events:
-                        for list_event in list_events:
-                            if list_event == graph_event:
+                    for g_event in animation_events:
+                        for f_event in list_events:
+                            if f_event == g_event:
                                 break
                         else:
-                            valid_graph_events.append(graph_event)
-
+                            valid_graph_events.append(g_event)
+                        
                     animation_events = list_events + valid_graph_events
-
-            self._remove_animation_events(blender_animation, lambda event: getattr(event, "event_type", "") == EVENT_TYPE_FRAME)
-            if not animation_events:
-                continue
-
-            for event in sorted(animation_events, key=lambda value: value.frame):
-                blender_event = blender_animation.animation_events.add()
-                blender_event.name = event.name
-                blender_event.event_type = EVENT_TYPE_FRAME
-                blender_event.frame_frame = blender_animation.frame_start + event.frame
-                if event.end_frame > event.frame:
-                    blender_event.multi_frame = 'range'
-                    blender_event.frame_range = blender_animation.frame_start + event.end_frame
-                blender_event.frame_name = event.type
-                blender_event.event_id = event.unique_id
-
-                data_events = event.sound_events + event.effect_events + event.dialogue_events
-                data_events.sort(key=lambda data_event: data_event.frame_offset)
-
-                for data_event in data_events:
-                    blender_data_event = blender_event.event_data.add()
-                    blender_data_event.frame_offset = data_event.frame_offset
-                    if isinstance(data_event, SoundEvent):
-                        blender_data_event.data_type = 'SOUND'
-                        blender_data_event.marker = blender_markers.get(data_event.marker_name)
-                        blender_data_event.event_sound_tag = data_event.sound_reference.tag
-                        apply_flags(blender_data_event, data_event.sound_reference)
-                    elif isinstance(data_event, EffectEvent):
-                        blender_data_event.data_type = 'EFFECT'
-                        blender_data_event.marker = blender_markers.get(data_event.marker_name)
-                        blender_data_event.event_effect_tag = data_event.effect_reference.tag
-                        apply_flags(blender_data_event, data_event.effect_reference)
-                        blender_data_event.damage_effect_reporting_type = data_event.damage_effect_reporting_type
-                    else:
-                        blender_data_event.data_type = 'DIALOGUE'
-                        blender_data_event.dialogue_event = data_event.dialogue_type
-
-            event_count += len(animation_events)
-
+            
+            if animation_events:
+                blender_animation.animation_events.clear()     
+                for event in sorted(animation_events, key=lambda x: x.frame):
+                    blender_event = blender_animation.animation_events.add()
+                    blender_event.name = event.name
+                    blender_event.frame_frame = blender_animation.frame_start + event.frame
+                    if event.end_frame > event.frame:
+                        blender_event.multi_frame = 'range'
+                        blender_event.frame_range = blender_animation.frame_start + event.end_frame
+                    blender_event.frame_name = event.type
+                    blender_event.event_id = event.unique_id
+                    
+                    data_events = event.sound_events + event.effect_events + event.dialogue_events
+                    data_events.sort(key=lambda x: x.frame_offset)
+                    
+                    for data_event in data_events:
+                        blender_data_event = blender_event.event_data.add()
+                        blender_data_event.frame_offset = data_event.frame_offset
+                        if isinstance(data_event, SoundEvent):
+                            blender_data_event.data_type = 'SOUND'
+                            blender_data_event.frame_offset = data_event.frame_offset
+                            blender_data_event.marker = blender_markers.get(data_event.marker_name)
+                            blender_data_event.event_sound_tag = data_event.sound_reference.tag
+                            apply_flags(blender_data_event, data_event.sound_reference)
+                        elif isinstance(data_event, EffectEvent):
+                            blender_data_event.data_type = 'EFFECT'
+                            blender_data_event.marker = blender_markers.get(data_event.marker_name)
+                            blender_data_event.event_effect_tag = data_event.effect_reference.tag
+                            apply_flags(blender_data_event, data_event.effect_reference)
+                            blender_data_event.damage_effect_reporting_type = data_event.damage_effect_reporting_type
+                        else:
+                            blender_data_event.data_type = 'DIALOGUE'
+                            blender_data_event.dialogue_event = data_event.dialogue_type
+                    
+                event_count += len(animation_events)
+            
         return event_count
 
 def detect_renames(graph):
