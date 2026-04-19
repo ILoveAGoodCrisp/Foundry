@@ -5,6 +5,7 @@ from pathlib import Path
 import random
 from typing import cast
 import bpy
+from mathutils import Matrix
 
 from ...managed_blam.animation import AnimationTag
 
@@ -13,6 +14,139 @@ from ... import utils
 from ...icons import get_icon_id
 
 pose_hints = 'aim', 'look', 'acc', 'steer', 'pain'
+IK_PREVIEW_CONSTRAINT_NAME = "Foundry IK Preview"
+
+
+def _get_animation_event_owner(scene_nwo, single_animation: bool):
+    if single_animation:
+        return scene_nwo
+
+    if not scene_nwo.animations or scene_nwo.active_animation_index < 0:
+        return None
+
+    if scene_nwo.active_animation_index >= len(scene_nwo.animations):
+        return None
+
+    return scene_nwo.animations[scene_nwo.active_animation_index]
+
+
+def _get_active_animation_event(scene_nwo, single_animation: bool):
+    owner = _get_animation_event_owner(scene_nwo, single_animation)
+    if owner is None or not owner.animation_events:
+        return owner, None
+
+    event_index = owner.active_animation_event_index
+    if event_index < 0 or event_index >= len(owner.animation_events):
+        return owner, None
+
+    return owner, owner.animation_events[event_index]
+
+
+def _find_animation_armature(context: bpy.types.Context, animation, single_animation: bool) -> bpy.types.Object | None:
+    if not single_animation and animation is not None:
+        for track in animation.action_tracks:
+            if track.object and track.object.type == 'ARMATURE':
+                return track.object
+
+    rig = utils.get_rig_prioritize_active(context)
+    if rig is not None:
+        return rig
+
+    if context.object is not None:
+        if context.object.type == 'ARMATURE':
+            return context.object
+        return utils.ultimate_armature_parent(context.object)
+
+    return None
+
+
+def _get_ik_chain(scene_nwo, chain_name: str):
+    if not chain_name or chain_name == "none":
+        return None
+
+    for chain in scene_nwo.ik_chains:
+        if chain.name == chain_name:
+            return chain
+
+    return None
+
+
+def _ik_chain_count(armature: bpy.types.Object, start_node: str, effector_node: str) -> int:
+    effector_bone = armature.pose.bones.get(effector_node)
+    if effector_bone is None:
+        return 0
+
+    chain_count = 0
+    current_bone = effector_bone
+    while current_bone is not None:
+        chain_count += 1
+        if current_bone.name == start_node:
+            return chain_count
+        current_bone = current_bone.parent
+
+    return 0
+
+
+def _iter_ik_preview_constraints(armature: bpy.types.Object):
+    for pose_bone in armature.pose.bones:
+        for constraint in pose_bone.constraints:
+            if constraint.type == 'IK' and constraint.name.startswith(IK_PREVIEW_CONSTRAINT_NAME):
+                yield pose_bone, constraint
+
+
+def _clear_ik_preview_constraints(armature: bpy.types.Object) -> int:
+    removed = 0
+    for pose_bone, constraint in list(_iter_ik_preview_constraints(armature)):
+        try:
+            constraint.driver_remove("influence")
+        except (TypeError, ValueError, RuntimeError):
+            pass
+        pose_bone.constraints.remove(constraint)
+        removed += 1
+
+    return removed
+
+
+def _ik_preview_constraint_name(chain_name: str) -> str:
+    return f"{IK_PREVIEW_CONSTRAINT_NAME} [{chain_name}]"
+
+
+def _ik_preview_target_name(armature: bpy.types.Object, chain_name: str) -> str:
+    return f"{armature.name}_ik_preview_target_{chain_name}"
+
+
+def _clear_ik_preview_targets(armature: bpy.types.Object) -> int:
+    removed = 0
+    prefix = f"{armature.name}_ik_preview_target_"
+    for obj in [ob for ob in bpy.data.objects if ob.name.startswith(prefix)]:
+        bpy.data.objects.remove(obj, do_unlink=True)
+        removed += 1
+
+    return removed
+
+
+def _ik_event_value_data_path(scene_nwo, single_animation: bool) -> str | None:
+    if single_animation:
+        event_index = scene_nwo.active_animation_event_index
+        if event_index < 0:
+            return None
+        return f"nwo.animation_events[{event_index}].event_value"
+
+    animation_index = scene_nwo.active_animation_index
+    if animation_index < 0 or animation_index >= len(scene_nwo.animations):
+        return None
+
+    animation = scene_nwo.animations[animation_index]
+    event_index = animation.active_animation_event_index
+    if event_index < 0:
+        return None
+
+    return f"nwo.animations[{animation_index}].animation_events[{event_index}].event_value"
+
+
+def _tag_redraw_areas(context: bpy.types.Context):
+    for area in context.screen.areas:
+        area.tag_redraw()
 
 class NWO_UL_AnimProps_Node(bpy.types.UIList):
     def draw_item(
@@ -185,7 +319,7 @@ class NWO_UL_AnimProps_Events(bpy.types.UIList):
                 else:
                     layout.label(text=f"{item.frame_frame} - {item.frame_name.title()}", icon_value=get_icon_id("animation_event"))
             case '_connected_geometry_animation_event_type_object_function':
-                layout.label(text=f"Event Function {item.object_function_name.rpartition("_")[2].upper()}", icon='GRAPH')
+                layout.label(text=f"Event Function {item.object_function_name.rpartition('_')[2].upper()}", icon='GRAPH')
             case '_connected_geometry_animation_event_type_import':
                 layout.label(text=f"{item.frame_frame} - {item.import_name}", icon_value=get_icon_id("anim_overlay"))
             case '_connected_geometry_animation_event_type_wrinkle_map':
@@ -2156,6 +2290,117 @@ class NWO_OT_AnimationEventSetFrame(bpy.types.Operator):
         current_frame = context.scene.frame_current
         setattr(event, self.prop_to_set, int(current_frame))
         return {"FINISHED"}
+
+
+class NWO_OT_PreviewIKEvent(bpy.types.Operator):
+    bl_idname = "nwo.preview_ik_event"
+    bl_label = "Toggle IK Preview"
+    bl_description = "Creates or removes a temporary Blender IK constraint using the active IK event's target, pole vector, and influence"
+    bl_options = {"UNDO"}
+
+    single_animation: bpy.props.BoolProperty(options={'SKIP_SAVE', 'HIDDEN'})
+
+    @classmethod
+    def poll(cls, context) -> bool:
+        scene_nwo = utils.get_scene_props()
+        for single_animation in (False, True):
+            _, event = _get_active_animation_event(scene_nwo, single_animation)
+            if event is not None and event.event_type.startswith('_connected_geometry_animation_event_type_ik'):
+                return True
+
+        return False
+
+    def execute(self, context):
+        scene_nwo = utils.get_scene_props()
+        animation, event = _get_active_animation_event(scene_nwo, self.single_animation)
+        if event is None or not event.event_type.startswith('_connected_geometry_animation_event_type_ik'):
+            self.report({'WARNING'}, "No active IK event to preview")
+            return {'CANCELLED'}
+
+        armature = _find_animation_armature(context, animation, self.single_animation)
+        if armature is None or armature.type != 'ARMATURE':
+            self.report({'WARNING'}, "Could not resolve an armature for this animation")
+            return {'CANCELLED'}
+
+        chain = _get_ik_chain(scene_nwo, event.ik_chain)
+        if chain is None or not chain.start_node or not chain.effector_node:
+            self.report({'WARNING'}, "This IK event does not reference a valid IK chain")
+            return {'CANCELLED'}
+
+        effector_bone = armature.pose.bones.get(chain.effector_node)
+        if effector_bone is None:
+            self.report({'WARNING'}, f"Effector bone [{chain.effector_node}] was not found on armature [{armature.name}]")
+            return {'CANCELLED'}
+
+        chain_count = _ik_chain_count(armature, chain.start_node, chain.effector_node)
+        if chain_count == 0:
+            self.report({'WARNING'}, f"IK chain [{chain.name}] could not be resolved from [{chain.start_node}] to [{chain.effector_node}]")
+            return {'CANCELLED'}
+
+        event_data_path = _ik_event_value_data_path(scene_nwo, self.single_animation)
+        preview_constraint_name = _ik_preview_constraint_name(chain.name)
+        existing_preview = any(
+            constraint.name == preview_constraint_name
+            for _, constraint in _iter_ik_preview_constraints(armature)
+        )
+
+        _clear_ik_preview_constraints(armature)
+        _clear_ik_preview_targets(armature)
+        if existing_preview:
+            context.view_layer.update()
+            _tag_redraw_areas(context)
+            self.report({'INFO'}, "Cleared IK preview")
+            return {'FINISHED'}
+
+        if event.ik_target_marker is None:
+            self.report({'WARNING'}, "IK event has no proxy target to preview against")
+            return {'CANCELLED'}
+
+        proxy_target = event.ik_target_marker
+        preview_target = bpy.data.objects.new(_ik_preview_target_name(armature, chain.name), None)
+        preview_target.empty_display_type = 'PLAIN_AXES'
+        preview_target.empty_display_size = 0.02
+        preview_target.hide_select = True
+        preview_target.nwo.export_this = False
+        preview_target.nwo.is_frame = True
+        target_collection = proxy_target.users_collection[0] if proxy_target.users_collection else context.scene.collection
+        target_collection.objects.link(preview_target)
+        preview_target.rotation_mode = 'QUATERNION'
+        preview_target.parent = proxy_target
+        preview_target.matrix_parent_inverse = Matrix.Identity(4)
+        offset_matrix = proxy_target.matrix_world.inverted_safe() @ (armature.matrix_world @ effector_bone.matrix)
+        offset_location, offset_rotation, offset_scale = offset_matrix.decompose()
+        preview_target.location = offset_location
+        preview_target.rotation_quaternion = offset_rotation
+        preview_target.scale = offset_scale
+
+        constraint = effector_bone.constraints.new('IK')
+        constraint.name = preview_constraint_name
+        constraint.target = preview_target
+        constraint.chain_count = chain_count
+        constraint.use_stretch = False
+        constraint.use_tail = False
+        constraint.influence = event.event_value
+
+        if event.ik_pole_vector is not None:
+            constraint.pole_target = event.ik_pole_vector
+
+        if event_data_path:
+            fcurve = constraint.driver_add("influence")
+            driver = fcurve.driver
+            driver.type = 'SCRIPTED'
+            driver.expression = "ik_influence"
+            variable = driver.variables.new()
+            variable.name = "ik_influence"
+            target = variable.targets[0]
+            target.id_type = 'SCENE'
+            target.id = context.scene
+            target.data_path = event_data_path
+
+        context.view_layer.update()
+        _tag_redraw_areas(context)
+        self.report({'INFO'}, f"Previewing IK event [{event.name}]")
+        return {'FINISHED'}
     
 class NWO_OT_AnimationFramesSyncToKeyFrames(bpy.types.Operator):
     bl_idname = "nwo.animation_frames_sync_to_keyframes"

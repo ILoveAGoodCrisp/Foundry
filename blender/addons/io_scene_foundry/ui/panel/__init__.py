@@ -481,6 +481,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 col.prop(item, 'event_value', text="IK Influence")
                 # col.prop(item, "name", text="Event Name")
                 col.prop(item, 'ik_pole_vector')
+                # col.operator("nwo.preview_ik_event", text="Toggle IK Preview", icon='CON_KINEMATIC').single_animation = True
                 # col.prop(item, "ik_proxy_target_id")
                 # col.prop(item, "ik_pole_vector_id")
                 # col.prop(item, "ik_effector_id")
@@ -3362,6 +3363,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     col.prop(item, 'event_value', text="IK Influence")
                     # col.prop(item, "name", text="Event Name")
                     col.prop(item, 'ik_pole_vector')
+                    # col.operator("nwo.preview_ik_event", text="Toggle IK Preview", icon='CON_KINEMATIC').single_animation = False
                     # col.prop(item, "ik_proxy_target_id")
                     # col.prop(item, "ik_pole_vector_id")
                     # col.prop(item, "ik_effector_id")
