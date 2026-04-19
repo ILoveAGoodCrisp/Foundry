@@ -98,21 +98,21 @@ class PhysicsTag(Tag):
             collection.objects.link(ob)
             objects.append(ob)
             
-        if element in self.tag.SelectField("Block:stiff spring constraints").Elements:
+        for element in self.tag.SelectField("Block:stiff spring constraints").Elements:
             constraint = StiffSpring(element, nodes)
             ob = constraint.to_object(armature)
             self._parent_constraint(constraint, ob, armature)
             collection.objects.link(ob)
             objects.append(ob)
             
-        if element in self.tag.SelectField("Block:ball and socket constraints").Elements:
+        for element in self.tag.SelectField("Block:ball and socket constraints").Elements:
             constraint = BallAndSocket(element, nodes)
             ob = constraint.to_object(armature)
             self._parent_constraint(constraint, ob, armature)
             collection.objects.link(ob)
             objects.append(ob)
             
-        if element in self.tag.SelectField("Block:prismatic constraints").Elements:
+        for element in self.tag.SelectField("Block:prismatic constraints").Elements:
             constraint = Prismatic(element, nodes)
             ob = constraint.to_object(armature)
             self._parent_constraint(constraint, ob, armature)
