@@ -1750,14 +1750,92 @@ class AnimationTag(Tag):
         identity = Quaternion((1.0, 0.0, 0.0, 0.0))
         return [(translation.copy(), identity.copy(), 1.0) for translation in translations]
 
-    def _find_ik_proxy_marker_object(self, armature: bpy.types.Object, ik_chain_name: str, pole=False):
+    def _find_ik_chain_object(self, armature: bpy.types.Object, ik_chain_name: str, target_kind: str):
         armature_children = {o.name: o for o in armature.children}
-        target_kind = "pole" if pole else "proxy"
         ob = armature_children.get(f"{armature.name}_{ik_chain_name}_{target_kind}_target")
         if ob is None:
-            ob = self._make_ik_chain_object(armature, armature.users_collection[0] if armature.users_collection else self.context.scene.collection, ik_chain_name, pole=pole)
+            ob = self._make_ik_chain_object(
+                armature,
+                armature.users_collection[0] if armature.users_collection else self.context.scene.collection,
+                ik_chain_name,
+                target_kind=target_kind,
+            )
             
         return ob
+
+    def _find_ik_proxy_marker_object(self, armature: bpy.types.Object, ik_chain_name: str, pole=False):
+        return self._find_ik_chain_object(armature, ik_chain_name, "pole" if pole else "proxy")
+
+    def _find_ik_chain_definition(self, ik_chain_name: str):
+        for chain in self.scene_nwo.ik_chains:
+            if chain.name == ik_chain_name:
+                return chain
+        return None
+
+    def _find_pose_bone_by_name(self, armature: bpy.types.Object, bone_name: str):
+        if not bone_name:
+            return None
+
+        pose_bone = armature.pose.bones.get(bone_name)
+        if pose_bone is not None:
+            return pose_bone
+
+        stripped_name = utils.remove_node_prefix(bone_name)
+        for candidate in armature.pose.bones:
+            if utils.remove_node_prefix(candidate.name) == stripped_name:
+                return candidate
+
+        return None
+
+    def _matrix_from_transform_sample(self, location: Vector, rotation: Quaternion, scale: float):
+        return Matrix.LocRotScale(location, rotation, Vector.Fill(3, float(scale)))
+
+    def _matrix_to_transform_sample(self, matrix: Matrix):
+        location, rotation, scale = matrix.decompose()
+        scale_value = (scale.x + scale.y + scale.z) / 3.0
+        return location.copy(), rotation.copy(), float(scale_value)
+
+    def _object_space_samples_to_local_samples(self, armature: bpy.types.Object, samples):
+        parent_inverse = armature.matrix_world.inverted_safe()
+        local_samples = []
+        for location, rotation, scale in samples:
+            world_matrix = self._matrix_from_transform_sample(location, rotation, scale)
+            local_matrix = parent_inverse @ world_matrix
+            local_samples.append(self._matrix_to_transform_sample(local_matrix))
+
+        return local_samples
+
+    def _reconstruct_ik_proxy_target_samples(self, blender_animation, armature: bpy.types.Object, event, proxy_space_samples):
+        chain = self._find_ik_chain_definition(event.get("ik_chain", ""))
+        if chain is None:
+            utils.print_warning(f"Could not reconstruct IK proxy target for [{event.get('name', 'unknown')}]: chain [{event.get('ik_chain', '')}] is missing")
+            return None
+
+        effector_bone = self._find_pose_bone_by_name(armature, getattr(chain, "effector_node", ""))
+        if effector_bone is None:
+            utils.print_warning(f"Could not reconstruct IK proxy target for [{event.get('name', 'unknown')}]: effector bone [{getattr(chain, 'effector_node', '')}] is missing")
+            return None
+
+        scene = self.context.scene
+        previous_frame = scene.frame_current
+        previous_subframe = scene.frame_subframe
+        armature_world_inverse = armature.matrix_world.inverted_safe()
+        reconstructed_samples = []
+
+        try:
+            for sample_index, sample in enumerate(proxy_space_samples):
+                frame = blender_animation.frame_start + utils.blender_frame(event["start_frame"] + sample_index)
+                scene.frame_set(frame)
+
+                effector_world = armature.matrix_world @ effector_bone.matrix
+                proxy_space_matrix = self._matrix_from_transform_sample(*sample)
+                proxy_world = effector_world @ proxy_space_matrix.inverted_safe()
+                proxy_local = armature_world_inverse @ proxy_world
+                reconstructed_samples.append(self._matrix_to_transform_sample(proxy_local))
+        finally:
+            scene.frame_set(previous_frame, subframe=previous_subframe)
+
+        return reconstructed_samples
 
     def _create_object_action_track(self, blender_animation, obj: bpy.types.Object, action_name: str):
         action = bpy.data.actions.new(action_name)
@@ -1804,28 +1882,34 @@ class AnimationTag(Tag):
     def _import_ik_event_controls(self, tag_animation, blender_animation, blender_event, event, armature: bpy.types.Object, imported_actions: list):
         effector_samples = event.get("ik_effector_transforms") or []
         if effector_samples:
-            proxy_marker_object = self._find_ik_proxy_marker_object(armature, event["name"])
+            proxy_marker_object = self._find_ik_proxy_marker_object(armature, event["ik_chain"])
             blender_event.ik_target_marker = proxy_marker_object
+            reconstructed_proxy_marker_samples = self._reconstruct_ik_proxy_target_samples(blender_animation, armature, event, effector_samples)
+            proxy_marker_samples = reconstructed_proxy_marker_samples
+            if not proxy_marker_samples:
+                utils.print_warning(f"Falling back to raw IK proxy samples for [{event['name']}]; exact roundtrip may not match the source tag")
+                proxy_marker_samples = effector_samples
             action = self._apply_object_transform_samples(
                 blender_animation,
                 proxy_marker_object,
-                f"{blender_animation.name}_ik_effector_{event['name']}",
+                f"{blender_animation.name}_ik_proxy_{event['name']}",
                 event["start_frame"],
-                effector_samples,
+                proxy_marker_samples,
             )
             if action is not None:
                 imported_actions.append(action)
 
         pole_samples = event.get("ik_pole_transforms") or []
         if pole_samples:
-            pole_target = self._find_ik_proxy_marker_object(armature, event["name"], pole=True)
+            pole_target = self._find_ik_proxy_marker_object(armature, event["ik_chain"], pole=True)
             blender_event.ik_pole_vector = pole_target
+            pole_target_samples = self._object_space_samples_to_local_samples(armature, pole_samples)
             action = self._apply_object_transform_samples(
                 blender_animation,
                 pole_target,
                 f"{blender_animation.name}_ik_pole_{event['name']}",
                 event["start_frame"],
-                pole_samples,
+                pole_target_samples,
             )
             if action is not None:
                 imported_actions.append(action)
@@ -2563,8 +2647,16 @@ class AnimationTag(Tag):
             
         print(f"Added / Updated {self.block_ik_chains.Elements.Count} IK Chains")
         
-    def _make_ik_chain_object(self, armature: bpy.types.Object, armatures_collection: bpy.types.Collection, ik_chain_name: str, pole=False) -> bpy.types.Object:
-        target_kind = "pole" if pole else "proxy"
+    def _make_ik_chain_object(
+        self,
+        armature: bpy.types.Object,
+        armatures_collection: bpy.types.Collection,
+        ik_chain_name: str,
+        pole=False,
+        target_kind: str | None = None,
+    ) -> bpy.types.Object:
+        if target_kind is None:
+            target_kind = "pole" if pole else "proxy"
         ob = bpy.data.objects.new(f"{armature.name}_{ik_chain_name}_{target_kind}_target", None)
         ob.parent = armature
         ob.nwo.export_this = False
