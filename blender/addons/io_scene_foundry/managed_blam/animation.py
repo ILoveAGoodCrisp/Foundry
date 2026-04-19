@@ -756,16 +756,16 @@ class AnimationTag(Tag):
         for index, name in enumerate(graph_node_names):
             parent_index = parent_indices[index]
             node_data = None
-            if model is not None:
-                node_data = render_nodes.get(name)
-                if node_data is None:
-                    node_data = stripped_render_nodes.get(utils.remove_node_prefix(name))
             if node_data is None and index < len(indexed_graph_nodes):
                 node_data = indexed_graph_nodes[index]
             if node_data is None:
                 node_data = graph_nodes.get(name)
             if node_data is None:
                 node_data = stripped_graph_nodes.get(utils.remove_node_prefix(name))
+            if node_data is None and model is not None:
+                node_data = render_nodes.get(name)
+                if node_data is None:
+                    node_data = stripped_render_nodes.get(utils.remove_node_prefix(name))
             if node_data is None:
                 missing_nodes.append(name)
                 translation = identity_translation.copy()
@@ -2760,6 +2760,7 @@ class AnimationTag(Tag):
         if target_kind is None:
             target_kind = "pole" if pole else "proxy"
         ob = bpy.data.objects.new(f"{armature.name}_{ik_chain_name}_{target_kind}_target", None)
+        ob.empty_display_size = utils.blender_scale(0.1)
         ob.parent = armature
         ob.nwo.export_this = False
         ob.nwo.is_frame = True

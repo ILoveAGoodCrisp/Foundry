@@ -83,7 +83,7 @@ class NWO_OT_BakeToControl(bpy.types.Operator):
 class NWO_OT_BuildControlRig(bpy.types.Operator):
     bl_idname = "nwo.build_control_rig"
     bl_label = "Build Control Rig"
-    bl_description = "Generates an FK (IK TBD) control rig for this armature"
+    bl_description = "Generates an FK & IK control rig for this armature"
     bl_options = {"UNDO"}
     
     @classmethod

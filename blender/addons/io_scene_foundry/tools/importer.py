@@ -730,7 +730,7 @@ class NWO_Import(bpy.types.Operator):
     
     build_control_rig: bpy.props.BoolProperty(
         name="Build Control Rig",
-        description="Builds an FK (IK TBD!) control rig for imported models",
+        description="Builds an FK & IK control rig for imported models",
         default=False,
     )
     
@@ -1046,7 +1046,6 @@ class NWO_Import(bpy.types.Operator):
                     imported_objects.extend(imported_render_objects)
                     
                 elif 'animation' in importer.extensions:
-                    context.scene.render.fps = 30
                     importer.tag_animation_filter = self.tag_animation_filter
                     importer.graph_import_animations = self.graph_import_animations
                     importer.graph_import_pca_data = self.graph_import_pca_data
@@ -1276,8 +1275,6 @@ class NWO_Import(bpy.types.Operator):
                     importer.tag_import_attachments = self.tag_import_attachments
                     anchor_objects = {}
                     imported_cinematic_scenario_objects = []
-                    
-                    context.scene.render.fps = 30
                     
                     if utils.is_corinth(context):
                         film_aperture = 22.5
@@ -3007,6 +3004,8 @@ class NWOImporter:
         actions = []
         animations = []
         filter = self.tag_animation_filter.replace(" ", ":")
+        self.context.scene.render.fps = 30
+        self.context.scene.render.fps_base = 1
         with utils.TagImportMover(self.tags_dir, file) as mover:
             with AnimationTag(path=mover.tag_path) as graph:
                 utils.print_section(f"Importing Animation Graph: {graph.tag_path.ShortNameWithExtension}")

@@ -4527,6 +4527,13 @@ def halo_scale(number: float) -> float:
         
     return number * scale
 
+def blender_scale(number: float) -> float:
+    if get_scene_props().scale == 'max':
+        return number * (1 / 0.03048)
+    else:
+        return number
+
+
 # def valid_child_asset() -> bool:
 #     '''Returns if this scene is a valid child asset'''
 #     nwo = get_scene_props()

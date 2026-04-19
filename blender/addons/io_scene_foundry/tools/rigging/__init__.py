@@ -219,9 +219,12 @@ class HaloRig:
                     pitch_con_bone = pitch
                     yaw_con_bone = yaw
                 
-                utils.clear_constraints(aim_control)
-                utils.clear_constraints(yaw)
-                utils.clear_constraints(pitch)
+                if aim_control:
+                    utils.clear_constraints(aim_control)
+                if yaw:
+                    utils.clear_constraints(yaw)
+                if pitch:
+                    utils.clear_constraints(pitch)
                 
                 self.rig_ob.nwo.control_aim = aim_control.name
                 
