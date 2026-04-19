@@ -2351,14 +2351,10 @@ class AnimationTag(Tag):
                 if tag_animation.frame_count < 1:
                     continue
 
-                action = bpy.data.actions.new(tag_animation.name.data_name)
-                slot = action.slots.new("OBJECT", armature.name)
-                armature.animation_data.last_slot_identifier = slot.identifier
-                armature.animation_data.action = action
-                utils.print_step(action.name)
+                animation_name = tag_animation.name.data_name
+                utils.print_step(animation_name)
                 blender_animation = self.scene_nwo.animations.add()
-                blender_animation.name = action.name
-                action.use_frame_range = True
+                blender_animation.name = animation_name
                 blender_animation.frame_start = 1
                 blender_animation.frame_end = tag_animation.frame_count
                 animations.append(blender_animation.name)
@@ -2367,6 +2363,12 @@ class AnimationTag(Tag):
                     blender_animation.animation_type = "composite"
                     self._import_composite(blender_animation, tag_animation.composite_index)
                     continue
+                
+                action = bpy.data.actions.new(animation_name)
+                slot = action.slots.new("OBJECT", armature.name)
+                armature.animation_data.last_slot_identifier = slot.identifier
+                armature.animation_data.action = action
+                action.use_frame_range = True
                 
                 if tag_animation.contains_pca_data:
                     pca_animations[tag_animation.name.tag_name] = tag_animation.name.data_name
@@ -2659,39 +2661,131 @@ class AnimationTag(Tag):
         base_transforms[frame] = frame_data
         
     def _import_composite(self, blender_animation, composite_index: int):
-        return # TODO
         composites_block = self.tag.SelectField("Struct:definitions[0]/Block:composites")
         if composites_block.Elements.Count == 0 or composite_index >= composites_block.Elements.Count:
             return
         
         composite = composites_block.Elements[composite_index]
-
-        name = composite.SelectField("StringId:name").GetStringData()
-        state = utils.space_partition(name, True)
-        axis_1 = composite.SelectField("Block:axes[0]")
-        axis_2 = composite.SelectField("Block:axes[1]")
-        
-        use_groups = state == "locomote"
-        
-        if axis_1 is None:
+        axes_block = composite.SelectField("Block:axes")
+        if axes_block is None or axes_block.Elements.Count == 0:
             return
         
-        blend_axis_1 = blender_animation.blend_axes.add()
-        blend_axis_1.name = axis_1.SelectField("name")
-        blend_axis_1.animation_source_bounds_manual = True
-        blend_axis_1.animation_source_bounds = (*axis_1.SelectField("animation bounds").Data,)
-        blend_axis_1.runtime_source_bounds_manual = True
-        blend_axis_1.runtime_source_bounds = (*axis_1.SelectField("input bounds").Data,)
-        blend_axis_1.runtime_source_clamped = axis_1.SelectField("flags").TestBit("clamped")
-        blend_axis_1.animation_source_limit = axis_1.SelectField("blend limit").Data
+        anims_block = composite.SelectField("Block:anims")
+        adjust_names = ("none", "on_start", "on_loop", "continuous")
         
-        for dead_zone in axis_1.SelectField("Block:dead zones").Elements:
-            blender_dead_zone = blend_axis_1.dead_zones.add()
-            blender_dead_zone.bounds = (*dead_zone.SelectField("RealBounds:bounds").Data,)
-            blender_dead_zone.rate = 360 / dead_zone.SelectField("Real:rate").Data
+        def _resolve_animation_name(anim_element: TagFieldBlockElement) -> str:
+            animation_name = ""
+            anim_index = anim_element.SelectField("animIndex").Data
+            if isinstance(anim_index, int) and 0 <= anim_index < self.block_animations.Elements.Count:
+                animation_name = self.block_animations.Elements[anim_index].SelectField("name").GetStringData()
+            if not animation_name:
+                animation_name = anim_element.SelectField("source")
+            if not animation_name:
+                return ""
+            return utils.AnimationName(animation_name).data_name
+        
+        def _select_timing_source() -> str:
+            if anims_block is None:
+                return blender_animation.name
             
-        if use_groups:
-            blender_group = blend_axis_1.groups.add()
+            best_name = ""
+            best_score = None
+            for anim_element in anims_block.Elements:
+                animation_name = _resolve_animation_name(anim_element)
+                if not animation_name:
+                    continue
+                overridden = anim_element.SelectField("overridden").Data
+                slide_axis = anim_element.SelectField("slideAxis").Data
+                score = (
+                    0 if overridden == 1 else 1,
+                    0 if slide_axis == 0 else 1,
+                    anim_element.ElementIndex,
+                )
+                if best_score is None or score < best_score:
+                    best_score = score
+                    best_name = animation_name
+            
+            return best_name or blender_animation.name
+        
+        def _leaf_value_from_tag(axis, raw_value: float) -> float:
+            axis_name = getattr(axis, "name", "")
+            if axis_name != "movement_angles":
+                return raw_value
+            
+            if not getattr(axis, "animation_source_bounds_manual", False):
+                return raw_value
+            
+            axis_min, axis_max = axis.animation_source_bounds
+            return axis_min + (raw_value * (axis_max - axis_min))
+        
+        blender_animation.timing_source = _select_timing_source()
+        
+        imported_axes = []
+        for axis_index, axis in enumerate(axes_block.Elements):
+            axis_name = axis.SelectField("name").GetStringData()
+            if not axis_name:
+                continue
+            
+            blender_axis = blender_animation.blend_axis.add()
+            blender_axis.name = axis_name
+            blender_axis.relationship = "PARENT" if axis_index == 0 else "CHILD"
+            
+            animation_bounds = axis.SelectField("animation bounds").Data
+            blender_axis.animation_source_bounds_manual = True
+            blender_axis.animation_source_bounds = (*animation_bounds,)
+            
+            input_bounds = axis.SelectField("input bounds").Data
+            blender_axis.runtime_source_bounds_manual = True
+            blender_axis.runtime_source_bounds = (*input_bounds,)
+            
+            blender_axis.animation_source_limit = axis.SelectField("blend limit").Data
+            
+            flags = axis.SelectField("flags")
+            blender_axis.runtime_source_clamped = flags.TestBit("clamped")
+            
+            adjustment_index = axis.SelectField("update").Data
+            if 0 <= adjustment_index < len(adjust_names):
+                blender_axis.adjusted = adjust_names[adjustment_index]
+            
+            dead_zones = axis.SelectField("Block:dead zones")
+            for dead_zone_index, dead_zone in enumerate(dead_zones.Elements):
+                blender_dead_zone = blender_axis.dead_zones.add()
+                blender_dead_zone.name = f"dead_zone{dead_zone_index}"
+                bounds = dead_zone.SelectField("bounds").Data
+                blender_dead_zone.bounds = (*bounds,)
+                blender_dead_zone.rate = dead_zone.SelectField("rate").Data
+            
+            imported_axes.append(blender_axis)
+        
+        if not imported_axes:
+            return
+        
+        blender_animation.blend_axis_active_index = 0
+        leaf_parent = imported_axes[-1]
+        
+        if anims_block is None:
+            return
+        
+        for anim_element in anims_block.Elements:
+            animation_name = _resolve_animation_name(anim_element)
+            if not animation_name:
+                continue
+            
+            blender_leaf = leaf_parent.leaves.add()
+            blender_leaf.animation = animation_name
+            values_block = anim_element.SelectField("Block:values")
+            
+            for value_index, value_element in enumerate(values_block.Elements):
+                if value_index > 9:
+                    break
+                raw_value = value_element.SelectField("value")
+                if value_index < len(imported_axes):
+                    raw_value = _leaf_value_from_tag(imported_axes[value_index], raw_value)
+                setattr(blender_leaf, f"manual_blend_axis_{value_index}", True)
+                setattr(blender_leaf, f"blend_axis_{value_index}", raw_value)
+        
+        if leaf_parent.leaves:
+            leaf_parent.leaves_active_index = 0
         
             
     def get_play_text(self, animation, loop: bool, unit: bool, game_object: str = "(player_get 0)") -> str:

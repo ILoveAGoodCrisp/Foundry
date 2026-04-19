@@ -472,13 +472,19 @@ class CompositeXML:
                 animation_source_name = "none"
                 runtime_source_name = "get_aim_yaw_from_start"
                 
-        ET.SubElement(element_blend_axis, "animation", source=animation_source_name, bounds=self.two_vector_string(blend_axis.animation_source_bounds) if blend_axis.animation_source_bounds_manual else "auto", limit=str(int(blend_axis.animation_source_limit)))
+        ET.SubElement(
+            element_blend_axis,
+            "animation",
+            source=animation_source_name,
+            bounds=self.two_vector_string(blend_axis.animation_source_bounds) if blend_axis.animation_source_bounds_manual else "auto",
+            limit=self.format_number(blend_axis.animation_source_limit),
+        )
         ET.SubElement(element_blend_axis, "runtime", source=runtime_source_name, bounds=self.two_vector_string(blend_axis.runtime_source_bounds) if blend_axis.runtime_source_bounds_manual else "auto", clamped=str(blend_axis.runtime_source_clamped).lower())
         if blend_axis.adjusted != "none":
             ET.SubElement(element_blend_axis, "adjustment", rate=blend_axis.adjusted)
             
         for dead_zone in blend_axis.dead_zones:
-            ET.SubElement(element_blend_axis, "dead_zone", bounds=self.two_vector_string(dead_zone.bounds), rate=str(int(dead_zone.rate)))
+            ET.SubElement(element_blend_axis, "dead_zone", bounds=self.two_vector_string(dead_zone.bounds), rate=self.format_number(dead_zone.rate))
         
         for leaf in blend_axis.leaves:
             self.write_leaf_entry(element_blend_axis, leaf, parent_stack)
@@ -530,7 +536,14 @@ class CompositeXML:
     
     @staticmethod
     def two_vector_string(vector):
-        return f"{str(int(vector[0]))},{str(int(vector[1]))}"
+        return f"{CompositeXML.format_number(vector[0])},{CompositeXML.format_number(vector[1])}"
+    
+    @staticmethod
+    def format_number(value):
+        numeric = float(value)
+        if numeric.is_integer():
+            return str(int(numeric))
+        return f"{numeric:.6f}".rstrip("0").rstrip(".")
     
     
 def function_from_name(name):
