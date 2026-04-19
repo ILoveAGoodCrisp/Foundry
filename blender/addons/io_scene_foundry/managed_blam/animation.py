@@ -1977,7 +1977,7 @@ class AnimationTag(Tag):
                     "frame_count": frame_count,
                     "default_value": element.SelectField("default value").Data,
                     "values": curve_values(data_index, frame_count),
-                    "wrinkle_map_face_region": region_name,
+                    "wrinkle_map_face_region": utils.formalise_string(region_name),
                 }
             )
 
