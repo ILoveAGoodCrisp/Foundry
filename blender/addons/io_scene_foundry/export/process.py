@@ -2340,10 +2340,12 @@ class ExportScene:
         # Skip pre processing the graph if this is a first time export and the user has specified a template animation graph
         # This is done to ensure the templating is not skipped
         # NOTE Always writing this animation data first now as it prevents a tool crash for invalid nodes usages
-        if self.has_animations and self.scene_settings.frame_events_from_blender:
-            with FrameEventListTag() as events:
-                events.clear()
-                events.tag_has_changes = True
+        
+        # NOTE 2026-04-19 No longer need to clear the frame event list. Since we still include the 
+        # if self.has_animations and self.scene_settings.frame_events_from_blender and self.has_frame_events:
+        #     with FrameEventListTag() as events:
+        #         events.clear()
+        #         events.tag_has_changes = True
         
         if self.node_usage_set or self.scene_settings.ik_chains or self.has_animations:
             has_skeleton = self.virtual_scene.skeleton_model is not None and self.virtual_scene.skeleton_model.skeleton is not None

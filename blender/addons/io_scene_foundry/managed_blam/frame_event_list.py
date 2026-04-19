@@ -293,11 +293,10 @@ class FrameEventListTag(Tag):
         
         for animation in animations:
             frame_event = self.block_frame_events.AddElement()
-            frame_event.Fields[0].SetStringData(animation.name)
-            name_with_spaces = animation.name.replace(":", " ")
-            blender_animation = blender_animations.get(name_with_spaces)
+            frame_event.Fields[0].SetStringData(animation.name.tag_name)
+            blender_animation = blender_animations.get(animation.name.data_name)
             if blender_animation is None:
-                blender_animation = blender_animations.get(animation.name)
+                blender_animation = blender_animations.get(animation.name.tag_name)
                 if not blender_animation:
                     # utils.print_warning(f"--- Animation Graph contains animation {name_with_spaces} but Blender does not (or it is not set to export)")
                     continue
@@ -316,7 +315,7 @@ class FrameEventListTag(Tag):
                 if not data_only_event:
                     event = frame_event.Fields[2].AddElement()
                     event.Fields[0].SetStringData(animation_event.name)
-                    event.Fields[1].SetStringData(animation.name)
+                    event.Fields[1].SetStringData(animation.name.tag_name)
                     event.Fields[2].Data = animation_event.frame
                     for idx, item in enumerate(event.Fields[4].Items):
                         if item.DisplayName == animation_event.type:
