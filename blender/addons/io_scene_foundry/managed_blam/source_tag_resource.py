@@ -279,6 +279,7 @@ class SourceAnimationResourceMember:
     static_data_size: int
     shared_static_data_size: int
     animation_data: bytes
+    layout_version: int = 3
     section_boundaries: dict[str, int] = field(default_factory=dict)
 
 
@@ -430,6 +431,7 @@ class _SourceTagLayout:
 class _SourceTagParser:
     def __init__(self, serialized_tag_data: bytes):
         self.serialized_tag_data = serialized_tag_data
+        self.layout_version = 3
         self.layout = self._read_layout()
 
     def _read_layout(self) -> _SourceTagLayout:
@@ -451,7 +453,8 @@ class _SourceTagParser:
         blay_reader.read_i32()
         layout_id = blay_reader.read_bytes(16)
         layout_version = blay_reader.read_u32()
-        if layout_version != 3:
+        self.layout_version = layout_version
+        if layout_version not in {3, 4}:
             raise ValueError(f"Unsupported serialized tag layout version: {layout_version}")
         header = _PersistLayoutHeaderV3(
             blay_reader.read_i32(),
@@ -795,7 +798,7 @@ _RESOURCE_SECTION_NAME_ALIASES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("fik_anchor_data", ("fik_anchor_data", "fik anchor data")),
     ("uncompressed_object_space_node_flags", ("uncompressed_object_space_node_flags", "uncompressed object space node flags")),
     ("compressed_event_curve", ("compressed_event_curve", "compressed event curve")),
-    ("shared_static_data_size", ("shared_static_data_size", "shared static data size")),
+    ("shared_static_data_size", ("shared_static_data_size", "shared static data size", "compressed_static_pose", "compressed static pose")),
 )
 
 
@@ -845,6 +848,7 @@ def read_model_animation_graph_resources(serialized_tag_data: bytes) -> list[lis
                     frame_count=_int_value(member.get("frame count"), 0),
                     node_count=_int_value(member.get("node count"), 0),
                     movement_data_type=_int_value(member.get("movement_data_type", "movement data type"), 0),
+                    layout_version=parser.layout_version,
                     static_flags_size=_int_value(data_sizes.get("static_node_flags", "static node flags"), 0),
                     animated_flags_size=_int_value(data_sizes.get("animated_node_flags", "animated node flags"), 0),
                     movement_data_size=_int_value(data_sizes.get("movement_data", "movement data"), 0),
@@ -857,7 +861,15 @@ def read_model_animation_graph_resources(serialized_tag_data: bytes) -> list[lis
                         ),
                         0,
                     ),
-                    shared_static_data_size=_int_value(data_sizes.get("shared_static_data_size", "shared static data size"), 0),
+                    shared_static_data_size=_int_value(
+                        data_sizes.get(
+                            "shared_static_data_size",
+                            "shared static data size",
+                            "compressed_static_pose",
+                            "compressed static pose",
+                        ),
+                        0,
+                    ),
                     animation_data=member.get("animation_data", "animation data", default=b"") or b"",
                     section_boundaries=section_boundaries,
                 )

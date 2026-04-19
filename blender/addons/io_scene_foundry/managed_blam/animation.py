@@ -779,12 +779,12 @@ class AnimationTag(Tag):
         return defaults, nodes, overlay_defaults
 
     def _read_shared_static_codec(self):
-        rotations_block = self.tag.SelectField("Struct:codec data[0]/Struct:shared static codec[0]/Block:rotations")
+        rotations_block = self.tag.SelectField("Struct:codec data[0]/Struct:shared_static_codec[0]/Block:rotations")
         if rotations_block is None:
             return None
         
-        translations_block = self.tag.SelectField("Struct:codec data[0]/Struct:shared static codec[0]/Block:translations")
-        scales_block = self.tag.SelectField("Struct:codec data[0]/Struct:shared static codec[0]/Block:scale")
+        translations_block = self.tag.SelectField("Struct:codec data[0]/Struct:shared_static_codec[0]/Block:translations")
+        scales_block = self.tag.SelectField("Struct:codec data[0]/Struct:shared_static_codec[0]/Block:scale")
 
         rotations = []
         for element in rotations_block.Elements:
@@ -900,6 +900,67 @@ class AnimationTag(Tag):
         if tag_animation.resource_group < 0 or tag_animation.resource_group_member < 0:
             raise ValueError("Animation resource group indices are missing")
 
+        def build_resource_data(
+            current_frame_count,
+            current_node_count,
+            current_checksum,
+            current_movement_type,
+            current_static_flags_size,
+            current_animated_flags_size,
+            current_static_data_size,
+            current_movement_data_size,
+            current_shared_static_size,
+            current_static_codec_size,
+            current_animated_codec_size,
+            current_revised_curve_rotation_layout,
+        ):
+            resource_data = AnimationResourceData(
+                current_frame_count,
+                current_node_count,
+                current_checksum,
+                current_movement_type,
+                current_static_flags_size,
+                current_animated_flags_size,
+                current_static_data_size,
+                movement_data_size=current_movement_data_size,
+                shared_static_data_size=current_shared_static_size,
+                static_codec_size=current_static_codec_size,
+                animated_codec_size=current_animated_codec_size,
+                revised_curve_rotation_layout=current_revised_curve_rotation_layout,
+                debug_name=tag_animation.name.tag_name,
+            )
+            resource_data.read(BinaryReader(animation_data))
+            if current_shared_static_size:
+                if shared_static_codec is None:
+                    raise ValueError("Animation uses shared static data but the graph codec data could not be read")
+                apply_shared_static_codec(resource_data, animation_data, shared_static_codec)
+            return resource_data
+
+        def track_count(codec, attr_name):
+            if codec is None:
+                return 0
+            try:
+                values = getattr(codec, attr_name)
+            except Exception:
+                return 0
+            return len(values or ())
+
+        def flag_count(flags):
+            return sum(1 for flag in (flags or ()) if flag)
+
+        def resource_tracks_match_flags(resource_data):
+            static_codec = resource_data.static_data
+            animated_codec = resource_data.animation_data
+            checks = (
+                (flag_count(resource_data.static_rotated_node_flags), track_count(static_codec, "rotations")),
+                (flag_count(resource_data.static_translated_node_flags), track_count(static_codec, "translations")),
+                (flag_count(resource_data.static_scaled_node_flags), track_count(static_codec, "scales")),
+                (flag_count(resource_data.animated_rotated_node_flags), track_count(animated_codec, "rotations")),
+                (flag_count(resource_data.animated_translated_node_flags), track_count(animated_codec, "translations")),
+                (flag_count(resource_data.animated_scaled_node_flags), track_count(animated_codec, "scales")),
+            )
+            return all(flag_total <= track_total for flag_total, track_total in checks)
+
         animation_data = None
         frame_count = tag_animation.frame_count
         node_count = self.nodes_count
@@ -910,8 +971,11 @@ class AnimationTag(Tag):
         movement_data_size = 0
         static_data_size = 0
         shared_static_size = 0
+        revised_curve_rotation_layout = "cache"
 
         source_member = self._get_source_animation_resource_member(tag_animation.resource_group, tag_animation.resource_group_member)
+        source_layout_version = 3
+        source_section_boundaries = {}
 
         if source_member is not None:
             animation_data = source_member.animation_data
@@ -919,19 +983,112 @@ class AnimationTag(Tag):
             node_count = source_member.node_count or node_count
             checksum = source_member.animation_checksum
             movement_type = source_member.movement_data_type
-            flag_triplet_size = ((node_count + 31) // 32) * 4
-            static_codec_size = source_member.static_flags_size
-            animated_codec_size = source_member.animated_flags_size
-            static_flags_size = flag_triplet_size
-            animated_flags_size = flag_triplet_size
-            movement_data_size = source_member.movement_data_size
-            static_data_size = source_member.static_data_size
+            source_layout_version = getattr(source_member, "layout_version", 3)
+            source_section_boundaries = getattr(source_member, "section_boundaries", {}) or {}
+            if source_layout_version >= 4:
+                revised_curve_rotation_layout = "h4_source"
+                # Gen4 source tags serialize the cache-side PackedDataSizesStructActual,
+                # but the exposed source field names are shifted from their real meaning.
+                static_data_size = int(source_section_boundaries.get("static_node_flags", 0) or 0)
+                static_codec_size = static_data_size
+                animated_codec_size = int(source_section_boundaries.get("animated_node_flags", 0) or 0)
+                static_flags_size = int(source_section_boundaries.get("movement_data", 0) or 0)
+                animated_flags_size = int(source_section_boundaries.get("pill_offset_data", 0) or 0)
+                movement_data_size = int(source_section_boundaries.get("default_data", 0) or 0)
+            else:
+                # Reach/HREK source tags expose boundary-style values here instead.
+                flag_word_size = ((node_count + 31) // 32) * 4
+                static_codec_size = source_member.static_flags_size
+                animated_codec_size = source_member.animated_flags_size
+                static_flags_size = flag_word_size * 3 if source_member.static_flags_size else 0
+                animated_flags_size = flag_word_size * 3 if source_member.animated_flags_size else 0
+                movement_data_size = source_member.movement_data_size
+                static_data_size = source_member.static_data_size
             shared_static_size = source_member.shared_static_data_size
 
         if not animation_data:
             raise ValueError("Animation resource data is missing")
 
-        resource_data = AnimationResourceData(
+        if source_member is not None and source_layout_version >= 4:
+            try:
+                resource_data = build_resource_data(
+                    frame_count,
+                    node_count,
+                    checksum,
+                    movement_type,
+                    static_flags_size,
+                    animated_flags_size,
+                    static_data_size,
+                    movement_data_size,
+                    shared_static_size,
+                    static_codec_size,
+                    animated_codec_size,
+                    revised_curve_rotation_layout,
+                )
+                if resource_tracks_match_flags(resource_data):
+                    return resource_data
+            except Exception as exc:
+                last_error = exc
+
+            flag_candidates = []
+            for candidate in (
+                source_section_boundaries.get("uncompressed_data", 0),
+                source_section_boundaries.get("compressed_data", 0),
+                source_section_boundaries.get("blend_screen_data", 0),
+                source_section_boundaries.get("pill_offset_data", 0),
+                source_section_boundaries.get("movement_data", 0),
+            ):
+                candidate = int(candidate or 0)
+                if candidate > 0 and candidate not in flag_candidates:
+                    flag_candidates.append(candidate)
+
+            attempts = []
+            for candidate in flag_candidates:
+                attempts.append(
+                    (
+                        int(source_section_boundaries.get("movement_data", 0) or 0),
+                        candidate,
+                        int(source_section_boundaries.get("default_data", 0) or 0),
+                    )
+                )
+                attempts.append((candidate, 0, int(source_section_boundaries.get("default_data", 0) or 0)))
+
+            if not attempts:
+                attempts.append((static_flags_size, animated_flags_size, movement_data_size))
+
+            last_error = None
+            for candidate_static_flags, candidate_animated_flags, candidate_movement_size in attempts:
+                try:
+                    resource_data = build_resource_data(
+                        frame_count,
+                        node_count,
+                        checksum,
+                        movement_type,
+                        candidate_static_flags,
+                        candidate_animated_flags,
+                        static_data_size,
+                        candidate_movement_size,
+                        shared_static_size,
+                        static_codec_size,
+                        animated_codec_size,
+                        revised_curve_rotation_layout,
+                    )
+                except Exception as exc:
+                    last_error = exc
+                    continue
+
+                if resource_tracks_match_flags(resource_data):
+                    return resource_data
+
+                last_error = ValueError(
+                    f"Halo 4 flag mapping did not match decoded track counts for {tag_animation.name.tag_name} "
+                    f"(static={candidate_static_flags}, animated={candidate_animated_flags})"
+                )
+
+            if last_error is not None:
+                raise last_error
+
+        return build_resource_data(
             frame_count,
             node_count,
             checksum,
@@ -939,18 +1096,12 @@ class AnimationTag(Tag):
             static_flags_size,
             animated_flags_size,
             static_data_size,
-            movement_data_size=movement_data_size,
-            shared_static_data_size=shared_static_size,
-            static_codec_size=static_codec_size,
-            animated_codec_size=animated_codec_size,
-            debug_name=tag_animation.name.tag_name,
+            movement_data_size,
+            shared_static_size,
+            static_codec_size,
+            animated_codec_size,
+            revised_curve_rotation_layout,
         )
-        resource_data.read(BinaryReader(animation_data))
-        if shared_static_size:
-            if shared_static_codec is None:
-                raise ValueError("Animation uses shared static data but the graph codec data could not be read")
-            apply_shared_static_codec(resource_data, animation_data, shared_static_codec)
-        return resource_data
 
     def _scene_event_action(self):
         scene = getattr(self.scene_nwo, "id_data", None)
@@ -1981,7 +2132,7 @@ class AnimationTag(Tag):
 
         with model_context as model:
             defaults, native_nodes, overlay_defaults = self._build_default_animation_nodes(node_names, model)
-            shared_static_codec = self._read_shared_static_codec() if self.corinth else None
+            shared_static_codec = self._read_shared_static_codec()
             native_resource_cache = {}
             native_animation_cache = {}
             exporter = None
@@ -2040,7 +2191,7 @@ class AnimationTag(Tag):
                     continue
                 
                 if tag_animation.contains_pca_data:
-                    pca_animations[tag_animation.tag_name] = tag_animation.data_name
+                    pca_animations[tag_animation.name.tag_name] = tag_animation.name.data_name
 
                 match tag_animation.animation_type:
                     case AnimationType.NONE | AnimationType.BASE:

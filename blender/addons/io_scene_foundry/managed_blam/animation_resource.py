@@ -44,6 +44,11 @@ def _normalize_quaternion(x: float, y: float, z: float, w: float) -> Quaternion:
     inv = 1.0 / length
     return Quaternion((w * inv, x * inv, y * inv, z * inv))
 
+
+def _signed_int16(value: int) -> int:
+    value &= 0xFFFF
+    return value - 0x10000 if value & 0x8000 else value
+
 class BinaryReader:
     def __init__(self, data: bytes):
         self.data = data
@@ -731,20 +736,39 @@ class CurveCodec(CodecBase):
 
 
 class RevisedCurveCodec(CurveCodec):
+    def __init__(self, frame_count: int, rotation_layout: str = "cache"):
+        super().__init__(frame_count)
+        self.rotation_layout = rotation_layout
+
     def _decompress_revised_quat(self, v3: int, v4: int, v5: int) -> Quaternion:
-        i = ((float(v3 & 0xFFFE) / float(0x7FFF)) * 0.70710677)
-        j = ((float(v4 & 0xFFFE) / float(0x7FFF)) * 0.70710677)
-        k = ((float(v5 & 0xFFFE) / float(0x7FFF)) * 0.70710677)
+        i = ((float(_signed_int16(v3 & 0xFFFE)) / float(0x7FFF)) * 0.70710677)
+        j = ((float(_signed_int16(v4 & 0xFFFE)) / float(0x7FFF)) * 0.70710677)
+        k = ((float(_signed_int16(v5 & 0xFFFE)) / float(0x7FFF)) * 0.70710677)
         missing = math.sqrt(max(0.0, 1.0 - ((j * j) + (i * i) + (k * k))))
         if v3 & 1:
             missing = -missing
         component_index = (v5 & 1) | (2 * (v4 & 1))
-        output = [0.0, 0.0, 0.0, 0.0]
-        output[(component_index + 1) & 3] = i
-        output[(component_index - 2) & 3] = j
-        output[(component_index - 1) & 3] = k
-        output[component_index] = missing
-        return _normalize_quaternion(output[0], output[1], output[2], output[3])
+        if self.rotation_layout == "h4_source":
+            # Halo 4 source tags use a different component placement than the
+            # cache-format RevisedCurve layout TagTool reads from .map files.
+            output_wxyz = [0.0, 0.0, 0.0, 0.0]
+            output_wxyz[(component_index + 2) & 3] = i
+            output_wxyz[(component_index + 3) & 3] = j
+            output_wxyz[component_index] = k
+            output_wxyz[(component_index + 1) & 3] = missing
+            return _normalize_quaternion(
+                output_wxyz[1],
+                output_wxyz[2],
+                output_wxyz[3],
+                output_wxyz[0],
+            )
+        else:
+            output = [0.0, 0.0, 0.0, 0.0]
+            output[(component_index + 1) & 3] = i
+            output[(component_index - 2) & 3] = j
+            output[(component_index - 1) & 3] = k
+            output[component_index] = missing
+            return _normalize_quaternion(output[0], output[1], output[2], output[3])
 
     def _read_curve_rotations(self, reader: BinaryReader, keyframes: list[int], flags: int) -> list[Quaternion]:
         values: list[Quaternion] = []
@@ -827,6 +851,7 @@ class AnimationResourceData:
     animated_scaled_node_flags: list[bool] | None = None
     static_codec_size: int = 0
     animated_codec_size: int = 0
+    revised_curve_rotation_layout: str = "cache"
     debug_name: str = ""
     movement_data: MovementData | None = None
 
@@ -872,7 +897,7 @@ class AnimationResourceData:
                 self.animation_data = CurveCodec(self.frame_count)
                 self.animation_data.read(reader)
             elif codec == AnimationCodecType.REVISED_CURVE:
-                self.animation_data = RevisedCurveCodec(self.frame_count)
+                self.animation_data = RevisedCurveCodec(self.frame_count, self.revised_curve_rotation_layout)
                 self.animation_data.read(reader)
             else:
                 raise ValueError(f"Unsupported animation codec: {codec.name}")
@@ -888,20 +913,23 @@ class AnimationResourceData:
                         f"(expected_end={expected_end}, actual={reader.tell()})"
                     )
 
-        flag_word_count = (self.node_count + 31) // 32
         if self.static_flags_size:
-            self.static_rotated_node_flags = _bit_array_from_ints([reader.read_u32() for _ in range(flag_word_count)], self.node_count)
-            self.static_translated_node_flags = _bit_array_from_ints([reader.read_u32() for _ in range(flag_word_count)], self.node_count)
-            self.static_scaled_node_flags = _bit_array_from_ints([reader.read_u32() for _ in range(flag_word_count)], self.node_count)
+            (
+                self.static_rotated_node_flags,
+                self.static_translated_node_flags,
+                self.static_scaled_node_flags,
+            ) = _read_flag_triplet(reader, self.static_flags_size, self.node_count)
         else:
             self.static_rotated_node_flags = [False] * self.node_count
             self.static_translated_node_flags = [False] * self.node_count
             self.static_scaled_node_flags = [False] * self.node_count
 
         if self.animated_flags_size:
-            self.animated_rotated_node_flags = _bit_array_from_ints([reader.read_u32() for _ in range(flag_word_count)], self.node_count)
-            self.animated_translated_node_flags = _bit_array_from_ints([reader.read_u32() for _ in range(flag_word_count)], self.node_count)
-            self.animated_scaled_node_flags = _bit_array_from_ints([reader.read_u32() for _ in range(flag_word_count)], self.node_count)
+            (
+                self.animated_rotated_node_flags,
+                self.animated_translated_node_flags,
+                self.animated_scaled_node_flags,
+            ) = _read_flag_triplet(reader, self.animated_flags_size, self.node_count)
         else:
             self.animated_rotated_node_flags = [False] * self.node_count
             self.animated_translated_node_flags = [False] * self.node_count
