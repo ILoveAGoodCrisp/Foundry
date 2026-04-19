@@ -827,7 +827,17 @@ class RevisedCurveCodec(CurveCodec):
         scale: float,
         apply_scale_100: bool,
     ) -> list[Vector]:
-        return super()._read_curve_translations(reader, keyframes, flags, offset_x, offset_y, offset_z, scale, False)
+        scale_translations = apply_scale_100 or self.rotation_layout == "h4_source"
+        return super()._read_curve_translations(
+            reader,
+            keyframes,
+            flags,
+            offset_x,
+            offset_y,
+            offset_z,
+            scale,
+            scale_translations,
+        )
 
 
 @dataclass
@@ -1164,7 +1174,6 @@ def build_animation(
     anim_rot_flags = resource_data.animated_rotated_node_flags or [False] * resource_data.node_count
     anim_trans_flags = resource_data.animated_translated_node_flags or [False] * resource_data.node_count
     anim_scale_flags = resource_data.animated_scaled_node_flags or [False] * resource_data.node_count
-
     for node_index, default_node in enumerate(default_nodes):
         rotation_present = anim_rot_flags[node_index]
         translation_present = anim_trans_flags[node_index]
