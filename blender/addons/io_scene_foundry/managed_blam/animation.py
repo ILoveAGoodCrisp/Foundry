@@ -2708,11 +2708,11 @@ class AnimationTag(Tag):
             return best_name or blender_animation.name
         
         def _leaf_value_from_tag(axis, raw_value: float) -> float:
-            axis_name = getattr(axis, "name", "")
+            axis_name = axis.name
             if axis_name != "movement_angles":
                 return raw_value
             
-            if not getattr(axis, "animation_source_bounds_manual", False):
+            if not axis.animation_source_bounds_manual:
                 return raw_value
             
             axis_min, axis_max = axis.animation_source_bounds
@@ -2778,7 +2778,7 @@ class AnimationTag(Tag):
             for value_index, value_element in enumerate(values_block.Elements):
                 if value_index > 9:
                     break
-                raw_value = value_element.SelectField("value")
+                raw_value = value_element.SelectField("value").Data
                 if value_index < len(imported_axes):
                     raw_value = _leaf_value_from_tag(imported_axes[value_index], raw_value)
                 setattr(blender_leaf, f"manual_blend_axis_{value_index}", True)
