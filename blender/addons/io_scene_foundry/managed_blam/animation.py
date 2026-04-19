@@ -1804,6 +1804,98 @@ class AnimationTag(Tag):
             local_samples.append(self._matrix_to_transform_sample(local_matrix))
 
         return local_samples
+    
+    def _evaluate_fcurve(self, fcurve, frame: float, default):
+        if fcurve is None:
+            return default
+        try:
+            return fcurve.evaluate(frame)
+        except Exception:
+            return default
+
+    def _action_pose_fcurve_map(self, action: bpy.types.Action, slot_identifier: str | None):
+        fcurve_map = {}
+        if action is None:
+            return fcurve_map
+
+        fcurves = utils.get_fcurves(action, slot_identifier)
+        if not fcurves:
+            return fcurve_map
+
+        for fcurve in fcurves:
+            fcurve_map[(fcurve.data_path, fcurve.array_index)] = fcurve
+
+        return fcurve_map
+
+    def _sample_pose_bone_basis_from_action(
+        self,
+        pose_bone: bpy.types.PoseBone,
+        frame: float,
+        fcurve_map,
+    ):
+        bone_name = pose_bone.name
+
+        loc_defaults = pose_bone.location
+        rot_defaults = pose_bone.rotation_quaternion
+        scale_defaults = pose_bone.scale
+
+        loc_path = f'pose.bones["{bone_name}"].location'
+        rot_path = f'pose.bones["{bone_name}"].rotation_quaternion'
+        scale_path = f'pose.bones["{bone_name}"].scale'
+
+        location = Vector((
+            self._evaluate_fcurve(fcurve_map.get((loc_path, 0)), frame, loc_defaults.x),
+            self._evaluate_fcurve(fcurve_map.get((loc_path, 1)), frame, loc_defaults.y),
+            self._evaluate_fcurve(fcurve_map.get((loc_path, 2)), frame, loc_defaults.z),
+        ))
+
+        rotation = Quaternion((
+            self._evaluate_fcurve(fcurve_map.get((rot_path, 0)), frame, rot_defaults.w),
+            self._evaluate_fcurve(fcurve_map.get((rot_path, 1)), frame, rot_defaults.x),
+            self._evaluate_fcurve(fcurve_map.get((rot_path, 2)), frame, rot_defaults.y),
+            self._evaluate_fcurve(fcurve_map.get((rot_path, 3)), frame, rot_defaults.z),
+        ))
+        if rotation.magnitude <= tolerance:
+            rotation = Quaternion((1.0, 0.0, 0.0, 0.0))
+        else:
+            rotation.normalize()
+
+        scale = Vector((
+            self._evaluate_fcurve(fcurve_map.get((scale_path, 0)), frame, scale_defaults.x),
+            self._evaluate_fcurve(fcurve_map.get((scale_path, 1)), frame, scale_defaults.y),
+            self._evaluate_fcurve(fcurve_map.get((scale_path, 2)), frame, scale_defaults.z),
+        ))
+
+        return Matrix.LocRotScale(location, rotation, scale)
+
+    def _sample_pose_bone_matrix_from_action(
+        self,
+        pose_bone: bpy.types.PoseBone,
+        frame: float,
+        fcurve_map,
+        matrix_cache,
+    ):
+        cached = matrix_cache.get(pose_bone.name)
+        if cached is not None:
+            return cached
+
+        basis_matrix = self._sample_pose_bone_basis_from_action(pose_bone, frame, fcurve_map)
+        bone_rest_matrix = pose_bone.bone.matrix_local
+
+        if pose_bone.parent is None:
+            pose_matrix = bone_rest_matrix @ basis_matrix
+        else:
+            parent_pose_matrix = self._sample_pose_bone_matrix_from_action(
+                pose_bone.parent,
+                frame,
+                fcurve_map,
+                matrix_cache,
+            )
+            local_rest_matrix = pose_bone.parent.bone.matrix_local.inverted_safe() @ bone_rest_matrix
+            pose_matrix = parent_pose_matrix @ local_rest_matrix @ basis_matrix
+
+        matrix_cache[pose_bone.name] = pose_matrix
+        return pose_matrix
 
     def _reconstruct_ik_proxy_target_samples(self, blender_animation, armature: bpy.types.Object, event, proxy_space_samples):
         chain = self._find_ik_chain_definition(event.get("ik_chain", ""))
@@ -1816,24 +1908,34 @@ class AnimationTag(Tag):
             utils.print_warning(f"Could not reconstruct IK proxy target for [{event.get('name', 'unknown')}]: effector bone [{getattr(chain, 'effector_node', '')}] is missing")
             return None
 
-        scene = self.context.scene
-        previous_frame = scene.frame_current
-        previous_subframe = scene.frame_subframe
+        animation_data = armature.animation_data
+        action = animation_data.action if animation_data is not None else None
+        slot_identifier = animation_data.last_slot_identifier if animation_data is not None else None
+
+        if action is None:
+            utils.print_warning(f"Could not reconstruct IK proxy target for [{event.get('name', 'unknown')}]: armature has no active action")
+            return None
+
+        fcurve_map = self._action_pose_fcurve_map(action, slot_identifier)
         armature_world_inverse = armature.matrix_world.inverted_safe()
         reconstructed_samples = []
 
-        try:
-            for sample_index, sample in enumerate(proxy_space_samples):
-                frame = blender_animation.frame_start + utils.blender_frame(event["start_frame"] + sample_index)
-                scene.frame_set(frame)
+        for sample_index, sample in enumerate(proxy_space_samples):
+            frame = blender_animation.frame_start + event["start_frame"] + sample_index
+            matrix_cache = {}
 
-                effector_world = armature.matrix_world @ effector_bone.matrix
-                proxy_space_matrix = self._matrix_from_transform_sample(*sample)
-                proxy_world = effector_world @ proxy_space_matrix.inverted_safe()
-                proxy_local = armature_world_inverse @ proxy_world
-                reconstructed_samples.append(self._matrix_to_transform_sample(proxy_local))
-        finally:
-            scene.frame_set(previous_frame, subframe=previous_subframe)
+            effector_pose_matrix = self._sample_pose_bone_matrix_from_action(
+                effector_bone,
+                frame,
+                fcurve_map,
+                matrix_cache,
+            )
+            effector_world = armature.matrix_world @ effector_pose_matrix
+
+            proxy_space_matrix = self._matrix_from_transform_sample(*sample)
+            proxy_world = effector_world @ proxy_space_matrix.inverted_safe()
+            proxy_local = armature_world_inverse @ proxy_world
+            reconstructed_samples.append(self._matrix_to_transform_sample(proxy_local))
 
         return reconstructed_samples
 
