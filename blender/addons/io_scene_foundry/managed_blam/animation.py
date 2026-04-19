@@ -78,11 +78,11 @@ WRINKLE_FACE_REGION_MAP = [
 
 IK_TARGET_USAGE_MAP = [
     "none",
-    "world"
+    "world",
     "self",
+    "parent",
     "primary_weapon",
     "secondary_weapon",
-    "parent",
     "assassination",
 ]
 
