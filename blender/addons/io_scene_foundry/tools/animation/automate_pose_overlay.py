@@ -371,7 +371,7 @@ class PoseBuilder:
         event.event_type = '_connected_geometry_animation_event_type_import'
         event.frame_frame = frame
         event.import_name = wrap_type
-        event.name = f"{wrap_type} [{frame}]"
+        # event.name = f"{wrap_type} [{frame}]"
             
     def _build_poses(self, scene: bpy.types.Scene, animation, wrap_events: bool, transforms: list):
         # Loop through transforms and apply them

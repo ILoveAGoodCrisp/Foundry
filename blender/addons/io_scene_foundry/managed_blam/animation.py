@@ -1523,6 +1523,7 @@ class AnimationTag(Tag):
         if tag_animation.resource_group < 0 or tag_animation.resource_group_member < 0:
             return b"", 0
 
+        frame_count = 0
         animation_data = None
         boundaries = {}
 
@@ -1751,7 +1752,8 @@ class AnimationTag(Tag):
 
     def _find_ik_proxy_marker_object(self, armature: bpy.types.Object, ik_chain_name: str, pole=False):
         armature_children = {o.name: o for o in armature.children}
-        ob = armature_children.get(f"{armature.name}_{ik_chain_name}_{"pole" if pole else "proxy"}_target")
+        target_kind = "pole" if pole else "proxy"
+        ob = armature_children.get(f"{armature.name}_{ik_chain_name}_{target_kind}_target")
         if ob is None:
             ob = self._make_ik_chain_object(armature, armature.users_collection[0] if armature.users_collection else self.context.scene.collection, ik_chain_name, pole=pole)
             
@@ -1800,7 +1802,6 @@ class AnimationTag(Tag):
         return action
 
     def _import_ik_event_controls(self, tag_animation, blender_animation, blender_event, event, armature: bpy.types.Object, imported_actions: list):
-        proxy_marker_name = event.get("ik_target_marker_name_override", "").strip()
         effector_samples = event.get("ik_effector_transforms") or []
         if effector_samples:
             proxy_marker_object = self._find_ik_proxy_marker_object(armature, event["name"])
@@ -1851,7 +1852,7 @@ class AnimationTag(Tag):
             if cache_key not in ik_weight_curve_cache:
                 ik_weight_curve_cache[cache_key] = self._decode_ik_weight_curve(tag_animation, data_index, cache_key[1])
                 
-            print("IK WEIGHTS", ik_weight_curve_cache[cache_key])
+            # print("IK WEIGHTS", ik_weight_curve_cache[cache_key])
             return ik_weight_curve_cache[cache_key]
 
         def ik_effector_values(data_index, frame_count):
@@ -1860,7 +1861,7 @@ class AnimationTag(Tag):
             cache_key = (data_index, max(int(frame_count), 0))
             if cache_key not in ik_effector_curve_cache:
                 ik_effector_curve_cache[cache_key] = self._decode_ik_effector_transform(tag_animation, data_index , cache_key[1])
-            print("IK EFFECTOR", ik_weight_curve_cache[cache_key])
+            # print("IK EFFECTOR", ik_weight_curve_cache[cache_key])
             return ik_effector_curve_cache[cache_key]
 
         def ik_pole_values(data_index, frame_count):
@@ -1869,7 +1870,7 @@ class AnimationTag(Tag):
             cache_key = (data_index, max(int(frame_count), 0))
             if cache_key not in ik_pole_curve_cache:
                 ik_pole_curve_cache[cache_key] = self._decode_ik_pole_point(tag_animation, data_index, cache_key[1])
-            print("IK POLE", ik_weight_curve_cache[cache_key])
+            # print("IK POLE", ik_weight_curve_cache[cache_key])
             return ik_pole_curve_cache[cache_key]
 
         tag_events = []
@@ -1899,13 +1900,13 @@ class AnimationTag(Tag):
             data_index = element.SelectField("effector weight data index").Data
             effector_transform_index = element.SelectField("effector transform data index").Data
             pole_point_index = element.SelectField("pole point data index").Data
-            frame_count = tag_animation.frame_count + 1
+            frame_count = tag_animation.frame_count
             
             tag_events.append(
                 {
                     "event_type": event_type,
                     "name": chain_name,
-                    "start_frame": 1,
+                    "start_frame": 0,
                     "frame_count": frame_count,
                     "default_value": 1,
                     "values": ik_weight_values(data_index, frame_count),
@@ -2563,7 +2564,8 @@ class AnimationTag(Tag):
         print(f"Added / Updated {self.block_ik_chains.Elements.Count} IK Chains")
         
     def _make_ik_chain_object(self, armature: bpy.types.Object, armatures_collection: bpy.types.Collection, ik_chain_name: str, pole=False) -> bpy.types.Object:
-        ob = bpy.data.objects.new(f"{armature.name}_{ik_chain_name}_{"pole" if pole else "proxy"}_target", None)
+        target_kind = "pole" if pole else "proxy"
+        ob = bpy.data.objects.new(f"{armature.name}_{ik_chain_name}_{target_kind}_target", None)
         ob.parent = armature
         ob.nwo.export_this = False
         ob.nwo.is_frame = True
@@ -2909,7 +2911,7 @@ class AnimationTag(Tag):
                 blender_animation.animation_events.clear()     
                 for event in sorted(animation_events, key=lambda x: x.frame):
                     blender_event = blender_animation.animation_events.add()
-                    blender_event.name = event.name
+                    # blender_event.name = event.name
                     blender_event.frame_frame = blender_animation.frame_start + event.frame
                     if event.end_frame > event.frame:
                         blender_event.multi_frame = 'range'

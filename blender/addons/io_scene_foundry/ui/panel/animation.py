@@ -2243,7 +2243,7 @@ class NWO_OT_List_Add_Animation_Event(bpy.types.Operator):
         animation.active_animation_event_index = len(animation.animation_events) - 1
         event.frame_frame = context.scene.frame_current
         event.event_id = random.randint(0, 2147483647)
-        event.name = f"event_{len(animation.animation_events)}"
+        # event.name = f"event_{len(animation.animation_events)}"
 
         context.area.tag_redraw()
 
@@ -2312,7 +2312,7 @@ class NWO_OT_SingleList_Add_Animation_Event(bpy.types.Operator):
         animation.active_animation_event_index = len(animation.animation_events) - 1
         event.frame_frame = context.scene.frame_current
         event.event_id = random.randint(0, 2147483647)
-        event.name = f"event_{len(animation.animation_events)}"
+        # event.name = f"event_{len(animation.animation_events)}"
 
         context.area.tag_redraw()
 
