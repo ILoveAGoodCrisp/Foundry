@@ -1222,7 +1222,6 @@ class AnimationTag(Tag):
 
     def _new_tag_event(self, blender_animation, event_type, name, start_frame, frame_count):
         blender_event = blender_animation.animation_events.add()
-        blender_event.name = name
         blender_event.event_type = event_type
         blender_event.event_id = AnimationEvent().unique_id
         blender_event.frame_frame = blender_animation.frame_start + utils.blender_frame(start_frame)
@@ -1750,49 +1749,13 @@ class AnimationTag(Tag):
         identity = Quaternion((1.0, 0.0, 0.0, 0.0))
         return [(translation.copy(), identity.copy(), 1.0) for translation in translations]
 
-    def _find_ik_proxy_marker_object(self, armature: bpy.types.Object, marker_name: str):
-        normalized_name = utils.remove_node_prefix(marker_name).strip().lower()
-        if not normalized_name:
-            return None
-
-        direct_match = bpy.data.objects.get(marker_name)
-        if direct_match is not None and utils.is_marker(direct_match):
-            return direct_match
-
-        preferred_candidates = [armature]
-        preferred_candidates.extend(list(getattr(armature, "children_recursive", ())))
-        for ob in preferred_candidates:
-            if ob is None or not utils.is_marker(ob):
-                continue
-            if utils.remove_node_prefix(ob.name).strip().lower() == normalized_name:
-                return ob
-
-        for ob in bpy.data.objects:
-            if not utils.is_marker(ob):
-                continue
-            if utils.remove_node_prefix(ob.name).strip().lower() == normalized_name:
-                return ob
-
-        return None
-
-    def _create_ik_control_empty(self, blender_animation, armature: bpy.types.Object, name: str, parent_object=None):
-        empty = bpy.data.objects.new(name, None)
-        empty.empty_display_type = 'PLAIN_AXES'
-        empty.empty_display_size = 2.5
-        empty.rotation_mode = 'QUATERNION'
-
-        if parent_object is not None:
-            empty.parent = parent_object
-        else:
-            empty.parent = armature
-            root_bone = next((bone for bone in armature.data.bones if bone.parent is None), None)
-            if root_bone is not None:
-                empty.parent_type = 'BONE'
-                empty.parent_bone = root_bone.name
-
-        target_collection = armature.users_collection[0] if armature.users_collection else bpy.context.scene.collection
-        target_collection.objects.link(empty)
-        return empty
+    def _find_ik_proxy_marker_object(self, armature: bpy.types.Object, ik_chain_name: str, pole=False):
+        armature_children = {o.name: o for o in armature.children}
+        ob = armature_children.get(f"{armature.name}_{ik_chain_name}_{"pole" if pole else "proxy"}_target")
+        if ob is None:
+            ob = self._make_ik_chain_object(armature, armature.users_collection[0] if armature.users_collection else self.context.scene.collection, ik_chain_name, pole=pole)
+            
+        return ob
 
     def _create_object_action_track(self, blender_animation, obj: bpy.types.Object, action_name: str):
         action = bpy.data.actions.new(action_name)
@@ -1838,45 +1801,31 @@ class AnimationTag(Tag):
 
     def _import_ik_event_controls(self, tag_animation, blender_animation, blender_event, event, armature: bpy.types.Object, imported_actions: list):
         proxy_marker_name = event.get("ik_target_marker_name_override", "").strip()
-        proxy_marker_object = self._find_ik_proxy_marker_object(armature, proxy_marker_name)
-        if proxy_marker_object is not None:
-            blender_event.ik_target_marker = proxy_marker_object
-
         effector_samples = event.get("ik_effector_transforms") or []
         if effector_samples:
-            effector_empty = self._create_ik_control_empty(
-                blender_animation,
-                armature,
-                f"{blender_animation.name}_ik_effector_{event['name']}",
-                parent_object=proxy_marker_object,
-            )
+            proxy_marker_object = self._find_ik_proxy_marker_object(armature, event["name"])
+            blender_event.ik_target_marker = proxy_marker_object
             action = self._apply_object_transform_samples(
                 blender_animation,
-                effector_empty,
+                proxy_marker_object,
                 f"{blender_animation.name}_ik_effector_{event['name']}",
                 event["start_frame"],
                 effector_samples,
             )
             if action is not None:
                 imported_actions.append(action)
-            if proxy_marker_object is None:
-                blender_event.ik_target_marker = effector_empty
 
         pole_samples = event.get("ik_pole_transforms") or []
         if pole_samples:
-            pole_empty = self._create_ik_control_empty(
-                blender_animation,
-                armature,
-                f"{blender_animation.name}_ik_pole_{event['name']}",
-            )
+            pole_target = self._find_ik_proxy_marker_object(armature, event["name"], pole=True)
+            blender_event.ik_pole_vector = pole_target
             action = self._apply_object_transform_samples(
                 blender_animation,
-                pole_empty,
+                pole_target,
                 f"{blender_animation.name}_ik_pole_{event['name']}",
                 event["start_frame"],
                 pole_samples,
             )
-            blender_event.ik_pole_vector = pole_empty
             if action is not None:
                 imported_actions.append(action)
 
@@ -1901,6 +1850,8 @@ class AnimationTag(Tag):
             cache_key = (data_index, max(int(frame_count), 0))
             if cache_key not in ik_weight_curve_cache:
                 ik_weight_curve_cache[cache_key] = self._decode_ik_weight_curve(tag_animation, data_index, cache_key[1])
+                
+            print("IK WEIGHTS", ik_weight_curve_cache[cache_key])
             return ik_weight_curve_cache[cache_key]
 
         def ik_effector_values(data_index, frame_count):
@@ -1909,6 +1860,7 @@ class AnimationTag(Tag):
             cache_key = (data_index, max(int(frame_count), 0))
             if cache_key not in ik_effector_curve_cache:
                 ik_effector_curve_cache[cache_key] = self._decode_ik_effector_transform(tag_animation, data_index , cache_key[1])
+            print("IK EFFECTOR", ik_weight_curve_cache[cache_key])
             return ik_effector_curve_cache[cache_key]
 
         def ik_pole_values(data_index, frame_count):
@@ -1917,6 +1869,7 @@ class AnimationTag(Tag):
             cache_key = (data_index, max(int(frame_count), 0))
             if cache_key not in ik_pole_curve_cache:
                 ik_pole_curve_cache[cache_key] = self._decode_ik_pole_point(tag_animation, data_index, cache_key[1])
+            print("IK POLE", ik_weight_curve_cache[cache_key])
             return ik_pole_curve_cache[cache_key]
 
         tag_events = []
@@ -1963,6 +1916,7 @@ class AnimationTag(Tag):
                     "ik_pole_transforms": ik_pole_values(pole_point_index, frame_count),
                 }
             )
+            
             
         for element in tag_animation.shared_element.SelectField("facial wrinkle events").Elements:
             wrinkle_name = element.SelectField("wrinkle name").GetStringData()
@@ -2573,9 +2527,17 @@ class AnimationTag(Tag):
             for node in node_names:
                 if utils.remove_node_prefix(bone.name) == utils.remove_node_prefix(node):
                     node_bone_dict[node] = bone
+                    
+                    
+        armatures_collection = armature.users_collection[0] if armature.users_collection else self.context.scene.collection
+                    
+        chain_names = set()
         
         for element in self.block_ik_chains.Elements:
             name = element.SelectField("name").GetStringData()
+            if name in chain_names:
+                continue
+            chain_names.add(name)
             start_node_index = element.SelectField("start node").Value
             effector_node_index = element.SelectField("effector node").Value
             start_node = node_names[start_node_index] if start_node_index > -1 else None
@@ -2594,8 +2556,20 @@ class AnimationTag(Tag):
             chain.start_node = start_bone.name
             chain.effector_node = effector_bone.name
             
+            # Let the events create these
+            # self._make_ik_chain_object(armature, armatures_collection, name)
+            # self._make_ik_chain_object(armature, armatures_collection, name, True) # pole target
+            
         print(f"Added / Updated {self.block_ik_chains.Elements.Count} IK Chains")
         
+    def _make_ik_chain_object(self, armature: bpy.types.Object, armatures_collection: bpy.types.Collection, ik_chain_name: str, pole=False) -> bpy.types.Object:
+        ob = bpy.data.objects.new(f"{armature.name}_{ik_chain_name}_{"pole" if pole else "proxy"}_target", None)
+        ob.parent = armature
+        ob.nwo.export_this = False
+        ob.nwo.is_frame = True
+        ob.rotation_mode = 'QUATERNION'
+        armatures_collection.objects.link(ob)
+        return ob
             
     def generate_renames(self, filter=""):
         '''Reads current blender animation names and then parses in the mode n state graph to set up renames in blender'''

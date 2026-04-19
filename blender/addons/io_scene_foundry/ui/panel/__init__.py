@@ -458,7 +458,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 row = col.row(align=True)
                 col.prop(item, "wrinkle_map_face_region", text="Face Region")
                 col.prop(item, "event_value", text="Wrinkle Map Factor")
-                col.prop(item, "name", text="Event Name")
+                # col.prop(item, "name", text="Event Name")
             elif (
                 item.event_type
                 == "_connected_geometry_animation_event_type_import"
@@ -479,7 +479,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 col.prop(item, "ik_target_marker_name_override")
                 col.prop(item, "ik_target_usage")
                 col.prop(item, 'event_value', text="IK Influence")
-                col.prop(item, "name", text="Event Name")
+                # col.prop(item, "name", text="Event Name")
                 col.prop(item, 'ik_pole_vector')
                 # col.prop(item, "ik_proxy_target_id")
                 # col.prop(item, "ik_pole_vector_id")
@@ -490,7 +490,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             ):
                 col.prop(item, "object_function_name")
                 col.prop(item, "event_value", text="Function Value")
-                col.prop(item, "name", text="Event Name")
+                # col.prop(item, "name", text="Event Name")
             elif (
                 item.event_type
                 == "_connected_geometry_animation_event_type_import"
@@ -3339,7 +3339,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     row = col.row(align=True)
                     col.prop(item, "wrinkle_map_face_region", text="Face Region")
                     col.prop(item, "event_value", text="Wrinkle Map Factor")
-                    col.prop(item, "name", text="Event Name")
+                    # col.prop(item, "name", text="Event Name")
                 elif (
                     item.event_type
                     == "_connected_geometry_animation_event_type_import"
@@ -3360,7 +3360,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     col.prop(item, "ik_target_marker_name_override")
                     col.prop(item, "ik_target_usage")
                     col.prop(item, 'event_value', text="IK Influence")
-                    col.prop(item, "name", text="Event Name")
+                    # col.prop(item, "name", text="Event Name")
                     col.prop(item, 'ik_pole_vector')
                     # col.prop(item, "ik_proxy_target_id")
                     # col.prop(item, "ik_pole_vector_id")
@@ -3371,7 +3371,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 ):
                     col.prop(item, "object_function_name")
                     col.prop(item, "event_value", text="Function Value")
-                    col.prop(item, "name", text="Event Name")
+                    # col.prop(item, "name", text="Event Name")
                 elif (
                     item.event_type
                     == "_connected_geometry_animation_event_type_import"

@@ -745,10 +745,26 @@ class NWO_Animation_ListItems(bpy.types.PropertyGroup):
         options=set(),
         update=update_frame_range,
     )
+    
+    def get_event_name(self):
+        match self.event_type:
+            case '_connected_geometry_animation_event_type_frame':
+                return "frame_event"
+            case '_connected_geometry_animation_event_type_object_function':
+                return self.object_function_name
+            case '_connected_geometry_animation_event_type_import':
+                "import_event"
+            case '_connected_geometry_animation_event_type_wrinkle_map':
+                return self.wrinkle_map_face_region
+            case '_connected_geometry_animation_event_type_ik_active':
+                return f"{self.ik_target_usage}|{self.ik_chain}|{self.ik_target_marker_name_override}|active"
+            case '_connected_geometry_animation_event_type_ik_passive':
+                return f"{self.ik_target_usage}|{self.ik_chain}|{self.ik_target_marker_name_override}|passive"
 
     name: bpy.props.StringProperty(
         name="Event Name",
         default="new_event",
+        get=get_event_name,
     )
     
     event_type: bpy.props.EnumProperty(
