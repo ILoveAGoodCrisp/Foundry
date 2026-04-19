@@ -749,19 +749,12 @@ class RevisedCurveCodec(CurveCodec):
             missing = -missing
         component_index = (v5 & 1) | (2 * (v4 & 1))
         if self.rotation_layout == "h4_source":
-            # Halo 4 source tags use a different component placement than the
-            # cache-format RevisedCurve layout TagTool reads from .map files.
             output_wxyz = [0.0, 0.0, 0.0, 0.0]
             output_wxyz[(component_index + 2) & 3] = i
             output_wxyz[(component_index + 3) & 3] = j
             output_wxyz[component_index] = k
             output_wxyz[(component_index + 1) & 3] = missing
-            return _normalize_quaternion(
-                output_wxyz[1],
-                output_wxyz[2],
-                output_wxyz[3],
-                output_wxyz[0],
-            )
+            return _normalize_quaternion(output_wxyz[1], output_wxyz[2], output_wxyz[3], output_wxyz[0])
         else:
             output = [0.0, 0.0, 0.0, 0.0]
             output[(component_index + 1) & 3] = i

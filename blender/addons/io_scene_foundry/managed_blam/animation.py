@@ -676,31 +676,68 @@ class AnimationTag(Tag):
             if parent_index is None or parent_index < 0 or parent_index >= len(graph_node_names):
                 parent_index = -1
             parent_indices.append(parent_index)
-
+            
         graph_nodes = {}
         stripped_graph_nodes = {}
         indexed_graph_nodes = []
         graph_name_mismatches = []
+        
         if self.block_additional_node_dat is not None:
+            world_graph_nodes = []
+            world_graph_names = []
+
             for index, element in enumerate(self.block_additional_node_dat.Elements):
                 name = element.Fields[0].GetStringData()
-                translation = self._to_vector(element.SelectField("default translation").Data)
+                translation = self._to_vector(element.SelectField("default translation").Data) * 100.0
                 rotation = self._to_quaternion(element.SelectField("default rotation").Data)
                 scale = element.SelectField("default scale").Data
-                node_data = (translation * 100.0, rotation, scale)
-                indexed_graph_nodes.append(node_data)
+
+                node_data = (translation, rotation, scale)
+
+                world_graph_nodes.append(node_data)
+                world_graph_names.append(name)
+
+                if index < len(graph_node_names):
+                    expected_name = graph_node_names[index]
+                    if name and name != expected_name and utils.remove_node_prefix(name) != utils.remove_node_prefix(expected_name):
+                        graph_name_mismatches.append((expected_name, name))
+
+            def world_to_local(child, parent):
+                c_t, c_r, c_s = child
+                p_t, p_r, p_s = parent
+
+                p_r_inv = p_r.inverted()
+
+                local_t = p_r_inv @ ((c_t - p_t) / p_s)
+                local_r = p_r_inv @ c_r
+                local_s = c_s / p_s
+
+                return local_t, local_r, local_s
+
+            for index, node in enumerate(world_graph_nodes):
+                name = world_graph_names[index]
+
+                if self.corinth:
+                    parent_index = parent_indices[index] if index < len(parent_indices) else -1
+
+                    if parent_index == -1 or parent_index >= len(world_graph_nodes):
+                        local_node = node
+                    else:
+                        parent_node = world_graph_nodes[parent_index]
+                        local_node = world_to_local(node, parent_node)
+
+                else:
+                    local_node = node
+
+                indexed_graph_nodes.append(local_node)
 
                 if name:
-                    graph_nodes[name] = node_data
-                    stripped_graph_nodes.setdefault(utils.remove_node_prefix(name), node_data)
-
-                    if index < len(graph_node_names):
-                        expected_name = graph_node_names[index]
-                        if name != expected_name and utils.remove_node_prefix(name) != utils.remove_node_prefix(expected_name):
-                            graph_name_mismatches.append((expected_name, name))
-
-        render_nodes = {}
-        stripped_render_nodes = {}
+                    graph_nodes[name] = local_node
+                    stripped_graph_nodes.setdefault(utils.remove_node_prefix(name), local_node)
+                    
+                render_nodes = {}
+                stripped_render_nodes = {}
+                
         if model is not None:
             for element in model.block_nodes.Elements:
                 name = element.SelectField("name").GetStringData()
@@ -769,12 +806,12 @@ class AnimationTag(Tag):
                 node.parent = nodes[node.parent_index]
 
         if model is not None and graph_fallback_nodes:
-            utils.print_warning(f"Native animation import could not match {len(graph_fallback_nodes)} graph nodes to render model defaults. Falling back to additional node data for those nodes.")
+            utils.print_warning(f"Animation import could not match {len(graph_fallback_nodes)} graph nodes to render model defaults. Falling back to additional node data for those nodes.")
         if graph_name_mismatches:
-            utils.print_warning(f"Native animation import found {len(graph_name_mismatches)} additional node data entries whose names do not match the skeleton node at the same index. Using index order for graph defaults.")
+            utils.print_warning(f"Animation import found {len(graph_name_mismatches)} additional node data entries whose names do not match the skeleton node at the same index. Using index order for graph defaults.")
         if missing_nodes:
             source = "render model or additional node data" if model is not None else "additional node data"
-            utils.print_warning(f"Native animation import could not match {len(missing_nodes)} graph nodes to {source} defaults. Missing nodes will use identity transforms.")
+            utils.print_warning(f"Animation import could not match {len(missing_nodes)} graph nodes to {source} defaults. Missing nodes will use identity transforms.")
 
         return defaults, nodes, overlay_defaults
 
