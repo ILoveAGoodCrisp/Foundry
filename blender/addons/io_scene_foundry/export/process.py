@@ -1985,7 +1985,7 @@ class ExportScene:
                         effector.parent_bone = self.virtual_scene.root_bone.name
                         constraint = effector.constraints.new('COPY_TRANSFORMS')
                         constraint.target = self.virtual_scene.skeleton_object
-                        constraint.subtarget = chain.effector_node
+                        constraint.subtarget = current_chain.effector_node
                                 
                         vector_events.append(VectorEvent(effector.name, event, "bungie_animation_control_ik_effect"))
                         # constraint.target_space = 'LOCAL'

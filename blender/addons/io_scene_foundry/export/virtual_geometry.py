@@ -1515,7 +1515,7 @@ class VirtualNode:
                     self.matrix_world = IDENTITY_MATRIX
                     self.matrix_local = IDENTITY_MATRIX
                 else:
-                    if scene.maintain_marker_axis and self.props.get("bungie_object_type") == ObjectType.marker.value:
+                    if self._should_apply_marker_axis(scene, id):
                         self.matrix_world = scene.rotation_matrix @ id.matrix_world @ scene.marker_rotation_matrix
                     else:
                         self.matrix_world = scene.rotation_matrix @ id.matrix_world
@@ -1597,6 +1597,16 @@ class VirtualNode:
                 self.granny_vertex_data.vertices = cast(vertex_array, POINTER(c_ubyte))
                 self.granny_vertex_data.vertex_count = self.mesh.num_vertices
                 self.granny_vertex_data = pointer(self.granny_vertex_data)   
+
+    def _should_apply_marker_axis(self, scene: 'VirtualScene', export_id: utils.ExportObject) -> bool:
+        if not scene.maintain_marker_axis:
+            return False
+        if self.props.get("bungie_object_type") != ObjectType.marker.value:
+            return False
+
+        # Parented markers already inherit the scene forward conversion through their parent,
+        # so applying the marker-axis correction again changes their authored local socket basis.
+        return export_id.parent is None
 
             
     def _set_group(self, scene: 'VirtualScene', animation: str | None):
@@ -2244,7 +2254,11 @@ class VirtualScene:
         else:
             matrix_world = export_id.matrix_world
 
-        if self.maintain_marker_axis and node.props.get("bungie_object_type") == ObjectType.marker.value:
+        if (
+            self.maintain_marker_axis
+            and node.props.get("bungie_object_type") == ObjectType.marker.value
+            and getattr(export_id, "parent", None) is None
+        ):
             return self.rotation_matrix @ matrix_world @ self.marker_rotation_matrix
 
         return self.rotation_matrix @ matrix_world
