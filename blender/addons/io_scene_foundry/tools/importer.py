@@ -37,7 +37,6 @@ from ..managed_blam import Tag, start_mb_for_import
 from .animation.generate_frames import FrameGenerator
 
 from ..legacy.jma import JMA
-from ..legacy.jms import JMS
 from ..ui.panel.cinematic import bake_vis_to_keyframes
 
 from ..managed_blam.object import ObjectTag
@@ -832,6 +831,9 @@ class NWO_Import(bpy.types.Operator):
                         utils.transform_scene(context, 1, importer.from_x_rot, 'x', scene_nwo.forward_direction, objects=imported_amf_objects, actions=[])
                         
                 if self.legacy_okay and 'jms' in importer.extensions:
+                    toolset_addon_enabled = addon_utils.check('io_scene_halo')[0]
+                    if not toolset_addon_enabled:
+                        addon_utils.enable('io_scene_halo')
                     jms_files = importer.sorted_filepaths["jms"]
                     
                     arm = None
@@ -861,6 +863,9 @@ class NWO_Import(bpy.types.Operator):
 
                     if imported_jms_objects:
                         imported_objects.extend(imported_jms_objects)
+                        
+                    if not toolset_addon_enabled:
+                        addon_utils.disable('io_scene_halo')
 
 
                             
@@ -1596,7 +1601,7 @@ class NWO_Import(bpy.types.Operator):
                 failed = True
             except Exception as e:
                 failed = True
-                if isinstance(e, RuntimeError) and False:
+                if isinstance(e, RuntimeError):
                     # logging.error(traceback.format_exc())
                     utils.print_warning(traceback.format_exception_only(e)[0][14:])
                 else:
@@ -1714,11 +1719,9 @@ class NWO_Import(bpy.types.Operator):
             if utils.amf_addon_installed() and 'amf' in self.scope:
                 self.amf_okay = True
                 self.filter_glob += "*.amf;"
-            if 'jms' in self.scope:
+            if utils.blender_toolset_installed() and 'jms' in self.scope:
                 self.legacy_okay = True
-                self.filter_glob += '*.jms;'
-                if utils.blender_toolset_installed():
-                    self.filter_glob += '*.ass;'
+                self.filter_glob += '*.jms;*.ass;'
             if 'jma' in self.scope:
                 self.legacy_okay = True
                 self.filter_glob += '*.jmm;*.jma;*.jmt;*.jmz;*.jmv;*.jmw;*.jmo;*.jmr;*.jmrx;'
@@ -3608,88 +3611,40 @@ class NWOImporter:
         return self.jms_marker_objects + self.jms_mesh_objects + self.jms_frame_objects + self.jms_light_objects + self.jms_hidden_objects
     
     def import_jms_file(self, path, legacy_type):
+        # get all objects that exist prior to import
+        pre_import_objects = set(bpy.data.objects)
         path = Path(path)
         file_name = path.with_suffix("").name
         str_path = str(path)
         ext = path.suffix.strip('.').upper()
         print(f"Importing {ext}: {file_name}")
+        with utils.MutePrints():
+            if ext == 'JMS':
+                bpy.ops.import_scene.jms(files=[{'name': path.name}], directory=str(path.parent), reuse_armature=True, empty_markers=True)
+            else:
+                bpy.ops.import_scene.ass(filepath=str(path))
+                
+        new_objects = [ob for ob in bpy.data.objects if ob not in pre_import_objects]
+        arm = utils.get_rig_prioritize_active(bpy.context)
+        if arm and arm not in new_objects:
+            new_objects.append(arm)
+            
         self.jms_file_marker_objects = []
         self.jms_file_mesh_objects = []
         self.jms_file_frame_objects = []
         self.jms_file_light_objects = []
         self.jms_file_proxy_objects = []
-
-        if ext == 'JMS':
-            jms = JMS().from_file(path)
-            match legacy_type:
-                case "auto":
-                    asset_type = getattr(self.scene_nwo, "asset_type", "")
-                    if asset_type == "model":
-                        is_model = True
-                    elif asset_type in {"scenario", "prefab"}:
-                        is_model = False
-                    else:
-                        is_model = jms.looks_like_model()
-                case "model":
-                    is_model = True
-                case "bsp":
-                    is_model = False
-
-            if not self.existing_scene:
-                new_coll = bpy.data.collections.get(file_name, 0)
-                if not new_coll:
-                    new_coll = bpy.data.collections.new(file_name)
-                    self.scene_collection.children.link(new_coll)
-                if not is_model:
-                    possible_bsp = file_name
-                    if possible_bsp.lower() == 'shared':
-                        possible_bsp = "default_shared"
-                    new_coll.name = possible_bsp
-                    self._ensure_region_entry(possible_bsp)
-                    new_coll.nwo.type = 'region'
-                    new_coll.nwo.region = possible_bsp
-            else:
-                new_coll = self.scene_collection
-
-            existing_armature = utils.get_rig_prioritize_active(self.context) if is_model else None
-            arm_pose = None
-            if existing_armature is not None and existing_armature.type == 'ARMATURE':
-                arm_pose = existing_armature.data.pose_position
-                existing_armature.data.pose_position = 'REST'
-                self.context.view_layer.update()
-
-            try:
-                result = jms.build(new_coll, is_model=is_model, existing_armature=existing_armature, context=self.context)
-            finally:
-                if arm_pose is not None and existing_armature is not None:
-                    existing_armature.data.pose_position = arm_pose
-                    self.context.view_layer.update()
-
-            self.jms_file_marker_objects = result.marker_objects
-            self.jms_file_mesh_objects = result.mesh_objects
-            self.jms_file_frame_objects = result.frame_objects
-            self.jms_file_light_objects = result.light_objects
-            self.jms_hidden_objects.extend(result.hidden_objects)
-        else:
-            pre_import_objects = set(bpy.data.objects)
-            with utils.MutePrints():
-                bpy.ops.import_scene.ass(filepath=str(path))
-
-            new_objects = [ob for ob in bpy.data.objects if ob not in pre_import_objects]
-            arm = utils.get_rig_prioritize_active(bpy.context)
-            if arm and arm not in new_objects:
-                new_objects.append(arm)
-
-            match legacy_type:
-                case "auto":
-                    is_model = bool([ob for ob in new_objects if ob.type == 'ARMATURE']) and not (str_path.lower().endswith(".ass") and file_name.lower() != "brute")
-                case "model":
-                    is_model = True
-                case "bsp":
-                    is_model = False
-
-            self.process_jms_objects(new_objects, file_name, is_model)
-
+        
+        match legacy_type:
+            case "auto":
+                is_model =  bool([ob for ob in new_objects if ob.type == 'ARMATURE']) and not (str_path.lower().endswith(".ass") and file_name.lower() != "brute")
+            case "model":
+                is_model = True
+            case "bsp":
+                is_model = False
+        
+        self.process_jms_objects(new_objects, file_name, is_model)
+        
         self.jms_marker_objects.extend(self.jms_file_marker_objects)
         self.jms_mesh_objects.extend(self.jms_file_mesh_objects)
         self.jms_mesh_objects.extend(self.jms_file_proxy_objects)
@@ -4676,13 +4631,11 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
             else:
                  self.report({'WARNING'}, "AMF Toolset not installed, cannot import AMF")
                  return {'CANCELLED'}
-        elif self.import_type in {"jms", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx"}:
-            self.legacy_okay = True
-        elif self.import_type == "ass":
+        elif self.import_type in {"jms", "ass", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx"}:
             if utils.blender_toolset_installed():
                 self.legacy_okay = True
             else:
-                self.report({'WARNING'}, "Blender Toolset not installed, cannot import ASS")
+                self.report({'WARNING'}, "Blender Toolset not installed, cannot import JMS/ASS/JMA")
                 return {'CANCELLED'}
             
         if self.import_type in {"camera_track", "jms", "ass", "model", "render_model", "scenario", "scenario_structure_bsp", "model_animation_graph", "biped", "crate", "creature", "device_control", "device_dispenser", "effect_scenery", "equipment", "giant", "device_machine", "projectile", "scenery", "spawner", "sound_scenery", "device_terminal", "vehicle", "weapon", "prefab", "decorator_set", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx", "cinematic"}:
