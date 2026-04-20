@@ -1230,6 +1230,12 @@ class AnimationTag(Tag):
             blender_event.frame_range = blender_animation.frame_start + utils.blender_frame(start_frame + frame_count - 1)
         return blender_event
 
+    def _imported_animation_frame_offset(self, tag_animation: Animation):
+        return 1 if tag_animation.animation_type == AnimationType.OVERLAY else 0
+
+    def _imported_animation_frame_count(self, tag_animation: Animation):
+        return tag_animation.frame_count + self._imported_animation_frame_offset(tag_animation)
+
     def _event_values_for_range(self, values, start_frame, frame_count):
         if not values:
             return []
@@ -1897,7 +1903,7 @@ class AnimationTag(Tag):
         matrix_cache[pose_bone.name] = pose_matrix
         return pose_matrix
 
-    def _reconstruct_ik_proxy_target_samples(self, blender_animation, armature: bpy.types.Object, event, proxy_space_samples):
+    def _reconstruct_ik_proxy_target_samples(self, blender_animation, armature: bpy.types.Object, event, proxy_space_samples, start_frame: int):
         chain = self._find_ik_chain_definition(event.get("ik_chain", ""))
         if chain is None:
             utils.print_warning(f"Could not reconstruct IK proxy target for [{event.get('name', 'unknown')}]: chain [{event.get('ik_chain', '')}] is missing")
@@ -1921,7 +1927,7 @@ class AnimationTag(Tag):
         reconstructed_samples = []
 
         for sample_index, sample in enumerate(proxy_space_samples):
-            frame = blender_animation.frame_start + event["start_frame"] + sample_index
+            frame = blender_animation.frame_start + start_frame + sample_index
             matrix_cache = {}
 
             effector_pose_matrix = self._sample_pose_bone_matrix_from_action(
@@ -1982,11 +1988,18 @@ class AnimationTag(Tag):
         return action
 
     def _import_ik_event_controls(self, tag_animation, blender_animation, blender_event, event, armature: bpy.types.Object, imported_actions: list):
+        imported_start_frame = event["start_frame"] + self._imported_animation_frame_offset(tag_animation)
         effector_samples = event.get("ik_effector_transforms") or []
         if effector_samples:
             proxy_marker_object = self._find_ik_proxy_marker_object(armature, event["ik_chain"])
             blender_event.ik_target_marker = proxy_marker_object
-            reconstructed_proxy_marker_samples = self._reconstruct_ik_proxy_target_samples(blender_animation, armature, event, effector_samples)
+            reconstructed_proxy_marker_samples = self._reconstruct_ik_proxy_target_samples(
+                blender_animation,
+                armature,
+                event,
+                effector_samples,
+                imported_start_frame,
+            )
             proxy_marker_samples = reconstructed_proxy_marker_samples
             if not proxy_marker_samples:
                 utils.print_warning(f"Falling back to raw IK proxy samples for [{event['name']}]; exact roundtrip may not match the source tag")
@@ -1995,7 +2008,7 @@ class AnimationTag(Tag):
                 blender_animation,
                 proxy_marker_object,
                 f"{blender_animation.name}_ik_proxy_{event['name']}",
-                event["start_frame"],
+                imported_start_frame,
                 proxy_marker_samples,
             )
             if action is not None:
@@ -2010,7 +2023,7 @@ class AnimationTag(Tag):
                 blender_animation,
                 pole_target,
                 f"{blender_animation.name}_ik_pole_{event['name']}",
-                event["start_frame"],
+                imported_start_frame,
                 pole_target_samples,
             )
             if action is not None:
@@ -2133,24 +2146,53 @@ class AnimationTag(Tag):
         # self._clear_event_value_fcurves(blender_animation)
         # self._remove_animation_events(blender_animation, lambda event: getattr(event, "event_type", "") != EVENT_TYPE_FRAME)
 
+        imported_frame_offset = self._imported_animation_frame_offset(tag_animation)
         for event in tag_events:
-            blender_event = self._new_tag_event(blender_animation, event["event_type"], event["name"], event["start_frame"], event["frame_count"])
+            imported_start_frame = event["start_frame"] + imported_frame_offset
+            blender_event = self._new_tag_event(
+                blender_animation,
+                event["event_type"],
+                event["name"],
+                imported_start_frame,
+                event["frame_count"],
+            )
 
             if event["event_type"] == EVENT_TYPE_OBJECT_FUNCTION and event["object_function_name"]:
                 blender_event.object_function_name = event["object_function_name"]
-                self._apply_event_value(blender_animation, blender_event, event["default_value"], event["values"], event["start_frame"], event["frame_count"])
+                self._apply_event_value(
+                    blender_animation,
+                    blender_event,
+                    event["default_value"],
+                    event["values"],
+                    imported_start_frame,
+                    event["frame_count"],
+                )
             elif event["event_type"] in {EVENT_TYPE_IK_ACTIVE, EVENT_TYPE_IK_PASSIVE}:
                 if event["ik_chain"]:
                     blender_event.ik_chain = event["ik_chain"]
                 if event["ik_target_usage"]:
                     blender_event.ik_target_usage = event["ik_target_usage"]
                 blender_event.ik_target_marker_name_override = event["ik_target_marker_name_override"]
-                self._apply_event_value(blender_animation, blender_event, event["default_value"], event["values"], event["start_frame"], event["frame_count"])
+                self._apply_event_value(
+                    blender_animation,
+                    blender_event,
+                    event["default_value"],
+                    event["values"],
+                    imported_start_frame,
+                    event["frame_count"],
+                )
                 self._import_ik_event_controls(tag_animation, blender_animation, blender_event, event, armature, imported_actions)
             elif event["event_type"] == EVENT_TYPE_WRINKLE_MAP:
                 if event["wrinkle_map_face_region"]:
                     blender_event.wrinkle_map_face_region = event["wrinkle_map_face_region"]
-                self._apply_event_value(blender_animation, blender_event, event["default_value"], event["values"], event["start_frame"], event["frame_count"])
+                self._apply_event_value(
+                    blender_animation,
+                    blender_event,
+                    event["default_value"],
+                    event["values"],
+                    imported_start_frame,
+                    event["frame_count"],
+                )
 
         return len(tag_events)
 
@@ -2347,6 +2389,7 @@ class AnimationTag(Tag):
                     continue
                 
                 overlay = tag_animation.animation_type == AnimationType.OVERLAY
+                imported_frame_count = self._imported_animation_frame_count(tag_animation)
 
                 if tag_animation.frame_count < 1:
                     continue
@@ -2356,7 +2399,7 @@ class AnimationTag(Tag):
                 blender_animation = self.scene_nwo.animations.add()
                 blender_animation.name = animation_name
                 blender_animation.frame_start = 1
-                blender_animation.frame_end = tag_animation.frame_count
+                blender_animation.frame_end = imported_frame_count
                 animations.append(blender_animation.name)
                 
                 if tag_animation.composite_index > -1:
@@ -2466,10 +2509,24 @@ class AnimationTag(Tag):
                         transforms = {}
                         base_transforms = {}
                         nodes_with_animations = set()
+                        if overlay:
+                            transforms[1] = {
+                                node: cast(Matrix, node_base_matrices[node]).copy()
+                                for node in nodes
+                            }
                         for frame in range(tag_animation.frame_count):
                             if exporter.GetAnimationFrame(tag_animation.index, frame, animation_nodes, nodes_count):
-                                nodes_with_animations.update(self._add_transforms(animation_nodes, nodes, frame + 1, overlay, node_base_matrices, transforms)
-)
+                                imported_frame = frame + 2 if overlay else frame + 1
+                                nodes_with_animations.update(
+                                    self._add_transforms(
+                                        animation_nodes,
+                                        nodes,
+                                        imported_frame,
+                                        overlay,
+                                        node_base_matrices,
+                                        transforms,
+                                    )
+                                )
                         if tag_animation.animation_type == 3:
                             replacement_base_animations = self._get_base_animation_candidates(graph, tag_animation.name.tag_name)
                             if replacement_base_animations:
@@ -2482,7 +2539,7 @@ class AnimationTag(Tag):
 
                 if imported:
                     actions.append(action)
-                    action.frame_end = tag_animation.frame_count
+                    action.frame_end = blender_animation.frame_end
                     self._apply_regular_animation_events(tag_animation, blender_animation, armature, actions)
                 else:
                     utils.print_warning(f"Failed to import animation {tag_animation.name.data_name}")

@@ -1257,9 +1257,11 @@ def compose_overlay_animation(
         base_translation = base_frame.translations[node_index]
         base_rotation = base_frame.rotations[node_index]
         base_scale = base_frame.scales[node_index]
-        node_translations: list[Vector] = []
-        node_rotations: list[Quaternion] = []
-        node_scales: list[float] = []
+        # Imported overlays start with the untouched base pose, then the keyed
+        # overlay samples follow after that first frame.
+        node_translations: list[Vector] = [base_translation.copy()]
+        node_rotations: list[Quaternion] = [base_rotation.copy()]
+        node_scales: list[float] = [base_scale]
         for frame_index in range(animation.frame_count):
             translation = (
                 base_translation + animation.translations[node_index][frame_index]
@@ -1285,7 +1287,7 @@ def compose_overlay_animation(
         scales.append(node_scales)
 
     return AnimationData(
-        animation.frame_count,
+        animation.frame_count + 1,
         translations,
         rotations,
         scales,
