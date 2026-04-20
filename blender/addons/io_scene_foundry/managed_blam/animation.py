@@ -1231,7 +1231,7 @@ class AnimationTag(Tag):
         return blender_event
 
     def _imported_animation_frame_offset(self, tag_animation: Animation):
-        return 1 if tag_animation.animation_type == AnimationType.OVERLAY else 0
+        return 1 if tag_animation.animation_type in (AnimationType.OVERLAY, AnimationType.REPLACEMENT) else 0
 
     def _imported_animation_frame_count(self, tag_animation: Animation):
         return tag_animation.frame_count + self._imported_animation_frame_offset(tag_animation)
@@ -2435,6 +2435,7 @@ class AnimationTag(Tag):
                                 blender_animation.animation_movement_data = "full"
                                 
                     case AnimationType.OVERLAY:
+                        blender_animation.imported_with_base_frame = True
                         blender_animation.animation_type = "overlay"
                         parent_nodes = tag_animation.shared_element.SelectField("object-space parent nodes")
                         if parent_nodes.Elements.Count > 0:
@@ -2450,6 +2451,7 @@ class AnimationTag(Tag):
                             blender_animation.active_animation_node_index = len(blender_animation.animation_nodes) - 1
                             
                     case AnimationType.REPLACEMENT:
+                        blender_animation.imported_with_base_frame = True
                         blender_animation.animation_type = "replacement"
                         parent_nodes = tag_animation.shared_element.SelectField("object-space parent nodes")
                         for node_element in parent_nodes.Elements:
@@ -2509,14 +2511,19 @@ class AnimationTag(Tag):
                         transforms = {}
                         base_transforms = {}
                         nodes_with_animations = set()
-                        if overlay:
+                        if tag_animation.animation_type in (AnimationType.OVERLAY, AnimationType.REPLACEMENT):
                             transforms[1] = {
                                 node: cast(Matrix, node_base_matrices[node]).copy()
                                 for node in nodes
                             }
+                            if tag_animation.animation_type == AnimationType.REPLACEMENT:
+                                base_transforms[1] = {
+                                    node: cast(Matrix, node_base_matrices[node]).copy()
+                                    for node in nodes
+                                }
                         for frame in range(tag_animation.frame_count):
                             if exporter.GetAnimationFrame(tag_animation.index, frame, animation_nodes, nodes_count):
-                                imported_frame = frame + 2 if overlay else frame + 1
+                                imported_frame = frame + 2 if tag_animation.animation_type in (AnimationType.OVERLAY, AnimationType.REPLACEMENT) else frame + 1
                                 nodes_with_animations.update(
                                     self._add_transforms(
                                         animation_nodes,
@@ -2532,7 +2539,8 @@ class AnimationTag(Tag):
                             if replacement_base_animations:
                                 for frame in range(tag_animation.frame_count):
                                     if exporter.GetAnimationFrame(replacement_base_animations[0].index, frame, animation_nodes, nodes_count):
-                                        self._add_base_transforms(animation_nodes, nodes, frame + 1, node_base_matrices, base_transforms)
+                                        imported_frame = frame + 2
+                                        self._add_base_transforms(animation_nodes, nodes, imported_frame, node_base_matrices, base_transforms)
 
                         self._to_armature_action(transforms, armature, action, nodes, base_transforms, nodes_with_animations, blender_animation.pose_overlay)
                         imported = True

@@ -1236,6 +1236,10 @@ class NWO_AnimationPropertiesGroup(bpy.types.PropertyGroup):
             ("Rough", "Rough", "Highest level of compression"),
         ],
     )
+    
+    imported_with_base_frame: bpy.props.BoolProperty(
+        options={'HIDDEN'}
+    )
             
     animation_type: bpy.props.EnumProperty(
         name="Type",

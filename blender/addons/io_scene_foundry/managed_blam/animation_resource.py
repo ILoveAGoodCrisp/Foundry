@@ -1356,9 +1356,11 @@ def compose_replacement_animation(animation: AnimationData, base_frame: FrameCha
         base_translation = base_frame.translations[node_index]
         base_rotation = base_frame.rotations[node_index]
         base_scale = base_frame.scales[node_index]
-        node_translations: list[Vector] = []
-        node_rotations: list[Quaternion] = []
-        node_scales: list[float] = []
+        # Imported replacements also start with the untouched base pose before
+        # any keyed replacement samples are applied.
+        node_translations: list[Vector] = [base_translation.copy()]
+        node_rotations: list[Quaternion] = [base_rotation.copy()]
+        node_scales: list[float] = [base_scale]
         for frame_index in range(animation.frame_count):
             translation = animation.translations[node_index][frame_index].copy() if animation.translation_flags[node_index] else base_translation.copy()
             rotation = animation.rotations[node_index][frame_index].copy() if animation.rotation_flags[node_index] else base_rotation.copy()
@@ -1371,7 +1373,7 @@ def compose_replacement_animation(animation: AnimationData, base_frame: FrameCha
         scales.append(node_scales)
 
     return AnimationData(
-        animation.frame_count,
+        animation.frame_count + 1,
         translations,
         rotations,
         scales,
