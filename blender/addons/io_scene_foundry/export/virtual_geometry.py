@@ -471,6 +471,12 @@ class VirtualAnimation:
 
         if shape_key_data:
             self.is_pca = True
+            
+        wrap_events = {}
+        
+        for event in self.anim.animation_events:
+            if event.event_type == '_connected_geometry_animation_event_type_import':
+                wrap_events[utils.blender_frame(event.frame_frame)] = event.import_name
 
         first_frame = True
         suspension_extension_frame = False
@@ -542,7 +548,8 @@ class VirtualAnimation:
                 loc, rot, sca = matrix.decompose()
 
                 if self.overlay and bone.is_aim_bone and not first_frame:
-                    pose_overlay_frame_data[bone.name].append(tuple(rot.to_euler('XYZ')))
+                    frame_data = tuple((rot.x, rot.y, rot.z, wrap_events.get(frame)))
+                    pose_overlay_frame_data[bone.name].append(frame_data)
 
                 position = (c_float * 3)(loc.x, loc.y, loc.z)
                 orientation = (c_float * 4)(rot.x, rot.y, rot.z, rot.w)
@@ -568,17 +575,20 @@ class VirtualAnimation:
             data_map = defaultdict(list)
             for idx, data in enumerate(frame_data):
                 data_map[data].append(idx)
+                
+            print(pose_overlay_frame_data)
             
             duplicate_data = {key: indexes for key, indexes in data_map.items() if len(indexes) > 1}
             if len(duplicate_data) != len(data_map):
                 # This must be a pose overlay if aim bones don't have same rotation on every frame
                 # Even if duplicate frame data is found, keep this as pose overlay so the user is also warned of the issue by Tool
+                # NOTE wrap events allow duplicate frames along as the duplicate frames have different wrap events
                 self.pose_overlay = True
                 if duplicate_data:
                     scene.warnings.append(f"Pose overlay animation [{self.name}] has duplicate frames and may fail pose computation. Details below:")
                     for rotation, indexes in duplicate_data.items():
                         frames = [self.anim.frame_start + i + 1 for i in indexes]
-                        rotation_with_names = {tuple(pose_overlay_frame_data)[idx]: tuple(degrees(r) for r in rot) for (idx, rot) in enumerate(rotation)}
+                        rotation_with_names = {tuple(pose_overlay_frame_data)[idx]: tuple(degrees(r) for r in rot[:3]) for (idx, rot) in enumerate(rotation)}
                         scene.warnings.append(f"--- XYZ rotation {rotation_with_names} occurs at frames {frames}")
 
         for bone in bones:

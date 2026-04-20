@@ -3,6 +3,7 @@
 from collections import defaultdict
 from contextlib import nullcontext
 from enum import Enum, IntEnum
+from math import degrees
 from pathlib import Path
 import traceback
 from typing import cast
@@ -121,6 +122,7 @@ class Animation:
         self.contains_pca_data = False
         self.pca_group = ""
         self.composite_index = -1
+        self.is_pose_overlay = False
         
     def from_element(self, element: TagFieldBlockElement, shared_element: TagFieldBlockElement, corinth: bool):
         self.name = utils.AnimationName(element.Fields[0].GetStringData())
@@ -136,6 +138,8 @@ class Animation:
         
         internal_flags = shared_element.SelectField("internal flags")
         self.world_relative = internal_flags.TestBit("world relative")
+        
+        self.is_pose_overlay = self.animation_type == AnimationType.OVERLAY and shared_element.SelectField("object-space parent nodes").Elements.Count > 0
         
         if corinth:
             self.composite_index = element.SelectField("composite").Value
@@ -1230,8 +1234,130 @@ class AnimationTag(Tag):
             blender_event.frame_range = blender_animation.frame_start + utils.blender_frame(start_frame + frame_count - 1)
         return blender_event
 
+    def _blend_screen_for_animation(self, tag_animation: Animation):
+        cache = getattr(self, "_blend_screen_animation_map", None)
+        if cache is None:
+            cache = {}
+            for element in self.block_blend_screens.Elements:
+                animation_field = element.SelectField("Struct:animation[0]/ShortBlockIndex:animation")
+                if animation_field is None:
+                    continue
+                animation_index = animation_field.Value
+                if animation_index > -1:
+                    cache[animation_index] = element
+            self._blend_screen_animation_map = cache
+
+        return cache.get(tag_animation.index)
+
+    def _field_enum_display_name(self, element: TagFieldBlockElement, field_name: str) -> str:
+        field = element.SelectField(field_name)
+        if field is None:
+            return ""
+        try:
+            index = field.Value
+            items = field.Items
+            if 0 <= index < len(items):
+                return items[index].DisplayName
+        except Exception:
+            return ""
+        return ""
+
+    # def _should_infer_wrap_events(self, tag_animation: Animation) -> bool:
+    #     if tag_animation.animation_type != AnimationType.OVERLAY:
+    #         return False
+
+    #     parent_nodes = tag_animation.shared_element.SelectField("object-space parent nodes")
+    #     if parent_nodes.Elements.Count == 0:
+    #         return False
+        
+    #     return True
+
+    #     blend_screen = self._blend_screen_for_animation(tag_animation)
+    #     if blend_screen is None:
+    #         return False
+
+    #     yaw_source = self._field_enum_display_name(blend_screen, "yaw source").strip().lower()
+    #     return yaw_source in WRAP_EVENT_BLEND_YAW_SOURCES
+
+    def _find_animation_node_by_usage(self, nodes: list[Node], usage_name: str):
+        if not usage_name:
+            return None
+
+        stripped_name = utils.remove_node_prefix(usage_name)
+        for node in nodes:
+            if node.name == usage_name or utils.remove_node_prefix(node.name) == stripped_name:
+                return node
+
+        return None
+
+    def _node_world_matrix(self, node: Node, frame_transforms: dict, world_cache: dict):
+        cached = world_cache.get(node)
+        if cached is not None:
+            return cached
+
+        matrix = frame_transforms.get(node)
+        if matrix is None:
+            matrix = Matrix.Identity(4)
+
+        if node.parent is not None:
+            world_matrix = self._node_world_matrix(node.parent, frame_transforms, world_cache) @ matrix
+        else:
+            world_matrix = matrix.copy()
+
+        world_cache[node] = world_matrix
+        return world_matrix
+
+    def _infer_wrap_events(self, tag_animation: Animation, blender_animation, armature: bpy.types.Object, nodes: list[Node], transforms: dict, node_usages: dict):
+        if not tag_animation.is_pose_overlay:
+            return 0
+
+        pedestal_node_index = node_usages.get("pedestal")
+        yaw_node_index = node_usages.get("pose blend yaw")
+
+        if pedestal_node_index is None or yaw_node_index is None:
+            return 0
+        
+        pedestal_node = nodes[pedestal_node_index]
+        yaw_node = nodes[yaw_node_index]
+
+        added = 0
+        first_frame = blender_animation.frame_start
+        reset = True
+
+        for frame_index in sorted(transforms):
+            if frame_index == first_frame:
+                continue
+
+            frame_transforms = transforms[frame_index]
+            world_cache = {}
+            pedestal_world = self._node_world_matrix(pedestal_node, frame_transforms, world_cache)
+            target_world = self._node_world_matrix(yaw_node, frame_transforms, world_cache)
+            relative = pedestal_world.inverted_safe() @ target_world
+
+            euler = relative.to_euler('XYZ')
+            raw_yaw = degrees(euler.z)
+
+            if abs(raw_yaw) > 90 + 1e-3:
+                if reset:
+                    current_name = "Wrapped Left" if raw_yaw > 0.0 else "Wrapped Right"
+                    reset = False
+                    
+                blender_event = self._new_tag_event(
+                    blender_animation,
+                    EVENT_TYPE_IMPORT,
+                    "wrap",
+                    frame_index - blender_animation.frame_start,
+                    1,
+                )
+                blender_event.import_name = current_name
+                added += 1
+            else:
+                reset = True
+
+        return added
+
     def _imported_animation_frame_offset(self, tag_animation: Animation):
-        return 1 if tag_animation.animation_type in (AnimationType.OVERLAY, AnimationType.REPLACEMENT) else 0
+        return 1 if tag_animation.animation_type in {AnimationType.OVERLAY, AnimationType.REPLACEMENT} else 0
 
     def _imported_animation_frame_count(self, tag_animation: Animation):
         return tag_animation.frame_count + self._imported_animation_frame_offset(tag_animation)
@@ -2309,6 +2435,10 @@ class AnimationTag(Tag):
                     pitch_source_value = "defense pitch"
                     weight_source_value = "defense"
                     interpolation_rate = "0.25"
+                elif "pain" in state:
+                    interpolation_rate = "0.333"
+                    if state.endswith("gut"):
+                        pass
                     
                 if state.endswith("_down"):
                     flag_weapon_down = True
@@ -2332,6 +2462,18 @@ class AnimationTag(Tag):
                     flags.SetBit("allow parent adjustment", True)
                 
                 self.tag_has_changes = True
+                
+    def get_node_usages(self) -> dict:
+        usages = {}
+        if self.block_node_usages.Elements.Count < 1:
+            return usages
+        
+        items = [i.EnumName for i in self.block_node_usages.Elements[0].Fields[0].Items]
+        
+        for element in self.block_node_usages.Elements:
+            usages[items[element.Fields[0].Value]] = element.Fields[1].Value
+            
+        return usages
     
     def to_blender(self, render_model: str, armature, filter: str, import_pca=False):
         actions = []
@@ -2341,6 +2483,8 @@ class AnimationTag(Tag):
 
         pca_animations = {}
         node_names = self.get_nodes()
+        
+        node_usages = self.get_node_usages()
 
         model_context = nullcontext(None)
         if render_model:
@@ -2389,6 +2533,7 @@ class AnimationTag(Tag):
                     continue
                 
                 overlay = tag_animation.animation_type == AnimationType.OVERLAY
+                replacement = tag_animation.animation_type == AnimationType.REPLACEMENT
                 imported_frame_count = self._imported_animation_frame_count(tag_animation)
 
                 if tag_animation.frame_count < 1:
@@ -2511,19 +2656,14 @@ class AnimationTag(Tag):
                         transforms = {}
                         base_transforms = {}
                         nodes_with_animations = set()
-                        if tag_animation.animation_type in (AnimationType.OVERLAY, AnimationType.REPLACEMENT):
+                        if overlay or replacement:
                             transforms[1] = {
                                 node: cast(Matrix, node_base_matrices[node]).copy()
                                 for node in nodes
                             }
-                            if tag_animation.animation_type == AnimationType.REPLACEMENT:
-                                base_transforms[1] = {
-                                    node: cast(Matrix, node_base_matrices[node]).copy()
-                                    for node in nodes
-                                }
                         for frame in range(tag_animation.frame_count):
                             if exporter.GetAnimationFrame(tag_animation.index, frame, animation_nodes, nodes_count):
-                                imported_frame = frame + 2 if tag_animation.animation_type in (AnimationType.OVERLAY, AnimationType.REPLACEMENT) else frame + 1
+                                imported_frame = frame + 2 if (overlay or replacement) else frame + 1
                                 nodes_with_animations.update(
                                     self._add_transforms(
                                         animation_nodes,
@@ -2537,10 +2677,13 @@ class AnimationTag(Tag):
                         if tag_animation.animation_type == 3:
                             replacement_base_animations = self._get_base_animation_candidates(graph, tag_animation.name.tag_name)
                             if replacement_base_animations:
+                                base_transforms[1] = {
+                                    node: cast(Matrix, node_base_matrices[node]).copy()
+                                    for node in nodes
+                                }
                                 for frame in range(tag_animation.frame_count):
                                     if exporter.GetAnimationFrame(replacement_base_animations[0].index, frame, animation_nodes, nodes_count):
-                                        imported_frame = frame + 2
-                                        self._add_base_transforms(animation_nodes, nodes, imported_frame, node_base_matrices, base_transforms)
+                                        self._add_base_transforms(animation_nodes, nodes, frame + 2, node_base_matrices, base_transforms)
 
                         self._to_armature_action(transforms, armature, action, nodes, base_transforms, nodes_with_animations, blender_animation.pose_overlay)
                         imported = True
@@ -2549,6 +2692,7 @@ class AnimationTag(Tag):
                     actions.append(action)
                     action.frame_end = blender_animation.frame_end
                     self._apply_regular_animation_events(tag_animation, blender_animation, armature, actions)
+                    self._infer_wrap_events(tag_animation, blender_animation, armature, native_nodes if success else nodes, transforms, node_usages)
                 else:
                     utils.print_warning(f"Failed to import animation {tag_animation.name.data_name}")
 

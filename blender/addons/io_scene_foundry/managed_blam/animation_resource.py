@@ -1356,8 +1356,7 @@ def compose_replacement_animation(animation: AnimationData, base_frame: FrameCha
         base_translation = base_frame.translations[node_index]
         base_rotation = base_frame.rotations[node_index]
         base_scale = base_frame.scales[node_index]
-        # Imported replacements also start with the untouched base pose before
-        # any keyed replacement samples are applied.
+        # Replacement animations also get a leading base frame before the keyed samples.
         node_translations: list[Vector] = [base_translation.copy()]
         node_rotations: list[Quaternion] = [base_rotation.copy()]
         node_scales: list[float] = [base_scale]
