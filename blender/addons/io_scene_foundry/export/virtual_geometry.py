@@ -575,8 +575,6 @@ class VirtualAnimation:
             data_map = defaultdict(list)
             for idx, data in enumerate(frame_data):
                 data_map[data].append(idx)
-                
-            print(pose_overlay_frame_data)
             
             duplicate_data = {key: indexes for key, indexes in data_map.items() if len(indexes) > 1}
             if len(duplicate_data) != len(data_map):

@@ -2393,6 +2393,8 @@ class AnimationTag(Tag):
                     tag_animation_names.remove(animation_name)
             else:
                 blend_screens_to_remove.append(element.ElementIndex)
+                
+        functions = {e.Fields[0].GetStringData(): e.ElementIndex for e in self.tag.SelectField("Struct:definitions[0]/Block:functions").Elements}
         
         for screen_index in reversed(blend_screens_to_remove):
             self.block_blend_screens.RemoveElement(screen_index)
@@ -2438,7 +2440,49 @@ class AnimationTag(Tag):
                 elif "pain" in state:
                     interpolation_rate = "0.333"
                     if state.endswith("gut"):
-                        pass
+                        yaw_source_value = "damage gut yaw"
+                        pitch_source_value = "damage gut pitch"
+                        weight_source_value = "damage gut"
+                    elif state.endswith("chest"):
+                        yaw_source_value = "damage chest yaw"
+                        pitch_source_value = "damage chest pitch"
+                        weight_source_value = "damage chest"
+                    elif state.endswith("head"):
+                        yaw_source_value = "damage head yaw"
+                        pitch_source_value = "damage head pitch"
+                        weight_source_value = "damage head"
+                    elif state.endswith("left_shoulder"):
+                        yaw_source_value = "damage left shoulder yaw"
+                        pitch_source_value = "damage left shoulder pitch"
+                        weight_source_value = "damage left shoulder"
+                    elif state.endswith("left_arm"):
+                        yaw_source_value = "damage left arm yaw"
+                        pitch_source_value = "damage left arm pitch"
+                        weight_source_value = "damage left arm"
+                    elif state.endswith("left_leg"):
+                        yaw_source_value = "damage left leg yaw"
+                        pitch_source_value = "damage left leg pitch"
+                        weight_source_value = "damage left leg"
+                    elif state.endswith("left_foot"):
+                        yaw_source_value = "damage left foot yaw"
+                        pitch_source_value = "damage left foot pitch"
+                        weight_source_value = "damage left foot"
+                    elif state.endswith("right_shoulder"):
+                        yaw_source_value = "damage right shoulder yaw"
+                        pitch_source_value = "damage right shoulder pitch"
+                        weight_source_value = "damage right shoulder"
+                    elif state.endswith("right_arm"):
+                        yaw_source_value = "damage right arm yaw"
+                        pitch_source_value = "damage right arm pitch"
+                        weight_source_value = "damage right arm"
+                    elif state.endswith("right_leg"):
+                        yaw_source_value = "damage right leg yaw"
+                        pitch_source_value = "damage right leg pitch"
+                        weight_source_value = "damage right leg"
+                    elif state.endswith("right_foot"):
+                        yaw_source_value = "damage right foot yaw"
+                        pitch_source_value = "damage right foot pitch"
+                        weight_source_value = "damage right foot"
                     
                 if state.endswith("_down"):
                     flag_weapon_down = True
@@ -2450,6 +2494,10 @@ class AnimationTag(Tag):
                 element.SelectField("weight source").SetValue(weight_source_value)
                 element.SelectField("interpolation rate").SetStringData(interpolation_rate)
                 
+                weight_function_index = functions.get(state)
+                if weight_function_index is not None:
+                    element.SelectField("weight function").Value = weight_function_index
+                    
                 flags = element.SelectField("flags")
                 
                 if flag_weapon_down:
@@ -3411,7 +3459,14 @@ class AnimationTag(Tag):
                     animation_events = list_events + valid_graph_events
             
             if animation_events:
-                blender_animation.animation_events.clear()     
+                to_remove_event_indices = []
+                for idx, b_event in enumerate(blender_animation.animation_events):
+                    if b_event.event_type == '_connected_geometry_animation_event_type_frame':
+                        to_remove_event_indices.append(idx)
+                        
+                for i in reversed(to_remove_event_indices):
+                    blender_animation.animation_events.remove(i)
+                    
                 for event in sorted(animation_events, key=lambda x: x.frame):
                     blender_event = blender_animation.animation_events.add()
                     # blender_event.name = event.name
