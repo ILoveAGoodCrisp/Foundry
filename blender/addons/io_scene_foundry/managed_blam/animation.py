@@ -756,16 +756,16 @@ class AnimationTag(Tag):
         for index, name in enumerate(graph_node_names):
             parent_index = parent_indices[index]
             node_data = None
+            if model is not None:
+                node_data = render_nodes.get(name)
+                if node_data is None:
+                    node_data = stripped_render_nodes.get(utils.remove_node_prefix(name))
             if node_data is None and index < len(indexed_graph_nodes):
                 node_data = indexed_graph_nodes[index]
             if node_data is None:
                 node_data = graph_nodes.get(name)
             if node_data is None:
                 node_data = stripped_graph_nodes.get(utils.remove_node_prefix(name))
-            if node_data is None and model is not None:
-                node_data = render_nodes.get(name)
-                if node_data is None:
-                    node_data = stripped_render_nodes.get(utils.remove_node_prefix(name))
             if node_data is None:
                 missing_nodes.append(name)
                 translation = identity_translation.copy()
