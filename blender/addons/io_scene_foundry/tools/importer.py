@@ -2823,6 +2823,13 @@ class NWOImporter:
         armature = None
         if child_object.child_object is None:
             return imported_objects
+
+        def _copy_marker_transform(target: bpy.types.Object, marker: bpy.types.Object):
+            target.constraints.clear()
+            target.matrix_world = marker.matrix_world.copy()
+            constraint = target.constraints.new(type='COPY_TRANSFORMS')
+            constraint.target = marker
+            return constraint
         
         # cache_key = child_object.child_object, child_object.child_variant_name
         # cached = objects_cache.get(cache_key)
@@ -2946,10 +2953,9 @@ class NWOImporter:
 
                     if marker_parents:
                         if marker_children:
-                            attach_point.parent = marker_parents[0]
-                            attach_point.matrix_world = marker_parents[0].matrix_world
+                            _copy_marker_transform(attach_point, marker_parents[0])
                         else:
-                            armature.parent = marker_parents[0]
+                            _copy_marker_transform(armature, marker_parents[0])
                     else:
                         if marker_children:
                             attach_point.parent = parent_armature
@@ -3010,8 +3016,10 @@ class NWOImporter:
             with AnimationTag(path=mover.tag_path) as graph:
                 utils.print_section(f"Importing Animation Graph: {graph.tag_path.ShortNameWithExtension}")
                 if self.graph_import_ik_chains:
-                    utils.print_bullet("Importing IK Chains")
-                    graph.ik_chains_to_blender(armature)
+                    if armature == self.scene_nwo.main_armature or self.scene_nwo.main_armature is None:
+                        self.scene_nwo.main_armature = armature
+                        utils.print_bullet("Importing IK Chains")
+                        graph.ik_chains_to_blender(armature)
                 if self.graph_import_animations:
                     utils.print_bullet("Importing Animations")
                     if self.corinth and self.graph_import_pca_data:

@@ -3073,8 +3073,7 @@ class AnimationTag(Tag):
                 if utils.remove_node_prefix(bone.name) == utils.remove_node_prefix(node):
                     node_bone_dict[node] = bone
                     
-                    
-        armatures_collection = armature.users_collection[0] if armature.users_collection else self.context.scene.collection
+        print(node_bone_dict)
                     
         chain_names = set()
         
