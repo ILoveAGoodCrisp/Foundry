@@ -1523,7 +1523,7 @@ class VirtualNode:
                     self.matrix_world = IDENTITY_MATRIX
                     self.matrix_local = IDENTITY_MATRIX
                 else:
-                    if self._should_apply_marker_axis(scene, id):
+                    if self._should_apply_marker_axis(scene):
                         self.matrix_world = scene.rotation_matrix @ id.matrix_world @ scene.marker_rotation_matrix
                     else:
                         self.matrix_world = scene.rotation_matrix @ id.matrix_world
@@ -1606,15 +1606,13 @@ class VirtualNode:
                 self.granny_vertex_data.vertex_count = self.mesh.num_vertices
                 self.granny_vertex_data = pointer(self.granny_vertex_data)   
 
-    def _should_apply_marker_axis(self, scene: 'VirtualScene', export_id: utils.ExportObject) -> bool:
+    def _should_apply_marker_axis(self, scene: 'VirtualScene') -> bool:
         if not scene.maintain_marker_axis:
             return False
         if self.props.get("bungie_object_type") != ObjectType.marker.value:
             return False
 
-        # Parented markers already inherit the scene forward conversion through their parent,
-        # so applying the marker-axis correction again changes their authored local socket basis.
-        return export_id.parent is None
+        return True
 
             
     def _set_group(self, scene: 'VirtualScene', animation: str | None):

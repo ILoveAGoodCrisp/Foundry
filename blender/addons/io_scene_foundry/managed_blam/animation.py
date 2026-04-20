@@ -45,6 +45,10 @@ EVENT_TYPE_WRINKLE_MAP = "_connected_geometry_animation_event_type_wrinkle_map"
 EVENT_TYPE_IK_ACTIVE = "_connected_geometry_animation_event_type_ik_active"
 EVENT_TYPE_IK_PASSIVE = "_connected_geometry_animation_event_type_ik_passive"
 
+BLEND_SCREEN_CONNECTION_LINEAR_SEGMENT = 0
+BLEND_SCREEN_CONNECTION_DELAUNAY_TRIANGLE = 1
+BLEND_SCREEN_CONNECTION_SAMPLE_SPHERE_TRIANGLE = 2
+
 RESOURCE_SECTION_ORDER = (
     "static_node_flags",
     "animated_node_flags",
@@ -1262,22 +1266,16 @@ class AnimationTag(Tag):
             return ""
         return ""
 
-    # def _should_infer_wrap_events(self, tag_animation: Animation) -> bool:
-    #     if tag_animation.animation_type != AnimationType.OVERLAY:
-    #         return False
+    def _blend_screen_connection_type(self, tag_animation: Animation):
+        blend_screen_data, _ = self._read_animation_resource_section_data(tag_animation, "blend_screen_data")
 
-    #     parent_nodes = tag_animation.shared_element.SelectField("object-space parent nodes")
-    #     if parent_nodes.Elements.Count == 0:
-    #         return False
-        
-    #     return True
+        if not blend_screen_data:
+            return None
 
-    #     blend_screen = self._blend_screen_for_animation(tag_animation)
-    #     if blend_screen is None:
-    #         return False
-
-    #     yaw_source = self._field_enum_display_name(blend_screen, "yaw source").strip().lower()
-    #     return yaw_source in WRAP_EVENT_BLEND_YAW_SOURCES
+        try:
+            return blend_screen_data[0]
+        except Exception:
+            return None
 
     def _find_animation_node_by_usage(self, nodes: list[Node], usage_name: str):
         if not usage_name:
@@ -1309,6 +1307,10 @@ class AnimationTag(Tag):
 
     def _infer_wrap_events(self, tag_animation: Animation, blender_animation, armature: bpy.types.Object, nodes: list[Node], transforms: dict, node_usages: dict):
         if not tag_animation.is_pose_overlay:
+            return 0
+
+        # 3D overlays do not require wrapped import events to represent backwards facing aim directions.
+        if self._blend_screen_connection_type(tag_animation) == BLEND_SCREEN_CONNECTION_SAMPLE_SPHERE_TRIANGLE:
             return 0
 
         pedestal_node_index = node_usages.get("pedestal")
