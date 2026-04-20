@@ -1096,7 +1096,7 @@ def default_frame_channels(default_nodes: list[DefaultAnimationNode]) -> FrameCh
     )
 
 
-def _animation_track(values: list, keyframes: list[int], frame_count: int, default_value, interpolator):
+def _animation_track(values: list, keyframes: list[int], frame_count: int, default_value):
     if not values:
         return [default_value for _ in range(frame_count)]
     if not keyframes:
@@ -1120,7 +1120,7 @@ def _animation_track(values: list, keyframes: list[int], frame_count: int, defau
         previous_frame = keyframes[key_index]
         next_frame = keyframes[key_index + 1]
         t = (frame_index - previous_frame) / float(next_frame - previous_frame)
-        frames.append(interpolator(values[key_index], values[key_index + 1], t))
+        frames.append(values[key_index], values[key_index + 1], t)
     return frames
 
 
@@ -1188,7 +1188,6 @@ def build_animation(
                     resource_data.animation_data.rotation_keyframes[animated_rotation_index],
                     resource_data.frame_count,
                     rotation_default.copy(),
-                    _slerp_quaternion,
                 )
             ]
             animated_rotation_index += 1
@@ -1207,7 +1206,6 @@ def build_animation(
                     resource_data.animation_data.translation_keyframes[animated_translation_index],
                     resource_data.frame_count,
                     translation_default.copy(),
-                    _lerp_vector,
                 )
             ]
             animated_translation_index += 1
@@ -1224,7 +1222,6 @@ def build_animation(
                 resource_data.animation_data.scale_keyframes[animated_scale_index],
                 resource_data.frame_count,
                 scale_default,
-                _lerp_float,
             )
             animated_scale_index += 1
         else:

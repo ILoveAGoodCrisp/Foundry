@@ -2290,7 +2290,7 @@ class AnimationTag(Tag):
                     flags.SetBit("allow parent adjustment", True)
                 
                 self.tag_has_changes = True
-                
+    
     def to_blender(self, render_model: str, armature, filter: str, import_pca=False):
         actions = []
         animations = []
@@ -2393,6 +2393,9 @@ class AnimationTag(Tag):
                                 
                     case AnimationType.OVERLAY:
                         blender_animation.animation_type = "overlay"
+                        parent_nodes = tag_animation.shared_element.SelectField("object-space parent nodes")
+                        if parent_nodes.Elements.Count > 0:
+                            blender_animation.pose_overlay = True
                         offset_nodes = tag_animation.shared_element.SelectField("object space offset nodes")
                         for node_element in offset_nodes.Elements:
                             n_index = node_element.Fields[0].Value
@@ -2432,7 +2435,7 @@ class AnimationTag(Tag):
                 imported = False
                 try:
                     transforms = self._animation_transforms(tag_animation, defaults, overlay_defaults, native_nodes, graph, shared_static_codec, native_resource_cache,native_animation_cache, tag_animations)
-                    self._to_armature_action(transforms, armature, action, native_nodes, {}, set())
+                    self._to_armature_action(transforms, armature, action, native_nodes, {}, set(), blender_animation.pose_overlay)
                     success = True
                     imported = True
                 except Exception:
@@ -2474,7 +2477,7 @@ class AnimationTag(Tag):
                                     if exporter.GetAnimationFrame(replacement_base_animations[0].index, frame, animation_nodes, nodes_count):
                                         self._add_base_transforms(animation_nodes, nodes, frame + 1, node_base_matrices, base_transforms)
 
-                        self._to_armature_action(transforms, armature, action, nodes, base_transforms, nodes_with_animations)
+                        self._to_armature_action(transforms, armature, action, nodes, base_transforms, nodes_with_animations, blender_animation.pose_overlay)
                         imported = True
 
                 if imported:
@@ -2506,9 +2509,11 @@ class AnimationTag(Tag):
         
         return actions, animations
     
-    def _to_armature_action(self, transforms, armature: bpy.types.Object, action: bpy.types.Action, nodes: list[Node], base_transforms: dict, nodes_with_animations):
+    def _to_armature_action(self, transforms, armature: bpy.types.Object, action: bpy.types.Action, nodes: list[Node], base_transforms: dict, nodes_with_animations, pose_overlay=False):
         fcurves = utils.get_fcurves(action, armature.animation_data.last_slot_identifier)
         fcurves.clear()
+        
+        key_options = {'FAST'} if pose_overlay else {'FAST', 'NEEDED'}
         
         armature_bone_names = {utils.remove_node_prefix(bone.name): bone for bone in armature.pose.bones}
         valid_nodes = []
@@ -2574,18 +2579,18 @@ class AnimationTag(Tag):
 
                 loc, rot, sca = transform_matrix.decompose()
 
-                node.fc_loc_x.keyframe_points.insert(frame_idx, loc.x, options={'FAST', 'NEEDED'})
-                node.fc_loc_y.keyframe_points.insert(frame_idx, loc.y, options={'FAST', 'NEEDED'})
-                node.fc_loc_z.keyframe_points.insert(frame_idx, loc.z, options={'FAST', 'NEEDED'})
+                node.fc_loc_x.keyframe_points.insert(frame_idx, loc.x, options=key_options)
+                node.fc_loc_y.keyframe_points.insert(frame_idx, loc.y, options=key_options)
+                node.fc_loc_z.keyframe_points.insert(frame_idx, loc.z, options=key_options)
                 
-                node.fc_rot_w.keyframe_points.insert(frame_idx, rot.w, options={'FAST', 'NEEDED'})
-                node.fc_rot_x.keyframe_points.insert(frame_idx, rot.x, options={'FAST', 'NEEDED'})
-                node.fc_rot_y.keyframe_points.insert(frame_idx, rot.y, options={'FAST', 'NEEDED'})
-                node.fc_rot_z.keyframe_points.insert(frame_idx, rot.z, options={'FAST', 'NEEDED'})
+                node.fc_rot_w.keyframe_points.insert(frame_idx, rot.w, options=key_options)
+                node.fc_rot_x.keyframe_points.insert(frame_idx, rot.x, options=key_options)
+                node.fc_rot_y.keyframe_points.insert(frame_idx, rot.y, options=key_options)
+                node.fc_rot_z.keyframe_points.insert(frame_idx, rot.z, options=key_options)
                 
-                node.fc_sca_x.keyframe_points.insert(frame_idx, sca.x, options={'FAST', 'NEEDED'})
-                node.fc_sca_y.keyframe_points.insert(frame_idx, sca.y, options={'FAST', 'NEEDED'})
-                node.fc_sca_z.keyframe_points.insert(frame_idx, sca.z, options={'FAST', 'NEEDED'})
+                node.fc_sca_x.keyframe_points.insert(frame_idx, sca.x, options=key_options)
+                node.fc_sca_y.keyframe_points.insert(frame_idx, sca.y, options=key_options)
+                node.fc_sca_z.keyframe_points.insert(frame_idx, sca.z, options=key_options)
 
     def _get_base_pose(self, animation_nodes, nodes, node_base_matrices: dict):
         for idx, (an, node) in enumerate(zip(animation_nodes, nodes)):
