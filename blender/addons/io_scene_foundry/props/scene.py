@@ -1344,6 +1344,24 @@ class NWO_AnimationPropertiesGroup(bpy.types.PropertyGroup):
     suspension_destroyed_region_name: bpy.props.StringProperty(name="Destroyed Region Name", description="Optional. Only necessary for suspension with a destroyed state")
     suspension_destroyed_contact_marker: bpy.props.PointerProperty(poll=poll_empty, type=bpy.types.Object, name="Destroyed Ground Point", description="Optional. Empty whose position marks the bottom of the object undergoing suspension (i.e. the bottom point of a wheel) when destroyed. This empty should be parented to the same bone that the suspension object is parented / vertex weighted to (usually a wheel or tread). This empty does not need to be exported")
 
+
+    # Tag animation props
+    author_type: bpy.props.EnumProperty(
+        name="Author Type",
+        items=[
+            ('TAG', "Tag", ""),
+            ('BLENDER', "Tag", ""),
+        ]
+    )
+    
+    weight: bpy.props.FloatProperty()
+    loop_frame_index: bpy.props.IntProperty()
+    # Flags
+    disable_interpolation_in: bpy.props.BoolProperty()
+    disable_interpolation_out: bpy.props.BoolProperty()
+    disable_mode_ik: bpy.props.BoolProperty()
+    
+
     # Composites
     timing_source: bpy.props.StringProperty(name="Timing Source", description="Name of the animation to use as the timing source")
     blend_axis_active_index: bpy.props.IntProperty(options=set(), update=animation_from_blend_axis)
