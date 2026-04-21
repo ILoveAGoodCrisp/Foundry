@@ -3073,8 +3073,6 @@ class AnimationTag(Tag):
                 if utils.remove_node_prefix(bone.name) == utils.remove_node_prefix(node):
                     node_bone_dict[node] = bone
                     
-        print(node_bone_dict)
-                    
         chain_names = set()
         
         for element in self.block_ik_chains.Elements:
