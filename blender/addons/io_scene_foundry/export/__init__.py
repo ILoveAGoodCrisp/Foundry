@@ -693,7 +693,7 @@ def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_pat
         export_scene.tool_import_simple(sidecar_path)
         
     if not single_animation and export_settings.export_mode in {'FULL', 'TAGS'}:
-        if export_settings.export_mode == 'TAGS' and (export_scene.limit_perms_to_selection or export_scene.limit_bsps_to_selection):
+        if export_settings.export_mode == 'TAGS':
             # Need to figure out what perms/bsps are selected in this case
             print("\n\nQuick Scene Process")
             print("-----------------------------------------------------------------------\n")
