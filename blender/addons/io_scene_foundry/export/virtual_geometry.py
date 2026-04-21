@@ -533,18 +533,19 @@ class VirtualAnimation:
                         self.suspension_destroyed_compression_depth = (suspension_reference_height - suspension_destroyed_compression_height) * scene.unit_factor * WU_SCALAR
 
             bone_inverse_matrices = {}
-
             for bone in bones:
                 if bone.is_object:
-                    matrix = scene.rotation_matrix @ bone.pbone.matrix_world
+                    matrix_world = scene.rotation_matrix @ bone.pbone.matrix_world
+                    matrix = matrix_world
                 elif bone.parent:
                     matrix_world = scene.rotation_matrix @ bone.ob.matrix_world @ bone.pbone.matrix
                     bone_inverse_matrices[bone.pbone] = matrix_world.inverted_safe()
                     matrix = bone_inverse_matrices[bone.parent] @ matrix_world
                 else:
                     matrix = scene.rotation_matrix @ bone.ob.matrix_world @ bone.pbone.matrix
+                    matrix_world = matrix
                     bone_inverse_matrices[bone.pbone] = matrix.inverted_safe()
-
+                    
                 loc, rot, sca = matrix.decompose()
 
                 if self.overlay and bone.is_aim_bone and not first_frame:
@@ -558,7 +559,7 @@ class VirtualAnimation:
                 positions[bone].extend(position)
                 orientations[bone].extend(orientation)
                 scales[bone].extend(scale_shear)
-
+                
             first_frame = False
 
             for event in vector_events:
@@ -687,6 +688,7 @@ class VirtualAnimation:
         granny_animation.duration = scene.time_step * frame_total + 0.00001
         granny_animation.time_step = scene.time_step
         granny_animation.oversampling = 1
+        
         # granny_animation.track_group_count = len(all_track_groups)
         # granny_animation.track_groups = (POINTER(GrannyTrackGroup) * len(all_track_groups))(*all_track_groups)
         
@@ -785,7 +787,7 @@ class VirtualMorphTargetData:
         self.ob = ob
         self.positions: np.ndarray = None
         self.normals: np.ndarray = None
-        self.vertex_colors: list[np.ndarray] = [] # Up to two sets of vert colors
+        # self.vertex_colors: list[np.ndarray] = [] # Up to two sets of vert colors
         self.tension: np.ndarray = None
         self.num_vertices = 0
         self.invalid = False
@@ -848,23 +850,23 @@ class VirtualMorphTargetData:
         mesh.corner_normals.foreach_get("vector", self.normals.ravel())
         
         for idx, layer in enumerate(mesh.color_attributes):
-            if len(self.vertex_colors) >= 2:
-                break
+            # if len(self.vertex_colors) >= 2:
+            #     break
+
+            is_tension = layer.name.lower() == "tension"
+            if not is_tension:
+                continue
             
             colors = np.empty((num_vertices, 4) if layer.domain == 'POINT' else (num_loops, 4), dtype=np.single)
             layer.data.foreach_get("color", colors.ravel())
             is_tension = layer.name.lower() == "tension"
             
-            #if not is_tension:
             colors = colors[:, :3]
             if layer.domain == 'POINT':
                 colors = colors[loop_vertex_indices]
 
-            if is_tension:
-                self.tension = colors
-                # self.tension = np.concatenate((colors[:, 3:4], colors[:, :3]), axis=1)
-            else:
-                self.vertex_colors.append(colors)
+            self.tension = colors
+
                 
         if self.tension is None:
             self.tension = np.zeros((num_loops, 3), dtype=np.single)
@@ -875,10 +877,6 @@ class VirtualMorphTargetData:
         
         if self.normals is not None:
             self.normals = self.normals[new_indices, :]
-
-        if self.vertex_colors is not None:
-            for idx, vcolor in enumerate(self.vertex_colors):
-                self.vertex_colors[idx] = vcolor[new_indices, :]
                 
         if self.tension is not None:
             self.tension = self.tension[new_indices, :]
@@ -898,14 +896,6 @@ class VirtualMorphTargetData:
             types.append(GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, b"Normal", None, 3))
             type_names.append(b"Normal")
             dtypes.append(('Normal', np.single, (3,)))
-            
-        for idx, vcolors in enumerate(self.vertex_colors):
-            name = f"DiffuseColor{idx}"
-            name_encoded = name.encode()
-            data.append(vcolors)
-            types.append(GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, name_encoded, None, 3))
-            type_names.append(name_encoded)
-            dtypes.append((name, np.single, (3,)))
             
         if self.tension is not None:
             data.append(self.tension)
@@ -947,6 +937,7 @@ class VirtualMesh:
         self.vertex_colors: list[np.ndarray] = [] # Up to two sets of vert colors
         self.vertex_ids: np.ndarray = None # Corinth only
         self.tension: np.ndarray = None # Corinth only
+        self.pca_mask: np.ndarray = None # Corinth only
         self.indices: np.ndarray = None
         self.num_indices = 0
         self.groups: list[VirtualMaterial, int, int] = []
@@ -1015,14 +1006,18 @@ class VirtualMesh:
 
         self.granny_tri_topology = pointer(granny_tri_topology)
         
-    def _granny_vertex_data(self, scene: 'VirtualScene'):
-        data = [self.positions]
+    def _vertex_data_arrays(self, scene: 'VirtualScene', position_override=None, normal_override=None, tension_override=None):
+        positions = self.positions if position_override is None else position_override
+        normals = self.normals if normal_override is None else normal_override
+        tension = self.tension if tension_override is None else tension_override
+
+        data = [positions]
         types = [GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, b"Position", None, 3)]
         type_names = [b"Position"]
         dtypes = [('Position', np.single, (3,))]
         
         if self.normals is not None:
-            data.append(self.normals)
+            data.append(normals)
             types.append(GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, b"Normal", None, 3))
             type_names.append(b"Normal")
             dtypes.append(('Normal', np.single, (3,)))
@@ -1034,8 +1029,8 @@ class VirtualMesh:
                 GrannyDataTypeDefinition(GrannyMemberType.granny_uint8_member.value, b"BoneIndices", None, 4)
             ])
             type_names.extend([b"BoneWeights", b"BoneIndices"])
-            dtypes.append(('BoneWeights', np.byte, (4,)))
-            dtypes.append(('BoneIndices', np.byte, (4,)))
+            dtypes.append(('BoneWeights', np.uint8, (4,)))
+            dtypes.append(('BoneIndices', np.uint8, (4,)))
         
         for idx, uvs in enumerate(self.texcoords):
             name = f"TextureCoordinates{idx}"
@@ -1049,7 +1044,7 @@ class VirtualMesh:
             data.append(self.lighting_texcoords)
             types.append(GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, b"TextureCoordinateslighting", None, 3))
             type_names.append(b"lighting")
-            dtypes.append((f'TextureCoordinateslighting{idx}', np.single, (3,)))
+            dtypes.append((f'TextureCoordinateslighting{len(self.texcoords)}', np.single, (3,)))
             
         for idx, vcolors in enumerate(self.vertex_colors):
             name = f"colorSet{idx + 1}" if scene.corinth else f"DiffuseColor{idx}"
@@ -1059,11 +1054,17 @@ class VirtualMesh:
             dtypes.append((name, np.single, (3,)))
             
         if self.tension is not None:
-            data.append(self.tension)
+            data.append(tension)
             types.append(GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, f"DiffuseColor{len(self.vertex_colors)}".encode(), None, 3))
             type_names.append(b"tension")
             dtypes.append(("tension", np.single, (3,)))
             
+        if self.pca_mask is not None:
+            data.append(self.pca_mask)
+            types.append(GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, f"DiffuseColor{len(self.vertex_colors) + int(self.tension is not None)}".encode(), None, 3))
+            type_names.append(b"pca_mask")
+            dtypes.append(("pca_mask", np.single, (3,)))
+
         if self.vertex_ids is not None:
             data.append(self.vertex_ids)
             types.append(GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, f"TextureCoordinates{len(self.texcoords)}".encode(), None, 2))
@@ -1071,23 +1072,34 @@ class VirtualMesh:
             dtypes.append(('vertex_id', np.single, (2,)))
 
         types.append((GrannyMemberType.granny_end_member.value, None, None, 0))
+        return data, types, type_names, dtypes
+
+    def _make_vertex_array(self, scene: 'VirtualScene', position_override=None, normal_override=None, tension_override=None):
+        data, types, type_names, dtypes = self._vertex_data_arrays(scene, position_override, normal_override, tension_override)
         
         num_types = len(type_names)
         names_array = (c_char_p * num_types)(*type_names)
-        self.vertex_component_names = cast(names_array, POINTER(c_char_p))
-        self.vertex_component_name_count = num_types
         
         type_info_array = (GrannyDataTypeDefinition * (num_types + 1))(*types)
-        self.vertex_type = cast(type_info_array, POINTER(GrannyDataTypeDefinition))
         
-        vertex_array = np.zeros(len(self.positions), dtype=dtypes)
+        vertex_array = np.zeros(len(data[0]), dtype=dtypes)
         for array, data_type in zip(data, dtypes):
             vertex_array[data_type[0]] = array
 
         vertex_byte_array = vertex_array.tobytes()
+        return names_array, type_info_array, (c_ubyte * len(vertex_byte_array)).from_buffer_copy(vertex_byte_array), len(vertex_byte_array), num_types
 
-        self.len_vertex_array = len(vertex_byte_array)
-        self.vertex_array = (c_ubyte * self.len_vertex_array).from_buffer_copy(vertex_byte_array)
+    def _granny_vertex_data(self, scene: 'VirtualScene'):
+        names_array, type_info_array, vertex_array, len_vertex_array, num_types = self._make_vertex_array(scene)
+
+        self._vertex_component_names_array = names_array
+        self._vertex_type_array = type_info_array
+        self.vertex_component_names = cast(names_array, POINTER(c_char_p))
+        self.vertex_component_name_count = num_types
+        self.vertex_type = cast(type_info_array, POINTER(GrannyDataTypeDefinition))
+
+        self.len_vertex_array = len_vertex_array
+        self.vertex_array = vertex_array
         
     def _setup(self, ob: bpy.types.Object, scene: 'VirtualScene', render_mesh: bool, props: dict, bones: list[str]):
         mesh_type_value = props.get("bungie_mesh_type")
@@ -1144,11 +1156,11 @@ class VirtualMesh:
             bm.to_mesh(mesh)
             bm.free()
             
-        if not mesh.polygons:
-            if true_mesh:
-                scene.warnings.append(f"Mesh data [{self.name}] of object [{ob.name}] has no faces. {ob.name} removed from geometry tree")
-            self.invalid = True
-            return
+            if not mesh.polygons:
+                if true_mesh:
+                    scene.warnings.append(f"Mesh data [{self.name}] of object [{ob.name}] has no faces. {ob.name} removed from geometry tree")
+                self.invalid = True
+                return
         
         is_object_instance = mesh_type_value == MeshType.object_instance.value
                     
@@ -1196,8 +1208,8 @@ class VirtualMesh:
 
             vgroup_bone_names = {vg.name: idx for idx, vg in enumerate(ob.vertex_groups)}
 
-            bone_weights = np.zeros((num_loops, 4), dtype=np.single)
-            bone_indices = np.zeros((num_loops, 4), dtype=np.int32)
+            bone_weights = np.zeros((num_vertices, 4), dtype=np.uint8)
+            bone_indices = np.zeros((num_vertices, 4), dtype=np.int32)
             vgroup_remap = {}
             unique_bone_indices = set()
             bone_use_counter = {}
@@ -1210,44 +1222,62 @@ class VirtualMesh:
             def remap(vg_idx):
                 return vgroup_remap.get(int(vg_idx), -1)
 
+            def quantize_weights(weights: np.ndarray) -> np.ndarray:
+                scaled = weights * 255.0
+                quantized = np.floor(scaled).astype(np.int32)
+                remainder = 255 - int(quantized.sum())
+                if remainder > 0:
+                    fractions = scaled - quantized
+                    for idx in np.argsort(-fractions)[:remainder]:
+                        quantized[idx] += 1
+                elif remainder < 0:
+                    for idx in np.argsort(weights):
+                        if remainder == 0:
+                            break
+                        amount = min(int(quantized[idx]), -remainder)
+                        quantized[idx] -= amount
+                        remainder += amount
+                return np.clip(quantized, 0, 255).astype(np.uint8)
+
             for v_idx, vertex in enumerate(mesh.vertices):
                 groups = vertex.groups
                 if not groups:
-                    continue
-
-                weights = np.zeros(len(groups), dtype=np.single)
-                indices = np.zeros(len(groups), dtype=np.int32)
-
-                groups.foreach_get("weight", weights)
-                groups.foreach_get("group", indices)
-
-                bone_ids = np.array([remap(g) for g in indices], dtype=np.int32)
-
-                valid_mask = bone_ids >= 0
-                bone_ids = bone_ids[valid_mask]
-                weights = weights[valid_mask]
-
-                if len(weights) == 0:
                     bone_ids = np.array([default_bone_index], dtype=np.int32)
                     weights = np.array([1.0], dtype=np.single)
                 else:
-                    order = np.argsort(-weights)
-                    bone_ids = bone_ids[order]
-                    weights = weights[order]
+                    weights = np.zeros(len(groups), dtype=np.single)
+                    indices = np.zeros(len(groups), dtype=np.int32)
 
-                    if is_collision:
-                        bone_ids = bone_ids[:1]
-                        weights = weights[:1]
-                    else:
-                        bone_ids = bone_ids[:4]
-                        weights = weights[:4]
+                    groups.foreach_get("weight", weights)
+                    groups.foreach_get("group", indices)
 
-                    total = weights.sum()
-                    if total > 0:
-                        weights = weights / total
-                    else:
+                    bone_ids = np.array([remap(g) for g in indices], dtype=np.int32)
+
+                    valid_mask = bone_ids >= 0
+                    bone_ids = bone_ids[valid_mask]
+                    weights = weights[valid_mask]
+
+                    if len(weights) == 0:
                         bone_ids = np.array([default_bone_index], dtype=np.int32)
                         weights = np.array([1.0], dtype=np.single)
+                    else:
+                        order = np.argsort(-weights)
+                        bone_ids = bone_ids[order]
+                        weights = weights[order]
+
+                        if is_collision:
+                            bone_ids = bone_ids[:1]
+                            weights = weights[:1]
+                        else:
+                            bone_ids = bone_ids[:4]
+                            weights = weights[:4]
+
+                        total = weights.sum()
+                        if total > 0:
+                            weights = weights / total
+                        else:
+                            bone_ids = np.array([default_bone_index], dtype=np.int32)
+                            weights = np.array([1.0], dtype=np.single)
 
                 # pad to 4
                 pad = 4 - len(weights)
@@ -1255,7 +1285,7 @@ class VirtualMesh:
                     bone_ids = np.pad(bone_ids, (0, pad), constant_values=default_bone_index)
                     weights = np.pad(weights, (0, pad), constant_values=0.0)
 
-                bone_weights[v_idx] = (weights * 255.0)
+                bone_weights[v_idx] = quantize_weights(weights)
                 bone_indices[v_idx] = bone_ids
 
                 # track used bones
@@ -1296,8 +1326,8 @@ class VirtualMesh:
                 remapped_indices[bone_indices == orig_idx] = new_idx
 
             self.bone_bindings = [bones[i] for i in used_bones]
-            self.bone_weights = bone_weights.astype(np.byte)[loop_vertex_indices]
-            self.bone_indices = remapped_indices.astype(np.byte)[loop_vertex_indices]
+            self.bone_weights = bone_weights[loop_vertex_indices]
+            self.bone_indices = np.clip(remapped_indices, 0, 255).astype(np.uint8)[loop_vertex_indices]
         
         if render_mesh:
             # We only care about writing this data if the in game mesh will have a render definition
@@ -1335,6 +1365,7 @@ class VirtualMesh:
                 colors = np.empty((num_vertices, 4) if layer.domain == 'POINT' else (num_loops, 4), dtype=np.single)
                 layer.data.foreach_get("color", colors.ravel())
                 is_tension = scene.corinth and layer.name.lower() == "tension"
+                is_pca_mask = scene.corinth and layer.name.lower() == "pca_mask"
                 
                 #if not is_tension:
                 colors = colors[:, :3]
@@ -1343,11 +1374,22 @@ class VirtualMesh:
     
                 if is_tension:
                     self.tension = colors #np.concatenate((colors[:, 3:4], colors[:, :3]), axis=1)
+                elif is_pca_mask:
+                    self.pca_mask = colors #np.concatenate((colors[:, 3:4], colors[:, :3]), axis=1)
                 else:
                     self.vertex_colors.append(colors)
                     
             if scene.corinth and self.tension is None and ob.data.shape_keys:
                 self.tension = np.zeros((num_loops, 3), dtype=np.single)
+                
+        if scene.corinth:
+            loop_starts = np.empty(num_polygons, dtype=np.int32)
+            loop_totals = np.empty(num_polygons, dtype=np.int32)
+            mesh.polygons.foreach_get("loop_start", loop_starts)
+            mesh.polygons.foreach_get("loop_total", loop_totals)
+            face_indices_per_loop = np.repeat(np.arange(num_polygons, dtype=np.int32), loop_totals)
+            loop_in_face = np.arange(num_loops, dtype=np.int32) - np.repeat(loop_starts, loop_totals)
+            self.vertex_ids = np.column_stack((face_indices_per_loop, loop_in_face)).astype(np.single)
 
         # Remove duplicate vertex data
         data = [self.positions]
@@ -1361,22 +1403,16 @@ class VirtualMesh:
             data.extend(self.vertex_colors)
         if self.tension is not None:
             data.append(self.tension)
+        if self.pca_mask is not None:
+            data.append(self.pca_mask)
+        if self.bone_weights is not None:
+            data.extend([self.bone_weights, self.bone_indices])
 
         loop_data = np.hstack(data)
 
         _, new_indices, face_indices = np.unique(loop_data, axis=0, return_index=True, return_inverse=True)
         
-        if scene.corinth:
-            loop_starts = np.empty(num_polygons, dtype=np.int32)
-            loop_totals = np.empty(num_polygons, dtype=np.int32)
-            mesh.polygons.foreach_get("loop_start", loop_starts)
-            mesh.polygons.foreach_get("loop_total", loop_totals)
 
-            face_indices_per_loop = np.repeat(np.arange(num_polygons, dtype=np.int32), loop_totals)
-
-            loop_in_face = np.arange(num_loops, dtype=np.int32) - np.repeat(loop_starts, loop_totals)
-
-            self.vertex_ids = np.column_stack((face_indices_per_loop, loop_in_face)).astype(np.single)
 
         self.indices = face_indices.astype(np.int32)
         new_indices = tuple(new_indices)
@@ -1401,6 +1437,9 @@ class VirtualMesh:
                 
         if self.tension is not None:
             self.tension = self.tension[new_indices, :]
+
+        if self.pca_mask is not None:
+            self.pca_mask = self.pca_mask[new_indices, :]
 
         if self.bone_weights is not None:
             self.bone_weights = self.bone_weights[new_indices, :]
@@ -1505,6 +1544,7 @@ class VirtualNode:
         self.bone_bindings: list[str] = []
         self.granny_vertex_data = None
         self.granny_vertex_data_copies = {}
+        self.granny_vertex_data_copy_buffers = {}
         self.negative_scaling = False
         self.mod_stack = None
         
@@ -1598,13 +1638,53 @@ class VirtualNode:
                         memmove(vertex_array_copy, vertex_array, self.mesh.len_vertex_array)
                         granny_vertex_data_copy.vertices = cast(vertex_array_copy, POINTER(c_ubyte))
                         granny_vertex_data_copy.vertex_count = self.mesh.num_vertices
-                        granny_vertex_data_copy = pointer(granny_vertex_data_copy)
                         
-                        self.granny_vertex_data_copies[animation] = granny_vertex_data_copy 
+                        self.granny_vertex_data_copy_buffers[animation] = (granny_vertex_data_copy, vertex_array_copy)
+                        self.granny_vertex_data_copies[animation] = pointer(granny_vertex_data_copy)
                 
                 self.granny_vertex_data.vertices = cast(vertex_array, POINTER(c_ubyte))
                 self.granny_vertex_data.vertex_count = self.mesh.num_vertices
                 self.granny_vertex_data = pointer(self.granny_vertex_data)   
+
+    def set_pca_vertex_data_copy(self, animation, scene: 'VirtualScene', morph_target: VirtualMorphTargetData):
+        if self.mesh is None or morph_target.invalid:
+            return
+
+        if morph_target.num_vertices != self.mesh.num_vertices:
+            scene.warnings.append(
+                f"PCA animation [{getattr(animation, 'name', '')}] could not use the first frame as the rest mesh for [{self.name}]: "
+                f"expected {self.mesh.num_vertices} vertices, got {morph_target.num_vertices}"
+            )
+            return
+
+        names_array, type_info_array, vertex_array, _, num_types = self.mesh._make_vertex_array(
+            scene,
+            position_override=morph_target.positions,
+            normal_override=morph_target.normals,
+            tension_override=morph_target.tension,
+        )
+        vertex_type = cast(type_info_array, POINTER(GrannyDataTypeDefinition))
+
+        if self.matrix_world != IDENTITY_MATRIX:
+            affine3, linear3x3, inverse_linear3x3 = calc_transforms(self.matrix_world)
+            scene.granny.transform_vertices(self.mesh.num_vertices,
+                                            vertex_type,
+                                            vertex_array,
+                                            affine3,
+                                            linear3x3,
+                                            inverse_linear3x3,
+                                            True,
+                                            False,
+                                            )
+
+        granny_vertex_data_copy = GrannyVertexData()
+        granny_vertex_data_copy.vertex_component_names = cast(names_array, POINTER(c_char_p))
+        granny_vertex_data_copy.vertex_component_name_count = num_types
+        granny_vertex_data_copy.vertex_type = vertex_type
+        granny_vertex_data_copy.vertices = cast(vertex_array, POINTER(c_ubyte))
+        granny_vertex_data_copy.vertex_count = self.mesh.num_vertices
+        self.granny_vertex_data_copy_buffers[animation] = (granny_vertex_data_copy, vertex_array, names_array, type_info_array)
+        self.granny_vertex_data_copies[animation] = pointer(granny_vertex_data_copy)
 
     def _should_apply_marker_axis(self, scene: 'VirtualScene') -> bool:
         if not scene.maintain_marker_axis:
