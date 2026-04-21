@@ -623,22 +623,8 @@ class ExportScene:
                 props.update(mesh_props)
                 
                 if is_pca:
-                    # pre triangulate the mesh for PCA
+                    props["bungie_mesh_ispca"] = 1
                     ob.for_pca = True
-                    eval_ob = ob.eval_ob
-                    eval_mesh = eval_ob.to_mesh(preserve_all_data_layers=True, depsgraph=self.depsgraph)
-                    # # copy_ob.data = ob.data.copy()
-                    bm = bmesh.new()
-                    bm.from_mesh(eval_mesh)
-                    bmesh.ops.triangulate(bm, faces=bm.faces, quad_method=utils.tri_mod_to_bmesh_tri(self.export_settings.triangulate_quad_method), ngon_method=utils.tri_mod_to_bmesh_tri(self.export_settings.triangulate_ngon_method))
-                    bm.to_mesh(eval_mesh)
-                    bm.free()
-                    self.data_remap[ob.ob] = ob.ob.data
-                    ob.ob.data = eval_mesh.copy()
-                    ob.data = ob.ob.data
-                    eval_ob.to_mesh_clear()
-                    self.temp_meshes.add(ob.data)
-                    
                     ob.pca_animations = []
                     
                     match self.export_settings.export_animations:
@@ -1148,7 +1134,7 @@ class ExportScene:
         if nwo.poop_does_not_block_aoe:
             props["bungie_mesh_poop_does_not_block_aoe"] = 1
         if nwo.poop_excluded_from_lightprobe:
-            props["bungie_mesh_poop_excluded_from_lightprobe"] = 1
+            props["bungie_mesh_poop_excluded_from_lightprobes"] = 1
             
         if nwo.poop_decal_spacing:
             props["bungie_mesh_poop_decal_spacing"] = 1 
@@ -1299,7 +1285,7 @@ class ExportScene:
                     if nwo.prefab_does_not_block_aoe:
                         props["bungie_mesh_poop_does_not_block_aoe"] = 1
                     if nwo.prefab_excluded_from_lightprobe:
-                        props["bungie_mesh_poop_excluded_from_lightprobe"] = 1
+                        props["bungie_mesh_poop_excluded_from_lightprobes"] = 1
                     if nwo.prefab_decal_spacing:
                         props["bungie_mesh_poop_decal_spacing"] = 1
                     if nwo.prefab_remove_from_shadow_geometry:
