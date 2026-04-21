@@ -171,8 +171,6 @@ class SidecarImport:
                 flags.append("draft")
             if self.export_settings.import_seam_debug:
                 flags.append("seam_debug")
-            # if self.export_settings.import_decompose_instances:
-            #     flags.append("decompose_instances")
             if self.export_settings.import_suppress_errors:
                 flags.append("suppress_errors_to_vrml")
 

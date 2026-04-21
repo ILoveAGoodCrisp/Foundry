@@ -416,7 +416,6 @@ class Instance:
         nwo.poop_imposter_brightness = self.imposter_brightness
         nwo.poop_imposter_transition_distance = self.imposter_transition * (1 / WU_SCALAR)
         nwo.poop_imposter_transition_distance_auto = self.imposter_transition <= 0
-        
         nwo.poop_lightmap_resolution_scale = self.lightmap_res
         
         # Check that object origin is not too far away from instance

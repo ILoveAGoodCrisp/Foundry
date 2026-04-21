@@ -675,11 +675,6 @@ class NWO_HaloExportSettingsFlags(bpy.types.Panel):
                     "import_skip_instances",
                     text="Skip importing instances",
                 )
-                # col.prop(
-                #     scene_nwo_export,
-                #     "import_decompose_instances",
-                #     text="Run convex physics decomposition",
-                # )
             # else:
             #     col.prop(scene_nwo_export, "import_draft", text="Skip PRT generation")
                 
@@ -1253,12 +1248,6 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
     import_skip_instances: bpy.props.BoolProperty(
         name="Skip Instances",
         description="Skip importing all instanced geometry",
-        default=False,
-        options=set(),
-    )
-    import_decompose_instances: bpy.props.BoolProperty(
-        name="Decompose Instances",
-        description="Run convex decomposition for instanced geometry physics (very slow)",
         default=False,
         options=set(),
     )

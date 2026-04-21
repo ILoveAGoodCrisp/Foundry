@@ -1360,6 +1360,49 @@ class NWO_AnimationPropertiesGroup(bpy.types.PropertyGroup):
     disable_interpolation_in: bpy.props.BoolProperty()
     disable_interpolation_out: bpy.props.BoolProperty()
     disable_mode_ik: bpy.props.BoolProperty()
+    disable_weapon_ik: bpy.props.BoolProperty()
+    disable_weapon_ik: bpy.props.BoolProperty()
+    disable_weapon_aim: bpy.props.BoolProperty()
+    disable_look_screen: bpy.props.BoolProperty()
+    disable_transition_adjustment: bpy.props.BoolProperty()
+    force_weapon_ik_on: bpy.props.BoolProperty()
+    enable_animated_source_interpolation: bpy.props.BoolProperty()
+    disable_ik_sets: bpy.props.BoolProperty()
+    disable_ik_chains: bpy.props.BoolProperty()
+    translate_and_scale_root_only: bpy.props.BoolProperty(
+        name="Translate and Scale Root Only",
+        description="Ignore all transition and scale on all nodes except the root"
+    )
+    enable_blend_out_on_replacement_anims: bpy.props.BoolProperty(
+        name="Enable Blend Out",
+        description="Fade out back to the current base animation as the animation reaches it end"
+    )
+    override_player_input_with_motion: bpy.props.BoolProperty(
+        name="Override Player Input with Motion",
+        description="Use the movement data in this animation instead of player physics (player only)"
+    )
+    
+    # Production Flags
+    do_not_monitor_changes: bpy.props.BoolProperty()
+    verify_sound_events: bpy.props.BoolProperty()
+    do_not_inherit_for_player_graphs: bpy.props.BoolProperty()
+    keep_raw_data_in_tag: bpy.props.BoolProperty()
+    allow_ball_roll_on_foot: bpy.props.BoolProperty(
+        name="Allow Ball Roll on Foot",
+        description="Prevents foot-ik from settling"
+    )
+    
+    # PCA
+    pca_group_name: bpy.props.StringProperty()
+    
+    
+    override_blend_in_time: bpy.props.FloatProperty(
+        name="Override Blend In Time"
+    )
+    override_blend_out_time: bpy.props.FloatProperty(
+        name="Override Blend Out Time",
+        description="Replacement animations only"
+    )
     
 
     # Composites

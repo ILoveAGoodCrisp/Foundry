@@ -109,7 +109,7 @@ class Sidecar:
         data.pose_overlay = pose_overlay
         data.is_pca = is_pca
         self.file_data["animation"].append(data)
-                
+
     def get_child_elements(self):
         for path in self.child_sidecar_paths:
             try:

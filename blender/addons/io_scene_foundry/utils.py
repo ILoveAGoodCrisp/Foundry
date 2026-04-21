@@ -4313,30 +4313,36 @@ def cut_out_mesh(ob: bpy.types.Object, cutter: bpy.types.Object):
 def get_halo_props_for_granny(props) -> dict:
     # halo_props = {k: v.encode() for k, v in props.items() if type(k) == str}
     halo_props = {}
+    prop_array_type = getattr(bpy.types, "bpy_prop_array", None)
+    sequence_types = (tuple, list, Color, Vector, np.ndarray)
+    if prop_array_type is not None:
+        sequence_types = (*sequence_types, prop_array_type)
     for key, v in props.items():
         k = key.encode()
         if isinstance(v, str):
             halo_props[k] = v.encode()
-        elif isinstance(v, (tuple, list)):
-            halo_props[k] = (c_float * len(v))(*v)
+        elif isinstance(v, bool):
+            halo_props[k] = c_int(int(v))
         elif isinstance(v, int):
             halo_props[k] = c_int(v)
         elif isinstance(v, float):
             halo_props[k] = c_float(v)
+        elif isinstance(v, np.integer):
+            halo_props[k] = c_int(int(v))
+        elif isinstance(v, np.floating):
+            halo_props[k] = c_float(float(v))
         elif isinstance(v, bytes):
             halo_props[k] = v
-        elif isinstance(v, (tuple, list)):
-            first = v[0]
-            if isinstance(first, int):
-                halo_props[k] = (c_int * len(v))(*v)
-            elif isinstance(first, float):
-                halo_props[k] = (c_float * len(v))(*v)
+        elif isinstance(v, sequence_types):
+            values = list(np.asarray(v).ravel()) if isinstance(v, np.ndarray) else list(v)
+            if not values:
+                continue
+            if all(isinstance(item, (bool, int, float, np.integer, np.floating)) for item in values):
+                halo_props[k] = (c_float * len(values))(*(float(item) for item in values))
             else:
-                print(type(v), v)
-                raise NotImplemented
+                raise NotImplementedError(f"Unsupported Granny property sequence {key}: {type(v)}")
         else:
-            print(type(v), v)
-            raise NotImplemented
+            raise NotImplementedError(f"Unsupported Granny property {key}: {type(v)}")
             
     return halo_props
 
@@ -5082,6 +5088,10 @@ def join_objects(objects: list[bpy.types.Object]) -> bpy.types.Object:
     set_two_sided(active.data)
     loop_normal_magic(active.data)
     consolidate_face_attributes(active.data)
+    
+    uv = active.data.uv_layers[0]
+    active.data.uv_layers.active = uv
+    uv.active_render = True
     
     return active
 
