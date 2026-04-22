@@ -725,7 +725,7 @@ class NWO_Import(bpy.types.Operator):
     
     generate_frames: bpy.props.BoolProperty(
         name="Generate Missing Frames",
-        description="Generates frames where possible for tag imported animations. This is needed because base and replacement animations are missing a final frame which would have been present in their source file",
+        description="Generates frames where possible for JMA imported animations. This is needed because base animations are missing a final frame, and replacement animations their first frame, which would have been present in their source file. If the missing frames have already been corrected, disable this option",
     )
     
     build_control_rig: bpy.props.BoolProperty(
@@ -4736,7 +4736,6 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                         box.prop(self, "graph_generate_renames")
                         box.prop(self, "graph_import_events")
                         box.prop(self, "graph_import_ik_chains")
-                        box.prop(self, "generate_frames")
                     if corinth:
                         layout.prop(self, "tag_import_lights")
                     layout.prop(self, "setup_as_asset")
@@ -4797,7 +4796,6 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 layout.prop(self, "graph_generate_renames")
                 layout.prop(self, "graph_import_events")
                 layout.prop(self, "graph_import_ik_chains")
-                layout.prop(self, "generate_frames")
             case "camera_track":
                 layout.prop(self, "camera_track_animation_scale")
                 layout.prop(self, "setup_as_asset")

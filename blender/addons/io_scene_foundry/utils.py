@@ -2264,6 +2264,8 @@ def clear_animation(animation):
                         for bone in group.object.pose.bones:
                             bone.matrix_basis = Matrix.Identity(4)
                     
+                    group.object.animation_data.action = None
+                    group.object.matrix_local = Matrix.Identity(4)
                     group.object.animation_data.use_nla = False
                     group.object.animation_data.action = None
 
@@ -5569,6 +5571,8 @@ class AnimationName:
                 return f"DAMAGE, MODE:{self.mode}, CLASS:{self.weapon_class}, TYPE:{self.weapon_type}, SET:{self.set}, STATE:{self.state}, DIRECTION:{self.direction}, REGION:{self.region}"
             case AnimationStateType.TRANSITION:
                 return f"TRANSITION, MODE:{self.mode}, CLASS:{self.weapon_class}, TYPE:{self.weapon_type}, SET:{self.set}, STATE:{self.state}, DEST_MODE:{self.destination_mode}, DEST_STATE:{self.destination_state}"
+            case _:
+                return self.data_name
             
 def test_point_bvh(bvhs, point):
     origin = Vector(point)

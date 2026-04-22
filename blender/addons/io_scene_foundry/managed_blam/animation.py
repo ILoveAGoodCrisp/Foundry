@@ -2378,29 +2378,33 @@ class AnimationTag(Tag):
         return self.find_animation(graph, tokens, ["actions"])
 
     def _seek_best_matching_base_animation(self, animation: Animation, name: utils.AnimationName, all_tag_animations):
-        animations = {}
-        for next_animation in all_tag_animations:
-            if next_animation.index == animation.index:
-                continue
-            if next_animation.animation_type not in (AnimationType.NONE, AnimationType.BASE):
-                continue
-            next_name = next_animation.name
-            if next_name.state != name.state:
-                continue
-            if next_name.type != utils.AnimationStateType.ACTION:
-                continue
-            matches = 0
-            matches += (int(name.mode == next_name.mode) * 1000)
-            matches += (int(name.weapon_class == next_name.weapon_class) * 100)
-            matches += (int(name.weapon_type == next_name.weapon_type) * 10)
-            matches += int(name.set == next_name.set)
-            animations[next_animation] = matches
+        def find_for_mode(mode: str):
+            animations = {}
+            for next_animation in all_tag_animations:
+                if next_animation.index == animation.index:
+                    continue
+                if next_animation.animation_type not in (AnimationType.NONE, AnimationType.BASE):
+                    continue
+                next_name = next_animation.name
+                if next_name.mode != mode:
+                    continue
+                if next_name.state != name.state:
+                    continue
+                if next_name.type != utils.AnimationStateType.ACTION:
+                    continue
+                matches = 0
+                matches += (int(name.weapon_class == next_name.weapon_class) * 100)
+                matches += (int(name.weapon_type == next_name.weapon_type) * 10)
+                matches += int(name.set == next_name.set)
+                animations[next_animation] = matches
 
-        if not animations:
-            return None
+            if not animations:
+                return None
 
-        priority_animations = sorted(animations, key=animations.get, reverse=True)
-        return priority_animations[0]
+            priority_animations = sorted(animations, key=animations.get, reverse=True)
+            return priority_animations[0]
+
+        return find_for_mode(name.mode) or find_for_mode("any")
 
     def _soft_transition_final_frame_source(self, animation: Animation, name: utils.AnimationName, all_tag_animations):
         next_animation = None
@@ -2466,14 +2470,20 @@ class AnimationTag(Tag):
             ignore_root = True
 
         elif "exit" in name.state:
+            return next_animation, ignore_root
+            idle_name = name.copy()
             if name.mode.endswith(("_b", "_d", "_p")) or "_p_" in name.mode:
-                next_animation = animation
-                ignore_pose = True
-            else:
-                idle_name = name.copy()
-                idle_name.state = "idle"
-                next_animation = self._seek_best_matching_base_animation(animation, idle_name, all_tag_animations)
+                return next_animation, ignore_root
+            idle_name.state = "idle"
+            idle_name.mode = "combat"
+            next_animation = self._seek_best_matching_base_animation(animation, idle_name, all_tag_animations)
             ignore_root = True
+
+        # elif name.state.endswith("exit_patrol"):
+        #     idle_name = name.copy()
+        #     idle_name.state = "idle"
+        #     idle_name.mode = "patrol"
+        #     next_animation = self._seek_best_matching_base_animation(animation, idle_name, all_tag_animations)
 
         elif "put_away" in name.state:
             ready_name = name.copy()
@@ -2488,10 +2498,12 @@ class AnimationTag(Tag):
             ignore_root = True
 
         else:
-            idle_name = name.copy()
-            idle_name.state = "idle"
-            next_animation = self._seek_best_matching_base_animation(animation, idle_name, all_tag_animations)
-            ignore_root = True
+            return next_animation, ignore_root
+            # idle_name = name.copy()
+            # idle_name.state = "idle"
+            # idle_name.mode = "combat"
+            # next_animation = self._seek_best_matching_base_animation(animation, idle_name, all_tag_animations)
+            # ignore_root = True
 
         if ignore_pose:
             return None, ignore_root
