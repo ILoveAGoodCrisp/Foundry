@@ -939,7 +939,8 @@ class AnimationResourceData:
             self.animated_scaled_node_flags = [False] * self.node_count
 
         if self.frame_info_type != FrameInfoType.NONE:
-            self.movement_data = _read_movement_data(reader, self.frame_info_type, self.frame_count)
+            # Movement data stores one extra frame, accounting for the frame dropped when this animation was imported
+            self.movement_data = _read_movement_data(reader, self.frame_info_type, self.frame_count + 1)
 
 
 def _read_flag_triplet(reader: BinaryReader, total_size: int, node_count: int) -> tuple[list[bool], list[bool], list[bool]]:
@@ -1025,6 +1026,8 @@ def _read_movement_data(reader: BinaryReader, frame_info_type: FrameInfoType, fr
 
         translations.append(Vector((dx, dy, dz)))
         rotations.append(delta_rotation)
+        
+    print(len(translations), translations)
 
     return MovementData(
         frame_info_type=frame_info_type,
@@ -1052,10 +1055,13 @@ def apply_movement_data(animation: AnimationData, movement_data: MovementData | 
     if not movement_data.translations:
         return animation
 
+    while animation.frame_count < len(movement_data.translations):
+        _append_duplicate_final_frame(animation)
+
     accumulated_translation = _zero_vector()
     accumulated_rotation = _identity_quaternion()
 
-    frame_limit = min(animation.frame_count, len(movement_data.translations))
+    frame_limit = min(animation.frame_count, len(movement_data.translations), len(movement_data.rotations))
 
     for frame_index in range(frame_limit):
         local_delta_translation = movement_data.translations[frame_index].copy()
@@ -1086,6 +1092,22 @@ def apply_movement_data(animation: AnimationData, movement_data: MovementData | 
             animation.rotation_flags[0] = True
 
     return animation
+
+
+def _append_duplicate_final_frame(animation: AnimationData):
+    if animation.frame_count < 1:
+        return
+
+    for node_index in range(animation.node_count):
+        translations = animation.translations[node_index]
+        rotations = animation.rotations[node_index]
+        scales = animation.scales[node_index]
+
+        translations.append(translations[-1].copy() if translations else _zero_vector())
+        rotations.append(rotations[-1].copy() if rotations else _identity_quaternion())
+        scales.append(scales[-1] if scales else 1.0)
+
+    animation.frame_count += 1
 
 
 def default_frame_channels(default_nodes: list[DefaultAnimationNode]) -> FrameChannels:

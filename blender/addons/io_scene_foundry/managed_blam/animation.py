@@ -2342,7 +2342,6 @@ class AnimationTag(Tag):
             resource_data = self._read_animation_resource_data(tag_animation, shared_static_codec)
             resource_cache[index] = resource_data
 
-
         animation_data = build_animation(resource_data, defaults, "default" if tag_animation.animation_type in (0, 1) else "neutral")
         if tag_animation.animation_type in (0, 1) and resource_data.movement_data is not None:
             apply_movement_data(animation_data, resource_data.movement_data)
@@ -2675,6 +2674,8 @@ class AnimationTag(Tag):
                 imported = False
                 try:
                     transforms = self._animation_transforms(tag_animation, defaults, overlay_defaults, native_nodes, graph, shared_static_codec, native_resource_cache,native_animation_cache, tag_animations)
+                    if transforms:
+                        blender_animation.frame_end = max(blender_animation.frame_end, max(transforms))
                     self._to_armature_action(transforms, armature, action, native_nodes, {}, set(), blender_animation.pose_overlay)
                     success = True
                     imported = True
