@@ -1,7 +1,7 @@
 """Generates the final frame for import based and replacement animations, and the first frame of replacement animations"""
 
 import bpy
-from mathutils import Euler, Quaternion, Vector
+from mathutils import Euler, Quaternion
 
 from ... import utils
 
@@ -34,6 +34,7 @@ soft_transition = (
 need_final_frame = (
     "base",
     "replacement",
+    # "replacement",
     "world",
 )
 
@@ -65,8 +66,8 @@ class FrameGenerator:
             self.animations = {anim: utils.AnimationName(anim.name) for anim in animations if anim.export_this}
         
     def generate(self):
-        print("Generating Missing Frames for Base and Replacement animations")
         replacements = {}
+        print("Generating Missing Frames for Base and replacement animations")
         for animation, name in self.animations.items():
             if animation.animation_type in need_final_frame:
                 self._apply_final_frame(animation, name)
@@ -104,8 +105,11 @@ class FrameGenerator:
         
         target_animation.frame_end += 1
         
+
+        original_frame_end = target_animation.frame_end
         if target_frame is None:
             target_frame = target_animation.frame_end
+            target_frame = original_frame_end + 1
         
         if source_frame is None:
             if source_animation is None:
@@ -120,13 +124,19 @@ class FrameGenerator:
             for fcurve in target_fcurves.values():
                 for kp in fcurve.keyframe_points:
                     kp.co.x += 1
-        
+
+        pose_inserts = []
         if not ignore_pose:
             if ignore_root:
                 for key, source_fc in source_fcurves_no_root.items():
                     first_key = next((kp for kp in source_fc.keyframe_points if int(kp.co.x) == source_frame), None)
                     if not first_key:
                         continue
+            source_lookup = source_fcurves_no_root if ignore_root else source_fcurves
+            for key, source_fc in source_lookup.items():
+                target_fc = target_fcurves.get(key)
+                if target_fc is None:
+                    continue
 
                     target_fcurves[key].keyframe_points.insert(target_frame, first_key.co.y, options={'FAST'})
             else:
@@ -139,6 +149,10 @@ class FrameGenerator:
             
         if assume_movement:
             
+                pose_inserts.append((target_fc, first_key.co.y))
+
+        movement_inserts = []
+        if assume_movement and target_fcurves_root_only:
             third_last_frame = target_frame - 2
             second_last_frame = target_frame - 1
             
@@ -160,10 +174,26 @@ class FrameGenerator:
                 "rotation_quaternion": [1.0, 0.0, 0.0, 0.0],
                 "scale": [1.0, 1.0, 1.0],
             }
+            if third_last and second_last:
+                transforms_1 = {
+                    "location": [0.0, 0.0, 0.0],
+                    "rotation_euler": [0.0, 0.0, 0.0],
+                    "rotation_quaternion": [1.0, 0.0, 0.0, 0.0],
+                    "scale": [1.0, 1.0, 1.0],
+                }
+                transforms_2 = {
+                    "location": [0.0, 0.0, 0.0],
+                    "rotation_euler": [0.0, 0.0, 0.0],
+                    "rotation_quaternion": [1.0, 0.0, 0.0, 0.0],
+                    "scale": [1.0, 1.0, 1.0],
+                }
 
             for (transform, index), value in third_last.items():
                 if transform in transforms_1 and index < len(transforms_1[transform]):
                     transforms_1[transform][index] = value
+                for (transform, index), value in third_last.items():
+                    if transform in transforms_1 and index < len(transforms_1[transform]):
+                        transforms_1[transform][index] = value
 
             for (transform, index), value in second_last.items():
                 if transform in transforms_2 and index < len(transforms_2[transform]):
@@ -174,6 +204,15 @@ class FrameGenerator:
             for i in range(3):
                 last["location", i] = transforms_2["location"][i] + (transforms_2["location"][i] - transforms_1["location"][i])
                 last["scale", i] = transforms_2["scale"][i] + (transforms_2["scale"][i] - transforms_1["scale"][i])
+                for (transform, index), value in second_last.items():
+                    if transform in transforms_2 and index < len(transforms_2[transform]):
+                        transforms_2[transform][index] = value
+                
+                last = {}
+                
+                for i in range(3):
+                    last["location", i] = transforms_2["location"][i] + (transforms_2["location"][i] - transforms_1["location"][i])
+                    last["scale", i] = transforms_2["scale"][i] + (transforms_2["scale"][i] - transforms_1["scale"][i])
 
             e1 = Euler(transforms_1["rotation_euler"])
             e2 = Euler(transforms_2["rotation_euler"])
@@ -182,6 +221,13 @@ class FrameGenerator:
             next_euler.make_compatible(e2)
             for i, v in enumerate(next_euler):
                 last["rotation_euler", i] = v
+                e1 = Euler(transforms_1["rotation_euler"])
+                e2 = Euler(transforms_2["rotation_euler"])
+                delta = Euler((e2.x - e1.x, e2.y - e1.y, e2.z - e1.z), e2.order)
+                next_euler = Euler((e2.x + delta.x, e2.y + delta.y, e2.z + delta.z), e2.order)
+                next_euler.make_compatible(e2)
+                for i, v in enumerate(next_euler):
+                    last["rotation_euler", i] = v
 
             q1 = Quaternion(transforms_1["rotation_quaternion"])
             q2 = Quaternion(transforms_2["rotation_quaternion"])
@@ -209,8 +255,48 @@ class FrameGenerator:
                     scale = last.get(("scale", fcurve.array_index))
                     if scale is not None:
                         fcurve.keyframe_points.insert(target_frame, scale, options={'FAST'})
+                q1 = Quaternion(transforms_1["rotation_quaternion"])
+                q2 = Quaternion(transforms_2["rotation_quaternion"])
+                delta_q = q2 @ q1.inverted()
+                q3 = delta_q @ q2
+                q3.normalize()
+                for i, v in enumerate(q3):
+                    last["rotation_quaternion", i] = v
+                        
+                for fcurve in target_fcurves_root_only.values():
+                    value = None
+                    if fcurve.data_path.endswith(".location"):
+                        value = last.get(("location", fcurve.array_index))
+                    elif fcurve.data_path.endswith(".rotation_quaternion"):
+                        value = last.get(("rotation_quaternion", fcurve.array_index))
+                    elif fcurve.data_path.endswith(".rotation_euler"):
+                        value = last.get(("rotation_euler", fcurve.array_index))
+                    elif fcurve.data_path.endswith(".scale"):
+                        value = last.get(("scale", fcurve.array_index))
 
                 
+                    if value is not None:
+                        movement_inserts.append((fcurve, value))
+
+        if not pose_inserts and not movement_inserts:
+            return
+
+        if shift_frames_by_one:
+            for fcurve in target_fcurves.values():
+                for kp in fcurve.keyframe_points:
+                    kp.co.x += 1
+
+        target_animation.frame_end = max(original_frame_end + 1, target_frame)
+        for track in target_animation.action_tracks:
+            if track.action is not None and track.action.use_frame_range:
+                track.action.frame_end = max(int(track.action.frame_end), target_animation.frame_end)
+
+        for target_fc, value in pose_inserts:
+            target_fc.keyframe_points.insert(target_frame, value, options={'FAST'})
+
+        if movement_inserts:
+            for fcurve, value in movement_inserts:
+                fcurve.keyframe_points.insert(target_frame, value, options={'FAST'})
             print(f"--- Generated new root bone frame for [{target_animation.name}]")
             
         print(f"--- Added final frame for [{target_animation.name}] from first frame of [{source_animation.name}]")
@@ -321,6 +407,7 @@ class FrameGenerator:
             assume_movement = True
                 
         elif "exit" in name.state: # mode/state exit to idle
+            return
             if name.mode.endswith(("_b", "_d", "_p")) or "_p_" in name.mode:
                 next_animation = animation # vehicles don't seem to exit to a particular animation
                 ignore_pose = True
@@ -369,6 +456,8 @@ class FrameGenerator:
             ob = track.object
             if action is None or ob is None:
                 continue
+            track_key = (ob.name_full, bool(track.is_shape_key_action))
+            root_bone_name = ""
             if ignore_root and ob.type == 'ARMATURE':
                 root_bone = next((b for b in ob.data.bones if b.use_deform and b.parent is None), None)
                 if root_bone is not None:
@@ -378,10 +467,17 @@ class FrameGenerator:
             if ignore_root:
                 fcurves_no_root = {k: v for k, v in fcurves.items() if not f'["{root_bone_name}"]' in k[0]}
                 fcurves_root_only = {k: v for k, v in fcurves.items() if f'["{root_bone_name}"]' in k[0]}
+            for fc in utils.get_fcurves(action, ob) or ():
+                key = (track_key, fc.data_path, fc.array_index)
+                fcurves[key] = fc
+                if ignore_root:
+                    if root_bone_name and f'["{root_bone_name}"]' in fc.data_path:
+                        fcurves_root_only[key] = fc
+                    else:
+                        fcurves_no_root[key] = fc
             
         return fcurves, fcurves_no_root, fcurves_root_only
     
-
 
 class NWO_OT_GenerateFrames(bpy.types.Operator):
     bl_idname = "nwo.generate_frames"
