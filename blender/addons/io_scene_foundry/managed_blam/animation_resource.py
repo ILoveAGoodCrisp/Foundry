@@ -939,7 +939,6 @@ class AnimationResourceData:
             self.animated_scaled_node_flags = [False] * self.node_count
 
         if self.frame_info_type != FrameInfoType.NONE:
-            # Movement data stores one extra frame, accounting for the frame dropped when this animation was imported
             self.movement_data = _read_movement_data(reader, self.frame_info_type, self.frame_count + 1)
 
 
@@ -1026,8 +1025,6 @@ def _read_movement_data(reader: BinaryReader, frame_info_type: FrameInfoType, fr
 
         translations.append(Vector((dx, dy, dz)))
         rotations.append(delta_rotation)
-        
-    print(len(translations), translations)
 
     return MovementData(
         frame_info_type=frame_info_type,
@@ -1056,12 +1053,17 @@ def apply_movement_data(animation: AnimationData, movement_data: MovementData | 
         return animation
 
     while animation.frame_count < len(movement_data.translations):
-        _append_duplicate_final_frame(animation)
+        append_final_frame(animation)
 
     accumulated_translation = _zero_vector()
     accumulated_rotation = _identity_quaternion()
 
     frame_limit = min(animation.frame_count, len(movement_data.translations), len(movement_data.rotations))
+    movement_rotates_root = movement_data.frame_info_type in (
+        FrameInfoType.DX_DY_DYAW,
+        FrameInfoType.DX_DY_DZ_DYAW,
+        FrameInfoType.DX_DY_DZ_DANGLE_AXIS,
+    )
 
     for frame_index in range(frame_limit):
         local_delta_translation = movement_data.translations[frame_index].copy()
@@ -1081,20 +1083,27 @@ def apply_movement_data(animation: AnimationData, movement_data: MovementData | 
 
         accumulated_rotation = (accumulated_rotation @ local_delta_rotation).normalized()
 
-        if movement_data.frame_info_type in (
-            FrameInfoType.DX_DY_DYAW,
-            FrameInfoType.DX_DY_DZ_DYAW,
-            FrameInfoType.DX_DY_DZ_DANGLE_AXIS,
-        ):
+        if movement_rotates_root:
             combined_rotation = accumulated_rotation.copy()
             combined_rotation.rotate(animation.rotations[0][frame_index])
             animation.rotations[0][frame_index] = combined_rotation
             animation.rotation_flags[0] = True
 
+    if 0 < frame_limit < animation.frame_count:
+        animation.translations[0][frame_limit:] = [
+            animation.translations[0][frame_limit - 1].copy()
+            for _ in range(animation.frame_count - frame_limit)
+        ]
+        if movement_rotates_root:
+            animation.rotations[0][frame_limit:] = [
+                animation.rotations[0][frame_limit - 1].copy()
+                for _ in range(animation.frame_count - frame_limit)
+            ]
+
     return animation
 
 
-def _append_duplicate_final_frame(animation: AnimationData):
+def append_final_frame(animation: AnimationData, final_frame: FrameChannels | None = None, ignore_root: bool = False):
     if animation.frame_count < 1:
         return
 
@@ -1103,9 +1112,21 @@ def _append_duplicate_final_frame(animation: AnimationData):
         rotations = animation.rotations[node_index]
         scales = animation.scales[node_index]
 
-        translations.append(translations[-1].copy() if translations else _zero_vector())
-        rotations.append(rotations[-1].copy() if rotations else _identity_quaternion())
-        scales.append(scales[-1] if scales else 1.0)
+        has_final_pose = (
+            final_frame is not None
+            and not (ignore_root and node_index == 0)
+            and node_index < len(final_frame.translations)
+            and node_index < len(final_frame.rotations)
+            and node_index < len(final_frame.scales)
+        )
+        if has_final_pose:
+            translations.append(final_frame.translations[node_index].copy())
+            rotations.append(final_frame.rotations[node_index].copy())
+            scales.append(final_frame.scales[node_index])
+        else:
+            translations.append(translations[-1].copy() if translations else _zero_vector())
+            rotations.append(rotations[-1].copy() if rotations else _identity_quaternion())
+            scales.append(scales[-1] if scales else 1.0)
 
     animation.frame_count += 1
 

@@ -995,7 +995,7 @@ class NWO_OT_SetTimeline(bpy.types.Operator):
             return {'FINISHED'}
         
         start_frame = animation.frame_start
-        end_frame = animation.frame_end - int(animation.animation_type in ('base', 'replacement', 'world'))
+        end_frame = animation.frame_end - int(utils.get_prefs().ignore_final_frame and animation.animation_type in ('base', 'world'))
         
         scene.frame_start = start_frame
         scene.frame_end = end_frame

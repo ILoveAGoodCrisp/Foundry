@@ -251,7 +251,7 @@ class FoundryPreferences(AddonPreferences):
     
     ignore_final_frame: BoolProperty(
         name="Update Timeline Range Ignore Last Frame",
-        description="Sets the timeline range 1 frame less than the frame count for base, world and replacement animations. This is to mimic the game import behavior for animations where the final frame is cut",
+        description="Sets the timeline range 1 frame less than the frame count for base and world animations. This is to mimic the game import behavior for base animations where the final frame is cut and to ensure proper looping of the animation in the Blender viewport",
         default=True,
     )
     
@@ -337,6 +337,8 @@ class FoundryPreferences(AddonPreferences):
         row.prop(prefs, "update_materials_on_shader_path")
         row = box.row(align=True)
         row.prop(prefs, "sync_timeline_range")
+        row = box.row(align=True)
+        row.prop(prefs, "ignore_final_frame")
         row = box.row(align=True)
         row.prop(prefs, "debug_menu_on_export")
         row = box.row(align=True)

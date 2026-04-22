@@ -3629,6 +3629,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         row = box.row(align=True)
         row.prop(prefs, "sync_timeline_range")
         row = box.row(align=True)
+        row.prop(prefs, "ignore_final_frame")
+        row = box.row(align=True)
         row.prop(prefs, "debug_menu_on_export")
         row = box.row(align=True)
         row.prop(prefs, "debug_menu_on_launch")

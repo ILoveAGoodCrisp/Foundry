@@ -87,7 +87,7 @@ def animation_from_composite(self, context):
                             
             if utils.get_prefs().sync_timeline_range:
                 self.id_data.frame_start = animation.frame_start
-                if animation.animation_type in ('base', 'replacement', 'world'):
+                if utils.get_prefs().ignore_final_frame and animation.animation_type in ('base', 'world'):
                     self.id_data.frame_end = animation.frame_end - 1
                 else:
                     self.id_data.frame_end = animation.frame_end

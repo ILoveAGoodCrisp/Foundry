@@ -25,6 +25,7 @@ from .animation_resource import (
     SharedStaticCodecData,
     apply_movement_data,
     apply_shared_static_codec,
+    append_final_frame,
     build_animation,
     compose_overlay_animation,
     compose_replacement_animation,
@@ -68,6 +69,50 @@ RESOURCE_SECTION_ORDER = (
     "uncompressed_object_space_node_flags",
     "compressed_event_curve",
     "shared_static_data_size",
+)
+
+FINAL_FRAME_MOVEMENT_STATES = (
+    "move",
+    "jog",
+    "run",
+    "walk",
+    "turn",
+    "locomote",
+)
+
+FINAL_FRAME_SOFT_TRANSITIONS = (
+    "juke",
+    "enter",
+    "exit",
+    "ping",
+    "open",
+    "close",
+    "brace",
+    "jump",
+    "land",
+    "put_away",
+    "ready",
+    "ejection",
+)
+
+FINAL_FRAME_LOOPERS = (
+    "idle",
+    "melee",
+    "go_berserk",
+    "evade",
+    "airborne",
+    "dive",
+    "evade",
+    "grip",
+    "fire_",
+    "point",
+    "shakefist",
+    "smash",
+    "surprise",
+    "taunt",
+    "throw_grenade",
+    "warn",
+    "advance",
 )
 
 WRINKLE_FACE_REGION_MAP = [
@@ -2332,10 +2377,188 @@ class AnimationTag(Tag):
             tokens[-1] = "idle"
         return self.find_animation(graph, tokens, ["actions"])
 
-    def _build_animation(self, tag_animation: Animation, defaults, overlay_defaults, graph, shared_static_codec, resource_cache, animation_cache, all_tag_animations):
+    def _seek_best_matching_base_animation(self, animation: Animation, name: utils.AnimationName, all_tag_animations):
+        animations = {}
+        for next_animation in all_tag_animations:
+            if next_animation.index == animation.index:
+                continue
+            if next_animation.animation_type not in (AnimationType.NONE, AnimationType.BASE):
+                continue
+            next_name = next_animation.name
+            if next_name.state != name.state:
+                continue
+            if next_name.type != utils.AnimationStateType.ACTION:
+                continue
+            matches = 0
+            matches += (int(name.mode == next_name.mode) * 1000)
+            matches += (int(name.weapon_class == next_name.weapon_class) * 100)
+            matches += (int(name.weapon_type == next_name.weapon_type) * 10)
+            matches += int(name.set == next_name.set)
+            animations[next_animation] = matches
+
+        if not animations:
+            return None
+
+        priority_animations = sorted(animations, key=animations.get, reverse=True)
+        return priority_animations[0]
+
+    def _soft_transition_final_frame_source(self, animation: Animation, name: utils.AnimationName, all_tag_animations):
+        next_animation = None
+        ignore_root = False
+        ignore_pose = False
+
+        if name.mode == "bunker":
+            if name.state == "open":
+                idle_name = name.copy()
+                idle_name.state = "idle"
+                if name.set.endswith("_closed"):
+                    idle_name.set = name.set.replace("_closed", "_open")
+                    next_animation = self._seek_best_matching_base_animation(animation, idle_name, all_tag_animations)
+            elif name.state == "close":
+                idle_name = name.copy()
+                idle_name.state = "idle"
+                if name.set.endswith("_open"):
+                    idle_name.set = name.set.replace("_open", "_closed")
+                    next_animation = self._seek_best_matching_base_animation(animation, idle_name, all_tag_animations)
+            elif name.state == "enter":
+                idle_name = name.copy()
+                idle_name.state = "idle"
+                next_animation = self._seek_best_matching_base_animation(animation, idle_name, all_tag_animations)
+            elif name.state == "exit":
+                idle_name = name.copy()
+                idle_name.state = "idle"
+                idle_name.mode = "combat"
+                next_animation = self._seek_best_matching_base_animation(animation, idle_name, all_tag_animations)
+
+        elif name.state.startswith("juke_anticipation_"):
+            juke_name = name.copy()
+            juke_name.state = name.state.replace("_anticipation", "")
+            next_animation = self._seek_best_matching_base_animation(animation, juke_name, all_tag_animations)
+            ignore_root = True
+
+        elif name.state.startswith("juke_"):
+            juke_direction = name.state.replace("juke_", "")
+            juke_name = name.copy()
+            juke_name.state = f"locomote_run_{juke_direction}"
+            next_animation = self._seek_best_matching_base_animation(animation, juke_name, all_tag_animations)
+            if next_animation is None:
+                juke_name.state = f"move_{juke_direction}"
+                next_animation = self._seek_best_matching_base_animation(animation, juke_name, all_tag_animations)
+            ignore_root = True
+
+        elif name.state.endswith("_ping"):
+            idle_name = name.copy()
+            idle_name.state = "idle"
+            next_animation = self._seek_best_matching_base_animation(animation, idle_name, all_tag_animations)
+            ignore_root = True
+
+        elif "enter" in name.state:
+            idle_name = name.copy()
+            idle_name.state = "idle"
+            next_animation = self._seek_best_matching_base_animation(animation, idle_name, all_tag_animations)
+            if next_animation is None and "_b_" in idle_name.mode:
+                boarding_name = idle_name.copy()
+                boarding_name.mode = idle_name.mode.replace("_b_", "_")
+                next_animation = self._seek_best_matching_base_animation(animation, boarding_name, all_tag_animations)
+
+        elif "ejection" in name.state:
+            next_animation = animation
+            ignore_root = True
+
+        elif "exit" in name.state:
+            if name.mode.endswith(("_b", "_d", "_p")) or "_p_" in name.mode:
+                next_animation = animation
+                ignore_pose = True
+            else:
+                idle_name = name.copy()
+                idle_name.state = "idle"
+                next_animation = self._seek_best_matching_base_animation(animation, idle_name, all_tag_animations)
+            ignore_root = True
+
+        elif "put_away" in name.state:
+            ready_name = name.copy()
+            ready_name.state = "ready"
+            next_animation = self._seek_best_matching_base_animation(animation, ready_name, all_tag_animations)
+            ignore_root = True
+
+        elif "ready" in name.state:
+            put_away_name = name.copy()
+            put_away_name.state = "put_away"
+            next_animation = self._seek_best_matching_base_animation(animation, put_away_name, all_tag_animations)
+            ignore_root = True
+
+        else:
+            idle_name = name.copy()
+            idle_name.state = "idle"
+            next_animation = self._seek_best_matching_base_animation(animation, idle_name, all_tag_animations)
+            ignore_root = True
+
+        if ignore_pose:
+            return None, ignore_root
+
+        return next_animation, ignore_root
+
+    def _base_final_frame_source(self, animation: Animation, all_tag_animations):
+        name = animation.name
+        if name.type == utils.AnimationStateType.TRANSITION:
+            dest_name = name.copy()
+            dest_name.mode = name.destination_mode
+            dest_name.state = name.destination_state
+            return self._seek_best_matching_base_animation(animation, dest_name, all_tag_animations), True
+
+        if any(transition in name.state for transition in FINAL_FRAME_SOFT_TRANSITIONS):
+            return self._soft_transition_final_frame_source(animation, name, all_tag_animations)
+
+        looper = name.state.startswith(FINAL_FRAME_LOOPERS)
+        movement = name.state.startswith(FINAL_FRAME_MOVEMENT_STATES)
+        if looper or movement:
+            return animation, True
+
+        return None, False
+
+    def _base_final_frame_pose(
+        self,
+        tag_animation: Animation,
+        animation_data,
+        defaults,
+        overlay_defaults,
+        graph,
+        shared_static_codec,
+        resource_cache,
+        animation_cache,
+        all_tag_animations,
+        final_frame_stack,
+    ):
+        source_animation, ignore_root = self._base_final_frame_source(tag_animation, all_tag_animations)
+        if source_animation is None:
+            return None, False
+        if source_animation.index == tag_animation.index:
+            return animation_data.first_frame(), ignore_root
+        if source_animation.index in final_frame_stack:
+            return None, False
+
+        source_data = self._build_animation(
+            source_animation,
+            defaults,
+            overlay_defaults,
+            graph,
+            shared_static_codec,
+            resource_cache,
+            animation_cache,
+            all_tag_animations,
+            final_frame_stack,
+        )
+        if source_data.frame_count < 1:
+            return None, False
+
+        return source_data.first_frame(), ignore_root
+
+    def _build_animation(self, tag_animation: Animation, defaults, overlay_defaults, graph, shared_static_codec, resource_cache, animation_cache, all_tag_animations, final_frame_stack=None):
         index = tag_animation.index
         if index in animation_cache:
             return animation_cache[index]
+        if final_frame_stack is None:
+            final_frame_stack = set()
 
         resource_data = resource_cache.get(index)
         if resource_data is None:
@@ -2343,13 +2566,34 @@ class AnimationTag(Tag):
             resource_cache[index] = resource_data
 
         animation_data = build_animation(resource_data, defaults, "default" if tag_animation.animation_type in (0, 1) else "neutral")
-        if tag_animation.animation_type in (0, 1) and resource_data.movement_data is not None:
-            apply_movement_data(animation_data, resource_data.movement_data)
+        if tag_animation.animation_type in (AnimationType.NONE, AnimationType.BASE):
+            final_frame = None
+            ignore_root = False
+            if index not in final_frame_stack:
+                final_frame_stack.add(index)
+                try:
+                    final_frame, ignore_root = self._base_final_frame_pose(
+                        tag_animation,
+                        animation_data,
+                        defaults,
+                        overlay_defaults,
+                        graph,
+                        shared_static_codec,
+                        resource_cache,
+                        animation_cache,
+                        all_tag_animations,
+                        final_frame_stack,
+                    )
+                finally:
+                    final_frame_stack.remove(index)
+            append_final_frame(animation_data, final_frame, ignore_root)
+            if resource_data.movement_data is not None:
+                apply_movement_data(animation_data, resource_data.movement_data)
         if tag_animation.animation_type in (2, 3):
             base_candidates = self._get_base_animation_candidates(graph, tag_animation.name.tag_name)
             if base_candidates:
                 base_tag_animation = all_tag_animations[base_candidates[0].index]
-                base_animation = self._build_animation(base_tag_animation, defaults, overlay_defaults, graph, shared_static_codec, resource_cache, animation_cache, all_tag_animations)
+                base_animation = self._build_animation(base_tag_animation, defaults, overlay_defaults, graph, shared_static_codec, resource_cache, animation_cache, all_tag_animations, final_frame_stack)
                 base_frame = base_animation.first_frame()
             else:
                 base_frame = default_frame_channels(defaults)
