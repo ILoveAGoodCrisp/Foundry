@@ -1405,14 +1405,10 @@ class VirtualMesh:
             data.append(self.tension)
         if self.pca_mask is not None:
             data.append(self.pca_mask)
-        if self.bone_weights is not None:
-            data.extend([self.bone_weights, self.bone_indices])
 
         loop_data = np.hstack(data)
 
         _, new_indices, face_indices = np.unique(loop_data, axis=0, return_index=True, return_inverse=True)
-        
-
 
         self.indices = face_indices.astype(np.int32)
         new_indices = tuple(new_indices)
