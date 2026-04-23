@@ -3,9 +3,16 @@ using Bonobo.PluginSystem.Custom;
 using Bungie.Reactive;
 using Corinth.Connections;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace FoundryPlugin
 {
@@ -16,16 +23,47 @@ namespace FoundryPlugin
         IAsyncSourceControlProvider,
         ISourceControlMenuProvider
     {
-        private static readonly IReadOnlyList<string> CheckedOutByString =
-            new List<string>() { "You" };
+        private static readonly string[] FilePathPropertyNames =
+        {
+            "FilePath",
+            "FullName",
+            "FileName",
+            "Filename",
+            "Path",
+            "FullPath",
+            "TagPath",
+            "DisplayPath",
+            "RelativePathWithExtension",
+            "RelativePath"
+        };
 
-        private readonly Dictionary<string, DateTime> _initialWriteTimes =
-            new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+        private static readonly string[] NestedPathPropertyNames =
+        {
+            "ContentInfo",
+            "SourceControlFile",
+            "ProjectPath",
+            "File",
+            "SourceFile",
+            "TagFile",
+            "Entry",
+            "Item",
+            "ActualItem",
+            "Node",
+            "Content"
+        };
+
+        private static readonly IReadOnlyList<string> EmptyClientList =
+            new List<string>();
+
+        private static bool _sourceControlToolTipsInstalled;
 
         public FoundryFakeSourceControl(IPluginHost host)
             : base(host)
         {
             //System.Windows.MessageBox.Show("Fake SCM Plugin Loaded");
+            ProjectInfo.Initialize();
+            InstallSourceControlToolTipOverride();
+            SuppressSourceControlStyles();
         }
 
         public bool RepoExists => true;
@@ -55,9 +93,9 @@ namespace FoundryPlugin
 
         public IEnumerable<SourceControlFile> GetOpenedFiles() => Enumerable.Empty<SourceControlFile>();
 
-        public IEnumerable<string> GetCheckedOutClients(string fileName) => CheckedOutByString;
+        public IEnumerable<string> GetCheckedOutClients(string fileName) => EmptyClientList;
 
-        public IEnumerable<string> GetFilesNotInDefaultChangelist(IEnumerable<string> fileNames) => CheckedOutByString;
+        public IEnumerable<string> GetFilesNotInDefaultChangelist(IEnumerable<string> fileNames) => EmptyClientList;
 
         public int GetLastDepotRevision(string fileName) => 0;
 
@@ -69,21 +107,6 @@ namespace FoundryPlugin
         {
             switch (operation)
             {
-                //case SourceControlOperation.CheckOut:
-                //    return !isWritable;
-
-                //case SourceControlOperation.CheckIn:
-                //    return isWritable;
-
-                //case SourceControlOperation.UndoCheckOut:
-                //    return isWritable;
-
-                //case SourceControlOperation.GetLatest:
-                //    return true;
-
-                case SourceControlOperation.Delete:
-                    return true;
-
                 default:
                     return false;
             }
@@ -116,64 +139,303 @@ namespace FoundryPlugin
 
         private SourceControlFile CreateUpToDateFile(string fileName)
         {
-            bool isWritable = false;
-            SourceControlFileState state = SourceControlFileState.UpToDate;
-            bool fakeWritable = true;
+            return new SourceControlFile(
+                fileName,
+                SourceControlFileState.CheckedOutOnThisClient,
+                false,
+                EmptyClientList,
+                EmptyClientList,
+                true);
+        }
+
+        private static void SuppressSourceControlStyles()
+        {
+            var application = Application.Current;
+            if (application == null)
+                return;
+
+            ApplySourceControlStyleOverrides(application);
+            application.Dispatcher.BeginInvoke(
+                new Action(() => ApplySourceControlStyleOverrides(application)),
+                DispatcherPriority.ApplicationIdle);
+        }
+
+        private static void InstallSourceControlToolTipOverride()
+        {
+            if (_sourceControlToolTipsInstalled)
+                return;
+
+            var sourceControlBorderType = GetSourceControlBorderType();
+            if (sourceControlBorderType == null)
+                return;
+
+            EventManager.RegisterClassHandler(
+                sourceControlBorderType,
+                FrameworkElement.ToolTipOpeningEvent,
+                new ToolTipEventHandler(OnSourceControlToolTipOpening),
+                true);
+
+            _sourceControlToolTipsInstalled = true;
+        }
+
+        private static void ApplySourceControlStyleOverrides(Application application)
+        {
+            var iconResourcesType = GetIconResourcesType();
+            if (iconResourcesType == null || application.Resources == null)
+                return;
+
+            var defaultBackground = FindResource(
+                application,
+                GetStaticFieldValue(iconResourcesType, "DefaultBackgroundColorKey"),
+                Brushes.Transparent);
+            var defaultSelectedBackground = FindResource(
+                application,
+                GetStaticFieldValue(iconResourcesType, "DefaultSelectedBackgroundColorKey"),
+                defaultBackground);
+
+            foreach (var field in iconResourcesType.GetFields(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic))
+            {
+                var key = field.GetValue(null);
+                if (key == null)
+                    continue;
+
+                if (field.Name.EndsWith("BackgroundColorKey") || field.Name.EndsWith("BackgroundBrushKey"))
+                {
+                    application.Resources[key] = field.Name.Contains("Selected")
+                        ? defaultSelectedBackground
+                        : defaultBackground;
+                }
+                else if (field.Name.StartsWith("fileState", StringComparison.OrdinalIgnoreCase))
+                {
+                    application.Resources[key] = new DrawingBrush();
+                }
+            }
+        }
+
+        private static Type GetIconResourcesType()
+        {
+            return Type.GetType("Bungie.UI.Wpf.IconResources, Bungie.Core.Wpf")
+                ?? Type.GetType("Corinth.UI.Wpf.IconResources, Corinth.Core.Wpf");
+        }
+
+        private static Type GetSourceControlBorderType()
+        {
+            return Type.GetType("Bungie.UI.Wpf.SourceControlBorder, Bungie.Core.Wpf")
+                ?? Type.GetType("Corinth.UI.Wpf.SourceControlBorder, Corinth.Core.Wpf");
+        }
+
+        private static object GetStaticFieldValue(Type type, string fieldName)
+        {
+            var field = type.GetField(fieldName, BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+            return field?.GetValue(null);
+        }
+
+        private static object FindResource(Application application, object key, object fallback)
+        {
+            return key == null
+                ? fallback
+                : application.TryFindResource(key) ?? fallback;
+        }
+
+        private static void OnSourceControlToolTipOpening(object sender, ToolTipEventArgs e)
+        {
+            var element = sender as FrameworkElement;
+            if (element == null)
+                return;
+
+            if (!GetBooleanPropertyValue(element, "IsWritable"))
+            {
+                element.ClearValue(ToolTipService.ToolTipProperty);
+                return;
+            }
+
+            element.SetValue(
+                ToolTipService.ToolTipProperty,
+                BuildWritableFileToolTip(element));
+        }
+
+        private static bool GetBooleanPropertyValue(object target, string propertyName)
+        {
+            var value = GetReadablePropertyValue(target, propertyName);
+            return value is bool booleanValue && booleanValue;
+        }
+
+        private static object BuildWritableFileToolTip(FrameworkElement element)
+        {
+            object[] values =
+            {
+                element.DataContext,
+                element.Tag
+            };
+
+            foreach (object value in values)
+            {
+                DateTime? modifiedDate = TryGetModifiedDate(value);
+                if (modifiedDate.HasValue)
+                    return $"Last Modified: {modifiedDate.Value:yyyy-MM-dd HH:mm:ss}";
+            }
+
+            string filePath = values
+                .Select(TryGetFilePath)
+                .FirstOrDefault(path => !string.IsNullOrWhiteSpace(path));
+
+            if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
+                return "Writable";
+
+            DateTime lastWriteTime = File.GetLastWriteTime(filePath);
+            return $"Last Modified: {lastWriteTime:yyyy-MM-dd HH:mm:ss}";
+        }
+
+        private static DateTime? TryGetModifiedDate(object value)
+        {
+            return TryGetModifiedDate(
+                value,
+                new HashSet<object>(ReferenceEqualityComparer.Instance),
+                0);
+        }
+
+        private static DateTime? TryGetModifiedDate(object value, HashSet<object> visited, int depth)
+        {
+            if (value == null || depth > 3)
+                return null;
+
+            if (value is DateTime dateTime)
+                return dateTime;
+
+            Type valueType = value.GetType();
+            if (!valueType.IsValueType && !visited.Add(value))
+                return null;
+
+            foreach (string propertyName in new[] { "ModifiedDate", "Date", "LastWriteTime", "LastWriteTimeUtc" })
+            {
+                object propertyValue = GetReadablePropertyValue(value, propertyName);
+                if (propertyValue is DateTime propertyDateTime)
+                    return propertyDateTime;
+            }
+
+            foreach (string propertyName in NestedPathPropertyNames)
+            {
+                DateTime? nestedDate = TryGetModifiedDate(
+                    GetReadablePropertyValue(value, propertyName),
+                    visited,
+                    depth + 1);
+                if (nestedDate.HasValue)
+                    return nestedDate;
+            }
+
+            string filePath = TryResolveFilePath(value);
+            if (!string.IsNullOrWhiteSpace(filePath) && File.Exists(filePath))
+                return File.GetLastWriteTime(filePath);
+
+            return null;
+        }
+
+        private static string TryGetFilePath(object value)
+        {
+            return TryGetFilePath(
+                value,
+                new HashSet<object>(ReferenceEqualityComparer.Instance),
+                0);
+        }
+
+        private static string TryGetFilePath(object value, HashSet<object> visited, int depth)
+        {
+            if (value == null || depth > 3)
+                return null;
+
+            string directPath = TryResolveFilePath(value);
+            if (!string.IsNullOrWhiteSpace(directPath))
+                return directPath;
+
+            if (value is IEnumerable enumerable && !(value is string))
+            {
+                foreach (object item in enumerable)
+                {
+                    string enumerablePath = TryGetFilePath(item, visited, depth + 1);
+                    if (!string.IsNullOrWhiteSpace(enumerablePath))
+                        return enumerablePath;
+                }
+
+                return null;
+            }
+
+            Type valueType = value.GetType();
+            if (!valueType.IsValueType && !visited.Add(value))
+                return null;
+
+            foreach (string propertyName in FilePathPropertyNames)
+            {
+                string propertyPath = TryResolveFilePath(GetReadablePropertyValue(value, propertyName));
+                if (!string.IsNullOrWhiteSpace(propertyPath))
+                    return propertyPath;
+            }
+
+            foreach (string propertyName in NestedPathPropertyNames)
+            {
+                string nestedPath = TryGetFilePath(
+                    GetReadablePropertyValue(value, propertyName),
+                    visited,
+                    depth + 1);
+                if (!string.IsNullOrWhiteSpace(nestedPath))
+                    return nestedPath;
+            }
+
+            return null;
+        }
+
+        private static string TryResolveFilePath(object value)
+        {
+            if (value is FileInfo fileInfo)
+                return fileInfo.Exists ? fileInfo.FullName : null;
+
+            var path = value as string;
+            if (string.IsNullOrWhiteSpace(path))
+                return null;
+
+            path = path.Replace('/', Path.DirectorySeparatorChar).Trim();
+
+            if (Path.IsPathRooted(path))
+                return File.Exists(path) ? path : null;
+
+            string tagsRoot = GetTagsRoot();
+            if (string.IsNullOrWhiteSpace(tagsRoot))
+                return null;
+
+            string combinedPath = Path.Combine(
+                tagsRoot,
+                path.TrimStart(Path.DirectorySeparatorChar));
+
+            return File.Exists(combinedPath) ? combinedPath : null;
+        }
+
+        private static string GetTagsRoot()
+        {
+            if (string.IsNullOrWhiteSpace(ProjectInfo.TagsRoot))
+                ProjectInfo.Initialize();
+
+            return ProjectInfo.TagsRoot;
+        }
+
+        private static object GetReadablePropertyValue(object target, string propertyName)
+        {
+            if (target == null)
+                return null;
+
+            var property = target.GetType().GetProperty(
+                propertyName,
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase);
+
+            if (property == null || !property.CanRead || property.GetIndexParameters().Length != 0)
+                return null;
 
             try
             {
-                if (!System.IO.File.Exists(fileName))
-                {
-                    return new SourceControlFile(
-                        fileName,
-                        SourceControlFileState.NotInDepot,
-                        true,
-                        CheckedOutByString,
-                        CheckedOutByString,
-                        true);
-                }
-
-                var attributes = System.IO.File.GetAttributes(fileName);
-                isWritable = !attributes.HasFlag(System.IO.FileAttributes.ReadOnly);
-
-                var currentWriteTime = System.IO.File.GetLastWriteTimeUtc(fileName);
-
-                if (!_initialWriteTimes.ContainsKey(fileName))
-                {
-                    _initialWriteTimes[fileName] = currentWriteTime;
-                }
-
-                bool modifiedThisSession =
-                    _initialWriteTimes[fileName] != currentWriteTime;
-
-                if (!isWritable)
-                {
-                    state = SourceControlFileState.UpToDate;
-                    fakeWritable = false;
-                }
-                else if (modifiedThisSession)
-                {
-                    state = SourceControlFileState.CheckedOutOnThisClient;
-                }
-                else
-                {
-                    state = SourceControlFileState.UpToDate;
-                    fakeWritable = false;
-                }
+                return property.GetValue(target);
             }
             catch
             {
-                state = SourceControlFileState.Offline;
-                isWritable = false;
+                return null;
             }
-
-            return new SourceControlFile(
-                fileName,
-                state,
-                fakeWritable,
-                CheckedOutByString,
-                CheckedOutByString,
-                true);
         }
 
         public IEnumerable<SourceControlFile> GetFileStates(string fileSpecs)
@@ -307,6 +569,18 @@ namespace FoundryPlugin
         private class DummyDisposable : IDisposable
         {
             public void Dispose() { }
+        }
+
+        private sealed class ReferenceEqualityComparer : IEqualityComparer<object>
+        {
+            public static readonly ReferenceEqualityComparer Instance =
+                new ReferenceEqualityComparer();
+
+            public new bool Equals(object x, object y)
+                => ReferenceEquals(x, y);
+
+            public int GetHashCode(object obj)
+                => RuntimeHelpers.GetHashCode(obj);
         }
 
     }
