@@ -40,19 +40,8 @@ OMAHA_FOUNDATION_VERSION = "1.903.0.0"
 MIDNIGHT_FOUNDATION_VERSION = "1.890.0.0"
 GROUNDHOG_FOUNDATION_VERSION = "1.41.0.0"
 
-def foundation_plugin_update():
+def _install_foundation_plugin(project_path, plugin_path, plugins_xml):
     try:
-        if not get_prefs().allow_foundation_plugin_install:
-            return False
-        
-        project_path = get_project_path()
-        plugin_path = Path(project_path, FOUNDRY_PLUGIN_PATH)
-        
-        plugins_xml = Path(project_path, PLUGINS_XML_PATH)
-        
-        if not plugins_xml.exists():
-            return False
-        
         import clr
         import System # type:ignore
         from System.Reflection import Assembly # type:ignore
@@ -66,20 +55,20 @@ def foundation_plugin_update():
             case 'HaloReach':
                 source_plugin_path = Path(addon_root(), OMAHA_SOURCE_PLUGIN_PATH)
                 if foundation_version != System.Version.Parse(OMAHA_FOUNDATION_VERSION):
-                    return False
+                    return
             case 'Halo4':
                 source_plugin_path = Path(addon_root(), MIDNIGHT_SOURCE_PLUGIN_PATH)
                 if foundation_version != System.Version.Parse(MIDNIGHT_FOUNDATION_VERSION):
-                    return False
+                    return
             case 'Halo2A':
                 source_plugin_path = Path(addon_root(), GROUNDHOG_SOURCE_PLUGIN_PATH)
                 if foundation_version != System.Version.Parse(GROUNDHOG_FOUNDATION_VERSION):
-                    return False
+                    return
             case _:
-                return False
+                return
         
         if not source_plugin_path.exists():
-            return False
+            return
         
         update_required = False
         
@@ -94,7 +83,7 @@ def foundation_plugin_update():
             update_required = source_version > version
             
         if not update_required:
-            return False
+            return
         
         dir = plugin_path.parent
         
@@ -108,11 +97,11 @@ def foundation_plugin_update():
 
         plugins = root.find("plugins")
         if plugins is None:
-            return True
+            return
 
         for container in plugins.findall("container"):
             if container.get("path") == FOUNDRY_PLUGIN_SHORT_PATH:
-                return True
+                return
 
         new_container = ET.Element("container")
         new_container.set("path", FOUNDRY_PLUGIN_SHORT_PATH)
@@ -122,9 +111,41 @@ def foundation_plugin_update():
         ET.indent(tree, space="\t", level=0)
 
         tree.write(plugins_xml, encoding="utf-8", xml_declaration=True)
-        return True
     except:
-        return False
+        return
+    
+def _disable_foundation_plugin(plugins_xml):
+    try:
+        tree = ET.parse(plugins_xml)
+        root = tree.getroot()
+
+        plugins = root.find("plugins")
+        if plugins is None:
+            return
+
+        for container in plugins.findall("container"):
+            if container.get("path") == FOUNDRY_PLUGIN_SHORT_PATH:
+                plugins.remove(container)
+                tree.write(plugins_xml, encoding="utf-8", xml_declaration=True)
+                return
+            
+    except:
+        return
+                
+
+def foundation_plugin_update():
+    project_path = get_project_path()
+    plugin_path = Path(project_path, FOUNDRY_PLUGIN_PATH)
+    
+    plugins_xml = Path(project_path, PLUGINS_XML_PATH)
+    
+    if not plugins_xml.exists():
+        return
+    
+    if get_prefs().allow_foundation_plugin_install:
+        _install_foundation_plugin(project_path, plugin_path, plugins_xml)
+    else:
+        _disable_foundation_plugin(plugins_xml)
 
 class NWO_OpenFoundationTag(bpy.types.Operator):
     bl_idname = "nwo.open_foundation_tag"
@@ -323,8 +344,8 @@ def launch_foundation(settings, context, report):
                 )
 
     # first, get and set the project so we can avoid the Foundation prompt
-    if foundation_plugin_update():
-        report({'INFO'}, "Installed Foundry Plugin for Foundation")
+    foundation_plugin_update()
+    # report({'INFO'}, "Installed Foundry Plugin for Foundation")
     run_ek_cmd(launch_args, True)
     run_ek_cmd([os.path.join("bin", "tools", "bonobo", "TagWatcher.exe")], True)
 

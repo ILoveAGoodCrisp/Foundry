@@ -284,10 +284,12 @@ class FoundryPreferences(AddonPreferences):
     )
     
     allow_foundation_plugin_install: BoolProperty(
-        name="Allow Foundation Plugin Install",
+        name="Enable Foundation Plugin",
         default=True,
-        description="By default when launching Foundation with Foundry, the Foundry Plugin will be installed for Foundation if it does not already exist (or is out of date). Toggle this off to prevent this behaviour"
+        description="By default when launching Foundation with Foundry, the Foundry Plugin will be installed for Foundation if it does not already exist (or is out of date). Toggle this off to prevent this behaviour. Launching Foundation with this disabled will also disable the plugin"
     )
+    
+    
 
     def draw(self, context):
         prefs = self
