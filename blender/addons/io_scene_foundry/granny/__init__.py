@@ -1,5 +1,5 @@
 from collections import defaultdict
-from ctypes import CDLL, Array, byref, c_uint32, cast, cdll, create_string_buffer, pointer, sizeof, string_at, windll
+from ctypes import CDLL, Array, byref, c_uint32, c_void_p, cast, cdll, create_string_buffer, pointer, sizeof, string_at, windll
 from pathlib import Path
 import struct
 import time
@@ -222,16 +222,19 @@ class Granny:
             for bone in model.skeleton.bones:
                 if bone.node and (nodes.get(bone.bone) or bone.is_proxy) and bone.node.mesh:
                     vertex_data = None
+                    primary_topology = bone.node.mesh.granny_tri_topology
                     
                     if bone.node.for_pca and animation is not None:
                         vertex_data = bone.node.granny_vertex_data_copies.get(animation.anim)
+                        if bone.node.mesh.pca_granny_tri_topology is not None:
+                            primary_topology = bone.node.mesh.pca_granny_tri_topology
                         
                     if vertex_data is None:
                         vertex_data = bone.node.granny_vertex_data
                     
                     export_vertex_datas_append(vertex_data)
                     # self.export_tri_topologies.append(bone.node.granny_tri_topology)
-                    export_mesh = Mesh(bone.node, valid_siblings, vertex_data)
+                    export_mesh = Mesh(bone.node, valid_siblings, vertex_data, primary_topology=primary_topology)
                     export_meshes_append(export_mesh)
                     materials.update(bone.node.mesh.materials)
                     meshes.add(bone.node.mesh)
@@ -240,7 +243,15 @@ class Granny:
             export_models_append(Model(model, len(self.export_skeletons) - 1, mesh_binding_indices))
             
         if meshes:
-            self.export_tri_topologies = [mesh.granny_tri_topology for mesh in meshes]
+            seen_topologies = set()
+            self.export_tri_topologies = []
+            for export_mesh in self.export_meshes:
+                topology = export_mesh.primary_topology
+                topology_address = cast(topology, c_void_p).value if topology else 0
+                if topology_address in seen_topologies:
+                    continue
+                seen_topologies.add(topology_address)
+                self.export_tri_topologies.append(topology)
             self.export_materials = [mat.granny_material for mat in materials]
             if scene.uses_textures:
                 self.export_textures = [mat.granny_texture for mat in materials if mat.granny_texture is not None]

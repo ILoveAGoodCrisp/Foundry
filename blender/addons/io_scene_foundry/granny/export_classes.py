@@ -328,7 +328,7 @@ class BoneBinding:
     
 class Mesh():
     __slots__ = ("granny", "name", "node", "props", "siblings", "primary_vertex_data", "primary_topology", "materials", "bone_bindings")
-    def __init__(self, node, valid_siblings, vertex_data):
+    def __init__(self, node, valid_siblings, vertex_data, primary_topology=None):
         self.granny = None
         self.name = node.name.encode()
         self.node = node
@@ -336,7 +336,7 @@ class Mesh():
         mesh = node.mesh
         self.siblings = [s.encode() for s in mesh.siblings if s != node.name and s in valid_siblings]
         self.primary_vertex_data = vertex_data
-        self.primary_topology = node.mesh.granny_tri_topology
+        self.primary_topology = node.mesh.granny_tri_topology if primary_topology is None else primary_topology
         self.materials = [mat.granny_material for mat in mesh.materials.keys()]
         self.bone_bindings = [BoneBinding(name) for name in node.bone_bindings]
 

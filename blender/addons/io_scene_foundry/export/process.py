@@ -623,7 +623,6 @@ class ExportScene:
                 props.update(mesh_props)
                 
                 if is_pca:
-                    props["bungie_mesh_ispca"] = 1
                     ob.for_pca = True
                     ob.pca_animations = []
                     

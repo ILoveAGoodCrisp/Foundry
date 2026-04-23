@@ -833,6 +833,22 @@ class VirtualMorphTargetData:
             scene.warnings.append(f"Mesh data [{self.name}] of object [{ob.name}] has no faces. Skipping writing morph target data")
             self.invalid = True
             return
+
+        # Keep morph sampling topology aligned with VirtualMesh export topology.
+        loop_totals = np.empty(len(mesh.polygons), dtype=np.int32)
+        mesh.polygons.foreach_get("loop_total", loop_totals)
+        unique_loop_totals = np.unique(loop_totals)
+        if len(unique_loop_totals) > 1 or unique_loop_totals[0] != 3:
+            bm = bmesh.new()
+            bm.from_mesh(mesh)
+            bmesh.ops.triangulate(
+                bm,
+                faces=bm.faces,
+                quad_method=utils.tri_mod_to_bmesh_tri(scene.quad_method),
+                ngon_method=utils.tri_mod_to_bmesh_tri(scene.ngon_method),
+            )
+            bm.to_mesh(mesh)
+            bm.free()
             
         num_loops = len(mesh.loops)
         num_vertices = len(mesh.vertices)
@@ -871,15 +887,30 @@ class VirtualMorphTargetData:
         if self.tension is None:
             self.tension = np.zeros((num_loops, 3), dtype=np.single)
         
-        new_indices = node.mesh.new_indices
-        
-        self.positions = self.positions[new_indices, :]
-        
-        if self.normals is not None:
-            self.normals = self.normals[new_indices, :]
-                
-        if self.tension is not None:
-            self.tension = self.tension[new_indices, :]
+        if node.for_pca and node.mesh.pca_new_indices is not None:
+            new_indices = node.mesh.pca_new_indices
+        else:
+            new_indices = node.mesh.new_indices
+
+        if new_indices is not None:
+            new_indices = np.asarray(new_indices, dtype=np.int32)
+            if new_indices.size:
+                max_index = int(new_indices.max())
+                if max_index >= len(self.positions):
+                    max_valid_index = max(len(self.positions) - 1, 0)
+                    scene.warnings.append(
+                        f"PCA morph target [{ob.name}] loop index mismatch for node [{node.name}] "
+                        f"(max index {max_index}, loops {len(self.positions)}). Clamping to valid loop range."
+                    )
+                    new_indices = np.clip(new_indices, 0, max_valid_index)
+
+            self.positions = self.positions[new_indices, :]
+            
+            if self.normals is not None:
+                self.normals = self.normals[new_indices, :]
+                    
+            if self.tension is not None:
+                self.tension = self.tension[new_indices, :]
             
         # eval_ob.to_mesh_clear()
         
@@ -951,6 +982,18 @@ class VirtualMesh:
         self.granny_tri_topology = None
         self.siblings = [ob.name]
         self.new_indices = None
+        self.pca_new_indices = None
+        self.pca_indices = None
+        self.pca_granny_tri_topology = None
+        self.pca_num_vertices = 0
+        self.pca_vertex_component_names = None
+        self.pca_vertex_component_name_count = 0
+        self.pca_vertex_type = None
+        self.pca_len_vertex_array = 0
+        self.pca_vertex_array = None
+        self._pca_vertex_component_names_array = None
+        self._pca_vertex_type_array = None
+        self.pca_enabled = bool(getattr(ob, "for_pca", False))
         self.bone_parent = ""
         self._setup(ob, scene, render_mesh, props, bones)
             
@@ -958,13 +1001,18 @@ class VirtualMesh:
             self.to_granny_data(scene)
             if negative_scaling:
                 scene.granny.invert_tri_topology_winding(self.granny_tri_topology)
+                if self.pca_granny_tri_topology is not None:
+                    scene.granny.invert_tri_topology_winding(self.pca_granny_tri_topology)
         
     def to_granny_data(self, scene: 'VirtualScene'):
-        self._granny_tri_topology(scene)
+        self._granny_tri_topology()
+        if self.pca_indices is not None:
+            self.pca_granny_tri_topology = self._granny_tri_topology(self.pca_indices)
         self._granny_vertex_data(scene)
         
-    def _granny_tri_topology(self, scene: 'VirtualScene'):
-        indices = (c_int * len(self.indices)).from_buffer_copy(self.indices.tobytes())
+    def _granny_tri_topology(self, indices_override: np.ndarray | None = None):
+        source_indices = self.indices if indices_override is None else indices_override
+        indices = (c_int * len(source_indices)).from_buffer_copy(source_indices.astype(np.int32).tobytes())
 
         granny_tri_topology = GrannyTriTopology()
 
@@ -979,7 +1027,7 @@ class VirtualMesh:
 
         granny_tri_topology.group_count = num_groups
         granny_tri_topology.groups = cast(groups, POINTER(GrannyTriMaterialGroup))
-        granny_tri_topology.index_count = len(self.indices)
+        granny_tri_topology.index_count = len(source_indices)
         granny_tri_topology.indices = cast(indices, POINTER(c_int))
 
         # Handle Tri Annotation Sets
@@ -1004,7 +1052,12 @@ class VirtualMesh:
             granny_tri_topology.tri_annotation_set_count = num_tri_annotation_sets
             granny_tri_topology.tri_annotation_sets = cast(tri_annotation_sets, POINTER(GrannyTriAnnotationSet))
 
-        self.granny_tri_topology = pointer(granny_tri_topology)
+        topology = pointer(granny_tri_topology)
+        if indices_override is None:
+            self.granny_tri_topology = topology
+            return self.granny_tri_topology
+        
+        return topology
         
     def _vertex_data_arrays(self, scene: 'VirtualScene', position_override=None, normal_override=None, tension_override=None):
         positions = self.positions if position_override is None else position_override
@@ -1100,6 +1153,20 @@ class VirtualMesh:
 
         self.len_vertex_array = len_vertex_array
         self.vertex_array = vertex_array
+
+    def _stable_unique_rows_with_epsilon(self, arrays: list[np.ndarray], epsilon: float) -> tuple[np.ndarray, np.ndarray]:
+        loop_data = arrays[0] if len(arrays) == 1 else np.hstack(arrays)
+
+        quantized = np.rint(loop_data / epsilon).astype(np.int64)
+        _, first_indices, inverse = np.unique(quantized, axis=0, return_index=True, return_inverse=True)
+        order = np.argsort(first_indices)
+        new_indices = first_indices[order].astype(np.int32)
+
+        remap = np.empty(order.size, dtype=np.int32)
+        remap[order] = np.arange(order.size, dtype=np.int32)
+        face_indices = remap[inverse].astype(np.int32)
+
+        return new_indices, face_indices
         
     def _setup(self, ob: bpy.types.Object, scene: 'VirtualScene', render_mesh: bool, props: dict, bones: list[str]):
         mesh_type_value = props.get("bungie_mesh_type")
@@ -1331,19 +1398,36 @@ class VirtualMesh:
         
         if render_mesh:
             # We only care about writing this data if the in game mesh will have a render definition
-            if mesh.has_custom_normals and ob.data.nwo.from_vert_normals: # Use game vert normals
-                normals = np.empty((num_loops, 3), dtype=np.single)
-                mesh.corner_normals.foreach_get("vector", normals.ravel())
+            self.normals = np.empty((num_loops, 3), dtype=np.single)
+            mesh.corner_normals.foreach_get("vector", self.normals.ravel())
+
+            if mesh.has_custom_normals:
+                # Build per-vertex normals from split normals so custom data that is effectively
+                # vertex-based doesn't force unnecessary loop splits at export.
                 vertex_normals = np.zeros((num_vertices, 3), dtype=np.single)
-                vertex_counts = np.zeros(num_vertices, dtype=np.int32)
-                np.add.at(vertex_normals, loop_vertex_indices, normals)
-                vertex_counts = np.bincount(loop_vertex_indices)
-                valid_mask = vertex_counts > 0
-                vertex_normals[valid_mask] /= vertex_counts[valid_mask, None]
-                self.normals = vertex_normals[loop_vertex_indices]
-            else:
-                self.normals = np.empty((num_loops, 3), dtype=np.single)
-                mesh.corner_normals.foreach_get("vector", self.normals.ravel())
+                vertex_counts = np.bincount(loop_vertex_indices, minlength=num_vertices)
+                np.add.at(vertex_normals, loop_vertex_indices, self.normals)
+
+                valid_counts = vertex_counts > 0
+                vertex_normals[valid_counts] /= vertex_counts[valid_counts, None]
+
+                lengths = np.linalg.norm(vertex_normals, axis=1)
+                valid_lengths = lengths > 0.0
+                vertex_normals[valid_lengths] /= lengths[valid_lengths, None]
+
+                if ob.data.nwo.from_vert_normals:
+                    # For meshes imported as custom vertex normals, always export vertex-style normals.
+                    self.normals = vertex_normals[loop_vertex_indices]
+                else:
+                    # Otherwise, only collapse vertices whose loop normals are already consistent.
+                    diff = np.linalg.norm(self.normals - vertex_normals[loop_vertex_indices], axis=1)
+                    max_diff_per_vertex = np.zeros(num_vertices, dtype=np.single)
+                    np.maximum.at(max_diff_per_vertex, loop_vertex_indices, diff)
+                    consistent_vertices = max_diff_per_vertex <= 1.0e-4
+                    if consistent_vertices.any():
+                        consistent_loops = consistent_vertices[loop_vertex_indices]
+                        self.normals[consistent_loops] = vertex_normals[loop_vertex_indices[consistent_loops]]
+
             for idx, layer in enumerate(mesh.uv_layers):
                 if len(self.texcoords) >= 4:
                     break
@@ -1391,24 +1475,39 @@ class VirtualMesh:
             loop_in_face = np.arange(num_loops, dtype=np.int32) - np.repeat(loop_starts, loop_totals)
             self.vertex_ids = np.column_stack((face_indices_per_loop, loop_in_face)).astype(np.single)
 
-        # Remove duplicate vertex data
-        data = [self.positions]
-        if self.normals is not None:
-            data.append(self.normals)
-        if self.texcoords is not None:
-            data.extend(self.texcoords)
-        if self.lighting_texcoords is not None:
-            data.append(self.lighting_texcoords)
-        if self.vertex_colors is not None:
-            data.extend(self.vertex_colors)
-        if self.tension is not None:
-            data.append(self.tension)
-        if self.pca_mask is not None:
-            data.append(self.pca_mask)
+        if self.pca_enabled:
+            # PCA animation export should keep fully split (per-loop) vertices, unlike render export.
+            self.pca_new_indices = np.arange(num_loops, dtype=np.int32)
+            self.pca_indices = self.pca_new_indices.copy()
+            pca_names_array, pca_type_info_array, pca_vertex_array, pca_len_vertex_array, pca_num_types = self._make_vertex_array(scene)
+            self._pca_vertex_component_names_array = pca_names_array
+            self._pca_vertex_type_array = pca_type_info_array
+            self.pca_vertex_component_names = cast(pca_names_array, POINTER(c_char_p))
+            self.pca_vertex_component_name_count = pca_num_types
+            self.pca_vertex_type = cast(pca_type_info_array, POINTER(GrannyDataTypeDefinition))
+            self.pca_len_vertex_array = pca_len_vertex_array
+            self.pca_vertex_array = pca_vertex_array
+            self.pca_num_vertices = num_loops
 
-        loop_data = np.hstack(data)
-
-        _, new_indices, face_indices = np.unique(loop_data, axis=0, return_index=True, return_inverse=True)
+        # Remove duplicate vertex data.
+        # Render meshes: emulate fbx-to-gr2 weld key (position + normal + UVs + color0) with
+        # k_real_epsilon tolerance (1e-4) and stable first-seen ordering.
+        if render_mesh:
+            weld_components = [self.positions]
+            if self.normals is not None:
+                weld_components.append(self.normals)
+            if self.texcoords is not None:
+                weld_components.extend(self.texcoords)
+            if self.lighting_texcoords is not None:
+                weld_components.append(self.lighting_texcoords)
+            if self.vertex_colors is not None:
+                weld_components.extend(self.vertex_colors)
+            new_indices, face_indices = self._stable_unique_rows_with_epsilon(weld_components, 1.0e-4)
+        else:
+            weld_components = [self.positions]
+            # if self.normals is not None:
+            #     weld_components.append(self.normals)
+            new_indices, face_indices = self._stable_unique_rows_with_epsilon(weld_components, 1.0e-4)
 
         self.indices = face_indices.astype(np.int32)
         new_indices = tuple(new_indices)
@@ -1469,6 +1568,9 @@ class VirtualMesh:
             sorted_order = np.argsort(material_indices)
             sorted_polygons = self.indices.reshape((-1, 3))[sorted_order]
             self.indices = sorted_polygons.ravel()
+            if self.pca_indices is not None:
+                sorted_pca_polygons = self.pca_indices.reshape((-1, 3))[sorted_order]
+                self.pca_indices = sorted_pca_polygons.ravel()
             unique_indices = np.concatenate(([0], np.where(np.diff(material_indices[sorted_order]) != 0)[0] + 1))
             counts = np.diff(np.concatenate((unique_indices, [len(material_indices)])))
             mat_index_counts = list(zip(unique_indices, counts))
@@ -1584,8 +1686,9 @@ class VirtualNode:
                 
                 existing_mesh = scene.meshes.get((id.data, self.negative_scaling, materials))
                 existing_linked_mesh = scene.meshes_linked.get(id.data)
-                    
-                if existing_mesh and not id.modifiers and not bone_parent:
+
+                can_reuse_existing_mesh = existing_mesh and not id.modifiers and not bone_parent
+                if can_reuse_existing_mesh and (not self.for_pca or existing_mesh.pca_indices is not None):
                     self.mesh = existing_mesh
                     self.mesh.siblings.append(self.name)
                 else:
@@ -1624,16 +1727,48 @@ class VirtualNode:
                                                     )
                 
                 if self.for_pca:
+                    pca_vertex_component_names = self.mesh.vertex_component_names
+                    pca_vertex_component_name_count = self.mesh.vertex_component_name_count
+                    pca_vertex_type = self.mesh.vertex_type
+                    pca_len_vertex_array = self.mesh.len_vertex_array
+                    pca_vertex_count = self.mesh.num_vertices
+                    if self.mesh.pca_vertex_array is not None:
+                        pca_vertex_component_names = self.mesh.pca_vertex_component_names
+                        pca_vertex_component_name_count = self.mesh.pca_vertex_component_name_count
+                        pca_vertex_type = self.mesh.pca_vertex_type
+                        pca_len_vertex_array = self.mesh.pca_len_vertex_array
+                        pca_vertex_count = self.mesh.pca_num_vertices
+                        pca_vertex_array = self.mesh.pca_vertex_array
+                    else:
+                        pca_vertex_array = self.mesh.vertex_array
+
+                    if self.matrix_world == IDENTITY_MATRIX:
+                        transformed_pca_vertex_array = pca_vertex_array
+                    else:
+                        transformed_pca_vertex_array = (c_ubyte * pca_len_vertex_array)()
+                        memmove(transformed_pca_vertex_array, pca_vertex_array, pca_len_vertex_array)
+                        affine3, linear3x3, inverse_linear3x3 = calc_transforms(self.matrix_world)
+                        scene.granny.transform_vertices(
+                            pca_vertex_count,
+                            pca_vertex_type,
+                            transformed_pca_vertex_array,
+                            affine3,
+                            linear3x3,
+                            inverse_linear3x3,
+                            True,
+                            False,
+                        )
+
                     for animation in id.pca_animations:
                         granny_vertex_data_copy = GrannyVertexData()
-                        granny_vertex_data_copy.vertex_component_names = self.mesh.vertex_component_names
-                        granny_vertex_data_copy.vertex_component_name_count = self.mesh.vertex_component_name_count
-                        granny_vertex_data_copy.vertex_type = self.mesh.vertex_type
+                        granny_vertex_data_copy.vertex_component_names = pca_vertex_component_names
+                        granny_vertex_data_copy.vertex_component_name_count = pca_vertex_component_name_count
+                        granny_vertex_data_copy.vertex_type = pca_vertex_type
                         
-                        vertex_array_copy = (c_ubyte * self.mesh.len_vertex_array)()
-                        memmove(vertex_array_copy, vertex_array, self.mesh.len_vertex_array)
+                        vertex_array_copy = (c_ubyte * pca_len_vertex_array)()
+                        memmove(vertex_array_copy, transformed_pca_vertex_array, pca_len_vertex_array)
                         granny_vertex_data_copy.vertices = cast(vertex_array_copy, POINTER(c_ubyte))
-                        granny_vertex_data_copy.vertex_count = self.mesh.num_vertices
+                        granny_vertex_data_copy.vertex_count = pca_vertex_count
                         
                         self.granny_vertex_data_copy_buffers[animation] = (granny_vertex_data_copy, vertex_array_copy)
                         self.granny_vertex_data_copies[animation] = pointer(granny_vertex_data_copy)
@@ -1682,6 +1817,7 @@ class VirtualNode:
         self.granny_vertex_data_copy_buffers[animation] = (granny_vertex_data_copy, vertex_array, names_array, type_info_array)
         self.granny_vertex_data_copies[animation] = pointer(granny_vertex_data_copy)
 
+
     def _should_apply_marker_axis(self, scene: 'VirtualScene') -> bool:
         if not scene.maintain_marker_axis:
             return False
@@ -1690,7 +1826,6 @@ class VirtualNode:
 
         return True
 
-            
     def _set_group(self, scene: 'VirtualScene', animation: str | None):
         if animation is None:
             match scene.asset_type:
