@@ -23,7 +23,8 @@ from ..managed_blam.render_method_definition import RenderMethodDefinitionTag
 global_render_method_definition = None
 last_group_node = None
 
-
+SK_TEST_CUBEMAP = r"objects\weapons\h2a_assault_rifle\bitmaps\test_textures\sk_test_cubemap.bitmap"
+DEFAULT_CUBEMAP = r"shaders\default_bitmaps\bitmaps\default_cube.bitmap"
 
 # supports_time_period = {"shader": ("self_illum_color", "self_illum_intensity"),
 #                         "shader_terrain": tuple(),
@@ -663,6 +664,10 @@ class ShaderTag(Tag):
                 
         if bitmap_path is None:
             return
+        
+        # EVIL exception for an EVIL cubemap
+        if bitmap_path.RelativePathWithExtension == SK_TEST_CUBEMAP:
+            bitmap_path = self._TagPath_from_string(DEFAULT_CUBEMAP)
         
         if not os.path.exists(bitmap_path.Filename):
             return
