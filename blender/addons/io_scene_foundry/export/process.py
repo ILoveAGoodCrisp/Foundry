@@ -2519,9 +2519,9 @@ class ExportScene:
         # Set FP weapon
         if self.asset_type == AssetType.MODEL and self.scene_settings.output_weapon and self.scene_settings.use_as_fp_render_model:
             expected_weapon_path = utils.get_asset_tag("weapon", True)
-            if Path(expected_weapon_path).exists():
-                render_path = utils.get_asset_tag("render_model")
-                self.print_post(f"--- Setting first person render model for weapon to {render_path}")
+            render_path = utils.get_asset_tag("render_model", True)
+            if Path(expected_weapon_path).exists() and Path(render_path).exists():
+                self.print_post(f"--- Setting first person render model for weapon to {utils.relative_path(render_path)}")
                 with ObjectTag(path=expected_weapon_path) as weapon:
                     weapon.set_fp_weapon_render_model(render_path)
         
@@ -2863,31 +2863,41 @@ class ExportScene:
                             with ScenarioStructureBspTag(path=bsp_path.RelativePathWithExtension) as bsp:
                                 bsp.fix_collision_render_surface_mapping()
 
-        if self.export_settings.export_structure:
-            if self.export_settings.update_lighting_info:
-                time.sleep(0.1) # fix an issue where light tag can't yet be written to
-                light_asset = self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB} or (self.corinth and self.asset_type in {AssetType.MODEL, AssetType.SKY})
-                if light_asset:
-                    if self.limit_bsps_to_selection:
-                        bsps = [bsp for bsp in self.selected_bsps if bsp.lower() != "shared"]
-                    else:
-                        bsps = [bsp for bsp in self.regions if bsp.lower() != "shared"]
-                    if self.lights or (not self.corinth and self.lightmap_regions):
-                        self.print_post(f"--- Writing lighting data from {len(self.lights)} light{'s' if len(self.lights) > 1 else ''}")
-                        # if self.is_child_asset:
-                        #     export_lights(str(self.parent_asset_path_relative), self.parent_asset_name, self.lights, bsps, self.lightmap_regions)
-                        # else:
-                        export_lights(self.asset_path_relative, self.asset_name, self.lights, bsps, self.lightmap_regions)
-                    else:
-                        # if self.is_child_asset:
-                        #     export_lights(str(self.parent_asset_path_relative), self.parent_asset_name, [], bsps, self.lightmap_regions) # this will clear the lighting info tag
-                        # else:
-                        export_lights(self.asset_path_relative, self.asset_name, {}, bsps, self.lightmap_regions)
+        light_asset = self.export_settings.update_lighting_info and (self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB} or (self.corinth and self.asset_type in {AssetType.MODEL, AssetType.SKY}))
+        if light_asset:
+            time.sleep(0.1) # fix an issue where light tag can't yet be written to
+            if light_asset:
+                if self.limit_bsps_to_selection:
+                    bsps = [bsp for bsp in self.selected_bsps if bsp.lower() != "shared"]
+                else:
+                    bsps = [bsp for bsp in self.regions if bsp.lower() != "shared"]
+                if self.lights or (not self.corinth and self.lightmap_regions):
+                    self.print_post(f"--- Writing lighting data from {len(self.lights)} light{'s' if len(self.lights) > 1 else ''}")
+                    # if self.is_child_asset:
+                    #     export_lights(str(self.parent_asset_path_relative), self.parent_asset_name, self.lights, bsps, self.lightmap_regions)
+                    # else:
+                    export_lights(self.asset_path_relative, self.asset_name, self.lights, bsps, self.lightmap_regions)
+                else:
+                    # if self.is_child_asset:
+                    #     export_lights(str(self.parent_asset_path_relative), self.parent_asset_name, [], bsps, self.lightmap_regions) # this will clear the lighting info tag
+                    # else:
+                    export_lights(self.asset_path_relative, self.asset_name, {}, bsps, self.lightmap_regions)
                         
-            if self.scene_settings.decorators_from_blender and self.asset_type == AssetType.SCENARIO:
-                if self.decorators:
-                    self.print_post(f"--- Writing {len(self.decorators)} decorator placement{'s' if len(self.decorators) > 1 else ''}")
-                    export_decorators(self.corinth, self.decorators)
+        if self.export_settings.export_structure and self.scene_settings.decorators_from_blender and self.asset_type == AssetType.SCENARIO:
+            if self.decorators:
+                self.print_post(f"--- Writing {len(self.decorators)} decorator placement{'s' if len(self.decorators) > 1 else ''}")
+                export_decorators(self.corinth, self.decorators)
+                
+        # H4 skies get their lighting info added to the scenery tag
+        if self.corinth and self.asset_type == AssetType.SKY:
+            expected_scenery_path = utils.get_asset_tag("scenery", True)
+            lighting_info = utils.get_asset_tag("scenario_structure_lighting_info", True)
+            if Path(expected_scenery_path).exists() and Path(lighting_info).exists():
+                
+                with ObjectTag(path=expected_scenery_path) as scenery:
+                    lighting_info_tag_path = scenery._TagPath_from_string(lighting_info)
+                    self.print_post(f"--- Setting sky scenery lighting info to {lighting_info_tag_path.RelativePathWithExtension}")
+                    scenery.tag.SelectField("Reference:Structure Lighting Tag").Path = lighting_info_tag_path
                     
         if self.asset_type == AssetType.DECORATOR_SET:
             with DecoratorSetTag() as decorator_set:
