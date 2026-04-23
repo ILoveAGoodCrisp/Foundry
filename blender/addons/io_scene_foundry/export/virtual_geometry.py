@@ -1562,6 +1562,7 @@ class VirtualMesh:
                 virtual_mat = VirtualMaterial('Invisible', scene, material_override)
             self.materials[virtual_mat] = None
             self.groups.append((virtual_mat, 0, (0, num_polygons))) # default material
+            
         elif num_materials > 1 and scene.supports_multiple_materials(ob, props, mesh_type_value):
             material_indices = np.empty(num_polygons, dtype=np.int32)
             mesh.polygons.foreach_get("material_index", material_indices)
@@ -1571,6 +1572,7 @@ class VirtualMesh:
             if self.pca_indices is not None:
                 sorted_pca_polygons = self.pca_indices.reshape((-1, 3))[sorted_order]
                 self.pca_indices = sorted_pca_polygons.ravel()
+                
             unique_indices = np.concatenate(([0], np.where(np.diff(material_indices[sorted_order]) != 0)[0] + 1))
             counts = np.diff(np.concatenate((unique_indices, [len(material_indices)])))
             mat_index_counts = list(zip(unique_indices, counts))
@@ -1580,6 +1582,7 @@ class VirtualMesh:
                 virtual_mat = scene._get_material(mat, scene)
                 self.materials[virtual_mat] = None
                 self.groups.append((virtual_mat, unique_materials.index(mat), mat_index_counts[idx]))
+                
         elif num_materials >= 1:
             virtual_mat = scene._get_material(self.bpy_materials[0], scene)
             self.materials[virtual_mat] = None
