@@ -1277,10 +1277,10 @@ class AnimationTag(Tag):
         blender_event = blender_animation.animation_events.add()
         blender_event.event_type = event_type
         blender_event.event_id = AnimationEvent().unique_id
-        blender_event.frame_frame = blender_animation.frame_start + utils.blender_frame(start_frame)
+        blender_event.frame_frame = blender_animation.frame_start + start_frame
         if frame_count > 1:
             blender_event.multi_frame = 'range'
-            blender_event.frame_range = blender_animation.frame_start + utils.blender_frame(start_frame + frame_count - 1)
+            blender_event.frame_range = blender_animation.frame_start + start_frame + frame_count - 1
         return blender_event
 
     def _blend_screen_for_animation(self, tag_animation: Animation):
@@ -1465,7 +1465,7 @@ class AnimationTag(Tag):
                 fcurve.keyframe_points.remove(fcurve.keyframe_points[-1])
 
             for frame_offset, value in enumerate(event_values):
-                frame = blender_animation.frame_start + utils.blender_frame(start_frame + frame_offset)
+                frame = blender_animation.frame_start + start_frame + frame_offset
                 keyframe = fcurve.keyframe_points.insert(frame, value)
                 keyframe.interpolation = "LINEAR"
             fcurve.update()
@@ -1474,7 +1474,7 @@ class AnimationTag(Tag):
                 blender_event.event_value = value
                 blender_event.keyframe_insert(
                     data_path="event_value",
-                    frame=blender_animation.frame_start + utils.blender_frame(start_frame + frame_offset),
+                    frame=blender_animation.frame_start + start_frame + frame_offset
                 )
         blender_event.event_value = first_value
 
@@ -2144,14 +2144,38 @@ class AnimationTag(Tag):
         if fcurves:
             fcurves.clear()
 
+        loc_x = fcurves.new(data_path='location', index=0)
+        loc_y = fcurves.new(data_path='location', index=1)
+        loc_z = fcurves.new(data_path='location', index=2)
+        rot_w = fcurves.new(data_path='rotation_quaternion', index=0)
+        rot_x = fcurves.new(data_path='rotation_quaternion', index=1)
+        rot_y = fcurves.new(data_path='rotation_quaternion', index=2)
+        rot_z = fcurves.new(data_path='rotation_quaternion', index=3)
+        sca_x = fcurves.new(data_path='scale', index=0)
+        sca_y = fcurves.new(data_path='scale', index=1)
+        sca_z = fcurves.new(data_path='scale', index=2)
+
+        key_options = {'FAST'}
+
         for frame_offset, (location, rotation, scale) in enumerate(samples):
             obj.location = location
             obj.rotation_quaternion = rotation
             obj.scale = Vector.Fill(3, scale)
-            frame = blender_animation.frame_start + utils.blender_frame(start_frame + frame_offset)
+            frame = blender_animation.frame_start + start_frame + frame_offset
             obj.keyframe_insert(data_path="location", frame=frame)
             obj.keyframe_insert(data_path="rotation_quaternion", frame=frame)
             obj.keyframe_insert(data_path="scale", frame=frame)
+
+            loc_x.keyframe_points.insert(frame, location.x, options=key_options)
+            loc_y.keyframe_points.insert(frame, location.y, options=key_options)
+            loc_z.keyframe_points.insert(frame, location.z, options=key_options)
+            rot_w.keyframe_points.insert(frame, rotation.w, options=key_options)
+            rot_x.keyframe_points.insert(frame, rotation.x, options=key_options)
+            rot_y.keyframe_points.insert(frame, rotation.y, options=key_options)
+            rot_z.keyframe_points.insert(frame, rotation.z, options=key_options)
+            sca_x.keyframe_points.insert(frame, scale, options=key_options)
+            sca_y.keyframe_points.insert(frame, scale, options=key_options)
+            sca_z.keyframe_points.insert(frame, scale, options=key_options)
 
         if fcurves:
             for fcurve in fcurves:
