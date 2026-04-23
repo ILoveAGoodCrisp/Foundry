@@ -479,21 +479,25 @@ class MaterialTag(ShaderTag):
                 rainbow_node.node_tree = utils.add_node_from_resources("h4_nodes", name='srf_pbr_covenant rainbow_map_vector')
                 self.populate_chiefster_node(tree, rainbow_node, material_parameters, material_parameters_true)
                 
-                rainbow_map_node = group_node.inputs['rainbow_map'].links[0].from_node
-                tree.links.new(input=rainbow_map_node.inputs[0], output=rainbow_node.outputs[0])
+                if group_node.inputs['rainbow_map'].links:
+                    rainbow_map_node = group_node.inputs['rainbow_map'].links[0].from_node
+                    tree.links.new(input=rainbow_map_node.inputs[0], output=rainbow_node.outputs[0])
                 
                 reflection_node = tree.nodes.new('ShaderNodeGroup')
                 reflection_node.node_tree = utils.add_node_from_resources("h4_nodes", name='srf_pbr_covenant reflection_map_vector')
                 self.populate_chiefster_node(tree, reflection_node, material_parameters, material_parameters_true)
                 
-                reflection_map_node = rainbow_node.inputs['reflection_map'].links[0].from_node
-                tree.links.new(input=reflection_map_node.inputs[0], output=reflection_node.outputs[0])
+                if rainbow_node.inputs['reflection_map'].links:
+                    reflection_map_node = rainbow_node.inputs['reflection_map'].links[0].from_node
+                    tree.links.new(input=reflection_map_node.inputs[0], output=reflection_node.outputs[0])
+                    
             case 'srf_pbr_ca_terrain_macrocolor_paintrough_world' | 'srf_pbr_ca_terrain_world_blend':
                 vector_node = tree.nodes.new('ShaderNodeGroup')
                 vector_node.node_tree = utils.add_node_from_resources("h4_nodes", name='srf_pbr_ca_terrain_macrocolor_paintrough_world - vector')
                 
-                coMap_node = group_node.inputs['layer2_coMap'].links[0].from_node
-                tree.links.new(input=coMap_node.inputs[0], output=vector_node.outputs[0])
+                if group_node.inputs['layer2_coMap'].links:
+                    coMap_node = group_node.inputs['layer2_coMap'].links[0].from_node
+                    tree.links.new(input=coMap_node.inputs[0], output=vector_node.outputs[0])
                 
                 coMap_xz_node = tree.nodes.new('ShaderNodeTexImage')
                 coMap_xz_node.image = coMap_node.image
