@@ -85,7 +85,6 @@ class CubemapFarm:
                 init.write('error_geometry_hide_all\n')
                 init.write('events_enabled 0\n')
                 init.write('ai_hide_actor_errors 1\n')
-                # init.write('terminal_render 0\n')
                 init.write('console_status_string_render 0\n')
                 init.write('events_debug_spam_render 0\n')
                 init.write("motion_blur 0\n")

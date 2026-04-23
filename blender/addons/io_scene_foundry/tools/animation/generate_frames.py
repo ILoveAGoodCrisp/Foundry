@@ -71,7 +71,7 @@ class FrameGenerator:
         for animation, name in self.animations.items():
             if animation.animation_type in need_final_frame:
                 self._apply_final_frame(animation, name)
-            if animation.animation_type == 'replacement' and not animation.imported_with_base_frame:
+            if animation.animation_type == 'replacement':
                 replacements[animation] = name
                 
         for animation, name in replacements.items():

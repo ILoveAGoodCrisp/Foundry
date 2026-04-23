@@ -1236,10 +1236,6 @@ class NWO_AnimationPropertiesGroup(bpy.types.PropertyGroup):
             ("Rough", "Rough", "Highest level of compression"),
         ],
     )
-    
-    imported_with_base_frame: bpy.props.BoolProperty(
-        options={'HIDDEN'}
-    )
             
     animation_type: bpy.props.EnumProperty(
         name="Type",
@@ -1350,32 +1346,75 @@ class NWO_AnimationPropertiesGroup(bpy.types.PropertyGroup):
         name="Author Type",
         items=[
             ('TAG', "Tag", ""),
-            ('BLENDER', "Tag", ""),
+            ('BLENDER', "Blender", ""),
         ]
     )
     
-    weight: bpy.props.FloatProperty()
-    loop_frame_index: bpy.props.IntProperty()
+    weight: bpy.props.FloatProperty(
+        name="Weight",
+        description="Weights the chance that this animation plays compared to other variants (denoted by an animation name ending in var[x] e.g. var2)\nThe chance that this animation plays depends on the weight of the other variants. The calculation is total weights / current animation weight.\nFor example given 3 animations with weights 4, 1, 1. The first has a 75% chance of playing, the other two each a 12.5% chance",
+        min=0
+    ) # when animation name has var only
+    loop_frame_index: bpy.props.IntProperty(
+        name="Loop Frame",
+        description="No clue"
+    )
     # Flags
-    disable_interpolation_in: bpy.props.BoolProperty()
-    disable_interpolation_out: bpy.props.BoolProperty()
-    disable_mode_ik: bpy.props.BoolProperty()
-    disable_weapon_ik: bpy.props.BoolProperty()
-    disable_weapon_ik: bpy.props.BoolProperty()
-    disable_weapon_aim: bpy.props.BoolProperty()
-    disable_look_screen: bpy.props.BoolProperty()
-    disable_transition_adjustment: bpy.props.BoolProperty()
-    force_weapon_ik_on: bpy.props.BoolProperty()
-    enable_animated_source_interpolation: bpy.props.BoolProperty()
-    disable_ik_sets: bpy.props.BoolProperty()
-    disable_ik_chains: bpy.props.BoolProperty()
+    disable_interpolation_in: bpy.props.BoolProperty(
+        name="Disable Interpolation In",
+        description="Don't interpolate from the previous animation",
+    )
+    disable_interpolation_out: bpy.props.BoolProperty(
+        name="Disable Interpolation Out",
+        description="Don't interpolate to the next animation",
+    )
+    disable_mode_ik: bpy.props.BoolProperty(
+        name="Disable Mode IK",
+        description="Ignore the IK set for this animation's mode (e.g. combat), if one is set in the tag",
+    )
+    disable_weapon_ik: bpy.props.BoolProperty(
+        name="Disable Weapon IK",
+        description="Ignore the IK set for this animation's weapon type (e.g. rifle) or weapon type (e.g. br), if one is set in the tag",
+    )
+    disable_weapon_aim: bpy.props.BoolProperty(
+        name="Disable Weapon Aim",
+        description="Prevents weapon aim overlays from playing",
+    )
+    disable_look_screen: bpy.props.BoolProperty(
+        name="Disable Look Screen",
+        description="Prevents look overlays from playing on this animation",
+    )
+    disable_transition_adjustment: bpy.props.BoolProperty(
+        name="Disable Transition Adjustment",
+        description="Not sure",
+    )
+    force_weapon_ik_on: bpy.props.BoolProperty(
+        name="Force Weapon IK On",
+        description="Forces this animation to use the weapon IK defined in the animation graph tag (weapon ik block)",
+    )
+    enable_animated_source_interpolation: bpy.props.BoolProperty(
+        name="Enable Animated Source Interpolation",
+        description="Who can say"
+    )
+    disable_ik_sets: bpy.props.BoolProperty(
+        name="Disable IK sets",
+        description="This animation will not use any IK sets",
+    )
+    disable_ik_chains: bpy.props.BoolProperty(
+        name="Disable IK Chains",
+        description="This animation will not use IK chain events"
+    )
     translate_and_scale_root_only: bpy.props.BoolProperty(
         name="Translate and Scale Root Only",
-        description="Ignore all transition and scale on all nodes except the root"
+        description="Ignore all transition and scale on all nodes except the root (i.e. pedestal)"
     )
     enable_blend_out_on_replacement_anims: bpy.props.BoolProperty(
         name="Enable Blend Out",
         description="Fade out back to the current base animation as the animation reaches it end"
+    )
+    disable_subframe_interp_on_loop: bpy.props.BoolProperty(
+        name="Disable Subframe interpolation on Loop",
+        description=""
     )
     override_player_input_with_motion: bpy.props.BoolProperty(
         name="Override Player Input with Motion",
@@ -1383,25 +1422,49 @@ class NWO_AnimationPropertiesGroup(bpy.types.PropertyGroup):
     )
     
     # Production Flags
-    do_not_monitor_changes: bpy.props.BoolProperty()
-    verify_sound_events: bpy.props.BoolProperty()
-    do_not_inherit_for_player_graphs: bpy.props.BoolProperty()
-    keep_raw_data_in_tag: bpy.props.BoolProperty()
-    allow_ball_roll_on_foot: bpy.props.BoolProperty(
+    do_not_monitor_changes: bpy.props.BoolProperty(
+        name="Do Not Monitor Changes",
+        description="<- Clueless"
+    )
+    verify_sound_events: bpy.props.BoolProperty(
+        name="Do Not Monitor Changes",
+        description="?"
+    )
+    do_not_inherit_for_player_graphs: bpy.props.BoolProperty(
+        name="Do not Inherit for player graphs",
+        description="Animation graph tags using this graph as a parent won't be able to use this animation"
+    )
+    keep_raw_data_in_tag: bpy.props.BoolProperty( # H4
+        name="Keep raw data in tag",
+        description="IDK, cache build only?"
+    )
+    allow_ball_roll_on_foot: bpy.props.BoolProperty( # H4
         name="Allow Ball Roll on Foot",
         description="Prevents foot-ik from settling"
     )
     
     # PCA
-    pca_group_name: bpy.props.StringProperty()
+    pca_group_name: bpy.props.StringProperty(
+        name="PCA Group Name",
+        description="If this animation contains PCA (shape key) mesh animation, this is the PCA group it will belong to",
+        default="default"
+    )
     
+    pca_best_quality: bpy.props.BoolProperty(
+        name=f"PCA Best Quality",
+        description="If this animation contains PCA (shape key) mesh animation, assigns it a unique group and sets its blend shape count to the frame count minus 1. Don't use this if you care about filesizes, this can make a very large pca_animation tag"
+    )
+    
+    # Blend
     
     override_blend_in_time: bpy.props.FloatProperty(
-        name="Override Blend In Time"
+        name="Override Blend In Time",
+        default=0,
     )
     override_blend_out_time: bpy.props.FloatProperty(
         name="Override Blend Out Time",
-        description="Replacement animations only"
+        description="Replacement animations only",
+        default=0,
     )
     
 

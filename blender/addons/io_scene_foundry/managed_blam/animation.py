@@ -151,6 +151,8 @@ class Compression(Enum):
     rough_compression = 1
     uncompressed = 2
     old_codec = 3
+    reach_medium_compression = 4
+    reach_rough_compression = 5
 
 class Animation:
     def __init__(self):
@@ -2804,6 +2806,44 @@ class AnimationTag(Tag):
             
         return usages
     
+    def _add_animation_settings(self, tag_animation: Animation, blender_animation):
+        blender_animation.author_type = 'BLENDER'
+        blender_animation.weight = tag_animation.element.SelectField("weight").Data
+        blender_animation.loop_frame_index = tag_animation.element.SelectField("loop frame index").Data
+        
+        flags = tag_animation.element.SelectField("user flags")
+        blender_animation.disable_interpolation_in = flags.TestBit("disable interpolation in")
+        blender_animation.disable_interpolation_out = flags.TestBit("disable interpolation out")
+        blender_animation.disable_mode_ik = flags.TestBit("disable mode ik")
+        blender_animation.disable_weapon_ik = flags.TestBit("disable weapon ik")
+        blender_animation.disable_weapon_aim = flags.TestBit("disable weapon aim\\1st person")
+        blender_animation.disable_look_screen = flags.TestBit("disable look screen")
+        blender_animation.disable_transition_adjustment = flags.TestBit("disable transition adjustment")
+        blender_animation.force_weapon_ik_on = flags.TestBit("force weapon ik on")
+        blender_animation.enable_animated_source_interpolation = flags.TestBit("enable animated source interpolation")
+        blender_animation.disable_ik_sets = flags.TestBit("disable ik sets")
+        blender_animation.disable_ik_chains = flags.TestBit("disable ik chains")
+        blender_animation.translate_and_scale_root_only = flags.TestBit("translate and scale root only")
+        blender_animation.enable_blend_out_on_replacement_anims = flags.TestBit("enable blend out on replacement anims" if self.corinth else "enable blend out") 
+        if self.corinth:
+            blender_animation.override_player_input_with_motion = flags.TestBit("override player input with motion")
+            blender_animation.pca_group_name = tag_animation.element.SelectField("pca group name").GetStringData()
+        else:
+            blender_animation.disable_subframe_interp_on_loop = flags.TestBit("disable subframe interp on loop")
+            
+        if flags.TestBit("use custom blend-in time" if self.corinth else "override default blend time"):
+            blender_animation.override_blend_in_time = tag_animation.element.SelectField("override blend in time").Data
+        if flags.TestBit("use custom blend-out time" if self.corinth else "override default blend out time"):
+            blender_animation.override_blend_out_time = tag_animation.element.SelectField("override blend out time").Data
+        
+        match tag_animation.compression:
+            case Compression.medium_compression | Compression.reach_medium_compression:
+                blender_animation.compression = "Medium"
+            case Compression.rough_compression | Compression.reach_rough_compression:
+                blender_animation.compression = "Rough"
+            case Compression.uncompressed:
+                blender_animation.compression = "Uncompressed"
+    
     def to_blender(self, render_model: str, armature, filter: str, import_pca=False):
         actions = []
         animations = []
@@ -2909,7 +2949,6 @@ class AnimationTag(Tag):
                                 blender_animation.animation_movement_data = "full"
                                 
                     case AnimationType.OVERLAY:
-                        blender_animation.imported_with_base_frame = True
                         blender_animation.animation_type = "overlay"
                         parent_nodes = tag_animation.shared_element.SelectField("object-space parent nodes")
                         if parent_nodes.Elements.Count > 0:
@@ -2925,7 +2964,6 @@ class AnimationTag(Tag):
                             blender_animation.active_animation_node_index = len(blender_animation.animation_nodes) - 1
                             
                     case AnimationType.REPLACEMENT:
-                        blender_animation.imported_with_base_frame = True
                         blender_animation.animation_type = "replacement"
                         parent_nodes = tag_animation.shared_element.SelectField("object-space parent nodes")
                         for node_element in parent_nodes.Elements:
@@ -3024,6 +3062,7 @@ class AnimationTag(Tag):
                     action.frame_end = blender_animation.frame_end
                     self._apply_regular_animation_events(tag_animation, blender_animation, armature, actions)
                     self._infer_wrap_events(tag_animation, blender_animation, armature, native_nodes if success else nodes, transforms, node_usages)
+                    self._add_animation_settings(tag_animation, blender_animation)
                 else:
                     utils.print_warning(f"Failed to import animation {tag_animation.name.data_name}")
 
