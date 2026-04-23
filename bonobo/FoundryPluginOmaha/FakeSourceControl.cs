@@ -11,6 +11,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Threading;
 
@@ -55,7 +56,64 @@ namespace FoundryPlugin
         private static readonly IReadOnlyList<string> EmptyClientList =
             new List<string>();
 
+        private static readonly HashSet<string> HiddenContextMenuItems =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "Get Latest",
+                "Force Get Latest",
+                "Check Out",
+                "Scratch Check Out",
+                "Submit",
+                "Revert",
+                "Delete",
+                "Show Differences From Depot",
+                "Show History...",
+                "Force XSync",
+                "XSync",
+                "Drop in Max",
+                "XDrop tag in game"
+            };
+
+        private static readonly string[] TagFileMenuMarkers =
+        {
+            "Open in Tag view",
+            "Open in Grid view",
+            "Copy Paths"
+        };
+
+        private static readonly HashSet<string> ClipboardDropTagTypes =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "model",
+                "biped",
+                "crate",
+                "creature",
+                "device_control",
+                "device_dispenser",
+                "effect_scenery",
+                "equipment",
+                "giant",
+                "device_machine",
+                "projectile",
+                "scenery",
+                "spawner",
+                "sound_scenery",
+                "device_terminal",
+                "vehicle",
+                "weapon"
+            };
+
+        private static readonly string[] FolderMenuMarkers =
+        {
+            "Get Latest",
+            "Force Get Latest",
+            "Check Out",
+            "Scratch Check Out"
+        };
+
         private static bool _sourceControlToolTipsInstalled;
+        private static bool _contextMenuCleanupInstalled;
+        private static bool _renderModelDropButtonsInstalled;
 
         public FoundryFakeSourceControl(IPluginHost host)
             : base(host)
@@ -63,6 +121,8 @@ namespace FoundryPlugin
             //System.Windows.MessageBox.Show("Fake SCM Plugin Loaded");
             ProjectInfo.Initialize();
             InstallSourceControlToolTipOverride();
+            InstallContextMenuCleanup();
+            InstallRenderModelDropButtonOverride();
             SuppressSourceControlStyles();
         }
 
@@ -178,6 +238,39 @@ namespace FoundryPlugin
             _sourceControlToolTipsInstalled = true;
         }
 
+        private static void InstallContextMenuCleanup()
+        {
+            if (_contextMenuCleanupInstalled)
+                return;
+
+            EventManager.RegisterClassHandler(
+                typeof(ContextMenu),
+                ContextMenu.OpenedEvent,
+                new RoutedEventHandler(OnContextMenuOpened),
+                true);
+
+            _contextMenuCleanupInstalled = true;
+        }
+
+        private static void InstallRenderModelDropButtonOverride()
+        {
+            if (_renderModelDropButtonsInstalled)
+                return;
+
+            EventManager.RegisterClassHandler(
+                typeof(ButtonBase),
+                ButtonBase.ClickEvent,
+                new RoutedEventHandler(OnRenderModelDropButtonClick),
+                true);
+            EventManager.RegisterClassHandler(
+                typeof(ButtonBase),
+                FrameworkElement.ToolTipOpeningEvent,
+                new ToolTipEventHandler(OnRenderModelDropButtonToolTipOpening),
+                true);
+
+            _renderModelDropButtonsInstalled = true;
+        }
+
         private static void ApplySourceControlStyleOverrides(Application application)
         {
             var iconResourcesType = GetIconResourcesType();
@@ -252,6 +345,384 @@ namespace FoundryPlugin
             element.SetValue(
                 ToolTipService.ToolTipProperty,
                 BuildWritableFileToolTip(element));
+        }
+
+        private static void OnContextMenuOpened(object sender, RoutedEventArgs e)
+        {
+            var contextMenu = sender as ContextMenu;
+            if (contextMenu == null)
+                return;
+
+            PruneSourceControlContextMenu(contextMenu);
+        }
+
+        private static void OnRenderModelDropButtonClick(object sender, RoutedEventArgs e)
+        {
+            var button = sender as ButtonBase;
+            if (button == null)
+                return;
+
+            if (!TryBuildClipboardDropScript(button, out string script))
+                return;
+
+            e.Handled = true;
+
+            try
+            {
+                Clipboard.SetText(script);
+            }
+            catch
+            {
+                try
+                {
+                    Clipboard.SetDataObject(script, true);
+                }
+                catch
+                {
+                }
+            }
+        }
+
+        private static void OnRenderModelDropButtonToolTipOpening(object sender, ToolTipEventArgs e)
+        {
+            var button = sender as ButtonBase;
+            if (button == null)
+                return;
+
+            if (!TryBuildDropButtonToolTip(button, out string toolTip))
+                return;
+
+            button.SetValue(ToolTipService.ToolTipProperty, toolTip);
+        }
+
+        private static void PruneSourceControlContextMenu(ContextMenu contextMenu)
+        {
+            if (!LooksLikeTagFileContextMenu(contextMenu) &&
+                !LooksLikeFolderContextMenu(contextMenu))
+                return;
+
+            bool removedAnyItems = false;
+
+            for (int index = contextMenu.Items.Count - 1; index >= 0; index--)
+            {
+                var menuItem = contextMenu.Items[index] as MenuItem;
+                if (menuItem == null)
+                    continue;
+
+                string header = GetMenuHeaderText(menuItem.Header);
+                if (!HiddenContextMenuItems.Contains(header))
+                    continue;
+
+                contextMenu.Items.RemoveAt(index);
+                removedAnyItems = true;
+            }
+
+            if (removedAnyItems)
+            {
+                RemoveDuplicateSeparators(contextMenu.Items);
+                CloseIfEmpty(contextMenu);
+            }
+        }
+
+        private static bool LooksLikeTagFileContextMenu(ContextMenu contextMenu)
+        {
+            int matchedMarkers = 0;
+
+            foreach (var item in contextMenu.Items.OfType<MenuItem>())
+            {
+                string header = GetMenuHeaderText(item.Header);
+                if (TagFileMenuMarkers.Contains(header, StringComparer.OrdinalIgnoreCase))
+                    matchedMarkers++;
+            }
+
+            return matchedMarkers >= 2;
+        }
+
+        private static bool LooksLikeFolderContextMenu(ContextMenu contextMenu)
+        {
+            int matchedMarkers = contextMenu.Items
+                .OfType<MenuItem>()
+                .Select(item => GetMenuHeaderText(item.Header))
+                .Where(header => !string.IsNullOrWhiteSpace(header))
+                .Count(header => FolderMenuMarkers.Contains(header, StringComparer.OrdinalIgnoreCase));
+
+            return matchedMarkers >= 2;
+        }
+
+        private static string GetMenuHeaderText(object header)
+        {
+            if (header == null)
+                return string.Empty;
+
+            if (header is string stringHeader)
+                return NormalizeMenuHeader(stringHeader);
+
+            if (header is AccessText accessText)
+                return NormalizeMenuHeader(accessText.Text);
+
+            if (header is TextBlock textBlock)
+                return NormalizeMenuHeader(textBlock.Text);
+
+            return NormalizeMenuHeader(header.ToString());
+        }
+
+        private static string NormalizeMenuHeader(string header)
+        {
+            if (string.IsNullOrWhiteSpace(header))
+                return string.Empty;
+
+            return header
+                .Replace("_", string.Empty)
+                .Replace("\u2026", "...")
+                .Trim();
+        }
+
+        private static void RemoveDuplicateSeparators(ItemCollection items)
+        {
+            while (items.Count > 0 && items[0] is Separator)
+                items.RemoveAt(0);
+
+            while (items.Count > 0 && items[items.Count - 1] is Separator)
+                items.RemoveAt(items.Count - 1);
+
+            bool previousWasSeparator = false;
+
+            for (int index = 0; index < items.Count; index++)
+            {
+                if (items[index] is Separator)
+                {
+                    if (previousWasSeparator)
+                    {
+                        items.RemoveAt(index);
+                        index--;
+                        continue;
+                    }
+
+                    previousWasSeparator = true;
+                    continue;
+                }
+
+                previousWasSeparator = false;
+            }
+        }
+
+        private static void CloseIfEmpty(ContextMenu contextMenu)
+        {
+            if (contextMenu.Items.OfType<MenuItem>().Any())
+                return;
+
+            contextMenu.Dispatcher.BeginInvoke(
+                new Action(() => contextMenu.IsOpen = false),
+                DispatcherPriority.ApplicationIdle);
+        }
+
+        private static bool TryBuildClipboardDropScript(ButtonBase button, out string script)
+        {
+            script = null;
+
+            string buttonText = GetDropButtonText(button);
+            if (!IsClipboardDropButtonText(buttonText))
+                return false;
+
+            object dropPanel = FindAncestorByTypeName(
+                button,
+                "Bonobo.Plugins.RenderModel.RenderModelDropPanel");
+            if (dropPanel == null)
+                return false;
+
+            object tagPath = GetReadableFieldValue(dropPanel, "_tagPath");
+            string relativePathWithExtension = GetTagRelativePathWithExtension(tagPath);
+            if (string.IsNullOrWhiteSpace(relativePathWithExtension) ||
+                !IsSupportedClipboardDropTagType(tagPath, relativePathWithExtension))
+                return false;
+
+            if (buttonText.Equals("Drop Variant", StringComparison.OrdinalIgnoreCase))
+                return TryBuildVariantDropScript(dropPanel, relativePathWithExtension, out script);
+
+            return TryBuildPermutationDropScript(dropPanel, relativePathWithExtension, out script);
+        }
+
+        private static bool TryBuildDropButtonToolTip(ButtonBase button, out string toolTip)
+        {
+            toolTip = null;
+
+            string buttonText = GetDropButtonText(button);
+            if (!IsClipboardDropButtonText(buttonText))
+                return false;
+
+            object dropPanel = FindAncestorByTypeName(
+                button,
+                "Bonobo.Plugins.RenderModel.RenderModelDropPanel");
+            if (dropPanel == null)
+                return false;
+
+            object tagPath = GetReadableFieldValue(dropPanel, "_tagPath");
+            string relativePathWithExtension = GetTagRelativePathWithExtension(tagPath);
+            if (string.IsNullOrWhiteSpace(relativePathWithExtension) ||
+                !IsSupportedClipboardDropTagType(tagPath, relativePathWithExtension))
+                return false;
+
+            if (buttonText.Equals("Drop Variant", StringComparison.OrdinalIgnoreCase))
+            {
+                toolTip = "Copies the script for dropping the selected variant to the clipboard.";
+                return true;
+            }
+
+            toolTip = "Copies the script for dropping the selected permutation set to the clipboard.";
+            return true;
+        }
+
+        private static bool IsClipboardDropButtonText(string buttonText)
+        {
+            return buttonText.Equals("Drop Variant", StringComparison.OrdinalIgnoreCase) ||
+                buttonText.Equals("Drop Permutation", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string GetDropButtonText(ButtonBase button)
+        {
+            return GetMenuHeaderText(GetReadablePropertyValue(button, "Content"));
+        }
+
+        private static bool TryBuildVariantDropScript(
+            object dropPanel,
+            string relativePathWithExtension,
+            out string script)
+        {
+            script = null;
+
+            object variantsControl = GetReadableFieldValue(dropPanel, "_variantsControl");
+            string variantName = ConvertToString(InvokeParameterlessMethod(variantsControl, "GetCurrentVariantName"));
+            if (variantName == null)
+                return false;
+
+            script = "drop_variant " + relativePathWithExtension + " " + variantName;
+            return true;
+        }
+
+        private static bool TryBuildPermutationDropScript(
+            object dropPanel,
+            string relativePathWithExtension,
+            out string script)
+        {
+            script = null;
+
+            object permutationsControl = GetReadableFieldValue(dropPanel, "_permutationsControl");
+            string selection = SerializePermutationSelection(
+                InvokeParameterlessMethod(permutationsControl, "GetCurrentSelection"));
+            if (selection == null)
+                return false;
+
+            script = "drop_permutation " + relativePathWithExtension + " " + selection;
+            return true;
+        }
+
+        private static string SerializePermutationSelection(object selection)
+        {
+            if (selection == null)
+                return null;
+
+            var parts = new List<string>();
+
+            var dictionary = selection as IDictionary;
+            if (dictionary != null)
+            {
+                foreach (DictionaryEntry entry in dictionary)
+                {
+                    string key = ConvertToString(entry.Key);
+                    if (string.IsNullOrWhiteSpace(key))
+                        continue;
+
+                    parts.Add(key + "=" + (ConvertToString(entry.Value) ?? string.Empty));
+                }
+
+                return parts.Count == 0
+                    ? null
+                    : string.Join(",", parts);
+            }
+
+            var enumerable = selection as IEnumerable;
+            if (enumerable == null || selection is string)
+                return null;
+
+            foreach (object entry in enumerable)
+            {
+                string key = ConvertToString(GetReadablePropertyValue(entry, "Key"));
+                if (string.IsNullOrWhiteSpace(key))
+                    continue;
+
+                parts.Add(key + "=" + (ConvertToString(GetReadablePropertyValue(entry, "Value")) ?? string.Empty));
+            }
+
+            return parts.Count == 0
+                ? null
+                : string.Join(",", parts);
+        }
+
+        private static bool IsSupportedClipboardDropTagType(object tagPath, string relativePathWithExtension)
+        {
+            string extension = ConvertToString(GetReadablePropertyValue(tagPath, "Extension"));
+            if (string.IsNullOrWhiteSpace(extension))
+                extension = Path.GetExtension(relativePathWithExtension);
+
+            if (string.IsNullOrWhiteSpace(extension))
+                return false;
+
+            return ClipboardDropTagTypes.Contains(extension.TrimStart('.'));
+        }
+
+        private static string GetTagRelativePathWithExtension(object tagPath)
+        {
+            string relativePathWithExtension = ConvertToString(
+                GetReadablePropertyValue(tagPath, "RelativePathWithExtension"));
+            if (!string.IsNullOrWhiteSpace(relativePathWithExtension))
+                return relativePathWithExtension;
+
+            string relativePath = ConvertToString(GetReadablePropertyValue(tagPath, "RelativePath"));
+            if (string.IsNullOrWhiteSpace(relativePath))
+                return null;
+
+            string extension = ConvertToString(GetReadablePropertyValue(tagPath, "Extension"));
+            if (string.IsNullOrWhiteSpace(extension))
+                return relativePath;
+
+            extension = extension.TrimStart('.');
+            return relativePath.EndsWith("." + extension, StringComparison.OrdinalIgnoreCase)
+                ? relativePath
+                : relativePath + "." + extension;
+        }
+
+        private static object FindAncestorByTypeName(DependencyObject start, string fullTypeName)
+        {
+            for (DependencyObject current = start; current != null; current = GetParentObject(current))
+            {
+                Type currentType = current.GetType();
+                if (string.Equals(currentType.FullName, fullTypeName, StringComparison.Ordinal))
+                    return current;
+            }
+
+            return null;
+        }
+
+        private static DependencyObject GetParentObject(DependencyObject child)
+        {
+            if (child == null)
+                return null;
+
+            try
+            {
+                DependencyObject visualParent = VisualTreeHelper.GetParent(child);
+                if (visualParent != null)
+                    return visualParent;
+            }
+            catch
+            {
+            }
+
+            var frameworkElement = child as FrameworkElement;
+            if (frameworkElement?.Parent != null)
+                return frameworkElement.Parent;
+
+            return LogicalTreeHelper.GetParent(child);
         }
 
         private static bool GetBooleanPropertyValue(object target, string propertyName)
@@ -436,6 +907,60 @@ namespace FoundryPlugin
             {
                 return null;
             }
+        }
+
+        private static object GetReadableFieldValue(object target, string fieldName)
+        {
+            if (target == null)
+                return null;
+
+            var field = target.GetType().GetField(
+                fieldName,
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.IgnoreCase);
+
+            if (field == null)
+                return null;
+
+            try
+            {
+                return field.GetValue(target);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static object InvokeParameterlessMethod(object target, string methodName)
+        {
+            if (target == null)
+                return null;
+
+            var method = target.GetType().GetMethod(
+                methodName,
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.IgnoreCase,
+                null,
+                Type.EmptyTypes,
+                null);
+
+            if (method == null)
+                return null;
+
+            try
+            {
+                return method.Invoke(target, null);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static string ConvertToString(object value)
+        {
+            return value == null
+                ? null
+                : value as string ?? value.ToString();
         }
 
         public IEnumerable<SourceControlFile> GetFileStates(string fileSpecs)
