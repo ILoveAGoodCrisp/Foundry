@@ -1399,6 +1399,7 @@ class ProjectXML():
         self.default_material = ""
         self.default_water = ""
         self.blender_path = ""
+        self.last_scenario = ""
 
     def parse(self, project_root):
         has_changes = False
@@ -1439,14 +1440,17 @@ class ProjectXML():
                 self.default_material = material.text
         else:
             material = ET.SubElement(root, 'defaultMaterial')
-            match self.remote_server_name:
-                case 'bngtoolsql':
-                    material.text = r"shaders\invalid.shader"
-                case 'metawins':
-                    material.text = r"shaders\invalid.material"
-                case 'episql.343i.selfhost.corp.microsoft.com':
-                    material.text = r"shaders\invalid.material"
-            self.default_material = material.text
+            if self.default_material:
+                material.text = self.default_material
+            else:
+                match self.remote_server_name:
+                    case 'bngtoolsql':
+                        material.text = r"shaders\invalid.shader"
+                    case 'metawins':
+                        material.text = r"shaders\invalid.material"
+                    case 'episql.343i.selfhost.corp.microsoft.com':
+                        material.text = r"shaders\invalid.material"
+                self.default_material = material.text
             has_changes = True
         
         water = root.find('./defaultWater', 0)
@@ -1457,15 +1461,18 @@ class ProjectXML():
             else:
                 self.default_water = water.text
         else:
-            water = ET.SubElement(root, 'defaultWater')
-            match self.remote_server_name:
-                case 'bngtoolsql':
-                    water.text = r"levels\solo\m50\shaders\water\m50_atrium_fountain_water.shader_water"
-                case 'metawins':
-                    water.text = r"levels\multi\z11_valhalla\materials\valhalla_water_river.material"
-                case 'episql.343i.selfhost.corp.microsoft.com':
-                    water.text = r"levels\sway\ca_sanctuary\materials\rocks\ca_sanctuary_rockflat_water.material"
-            self.default_water = water.text
+            if self.default_water:
+                water.text = self.default_water
+            else:
+                water = ET.SubElement(root, 'defaultWater')
+                match self.remote_server_name:
+                    case 'bngtoolsql':
+                        water.text = r"levels\solo\m50\shaders\water\m50_atrium_fountain_water.shader_water"
+                    case 'metawins':
+                        water.text = r"levels\multi\z11_valhalla\materials\valhalla_water_river.material"
+                    case 'episql.343i.selfhost.corp.microsoft.com':
+                        water.text = r"levels\sway\ca_sanctuary\materials\rocks\ca_sanctuary_rockflat_water.material"
+                self.default_water = water.text
             has_changes = True
             
         blender_path = root.find('./blenderPath', 0)
@@ -1480,6 +1487,18 @@ class ProjectXML():
             blender_path = ET.SubElement(root, 'blenderPath')
             blender_path.text = bpy.app.binary_path
             self.blender_path = blender_path.text
+            has_changes = True
+            
+        last_scenario = root.find('./lastScenario', 0)
+        if last_scenario is not None:
+            if self.last_scenario and last_scenario.text != self.last_scenario:
+                last_scenario.text = self.last_scenario
+                has_changes = True
+            else:
+                self.last_scenario = last_scenario.text
+        elif self.last_scenario:
+            last_scenario = ET.SubElement(root, 'lastScenario')
+            last_scenario.text = self.last_scenario
             has_changes = True
         
         if has_changes:
@@ -1517,6 +1536,7 @@ def setup_projects_list(skip_registry_check=False, report=None):
                 p.corinth = xml.remote_database_name == "tags"
                 p.default_material = xml.default_material
                 p.default_water = xml.default_water
+                p.last_scenario = xml.last_scenario
     
     if new_projects_list:
         # Write new file to ensure sync
@@ -1861,7 +1881,10 @@ def current_project_valid():
     
     return bool(project)
 
-def get_project(project_name):
+def get_project(project_name=None):
+    if project_name is None:
+        project_name = get_scene_props().scene_project
+    
     projects = get_prefs().projects
     if projects:
         for p in projects:
@@ -3150,10 +3173,10 @@ def update_debug_menu(asset_dir="", asset_name="", update_type=DebugMenuType.DEF
                 if file.name.startswith(asset_name) and file.suffix in object_exts:
                     menu_commands.append(DebugMenuCommand(asset_dir, file.name))
         case DebugMenuType.CUBEMAP:
-            menu_commands.append('<item type = command name = "Foundry: Generate Dynamic Cubemaps" variable = "\(cubemap_dynamic_generate\)">\n')
+            menu_commands.append('<item type = command name = "Foundry: Generate Dynamic Cubemaps" variable = "\\(cubemap_dynamic_generate\\)">\n')
         case DebugMenuType.IMPOSTER:
             for idx, name in enumerate(bsp_names):
-                menu_commands.append(f'<item type = command name = "Foundry: Generate Instance Imposters for BSP {name}" variable = "\(structure_instance_snapshot {idx}\)">\n')
+                menu_commands.append(f'<item type = command name = "Foundry: Generate Instance Imposters for BSP {name}" variable = "\\(structure_instance_snapshot {idx}\\)">\n')
             
     menu_path = os.path.join(get_project_path(), 'bin', 'debug_menu_user_init.txt')
     valid_lines = None
@@ -3388,7 +3411,7 @@ def area_light_to_emissive(light_ob: bpy.types.Object, corinth: bool):
             bsdf.inputs[0].default_value = invis_mat.diffuse_color
             bsdf.inputs[4].default_value = invis_mat.diffuse_color[3]
             invis_mat.blend_method = 'BLEND'
-            invis_mat.nwo.shader_path = 'levels\shared\shaders\simple\invis.material'
+            invis_mat.nwo.shader_path = r'levels\shared\shaders\simple\invis.material'
         plane_data.materials.append(invis_mat)
     else:
         plane_nwo.mesh_type = "_connected_geometry_mesh_type_structure" # saves on the instance budget

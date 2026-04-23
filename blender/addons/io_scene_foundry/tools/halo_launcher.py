@@ -7,11 +7,13 @@ import xml.etree.ElementTree as ET
 from ..ui.bar import draw_game_launcher_pruning, draw_game_launcher_settings
 from ..managed_blam.scenario import ScenarioTag
 from ..utils import (
+    ProjectXML,
     get_asset_path_full,
     get_data_path,
     get_exe,
     get_launcher_props,
     get_prefs,
+    get_project,
     get_project_path,
     get_scene_props,
     get_tags_path,
@@ -82,15 +84,13 @@ def _install_foundation_plugin(project_path, plugin_path, plugins_xml):
             
             update_required = source_version > version
             
-        if not update_required:
-            return
-        
-        dir = plugin_path.parent
-        
-        if not dir.exists():
-            dir.mkdir(parents=True, exist_ok=True)
+        if update_required:
+            dir = plugin_path.parent
             
-        copy_file(source_plugin_path, plugin_path)
+            if not dir.exists():
+                dir.mkdir(parents=True, exist_ok=True)
+                
+            copy_file(source_plugin_path, plugin_path)
         
         tree = ET.parse(plugins_xml)
         root = tree.getroot()
@@ -351,14 +351,33 @@ def launch_foundation(settings, context, report):
 
     return {"FINISHED"}
 
-def launch_game(is_sapien, settings, filepath, scene_nwo, ignore_play=False):
+def launch_game(is_sapien, settings, filepath, scene_nwo, ignore_play=False, report=None):
     asset_path = scene_nwo.asset_directory
     asset_name = scene_nwo.asset_name
-    if scene_nwo.asset_type == 'model' and get_prefs().debug_menu_on_launch:
+    
+    prefs = get_prefs()
+    
+    if scene_nwo.asset_type == 'model' and prefs.debug_menu_on_launch:
         update_debug_menu(asset_path, asset_name)
-    # get the program to launch
     
     asset_type = scene_nwo.asset_type
+    
+    if not filepath or not Path(filepath).exists() or Path(filepath).suffix.lower() != ".scenario" or settings.game_default == "last":
+        filepath = get_project().last_scenario
+        if not filepath:
+            if report:
+                report({'WARNING'}, "No scenario selected")
+            return
+        
+        last_scenario_fp = Path(get_tags_path(), filepath).with_suffix(".scenario")
+        if not last_scenario_fp.exists():
+            if report:
+                report({'WARNING'}, f"Tried to load last scenario but it does not exist: {last_scenario_fp}")
+                
+            return
+        
+        filepath = str(last_scenario_fp)
+    
     if asset_type in {"scenario", "cinematic"} and settings.game_default == "asset":
         if asset_type == "scenario":
             new_filepath = get_tag_if_exists(asset_path, asset_name, "scenario")
@@ -585,17 +604,23 @@ def launch_game(is_sapien, settings, filepath, scene_nwo, ignore_play=False):
                     f'game_start "{str(Path(relative_path(filepath)).with_suffix(""))}"\n'
                 )
 
+    # write last scenario to project
+    project = get_project()
+    if project:
+        project_xml = Path(project.project_xml)
+        if project_xml.exists():
+            xml = ProjectXML()
+            xml.last_scenario = str(Path(relative_path(filepath)).with_suffix(""))
+            xml.parse(project_xml.parent)
+            project.last_scenario = xml.last_scenario
+    
     run_ek_cmd(args, True)
-
-    return {"FINISHED"}
 
 def open_file_explorer_default(is_tags, tags_dir, data_dir):
     if is_tags:
         os.startfile(tags_dir)
     else:
         os.startfile(data_dir)
-
-    return {"FINISHED"}
 
 def open_file_explorer(type, is_tags, scene_nwo):
     tags_dir = get_tags_path()
@@ -606,10 +631,10 @@ def open_file_explorer(type, is_tags, scene_nwo):
             if is_tags:
                 if Path(tags_dir, asset_path).exists():
                     os.startfile(Path(tags_dir, asset_path))
-                    return {"FINISHED"}
+                    return
             else:
                 os.startfile(Path(data_dir, asset_path))
-                return {"FINISHED"}
+                return
 
     if type == "asset" or type == "blend":
         blend_folder = os.path.dirname(bpy.data.filepath)
@@ -623,19 +648,19 @@ def open_file_explorer(type, is_tags, scene_nwo):
             folder_path3 = os.path.dirname(folder_path2)
             if os.path.exists(folder_path):
                 os.startfile(folder_path)
-                return {"FINISHED"}
+                return
             elif os.path.exists(folder_path2):
                 os.startfile(folder_path2)
-                return {"FINISHED"}
+                return
             elif os.path.exists(folder_path3):
                 os.startfile(folder_path3)
-                return {"FINISHED"}
+                return
             else:
                 return open_file_explorer_default(is_tags, tags_dir, data_dir)
         
         elif Path(data_dir, relative).exists():
             os.startfile(Path(data_dir, relative))
-            return {"FINISHED"}
+            return
         
     return open_file_explorer_default(is_tags, tags_dir, data_dir)
 
@@ -678,7 +703,8 @@ class NWO_HaloLauncher_Foundation(bpy.types.Operator):
     def execute(self, context):
         from .halo_launcher import launch_foundation
 
-        return launch_foundation(get_launcher_props(), context, self.report)
+        launch_foundation(get_launcher_props(), context, self.report)
+        return {'FINISHED'}
 
 
 class NWO_HaloLauncher_Data(bpy.types.Operator):
@@ -692,14 +718,15 @@ class NWO_HaloLauncher_Data(bpy.types.Operator):
         return current_project_valid()
 
     def execute(self, context):
-        scene = context.scene
         scene_nwo_halo_launcher = get_launcher_props()
 
-        return open_file_explorer(
+        open_file_explorer(
             scene_nwo_halo_launcher.explorer_default,
             False,
             get_scene_props()
         )
+        
+        return {'FINISHED'}
 
 
 class NWO_HaloLauncher_Tags(bpy.types.Operator):
@@ -715,11 +742,13 @@ class NWO_HaloLauncher_Tags(bpy.types.Operator):
     def execute(self, context):
         scene_nwo_halo_launcher = get_launcher_props()
 
-        return open_file_explorer(
+        open_file_explorer(
             scene_nwo_halo_launcher.explorer_default,
             True,
             get_scene_props()
         )
+        
+        return {'FINISHED'}
         
 class NWO_HaloLauncher_Granny(bpy.types.Operator):
     bl_idname = "nwo.launch_granny_viewer"
@@ -784,12 +813,11 @@ class NWO_HaloLauncher_Sapien(bpy.types.Operator):
         return current_project_valid()
 
     def execute(self, context):
-        scene = context.scene
         scene_nwo_halo_launcher = get_launcher_props()
-        return launch_game(True, scene_nwo_halo_launcher, self.filepath.lower(), get_scene_props(), self.ignore_play)
+        launch_game(True, scene_nwo_halo_launcher, self.filepath.lower(), get_scene_props(), self.ignore_play, self.report)
+        return {'FINISHED'}
 
     def invoke(self, context, event):
-        scene = context.scene
         scene_nwo_halo_launcher = get_launcher_props()
         scene_nwo = get_scene_props()
         if (
@@ -839,7 +867,8 @@ class NWO_HaloLauncher_TagTest(bpy.types.Operator):
     def execute(self, context):
         scene_nwo = get_scene_props()
         scene_nwo_halo_launcher = get_launcher_props()
-        return launch_game(False, scene_nwo_halo_launcher, self.filepath.lower(), scene_nwo, self.ignore_play)
+        launch_game(False, scene_nwo_halo_launcher, self.filepath.lower(), scene_nwo, self.ignore_play, self.report)
+        return {'FINISHED'}
 
     def invoke(self, context, event):
         scene_nwo = get_scene_props()
@@ -868,7 +897,6 @@ class NWO_HaloLauncher_TagTest(bpy.types.Operator):
 class NWO_HaloLauncherPropertiesGroup(bpy.types.PropertyGroup):
     explorer_default: bpy.props.EnumProperty(
         name="Folder",
-        description="Select whether to open the root data / tags folder, the blend folder, or the one for your asset. When no asset is found, defaults to root",
         default="asset",
         options=set(),
         items=[("default", "Root", ""), ("asset", "Asset", ""), ("blend", "Blend", "")],
@@ -887,10 +915,10 @@ class NWO_HaloLauncherPropertiesGroup(bpy.types.PropertyGroup):
 
     game_default: bpy.props.EnumProperty(
         name="Scenario",
-        description="Select whether to open Sapien / Tag Test and select a scenario, or open the current scenario asset if it exists",
+        description="Select whether to open Sapien / Tag Test and select a scenario, open the current scenario asset if it exists, or load the last scenario launched",
         default="asset",
         options=set(),
-        items=[("default", "Browse", ""), ("asset", "Asset", "")],
+        items=[("default", "Browse", "Opens a file browser. If no valid scenario is selected, fallsback to the last scenario launched"), ("asset", "Asset", "Loads the asset scenario if this is a scenario or cinematic asset. Otherwise opens the file browser"), ("last", "Last", "Loads to the last scenario launched for the current project")],
     )
 
     open_model: bpy.props.BoolProperty(

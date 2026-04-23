@@ -22,6 +22,7 @@ class NWO_Project_ListItems(bpy.types.PropertyGroup):
     default_water: StringProperty()
     tags_directory: StringProperty()
     data_directory: StringProperty()
+    last_scenario: StringProperty()
 
 class NWO_UL_Projects(bpy.types.UIList):
     def draw_item(
@@ -288,8 +289,6 @@ class FoundryPreferences(AddonPreferences):
         default=True,
         description="By default when launching Foundation with Foundry, the Foundry Plugin will be installed for Foundation if it does not already exist (or is out of date). Toggle this off to prevent this behaviour. Launching Foundation with this disabled will also disable the plugin"
     )
-    
-    
 
     def draw(self, context):
         prefs = self
