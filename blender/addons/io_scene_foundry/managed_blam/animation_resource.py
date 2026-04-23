@@ -402,23 +402,25 @@ class KeyframeLightlyQuantizedCodec(CodecBase):
                 node_rotations.append(_normalize_quaternion(x, y, z, w))
             self.rotations.append(node_rotations)
 
-        reader.seek(self.translation_data_offset)
         self.translations = []
-        for keyframes in self.translation_keyframes:
-            node_translations: list[Vector] = []
-            for _ in range(len(keyframes)):
-                node_translations.append(
-                    Vector((reader.read_f32() * 100.0, reader.read_f32() * 100.0, reader.read_f32() * 100.0))
-                )
-            self.translations.append(node_translations)
+        if self.translation_keyframes:
+            reader.seek(self.translation_data_offset)
+            for keyframes in self.translation_keyframes:
+                node_translations: list[Vector] = []
+                for _ in range(len(keyframes)):
+                    node_translations.append(
+                        Vector((reader.read_f32() * 100.0, reader.read_f32() * 100.0, reader.read_f32() * 100.0))
+                    )
+                self.translations.append(node_translations)
 
-        reader.seek(self.scale_data_offset)
         self.scales = []
-        for keyframes in self.scale_keyframes:
-            node_scales: list[float] = []
-            for _ in range(len(keyframes)):
-                node_scales.append(reader.read_f32())
-            self.scales.append(node_scales)
+        if self.scale_keyframes:
+            reader.seek(self.scale_data_offset)
+            for keyframes in self.scale_keyframes:
+                node_scales: list[float] = []
+                for _ in range(len(keyframes)):
+                    node_scales.append(reader.read_f32())
+                self.scales.append(node_scales)
 
     def _read_keyframe_data(self, reader: BinaryReader) -> list[int]:
         keyframes: list[int] = []
@@ -475,44 +477,46 @@ class CurveCodec(CodecBase):
             keyframes = self._read_curve_keyframe_data(key_count, reader) if (flags & 1) == 0 else []
             self.rotations[node_index] = self._read_curve_rotations(reader, keyframes, flags)
 
-        reader.seek(position + self.payload_data_offset + self.translation_data_offset)
-        translation_offsets = [reader.read_u32() for _ in range(self.translated_node_count)]
-        for node_index, node_offset in enumerate(translation_offsets):
-            reader.seek(position + self.payload_data_offset + node_offset)
-            reader.read_u16()
-            key_count = reader.read_u16()
-            flags = reader.read_u8()
-            reader.read_u8()
-            reader.read_u16()
-            offset_x = reader.read_f32()
-            offset_y = reader.read_f32()
-            offset_z = reader.read_f32()
-            scale = reader.read_f32()
-            keyframes = self._read_curve_keyframe_data(key_count, reader) if (flags & 1) == 0 else []
-            self.translations[node_index] = self._read_curve_translations(
-                reader,
-                keyframes,
-                flags,
-                offset_x,
-                offset_y,
-                offset_z,
-                scale,
-                True,
-            )
+        if self.translated_node_count:
+            reader.seek(position + self.payload_data_offset + self.translation_data_offset)
+            translation_offsets = [reader.read_u32() for _ in range(self.translated_node_count)]
+            for node_index, node_offset in enumerate(translation_offsets):
+                reader.seek(position + self.payload_data_offset + node_offset)
+                reader.read_u16()
+                key_count = reader.read_u16()
+                flags = reader.read_u8()
+                reader.read_u8()
+                reader.read_u16()
+                offset_x = reader.read_f32()
+                offset_y = reader.read_f32()
+                offset_z = reader.read_f32()
+                scale = reader.read_f32()
+                keyframes = self._read_curve_keyframe_data(key_count, reader) if (flags & 1) == 0 else []
+                self.translations[node_index] = self._read_curve_translations(
+                    reader,
+                    keyframes,
+                    flags,
+                    offset_x,
+                    offset_y,
+                    offset_z,
+                    scale,
+                    True,
+                )
 
-        reader.seek(position + self.payload_data_offset + self.scale_data_offset)
-        scale_offsets = [reader.read_u32() for _ in range(self.scaled_node_count)]
-        for node_index, node_offset in enumerate(scale_offsets):
-            reader.seek(position + self.payload_data_offset + node_offset)
-            reader.read_u16()
-            key_count = reader.read_u16()
-            flags = reader.read_u8()
-            reader.read_u8()
-            reader.read_u16()
-            offset = reader.read_f32()
-            scale = reader.read_f32()
-            keyframes = self._read_curve_keyframe_data(key_count, reader) if (flags & 1) == 0 else []
-            self.scales[node_index] = self._read_curve_scales(reader, keyframes, flags, offset, scale)
+        if self.scaled_node_count:
+            reader.seek(position + self.payload_data_offset + self.scale_data_offset)
+            scale_offsets = [reader.read_u32() for _ in range(self.scaled_node_count)]
+            for node_index, node_offset in enumerate(scale_offsets):
+                reader.seek(position + self.payload_data_offset + node_offset)
+                reader.read_u16()
+                key_count = reader.read_u16()
+                flags = reader.read_u8()
+                reader.read_u8()
+                reader.read_u16()
+                offset = reader.read_f32()
+                scale = reader.read_f32()
+                keyframes = self._read_curve_keyframe_data(key_count, reader) if (flags & 1) == 0 else []
+                self.scales[node_index] = self._read_curve_scales(reader, keyframes, flags, offset, scale)
 
         reader.seek(position + self.total_compressed_size)
 
