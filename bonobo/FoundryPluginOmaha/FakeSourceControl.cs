@@ -103,6 +103,12 @@ namespace FoundryPlugin
                 "weapon"
             };
 
+        private static readonly HashSet<string> ClipboardAnimationPlayTagTypes =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "frame_event_list"
+            };
+
         private static readonly string[] FolderMenuMarkers =
         {
             "Get Latest",
@@ -518,9 +524,25 @@ namespace FoundryPlugin
 
         private static bool TryBuildClipboardDropScript(ButtonBase button, out string script)
         {
+            return TryBuildRenderModelClipboardDropScript(button, out script) ||
+                TryBuildPlayOnPlayerClipboardScript(button, out script) ||
+                TryBuildSoundClipboardScript(button, out script) ||
+                TryBuildSoundLoopingClipboardScript(button, out script);
+        }
+
+        private static bool TryBuildDropButtonToolTip(ButtonBase button, out string toolTip)
+        {
+            return TryBuildRenderModelDropButtonToolTip(button, out toolTip) ||
+                TryBuildPlayOnPlayerButtonToolTip(button, out toolTip) ||
+                TryBuildSoundButtonToolTip(button, out toolTip) ||
+                TryBuildSoundLoopingButtonToolTip(button, out toolTip);
+        }
+
+        private static bool TryBuildRenderModelClipboardDropScript(ButtonBase button, out string script)
+        {
             script = null;
 
-            string buttonText = GetDropButtonText(button);
+            string buttonText = GetButtonText(button);
             if (!IsClipboardDropButtonText(buttonText))
                 return false;
 
@@ -542,11 +564,11 @@ namespace FoundryPlugin
             return TryBuildPermutationDropScript(dropPanel, relativePathWithExtension, out script);
         }
 
-        private static bool TryBuildDropButtonToolTip(ButtonBase button, out string toolTip)
+        private static bool TryBuildRenderModelDropButtonToolTip(ButtonBase button, out string toolTip)
         {
             toolTip = null;
 
-            string buttonText = GetDropButtonText(button);
+            string buttonText = GetButtonText(button);
             if (!IsClipboardDropButtonText(buttonText))
                 return false;
 
@@ -572,15 +594,440 @@ namespace FoundryPlugin
             return true;
         }
 
+        private static bool TryBuildPlayOnPlayerClipboardScript(ButtonBase button, out string script)
+        {
+            script = null;
+
+            if (!IsAnimationPlayButtonText(GetButtonText(button)))
+                return false;
+
+            object tagPath = TryFindNearbyTagPath(button);
+            if (tagPath == null || !IsSupportedAnimationPlayTagType(tagPath))
+                return false;
+
+            string relativePath = GetTagRelativePath(tagPath);
+            if (string.IsNullOrWhiteSpace(relativePath))
+                return false;
+
+            string animationName = TryGetPlayOnPlayerAnimationName(button);
+            if (string.IsNullOrWhiteSpace(animationName))
+                return false;
+
+            script = "custom_animation (player_get 0) " + relativePath + " " + animationName + " FALSE";
+            return true;
+        }
+
+        private static bool TryBuildPlayOnPlayerButtonToolTip(ButtonBase button, out string toolTip)
+        {
+            toolTip = null;
+
+            string buttonText = GetButtonText(button);
+            if (!IsAnimationPlayButtonText(buttonText))
+                return false;
+
+            if (!IsSupportedAnimationPlayTagType(TryFindNearbyTagPath(button)))
+                return false;
+
+            toolTip = buttonText.Equals("Play on player", StringComparison.OrdinalIgnoreCase)
+                ? "Copies the HS script for playing this animation on the player to the clipboard."
+                : "Copies the HS script for playing this animation to the clipboard.";
+            return true;
+        }
+
+        private static bool TryBuildSoundClipboardScript(ButtonBase button, out string script)
+        {
+            script = null;
+
+            string buttonText = GetButtonText(button);
+            if (!IsSoundPlaybackButtonText(buttonText))
+                return false;
+
+            object soundSection = FindAncestorByTypeName(
+                button,
+                "Bonobo.Plugins.TagCustomSection.SoundSection");
+            if (soundSection == null)
+                return false;
+
+            string tagPath = TryGetSoundTagPath(button, soundSection);
+            if (string.IsNullOrWhiteSpace(tagPath))
+                return false;
+
+            switch (buttonText)
+            {
+                case "Play":
+                    script = BuildHsCommandScript(
+                        "sound_impulse_start_editor",
+                        tagPath,
+                        "NONE",
+                        GetReadablePropertyValue(soundSection, "InputScale"));
+                    return true;
+
+                case "Play on Object":
+                    script = BuildHsCommandScript(
+                        "sound_impulse_start_editor",
+                        tagPath,
+                        GetReadablePropertyValue(soundSection, "Object"),
+                        GetReadablePropertyValue(soundSection, "InputScale"));
+                    return true;
+
+                case "Trigger":
+                    script = BuildHsCommandScript(
+                        "sound_impulse_trigger",
+                        tagPath,
+                        GetReadablePropertyValue(soundSection, "Object"),
+                        GetReadablePropertyValue(soundSection, "InputScale"),
+                        GetReadablePropertyValue(soundSection, "Count"));
+                    return true;
+
+                case "Play w/ Effect":
+                    script = BuildHsCommandScript(
+                        "sound_impulse_start_effect_editor",
+                        tagPath,
+                        GetReadablePropertyValue(soundSection, "Object"),
+                        GetReadablePropertyValue(soundSection, "InputScale"),
+                        GetReadablePropertyValue(soundSection, "EffectName"));
+                    return true;
+
+                case "Play 3D":
+                    script = BuildHsCommandScript(
+                        "sound_impulse_start_3d_editor",
+                        tagPath,
+                        GetReadablePropertyValue(soundSection, "Azimuth"),
+                        GetReadablePropertyValue(soundSection, "InputScale"));
+                    return true;
+
+                case "Stop":
+                    script = BuildHsCommandScript(
+                        "sound_impulse_stop",
+                        tagPath);
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static bool TryBuildSoundButtonToolTip(ButtonBase button, out string toolTip)
+        {
+            toolTip = null;
+
+            string buttonText = GetButtonText(button);
+            if (!IsSoundPlaybackButtonText(buttonText))
+                return false;
+
+            object soundSection = FindAncestorByTypeName(
+                button,
+                "Bonobo.Plugins.TagCustomSection.SoundSection");
+            if (soundSection == null ||
+                string.IsNullOrWhiteSpace(TryGetSoundTagPath(button, soundSection)))
+                return false;
+
+            switch (buttonText)
+            {
+                case "Play":
+                    toolTip = "Copies the HS script for playing this sound to the clipboard.";
+                    return true;
+
+                case "Play on Object":
+                    toolTip = "Copies the HS script for playing this sound on the selected object to the clipboard.";
+                    return true;
+
+                case "Trigger":
+                    toolTip = "Copies the HS script for triggering this sound to the clipboard.";
+                    return true;
+
+                case "Play w/ Effect":
+                    toolTip = "Copies the HS script for playing this sound with the selected effect to the clipboard.";
+                    return true;
+
+                case "Play 3D":
+                    toolTip = "Copies the HS script for playing this sound in 3D to the clipboard.";
+                    return true;
+
+                case "Stop":
+                    toolTip = "Copies the HS script for stopping this sound to the clipboard.";
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static bool TryBuildSoundLoopingClipboardScript(ButtonBase button, out string script)
+        {
+            script = null;
+
+            string buttonText = GetButtonText(button);
+            if (!IsSoundLoopingPlaybackButtonText(buttonText) &&
+                !IsSoundLoopingCheckBoxText(buttonText))
+                return false;
+
+            object soundLoopingSection = FindAncestorByTypeName(
+                button,
+                "Bonobo.Plugins.TagCustomSection.SoundLoopingSection");
+            if (soundLoopingSection == null)
+                return false;
+
+            string tagPath = TryGetSoundLoopingTagPath(button, soundLoopingSection);
+            if (string.IsNullOrWhiteSpace(tagPath))
+                return false;
+
+            if (TryBuildSoundLoopingCheckBoxClipboardScript(button, buttonText, tagPath, out script))
+                return true;
+
+            switch (buttonText)
+            {
+                case "Play":
+                    script = BuildHsCommandScript(
+                        "sound_looping_start_editor",
+                        tagPath,
+                        GetReadablePropertyValue(soundLoopingSection, "Object"),
+                        GetReadablePropertyValue(soundLoopingSection, "InputScale"));
+                    return true;
+
+                case "Stop":
+                    script = BuildHsCommandScript(
+                        "sound_looping_stop",
+                        tagPath);
+                    return true;
+
+                case "Kill":
+                    script = BuildHsCommandScript(
+                        "sound_looping_stop_immediately",
+                        tagPath);
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static bool TryBuildSoundLoopingButtonToolTip(ButtonBase button, out string toolTip)
+        {
+            toolTip = null;
+
+            string buttonText = GetButtonText(button);
+            if (!IsSoundLoopingPlaybackButtonText(buttonText) &&
+                !IsSoundLoopingCheckBoxText(buttonText))
+                return false;
+
+            object soundLoopingSection = FindAncestorByTypeName(
+                button,
+                "Bonobo.Plugins.TagCustomSection.SoundLoopingSection");
+            if (soundLoopingSection == null ||
+                string.IsNullOrWhiteSpace(TryGetSoundLoopingTagPath(button, soundLoopingSection)))
+                return false;
+
+            if (TryBuildSoundLoopingCheckBoxToolTip(button, buttonText, out toolTip))
+                return true;
+
+            switch (buttonText)
+            {
+                case "Play":
+                    toolTip = "Copies the HS script for playing this looping sound to the clipboard.";
+                    return true;
+
+                case "Stop":
+                    toolTip = "Copies the HS script for stopping this looping sound to the clipboard.";
+                    return true;
+
+                case "Kill":
+                    toolTip = "Copies the HS script for killing this looping sound immediately to the clipboard.";
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static bool TryBuildSoundLoopingCheckBoxClipboardScript(
+            ButtonBase button,
+            string buttonText,
+            string tagPath,
+            out string script)
+        {
+            script = null;
+
+            if (buttonText.Equals("Play alternate tracks", StringComparison.OrdinalIgnoreCase))
+            {
+                script = BuildHsCommandScript(
+                    "sound_looping_set_alternate",
+                    tagPath,
+                    IsToggleButtonChecked(button) ? "1" : "0");
+                return true;
+            }
+
+            if (!buttonText.StartsWith("activate layer", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            string layer = ConvertToString(GetReadablePropertyValue(button, "Tag")) ??
+                TryExtractTrailingNumber(buttonText);
+            if (string.IsNullOrWhiteSpace(layer))
+                return false;
+
+            script = BuildHsCommandScript(
+                IsToggleButtonChecked(button)
+                    ? "sound_looping_activate_layer"
+                    : "sound_looping_deactivate_layer",
+                tagPath,
+                layer);
+            return true;
+        }
+
+        private static bool TryBuildSoundLoopingCheckBoxToolTip(
+            ButtonBase button,
+            string buttonText,
+            out string toolTip)
+        {
+            toolTip = null;
+
+            if (buttonText.Equals("Play alternate tracks", StringComparison.OrdinalIgnoreCase))
+            {
+                toolTip = IsToggleButtonChecked(button)
+                    ? "Copies the HS script for enabling alternate tracks on this looping sound to the clipboard."
+                    : "Copies the HS script for disabling alternate tracks on this looping sound to the clipboard.";
+                return true;
+            }
+
+            if (!buttonText.StartsWith("activate layer", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            string layer = ConvertToString(GetReadablePropertyValue(button, "Tag")) ??
+                TryExtractTrailingNumber(buttonText);
+            if (string.IsNullOrWhiteSpace(layer))
+                return false;
+
+            toolTip = IsToggleButtonChecked(button)
+                ? $"Copies the HS script for activating layer {layer} on this looping sound to the clipboard."
+                : $"Copies the HS script for deactivating layer {layer} on this looping sound to the clipboard.";
+            return true;
+        }
+
         private static bool IsClipboardDropButtonText(string buttonText)
         {
             return buttonText.Equals("Drop Variant", StringComparison.OrdinalIgnoreCase) ||
                 buttonText.Equals("Drop Permutation", StringComparison.OrdinalIgnoreCase);
         }
 
-        private static string GetDropButtonText(ButtonBase button)
+        private static bool IsAnimationPlayButtonText(string buttonText)
+        {
+            return buttonText.Equals("Play", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsSoundPlaybackButtonText(string buttonText)
+        {
+            return buttonText.Equals("Play", StringComparison.OrdinalIgnoreCase) ||
+                buttonText.Equals("Play on Object", StringComparison.OrdinalIgnoreCase) ||
+                buttonText.Equals("Trigger", StringComparison.OrdinalIgnoreCase) ||
+                buttonText.Equals("Play w/ Effect", StringComparison.OrdinalIgnoreCase) ||
+                buttonText.Equals("Play 3D", StringComparison.OrdinalIgnoreCase) ||
+                buttonText.Equals("Stop", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsSoundLoopingPlaybackButtonText(string buttonText)
+        {
+            return buttonText.Equals("Play", StringComparison.OrdinalIgnoreCase) ||
+                buttonText.Equals("Stop", StringComparison.OrdinalIgnoreCase) ||
+                buttonText.Equals("Kill", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsSoundLoopingCheckBoxText(string buttonText)
+        {
+            return buttonText.Equals("Play alternate tracks", StringComparison.OrdinalIgnoreCase) ||
+                buttonText.StartsWith("activate layer", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string GetButtonText(ButtonBase button)
         {
             return GetMenuHeaderText(GetReadablePropertyValue(button, "Content"));
+        }
+
+        private static string TryGetSoundTagPath(ButtonBase button, object soundSection)
+        {
+            object tagPath = TryFindNearbyTagPath(button);
+            string relativePathWithExtension = GetTagRelativePathWithExtension(tagPath);
+            if (!string.IsNullOrWhiteSpace(relativePathWithExtension) &&
+                string.Equals(Path.GetExtension(relativePathWithExtension), ".sound", StringComparison.OrdinalIgnoreCase))
+                return relativePathWithExtension;
+
+            string fieldTagPath = ConvertToString(GetReadableFieldValueFromHierarchy(soundSection, "tagPath"));
+            return string.IsNullOrWhiteSpace(fieldTagPath) ||
+                !string.Equals(Path.GetExtension(fieldTagPath), ".sound", StringComparison.OrdinalIgnoreCase)
+                ? null
+                : fieldTagPath;
+        }
+
+        private static string TryGetSoundLoopingTagPath(ButtonBase button, object soundLoopingSection)
+        {
+            object tagPath = TryFindNearbyTagPath(button);
+            string relativePathWithExtension = GetTagRelativePathWithExtension(tagPath);
+            if (!string.IsNullOrWhiteSpace(relativePathWithExtension) &&
+                string.Equals(Path.GetExtension(relativePathWithExtension), ".sound_looping", StringComparison.OrdinalIgnoreCase))
+                return relativePathWithExtension;
+
+            string fieldTagPath = ConvertToString(GetReadableFieldValueFromHierarchy(soundLoopingSection, "tagPath"));
+            return string.IsNullOrWhiteSpace(fieldTagPath) ||
+                !string.Equals(Path.GetExtension(fieldTagPath), ".sound_looping", StringComparison.OrdinalIgnoreCase)
+                ? null
+                : fieldTagPath;
+        }
+
+        private static string BuildHsCommandScript(string commandName, params object[] parameters)
+        {
+            var parts = new List<string>(1 + parameters.Length)
+            {
+                commandName
+            };
+
+            foreach (object parameter in parameters)
+                parts.Add(ConvertToString(parameter) ?? string.Empty);
+
+            return string.Join(" ", parts).Trim();
+        }
+
+        private static bool IsToggleButtonChecked(ButtonBase button)
+        {
+            object value = GetReadablePropertyValue(button, "IsChecked");
+            if (value is bool booleanValue)
+                return booleanValue;
+
+            if (value != null &&
+                bool.TryParse(value.ToString(), out bool parsedValue))
+                return parsedValue;
+
+            return false;
+        }
+
+        private static string TryExtractTrailingNumber(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return null;
+
+            for (int index = text.Length - 1; index >= 0; index--)
+            {
+                if (!char.IsDigit(text[index]))
+                    continue;
+
+                int end = index;
+                int start = index;
+                while (start > 0 && char.IsDigit(text[start - 1]))
+                    start--;
+
+                return text.Substring(start, end - start + 1);
+            }
+
+            return null;
+        }
+
+        private static string TryGetPlayOnPlayerAnimationName(ButtonBase button)
+        {
+            foreach (object candidate in GetAnimationNameCandidates(button))
+            {
+                string animationName = TryExtractAnimationName(
+                    candidate,
+                    new HashSet<object>(ReferenceEqualityComparer.Instance),
+                    0);
+                if (!string.IsNullOrWhiteSpace(animationName))
+                    return animationName;
+            }
+
+            return null;
         }
 
         private static bool TryBuildVariantDropScript(
@@ -670,6 +1117,19 @@ namespace FoundryPlugin
             return ClipboardDropTagTypes.Contains(extension.TrimStart('.'));
         }
 
+        private static bool IsSupportedAnimationPlayTagType(object tagPath)
+        {
+            string extension = ConvertToString(GetReadablePropertyValue(tagPath, "Extension"));
+            if (string.IsNullOrWhiteSpace(extension))
+            {
+                string relativePathWithExtension = GetTagRelativePathWithExtension(tagPath);
+                extension = Path.GetExtension(relativePathWithExtension);
+            }
+
+            return !string.IsNullOrWhiteSpace(extension) &&
+                ClipboardAnimationPlayTagTypes.Contains(extension.TrimStart('.'));
+        }
+
         private static string GetTagRelativePathWithExtension(object tagPath)
         {
             string relativePathWithExtension = ConvertToString(
@@ -689,6 +1149,152 @@ namespace FoundryPlugin
             return relativePath.EndsWith("." + extension, StringComparison.OrdinalIgnoreCase)
                 ? relativePath
                 : relativePath + "." + extension;
+        }
+
+        private static string GetTagRelativePath(object tagPath)
+        {
+            string relativePath = ConvertToString(GetReadablePropertyValue(tagPath, "RelativePath"));
+            if (!string.IsNullOrWhiteSpace(relativePath))
+                return relativePath;
+
+            string relativePathWithExtension = GetTagRelativePathWithExtension(tagPath);
+            if (string.IsNullOrWhiteSpace(relativePathWithExtension))
+                return null;
+
+            int extensionIndex = relativePathWithExtension.LastIndexOf('.');
+            return extensionIndex > 0
+                ? relativePathWithExtension.Substring(0, extensionIndex)
+                : relativePathWithExtension;
+        }
+
+        private static object TryFindNearbyTagPath(DependencyObject start)
+        {
+            var visited = new HashSet<object>(ReferenceEqualityComparer.Instance);
+
+            foreach (object candidate in GetTagPathCandidates(start))
+            {
+                object tagPath = TryExtractTagPath(candidate, visited, 0);
+                if (tagPath != null)
+                    return tagPath;
+            }
+
+            return null;
+        }
+
+        private static IEnumerable<object> GetTagPathCandidates(DependencyObject start)
+        {
+            for (DependencyObject current = start; current != null; current = GetParentObject(current))
+            {
+                yield return current;
+
+                if (current is FrameworkElement frameworkElement)
+                {
+                    if (frameworkElement.DataContext != null)
+                        yield return frameworkElement.DataContext;
+
+                    if (frameworkElement.Tag != null)
+                        yield return frameworkElement.Tag;
+                }
+            }
+        }
+
+        private static object TryExtractTagPath(object value, HashSet<object> visited, int depth)
+        {
+            if (value == null || depth > 4)
+                return null;
+
+            if (LooksLikeTagPath(value))
+                return value;
+
+            Type valueType = value.GetType();
+            if (!valueType.IsValueType && !visited.Add(value))
+                return null;
+
+            foreach (string memberName in new[]
+            {
+                "Path",
+                "TagPath",
+                "TagFile",
+                "_tagPath",
+                "_tagFile",
+                "Field",
+                "Owner",
+                "Source",
+                "Item",
+                "Content",
+                "DataContext",
+                "Tag"
+            })
+            {
+                object nestedValue = GetReadablePropertyValue(value, memberName) ??
+                    GetReadableFieldValue(value, memberName);
+                object nestedTagPath = TryExtractTagPath(nestedValue, visited, depth + 1);
+                if (nestedTagPath != null)
+                    return nestedTagPath;
+            }
+
+            return null;
+        }
+
+        private static bool LooksLikeTagPath(object value)
+        {
+            return !string.IsNullOrWhiteSpace(ConvertToString(GetReadablePropertyValue(value, "RelativePath"))) ||
+                !string.IsNullOrWhiteSpace(ConvertToString(GetReadablePropertyValue(value, "RelativePathWithExtension")));
+        }
+
+        private static IEnumerable<object> GetAnimationNameCandidates(ButtonBase button)
+        {
+            object commandParameter = GetReadablePropertyValue(button, "CommandParameter");
+            if (commandParameter != null)
+                yield return commandParameter;
+
+            for (DependencyObject current = button; current != null; current = GetParentObject(current))
+            {
+                if (current is FrameworkElement frameworkElement)
+                {
+                    if (frameworkElement.DataContext != null)
+                        yield return frameworkElement.DataContext;
+
+                    if (frameworkElement.Tag != null)
+                        yield return frameworkElement.Tag;
+                }
+            }
+        }
+
+        private static string TryExtractAnimationName(object value, HashSet<object> visited, int depth)
+        {
+            if (value == null || depth > 4)
+                return null;
+
+            if (value is string textValue)
+                return string.IsNullOrWhiteSpace(textValue)
+                    ? null
+                    : textValue;
+
+            Type valueType = value.GetType();
+            if (!valueType.IsValueType && !visited.Add(value))
+                return null;
+
+            foreach (string memberName in new[]
+            {
+                "AnimationName",
+                "Name",
+                "DisplayName",
+                "CommandParameter",
+                "Item",
+                "Content",
+                "DataContext",
+                "Tag"
+            })
+            {
+                object nestedValue = GetReadablePropertyValue(value, memberName) ??
+                    GetReadableFieldValue(value, memberName);
+                string animationName = TryExtractAnimationName(nestedValue, visited, depth + 1);
+                if (!string.IsNullOrWhiteSpace(animationName))
+                    return animationName;
+            }
+
+            return null;
         }
 
         private static object FindAncestorByTypeName(DependencyObject start, string fullTypeName)
@@ -929,6 +1535,32 @@ namespace FoundryPlugin
             {
                 return null;
             }
+        }
+
+        private static object GetReadableFieldValueFromHierarchy(object target, string fieldName)
+        {
+            if (target == null)
+                return null;
+
+            for (Type currentType = target.GetType(); currentType != null; currentType = currentType.BaseType)
+            {
+                var field = currentType.GetField(
+                    fieldName,
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.IgnoreCase);
+                if (field == null)
+                    continue;
+
+                try
+                {
+                    return field.GetValue(target);
+                }
+                catch
+                {
+                    return null;
+                }
+            }
+
+            return null;
         }
 
         private static object InvokeParameterlessMethod(object target, string methodName)
