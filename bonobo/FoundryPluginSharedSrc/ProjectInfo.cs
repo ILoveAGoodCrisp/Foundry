@@ -1,4 +1,8 @@
-﻿using Bungie.Project;
+#if CORINTH_RUNTIME
+using Corinth.Project;
+#else
+using Bungie.Project;
+#endif
 using System.IO;
 using System.Xml.Linq;
 

@@ -1,6 +1,10 @@
 ﻿using Bonobo.PluginSystem;
 using Bonobo.PluginSystem.Custom;
+#if CORINTH_RUNTIME
 using Corinth.Utilities;
+#else
+using Bungie.Utilities;
+#endif
 using System;
 using System.Collections.Generic;
 using System.IO;

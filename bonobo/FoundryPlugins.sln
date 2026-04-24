@@ -1,0 +1,41 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36804.6
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FoundryPlugin.Omaha", "FoundryPluginOmaha\FoundryPluginOmaha.csproj", "{4C31694A-24CC-4031-9436-8D9E9384A89F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FoundryPlugin.Midnight", "FoundryPluginMidnight\FoundryPluginMidnight.csproj", "{E4AC8250-181C-4F39-A970-0C5F2B7C783A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FoundryPlugin.Groundhog", "FoundryPluginGroundhog\FoundryPluginGroundhog.csproj", "{C2781A08-E569-40E2-A3A8-2DFAC5819DEF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FoundryPlugin.SharedSource", "FoundryPluginSharedSrc\FoundryPluginSharedView.csproj", "{B240D1AA-1153-4EEA-B4DB-CB99D9AE5FB5}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{4C31694A-24CC-4031-9436-8D9E9384A89F}.Debug|x64.ActiveCfg = Debug|x64
+		{4C31694A-24CC-4031-9436-8D9E9384A89F}.Debug|x64.Build.0 = Debug|x64
+		{4C31694A-24CC-4031-9436-8D9E9384A89F}.Release|x64.ActiveCfg = Release|x64
+		{4C31694A-24CC-4031-9436-8D9E9384A89F}.Release|x64.Build.0 = Release|x64
+		{E4AC8250-181C-4F39-A970-0C5F2B7C783A}.Debug|x64.ActiveCfg = Debug|x64
+		{E4AC8250-181C-4F39-A970-0C5F2B7C783A}.Debug|x64.Build.0 = Debug|x64
+		{E4AC8250-181C-4F39-A970-0C5F2B7C783A}.Release|x64.ActiveCfg = Release|x64
+		{E4AC8250-181C-4F39-A970-0C5F2B7C783A}.Release|x64.Build.0 = Release|x64
+		{C2781A08-E569-40E2-A3A8-2DFAC5819DEF}.Debug|x64.ActiveCfg = Debug|x64
+		{C2781A08-E569-40E2-A3A8-2DFAC5819DEF}.Debug|x64.Build.0 = Debug|x64
+		{C2781A08-E569-40E2-A3A8-2DFAC5819DEF}.Release|x64.ActiveCfg = Release|x64
+		{C2781A08-E569-40E2-A3A8-2DFAC5819DEF}.Release|x64.Build.0 = Release|x64
+		{B240D1AA-1153-4EEA-B4DB-CB99D9AE5FB5}.Debug|x64.ActiveCfg = Debug|x64
+		{B240D1AA-1153-4EEA-B4DB-CB99D9AE5FB5}.Release|x64.ActiveCfg = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {D51AA435-8850-4ED4-9F5D-09F204D63697}
+	EndGlobalSection
+EndGlobal

@@ -5,17 +5,14 @@
 copy to add-ons.bat
 .DS_Store
 /blender/addons/io_scene_foundry/.vscode/settings.json
-/.vs
+*.vs
+*bin
+*obj
 /packages
-/obj
-/bin
-/FoundryBlam/bin
-/FoundryBlam/obj
-/FoundryBlam/FoundryBlamCorinth/bin
-/FoundryBlam/FoundryBlamCorinth/obj
-/FoundryBlam/FoundryBlamCorinth/*.cs
 /.vscode
 *.user
 *.vsidx
 *.lock
 *.csproj
+*.htm
+*.resources
