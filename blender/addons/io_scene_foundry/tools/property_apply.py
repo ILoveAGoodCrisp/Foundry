@@ -45,7 +45,9 @@ all_prefixes = [p for p in all_prefixes if p != '']
 all_prefixes = set(all_prefixes)
 
 import bpy
-from ..utils import is_corinth
+
+from ..constants import VALID_FRAMES, VALID_MESHES
+from ..utils import is_corinth, get_prefs, is_frame
 from ..tools.materials import convention_materials
 
 special_materials = (
@@ -141,3 +143,47 @@ def apply_prefix(ob, type, setting):
     prefix = type_dict[setting]
     ob.name = prefix + no_prefix
     
+types = {
+    # Mesh
+    '_connected_geometry_mesh_type_default': ('render:', ''),
+    '_connected_geometry_mesh_type_poop': ('instance:', '%'),
+    '_connected_geometry_mesh_type_collision': ('collision:', '@'),
+    '_connected_geometry_mesh_type_physics': ('physics:', '$'),
+    '_connected_geometry_mesh_type_object_instance': ('flair:', '%'),
+    '_connected_geometry_mesh_type_structure': ('structure:', ''),
+    '_connected_geometry_mesh_type_seam': ('seam:', 'seam:'),
+    '_connected_geometry_mesh_type_portal': ('portal:', 'portal:'),
+    '_connected_geometry_mesh_type_water_surface': ('water:', "'"),
+    '_connected_geometry_mesh_type_poop_vertical_rain_sheet': ('rain_sheet:', '%'),
+    '_connected_geometry_mesh_type_planar_fog_volume': ('planar_fog_volume:', 'planar_fog_volume:'),
+    '_connected_geometry_mesh_type_lightmap_region': ('lightmap_region:', 'lightmap_region:'),
+    '_connected_geometry_mesh_type_boundary_surface': ('boundary_surface:', 'boundary_surface:'),
+    '_connected_geometry_mesh_type_obb_volume': ('obb_volume:', 'obb_volume:'),
+    '_connected_geometry_mesh_type_cookie_cutter': ('cookie_cutter:', 'cookie_cutter:'),
+    '_connected_geometry_mesh_type_poop_rain_blocker': ('rain_blocker:', 'rain_blocker:'),
+}
+    
+def apply_prefix_bulk(objects):
+    setting = get_prefs().apply_prefix
+    if setting == 'none':
+        return
+    
+    prefix_type = int(setting == 'legacy')
+    
+    for ob in objects:
+        original_name = ob.name
+        no_prefix = original_name
+        for p in all_prefixes:
+            if original_name.startswith(p):
+                no_prefix = original_name[len(p):]
+                if no_prefix: break
+                
+        if ob.type in VALID_FRAMES:
+            if is_frame(ob):
+                ob.name = f"frame_{no_prefix}"
+            else:
+                ob.name = f"{'$' if ob.nwo.marker_type == '_connected_geometry_marker_type_physics_constraint' else '#'}{no_prefix}"
+        elif ob.type in VALID_MESHES:
+            mesh_type = types.get(ob.data.nwo.mesh_type)
+            if mesh_type is not None:
+                ob.name = f"{mesh_type[prefix_type]}{no_prefix}"

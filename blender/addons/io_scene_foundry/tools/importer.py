@@ -53,7 +53,7 @@ from ..managed_blam.bitmap import bitmap_to_image, clear_path_cache
 from ..managed_blam.camera_track import CameraTrackTag
 from ..managed_blam.collision_model import CollisionTag
 from ..tools.clear_duplicate_materials import clear_duplicate_materials
-from ..tools.property_apply import apply_props_material
+from ..tools.property_apply import apply_props_material, apply_prefix_bulk
 from ..tools.shader_finder import find_shaders
 from ..tools.shader_reader import tag_to_nodes
 from ..constants import IDENTITY_MATRIX, OBJECT_TAG_EXTS, VALID_MESHES, WU_SCALAR
@@ -1584,6 +1584,8 @@ class NWO_Import(bpy.types.Operator):
 
                 if switch_blender_scene is not None and context.window.scene != switch_blender_scene:
                     context.window.scene = switch_blender_scene
+                    
+                apply_prefix_bulk(imported_objects)
                     
                 # # Clamp lights
                 # utils.print_tag("Clamping Lights")

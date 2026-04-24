@@ -2586,3 +2586,6 @@ class NWO_OT_SingleList_Remove_Animation_Event(bpy.types.Operator):
             animation.active_animation_event_index += -1
         context.area.tag_redraw()
         return {"FINISHED"}
+    
+class NWO_OT_AnimationNameEdit(bpy.types.Operator):
+    pass
