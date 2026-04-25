@@ -38,6 +38,7 @@ class NWO_OT_CameraSync(bpy.types.Operator):
         return utils.current_project_valid()
     
     def execute(self, context):
+        return {'CANCELLED'} # TEMP
         scene_nwo = utils.get_scene_props()
         if self.cancel_sync:
             scene_nwo.camera_sync_active = False

@@ -3417,7 +3417,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         shader_type = "Material" if self.h4 else "Shader"
         self.draw_expandable_box(self.box.box(), nwo, "asset_shaders", f"Asset {shader_type}s")
         self.draw_expandable_box(self.box.box(), nwo, "importer")
-        self.draw_expandable_box(self.box.box(), nwo, "camera_sync")
+        # self.draw_expandable_box(self.box.box(), nwo, "camera_sync") TEMP
         self.draw_expandable_box(self.box.box(), nwo, "animation_tools")
         if utils.poll_ui(('model', 'animation', 'sky', 'resource')):
             self.draw_expandable_box(self.box.box(), nwo, "rig_tools")

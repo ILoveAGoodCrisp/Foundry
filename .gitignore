@@ -18,3 +18,4 @@ copy to add-ons.bat
 *.resources
 blender\addons\io_scene_foundry\resources
 /blender/addons/io_scene_foundry/wheels/
+*blender_manifest.toml
