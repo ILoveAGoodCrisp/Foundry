@@ -2860,6 +2860,8 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         options=set(),
         description="Adds empty camera and atmosphere globals to the scenario if they do not exist. If a scenario template is in use then these will first be instead copied from the template scenario"
     )
+    
+    
 
     light_tools_active: bpy.props.BoolProperty(options=set())
     light_tools_pinned: bpy.props.BoolProperty(options=set())

@@ -2,6 +2,8 @@
 from pathlib import Path
 import bpy
 import os
+
+from ..managed_blam import Tag
 from ..managed_blam.shader import ShaderTag
 from ..managed_blam.material import MaterialTag
 from .. import utils
@@ -41,8 +43,13 @@ def build_shader(material, corinth, folder="", report=None):
         with MaterialTag(path=shader_path.with_suffix(".material")) as tag:
             nwo.shader_path = tag.write_tag(material, nwo.uses_blender_nodes, material_shader=nwo.material_shader)
     else:
-        with ShaderTag(path=shader_path.with_suffix(".shader")) as tag:
-            nwo.shader_path = tag.write_tag(material, nwo.uses_blender_nodes)
+        if nwo.uses_blender_nodes:
+            with ShaderTag(path=shader_path.with_suffix(".shader")) as tag:
+                nwo.shader_path = tag.write_tag(material, nwo.uses_blender_nodes)
+        else:
+            with Tag(path=shader_path.with_suffix(nwo.shader_type)) as tag:
+                nwo.shader_path = tag.tag_path.RelativePathWithExtension
+        
         if report is not None:
             report({'INFO'}, f"Created Shader Tag for {material.name}")
 
@@ -125,9 +132,11 @@ class NWO_Shader_BuildSingle(bpy.types.Operator):
     
     @classmethod
     def description(cls, context, properties) -> str:
-        tag_type = 'material' if utils.is_corinth(context) else 'shader'
+        h4 = utils.is_corinth(context)
+        tag_type = 'material' if h4 else 'shader'
+        added_bit = "" if h4 else ". Ignores the set shader type, instead using blender shader nodes to determine the type"
         if properties.linked_to_blender:
-            return f"Creates an linked {tag_type} tag for this material. The tag will populate using Blender Material Nodes"
+            return f"Creates an linked {tag_type} tag for this material. The tag will populate using Blender Material Nodes{added_bit}"
         else:
             return f"Creates an empty {tag_type} tag for this material"
 

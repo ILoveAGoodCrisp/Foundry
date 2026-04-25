@@ -2909,7 +2909,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col_props = col.column()
             col_props.use_property_split = True
             col_props.prop(bitmap, "bitmap_type", text="Type")
-            col_props.prop(bitmap, "reexport_tiff", text="Always Export Image")
+            col_props.prop(bitmap, "reexport_tiff", text="Update source TIFF")
             
     def draw_cinematic_events(self, nwo, ob, box):
         row = box.row()
