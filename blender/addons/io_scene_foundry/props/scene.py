@@ -1273,7 +1273,7 @@ class NWO_AnimationPropertiesGroup(bpy.types.PropertyGroup):
             ),
             (
                 "xyzyaw",
-                "Full & Yaw",
+                "Horizontal, Vertical & Yaw",
                 "Object can turn on its Z axis and move in any direction. Useful for jumping animations.\nLegacy format: JMZ\nExamples: climb, jump_down_long, jump_forward_short",
             ),
             (
@@ -1342,116 +1342,143 @@ class NWO_AnimationPropertiesGroup(bpy.types.PropertyGroup):
 
 
     # Tag animation props
+    def author_type_items(self, context):
+        return [
+            ('TAG', "Tag", "Properties must are set by directly editing the tag", get_icon_id('tags'), 0),
+            ('BLENDER', "Blender", "Properties are set in Blender, and when exporting animations the properties set here will override the tag", 'BLENDER', 1),
+        ]
+    
     author_type: bpy.props.EnumProperty(
         name="Author Type",
-        items=[
-            ('TAG', "Tag", ""),
-            ('BLENDER', "Blender", ""),
-        ]
+        items=author_type_items,
     )
     
     weight: bpy.props.FloatProperty(
         name="Weight",
+        options=set(),
         description="Weights the chance that this animation plays compared to other variants (denoted by an animation name ending in var[x] e.g. var2)\nThe chance that this animation plays depends on the weight of the other variants. The calculation is total weights / current animation weight.\nFor example given 3 animations with weights 4, 1, 1. The first has a 75% chance of playing, the other two each a 12.5% chance",
         min=0
     ) # when animation name has var only
     loop_frame_index: bpy.props.IntProperty(
         name="Loop Frame",
+        options=set(),
         description="No clue"
     )
     # Flags
     disable_interpolation_in: bpy.props.BoolProperty(
         name="Disable Interpolation In",
+        options=set(),
         description="Don't interpolate from the previous animation",
     )
     disable_interpolation_out: bpy.props.BoolProperty(
         name="Disable Interpolation Out",
+        options=set(),
         description="Don't interpolate to the next animation",
     )
     disable_mode_ik: bpy.props.BoolProperty(
         name="Disable Mode IK",
+        options=set(),
         description="Ignore the IK set for this animation's mode (e.g. combat), if one is set in the tag",
     )
     disable_weapon_ik: bpy.props.BoolProperty(
         name="Disable Weapon IK",
+        options=set(),
         description="Ignore the IK set for this animation's weapon type (e.g. rifle) or weapon type (e.g. br), if one is set in the tag",
     )
     disable_weapon_aim: bpy.props.BoolProperty(
         name="Disable Weapon Aim",
+        options=set(),
         description="Prevents weapon aim overlays from playing",
     )
     disable_look_screen: bpy.props.BoolProperty(
         name="Disable Look Screen",
+        options=set(),
         description="Prevents look overlays from playing on this animation",
     )
     disable_transition_adjustment: bpy.props.BoolProperty(
         name="Disable Transition Adjustment",
+        options=set(),
         description="Not sure",
     )
     force_weapon_ik_on: bpy.props.BoolProperty(
         name="Force Weapon IK On",
+        options=set(),
         description="Forces this animation to use the weapon IK defined in the animation graph tag (weapon ik block)",
     )
     enable_animated_source_interpolation: bpy.props.BoolProperty(
         name="Enable Animated Source Interpolation",
+        options=set(),
         description="Who can say"
     )
     disable_ik_sets: bpy.props.BoolProperty(
         name="Disable IK sets",
+        options=set(),
         description="This animation will not use any IK sets",
     )
     disable_ik_chains: bpy.props.BoolProperty(
         name="Disable IK Chains",
+        options=set(),
         description="This animation will not use IK chain events"
     )
     translate_and_scale_root_only: bpy.props.BoolProperty(
         name="Translate and Scale Root Only",
+        options=set(),
         description="Ignore all transition and scale on all nodes except the root (i.e. pedestal)"
     )
     enable_blend_out_on_replacement_anims: bpy.props.BoolProperty(
         name="Enable Blend Out",
+        options=set(),
         description="Fade out back to the current base animation as the animation reaches it end"
     )
     disable_subframe_interp_on_loop: bpy.props.BoolProperty(
         name="Disable Subframe interpolation on Loop",
+        options=set(),
         description=""
     )
     override_player_input_with_motion: bpy.props.BoolProperty(
         name="Override Player Input with Motion",
+        options=set(),
         description="Use the movement data in this animation instead of player physics (player only)"
     )
     
     # Production Flags
     do_not_monitor_changes: bpy.props.BoolProperty(
         name="Do Not Monitor Changes",
+        options=set(),
         description="<- Clueless"
     )
     verify_sound_events: bpy.props.BoolProperty(
-        name="Do Not Monitor Changes",
+        name="Verify Sound Events",
+        options=set(),
         description="?"
     )
     do_not_inherit_for_player_graphs: bpy.props.BoolProperty(
-        name="Do not Inherit for player graphs",
+        name="Do Not Inherit For Player Graphs",
+        options=set(),
         description="Animation graph tags using this graph as a parent won't be able to use this animation"
     )
     keep_raw_data_in_tag: bpy.props.BoolProperty( # H4
         name="Keep raw data in tag",
+        options=set(),
         description="IDK, cache build only?"
     )
     allow_ball_roll_on_foot: bpy.props.BoolProperty( # H4
         name="Allow Ball Roll on Foot",
+        options=set(),
         description="Prevents foot-ik from settling"
     )
     
     # PCA
     pca_group_name: bpy.props.StringProperty(
         name="PCA Group Name",
+        options=set(),
         description="If this animation contains PCA (shape key) mesh animation, this is the PCA group it will belong to",
         default="default"
     )
     
     pca_best_quality: bpy.props.BoolProperty(
         name=f"PCA Best Quality",
+        options=set(),
         description="If this animation contains PCA (shape key) mesh animation, assigns it a unique group and sets its blend shape count to the frame count minus 1. Don't use this if you care about filesizes, this can make a very large pca_animation tag"
     )
     
@@ -1459,12 +1486,16 @@ class NWO_AnimationPropertiesGroup(bpy.types.PropertyGroup):
     
     override_blend_in_time: bpy.props.FloatProperty(
         name="Override Blend In Time",
+        options=set(),
         default=0,
+        min=0,
     )
     override_blend_out_time: bpy.props.FloatProperty(
         name="Override Blend Out Time",
+        options=set(),
         description="Replacement animations only",
         default=0,
+        min=0,
     )
     
 
@@ -1961,7 +1992,7 @@ class NWO_CinematicEvent(PropertyGroup):
     
     default_sound_effect: bpy.props.StringProperty(
         name="Sound Effect",
-        description="The sound effect to play on top of the dialogue. Uses the sound effects defined in sound\global_fx.sound_effect_collection",
+        description="The sound effect to play on top of the dialogue. Uses the sound effects defined in sound\\global_fx.sound_effect_collection",
         options=set(),
     )
     
@@ -1979,7 +2010,7 @@ class NWO_CinematicEvent(PropertyGroup):
     
     subtitle_character: bpy.props.StringProperty(
         name="Subtitle Character",
-        description="Reference to character name in globals\globals.globals tag -> cinematic globals -> cinematic characters. Subtitles will use the color set here instead of the default",
+        description="Reference to character name in globals\\globals.globals tag -> cinematic globals -> cinematic characters. Subtitles will use the color set here instead of the default",
         options=set(),
     )
     
@@ -2963,6 +2994,12 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         default=True,
         options=set(),
     )
+    
+    animation_renames_expanded: bpy.props.BoolProperty(default=True, options=set())
+    animation_events_expanded: bpy.props.BoolProperty(default=True, options=set())
+    animation_event_data_expanded: bpy.props.BoolProperty(default=True, options=set())
+    animation_nodes_expanded: bpy.props.BoolProperty(default=True, options=set())
+    animation_tag_props_expanded: bpy.props.BoolProperty(default=False, options=set())
 
     def render_clean_tag_path(self, context):
         self["template_render_model"] = utils.clean_tag_path(self["template_render_model"],
