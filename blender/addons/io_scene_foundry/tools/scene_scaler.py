@@ -11,8 +11,8 @@ class NWO_ScaleScene(bpy.types.Operator):
     bl_description = "Scales and rotates the blender scene"
     bl_options = {"REGISTER","UNDO"}
     
-    scale_factor: bpy.props.FloatProperty(
-        default=1,
+    scale_factor: bpy.props.FloatVectorProperty(
+        default=(1, 1, 1),
         options={'SKIP_SAVE'},
         description='Scale factor to apply to the scene. Change this to override the default set by the Blender/Halo Scale'
         )
@@ -88,14 +88,16 @@ class NWO_ScaleScene(bpy.types.Operator):
     )
     
     def execute(self, context):
+        scale_factor = max(self.scale_factor)
+        scale_vector = self.scale_factor if self.scale == 'custom' else None
         if self.scale == 'none':
-            self.scale_factor = 1
+            scale_factor = 1
         elif self.scale == 'blender':
-            self.scale_factor = 0.03048
+            scale_factor = 0.03048
         elif self.scale == 'max':
-            self.scale_factor = (1 / 0.03048)
+            scale_factor = (1 / 0.03048)
         
-        if not (self.scale_factor != 1 or self.rotation):
+        if not (scale_factor != 1 or self.rotation or scale_vector is not None):
             self.report({'INFO'}, "No scaling or rotation applied")
             return {'FINISHED'}
             
@@ -116,7 +118,7 @@ class NWO_ScaleScene(bpy.types.Operator):
             else:
                 actions_to_transform = set()
                 
-        utils.transform_scene(context, self.scale_factor, self.rotation, scene_nwo.forward_direction, self.forward, keep_marker_axis=self.maintain_marker_axis, objects=objects_to_transform, actions=actions_to_transform, exclude_scale_models=self.exclude_scale_models, scale_light_energy=True)
+        utils.transform_scene(context, scale_factor, self.rotation, scene_nwo.forward_direction, self.forward, keep_marker_axis=self.maintain_marker_axis, objects=objects_to_transform, actions=actions_to_transform, exclude_scale_models=self.exclude_scale_models, scale_light_energy=True, scale_vector=scale_vector)
 
         if old_object:
             utils.set_active_object(old_object)

@@ -237,43 +237,368 @@ class ShaderTag(Tag):
             if self.corinth:
                 self._from_nodes_group()
         else:
-            def get_basic_mapping(blender_material):
-                """Maps all the important parts we need from a blender material node tree to generate a basic shader"""
-                maps = {}
-                node_tree = blender_material.node_tree
-                if node_tree and node_tree.nodes:
-                    shader_node = utils.get_blender_shader(node_tree)
-                    if not shader_node:
-                        albedo_tint = utils.get_material_albedo(blender_material)
-                        if albedo_tint:
-                            maps['albedo_tint'] = albedo_tint
-                        return maps
-                    
-                    maps['bsdf'] = shader_node
-                    diffuse = utils.find_linked_node(shader_node, 'base color', 'TEX_IMAGE')
-                    if diffuse:
-                        maps['diffuse'] = diffuse
-                    specular = utils.find_linked_node(shader_node, 'specular ior level', 'TEX_IMAGE')
-                    if specular:
-                        maps['specular'] = specular
-                    normal = utils.find_linked_node(shader_node, 'normal', 'TEX_IMAGE')
-                    if normal:
-                        maps['normal'] = normal
-                    self_illum = utils.find_linked_node(shader_node, 'emission color', 'TEX_IMAGE')
-                    if self_illum:
-                        maps['self_illum'] = self_illum
-                    alpha = utils.find_linked_node(shader_node, 'alpha', 'TEX_IMAGE')
-                    if alpha and alpha not in maps.values():
-                        maps['alpha'] = alpha
-                    if diffuse is None:
-                        albedo_tint = utils.get_material_albedo(shader_node)
-                        if albedo_tint:
-                            maps['albedo_tint'] = albedo_tint
-                        
-                return maps
-            self._build_basic(get_basic_mapping(self.blender_material))
+            self._build_basic(self._get_basic_mapping(self.blender_material))
         
         self.tag_has_changes = True
+    
+    def _get_basic_mapping(self, blender_material):
+        """Best-effort mapping from arbitrary Blender node trees to basic Halo shader properties."""
+        maps = {}
+        node_tree = blender_material.node_tree
+        if not node_tree or not node_tree.nodes:
+            albedo_tint = utils.get_material_albedo(blender_material)
+            if albedo_tint:
+                maps['albedo_tint'] = albedo_tint
+            return maps
+        
+        property_keys = ('diffuse', 'specular', 'normal', 'self_illum', 'alpha')
+        zero_scores = {k: 0.0 for k in property_keys}
+        property_hits = {k: [] for k in property_keys}
+        shader_hits = {}
+        traversal_guard = set()
+        hit_order = 0
+        
+        def _norm(text) -> str:
+            if not text:
+                return ''
+            return ''.join(c if (c.isalnum() or c.isspace()) else ' ' for c in str(text).lower()).strip()
+        
+        def _merge_scores(base: dict, delta: dict) -> dict:
+            merged = base.copy()
+            for k, v in delta.items():
+                merged[k] = merged.get(k, 0.0) + v
+            return merged
+        
+        def _scores_from_input(node: bpy.types.Node, input_socket: bpy.types.NodeSocket) -> dict:
+            text = _norm(input_socket.name)
+            score = {k: 0.0 for k in property_keys}
+            
+            if 'base color' in text or 'albedo' in text or 'diffuse' in text:
+                score['diffuse'] += 10.0
+            elif text == 'color' or text.endswith(' color'):
+                score['diffuse'] += 3.0
+            
+            if 'specular' in text or 'rough' in text or 'metal' in text or 'gloss' in text or 'ior' in text or 'reflect' in text:
+                score['specular'] += 8.0
+            if 'normal' in text or 'bump' in text or 'height' in text or 'tangent' in text:
+                score['normal'] += 11.0
+            if 'emission' in text or 'emissive' in text or 'self illum' in text or 'glow' in text:
+                score['self_illum'] += 11.0
+            if 'alpha' in text or 'opacity' in text or 'transparen' in text or 'cutout' in text or 'mask' in text:
+                score['alpha'] += 9.0
+            
+            match node.type:
+                case 'BSDF_PRINCIPLED':
+                    if 'base color' in text:
+                        score['diffuse'] += 18.0
+                    if 'specular' in text:
+                        score['specular'] += 18.0
+                    if text == 'normal':
+                        score['normal'] += 20.0
+                    if 'emission' in text:
+                        score['self_illum'] += 20.0
+                    if text == 'alpha':
+                        score['alpha'] += 20.0
+                case 'NORMAL_MAP' | 'BUMP':
+                    score['normal'] += 12.0
+                case 'EMISSION':
+                    score['self_illum'] += 12.0
+                case 'MIX_SHADER' | 'MIX_RGB' | 'MIX':
+                    if text in {'fac', 'factor'}:
+                        score['alpha'] += 5.0
+            
+            return score
+        
+        def _scores_from_node(node: bpy.types.Node) -> dict:
+            score = {k: 0.0 for k in property_keys}
+            match node.type:
+                case 'NORMAL_MAP' | 'BUMP':
+                    score['normal'] += 6.0
+                case 'EMISSION':
+                    score['self_illum'] += 6.0
+                case 'BSDF_PRINCIPLED':
+                    score['diffuse'] += 1.0
+                    score['specular'] += 1.0
+                    score['normal'] += 1.0
+                    score['self_illum'] += 1.0
+            return score
+        
+        def _scores_from_output(output_name: str) -> dict:
+            text = _norm(output_name)
+            score = {k: 0.0 for k in property_keys}
+            if text == 'alpha':
+                score['alpha'] += 7.0
+                score['specular'] += 2.0
+                score['self_illum'] += 2.0
+            if text in {'color', 'rgb'}:
+                score['diffuse'] += 1.0
+            if 'normal' in text:
+                score['normal'] += 6.0
+            return score
+        
+        def _scores_from_texture_name(node: bpy.types.Node) -> dict:
+            score = {k: 0.0 for k in property_keys}
+            image = getattr(node, 'image', None)
+            name_bits = [node.name, node.label]
+            if image:
+                name_bits.append(image.name)
+                if image.filepath:
+                    name_bits.append(Path(image.filepath).stem)
+            text = _norm(' '.join(filter(None, name_bits)))
+            tokens = set(text.split())
+            compact = ''.join(tokens)
+            
+            if tokens.intersection({'albedo', 'diffuse', 'basecolor', 'base', 'color', 'col', 'bc'}) or 'basecolor' in compact:
+                score['diffuse'] += 6.0
+            if tokens.intersection({'spec', 'specular', 'rough', 'roughness', 'metal', 'metallic', 'gloss', 'orm', 'rma', 'mra'}):
+                score['specular'] += 6.0
+            if tokens.intersection({'normal', 'nrm', 'norm', 'nm', 'bump', 'height'}):
+                score['normal'] += 8.0
+            if tokens.intersection({'emissive', 'emission', 'emit', 'glow', 'selfillum', 'illum', 'si'}):
+                score['self_illum'] += 8.0
+            if tokens.intersection({'alpha', 'opacity', 'mask', 'cutout', 'transparency', 'trans'}):
+                score['alpha'] += 7.0
+            
+            if image and image.colorspace_settings:
+                color_space = image.colorspace_settings.name.lower()
+                if 'non' in color_space:
+                    score['diffuse'] -= 1.5
+                    score['normal'] += 1.0
+                    score['specular'] += 1.0
+                    score['alpha'] += 0.5
+            
+            return score
+        
+        def _register_shader(node: bpy.types.Node, path_scores: dict, distance: int):
+            if not node.type.startswith('BSDF'):
+                return
+            node_id = id(node)
+            input_names = {_norm(i.name) for i in node.inputs}
+            score = 0.0
+            if node.type == 'BSDF_PRINCIPLED':
+                score += 40.0
+            else:
+                score += 22.0
+            if 'base color' in input_names or 'color' in input_names:
+                score += 5.0
+            if any('normal' in name for name in input_names):
+                score += 5.0
+            if any('emission' in name for name in input_names):
+                score += 5.0
+            score += max(0.0, 16.0 - distance)
+            score += path_scores.get('diffuse', 0.0) * 0.25
+            score += path_scores.get('normal', 0.0) * 0.25
+            score += path_scores.get('self_illum', 0.0) * 0.25
+            
+            previous = shader_hits.get(node_id)
+            if previous is None or score > previous['score']:
+                shader_hits[node_id] = {'node': node, 'score': score, 'distance': distance}
+        
+        def _register_image(node: bpy.types.Node, path_scores: dict, output_name: str, distance: int):
+            nonlocal hit_order
+            output_name = _norm(output_name)
+            score = _merge_scores(path_scores, _scores_from_texture_name(node))
+            score = _merge_scores(score, _scores_from_output(output_name))
+            distance_bias = max(0.0, 4.0 - float(min(distance, 4)))
+            has_image = bool(getattr(node, 'image', None))
+            for key in property_keys:
+                final_score = score[key] + distance_bias * (0.25 if key != 'alpha' else 0.1)
+                if final_score <= 0.0:
+                    continue
+                property_hits[key].append(
+                    {
+                        'node': node,
+                        'score': final_score,
+                        'distance': distance,
+                        'output_name': output_name,
+                        'has_image': has_image,
+                        'order': hit_order,
+                    }
+                )
+            
+            hit_order += 1
+        
+        def _walk(node: bpy.types.Node, output_name='', group_stack=(), path_scores=None, distance=0):
+            if node is None:
+                return
+            if path_scores is None:
+                path_scores = zero_scores
+            
+            guard_key = (id(node), _norm(output_name), tuple(id(g) for g in group_stack))
+            if guard_key in traversal_guard:
+                return
+            traversal_guard.add(guard_key)
+            
+            try:
+                current_scores = _merge_scores(path_scores, _scores_from_node(node))
+                _register_shader(node, current_scores, distance)
+                
+                if node.type == 'TEX_IMAGE':
+                    _register_image(node, current_scores, output_name, distance)
+                
+                if node.type == 'GROUP_INPUT':
+                    if group_stack:
+                        parent_group = group_stack[-1]
+                        output_norm = _norm(output_name)
+                        parent_inputs = []
+                        if output_norm:
+                            for parent_input in parent_group.inputs:
+                                if _norm(parent_input.name) == output_norm:
+                                    parent_inputs.append(parent_input)
+                        if not parent_inputs:
+                            parent_inputs = list(parent_group.inputs)
+                        
+                        for parent_input in parent_inputs:
+                            edge_scores = _scores_from_input(parent_group, parent_input)
+                            next_scores = _merge_scores(current_scores, edge_scores)
+                            for link in parent_input.links:
+                                _walk(link.from_node, link.from_socket.name, group_stack[:-1], next_scores, distance + 1)
+                    return
+                
+                if node.type == 'GROUP' and node.node_tree:
+                    output_norm = _norm(output_name)
+                    traversed_internal = False
+                    group_outputs = [n for n in node.node_tree.nodes if n.type == 'GROUP_OUTPUT']
+                    for group_output in group_outputs:
+                        for group_input in group_output.inputs:
+                            if output_norm and _norm(group_input.name) != output_norm:
+                                continue
+                            edge_scores = _scores_from_input(group_output, group_input)
+                            next_scores = _merge_scores(current_scores, edge_scores)
+                            for link in group_input.links:
+                                traversed_internal = True
+                                _walk(link.from_node, link.from_socket.name, group_stack + (node,), next_scores, distance + 1)
+                    if traversed_internal:
+                        return
+                
+                for input_socket in node.inputs:
+                    if not input_socket.links:
+                        continue
+                    edge_scores = _scores_from_input(node, input_socket)
+                    next_scores = _merge_scores(current_scores, edge_scores)
+                    for link in input_socket.links:
+                        _walk(link.from_node, link.from_socket.name, group_stack, next_scores, distance + 1)
+            finally:
+                traversal_guard.discard(guard_key)
+        
+        surface_links = []
+        for output_node in node_tree.nodes:
+            if output_node.type != 'OUTPUT_MATERIAL':
+                continue
+            surface_input = output_node.inputs.get('Surface')
+            if surface_input is None and output_node.inputs:
+                surface_input = output_node.inputs[0]
+            if not surface_input or not surface_input.links:
+                continue
+            for link in surface_input.links:
+                surface_links.append((surface_input, link))
+        
+        for surface_input, link in surface_links:
+            seed_scores = _scores_from_input(surface_input.node, surface_input)
+            _walk(link.from_node, link.from_socket.name, tuple(), seed_scores, 0)
+        
+        if not any(property_hits.values()):
+            for node in node_tree.nodes:
+                _register_shader(node, zero_scores, 32)
+                if node.type == 'TEX_IMAGE':
+                    _register_image(node, zero_scores, '', 32)
+        
+        bsdf_node = None
+        if shader_hits:
+            best_shader = sorted(
+                shader_hits.values(),
+                key=lambda hit: (-hit['score'], hit['distance'], hit['node'].name),
+            )[0]
+            bsdf_node = best_shader['node']
+        else:
+            bsdf_node = utils.get_blender_shader(node_tree)
+        
+        mapping_root = bsdf_node
+        if mapping_root is None and surface_links:
+            mapping_root = surface_links[0][1].from_node
+        if mapping_root:
+            maps['mapping_root'] = mapping_root
+            maps['bsdf'] = bsdf_node if bsdf_node else mapping_root
+        elif bsdf_node:
+            maps['bsdf'] = bsdf_node
+        
+        def _pick_best(prop_name: str, minimum_score: float):
+            hits = property_hits[prop_name]
+            if not hits:
+                return None, None
+            ranked = sorted(
+                hits,
+                key=lambda hit: (-hit['score'], -int(hit['has_image']), hit['distance'], hit['order']),
+            )
+            for hit in ranked:
+                if hit['score'] >= minimum_score:
+                    return hit['node'], hit
+            return ranked[0]['node'], ranked[0]
+        
+        thresholds = {
+            'diffuse': 2.0,
+            'specular': 3.5,
+            'normal': 4.0,
+            'self_illum': 4.0,
+            'alpha': 3.0,
+        }
+        chosen_hits = {}
+        for key in property_keys:
+            node, hit = _pick_best(key, thresholds[key])
+            if node:
+                maps[key] = node
+                chosen_hits[key] = hit
+        
+        # Direct-input fallback when the heuristic pass couldn't resolve an expected slot.
+        fallback_shader = bsdf_node if bsdf_node else maps.get('mapping_root')
+        if fallback_shader:
+            fallback_inputs = {
+                'diffuse': 'base color',
+                'specular': 'specular ior level',
+                'normal': 'normal',
+                'self_illum': 'emission color',
+                'alpha': 'alpha',
+            }
+            for key, input_name in fallback_inputs.items():
+                if key in maps:
+                    continue
+                node = utils.find_linked_node(fallback_shader, input_name, 'TEX_IMAGE')
+                if node:
+                    maps[key] = node
+        
+        diffuse_hit = chosen_hits.get('diffuse')
+        spec_hit = chosen_hits.get('specular')
+        if diffuse_hit and spec_hit and spec_hit['node'] == diffuse_hit['node'] and spec_hit['output_name'] == 'alpha':
+            maps['specular_from_diffuse_alpha'] = True
+        
+        self_illum_hit = chosen_hits.get('self_illum')
+        if diffuse_hit and self_illum_hit and self_illum_hit['node'] == diffuse_hit['node'] and self_illum_hit['output_name'] == 'alpha':
+            maps['self_illum_from_diffuse_alpha'] = True
+        
+        if bsdf_node:
+            emission_input = bsdf_node.inputs.get('Emission Strength')
+            if emission_input is None:
+                for input_socket in bsdf_node.inputs:
+                    if _norm(input_socket.name) == 'emission strength':
+                        emission_input = input_socket
+                        break
+            if emission_input:
+                try:
+                    maps['emission_strength'] = float(emission_input.default_value)
+                except (TypeError, ValueError):
+                    pass
+        
+        if maps.get('diffuse') is None:
+            if bsdf_node:
+                albedo_tint = utils.get_material_albedo(bsdf_node)
+                if albedo_tint:
+                    maps['albedo_tint'] = albedo_tint
+            if maps.get('albedo_tint') is None:
+                albedo_tint = utils.get_material_albedo(blender_material)
+                if albedo_tint:
+                    maps['albedo_tint'] = albedo_tint
+        
+        return maps
         
     def _alpha_type_from_blender_material(self):
         if self.blender_material.surface_render_method == 'DITHERED':
@@ -282,7 +607,7 @@ class ShaderTag(Tag):
         return 'blend'
             
     def _build_basic(self, map: dict):
-        self.group_node = map.get("bsdf")
+        self.group_node = map.get("mapping_root") or map.get("bsdf")
         albedo = self.block_options.Elements[0].SelectField('short')
         bump_mapping = self.block_options.Elements[1].SelectField('short')
         alpha_test = self.block_options.Elements[2].SelectField('short')
@@ -291,16 +616,18 @@ class ShaderTag(Tag):
         blend_mode = self.block_options.Elements[7].SelectField('short')
         alpha_blend_source = self.block_options.Elements[11].SelectField('short')
         # Set up shader parameters
-        spec_alpha_from_diffuse = False
-        si_alpha_from_diffuse = False
+        spec_alpha_from_diffuse = bool(map.get('specular_from_diffuse_alpha'))
+        si_alpha_from_diffuse = bool(map.get('self_illum_from_diffuse_alpha'))
         if map.get('diffuse', 0):
             if int(albedo.GetStringData()) == 2 or int(albedo.GetStringData()) == -1: # if is constant color or none
                 albedo.SetStringData('0') # sets default
             element = self._setup_parameter(map['diffuse'], 'base_map', 'bitmap')
             if element:
                 self._setup_function_parameters(map['diffuse'], element, 'bitmap')
-                diff_alpha_output: bpy.types.NodeInputs = map['diffuse'].outputs[1]
-                if diff_alpha_output.links:
+                diff_alpha_output = map['diffuse'].outputs.get('Alpha')
+                if diff_alpha_output is None and len(map['diffuse'].outputs) > 1:
+                    diff_alpha_output = map['diffuse'].outputs[1]
+                if diff_alpha_output and diff_alpha_output.links:
                     for l in diff_alpha_output.links:
                         if l.to_socket.name.lower() == 'specular ior level':
                             spec_alpha_from_diffuse = True
@@ -334,7 +661,21 @@ class ShaderTag(Tag):
                 self._setup_function_parameters(map['self_illum'], element, 'bitmap')
                 
         if si_alpha_from_diffuse or map.get('self_illum', 0):
-            si_intensity = map['bsdf'].inputs['Emission Strength'].default_value
+            si_intensity = map.get('emission_strength')
+            if si_intensity is None:
+                bsdf = map.get('bsdf')
+                emission_input = None
+                if bsdf and hasattr(bsdf, 'inputs'):
+                    emission_input = bsdf.inputs.get('Emission Strength')
+                    if emission_input is None:
+                        for input_socket in bsdf.inputs:
+                            if input_socket.name.lower() == 'emission strength':
+                                emission_input = input_socket
+                                break
+                if emission_input:
+                    si_intensity = emission_input.default_value
+                else:
+                    si_intensity = 1
             element = self._setup_parameter(si_intensity, 'self_illum_intensity', 'real')
             if element:
                 self._setup_function_parameters(si_intensity, element, 'real')
@@ -424,6 +765,8 @@ class ShaderTag(Tag):
         match parameter_type:
             case 'bitmap':
                 if isinstance(source, bpy.types.Node):
+                    if self.group_node is None:
+                        return mapping
                     scale_node, is_texture_tiling = utils.find_mapping_node(source, self.group_node)
                     if not scale_node: return mapping
                     if is_texture_tiling:
