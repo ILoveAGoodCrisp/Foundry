@@ -45,6 +45,12 @@ def main() -> None:
         "--build",
         action="store_true",
     )
+    
+    parser.add_argument(
+        "--platform",
+        choices=("x64",),
+        default="x64",
+    )
 
     args = parser.parse_args()
 
