@@ -107,7 +107,10 @@
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
-    <PreBuildEvent>call python "$(SolutionDir)blender\build\create_zip.py" $(ConfigurationName)
+    <PreBuildEvent>call python $(SolutionDir)bonobo\build_plugins.py --build
+if /I "$(ConfigurationName)"=="Release" call python "$(SolutionDir)blender\addons\io_scene_foundry\wheel_bootstrap.py" --manifest-only --bump-assembly-info-version "$(SolutionDir)Properties\AssemblyInfo.cs"
+call python "$(SolutionDir)blender\addons\io_scene_foundry\wheel_bootstrap.py" --keep-existing --version-from-assembly-info "$(SolutionDir)Properties\AssemblyInfo.cs"
+call python "$(SolutionDir)blender\build\create_zip.py" $(ConfigurationName)
 call blender --command extension server-generate --repo-dir="$(SolutionDir)site\api\v1\extensions" --html</PreBuildEvent>
   </PropertyGroup>
 </Project>

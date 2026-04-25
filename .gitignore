@@ -1,10 +1,10 @@
 **/__pycache__/
 *.patch
 /blender/output/
-/blender/addons/io_scene_foundry/resources.zip
 copy to add-ons.bat
 .DS_Store
 /blender/addons/io_scene_foundry/.vscode/settings.json
+/blender/addons/io_scene_foundry/resources/foundation
 *.vs
 *bin
 *obj
@@ -16,3 +16,5 @@ copy to add-ons.bat
 *.csproj
 *.htm
 *.resources
+blender\addons\io_scene_foundry\resources
+/blender/addons/io_scene_foundry/wheels/
