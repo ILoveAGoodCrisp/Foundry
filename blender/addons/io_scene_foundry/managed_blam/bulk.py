@@ -32,6 +32,88 @@ def report_state_names():
         
     return ordered_state_names
 
+from collections import Counter, defaultdict
+from pathlib import Path
+
+def report_graph_tokens():
+    """Returns a list of all animation tokens, sorted by usage frequency,
+    with the graph that uses each token the most."""
+    
+    graphs = utils.paths_in_dir(
+        str(Path(utils.get_tags_path(), "objects")),
+        ".model_animation_graph"
+    )
+
+    token_usage = {
+        "mode": defaultdict(Counter),
+        "weapon class": defaultdict(Counter),
+        "weapon type": defaultdict(Counter),
+        "set": defaultdict(Counter),
+        "action": defaultdict(Counter),
+        "overlay": defaultdict(Counter),
+    }
+
+    def add_usage(category: str, name: str, graph_name: str):
+        if name:
+            token_usage[category][name][graph_name] += 1
+
+    for g in graphs:
+        with AnimationTag(path=g) as animation:
+            graph_name = animation.tag_path.RelativePath
+
+            mode_block = animation.block_modes
+            for element in mode_block.Elements:
+                mode_name = element.SelectField("label").GetStringData()
+                add_usage("mode", mode_name, graph_name)
+
+                for celement in element.SelectField("weapon class").Elements:
+                    class_name = celement.SelectField("label").GetStringData()
+                    add_usage("weapon class", class_name, graph_name)
+
+                    for telement in celement.SelectField("weapon type").Elements:
+                        type_name = telement.SelectField("label").GetStringData()
+                        add_usage("weapon type", type_name, graph_name)
+
+                        for selement in telement.SelectField("sets").Elements:
+                            set_name = selement.SelectField("label").GetStringData()
+                            add_usage("set", set_name, graph_name)
+
+                            for aelement in selement.SelectField("actions").Elements:
+                                action_name = aelement.SelectField("label").GetStringData()
+                                add_usage("action", action_name, graph_name)
+
+                            overlay_block = selement.SelectField("overlay animations")
+                            for oelement in overlay_block.Elements:
+                                overlay_name = oelement.SelectField("label").GetStringData()
+                                add_usage("overlay", overlay_name, graph_name)
+
+    print("\n\n\n")
+    print(f"Found {len(graphs)} animation graphs")
+
+    def print_category(category: str, title: str):
+        items = []
+
+        for name, graph_counts in token_usage[category].items():
+            total_count = sum(graph_counts.values())
+            most_used_graph, most_count = graph_counts.most_common(1)[0]
+            items.append((name, total_count, most_used_graph, most_count))
+
+        # Sort by total usage descending
+        items.sort(key=lambda x: x[1], reverse=True)
+
+        print("-" * 50)
+        print(f"\nFound {len(items)} unique {title}:")
+
+        for name, total_count, most_used_graph, most_count in items:
+            print(f"{name:<30} total: {total_count:<5} {most_used_graph} ({most_count})")
+
+    print_category("mode", "mode names")
+    print_category("weapon class", "weapon class names")
+    print_category("weapon type", "weapon type names")
+    print_category("set", "set names")
+    print_category("action", "action names")
+    print_category("overlay", "overlay names")
+    
 def report_seat_names():
     '''Returns a list of all seat names from vehicle and biped tags (objects folder only)'''
     vehicle_paths = utils.paths_in_dir(str(Path(utils.get_tags_path())) + 'objects', ('.vehicle', '.biped'))
