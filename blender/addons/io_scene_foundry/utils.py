@@ -3137,15 +3137,24 @@ def valid_image_name(name: str) -> str:
     return valid_filename(name)
 
 def paths_in_dir(directory: str, valid_extensions: tuple[str] | str = '') -> list[str]:
-    '''Returns a list of filepaths from the given directory path. Optionally limited to paths with the given extensions'''
-    assert(os.path.exists(directory)), f"Directory not a valid filepath: [{directory}]"
-    filepath_list = [] 
-    for root, _, files in os.walk(directory):
-        for file in files:
-            if not valid_extensions or file.endswith(valid_extensions):
-                filepath_list.append(os.path.join(root, file))
-                
-    return filepath_list
+    assert os.path.exists(directory), f"Directory not a valid filepath: [{directory}]"
+
+    if isinstance(valid_extensions, str):
+        valid_extensions = (valid_extensions,)
+
+    results = []
+    stack = [directory]
+
+    while stack:
+        current = stack.pop()
+        with os.scandir(current) as it:
+            for entry in it:
+                if entry.is_dir(follow_symlinks=False):
+                    stack.append(entry.path)
+                elif not valid_extensions or entry.name.endswith(valid_extensions):
+                    results.append(entry.path)
+
+    return results
 
 class DebugMenuCommand:
     def __init__(self, asset_dir, filename):
