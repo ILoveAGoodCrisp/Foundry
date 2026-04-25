@@ -341,7 +341,7 @@ class NWO_FarmShaders(bpy.types.Operator):
             col.separator()
         if self.farm_type in ("both", "bitmaps"):
             col.prop(self, "bitmaps_scope", text="Bitmaps Scope")
-            col.prop(self, "link_bitmaps", text="Re-Export Existing TIFFs")
+            # col.prop(self, "link_bitmaps")
             col.prop(self, "all_bitmaps", text="Include All Blender File Images")
 
 

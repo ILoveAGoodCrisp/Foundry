@@ -2,7 +2,9 @@
 
 from enum import Enum
 from math import radians
+import multiprocessing
 from pathlib import Path
+import time
 from mathutils import Vector
 
 from .connected_material import Function, AnimatedParameterType, FunctionEditorColorGraphType, FunctionEditorMasterType, RotateNodeInputs, TilingNodeInputs
@@ -36,6 +38,50 @@ DEFAULT_CUBEMAP = r"shaders\default_bitmaps\bitmaps\default_cube.bitmap"
 #                         }
 
 srgb_names = "base_map", "palette", "self_illum_map"
+
+def build_templates(shader_paths, do_print=False):
+    new_template_count = 0
+    processes = []
+    max_process_count = multiprocessing.cpu_count()
+    built_templates = set()
+    
+    if do_print: print("--- Validating templates for shaders")
+    for spath in shader_paths:
+        with ShaderTag(path=spath) as shader:
+            template = shader.tag.SelectField("Struct:render_method[0]/Block:postprocess[0]/Reference:shader template")
+            if template is None:
+                continue
+            template_path = shader.get_path_str(template.Path, True)
+            if not template_path:
+                continue
+            
+            path_template = Path(template_path)
+            if not path_template.exists():
+                definition = shader.definition
+                definition_path = shader.get_path_str(definition.Path, True)
+                if definition_path and Path(definition_path).exists():
+                    template_name = path_template.with_suffix("").name
+                    if template_name in built_templates:
+                        continue
+                    
+                    built_templates.add(template_name)
+                    
+                    while len(processes) >= max_process_count:
+                        processes = [p for p in processes if p.poll() is None]
+                        time.sleep(0.1)
+                    
+                    if do_print: print(f"--- Building template {template_name} for {spath}")
+                    new_template_count += 1
+                    processes.append(utils.run_tool(["generate-specified-template", "win", definition.Path.RelativePath, template_name], in_background=True, null_output=True))
+                    
+    if new_template_count == 0:
+        return
+    
+    if do_print: print(f"--- Waiting for Tool processes to complete")
+    for p in processes:
+        p.wait()
+                    
+    return new_template_count
 
 class ChannelType(Enum):
     DEFAULT = 0
@@ -229,6 +275,9 @@ class ShaderTag(Tag):
         elif self.corinth and self.material_shader:
             self.tag.SelectField("Reference:material shader").Path = self._TagPath_from_string(self.material_shader)
             
+        if not self.corinth:
+            build_templates([self.tag_path.Filename])
+            
         return self.tag.Path.RelativePathWithExtension
         
     def _edit_tag(self):
@@ -271,12 +320,26 @@ class ShaderTag(Tag):
         
         def _scores_from_input(node: bpy.types.Node, input_socket: bpy.types.NodeSocket) -> dict:
             text = _norm(input_socket.name)
+            tokens = set(text.split())
             score = {k: 0.0 for k in property_keys}
             
             if 'base color' in text or 'albedo' in text or 'diffuse' in text:
                 score['diffuse'] += 10.0
             elif text == 'color' or text.endswith(' color'):
                 score['diffuse'] += 3.0
+            
+            if 'al' in tokens:
+                score['diffuse'] += 15.0
+            if 'sp' in tokens:
+                score['specular'] += 12.0
+            if 'nm' in tokens:
+                score['normal'] += 16.0
+            if 'em' in tokens:
+                score['self_illum'] += 16.0
+            if 'pm' in tokens:
+                score['diffuse'] -= 12.0
+                score['specular'] += 6.0
+                score['alpha'] += 3.0
             
             if 'specular' in text or 'rough' in text or 'metal' in text or 'gloss' in text or 'ior' in text or 'reflect' in text:
                 score['specular'] += 8.0
@@ -348,16 +411,22 @@ class ShaderTag(Tag):
             tokens = set(text.split())
             compact = ''.join(tokens)
             
-            if tokens.intersection({'albedo', 'diffuse', 'basecolor', 'base', 'color', 'col', 'bc'}) or 'basecolor' in compact:
+            if tokens.intersection({'albedo', 'diffuse', 'basecolor', 'base', 'color', 'col', 'bc', 'al'}) or 'basecolor' in compact:
                 score['diffuse'] += 6.0
-            if tokens.intersection({'spec', 'specular', 'rough', 'roughness', 'metal', 'metallic', 'gloss', 'orm', 'rma', 'mra'}):
+            if tokens.intersection({'spec', 'specular', 'rough', 'roughness', 'metal', 'metallic', 'gloss', 'orm', 'rma', 'mra', 'sp'}):
                 score['specular'] += 6.0
             if tokens.intersection({'normal', 'nrm', 'norm', 'nm', 'bump', 'height'}):
                 score['normal'] += 8.0
-            if tokens.intersection({'emissive', 'emission', 'emit', 'glow', 'selfillum', 'illum', 'si'}):
+            if tokens.intersection({'emissive', 'emission', 'emit', 'glow', 'selfillum', 'illum', 'si', 'em'}):
                 score['self_illum'] += 8.0
             if tokens.intersection({'alpha', 'opacity', 'mask', 'cutout', 'transparency', 'trans'}):
                 score['alpha'] += 7.0
+            
+            # Packed maps are commonly not albedo; keep them away from diffuse unless no better candidate exists.
+            if 'pm' in tokens:
+                score['diffuse'] -= 10.0
+                score['specular'] += 5.0
+                score['alpha'] += 2.0
             
             if image and image.colorspace_settings:
                 color_space = image.colorspace_settings.name.lower()
@@ -368,6 +437,16 @@ class ShaderTag(Tag):
                     score['alpha'] += 0.5
             
             return score
+        
+        def _channel_tags(node: bpy.types.Node, output_name='') -> set[str]:
+            image = getattr(node, 'image', None)
+            name_bits = [node.name, node.label, output_name]
+            if image:
+                name_bits.append(image.name)
+                if image.filepath:
+                    name_bits.append(Path(image.filepath).stem)
+            text = _norm(' '.join(filter(None, name_bits)))
+            return set(text.split())
         
         def _register_shader(node: bpy.types.Node, path_scores: dict, distance: int):
             if not node.type.startswith('BSDF'):
@@ -399,6 +478,7 @@ class ShaderTag(Tag):
             output_name = _norm(output_name)
             score = _merge_scores(path_scores, _scores_from_texture_name(node))
             score = _merge_scores(score, _scores_from_output(output_name))
+            tags = _channel_tags(node, output_name)
             distance_bias = max(0.0, 4.0 - float(min(distance, 4)))
             has_image = bool(getattr(node, 'image', None))
             for key in property_keys:
@@ -412,6 +492,7 @@ class ShaderTag(Tag):
                         'distance': distance,
                         'output_name': output_name,
                         'has_image': has_image,
+                        'tags': tags,
                         'order': hit_order,
                     }
                 )
@@ -445,8 +526,20 @@ class ShaderTag(Tag):
                             for parent_input in parent_group.inputs:
                                 if _norm(parent_input.name) == output_norm:
                                     parent_inputs.append(parent_input)
+                        if not parent_inputs and output_norm:
+                            output_tokens = set(output_norm.split())
+                            for parent_input in parent_group.inputs:
+                                parent_tokens = set(_norm(parent_input.name).split())
+                                if output_tokens and output_tokens.intersection(parent_tokens):
+                                    parent_inputs.append(parent_input)
                         if not parent_inputs:
-                            parent_inputs = list(parent_group.inputs)
+                            linked_inputs = [parent_input for parent_input in parent_group.inputs if parent_input.links]
+                            if not output_norm:
+                                parent_inputs = linked_inputs
+                            elif len(linked_inputs) == 1:
+                                parent_inputs = linked_inputs
+                            else:
+                                return
                         
                         for parent_input in parent_inputs:
                             edge_scores = _scores_from_input(parent_group, parent_input)
@@ -530,6 +623,30 @@ class ShaderTag(Tag):
                 hits,
                 key=lambda hit: (-hit['score'], -int(hit['has_image']), hit['distance'], hit['order']),
             )
+            
+            preferred_tags_by_property = {
+                'diffuse': {'al', 'albedo', 'diffuse', 'basecolor', 'base', 'bc'},
+                'specular': {'sp', 'spec', 'specular', 'rough', 'metal', 'gloss', 'orm', 'rma', 'mra', 'pm'},
+                'normal': {'nm', 'normal', 'nrm', 'norm', 'bump', 'height'},
+                'self_illum': {'em', 'emissive', 'emission', 'selfillum', 'illum', 'glow', 'si'},
+                'alpha': {'alpha', 'opacity', 'mask', 'cutout', 'transparency', 'trans'},
+            }
+            avoid_tags_by_property = {
+                'diffuse': {'pm', 'sp', 'nm', 'em'},
+            }
+            
+            preferred_tags = preferred_tags_by_property.get(prop_name, set())
+            avoid_tags = avoid_tags_by_property.get(prop_name, set())
+            
+            preferred_hits = [hit for hit in ranked if preferred_tags.intersection(hit.get('tags', set()))]
+            if preferred_hits:
+                ranked = preferred_hits
+            
+            if avoid_tags:
+                non_avoided_hits = [hit for hit in ranked if not avoid_tags.intersection(hit.get('tags', set()))]
+                if non_avoided_hits:
+                    ranked = non_avoided_hits
+            
             for hit in ranked:
                 if hit['score'] >= minimum_score:
                     return hit['node'], hit

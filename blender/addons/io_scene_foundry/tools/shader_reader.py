@@ -1,4 +1,3 @@
-import multiprocessing
 import os
 from pathlib import Path
 import time
@@ -11,7 +10,7 @@ from ..managed_blam.shader_halogram import ShaderHalogramTag
 from ..managed_blam.shader_foliage import ShaderFoliageTag
 from ..managed_blam.shader_terrain import ShaderTerrainTag
 from ..managed_blam.material import MaterialTag
-from ..managed_blam.shader import ShaderTag
+from ..managed_blam.shader import ShaderTag, build_templates
 from ..managed_blam.shader_decal import ShaderDecalTag
 from .. import utils
 
@@ -93,47 +92,11 @@ class NWO_OT_BuildShaderTemplates(bpy.types.Operator):
             self.report({'WARNING'}, "No shader paths in scope")
             return {"FINISHED"}
         
-        new_template_count = 0
-        processes = []
-        max_process_count = multiprocessing.cpu_count()
-        built_templates = set()
+        new_template_count = build_templates(shader_paths, True)
         
-        print("--- Validating templates for shaders")
-        for spath in shader_paths:
-            with ShaderTag(path=spath) as shader:
-                template = shader.tag.SelectField("Struct:render_method[0]/Block:postprocess[0]/Reference:shader template")
-                if template is None:
-                    continue
-                template_path = shader.get_path_str(template.Path, True)
-                if not template_path:
-                    continue
-                
-                path_template = Path(template_path)
-                if not path_template.exists():
-                    definition = shader.definition
-                    definition_path = shader.get_path_str(definition.Path, True)
-                    if definition_path and Path(definition_path).exists():
-                        template_name = path_template.with_suffix("").name
-                        if template_name in built_templates:
-                            continue
-                        
-                        built_templates.add(template_name)
-                        
-                        while len(processes) >= max_process_count:
-                            processes = [p for p in processes if p.poll() is None]
-                            time.sleep(0.1)
-                        
-                        print(f"--- Building template {template_name} for {spath}")
-                        new_template_count += 1
-                        processes.append(utils.run_tool(["generate-specified-template", "win", definition.Path.RelativePath, template_name], in_background=True, null_output=True))
-                        
         if new_template_count == 0:
             self.report({'INFO'}, "No new templates to build")
             return {"FINISHED"}
-        
-        print(f"--- Waiting for Tool processes to complete")
-        for p in processes:
-            p.wait()
             
         end = time.perf_counter()
         plural = '' if new_template_count == 1 else 's'

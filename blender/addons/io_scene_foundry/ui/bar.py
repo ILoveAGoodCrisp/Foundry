@@ -908,6 +908,8 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
     )
     
+    build_missing_shaders: bpy.props.BoolProperty()
+    
     
     debug_composites: bpy.props.BoolProperty(
         name="Debug Composites",
