@@ -2663,7 +2663,96 @@ class AnimationTag(Tag):
                 return element.ElementIndex
         
         return -1
+    
+    def get_blender_tag_animation_dict(self, blender_animations):
+        animations = self.get_animations()
+
+        animations_by_name = {anim.name.data_name: anim for anim in animations}
+
+        anim_dict = {}
+        for banim in blender_animations:
+            key = banim.name.lower().replace(":", " ")
+            anim = animations_by_name.get(key)
+            if anim is not None:
+                anim_dict[banim] = anim
+                
+        return anim_dict
+    
+    def set_tag_info(self, blender_animations: set):
+        anim_dict = self.get_blender_tag_animation_dict(blender_animations)
+        if anim_dict:
+            self.tag_has_changes = True
+        for blender_animation, tag_animation in anim_dict.items():
+            element = tag_animation.element
+
+            element.SelectField("weight").Data = blender_animation.weight
+            element.SelectField("loop frame index").Data = blender_animation.loop_frame_index
+
+            flags = element.SelectField("user flags")
+
+            flags.SetBit("disable interpolation in", blender_animation.disable_interpolation_in)
+            flags.SetBit("disable interpolation out", blender_animation.disable_interpolation_out)
+            flags.SetBit("disable mode ik", blender_animation.disable_mode_ik)
+            flags.SetBit("disable weapon ik", blender_animation.disable_weapon_ik)
+            flags.SetBit("disable weapon aim\\1st person", blender_animation.disable_weapon_aim)
+            flags.SetBit("disable look screen", blender_animation.disable_look_screen)
+            flags.SetBit("disable transition adjustment", blender_animation.disable_transition_adjustment)
+            flags.SetBit("force weapon ik on", blender_animation.force_weapon_ik_on)
+            flags.SetBit("enable animated source interpolation", blender_animation.enable_animated_source_interpolation)
+            flags.SetBit("disable ik sets", blender_animation.disable_ik_sets)
+            flags.SetBit("disable ik chains", blender_animation.disable_ik_chains)
+            flags.SetBit("translate and scale root only", blender_animation.translate_and_scale_root_only)
+
+            flags.SetBit(
+                "enable blend out on replacement anims" if self.corinth else "enable blend out",
+                blender_animation.enable_blend_out_on_replacement_anims
+            )
+
+            if self.corinth:
+                flags.SetBit(
+                    "override player input with motion",
+                    blender_animation.override_player_input_with_motion
+                )
+                element.SelectField("pca group name").SetStringData(blender_animation.pca_group_name)
+            else:
+                flags.SetBit(
+                    "disable subframe interp on loop",
+                    blender_animation.disable_subframe_interp_on_loop
+                )
+
+            use_blend_in_flag = "use custom blend-in time" if self.corinth else "override default blend time"
+            use_blend_out_flag = "use custom blend-out time" if self.corinth else "override default blend out time"
+
+            blends_in = blender_animation.override_blend_in_time > 0.0
+            flags.SetBit(use_blend_in_flag, blends_in)
+            if blends_in:
+                element.SelectField("override blend in time").Data = blender_animation.override_blend_in_time
+                
+            blends_out = blender_animation.override_blend_out_time > 0.0
+            flags.SetBit(use_blend_out_flag, blends_out)
+            if blends_out:
+                element.SelectField("override blend out time").Data = blender_animation.override_blend_out_time
+                
+            if self.corinth:
+                if blender_animation.pca_best_quality:
+                    self.quality_pca(tag_animation.name.tag_name, tag_animation.frame_count)
+                    element.SelectField("pca group name").SetStringData(tag_animation.name.tag_name)
+                else:
+                    element.SelectField("pca group name").SetStringData(blender_animation.pca_group_name)
         
+    
+    def quality_pca(self, name, desired_mesh_count):
+        pca_groups = self.tag.SelectField("Struct:definitions[0]/Struct:pca data[0]/Block:PCA Groups")
+        labels = {e.ElementIndex: e.Fields[0].GetStringData() for e in pca_groups.Elements}
+        index = labels.get(name)
+        if index is None:
+            element = pca_groups.AddElement()
+        else:
+            element = pca_groups.Elements[index]
+            
+        element.Fields[1].Data = desired_mesh_count
+        
+    
     def setup_blend_screens(self, animation_names: set):
         sorted_animations  = sorted(animation_names)
         blend_screens_to_remove = []

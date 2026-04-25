@@ -253,6 +253,7 @@ class ExportScene:
                 
         self.active_animation = ""
         self.suspension_animations = {}
+        self.anims_for_tag_info = set()
         self.any_collision_proxies = False
         self.poop_obs = defaultdict(list)
         self.lightmap_regions = {}
@@ -2119,6 +2120,10 @@ class ExportScene:
                         print(f"--- {animation.name} -> with computed suspension depth of: Extension = {animation.suspension_extension_depth} || Compression = {animation.suspension_compression_depth}")
                     else:
                         print(f"--- {animation.name}")
+                        
+                    if animation.anim.author_type == 'BLENDER':
+                        self.anims_for_tag_info.add(animation.anim)
+                        
                     nodes = self.animation_groups.get(animation.name, [])
                     nodes.extend(animation.nodes)
                     nodes_dict = {node.ob: node for node in nodes + [self.virtual_scene.skeleton_node]}
@@ -2321,19 +2326,25 @@ class ExportScene:
     def preprocess_tags(self):
         """ManagedBlam tasks to run before tool import is called"""
         self.node_usage_set = self.asset_type != AssetType.CINEMATIC and self.has_animations and self.any_node_usage_override()
-        # print("\n--- Foundry Tags Pre-Process\n")
-        # Skip pre processing the graph if this is a first time export and the user has specified a template animation graph
-        # This is done to ensure the templating is not skipped
-        # NOTE Always writing this animation data first now as it prevents a tool crash for invalid nodes usages
-        
-        # NOTE 2026-04-19 No longer need to clear the frame event list. Since we still include the 
-        # if self.has_animations and self.scene_settings.frame_events_from_blender and self.has_frame_events:
-        #     with FrameEventListTag() as events:
-        #         events.clear()
-        #         events.tag_has_changes = True
         
         if self.node_usage_set or self.scene_settings.ik_chains or self.has_animations:
             has_skeleton = self.virtual_scene.skeleton_model is not None and self.virtual_scene.skeleton_model.skeleton is not None
+            
+            if self.scene_settings.template_model_animation_graph:
+                    
+                    relative_template_path = utils.relative_path(self.scene_settings.template_model_animation_graph)
+                    expected_asset_path = Path(self.tags_dir, self.asset_path_relative, f'{self.asset_name}.model_animation_graph')
+                    if expected_asset_path.exists():
+                        return
+                    
+                    asset_folder = expected_asset_path.parent
+                    if not asset_folder.exists():
+                        asset_folder.mkdir(parents=True, exist_ok=True)
+                    full_path = Path(self.tags_dir, relative_template_path)
+                    if full_path.exists():
+                        utils.copy_file(full_path, expected_asset_path)
+                        print(f'--- Loaded model_animation_graph tag template')
+            
             with AnimationTag() as animation:
                 if self.scene_settings.parent_animation_graph:
                     self.print_pre("--- Setting parent animation graph")
@@ -2524,7 +2535,7 @@ class ExportScene:
                 with ObjectTag(path=expected_weapon_path) as weapon:
                     weapon.set_fp_weapon_render_model(render_path)
         
-        if self.has_frame_events or self.sidecar.reach_world_animations or self.sidecar.pose_overlays or self.suspension_animations:
+        if self.has_frame_events or self.sidecar.reach_world_animations or self.sidecar.pose_overlays or self.suspension_animations or self.anims_for_tag_info:
             with AnimationTag() as animation:
                 if self.has_frame_events and self.scene_settings.frame_events_from_blender:
                     self.print_post("--- Adding Frame Events")
@@ -2535,6 +2546,9 @@ class ExportScene:
                 if self.sidecar.pose_overlays:
                     self.print_post(f"--- Updating animation blend screens for {len(self.sidecar.pose_overlays)} pose overlay animation{'s' if len(self.sidecar.pose_overlays) > 1 else ''}")
                     animation.setup_blend_screens(self.sidecar.pose_overlays)
+                    
+                if self.anims_for_tag_info:
+                    animation.set_tag_info(self.anims_for_tag_info)
                     
                 if self.suspension_animations:
                     self.print_post(f"--- Writing vehicle suspension data for {len(self.suspension_animations)} suspension animation{'s' if len(self.suspension_animations) > 1 else ''}")
