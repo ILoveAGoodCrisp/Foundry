@@ -57,7 +57,8 @@ class NWO_OT_HaloMaterialNodes(bpy.types.Operator):
         with bpy.data.libraries.load(str(lib_blend), link=True) as (data_from, _):
             for n_group in data_from.node_groups:
                 if not h4:
-                    items.append((n_group, n_group, ''))
+                    if n_group.startswith("foundry_reach."):
+                        items.append((n_group, utils.dot_partition(n_group, True).replace("_", " ").title(), ''))
                 else:
                     global all_material_shaders
                     if not all_material_shaders:
@@ -68,7 +69,11 @@ class NWO_OT_HaloMaterialNodes(bpy.types.Operator):
                                 if file.endswith(".material_shader"):
                                     all_material_shaders.append(utils.dot_partition(file))
                     if n_group in all_material_shaders:
-                        items.append((n_group, n_group, ''))
+                        if "_" in n_group.strip("_"):
+                            display_name = n_group.partition("_")[2].replace("_", " ").title()
+                        else:
+                            display_name = n_group.title()
+                        items.append((n_group, display_name, ''))
         return items    
 
     node: bpy.props.EnumProperty(
@@ -83,7 +88,7 @@ class NWO_OT_HaloMaterialNodes(bpy.types.Operator):
         if utils.is_corinth(context):
             lib_blend = os.path.join(utils.MATERIAL_RESOURCES, 'h4_nodes.blend')
         else:
-            lib_blend = os.path.join(utils.MATERIAL_RESOURCES, 'hr_nodes.blend')
+            lib_blend = os.path.join(utils.MATERIAL_RESOURCES, 'reach_nodes.blend')
 
         # This bit links the selected node to the current blend
         with bpy.data.libraries.load(lib_blend, link=True) as (_, data_to):

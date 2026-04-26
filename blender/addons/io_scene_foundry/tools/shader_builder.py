@@ -65,7 +65,7 @@ def _material_output_group(material: bpy.types.Material):
     return group_node
 
 
-def _resolve_reach_shader_class(material: bpy.types.Material, shader_path: Path):
+def _resolve_reach_shader_class(material: bpy.types.Material, shader_path: Path, shader_type: str):
     group_node = _material_output_group(material)
     if group_node is not None:
         group_name = _normalize_group_name(group_node.node_tree.name)
@@ -76,6 +76,13 @@ def _resolve_reach_shader_class(material: bpy.types.Material, shader_path: Path)
     suffix = shader_path.suffix.lower()
     if suffix in REACH_SUFFIX_TO_CLASS:
         return REACH_SUFFIX_TO_CLASS[suffix]
+
+    if shader_type:
+        explicit = shader_type.lower()
+        if not explicit.startswith("."):
+            explicit = "." + explicit
+        if explicit in REACH_SUFFIX_TO_CLASS:
+            return REACH_SUFFIX_TO_CLASS[explicit]
 
     return REACH_SUFFIX_TO_CLASS[".shader"]
 
@@ -112,7 +119,7 @@ def build_shader(material, corinth, folder="", report=None):
             nwo.shader_path = tag.write_tag(material, nwo.uses_blender_nodes, material_shader=nwo.material_shader)
     else:
         if nwo.uses_blender_nodes:
-            tag_class, suffix = _resolve_reach_shader_class(material, shader_path)
+            tag_class, suffix = _resolve_reach_shader_class(material, shader_path, nwo.shader_type)
             with tag_class(path=shader_path.with_suffix(suffix)) as tag:
                 nwo.shader_path = tag.write_tag(material, nwo.uses_blender_nodes)
         else:
