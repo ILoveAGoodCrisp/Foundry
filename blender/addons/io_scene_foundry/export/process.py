@@ -1909,6 +1909,8 @@ class ExportScene:
                     props["bungie_animation_event_import_frame"] = utils.game_frame(event.frame_frame) - utils.game_frame(animation.frame_start) + 1
                     
                 case '_connected_geometry_animation_event_type_ik_active' | '_connected_geometry_animation_event_type_ik_passive':
+                    if animation.animation_type == 'overlay':
+                        continue
                     if not event.ik_target_marker:
                         self.warnings.append(f"Animation event [{event.name}] has no ik target marker defined. Skipping")
                         continue
