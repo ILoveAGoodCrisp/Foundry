@@ -64,6 +64,15 @@ class EdgeFade(Enum):
 class ShaderHalogramTag(ShaderTag):
     tag_ext = 'shader_halogram'
     group_supported = True
+    group_node_name = "foundry_reach.shader_halogram"
+    group_option_start_input = 5
+    group_option_specs = (
+        ("albedo", Albedo, 0, 0),
+        ("self_illumination", SelfIllumination, 1, 1),
+        ("blend_mode", BlendMode, 2, 2),
+        ("overlay", Overlay, 5, 3),
+        ("edge_fade", EdgeFade, 6, 4),
+    )
     
     category_parameters = None
     

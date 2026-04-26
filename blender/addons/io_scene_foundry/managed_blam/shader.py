@@ -44,6 +44,7 @@ def build_templates(shader_paths, do_print=False):
     processes = []
     max_process_count = multiprocessing.cpu_count()
     built_templates = set()
+    per_template_timeout_seconds = 120
     
     if do_print: print("--- Validating templates for shaders")
     for spath in shader_paths:
@@ -72,14 +73,29 @@ def build_templates(shader_paths, do_print=False):
                     
                     if do_print: print(f"--- Building template {template_name} for {spath}")
                     new_template_count += 1
-                    processes.append(utils.run_tool(["generate-specified-template", "win", definition.Path.RelativePath, template_name], in_background=True, null_output=True))
+                    process = utils.run_tool(["generate-specified-template", "win", definition.Path.RelativePath, template_name], in_background=True, null_output=True)
+                    processes.append((process, template_name))
                     
     if new_template_count == 0:
         return
     
     if do_print: print(f"--- Waiting for Tool processes to complete")
-    for p in processes:
-        p.wait()
+    for p, template_name in processes:
+        start_wait = time.perf_counter()
+        while p.poll() is None:
+            if time.perf_counter() - start_wait > per_template_timeout_seconds:
+                utils.print_warning(
+                    f"Timed out building shader template '{template_name}' after {per_template_timeout_seconds}s. Continuing export."
+                )
+                try:
+                    p.terminate()
+                    time.sleep(0.2)
+                    if p.poll() is None:
+                        p.kill()
+                except Exception:
+                    pass
+                break
+            time.sleep(0.1)
                     
     return new_template_count
 
@@ -197,6 +213,19 @@ class ShaderTag(Tag):
     self_illum_map_names = 'meter_map', 'self_illum_map'
     group_supported = True
     category_parameters = None
+    group_node_name = "foundry_reach.shader"
+    group_option_start_input = 8
+    # (category_name, enum_type, option_index, group_socket_index|None)
+    group_option_specs = (
+        ("albedo", Albedo, 0, 0),
+        ("bump_mapping", BumpMapping, 1, 1),
+        ("alpha_test", AlphaTest, 2, 2),
+        ("specular_mask", SpecularMask, 3, 3),
+        ("material_model", MaterialModel, 4, 4),
+        ("environment_mapping", EnvironmentMapping, 5, 5),
+        ("self_illumination", SelfIllumination, 6, 6),
+        ("blend_mode", BlendMode, 7, 7),
+    )
     
     def _read_fields(self):
         self.render_method = self.tag.SelectField("Struct:render_method").Elements[0]
@@ -269,7 +298,10 @@ class ShaderTag(Tag):
                     return from_node
             return None
         self.group_node = _get_group_node(blender_material)
-        self.custom = True if self.group_node and self.corinth else False
+        if self.corinth:
+            self.custom = self.group_node is not None
+        else:
+            self.custom = self._group_node_matches(self.group_node)
         if linked_to_blender:
             self._edit_tag()
         elif self.corinth and self.material_shader:
@@ -282,13 +314,213 @@ class ShaderTag(Tag):
         
     def _edit_tag(self):
         self.alpha_type = self._alpha_type_from_blender_material()
-        if self.custom:
-            if self.corinth:
-                self._from_nodes_group()
-        else:
+        used_group_export = bool(self.custom and self._from_nodes_group())
+        if not used_group_export:
+            if self.custom:
+                utils.print_warning(
+                    "Foundry Reach shader node export fell back to adaptive mapping. "
+                    "If this persists, verify the shader tag has a valid render method definition."
+                )
             self._build_basic(self._get_basic_mapping(self.blender_material))
         
         self.tag_has_changes = True
+
+    @staticmethod
+    def _normalize_group_name(name: str) -> str:
+        if not name:
+            return ""
+
+        normalized = name.lower().replace(" ", "_")
+        # Blender appends numeric copy suffixes like ".001" to datablock names.
+        # Strip only numeric suffixes so semantic shader suffixes (e.g. ".shader")
+        # are preserved for matching.
+        base, sep, suffix = normalized.rpartition(".")
+        if sep and suffix.isdigit():
+            return base
+        return normalized
+
+    def _group_node_matches(self, group_node: bpy.types.Node | None) -> bool:
+        if group_node is None or group_node.type != "GROUP":
+            return False
+        group_tree = getattr(group_node, "node_tree", None)
+        if group_tree is None:
+            return False
+
+        group_name = self._normalize_group_name(group_tree.name)
+        expected = self.group_node_name
+        if isinstance(expected, str):
+            return group_name == expected
+        return group_name in expected
+
+    def _group_option_member_from_socket(self, category_name: str, enum_cls: type[Enum], socket_value):
+        if socket_value is None:
+            return None
+        if isinstance(socket_value, str):
+            wanted = utils.game_str(socket_value)
+            for member in enum_cls:
+                if utils.game_str(member.name) == wanted:
+                    return member
+            return None
+
+        try:
+            return enum_cls(int(socket_value))
+        except Exception:
+            return None
+
+    def _group_option_member_from_tag(self, enum_cls: type[Enum], option_index: int):
+        # Export-time fallback should remain local to this tag to avoid
+        # reference-chain recursion loops on malformed/cyclic tag references.
+        try:
+            option_data = int(self.block_options.Elements[option_index].Fields[0].Data)
+            if option_data >= 0:
+                return enum_cls(option_data)
+        except Exception:
+            pass
+
+        try:
+            return next(iter(enum_cls))
+        except Exception:
+            return None
+
+    def _group_option_key(self, category_name: str, enum_member: Enum) -> str:
+        return utils.game_str(enum_member.name)
+
+    def _apply_group_options_from_node(self) -> dict[str, str]:
+        selected = {}
+        inputs = list(self.group_node.inputs)
+        for category_name, enum_cls, option_index, socket_index in self.group_option_specs:
+            enum_member = None
+            if socket_index is not None and socket_index < len(inputs):
+                enum_member = self._group_option_member_from_socket(
+                    category_name, enum_cls, inputs[socket_index].default_value
+                )
+            if enum_member is None:
+                enum_member = self._group_option_member_from_tag(enum_cls, option_index)
+            if enum_member is None:
+                return {}
+
+            try:
+                option_field = self.block_options.Elements[option_index].SelectField("short")
+                option_field.SetStringData(str(int(enum_member.value)))
+            except Exception:
+                pass
+
+            selected[category_name] = self._group_option_key(category_name, enum_member)
+
+        return selected
+
+    def _parameter_type_tokens(self, parameter: OptionParameter):
+        try:
+            parameter_type = ParameterType(parameter.type)
+        except Exception:
+            return None
+
+        match parameter_type:
+            case ParameterType.BITMAP:
+                return "bitmap", "bitmap"
+            case ParameterType.COLOR | ParameterType.ARGB_COLOR:
+                return "color", self.color_parameter_type
+            case ParameterType.REAL:
+                return "real", "real"
+            case ParameterType.INT:
+                return "int", "int"
+            case ParameterType.BOOL:
+                return "bool", "bool"
+            case _:
+                return None
+
+    def _from_nodes_group(self) -> bool:
+        if self.group_node is None or not self._group_node_matches(self.group_node):
+            return False
+
+        if self.category_parameters is None:
+            self._get_info(self.definition.Path)
+        if not self.category_parameters:
+            utils.print_warning(
+                f"Could not load reach shader category defaults for '{self.tag_path.RelativePathWithExtension}'. "
+                "Falling back to adaptive basic mapping"
+            )
+            return False
+
+        selected_options = self._apply_group_options_from_node()
+        if not selected_options:
+            utils.print_warning(
+                f"Could not read reach shader option selections from node group '{self.group_node.node_tree.name}'. "
+                "Falling back to adaptive basic mapping"
+            )
+            return False
+
+        self.shader_parameters = {}
+        for category_name, option_name in selected_options.items():
+            category = self.category_parameters.get(category_name)
+            if not category:
+                wanted_category = utils.game_str(category_name)
+                for k, v in self.category_parameters.items():
+                    if utils.game_str(k) == wanted_category:
+                        category = v
+                        break
+                if not category:
+                    utils.print_warning(
+                        f"Missing reach shader category '{category_name}'. Falling back to adaptive basic mapping"
+                    )
+                    return False
+
+            option_parameters = category.get(option_name)
+            if option_parameters is None:
+                wanted = utils.game_str(option_name)
+                for k, v in category.items():
+                    if utils.game_str(k) == wanted:
+                        option_parameters = v
+                        break
+
+            if option_parameters is None:
+                utils.print_warning(
+                    f"Missing reach shader option '{option_name}' in category '{category_name}'. Falling back to adaptive basic mapping"
+                )
+                return False
+
+            self.shader_parameters.update(option_parameters)
+
+        self.true_parameters = {option.ui_name: option for option in self.shader_parameters.values()}
+
+        alias_map: dict[str, tuple[str, OptionParameter]] = {}
+        cull_chars = " _-()'\""
+        for parameter_name, parameter in self.shader_parameters.items():
+            for alias in (parameter_name, parameter.ui_name):
+                if not alias:
+                    continue
+                key = utils.remove_chars(alias.lower(), cull_chars)
+                if key and key not in alias_map:
+                    alias_map[key] = (parameter_name, parameter)
+
+        seen_parameters = set()
+        inputs = list(self.group_node.inputs)
+        for input_socket in inputs[self.group_option_start_input:]:
+            input_base_name = input_socket.name.partition(".")[0]
+            key = utils.remove_chars(input_base_name.lower(), cull_chars)
+            match = alias_map.get(key)
+            if match is None:
+                continue
+
+            parameter_name, parameter = match
+            if parameter_name in seen_parameters:
+                continue
+
+            type_tokens = self._parameter_type_tokens(parameter)
+            if type_tokens is None:
+                continue
+            source_type, tag_type = type_tokens
+
+            source = self._source_from_input_and_parameter_type(input_socket, source_type)
+            if source is None:
+                continue
+
+            element = self._setup_parameter(source, parameter_name, tag_type)
+            if element:
+                self._setup_function_parameters(source, element, source_type)
+                seen_parameters.add(parameter_name)
+
+        return True
     
     def _get_basic_mapping(self, blender_material):
         """Best-effort mapping from arbitrary Blender node trees to basic Halo shader properties."""
@@ -305,6 +537,11 @@ class ShaderTag(Tag):
         property_hits = {k: [] for k in property_keys}
         shader_hits = {}
         traversal_guard = set()
+        node_output_visits = {}
+        max_walk_depth = 128
+        max_walk_visits = 12000
+        max_node_output_visits = 24
+        walk_aborted = False
         hit_order = 0
         
         def _norm(text) -> str:
@@ -500,79 +737,93 @@ class ShaderTag(Tag):
             hit_order += 1
         
         def _walk(node: bpy.types.Node, output_name='', group_stack=(), path_scores=None, distance=0):
+            nonlocal walk_aborted
             if node is None:
+                return
+            if walk_aborted:
+                return
+            if distance > max_walk_depth:
                 return
             if path_scores is None:
                 path_scores = zero_scores
             
-            guard_key = (id(node), _norm(output_name), tuple(id(g) for g in group_stack))
+            output_norm = _norm(output_name)
+
+            node_output_key = (id(node), output_norm)
+            visits = node_output_visits.get(node_output_key, 0)
+            if visits >= max_node_output_visits:
+                return
+            node_output_visits[node_output_key] = visits + 1
+
+            # Keep only immediate group context to avoid runaway state growth in cyclic
+            # group-input/group-output graphs while preserving local traversal behavior.
+            context_group = id(group_stack[-1]) if group_stack else 0
+            guard_key = (id(node), output_norm, context_group)
             if guard_key in traversal_guard:
+                return
+            if len(traversal_guard) >= max_walk_visits:
+                walk_aborted = True
                 return
             traversal_guard.add(guard_key)
             
-            try:
-                current_scores = _merge_scores(path_scores, _scores_from_node(node))
-                _register_shader(node, current_scores, distance)
-                
-                if node.type == 'TEX_IMAGE':
-                    _register_image(node, current_scores, output_name, distance)
-                
-                if node.type == 'GROUP_INPUT':
-                    if group_stack:
-                        parent_group = group_stack[-1]
-                        output_norm = _norm(output_name)
-                        parent_inputs = []
-                        if output_norm:
-                            for parent_input in parent_group.inputs:
-                                if _norm(parent_input.name) == output_norm:
-                                    parent_inputs.append(parent_input)
-                        if not parent_inputs and output_norm:
-                            output_tokens = set(output_norm.split())
-                            for parent_input in parent_group.inputs:
-                                parent_tokens = set(_norm(parent_input.name).split())
-                                if output_tokens and output_tokens.intersection(parent_tokens):
-                                    parent_inputs.append(parent_input)
-                        if not parent_inputs:
-                            linked_inputs = [parent_input for parent_input in parent_group.inputs if parent_input.links]
-                            if not output_norm:
-                                parent_inputs = linked_inputs
-                            elif len(linked_inputs) == 1:
-                                parent_inputs = linked_inputs
-                            else:
-                                return
-                        
-                        for parent_input in parent_inputs:
-                            edge_scores = _scores_from_input(parent_group, parent_input)
-                            next_scores = _merge_scores(current_scores, edge_scores)
-                            for link in parent_input.links:
-                                _walk(link.from_node, link.from_socket.name, group_stack[:-1], next_scores, distance + 1)
+            current_scores = _merge_scores(path_scores, _scores_from_node(node))
+            _register_shader(node, current_scores, distance)
+            
+            if node.type == 'TEX_IMAGE':
+                _register_image(node, current_scores, output_name, distance)
+            
+            if node.type == 'GROUP_INPUT':
+                if group_stack:
+                    parent_group = group_stack[-1]
+                    parent_inputs = []
+                    if output_norm:
+                        for parent_input in parent_group.inputs:
+                            if _norm(parent_input.name) == output_norm:
+                                parent_inputs.append(parent_input)
+                    if not parent_inputs and output_norm:
+                        output_tokens = set(output_norm.split())
+                        for parent_input in parent_group.inputs:
+                            parent_tokens = set(_norm(parent_input.name).split())
+                            if output_tokens and output_tokens.intersection(parent_tokens):
+                                parent_inputs.append(parent_input)
+                    if not parent_inputs:
+                        linked_inputs = [parent_input for parent_input in parent_group.inputs if parent_input.links]
+                        if not output_norm:
+                            parent_inputs = linked_inputs
+                        elif len(linked_inputs) == 1:
+                            parent_inputs = linked_inputs
+                        else:
+                            return
+                    
+                    for parent_input in parent_inputs:
+                        edge_scores = _scores_from_input(parent_group, parent_input)
+                        next_scores = _merge_scores(current_scores, edge_scores)
+                        for link in parent_input.links:
+                            _walk(link.from_node, link.from_socket.name, group_stack[:-1], next_scores, distance + 1)
+                return
+            
+            if node.type == 'GROUP' and node.node_tree:
+                traversed_internal = False
+                group_outputs = [n for n in node.node_tree.nodes if n.type == 'GROUP_OUTPUT']
+                for group_output in group_outputs:
+                    for group_input in group_output.inputs:
+                        if output_norm and _norm(group_input.name) != output_norm:
+                            continue
+                        edge_scores = _scores_from_input(group_output, group_input)
+                        next_scores = _merge_scores(current_scores, edge_scores)
+                        for link in group_input.links:
+                            traversed_internal = True
+                            _walk(link.from_node, link.from_socket.name, group_stack + (node,), next_scores, distance + 1)
+                if traversed_internal:
                     return
-                
-                if node.type == 'GROUP' and node.node_tree:
-                    output_norm = _norm(output_name)
-                    traversed_internal = False
-                    group_outputs = [n for n in node.node_tree.nodes if n.type == 'GROUP_OUTPUT']
-                    for group_output in group_outputs:
-                        for group_input in group_output.inputs:
-                            if output_norm and _norm(group_input.name) != output_norm:
-                                continue
-                            edge_scores = _scores_from_input(group_output, group_input)
-                            next_scores = _merge_scores(current_scores, edge_scores)
-                            for link in group_input.links:
-                                traversed_internal = True
-                                _walk(link.from_node, link.from_socket.name, group_stack + (node,), next_scores, distance + 1)
-                    if traversed_internal:
-                        return
-                
-                for input_socket in node.inputs:
-                    if not input_socket.links:
-                        continue
-                    edge_scores = _scores_from_input(node, input_socket)
-                    next_scores = _merge_scores(current_scores, edge_scores)
-                    for link in input_socket.links:
-                        _walk(link.from_node, link.from_socket.name, group_stack, next_scores, distance + 1)
-            finally:
-                traversal_guard.discard(guard_key)
+            
+            for input_socket in node.inputs:
+                if not input_socket.links:
+                    continue
+                edge_scores = _scores_from_input(node, input_socket)
+                next_scores = _merge_scores(current_scores, edge_scores)
+                for link in input_socket.links:
+                    _walk(link.from_node, link.from_socket.name, group_stack, next_scores, distance + 1)
         
         surface_links = []
         for output_node in node_tree.nodes:
@@ -589,6 +840,11 @@ class ShaderTag(Tag):
         for surface_input, link in surface_links:
             seed_scores = _scores_from_input(surface_input.node, surface_input)
             _walk(link.from_node, link.from_socket.name, tuple(), seed_scores, 0)
+
+        if walk_aborted:
+            utils.print_warning(
+                "Adaptive shader-node mapping traversal reached safety limits and was truncated to avoid infinite recursion"
+            )
         
         if not any(property_hits.values()):
             for node in node_tree.nodes:
@@ -941,7 +1197,10 @@ class ShaderTag(Tag):
         input_name = input.name.lower()
         match parameter_type:
             case 'bitmap':
-                return utils.find_linked_node(self.group_node, input_name, 'TEX_IMAGE')
+                linked = utils.find_linked_node(self.group_node, input_name, 'TEX_IMAGE')
+                if linked is None:
+                    linked = utils.find_linked_node(self.group_node, input_name, 'TEX_ENVIRONMENT')
+                return linked
             case 'real':
                 return float(input.default_value)
             case 'int':

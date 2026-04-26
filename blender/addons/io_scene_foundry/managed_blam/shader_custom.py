@@ -92,6 +92,18 @@ class Wetness(Enum):
 class ShaderCustomTag(ShaderTag):
     tag_ext = 'shader_custom'
     group_supported = True
+    group_node_name = "foundry_reach.shader_custom"
+    group_option_start_input = 8
+    group_option_specs = (
+        ("albedo", Albedo, 0, 0),
+        ("bump_mapping", BumpMapping, 1, 1),
+        ("alpha_test", AlphaTest, 2, 2),
+        ("specular_mask", SpecularMask, 3, 3),
+        ("material_model", MaterialModel, 4, 4),
+        ("environment_mapping", EnvironmentMapping, 5, 5),
+        ("self_illumination", SelfIllumination, 6, 6),
+        ("blend_mode", BlendMode, 7, 7),
+    )
     
     default_parameter_bitmaps = None
     category_parameters = None

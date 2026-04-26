@@ -5,11 +5,79 @@ import os
 
 from ..managed_blam import Tag
 from ..managed_blam.shader import ShaderTag
+from ..managed_blam.shader_custom import ShaderCustomTag
+from ..managed_blam.shader_decal import ShaderDecalTag
+from ..managed_blam.shader_foliage import ShaderFoliageTag
+from ..managed_blam.shader_glass import ShaderGlassTag
+from ..managed_blam.shader_halogram import ShaderHalogramTag
+from ..managed_blam.shader_terrain import ShaderTerrainTag
 from ..managed_blam.material import MaterialTag
 from .. import utils
 
 global_material_shaders = []
 material_shader_path = ""
+
+REACH_GROUP_TO_CLASS = {
+    "foundry_reach.shader": (ShaderTag, ".shader"),
+    "foundry_reach.shader_custom": (ShaderCustomTag, ".shader_custom"),
+    "foundry_reach.shader_decal": (ShaderDecalTag, ".shader_decal"),
+    "foundry_reach.shader_foliage": (ShaderFoliageTag, ".shader_foliage"),
+    "foundry_reach.shader_glass": (ShaderGlassTag, ".shader_glass"),
+    "foundry_reach.shader_halogram": (ShaderHalogramTag, ".shader_halogram"),
+    "foundry_reach.shader_terrain": (ShaderTerrainTag, ".shader_terrain"),
+}
+
+REACH_SUFFIX_TO_CLASS = {
+    ".shader": (ShaderTag, ".shader"),
+    ".shader_custom": (ShaderCustomTag, ".shader_custom"),
+    ".shader_decal": (ShaderDecalTag, ".shader_decal"),
+    ".shader_foliage": (ShaderFoliageTag, ".shader_foliage"),
+    ".shader_glass": (ShaderGlassTag, ".shader_glass"),
+    ".shader_halogram": (ShaderHalogramTag, ".shader_halogram"),
+    ".shader_terrain": (ShaderTerrainTag, ".shader_terrain"),
+}
+
+
+def _normalize_group_name(name: str) -> str:
+    if not name:
+        return ""
+
+    normalized = name.lower().replace(" ", "_")
+    # Blender appends numeric copy suffixes like ".001" to datablock names.
+    # Strip only numeric suffixes so semantic shader suffixes (e.g. ".shader")
+    # remain available for class routing.
+    base, sep, suffix = normalized.rpartition(".")
+    if sep and suffix.isdigit():
+        return base
+    return normalized
+
+
+def _material_output_group(material: bpy.types.Material):
+    node_tree = getattr(material, "node_tree", None)
+    if node_tree is None:
+        return None
+    output = next((node for node in node_tree.nodes if node.type == "OUTPUT_MATERIAL"), None)
+    if output is None or not output.inputs[0].links:
+        return None
+    group_node = output.inputs[0].links[0].from_node
+    if group_node.type != "GROUP" or group_node.node_tree is None:
+        return None
+    return group_node
+
+
+def _resolve_reach_shader_class(material: bpy.types.Material, shader_path: Path):
+    group_node = _material_output_group(material)
+    if group_node is not None:
+        group_name = _normalize_group_name(group_node.node_tree.name)
+        match = REACH_GROUP_TO_CLASS.get(group_name)
+        if match is not None:
+            return match
+
+    suffix = shader_path.suffix.lower()
+    if suffix in REACH_SUFFIX_TO_CLASS:
+        return REACH_SUFFIX_TO_CLASS[suffix]
+
+    return REACH_SUFFIX_TO_CLASS[".shader"]
 
 def build_shader(material, corinth, folder="", report=None):
     asset_dir = utils.get_asset_path()
@@ -44,7 +112,8 @@ def build_shader(material, corinth, folder="", report=None):
             nwo.shader_path = tag.write_tag(material, nwo.uses_blender_nodes, material_shader=nwo.material_shader)
     else:
         if nwo.uses_blender_nodes:
-            with ShaderTag(path=shader_path.with_suffix(".shader")) as tag:
+            tag_class, suffix = _resolve_reach_shader_class(material, shader_path)
+            with tag_class(path=shader_path.with_suffix(suffix)) as tag:
                 nwo.shader_path = tag.write_tag(material, nwo.uses_blender_nodes)
         else:
             with Tag(path=shader_path.with_suffix(nwo.shader_type)) as tag:

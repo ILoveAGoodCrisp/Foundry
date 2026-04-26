@@ -42,6 +42,16 @@ class TerrainWetness(Enum):
 class ShaderTerrainTag(ShaderTag):
     tag_ext = 'shader_terrain'
     group_supported = True
+    group_node_name = "foundry_reach.shader_terrain"
+    group_option_start_input = 6
+    group_option_specs = (
+        ("blending", TerrainBlending, 0, 0),
+        ("environment_map", TerrainEnvironmentMapping, 1, 1),
+        ("material_0", TerrainMaterial, 2, 2),
+        ("material_1", TerrainMaterial, 3, 3),
+        ("material_2", TerrainMaterial, 4, 4),
+        ("material_3", TerrainMaterial3, 5, 5),
+    )
     
     default_parameter_bitmaps = None
     category_parameters = None
@@ -54,6 +64,30 @@ class ShaderTerrainTag(ShaderTag):
                 return ref_shader.get_global_material()
             
         return global_material
+
+    def _group_option_member_from_socket(self, category_name, enum_cls, socket_value):
+        if category_name == "material_3" and isinstance(socket_value, str):
+            key = utils.game_str(socket_value)
+            if key.startswith("off"):
+                return TerrainMaterial3.OFF
+            if key.startswith("diffuse_only"):
+                return TerrainMaterial3.DIFFUSE_ONLY
+            if key.startswith("diffuse_plus_specular"):
+                return TerrainMaterial3.DIFFUSE_PLUS_SPECULAR
+
+        return super()._group_option_member_from_socket(category_name, enum_cls, socket_value)
+
+    def _group_option_key(self, category_name, enum_member):
+        if category_name == "material_3":
+            match enum_member:
+                case TerrainMaterial3.OFF:
+                    return "off"
+                case TerrainMaterial3.DIFFUSE_ONLY:
+                    return "diffuse_only_(four_material_shaders_disable_detail_bump)"
+                case TerrainMaterial3.DIFFUSE_PLUS_SPECULAR:
+                    return "diffuse_plus_specular_(four_material_shaders_disable_detail_bump)"
+
+        return super()._group_option_key(category_name, enum_member)
     
     def _to_nodes_group(self, blender_material: bpy.types.Material):
         # Get options

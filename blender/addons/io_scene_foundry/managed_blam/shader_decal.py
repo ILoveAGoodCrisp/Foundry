@@ -54,6 +54,12 @@ class BumpMapping(Enum):
 class ShaderDecalTag(ShaderTag):
     tag_ext = 'shader_decal'
     group_supported = True
+    group_node_name = "foundry_reach.shader_decal"
+    group_option_start_input = 2
+    group_option_specs = (
+        ("albedo", Albedo, 0, 0),
+        ("blend_mode", BlendMode, 1, 1),
+    )
     
     default_parameter_bitmaps = None
     category_parameters = None

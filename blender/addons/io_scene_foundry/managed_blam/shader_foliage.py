@@ -31,6 +31,13 @@ class Wetness(Enum):
 class ShaderFoliageTag(ShaderTag):
     tag_ext = 'shader_foliage'
     group_supported = True
+    group_node_name = "foundry_reach.shader_foliage"
+    group_option_start_input = 3
+    group_option_specs = (
+        ("albedo", Albedo, 0, 0),
+        ("alpha_test", AlphaTest, 1, 1),
+        ("material_model", MaterialModel, 2, 2),
+    )
     
     default_parameter_bitmaps = None
     category_parameters = None

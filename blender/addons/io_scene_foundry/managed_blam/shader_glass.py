@@ -38,6 +38,15 @@ class AlphaBlendSource(Enum):
 class ShaderGlassTag(ShaderTag):
     tag_ext = 'shader_glass'
     group_supported = True
+    group_node_name = "foundry_reach.shader_glass"
+    group_option_start_input = 5
+    group_option_specs = (
+        ("albedo", Albedo, 0, 0),
+        ("bump_mapping", BumpMapping, 1, 1),
+        ("material_model", MaterialModel, 2, 2),
+        ("environment_mapping", EnvironmentMapping, 3, 3),
+        ("alpha_blend_source", AlphaBlendSource, 4, 4),
+    )
     
     default_parameter_bitmaps = None
     category_parameters = None
