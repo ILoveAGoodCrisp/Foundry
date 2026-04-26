@@ -4,7 +4,7 @@ import bpy
 import os
 
 from ..managed_blam import Tag
-from ..managed_blam.shader import ShaderTag
+from ..managed_blam.shader import ShaderTag, build_templates
 from ..managed_blam.shader_custom import ShaderCustomTag
 from ..managed_blam.shader_decal import ShaderDecalTag
 from ..managed_blam.shader_foliage import ShaderFoliageTag
@@ -125,6 +125,9 @@ def build_shader(material, corinth, folder="", report=None):
         else:
             with Tag(path=shader_path.with_suffix(nwo.shader_type)) as tag:
                 nwo.shader_path = tag.tag_path.RelativePathWithExtension
+                
+        if not corinth and nwo.shader_path:
+            build_templates([nwo.shader_path])
         
         if report is not None:
             report({'INFO'}, f"Created Shader Tag for {material.name}")

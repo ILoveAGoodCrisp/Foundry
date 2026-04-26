@@ -307,9 +307,6 @@ class ShaderTag(Tag):
         elif self.corinth and self.material_shader:
             self.tag.SelectField("Reference:material shader").Path = self._TagPath_from_string(self.material_shader)
             
-        if not self.corinth:
-            build_templates([self.tag_path.Filename])
-            
         return self.tag.Path.RelativePathWithExtension
         
     def _edit_tag(self):
