@@ -19,11 +19,15 @@ def main():
         zip.write(Path(sln_dir_path, "README.md"), Path("io_scene_foundry", "README.md"))
 
         for dir, _, files in os.walk(extension_path):
+            if dir.startswith("_"):
+                continue
             for file in files:
                 f = Path(file)
                 if f.suffix == ".pyc":
                     continue
-                zip.write(Path(dir, f))
+                relative_path = Path(dir, f).relative_to(extension_path)
+                archive_path = Path("io_scene_foundry") / relative_path
+                zip.write(archive_path)
                 
     print(f"Zipped Blender Extension to {zip_path}")
 
