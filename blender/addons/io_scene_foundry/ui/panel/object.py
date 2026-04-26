@@ -1535,3 +1535,44 @@ class NWO_OT_ShowWaterDirection(bpy.types.Operator):
             return {"FINISHED"}
         
         return {'PASS_THROUGH'}
+    
+def _copy_marker_transform(target: bpy.types.Object, marker: bpy.types.Object):
+    target.constraints.clear()
+    target.matrix_world = marker.matrix_world.copy()
+    constraint = target.constraints.new(type='COPY_TRANSFORMS')
+    constraint.target = marker
+    return constraint
+
+class NWO_OT_HaloAttach(bpy.types.Operator):
+    bl_idname = "nwo.halo_attach"
+    bl_label = "Attach to Marker"
+    bl_description = "Attach halo objects together in the same way the game handles this. Selected objects will be attached to the active object"
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        return context.object and len(context.selected_objects) > 1
+
+    def execute(self, context):
+        
+        parent_skeleton = None
+        parent_marker = None
+        
+        child_skeletons = set()
+        child_markers = set()
+        
+        active = context.object
+        if active.type == 'EMPTY' and active.parent and active.parent.type == 'ARMATURE':
+            parent_skeleton = active.parent
+            parent_marker = active
+            
+        for ob in context.selected_objects:
+            if ob is active:
+                continue
+            
+            if ob.type == 'EMPTY' and ob.parent and ob.parent.type == 'ARMATURE':
+                child_skeletons[ob.parent] = ob
+            elif ob.type == 'ARMATURE':
+                child_skeletons[ob.parent] = None
+                
+        return {"FINISHED"}

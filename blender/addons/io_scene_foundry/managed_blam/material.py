@@ -113,7 +113,10 @@ class MaterialTag(ShaderTag):
 
     def _material_shader_path_from_group_node(self, group_node_name):
         filename = group_node_name + '.material_shader'
-        return utils.relative_path(utils.find_file_in_directory(str(Path(self.tags_dir, MATERIAL_SHADERS_DIR)), filename))
+        path = utils.find_file_in_directory(str(Path(self.tags_dir, MATERIAL_SHADERS_DIR)), filename)
+        if not path:
+            return ''
+        return utils.relative_path(path)
                 
     def _from_nodes_group(self):
         name_type_node_dict = {}
@@ -121,9 +124,23 @@ class MaterialTag(ShaderTag):
         cull_chars = " _-()'\""
         
         group_node_name = utils.dot_partition(self.group_node.node_tree.name.lower().replace(' ', '_'))
-        self.reference_material_shader.Path = self._TagPath_from_string(self._material_shader_path_from_group_node(group_node_name))
+        material_shader_path = self._material_shader_path_from_group_node(group_node_name)
+        if not material_shader_path:
+            utils.print_warning(f"No material shader found for group node [{group_node_name}]. Falling back to adaptive basic mapping")
+            self._build_basic(self._get_basic_mapping(self.blender_material))
+            return
+        
+        self.reference_material_shader.Path = self._TagPath_from_string(material_shader_path)
+        if self.reference_material_shader.Path is None:
+            utils.print_warning(f"Failed to resolve material shader path [{material_shader_path}] for group node [{group_node_name}]. Falling back to adaptive basic mapping")
+            self._build_basic(self._get_basic_mapping(self.blender_material))
+            return
 
         paramaters = self._get_info(self.reference_material_shader.Path)
+        if not paramaters:
+            utils.print_warning(f"Material shader defaults missing for [{self.reference_material_shader.Path.ShortName}]. Falling back to adaptive basic mapping")
+            self._build_basic(self._get_basic_mapping(self.blender_material))
+            return
         
         for i in inputs:
             for parameter_name, value in paramaters.items():
@@ -143,21 +160,24 @@ class MaterialTag(ShaderTag):
                 
     def _build_basic(self, map: dict):
         # Set up shader parameters
-        self.group_node = map.get("bsdf")
-        spec_alpha_from_diffuse = False
-        si_alpha_from_diffuse = False
+        self.group_node = map.get("mapping_root") or map.get("bsdf")
+        spec_alpha_from_diffuse = bool(map.get('specular_from_diffuse_alpha'))
+        si_alpha_from_diffuse = bool(map.get('self_illum_from_diffuse_alpha'))
         if map.get('diffuse', 0):
             element = self._setup_parameter(map['diffuse'], 'color_map', 'bitmap')
             if element:
                 mapping = self._setup_function_parameters(map['diffuse'], element, 'bitmap')
                 self._finalize_material_parameters(mapping, element)
             self._Element_remove_if_needed(self.block_parameters, 'parameter name', 'albedo_tint')
-            diff_alpha_output: bpy.types.NodeInputs = map['diffuse'].outputs[1]
-            if diff_alpha_output.links:
+            diff_alpha_output = map['diffuse'].outputs.get('Alpha')
+            if diff_alpha_output is None and len(map['diffuse'].outputs) > 1:
+                diff_alpha_output = map['diffuse'].outputs[1]
+            if diff_alpha_output and diff_alpha_output.links:
                 for l in diff_alpha_output.links:
-                    if l.to_socket.name.lower() == 'specular ior level':
+                    socket_name = l.to_socket.name.lower()
+                    if socket_name == 'specular ior level' or 'specular' in socket_name or socket_name in {'sp', '[sp] texture'}:
                         spec_alpha_from_diffuse = True
-                    if l.to_socket.name.lower() == 'emission color':
+                    if socket_name == 'emission color' or 'emission' in socket_name or 'self illum' in socket_name or socket_name in {'em', '[em] texture'}:
                         si_alpha_from_diffuse = True
                 
         elif map.get('albedo_tint', 0):
@@ -200,7 +220,21 @@ class MaterialTag(ShaderTag):
             self._Element_remove_if_needed(self.block_parameters, 'parameter name', 'selfillum_map')
         
         if si_alpha_from_diffuse or map.get('self_illum', 0):
-            si_intensity = map['bsdf'].inputs['Emission Strength'].default_value
+            si_intensity = map.get('emission_strength')
+            if si_intensity is None:
+                bsdf = map.get('bsdf')
+                emission_input = None
+                if bsdf and hasattr(bsdf, 'inputs'):
+                    emission_input = bsdf.inputs.get('Emission Strength')
+                    if emission_input is None:
+                        for input_socket in bsdf.inputs:
+                            if input_socket.name.lower() == 'emission strength':
+                                emission_input = input_socket
+                                break
+                if emission_input:
+                    si_intensity = emission_input.default_value
+                else:
+                    si_intensity = 1
             element = self._setup_parameter(si_intensity, 'si_intensity', 'real')
             if element:
                 mapping = self._setup_function_parameters(si_intensity, element, 'real')

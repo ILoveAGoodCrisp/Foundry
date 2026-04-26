@@ -908,8 +908,11 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
     )
     
-    build_missing_shaders: bpy.props.BoolProperty()
-    
+    # build_missing_shaders: bpy.props.BoolProperty(
+    #     name="Build Missing Shader Tags on Export",
+    #     description="Builds shader/material tags (if the blender material has shader nodes) for materials without a shader/material tag path assigned",
+    #     default=True,
+    # )
     
     debug_composites: bpy.props.BoolProperty(
         name="Debug Composites",
@@ -1004,7 +1007,7 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
         name="Quality",
         items=lightmap_quality_items,
         options=set(),
-        description="The lightmap quality you wish to use. You can change and add to this list by editing your lightmapper globals tag found here:\n\ntags\globals\lightmapper_globals.lightmapper_globals",
+        description="The lightmap quality you wish to use. You can change and add to this list by editing your lightmapper globals tag found here:\n\ntags\\globals\\lightmapper_globals.lightmapper_globals",
     )
     lightmap_all_bsps: bpy.props.BoolProperty(
         name="All BSPs",
