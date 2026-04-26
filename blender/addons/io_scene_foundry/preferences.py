@@ -289,6 +289,12 @@ class FoundryPreferences(AddonPreferences):
         default=True,
         description="By default when launching Foundation with Foundry, the Foundry Plugin will be installed for Foundation if it does not already exist (or is out of date). Toggle this off to prevent this behaviour. Launching Foundation with this disabled will also disable the plugin"
     )
+    
+    rename_halo_collections: BoolProperty(
+        name="Rename Halo Collections",
+        default=True,
+        description="Renames any collection converted to a halo collection with their respective region/permutation/bsp/layer name"
+    )
 
     def draw(self, context):
         prefs = self
@@ -350,6 +356,8 @@ class FoundryPreferences(AddonPreferences):
         row.prop(prefs, "allow_tool_patches")
         row = box.row(align=True)
         row.prop(prefs, "allow_foundation_plugin_install")
+        row = box.row(align=True)
+        row.prop(prefs, "rename_halo_collections")
         row = box.row(align=True)
         row.prop(prefs, "granny_viewer_path")
         

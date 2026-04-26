@@ -3710,6 +3710,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         row = box.row(align=True)
         row.prop(prefs, "allow_foundation_plugin_install")
         row = box.row(align=True)
+        row.prop(prefs, "rename_halo_collections")
+        row = box.row(align=True)
         row.prop(prefs, "granny_viewer_path")
         blend_prefs = context.preferences
         if blend_prefs.use_preferences_save and (not bpy.app.use_userpref_skip_save_on_exit):

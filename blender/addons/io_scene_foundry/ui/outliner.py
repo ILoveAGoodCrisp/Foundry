@@ -63,6 +63,8 @@ class NWO_ApplyCollectionType(bpy.types.Operator):
         if self.c_type == 'none':
             # coll.name = utils.any_partition(coll.name, '::', True)
             return {'FINISHED'}
+        
+        rename_collection = utils.get_prefs().rename_halo_collections
 
         display_name = self.c_type
         scene_nwo = utils.get_scene_props()
@@ -81,8 +83,9 @@ class NWO_ApplyCollectionType(bpy.types.Operator):
                 new_permutation = permutations.add()
                 new_permutation.name = coll_name
 
-        if self.c_type in {'region', 'permutation'}:
-            coll.name = coll_name
+        if rename_collection:
+            if self.c_type in {'region', 'permutation'}:
+                coll.name = coll_name
 
         return {'FINISHED'}
     
