@@ -6155,3 +6155,13 @@ def find_layer_collection(layer_coll, collection):
         if result:
             return result
     return None
+
+def bpy_enum_from_list(l: list, start_with_none=False):
+    items = [("none", "None", "")] if start_with_none else []
+    for i in l:
+        items.append((i, i, ""))
+        
+    if not items:
+        return [("none", "None", "")]
+    
+    return items

@@ -8,6 +8,7 @@ import bmesh
 from uuid import uuid4
 import gpu
 from gpu_extras.batch import batch_for_shader
+from mathutils import Matrix
 import numpy as np
 
 from ...constants import VALID_MESHES, face_prop_type_items, face_prop_descriptions, face_mode_items
@@ -1536,43 +1537,104 @@ class NWO_OT_ShowWaterDirection(bpy.types.Operator):
         
         return {'PASS_THROUGH'}
     
+def draw_halo_attach(self, context):
+    layout = self.layout
+    layout.separator()
+    layout.operator("nwo.halo_attach")
+
+parent_markers = []
+child_markers = []
+
 def _copy_marker_transform(target: bpy.types.Object, marker: bpy.types.Object):
-    target.constraints.clear()
     target.matrix_world = marker.matrix_world.copy()
     constraint = target.constraints.new(type='COPY_TRANSFORMS')
     constraint.target = marker
     return constraint
-
+ 
 class NWO_OT_HaloAttach(bpy.types.Operator):
     bl_idname = "nwo.halo_attach"
-    bl_label = "Attach to Marker"
-    bl_description = "Attach halo objects together in the same way the game handles this. Selected objects will be attached to the active object"
-    bl_options = {"REGISTER", "UNDO"}
+    bl_label = "Attach Halo Armatures"
+    bl_description = "Attach armatures together in the same way the game handles this. The selected armature will be attached to the active armature"
+    bl_options = {"UNDO"}
 
     @classmethod
     def poll(cls, context):
-        return context.object and len(context.selected_objects) > 1
+        if context.object and len(context.selected_objects) == 2:
+            return all(ob.type == 'ARMATURE' for ob in context.selected_objects)
+        
+    def get_parent_marker(self, context):
+        return utils.bpy_enum_from_list([ob.name for ob in parent_markers], True)
+
+    parent_marker: bpy.props.EnumProperty(
+        name="Parent Marker",
+        description="Marker to parent the child armature to. If none, the child will be attached the parent armature directly",
+        items=get_parent_marker,
+    )
+    
+    def get_child_marker(self, context):
+        return utils.bpy_enum_from_list([ob.name for ob in child_markers], True)
+    
+    child_marker: bpy.props.EnumProperty(
+        name="Child Marker",
+        description="Marker used to offset the parent-child relationship of the two armatures, as if the parent marker and child marker are attached directly. If none, the child armature will be attached directly to the parent marker (or parent armature if none)",
+        items=get_child_marker,
+    )
+    
+    def invoke(self, context, _):
+        parent_skeleton = context.object
+        child_skeleton = [ob for ob in context.selected_objects if ob is not parent_skeleton][0]
+        
+        global parent_markers
+        global child_markers
+        
+        parent_markers = [ob for ob in parent_skeleton.children if utils.is_marker(ob)]
+        child_markers = [ob for ob in child_skeleton.children if utils.is_marker(ob)]
+        
+        return context.window_manager.invoke_props_dialog(self)
 
     def execute(self, context):
+        parent_skeleton = context.object
+        parent_marker = bpy.data.objects.get(self.parent_marker) if self.parent_marker != "none" else None
         
-        parent_skeleton = None
-        parent_marker = None
+        child_skeleton = [ob for ob in context.selected_objects if ob is not parent_skeleton][0]
+        child_marker = bpy.data.objects.get(self.child_marker) if self.child_marker != "none" else None
         
-        child_skeletons = set()
-        child_markers = set()
+        has_marker_parent = parent_marker is not None
+        has_marker_child = child_marker is not None
         
-        active = context.object
-        if active.type == 'EMPTY' and active.parent and active.parent.type == 'ARMATURE':
-            parent_skeleton = active.parent
-            parent_marker = active
+        child_skeleton.constraints.clear()
+        if has_marker_child:
+            child_marker.constraints.clear()
             
-        for ob in context.selected_objects:
-            if ob is active:
-                continue
+        child_skeleton.matrix_world = Matrix.Identity(4)
+
+        if has_marker_child:
+            attach_point = child_marker.copy()
+            attach_point.name = f"{parent_skeleton.name}_attach"
+            attach_point_matrix = attach_point.matrix_world.copy()
+            attach_point.parent = None
+            attach_point.matrix_world = attach_point_matrix
+            attach_point.nwo.export_this = False
             
-            if ob.type == 'EMPTY' and ob.parent and ob.parent.type == 'ARMATURE':
-                child_skeletons[ob.parent] = ob
-            elif ob.type == 'ARMATURE':
-                child_skeletons[ob.parent] = None
+            for coll in child_marker.users_collection:
+                coll.objects.link(attach_point)
+            
+            arm_matrix = child_skeleton.matrix_world.copy()
+            child_skeleton.parent = attach_point
+            child_skeleton.matrix_world = arm_matrix
+
+        if has_marker_parent:
+            if has_marker_child:
+                _copy_marker_transform(attach_point, parent_marker)
+            else:
+                _copy_marker_transform(child_skeleton, parent_marker)
+        else:
+            if has_marker_child:
+                attach_point.parent = parent_skeleton
+                attach_point.matrix_world = parent_skeleton.matrix_world
+            else:
+                child_skeleton.parent = parent_skeleton
+        
+        self.report({'INFO'}, f"Attached {child_skeleton.name} to {parent_skeleton.name}")
                 
         return {"FINISHED"}

@@ -163,6 +163,7 @@ classes = [
     object.NWO_OT_SelectChildObjects,
     object.NWO_OT_RemapChildDriversToArmature,
     object.NWO_OT_ShowWaterDirection,
+    object.NWO_OT_HaloAttach,
     panel.NWO_FoundryPanelProps,
     panel.NWO_FoundryPanelPopover,
     panel.NWO_HotkeyDescription,
@@ -225,6 +226,7 @@ def register():
     bpy.types.VIEW3D_MT_object.append(viewport.add_halo_join)
     bpy.types.TOPBAR_MT_file_import.append(bar.menu_func_import)
     bpy.types.DOPESHEET_HT_header.append(timeline.draw_cinematic_info)
+    bpy.types.VIEW3D_MT_object_parent.append(object.draw_halo_attach)
 
     bpy.types.Scene.nwo_export = bpy.props.PointerProperty(
         type=bar.NWO_HaloExportPropertiesGroup, name="Halo Export", description=""
@@ -232,6 +234,7 @@ def register():
     
 def unregister():
     del bpy.types.Scene.nwo_export
+    bpy.types.VIEW3D_MT_object_parent.remove(object.draw_halo_attach)
     bpy.types.DOPESHEET_HT_header.remove(timeline.draw_cinematic_info)
     bpy.types.TOPBAR_MT_file_import.remove(bar.menu_func_import)
     bpy.types.VIEW3D_HT_tool_header.remove(bar.draw_foundry_toolbar)

@@ -156,7 +156,7 @@ namespace FoundryPlugin
         {
             return new SourceControlFile(
                 fileName,
-                SourceControlFileState.CheckedOutOnThisClient,
+                SourceControlFileState.UpToDate,
                 false,
                 EmptyClientList,
                 EmptyClientList,
