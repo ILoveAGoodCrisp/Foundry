@@ -1079,7 +1079,7 @@ class AnimationTag(Tag):
             source_section_boundaries = getattr(source_member, "section_boundaries", {}) or {}
             if source_layout_version >= 4:
                 revised_curve_rotation_layout = "h4_source"
-                # Gen4 source tags serialize the cache-side PackedDataSizesStructActual,
+                # H4 source tags serialize the cache-side PackedDataSizesStructActual,
                 # but the exposed source field names are shifted from their real meaning.
                 static_data_size = int(source_section_boundaries.get("static_node_flags", 0) or 0)
                 static_codec_size = static_data_size
@@ -1088,7 +1088,7 @@ class AnimationTag(Tag):
                 animated_flags_size = int(source_section_boundaries.get("pill_offset_data", 0) or 0)
                 movement_data_size = int(source_section_boundaries.get("default_data", 0) or 0)
             else:
-                # Reach/HREK source tags expose boundary-style values here instead.
+                # Reach source tags expose boundary-style values here instead.
                 flag_word_size = ((node_count + 31) // 32) * 4
                 static_codec_size = source_member.static_flags_size
                 animated_codec_size = source_member.animated_flags_size
@@ -2704,7 +2704,7 @@ class AnimationTag(Tag):
             flags.SetBit("translate and scale root only", blender_animation.translate_and_scale_root_only)
 
             flags.SetBit(
-                "enable blend out on replacement anims" if self.corinth else "enable blend out",
+                "enable blend-out on replacement anims" if self.corinth else "enable blend out",
                 blender_animation.enable_blend_out_on_replacement_anims
             )
 
@@ -2913,7 +2913,7 @@ class AnimationTag(Tag):
         blender_animation.disable_ik_sets = flags.TestBit("disable ik sets")
         blender_animation.disable_ik_chains = flags.TestBit("disable ik chains")
         blender_animation.translate_and_scale_root_only = flags.TestBit("translate and scale root only")
-        blender_animation.enable_blend_out_on_replacement_anims = flags.TestBit("enable blend out on replacement anims" if self.corinth else "enable blend out") 
+        blender_animation.enable_blend_out_on_replacement_anims = flags.TestBit("enable blend-out on replacement anims" if self.corinth else "enable blend out") 
         if self.corinth:
             blender_animation.override_player_input_with_motion = flags.TestBit("override player input with motion")
             blender_animation.pca_group_name = tag_animation.element.SelectField("pca group name").GetStringData()
@@ -2925,13 +2925,15 @@ class AnimationTag(Tag):
         if flags.TestBit("use custom blend-out time" if self.corinth else "override default blend out time"):
             blender_animation.override_blend_out_time = tag_animation.element.SelectField("override blend out time").Data
         
-        match tag_animation.compression:
-            case Compression.medium_compression | Compression.reach_medium_compression:
-                blender_animation.compression = "Medium"
-            case Compression.rough_compression | Compression.reach_rough_compression:
-                blender_animation.compression = "Rough"
-            case Compression.uncompressed:
-                blender_animation.compression = "Uncompressed"
+        # match tag_animation.compression:
+        #     case Compression.medium_compression | Compression.reach_medium_compression:
+        #         blender_animation.compression = "Medium"
+        #     case Compression.rough_compression | Compression.reach_rough_compression:
+        #         blender_animation.compression = "Rough"
+        #     case Compression.uncompressed:
+        
+        # NOTE always setting uncompressed, no point the tag animations going through compression twice
+        blender_animation.compression = "Uncompressed"
     
     def to_blender(self, render_model: str, armature, filter: str, import_pca=False):
         actions = []

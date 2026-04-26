@@ -1373,8 +1373,6 @@ def foundry_toolbar(layout, context):
     box = row.box()
     box.scale_x = 0.3
     box.label(text="")
-    sub_reload = row.row(align=True)
-    sub_reload.operator("nwo.reload_icons", text="", icon="FILE_REFRESH")
     if not startup.load_handler_complete:
         sub = row.row()
         sub.operator("nwo.launch_foundry")
@@ -1467,6 +1465,9 @@ def foundry_toolbar(layout, context):
             icon_value=get_icon_id("tags"),
         )
         sub3.popover(panel="NWO_PT_HaloLauncherExplorerSettings", text="")
+            
+        sub_reload = row.row(align=True)
+        sub_reload.operator("nwo.reload_icons", text="", icon="FILE_REFRESH")
 
         sub_foundry = row.row(align=True)
         sub_foundry.prop(nwo, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))

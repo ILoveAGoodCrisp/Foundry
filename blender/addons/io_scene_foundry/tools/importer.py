@@ -665,10 +665,12 @@ class NWO_Import(bpy.types.Operator):
     )
     graph_generate_renames: bpy.props.BoolProperty(
         name="Generate Animation Renames",
+        default=True,
         description="Parses the animation mode n state graph to work out which graph elements were imported as renames and adds these to relevant animations in this blend scene"
     )
     graph_import_events: bpy.props.BoolProperty(
         name="Import Animation Events",
+        default=True,
         description="Imports frame events from the graph tag and frame event list"
     )
     graph_import_ik_chains: bpy.props.BoolProperty(
@@ -4519,10 +4521,12 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     )
     graph_generate_renames: bpy.props.BoolProperty(
         name="Generate Renames",
+        default=True,
         description="Parses the animation mode n state graph to work out what animations were imported as renames"
     )
     graph_import_events: bpy.props.BoolProperty(
         name="Import Animation Events",
+        default=True,
         description="Imports frame events from the graph tag and frame event list"
     )
     graph_import_ik_chains: bpy.props.BoolProperty(
