@@ -126,7 +126,7 @@ def build_shader(material, corinth, folder="", report=None):
             with Tag(path=shader_path.with_suffix(nwo.shader_type)) as tag:
                 nwo.shader_path = tag.tag_path.RelativePathWithExtension
                 
-        if not corinth and nwo.shader_path:
+        if nwo.shader_path:
             build_templates([nwo.shader_path])
         
         if report is not None:
