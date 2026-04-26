@@ -2511,6 +2511,7 @@ class NWOImporter:
     def import_object(self, paths, existing_armature, pose=None, make_non_export=False, for_instance_conversion=False, return_cin_stuff=False, blender_scene=None, parent_collection=None) -> tuple[list[bpy.types.Object], list] | bpy.types.Collection:
         imported_objects = []
         imported_animations = []
+        use_fp_graph = False
         armature = None
         if parent_collection is not None:
             scene_collection = parent_collection
@@ -2688,6 +2689,7 @@ class NWOImporter:
                                                                 
                                                         if fp_anim_tag is not None and Path(fp_anim_tag).exists():
                                                             with AnimationTag(path=fp_anim_tag) as fp_graph:
+                                                                use_fp_graph = True
                                                                 node_names = fp_graph.get_nodes()
                                                                 for idx, name in enumerate(node_names):
                                                                     if utils.remove_node_prefix(name) == utils.remove_node_prefix(root_gun_bone):
@@ -2754,7 +2756,7 @@ class NWOImporter:
                                 imported_file_objects.extend(self.import_physics_model(physics, armature, model_collection, allowed_region_permutations))
                             if not is_game_object and animation and self.tag_animation:
                                 print("Importing Animation Graph")
-                                imported_animations.extend(self.import_animation_graph(animation, armature, render))
+                                imported_animations.extend(self.import_animation_graph(fp_anim_tag if use_fp_graph else animation, armature, render))
                                 
                             if self.tag_import_lights and self.corinth:
                                 path = model.tag.SelectField("Reference:Lighting Info").Path
