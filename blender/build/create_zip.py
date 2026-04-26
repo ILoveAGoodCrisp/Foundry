@@ -15,19 +15,26 @@ def main():
         zip_dir.mkdir(parents=True, exist_ok=True)
     
     with ZipFile(zip_path, mode='w', compression=ZIP_DEFLATED, compresslevel=9) as zip:
-        zip.write(Path(sln_dir_path, "LICENSE"), Path("io_scene_foundry", "LICENSE"))
-        zip.write(Path(sln_dir_path, "README.md"), Path("io_scene_foundry", "README.md"))
+        zip.write(Path(sln_dir_path, "LICENSE"), Path("LICENSE"))
+        zip.write(Path(sln_dir_path, "README.md"), Path("README.md"))
 
-        for dir, _, files in os.walk(extension_path):
-            if dir.startswith("_"):
-                continue
+        for dir, dirs, files in os.walk(extension_path):
+            dir_path = Path(dir)
+
+            dirs[:] = [
+                d for d in dirs
+                if not d.startswith("_")
+                and d != "__pycache__"
+            ]
+
             for file in files:
-                f = Path(file)
-                if f.suffix == ".pyc":
+                file_path = dir_path / file
+
+                if file_path.suffix == ".pyc":
                     continue
-                relative_path = Path(dir, f).relative_to(extension_path)
-                archive_path = Path("io_scene_foundry") / relative_path
-                zip.write(archive_path)
+
+                archive_path = Path("io_scene_foundry") / file_path.relative_to(extension_path)
+                zip.write(file_path, archive_path)
                 
     print(f"Zipped Blender Extension to {zip_path}")
 
