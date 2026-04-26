@@ -11,13 +11,54 @@ from .. import utils
 
 logging.basicConfig(level=logging.ERROR)
 
+def recursive_image_search(tree_owner, images: set):
+    nodes = tree_owner.node_tree.nodes
+    for n in nodes:
+        if getattr(n, "image", 0):
+            images.add(n.image)
+        elif n.type == 'GROUP':
+            recursive_image_search(n, images)
+
+class NWO_OT_ReloadImages(bpy.types.Operator):
+    bl_idname = "nwo.reload_images"
+    bl_label = "Reload Images"
+    bl_description = "Reloads all images if they has been changed externally (e.g. edited in Photoshop)"
+    
+    @classmethod
+    def poll(cls, context):
+        ob = context.object
+        if ob is None:
+            return False
+        
+        return ob.active_material
+    
+    def execute(self, context):
+        images = set()
+        recursive_image_search(context.object.active_material, images)
+        for im in images:
+            im.reload()
+            
+        self.report({'INFO'}, f"Reloaded {len(images)} images")    
+        
+        return {'FINISHED'}
+        
+
 class NWO_ExportBitmapsSingle(bpy.types.Operator):
     bl_idname = "nwo.export_bitmaps_single"
     bl_label = "Export Bitmap"
     
     @classmethod
     def poll(cls, context):
-        return utils.current_project_valid()
+        ob = context.object
+        if ob is None:
+            return False
+        
+        mat = ob.active_material
+        
+        if mat is None:
+            return False
+        
+        return mat.nwo.active_image and utils.current_project_valid()
 
     def execute(self, context):
         image = context.object.active_material.nwo.active_image

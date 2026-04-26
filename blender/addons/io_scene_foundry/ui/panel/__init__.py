@@ -2854,6 +2854,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         box.use_property_split = False
         nwo = mat.nwo
         col = box.column()
+        col.operator("nwo.reload_images", icon='FILE_REFRESH')
         image = nwo.active_image
         col.template_ID_preview(nwo, "active_image")
         if not image:
@@ -2879,6 +2880,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 editor_name = "Image Editor"
                 editor_icon = ""
             col.operator("nwo.open_image_editor", text=f"Open in {editor_name}", icon_value=get_icon_id(editor_icon))
+            
+        
 
         tags_dir = utils.get_tags_path()
         data_dir = utils.get_data_path()

@@ -10,6 +10,7 @@ from ..tools.halo_export import export_quick, export
 from .. import managed_blam
 
 from .. import utils
+from .. import icons
 from ..icons import get_icon_id, get_icon_id_in_directory
 from .. import startup
 
@@ -89,6 +90,31 @@ class NWO_OT_StartFoundry(bpy.types.Operator):
         # self.report({'INFO'}, "Welcome to Foundry!")
         # display_fading_text("Foundry Loaded")
         return {"FINISHED"}
+    
+class NWO_OT_ReloadIcons(bpy.types.Operator):
+    bl_idname = "nwo.reload_icons"
+    bl_label = "Reload Foundry Icons"
+    bl_description = "Force reload of Foundry's custom icons"
+    bl_options = {"INTERNAL"}
+
+    @classmethod
+    def poll(cls, context):
+        return True
+
+    def execute(self, context):
+        try:
+            icons.load_all_icons(force_reload=True)
+            for window in context.window_manager.windows:
+                screen = window.screen
+                if not screen:
+                    continue
+                for area in screen.areas:
+                    area.tag_redraw()
+            self.report({"INFO"}, "Foundry icons reloaded")
+            return {"FINISHED"}
+        except Exception as ex:
+            self.report({"WARNING"}, f"Could not reload Foundry icons: {ex}")
+            return {"CANCELLED"}
 
 class NWO_MT_ProjectChooserMenu(bpy.types.Menu):
     bl_label = "Choose Project"
@@ -1347,6 +1373,8 @@ def foundry_toolbar(layout, context):
     box = row.box()
     box.scale_x = 0.3
     box.label(text="")
+    sub_reload = row.row(align=True)
+    sub_reload.operator("nwo.reload_icons", text="", icon="FILE_REFRESH")
     if not startup.load_handler_complete:
         sub = row.row()
         sub.operator("nwo.launch_foundry")

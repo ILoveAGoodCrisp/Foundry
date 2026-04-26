@@ -37,7 +37,7 @@ from .scene_scaler import NWO_ScaleScene
 from .append_foundry_materials import NWO_AppendFoundryMaterials
 from .auto_seam import NWO_AutoSeam
 from .clear_duplicate_materials import NWO_ClearShaderPaths, NWO_StompMaterials
-from .export_bitmaps import NWO_ExportBitmapsSingle
+from .export_bitmaps import NWO_ExportBitmapsSingle, NWO_OT_ReloadImages
 from .importer import NWO_FH_Import, NWO_FH_ImportBitmapAsImage, NWO_FH_ImportBitmapAsNode, NWO_FH_ImportShaderAsMaterial, NWO_Import, NWO_ImportGameInstanceTag, NWO_OT_ConvertScene, NWO_OT_ImportBitmap, NWO_OT_ImportFromDrop, NWO_OT_ImportShader, NWO_OT_InstancerToInstance
 from .mesh_to_marker import NWO_MeshToMarker
 from .set_sky_permutation_index import NWO_NewSky, NWO_SetDefaultSky, NWO_SetSky
@@ -110,6 +110,7 @@ classes = (
     NWO_HaloLauncher_TagTest,
     NWO_HaloLauncher_Granny,
     NWO_ExportBitmapsSingle,
+    NWO_OT_ReloadImages,
     NWO_GetModelVariants,
     NWO_GetZoneSets,
     NWO_GetTagsList,
