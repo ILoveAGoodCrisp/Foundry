@@ -3578,7 +3578,7 @@ class AnimationTag(Tag):
                 new_copy.source_name = src.replace(":", " ")
                 new_copy.name = dst.replace(":", " ")
                 
-        print(f"\Generated {len(renames)} renames from tag and applied these to {animations_with_renames_count} blender animations\nCreated {len(copies)} animation copies")
+        print(f"Generated {len(renames)} renames from tag and applied these to {animations_with_renames_count} blender animations\nCreated {len(copies)} animation copies")
         
     def _animation_from_index(self, index, state_type="") -> Animation:
         element = self.block_animations.Elements[index]

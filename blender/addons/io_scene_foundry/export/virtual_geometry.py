@@ -2396,7 +2396,7 @@ class VirtualScene:
         
         self.morph_vertex_data = defaultdict(list)
         
-        spath = "shaders\invalid"
+        spath = "shaders\\invalid"
         stype = "material" if corinth else "shader"
         if project and project.default_material:
             relative_default_shader = utils.relative_path(project.default_material)

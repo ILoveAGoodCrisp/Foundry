@@ -344,9 +344,9 @@ def main() -> int:
     wheels_dir = resolve_path(addon_root, args.wheels_dir)
     bumped_manifest_version: str | None = None
 
-    if args.bump_assembly_info_version:
-        bump_path = resolve_path(addon_root, args.bump_assembly_info_version)
-        bumped_manifest_version = bump_assembly_info_version(bump_path)
+    # if args.bump_assembly_info_version:
+    #     bump_path = resolve_path(addon_root, args.bump_assembly_info_version)
+    #     bumped_manifest_version = bump_assembly_info_version(bump_path)
 
     wheels_dir.mkdir(parents=True, exist_ok=True)
     if not args.manifest_only:

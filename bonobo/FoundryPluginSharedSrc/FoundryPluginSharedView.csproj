@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{B240D1AA-1153-4EEA-B4DB-CB99D9AE5FB5}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>FoundryPluginSharedView</RootNamespace>
+    <AssemblyName>FoundryPluginSharedView</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <Deterministic>true</Deterministic>
+    <TargetFrameworkProfile />
+    <FoundryBonoboRoot>$(MSBuildProjectDirectory)\..\..\..\Main\HREK\bin\tools\bonobo</FoundryBonoboRoot>
+    <FoundryCoreAssembly>Bungie.Core</FoundryCoreAssembly>
+    <FoundryRuntime>Bungie</FoundryRuntime>
+    <FoundryFileVersion>1.903.0.0</FoundryFileVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
+    <DebugSymbols>true</DebugSymbols>
+    <OutputPath>bin\debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DebugType>full</DebugType>
+    <PlatformTarget>x64</PlatformTarget>
+    <LangVersion>7.3</LangVersion>
+    <ErrorReport>prompt</ErrorReport>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
+    <OutputPath>bin\release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <DebugType>pdbonly</DebugType>
+    <PlatformTarget>x64</PlatformTarget>
+    <LangVersion>7.3</LangVersion>
+    <ErrorReport>prompt</ErrorReport>
+  </PropertyGroup>
+  <Import Project="FoundryPlugin.Common.props" />
+  <ItemGroup>
+    <None Include="FoundryPlugin.Common.props" />
+    <None Include="..\BuildFoundryPlugins.ps1">
+      <Link>BuildFoundryPlugins.ps1</Link>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="FoundryPlugin.ChangeButtonFunctionality.cs" />
+    <Compile Include="FoundryPlugin.CopyRelativePath.cs" />
+    <Compile Include="FoundryPlugin.cs" />
+    <Compile Include="FoundryPlugin.HideContextMenuItems.cs" />
+    <Compile Include="FoundryPlugin.OpenInBlender.cs" />
+    <Compile Include="FoundryPlugin.Theme.cs" />
+    <Compile Include="ProjectInfo.cs" />
+    <Compile Include="SharedAssemblyInfo.cs" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

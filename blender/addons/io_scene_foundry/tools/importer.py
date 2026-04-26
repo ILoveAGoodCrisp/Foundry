@@ -390,7 +390,7 @@ class NWO_OT_ConvertScene(bpy.types.Operator):
                     logging.error(traceback.format_exc())
                     print("FOUNDRY VERSION: ", utils.get_version_string())
                     utils.print_warning(
-                        "\ Import failed spectacularly. Please let the developer know: https://github.com/ILoveAGoodCrisp/Foundry/issues\n"
+                        "Import failed spectacularly. Please let the developer know: https://github.com/ILoveAGoodCrisp/Foundry/issues\n"
                     )
                     utils.print_error(
                         "\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
@@ -1610,7 +1610,7 @@ class NWO_Import(bpy.types.Operator):
                     logging.error(traceback.format_exc())
                     print("FOUNDRY VERSION: ", utils.get_version_string())
                     utils.print_warning(
-                        "\ Import failed spectacularly. Please let the developer know: https://github.com/ILoveAGoodCrisp/Foundry/issues\n"
+                        "Import failed spectacularly. Please let the developer know: https://github.com/ILoveAGoodCrisp/Foundry/issues\n"
                     )
                     utils.print_error(
                         "\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"

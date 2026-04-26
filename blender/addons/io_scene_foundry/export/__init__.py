@@ -163,7 +163,7 @@ class NWO_ExportScene(Operator, ExportHelper):
             elif asset_path.lower() + path.sep == get_data_path().lower():
                 ctypes.windll.user32.MessageBoxW(
                     0,
-                    f'You cannot export directly to your root {game} editing kit data directory. Please create a valid asset directory such as "data\my_asset" and direct your export to this folder',
+                    f'You cannot export directly to your root {game} editing kit data directory. Please create a valid asset directory such as "data\\my_asset" and direct your export to this folder',
                     f"Root Data Folder Export",
                     0,
                 )
@@ -324,7 +324,7 @@ class NWO_ExportScene(Operator, ExportHelper):
             if self.failed:
                 print("FOUNDRY VERSION: ", utils.get_version_string())
                 print_warning(
-                    "\ Export crashed and burned. Please let the developer know: https://github.com/ILoveAGoodCrisp/Foundry/issues\n"
+                    "Export crashed and burned. Please let the developer know: https://github.com/ILoveAGoodCrisp/Foundry/issues\n"
                 )
                 print_error(
                     "\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
