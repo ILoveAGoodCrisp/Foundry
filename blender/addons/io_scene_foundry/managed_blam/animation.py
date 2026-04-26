@@ -860,8 +860,8 @@ class AnimationTag(Tag):
             if node.parent_index > -1:
                 node.parent = nodes[node.parent_index]
 
-        if model is not None and graph_fallback_nodes:
-            utils.print_warning(f"Animation import could not match {len(graph_fallback_nodes)} graph nodes to render model defaults. Falling back to additional node data for those nodes.")
+        # if model is not None and graph_fallback_nodes:
+        #     utils.print_warning(f"Animation import could not match {len(graph_fallback_nodes)} graph nodes to render model defaults. Falling back to additional node data for those nodes.")
         if graph_name_mismatches:
             utils.print_warning(f"Animation import found {len(graph_name_mismatches)} additional node data entries whose names do not match the skeleton node at the same index. Using index order for graph defaults.")
         if missing_nodes:

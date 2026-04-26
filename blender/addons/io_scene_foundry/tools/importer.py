@@ -2624,9 +2624,11 @@ class NWOImporter:
                             if make_non_export:
                                 model_collection.nwo.type = 'exclude'
                                 
+                            uses_fp_arms = not (is_game_object or for_instance_conversion) and self.import_fp_arms.value and not self.fp_arms_imported and obj.tag_path.Extension == "weapon"
+                                
                             # possible compass driver = abs(var/pi / (2*pi))
                             if render:
-                                render_objects, armature = self.import_render_model(render, model_collection, existing_armature, allowed_region_permutations)
+                                render_objects, armature = self.import_render_model(render, model_collection, existing_armature, allowed_region_permutations, allow_control_rig=(not uses_fp_arms))
                                 
                                 if pose:
                                     print(f"--- Posing {obj.tag_path.ShortName}")
@@ -2662,12 +2664,18 @@ class NWOImporter:
                                                     fp_collection = bpy.data.collections.new(f"FP Arms - {self.import_fp_arms.name.title()}")
                                                     scene_collection.children.link(fp_collection)
                                                     with RenderModelTag(path=fp_arms_path) as render_model:
-                                                        fp_objects, fp_armature = render_model.to_blend_objects(fp_collection, True, self.tag_markers, scene_collection, None, allowed_fp_region_permutations, no_io=True)
+                                                        fp_objects, fp_armature = render_model.to_blend_objects(fp_collection, True, self.tag_markers, scene_collection, None, allowed_fp_region_permutations, no_io=True, build_control_rig=self.build_control_rig)
                                                         fp_objects.remove(fp_armature)
                                                         render_objects.extend(fp_objects)
                                                         
                                                         fp_arm_name = fp_armature.name
                                                         root_gun_bone = armature.pose.bones[0].name
+                                                        
+                                                        fp_arm_props = {
+                                                            "control_aim": fp_armature.nwo.control_aim,
+                                                            "invert_control_aim": fp_armature.nwo.invert_control_aim,
+                                                            "invert_control_rig": fp_armature.nwo.invert_control_rig,
+                                                        }
                                                         
                                                         utils.deselect_all_objects()
                                                         armature.select_set(True)
@@ -2712,6 +2720,9 @@ class NWOImporter:
                                                                 for mod in ob.modifiers:
                                                                     if mod.type == 'ARMATURE':
                                                                         mod.object = armature
+                                                                        
+                                                        for k, v in fp_arm_props.items():
+                                                            setattr(armature.nwo, k, v)
                                     else:
                                         print(f"Couldn't find globals tag [{globals_path}], cannot import fp arms")
                                     
@@ -2974,7 +2985,7 @@ class NWOImporter:
  
         return imported_objects
             
-    def import_render_model(self, file, model_collection, existing_armature, allowed_region_permutations, skip_print=False):
+    def import_render_model(self, file, model_collection, existing_armature, allowed_region_permutations, skip_print=False, allow_control_rig=True):
         if not skip_print:
             utils.print_tag("Importing Render Model")
         render_model_objects = []
@@ -2983,7 +2994,7 @@ class NWOImporter:
         model_collection.children.link(collection)
         with utils.TagImportMover(self.tags_dir, file) as mover:
             with RenderModelTag(path=mover.tag_path) as render_model:
-                render_model_objects, armature = render_model.to_blend_objects(collection, self.tag_render, self.tag_markers, model_collection, existing_armature, allowed_region_permutations, self.from_vert_normals, build_control_rig=self.build_control_rig)
+                render_model_objects, armature = render_model.to_blend_objects(collection, self.tag_render, self.tag_markers, model_collection, existing_armature, allowed_region_permutations, self.from_vert_normals, build_control_rig=self.build_control_rig and allow_control_rig)
                 render_model_objects.extend(render_model.skylights_to_blender(collection))
             
         return render_model_objects, armature
@@ -4606,7 +4617,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     
     build_control_rig: bpy.props.BoolProperty(
         name="Build Control Rig",
-        description="Builds an FK (IK TBD!) control rig for imported models",
+        description="Builds an FK and IK control rig for imported models",
         default=False,
     )
     
