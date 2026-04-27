@@ -349,7 +349,7 @@ class CinematicCustomScript:
                 red, green, blue = event.script_color
                 self.script = f'fade_out {red} {green} {blue} {int(event.script_seconds * 30)}'
             case 'SET_TITLE':
-                self.script = f'cinematic_set_title {self.script_text}'
+                self.script = f'cinematic_set_title {event.script_text}'
             case 'SHOW_HUD':
                 if not corinth:
                     self.script = 'chud_cinematic_fade 0 0\nchud_show_cinematics 1'
