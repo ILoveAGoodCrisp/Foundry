@@ -2295,7 +2295,9 @@ class Mesh:
         utils.calc_face_prop_counts(mesh)
             
         if self.is_pca:
-            mesh.color_attributes.new("tension", 'FLOAT_COLOR', 'POINT')
+            attr = mesh.color_attributes.new("tension", 'FLOAT_COLOR', 'POINT')
+            black = [0.0, 0.0, 0.0, 1.0] * len(attr.data)
+            attr.data.foreach_set("color", black)
             
         if self.uncompressed:
             utils.add_face_prop(mesh, "uncompressed")
