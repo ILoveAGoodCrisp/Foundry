@@ -39,8 +39,8 @@
         "./wheels/py360convert-1.0.4-py3-none-any.whl"
       ],
       "archive_url": "./io_scene_foundry.zip",
-      "archive_size": 58515155,
-      "archive_hash": "sha256:34598d3b51c026fcc11d91d9e0d5462d87f42fe3bcb96ead9eba08d00a4a77ec"
+      "archive_size": 58442417,
+      "archive_hash": "sha256:a76ce5f5c2efdf8cb165afc16cdf2b2611addc0b78d6b72352a179fe2daf3cd4"
     }
   ]
 }
