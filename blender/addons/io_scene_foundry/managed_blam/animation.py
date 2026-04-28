@@ -432,7 +432,7 @@ class AnimationTag(Tag):
                     self.tag_has_changes = True
             case 'uncompressed':
                 if force_compression.Value != 3:
-                    force_compression.Value = 0
+                    force_compression.Value = 3
                     self.tag_has_changes = True
             case 'medium':
                 if force_compression.Value != 1:

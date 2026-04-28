@@ -2336,16 +2336,14 @@ class ExportScene:
                     
                     relative_template_path = utils.relative_path(self.scene_settings.template_model_animation_graph)
                     expected_asset_path = Path(self.tags_dir, self.asset_path_relative, f'{self.asset_name}.model_animation_graph')
-                    if expected_asset_path.exists():
-                        return
-                    
-                    asset_folder = expected_asset_path.parent
-                    if not asset_folder.exists():
-                        asset_folder.mkdir(parents=True, exist_ok=True)
-                    full_path = Path(self.tags_dir, relative_template_path)
-                    if full_path.exists():
-                        utils.copy_file(full_path, expected_asset_path)
-                        print(f'--- Loaded model_animation_graph tag template')
+                    if not expected_asset_path.exists():
+                        asset_folder = expected_asset_path.parent
+                        if not asset_folder.exists():
+                            asset_folder.mkdir(parents=True, exist_ok=True)
+                        full_path = Path(self.tags_dir, relative_template_path)
+                        if full_path.exists():
+                            utils.copy_file(full_path, expected_asset_path)
+                            print(f'--- Loaded model_animation_graph tag template')
             
             with AnimationTag() as animation:
                 if self.scene_settings.parent_animation_graph:

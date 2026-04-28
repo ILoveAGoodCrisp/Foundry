@@ -79,10 +79,6 @@ def _install_foundation_plugin(project_path, plugin_path, plugins_xml):
         else:
             source_version = AssemblyName.GetAssemblyName(str(source_plugin_path)).Version
             version = AssemblyName.GetAssemblyName(str(plugin_path)).Version
-
-            print("SOURCE", source_plugin_path, "FOUNDATION", plugin_path)
-            print("SOURCE", source_version, "FOUNDATION", version)
-
             update_required = source_version > version
             
         if update_required:
