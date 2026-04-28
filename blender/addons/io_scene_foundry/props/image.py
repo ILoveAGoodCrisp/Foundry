@@ -84,7 +84,7 @@ class NWO_ImagePropertiesGroup(bpy.types.PropertyGroup):
     reexport_tiff : bpy.props.BoolProperty(
         name="Re-Export Image",
         options=set(),
-        default=True,
+        default=False,
         description="Forces this bitmap's source file to be re-exported from Blender. By default the Bitmap exporter will skip exporting a new file provided the following conditions are met: a TIFF file already exists, is not packed data in this blend, and is located within the project data directory",
     )
 
