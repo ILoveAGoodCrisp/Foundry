@@ -363,6 +363,16 @@ def launch_game(is_sapien, settings, filepath, scene_nwo, ignore_play=False, rep
     
     asset_type = scene_nwo.asset_type
     
+    if asset_type in {"scenario", "cinematic"} and settings.game_default == "asset":
+        if asset_type == "scenario":
+            new_filepath = get_tag_if_exists(asset_path, asset_name, "scenario")
+            if new_filepath:
+                filepath = new_filepath
+        else:
+            cin_scen_path = Path(get_tags_path(), relative_path(scene_nwo.cinematic_scenario))
+            if cin_scen_path.exists() and cin_scen_path.is_file() and cin_scen_path.is_absolute():
+                filepath = str(cin_scen_path)
+    
     if not filepath or not Path(filepath).exists() or Path(filepath).suffix.lower() != ".scenario" or settings.game_default == "last":
         filepath = get_project().last_scenario
         if not filepath:
@@ -378,16 +388,6 @@ def launch_game(is_sapien, settings, filepath, scene_nwo, ignore_play=False, rep
             return
         
         filepath = str(last_scenario_fp)
-    
-    if asset_type in {"scenario", "cinematic"} and settings.game_default == "asset":
-        if asset_type == "scenario":
-            new_filepath = get_tag_if_exists(asset_path, asset_name, "scenario")
-            if new_filepath:
-                filepath = new_filepath
-        else:
-            cin_scen_path = Path(get_tags_path(), relative_path(scene_nwo.cinematic_scenario))
-            if cin_scen_path.exists() and cin_scen_path.is_file() and cin_scen_path.is_absolute():
-                filepath = str(cin_scen_path)
     
     if is_sapien:
         if not ignore_play and settings.use_play:
