@@ -13,6 +13,7 @@ from bpy_extras.object_utils import AddObjectHelper
 
 from .. import utils
 
+run_once = False
 
 class NWO_OT_AddScaleModel(bpy.types.Operator, AddObjectHelper):
     bl_idname = "nwo.add_scale_model"
@@ -28,7 +29,7 @@ class NWO_OT_AddScaleModel(bpy.types.Operator, AddObjectHelper):
         if root_files:
             for file in sorted(root_files, key=lambda f: f.name):
                 if file.suffix.lower() == '.bmf':
-                    items.append((str(file),utils.formalise_string(file.with_suffix("").name), ""))
+                    items.append((str(file),utils.formalise_string(file.with_suffix("").name), str(file)))
 
         for folder in sorted([f for f in scale_models.iterdir() if f.is_dir()], key=lambda f: f.name):
             files = [f for f in folder.iterdir() if f.is_file()]
@@ -42,7 +43,7 @@ class NWO_OT_AddScaleModel(bpy.types.Operator, AddObjectHelper):
                     items.append((
                         str(file),
                         utils.formalise_string(file.with_suffix("").name),
-                        ""
+                        str(file)
                     ))
 
         return items
@@ -59,6 +60,15 @@ class NWO_OT_AddScaleModel(bpy.types.Operator, AddObjectHelper):
     def execute(self, context):
         self.add_scale_model(context)
         return {"FINISHED"}
+    
+    def invoke(self, context, _):
+        global run_once
+        if not run_once:
+            self.model_name = utils.get_prefs().default_scale_model
+            
+        run_once = True
+        
+        return self.execute(context)
     
     def draw(self, context):
         layout = self.layout
