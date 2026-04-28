@@ -3060,7 +3060,7 @@ class ExportScene:
         lightGen_directions = []
         lightGen_solid_angles = []
         
-        self.sky_lights.sort(key=lambda o: o.name)
+        self.sky_lights.sort(key=lambda o: o.name.lower())
         
         self.sun = self.sky_lights[-1]
 
