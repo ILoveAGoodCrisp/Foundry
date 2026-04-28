@@ -1,6 +1,6 @@
 
 
-from enum import Enum
+from enum import Enum, IntEnum
 import os
 from pathlib import Path
 from typing import cast
@@ -26,7 +26,20 @@ class ParameterType(Enum):
     INT = 2
     BOOL = 3
     COLOR = 4
-
+    
+SUPPORTED_BLEND_MODES = {
+    "opaque",
+    "additive",
+    "multiply",
+    "alpha_blend",
+    "double_multiply",
+    "pre_multiplied_alpha",
+    "add_src_times_srcalpha",
+    "inv_alpha_blend",
+    "opaque_alpha_blend",
+    "alpha_blend_additive_transparent"
+}
+    
 class MaterialParameter:
     def __init__(self, material_shader_parameter: MaterialShaderParameter):
         self.name = material_shader_parameter.name
@@ -136,14 +149,20 @@ class MaterialTag(ShaderTag):
             self._build_basic(self._get_basic_mapping(self.blender_material))
             return
 
-        paramaters = self._get_info(self.reference_material_shader.Path)
-        if not paramaters:
+        parameters = self._get_info(self.reference_material_shader.Path)
+        if not parameters:
             utils.print_warning(f"Material shader defaults missing for [{self.reference_material_shader.Path.ShortName}]. Falling back to adaptive basic mapping")
             self._build_basic(self._get_basic_mapping(self.blender_material))
             return
         
         for i in inputs:
-            for parameter_name, value in paramaters.items():
+            if i.name == "blend mode":
+                if i.type != 'MENU':
+                    continue
+                blend_mode_items = [i.EnumName for i in self.alpha_blend_mode.Items]
+                if i.default_value in blend_mode_items:
+                    self.alpha_blend_mode.Value = blend_mode_items.index(i.default_value)
+            for parameter_name, value in parameters.items():
                 parameter_name_culled = utils.remove_chars(parameter_name.lower(), cull_chars)
                 display_name = utils.remove_chars(value.ui_name.lower(), cull_chars)
                 input_name = utils.remove_chars(i.name.lower(), cull_chars)
@@ -553,7 +572,12 @@ class MaterialTag(ShaderTag):
         for input in cast(list[bpy.types.NodeSocket], node.inputs):
             match input.name:
                 case 'blend mode':
-                    node.inputs[0].default_value = self.alpha_blend_mode.Value
+                    if input.type != 'MENU':
+                        continue
+                    blend_mode_items = [i.EnumName for i in self.alpha_blend_mode.Items]
+                    item = blend_mode_items[self.alpha_blend_mode.Value]
+                    if item in blend_mode_items:
+                        input.default_value = item
                 case 'cull shadows':
                     pass
                 case 'material is two-sided':

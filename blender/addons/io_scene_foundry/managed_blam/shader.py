@@ -313,11 +313,6 @@ class ShaderTag(Tag):
         self.alpha_type = self._alpha_type_from_blender_material()
         used_group_export = bool(self.custom and self._from_nodes_group())
         if not used_group_export:
-            if self.custom:
-                utils.print_warning(
-                    "Foundry Reach shader node export fell back to adaptive mapping. "
-                    "If this persists, verify the shader tag has a valid render method definition."
-                )
             self._build_basic(self._get_basic_mapping(self.blender_material))
         
         self.tag_has_changes = True
