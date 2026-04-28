@@ -1076,9 +1076,9 @@ class NWO_Import(bpy.types.Operator):
                                 
                         if good_to_go:
                             full_render_path = Path(utils.get_tags_path(), utils.relative_path(render_model))
-                            if not full_render_path.exists():
-                                utils.print_warning(f"Armature [{existing_armature.name}] has invalid render model set (it does not exist) [{full_render_path}]")
-                                good_to_go = False
+                            # if not full_render_path.exists():
+                            #     utils.print_warning(f"Armature [{existing_armature.name}] has invalid render model set (it does not exist) [{full_render_path}]")
+                            #     good_to_go = False
                         
                         if good_to_go:
                             if importer.needs_scaling:
