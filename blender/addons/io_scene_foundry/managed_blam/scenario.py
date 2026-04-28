@@ -692,3 +692,27 @@ class ScenarioTag(Tag):
                     bpy.data.collections.remove(folder)
                     
         return objects, skeleton_poses
+    
+    def collect_cutscene_titles(self):
+        titles = []
+        
+        def add_titles(block: TagFieldBlockElement):
+            for e in block:
+                text = e.Fields[0].GetStringData()
+                titles.append((text, text, ""))
+                
+        add_titles(self.tag.SelectField("Block:cutscene titles"))
+        
+        if not self.corinth:
+            return titles
+        
+        for element in self.tag.SelectField("Block:child scenarios").Elements:
+            path = element.Fields[0].Path
+            if self.path_exists(path):
+                with ScenarioTag(path=path) as child_scenario:
+                    ct_block = child_scenario.tag.SelectField("Block:cutscene titles")
+                    if ct_block.Elements.Count > 0:
+                        titles.append(("", path.ShortName, ""))
+                        add_titles(ct_block)
+                        
+        return titles

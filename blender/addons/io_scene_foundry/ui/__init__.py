@@ -210,6 +210,7 @@ classes = [
     cinematic.NWO_OT_CinematicAnchorOffset,
     cinematic.NWO_OT_BakeVisibilityToKeyframes,
     cinematic.NWO_OT_ClearVisibilityKeyframes,
+    cinematic.NWO_GetScenarioCustsceneTitles,
     light.NWO_OT_HaloLightToggle,
 ]
 

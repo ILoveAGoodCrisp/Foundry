@@ -2064,7 +2064,7 @@ class NWO_UL_ActionTrack(bpy.types.UIList):
                 name += item.action.name
             else:
                 name += "NONE"
-                icon = 'WARNING'
+                icon = 'ERROR'
         
         layout.label(text=name, icon=icon)
 

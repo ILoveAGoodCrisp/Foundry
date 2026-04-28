@@ -3029,7 +3029,10 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                         col.prop(event, "script_color", text="Color")
                         col.prop(event, "script_seconds", text="Seconds")
                     case 'SET_TITLE':
-                        col.prop(event, "script_text", text="Title String ID")
+                        row = col.row(align=True)
+                        row.prop(event, "script_text", text="Title String ID")
+                        if bpy.ops.nwo.get_scenario_cutscene_titles.poll():
+                            row.operator_menu_enum("nwo.get_scenario_cutscene_titles", "cutscene_title", icon="DOWNARROW_HLT", text="")
                     case 'PLAY_SOUND':
                         draw_tag_path(col, event, "sound_tag")
                         col.prop(event, "script_object", text="Object")

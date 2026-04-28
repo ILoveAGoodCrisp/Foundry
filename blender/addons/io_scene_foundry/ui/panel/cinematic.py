@@ -891,7 +891,9 @@ class NWO_GetScenarioCustsceneTitles(bpy.types.Operator):
         nwo = utils.get_scene_props()
         if nwo.asset_type == 'cinematic':
             tag_path = Path(utils.get_tags_path(), utils.relative_path(nwo.cinematic_scenario))
-            return tag_path.is_absolute() and tag_path.exists() and tag_path.is_file()
+            if tag_path.is_absolute() and tag_path.exists() and tag_path.is_file():
+                scene_nwo = context.scene.nwo # scene specific
+                return scene_nwo.cinematic_events and scene_nwo.active_cinematic_event_index > -1 and scene_nwo.active_cinematic_event_index < len(scene_nwo.cinematic_events)
         
         return False
     
@@ -899,9 +901,10 @@ class NWO_GetScenarioCustsceneTitles(bpy.types.Operator):
         nwo = utils.get_scene_props()
         items = []
         with ScenarioTag(path=nwo.cinematic_scenario) as scenario:
-            cutscene_titles = scenario.collection_cutscene_titles()
-        for c in cutscene_titles:
-            items.append((c, c, ""))
+            items = scenario.collect_cutscene_titles()
+
+        if not items:
+            return [("none", "none", "No cinematic titles found")]
 
         return items
     
@@ -911,10 +914,7 @@ class NWO_GetScenarioCustsceneTitles(bpy.types.Operator):
     )
     
     def execute(self, context):
-        nwo = utils.get_scene_props()
-        if str(Path(utils.get_tags_path(), nwo.cinematic_scenario)):
-            nwo.cinematic_scenario = self.cutscene_title
-            return {'FINISHED'}
-        
-        self.report({'ERROR'}, "Tag does not exist or is not a valid type. Cannot find cutscene titles")
-        return {'CANCELLED'}
+        nwo = context.scene.nwo # scene specific
+        event = nwo.cinematic_events[nwo.active_cinematic_event_index]
+        event.script_text = self.cutscene_title
+        return {'FINISHED'}
