@@ -529,6 +529,8 @@ def _stderr_reader(pipe, q):
 def run_tool_sidecar(tool_args: list, event_level='WARNING'):
     """Runs Tool using the specified function and arguments. Do not include 'tool' in the args passed"""
     failed = False
+    scene_nwo = get_scene_props()
+    frame_events_blender_authored = scene_nwo.frame_events_from_blender
     project_dir = get_project_path()
     tags_dir = get_tags_path()
     os.chdir(project_dir)
@@ -624,6 +626,9 @@ def run_tool_sidecar(tool_args: list, event_level='WARNING'):
                     continue
                 elif "Suspension marker(s)" in line:
                     # Useless warning. Tool is unable to automatically calculate suspension ground depth
+                    continue
+                elif frame_events_blender_authored and "removing orphaned frame event" in line:
+                    # Frame events are Blender controlled, ignore
                     continue
                 elif "tags: tag_save: couldn't overwrite" in line:
                     fix_tag_copy_fail(project_dir, tags_dir, line)
