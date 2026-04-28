@@ -476,7 +476,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 # col.prop(item, "ik_active_tag")
                 # col.prop(item, "ik_target_tag")
                 col.prop(item, "ik_target_marker", icon_value=get_icon_id('marker'))
-                col.prop(item, "ik_target_marker_name_override")
+                col.prop(item, "ik_game_marker_name")
                 col.prop(item, "ik_target_usage")
                 col.prop(item, 'event_value', text="IK Influence")
                 # col.prop(item, "name", text="Event Name")
@@ -3378,6 +3378,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 row.operator("nwo.animation_event_set_frame", text="", icon="KEYFRAME_HLT").prop_to_set = "frame_frame"
                 col.prop(item, "import_name")
             elif item.event_type.startswith('_connected_geometry_animation_event_type_ik'):
+                active = item.event_type == '_connected_geometry_animation_event_type_ik_active'
                 valid_ik_chains = [chain for chain in scene_nwo.ik_chains if chain.start_node and chain.effector_node]
                 if not valid_ik_chains:
                     col.label(text='Add IK Chains in the Asset Editor tab', icon='ERROR')
@@ -3385,12 +3386,17 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 col.prop(item, "ik_chain")
                 # col.prop(item, "ik_active_tag")
                 # col.prop(item, "ik_target_tag")
-                col.prop(item, "ik_target_marker", icon_value=get_icon_id('marker'))
-                col.prop(item, "ik_target_marker_name_override")
+                col.prop(item, "ik_game_marker_name")
                 col.prop(item, "ik_target_usage")
                 col.prop(item, 'event_value', text="IK Influence")
-                # col.prop(item, "name", text="Event Name")
-                col.prop(item, 'ik_pole_vector')
+                col.separator()
+                col.prop(item, "ik_target_marker", icon='EMPTY_AXIS')
+                if utils.pointer_ob_valid(item.ik_target_marker) and item.ik_target_marker.type == 'ARMATURE':
+                    col.prop(item, "ik_target_marker_bone", icon='BONE_DATA')
+                col.prop(item, 'ik_pole_vector', icon='SPHERE')
+                if utils.pointer_ob_valid(item.ik_pole_vector) and item.ik_pole_vector.type == 'ARMATURE':
+                    col.prop(item, "ik_pole_vector_bone", icon='BONE_DATA')
+                    
                 # col.operator("nwo.preview_ik_event", text="Toggle IK Preview", icon='CON_KINEMATIC').single_animation = False
                 # col.prop(item, "ik_proxy_target_id")
                 # col.prop(item, "ik_pole_vector_id")

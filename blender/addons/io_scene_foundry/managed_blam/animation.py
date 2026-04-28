@@ -380,6 +380,20 @@ class AnimationTag(Tag):
         
     def write_ik_chains(self, ik_chains: list, bones: list, granny: bool = False):
         
+        def calculate_ik_chain_order(chains):
+            count = len(chains)
+            result = []
+
+            for chain_index, chain in enumerate(chains):
+                antecedents = 1 << chain_index
+
+                rank = count - 1 - chain_index
+
+                result.append((rank, antecedents))
+
+            return result
+        
+        
         if self.block_skeleton_nodes.Elements.Count != len(bones):
             self.block_skeleton_nodes.RemoveAllElements()
             for n in [b.name for b in bones]:
@@ -390,12 +404,16 @@ class AnimationTag(Tag):
         
         if self.block_ik_chains.Elements.Count:
             self.block_ik_chains.RemoveAllElements()
+            
+        chain_ranks_antecedents = calculate_ik_chain_order(valid_ik_chains)
     
-        for chain in valid_ik_chains:
+        for chain, (rank, antecedents) in zip(valid_ik_chains, chain_ranks_antecedents):
             element = self.block_ik_chains.AddElement()
             element.SelectField('name').SetStringData(chain.name)
             element.SelectField('start node').Value = skeleton_nodes[chain.start_node]
             element.SelectField('effector node').Value = skeleton_nodes[chain.effector_node]
+            element.SelectField('rank').Data = rank
+            element.SelectField('antecedents').Data = antecedents
             
         self.tag_has_changes = True
         
@@ -1995,6 +2013,114 @@ class AnimationTag(Tag):
         scale_value = (scale.x + scale.y + scale.z) / 3.0
         return location.copy(), rotation.copy(), float(scale_value)
 
+    def _rotation_angle_delta(self, first: Quaternion, second: Quaternion):
+        a = first.copy()
+        b = second.copy()
+        if a.magnitude <= tolerance:
+            a = Quaternion((1.0, 0.0, 0.0, 0.0))
+        else:
+            a.normalize()
+        if b.magnitude <= tolerance:
+            b = Quaternion((1.0, 0.0, 0.0, 0.0))
+        else:
+            b.normalize()
+        return a.rotation_difference(b).angle
+
+    def _pose_bone_matches_transform_samples(
+        self,
+        blender_animation,
+        pose_bone: bpy.types.PoseBone,
+        fcurve_map,
+        start_frame: int,
+        samples,
+        location_tolerance: float,
+        rotation_tolerance: float,
+        scale_tolerance: float,
+    ):
+        if not samples:
+            return False
+
+        for sample_index, (sample_location, sample_rotation, sample_scale) in enumerate(samples):
+            frame = blender_animation.frame_start + start_frame + sample_index
+            matrix_cache = {}
+            bone_matrix = self._sample_pose_bone_matrix_from_action(
+                pose_bone,
+                frame,
+                fcurve_map,
+                matrix_cache,
+            )
+            bone_location, bone_rotation, bone_scale = bone_matrix.decompose()
+            bone_scale_value = (bone_scale.x + bone_scale.y + bone_scale.z) / 3.0
+
+            if (bone_location - sample_location).length > location_tolerance:
+                return False
+            if self._rotation_angle_delta(bone_rotation, sample_rotation) > rotation_tolerance:
+                return False
+            if abs(float(bone_scale_value) - float(sample_scale)) > scale_tolerance:
+                return False
+
+        return True
+
+    def _find_bone_matching_transform_samples(
+        self,
+        blender_animation,
+        armature: bpy.types.Object,
+        event,
+        start_frame: int,
+        samples,
+    ):
+        if not samples or armature is None or armature.type != "ARMATURE" or armature.pose is None:
+            return None
+
+        animation_data = armature.animation_data
+        action = animation_data.action if animation_data is not None else None
+        slot_identifier = animation_data.last_slot_identifier if animation_data is not None else None
+        if action is None:
+            return None
+
+        fcurve_map = self._action_pose_fcurve_map(action, slot_identifier)
+        if not fcurve_map:
+            return None
+
+        location_tolerance = max(utils.blender_scale(1.0e-3), tolerance * 10.0)
+        rotation_tolerance = 1.0e-2
+        scale_tolerance = 1.0e-3
+
+        matches = []
+        for pose_bone in armature.pose.bones:
+            if self._pose_bone_matches_transform_samples(
+                blender_animation,
+                pose_bone,
+                fcurve_map,
+                start_frame,
+                samples,
+                location_tolerance,
+                rotation_tolerance,
+                scale_tolerance,
+            ):
+                matches.append(pose_bone.name)
+
+        if not matches:
+            return None
+
+        if len(matches) == 1:
+            return matches[0]
+
+        chain = self._find_ik_chain_definition(event.get("ik_chain", ""))
+        preferred_names = []
+        if chain is not None:
+            preferred_names.extend([
+                getattr(chain, "effector_node", ""),
+                getattr(chain, "start_node", ""),
+            ])
+
+        for preferred in preferred_names:
+            preferred_bone = self._find_pose_bone_by_name(armature, preferred)
+            if preferred_bone is not None and preferred_bone.name in matches:
+                return preferred_bone.name
+
+        return None
+
     def _object_space_samples_to_local_samples(self, armature: bpy.types.Object, samples):
         parent_inverse = armature.matrix_world.inverted_safe()
         local_samples = []
@@ -2097,16 +2223,24 @@ class AnimationTag(Tag):
         matrix_cache[pose_bone.name] = pose_matrix
         return pose_matrix
 
-    def _reconstruct_ik_proxy_target_samples(self, blender_animation, armature: bpy.types.Object, event, proxy_space_samples, start_frame: int):
+    def _reconstruct_ik_proxy_target_samples(
+        self,
+        blender_animation,
+        armature: bpy.types.Object,
+        event,
+        proxy_space_samples,
+        start_frame: int,
+        synthesize_leading_base_sample: bool = False,
+    ):
         chain = self._find_ik_chain_definition(event.get("ik_chain", ""))
         if chain is None:
             utils.print_warning(f"Could not reconstruct IK proxy target for [{event.get('name', 'unknown')}]: chain [{event.get('ik_chain', '')}] is missing")
-            return None
+            return None, False
 
         effector_bone = self._find_pose_bone_by_name(armature, getattr(chain, "effector_node", ""))
         if effector_bone is None:
             utils.print_warning(f"Could not reconstruct IK proxy target for [{event.get('name', 'unknown')}]: effector bone [{getattr(chain, 'effector_node', '')}] is missing")
-            return None
+            return None, False
 
         animation_data = armature.animation_data
         action = animation_data.action if animation_data is not None else None
@@ -2114,11 +2248,12 @@ class AnimationTag(Tag):
 
         if action is None:
             utils.print_warning(f"Could not reconstruct IK proxy target for [{event.get('name', 'unknown')}]: armature has no active action")
-            return None
+            return None, False
 
         fcurve_map = self._action_pose_fcurve_map(action, slot_identifier)
         armature_world_inverse = armature.matrix_world.inverted_safe()
         reconstructed_samples = []
+        prepended_base_sample = False
 
         for sample_index, sample in enumerate(proxy_space_samples):
             frame = blender_animation.frame_start + start_frame + sample_index
@@ -2137,7 +2272,38 @@ class AnimationTag(Tag):
             proxy_local = armature_world_inverse @ proxy_world
             reconstructed_samples.append(self._matrix_to_transform_sample(proxy_local))
 
-        return reconstructed_samples
+        if synthesize_leading_base_sample and reconstructed_samples and start_frame > 0:
+            base_frame = blender_animation.frame_start
+            first_overlay_frame = blender_animation.frame_start + start_frame
+            if first_overlay_frame > base_frame:
+                base_cache = {}
+                overlay_cache = {}
+                effector_base_pose = self._sample_pose_bone_matrix_from_action(
+                    effector_bone,
+                    base_frame,
+                    fcurve_map,
+                    base_cache,
+                )
+                effector_first_overlay_pose = self._sample_pose_bone_matrix_from_action(
+                    effector_bone,
+                    first_overlay_frame,
+                    fcurve_map,
+                    overlay_cache,
+                )
+
+                effector_base_world = armature.matrix_world @ effector_base_pose
+                effector_first_overlay_world = armature.matrix_world @ effector_first_overlay_pose
+                effector_delta = effector_first_overlay_world.translation - effector_base_world.translation
+
+                first_proxy_local_matrix = self._matrix_from_transform_sample(*reconstructed_samples[0])
+                first_proxy_world_matrix = armature.matrix_world @ first_proxy_local_matrix
+                base_proxy_world_matrix = first_proxy_world_matrix.copy()
+                base_proxy_world_matrix.translation = base_proxy_world_matrix.translation - effector_delta
+                base_proxy_local_matrix = armature_world_inverse @ base_proxy_world_matrix
+                reconstructed_samples.insert(0, self._matrix_to_transform_sample(base_proxy_local_matrix))
+                prepended_base_sample = True
+
+        return reconstructed_samples, prepended_base_sample
 
     def _create_object_action_track(self, blender_animation, obj: bpy.types.Object, action_name: str):
         action = bpy.data.actions.new(action_name)
@@ -2209,28 +2375,54 @@ class AnimationTag(Tag):
         imported_start_frame = event["start_frame"] + self._imported_animation_frame_offset(tag_animation)
         effector_samples = event.get("ik_effector_transforms") or []
         if effector_samples:
-            proxy_marker_object = self._find_ik_proxy_marker_object(armature, event["ik_chain"])
-            blender_event.ik_target_marker = proxy_marker_object
-            reconstructed_proxy_marker_samples = self._reconstruct_ik_proxy_target_samples(
+            reconstructed_proxy_marker_samples, prepended_base_sample = self._reconstruct_ik_proxy_target_samples(
                 blender_animation,
                 armature,
                 event,
                 effector_samples,
                 imported_start_frame,
+                synthesize_leading_base_sample=tag_animation.animation_type in {AnimationType.OVERLAY, AnimationType.REPLACEMENT},
             )
+            proxy_action_start_frame = imported_start_frame - 1 if prepended_base_sample else imported_start_frame
             proxy_marker_samples = reconstructed_proxy_marker_samples
             if not proxy_marker_samples:
-                utils.print_warning(f"Falling back to raw IK proxy samples for [{event['name']}]; exact roundtrip may not match the source tag")
+                utils.print_warning(f"Falling back to raw IK proxy samples for [{event['name']}]")
                 proxy_marker_samples = effector_samples
-            action = self._apply_object_transform_samples(
+                proxy_action_start_frame = imported_start_frame
+            matching_bone_name = self._find_bone_matching_transform_samples(
                 blender_animation,
-                proxy_marker_object,
-                f"{blender_animation.name}_ik_proxy_{event['name']}",
-                imported_start_frame,
+                armature,
+                event,
+                proxy_action_start_frame,
                 proxy_marker_samples,
             )
-            if action is not None:
-                imported_actions.append(action)
+            if matching_bone_name:
+                chain = self._find_ik_chain_definition(event.get("ik_chain", ""))
+                effector_bone_name = None
+                if chain is not None:
+                    effector_pose_bone = self._find_pose_bone_by_name(armature, getattr(chain, "effector_node", ""))
+                    if effector_pose_bone is not None:
+                        effector_bone_name = effector_pose_bone.name
+
+                if effector_bone_name is not None and matching_bone_name == effector_bone_name:
+                    blender_event.ik_target_marker = None
+                    blender_event.ik_target_marker_bone = ""
+                else:
+                    blender_event.ik_target_marker = armature
+                    blender_event.ik_target_marker_bone = matching_bone_name
+            else:
+                blender_event.ik_target_marker_bone = ""
+                proxy_marker_object = self._find_ik_proxy_marker_object(armature, event["ik_chain"])
+                blender_event.ik_target_marker = proxy_marker_object
+                action = self._apply_object_transform_samples(
+                    blender_animation,
+                    proxy_marker_object,
+                    f"{blender_animation.name}_ik_proxy_{event['name']}",
+                    proxy_action_start_frame,
+                    proxy_marker_samples,
+                )
+                if action is not None:
+                    imported_actions.append(action)
 
         pole_samples = event.get("ik_pole_transforms") or []
         if pole_samples:
@@ -2329,7 +2521,7 @@ class AnimationTag(Tag):
                     "values": ik_weight_values(data_index, frame_count),
                     "ik_chain": chain_name,
                     "ik_target_usage": usage_name,
-                    "ik_target_marker_name_override": element.SelectField("proxy marker").GetStringData(),
+                    "ik_game_marker_name": element.SelectField("proxy marker").GetStringData(),
                     "ik_effector_transforms": ik_effector_values(effector_transform_index, frame_count),
                     "ik_pole_transforms": ik_pole_values(pole_point_index, frame_count),
                 }
@@ -2390,7 +2582,7 @@ class AnimationTag(Tag):
                     blender_event.ik_chain = event["ik_chain"]
                 if event["ik_target_usage"]:
                     blender_event.ik_target_usage = event["ik_target_usage"]
-                blender_event.ik_target_marker_name_override = event["ik_target_marker_name_override"]
+                blender_event.ik_game_marker_name = event["ik_game_marker_name"]
                 self._apply_event_value(
                     blender_animation,
                     blender_event,
@@ -3520,6 +3712,8 @@ class AnimationTag(Tag):
                     
         chain_names = set()
         
+        blender_ik_chains = self.scene_nwo.ik_chains
+        
         for element in self.block_ik_chains.Elements:
             name = element.SelectField("name").GetStringData()
             if name in chain_names:
@@ -3533,7 +3727,7 @@ class AnimationTag(Tag):
             start_bone = node_bone_dict[start_node] if start_node is not None else ""
             effector_bone = node_bone_dict[effector_node] if effector_node is not None else ""
             
-            blender_ik_chains = self.scene_nwo.ik_chains
+            
             
             chain = blender_ik_chains.get(name)
             if chain is None:

@@ -325,9 +325,9 @@ class NWO_UL_AnimProps_Events(bpy.types.UIList):
             case '_connected_geometry_animation_event_type_wrinkle_map':
                 layout.label(text=item.wrinkle_map_face_region, icon='MOD_NORMALEDIT')
             case '_connected_geometry_animation_event_type_ik_active':
-                layout.label(text=f"{item.ik_target_usage.replace('_', ' ').title()} - Active", icon='CON_KINEMATIC')
+                layout.label(text=f"{item.ik_target_usage.replace('_', ' ').title()} - Active - {item.ik_chain if item.ik_chain else ''}", icon='CON_KINEMATIC')
             case '_connected_geometry_animation_event_type_ik_passive':
-                layout.label(text=f"{item.ik_target_usage} - Passive", icon='CON_KINEMATIC')
+                layout.label(text=f"{item.ik_target_usage.replace('_', ' ').title()} - Passive - {item.ik_chain if item.ik_chain else ''}", icon='CON_KINEMATIC')
             
 class NWO_OT_ClearAnimations(bpy.types.Operator):
     bl_label = "Clear Animations"

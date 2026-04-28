@@ -757,9 +757,9 @@ class NWO_Animation_ListItems(bpy.types.PropertyGroup):
             case '_connected_geometry_animation_event_type_wrinkle_map':
                 return self.wrinkle_map_face_region
             case '_connected_geometry_animation_event_type_ik_active':
-                return f"{self.ik_target_usage}|{self.ik_chain}|{self.ik_target_marker_name_override}|active"
+                return f"{self.ik_target_usage}|{self.ik_chain}|{self.ik_game_marker_name}|active"
             case '_connected_geometry_animation_event_type_ik_passive':
-                return f"{self.ik_target_usage}|{self.ik_chain}|{self.ik_target_marker_name_override}|passive"
+                return f"{self.ik_target_usage}|{self.ik_chain}|{self.ik_game_marker_name}|passive"
 
     name: bpy.props.StringProperty(
         name="Event Name",
@@ -920,19 +920,21 @@ class NWO_Animation_ListItems(bpy.types.PropertyGroup):
     #     options=set(),
     # )
     
-    def poll_ik_target_marker(self, object):
-        return utils.is_marker(object) and object.nwo.marker_type == '_connected_geometry_marker_type_model'
-    
     ik_target_marker: bpy.props.PointerProperty(
-        name="Proxy Target",
+        name="IK Offset Target",
         type=bpy.types.Object,
-        # poll=poll_ik_target_marker,
         options=set(),
+        description="Animation of this target is used to offset the animated IK. Leave this blank for no offset. No offset would also be achieved by using a target empty which is using copy transforms to the effector bone"
     )
     
-    ik_target_marker_name_override: bpy.props.StringProperty(
+    ik_target_marker_bone: bpy.props.StringProperty(
+        name="IK Offset Target Bone",
+        description="Optional bone if the IK Offset Target is an armature"
+    )
+    
+    ik_game_marker_name: bpy.props.StringProperty(
         name="Target Marker Name",
-        description="Name of the in game marker to use as the IK target. If left blank, the name of the proxy target will be used",
+        description="Name of the in game marker to use as the IK target",
         options=set(),
     )
 

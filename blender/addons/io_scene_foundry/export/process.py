@@ -1909,19 +1909,15 @@ class ExportScene:
                     props["bungie_animation_event_import_frame"] = utils.game_frame(event.frame_frame) - utils.game_frame(animation.frame_start) + 1
                     
                 case '_connected_geometry_animation_event_type_ik_active' | '_connected_geometry_animation_event_type_ik_passive':
-                    if animation.animation_type == 'overlay':
-                        continue
-                    if not event.ik_target_marker:
+                    if not event.ik_game_marker_name:
                         self.warnings.append(f"Animation event [{event.name}] has no ik target marker defined. Skipping")
                         continue
                     props["bungie_animation_event_ik_chain"] = event.ik_chain
-                    target_marker = event.ik_target_marker.name
-                    if event.ik_target_marker_name_override.strip():
-                        target_marker = event.ik_target_marker_name_override.strip()
-                    props["bungie_animation_event_ik_target_marker"] = target_marker
+                    props["bungie_animation_event_ik_target_marker"] = event.ik_game_marker_name
                     props["bungie_animation_event_ik_target_usage"] = event.ik_target_usage
                     
                     proxy_target = bpy.data.objects.new(f'proxy_target_export_node_{event.ik_target_usage}', None)
+                    proxy_target.nwo.is_frame = True
                     self.temp_objects.add(proxy_target)
                     proxy_target.parent = self.virtual_scene.skeleton_object
                     proxy_target_props = {}
@@ -1943,26 +1939,21 @@ class ExportScene:
                             current_chain = chain
                             break
                     
-                    if current_chain and event.ik_target_marker:
-                        # proxy_target.parent = event.ik_target_marker.parent
-                        # if event.ik_target_marker.parent_type == "BONE" and event.ik_target_marker.parent_bone:
-                        #     proxy_target.parent_type = 'BONE'
-                        #     proxy_target.parent_bone = event.ik_target_marker.parent_bone
-                        
-                        # proxy_target.parent = event.ik_target_marker
-                        # proxy_target.matrix_world = event.ik_target_marker.matrix_local
+                    if current_chain:
                         proxy_target.parent = self.virtual_scene.skeleton_object
                         proxy_target.parent_type = 'BONE'
                         proxy_target.parent_bone = self.virtual_scene.root_bone.name
                         constraint = proxy_target.constraints.new('COPY_TRANSFORMS')
-                        constraint.target = event.ik_target_marker
-                        
-                        # constraint.target_space = 'LOCAL'
-                        # constraint.owner_space = 'LOCAL'
-                            
-                        # proxy_target.matrix_world = event.ik_target_marker.matrix_world # event.ik_target_marker.matrix_local @ self.virtual_scene.marker_rotation_matrix
-                        # proxy_target.matrix_local = self.virtual_scene.skeleton_object.pose.bones[chain.start_node].matrix
-                        # proxy_target.matrix_local = event.ik_target_marker.matrix_local @ self.virtual_scene.marker_rotation_matrix
+                        target = event.ik_target_marker
+                        if target is None or not utils.pointer_ob_valid(target):
+                            constraint.target = self.virtual_scene.skeleton_object
+                            constraint.subtarget = current_chain.effector_node
+                        else:
+                            constraint.target = target
+                            if target.type == 'ARMATURE' and event.ik_target_marker_bone:
+                                target_bone = target.data.bones.get(event.ik_target_marker_bone)
+                                if target_bone is not None:
+                                    constraint.subtarget = target_bone.name
                         
                         event_ob_props[proxy_target] = proxy_target_props
                         
@@ -1976,17 +1967,21 @@ class ExportScene:
                         constraint.subtarget = current_chain.effector_node
                                 
                         vector_events.append(VectorEvent(effector.name, event, "bungie_animation_control_ik_effect"))
-                        # constraint.target_space = 'LOCAL'
-                        # constraint.owner_space = 'LOCAL'
                         pole_target = None
-                        if event.ik_pole_vector:
+                        if utils.pointer_ob_valid(event.ik_pole_vector):
                             pole_target = bpy.data.objects.new(f'ik_pole_vector_export_node_{event.ik_chain}_{event.event_type[41:]}', None)
+                            pole_target.nwo.is_frame = True
                             self.temp_objects.add(pole_target)
                             pole_target.parent = self.virtual_scene.skeleton_object
                             pole_target.parent_type = "BONE"
                             pole_target.parent_bone = self.virtual_scene.root_bone.name
                             constraint = pole_target.constraints.new('COPY_TRANSFORMS')
-                            constraint.target = event.ik_pole_vector
+                            ptarget = event.ik_pole_vector
+                            constraint.target = ptarget
+                            if ptarget.type == 'ARMATURE' and event.ik_pole_vector_bone:
+                                pole_bone = ptarget.data.bones.get(event.ik_pole_vector_bone)
+                                if pole_bone is not None:
+                                    constraint.subtarget = pole_bone.name
                     
                     # effector.matrix_world = event.ik_target_marker.matrix_world
                         
