@@ -10,6 +10,8 @@
 *.user
 *.vsidx
 
+*.blend1
+
 /blender/addons/io_scene_foundry/.vscode/settings.json
 
 *bin/

@@ -2288,7 +2288,7 @@ def clear_animation(animation):
                             bone.matrix_basis = Matrix.Identity(4)
                     
                     group.object.animation_data.action = None
-                    group.object.matrix_local = Matrix.Identity(4)
+                    # group.object.matrix_local = Matrix.Identity(4)
                     group.object.animation_data.use_nla = False
                     group.object.animation_data.action = None
 
