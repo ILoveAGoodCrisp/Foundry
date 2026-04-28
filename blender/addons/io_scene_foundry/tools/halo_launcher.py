@@ -46,7 +46,7 @@ def _install_foundation_plugin(project_path, plugin_path, plugins_xml):
     try:
         import clr
         import System # type:ignore
-        from System.Reflection import Assembly # type:ignore
+        from System.Reflection import AssemblyName # type:ignore
         from System.Diagnostics import FileVersionInfo # type:ignore
         
         foundation_path = Path(project_path, "Foundation.exe")
@@ -77,11 +77,12 @@ def _install_foundation_plugin(project_path, plugin_path, plugins_xml):
         if not plugin_path.exists():
             update_required = True
         else:
-            source_assembly = Assembly.LoadFrom(str(source_plugin_path))
-            source_version = source_assembly.GetName().Version
-            assembly = Assembly.LoadFrom(str(plugin_path))
-            version = assembly.GetName().Version
+            source_version = AssemblyName.GetAssemblyName(str(source_plugin_path)).Version
+            version = AssemblyName.GetAssemblyName(str(plugin_path)).Version
+
+            print("SOURCE", source_plugin_path, "FOUNDATION", plugin_path)
             print("SOURCE", source_version, "FOUNDATION", version)
+
             update_required = source_version > version
             
         if update_required:
