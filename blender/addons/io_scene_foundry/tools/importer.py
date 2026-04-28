@@ -3031,8 +3031,9 @@ class NWOImporter:
         self.context.scene.render.fps_base = 1
         with utils.TagImportMover(self.tags_dir, file) as mover:
             forced_compression_value = 0
+            do_reset = False
             with AnimationTag(path=mover.tag_path) as graph:
-                forced_compression_value = graph.set_forced_uncompressed()
+                forced_compression_value, do_reset = graph.set_forced_uncompressed()
                 match forced_compression_value:
                     case 0:
                         self.scene_nwo.forced_animation_compression = 'none'
@@ -3076,7 +3077,7 @@ class NWOImporter:
                     count = graph.events_to_blender()
                     utils.print_bullet(f"Imported {count} frame events")
 
-            if forced_compression_value != -1:
+            if do_reset:
                 with AnimationTag(path=mover.tag_path) as graph:
                     graph.reset_forced_compression(forced_compression_value)
         

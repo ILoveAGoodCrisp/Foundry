@@ -2956,12 +2956,14 @@ class AnimationTag(Tag):
         # Force uncompressed animations. This somehow works
         forced_compression = self.tag.SelectField("Struct:definitions[0]/ShortEnum:force compression setting")
         original = forced_compression.Value
+        if self.corinth:
+            return original, False # H4 doesn't store uncompressed animations :(
         if original != 3:
             self.tag.SelectField("Struct:definitions[0]/ShortEnum:force compression setting").Value = 3
             self.tag_has_changes = True
-            return original
+            return original, True
         
-        return -1
+        return original, False
         
     def reset_forced_compression(self, value: int):
         self.tag.SelectField("Struct:definitions[0]/ShortEnum:force compression setting").Value = value
