@@ -3317,6 +3317,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     
     keyframe_sync_active: bpy.props.BoolProperty(options=set())
     
+    
     default_animation_compression: bpy.props.EnumProperty(
         name="Default Animation Compression",
         description="The default animation the game applies to animations",
@@ -3326,6 +3327,18 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
             ("Uncompressed", "Uncompressed", "No compression"),
             ("Medium", "Medium", "Medium compression"),
             ("Rough", "Rough", "Highest level of compression"),
+        ]
+    )
+    
+    forced_animation_compression: bpy.props.EnumProperty(
+        name="Forced Animation Compression",
+        description="The forced animation the game applies to animations. Overrides any per animation compression setting",
+        options=set(),
+        items=[
+            ("none", "None", "No override"),
+            ("uncompressed", "Uncompressed", "Force no compression for all animations"),
+            ("medium", "Medium", "Force medium compression for all animations"),
+            ("rough", "Rough", "Force rough compression for all animations"),
         ]
     )
     

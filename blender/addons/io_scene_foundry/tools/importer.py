@@ -3030,6 +3030,19 @@ class NWOImporter:
         self.context.scene.render.fps = 30
         self.context.scene.render.fps_base = 1
         with utils.TagImportMover(self.tags_dir, file) as mover:
+            forced_compression_value = 0
+            with AnimationTag(path=mover.tag_path) as graph:
+                forced_compression_value = graph.set_forced_uncompressed()
+                match forced_compression_value:
+                    case 0:
+                        self.scene_nwo.forced_animation_compression = 'none'
+                    case 3:
+                        self.scene_nwo.forced_animation_compression = 'uncompressed'
+                    case 1:
+                        self.scene_nwo.forced_animation_compression = 'medium'
+                    case 2:
+                        self.scene_nwo.forced_animation_compression = 'rough'
+                        
             with AnimationTag(path=mover.tag_path) as graph:
                 utils.print_section(f"Importing Animation Graph: {graph.tag_path.ShortNameWithExtension}")
                 if self.graph_import_ik_chains:
@@ -3062,6 +3075,10 @@ class NWOImporter:
                     utils.print_bullet("Importing Frame Events")
                     count = graph.events_to_blender()
                     utils.print_bullet(f"Imported {count} frame events")
+
+            if forced_compression_value != -1:
+                with AnimationTag(path=mover.tag_path) as graph:
+                    graph.reset_forced_compression(forced_compression_value)
         
         if return_animations:
             return actions, animations

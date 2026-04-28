@@ -863,6 +863,10 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         draw_tag_path(col, nwo, "parent_animation_graph", set_row_split=True)
         row = col.row()
         row.use_property_split = True
+        row.prop(nwo, "forced_animation_compression")
+        row = col.row()
+        row.use_property_split = True
+        row.enabled = nwo.forced_animation_compression == 'none'
         row.prop(nwo, "default_animation_compression", text="Default Animation Compression")
         row = col.row()
         row.use_property_split = True

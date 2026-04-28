@@ -423,6 +423,25 @@ class AnimationTag(Tag):
             if compression_field.Value != compression_enum:
                 compression_field.Value = compression_enum
                 self.tag_has_changes = True
+        
+        force_compression = self.tag.SelectField("Struct:definitions[0]/ShortEnum:force compression setting")
+        match self.scene_nwo.forced_animation_compression:
+            case 'none':
+                if force_compression.Value != 0:
+                    force_compression.Value = 0
+                    self.tag_has_changes = True
+            case 'uncompressed':
+                if force_compression.Value != 3:
+                    force_compression.Value = 0
+                    self.tag_has_changes = True
+            case 'medium':
+                if force_compression.Value != 1:
+                    force_compression.Value = 1
+                    self.tag_has_changes = True
+            case 'rough':
+                if force_compression.Value != 2:
+                    force_compression.Value = 2
+                    self.tag_has_changes = True
                 
     def set_parent_graph(self, parent_graph_path):
         parent_field = self.tag.SelectField("Struct:definitions[0]/Reference:parent animation graph")
@@ -2925,15 +2944,28 @@ class AnimationTag(Tag):
         if flags.TestBit("use custom blend-out time" if self.corinth else "override default blend out time"):
             blender_animation.override_blend_out_time = tag_animation.element.SelectField("override blend out time").Data
         
-        # match tag_animation.compression:
-        #     case Compression.medium_compression | Compression.reach_medium_compression:
-        #         blender_animation.compression = "Medium"
-        #     case Compression.rough_compression | Compression.reach_rough_compression:
-        #         blender_animation.compression = "Rough"
-        #     case Compression.uncompressed:
+        match tag_animation.compression:
+            case Compression.medium_compression | Compression.reach_medium_compression:
+                blender_animation.compression = "Medium"
+            case Compression.rough_compression | Compression.reach_rough_compression:
+                blender_animation.compression = "Rough"
+            case Compression.uncompressed:
+                blender_animation.compression = "Uncompressed"
         
-        # NOTE always setting uncompressed, no point the tag animations going through compression twice
-        blender_animation.compression = "Uncompressed"
+    def set_forced_uncompressed(self):
+        # Force uncompressed animations. This somehow works
+        forced_compression = self.tag.SelectField("Struct:definitions[0]/ShortEnum:force compression setting")
+        original = forced_compression.Value
+        if original != 3:
+            self.tag.SelectField("Struct:definitions[0]/ShortEnum:force compression setting").Value = 3
+            self.tag_has_changes = True
+            return original
+        
+        return -1
+        
+    def reset_forced_compression(self, value: int):
+        self.tag.SelectField("Struct:definitions[0]/ShortEnum:force compression setting").Value = value
+        self.tag_has_changes = True
     
     def to_blender(self, render_model: str, armature, filter: str, import_pca=False):
         actions = []
