@@ -3,6 +3,7 @@ from typing import cast
 import bpy
 from mathutils import Euler, Matrix, Vector
 
+from ...managed_blam.scenario import ScenarioTag
 from ...managed_blam.render_model import RenderModelTag
 from ...managed_blam.model import ModelTag
 from ...managed_blam.object import ObjectTag
@@ -504,7 +505,7 @@ class NWO_OT_CinematicEventsClear(bpy.types.Operator):
         return {'FINISHED'}
         
     def invoke(self, context: bpy.types.Context, event):
-        return context.window_manager.invoke_confirm(self, event, title="Clear all events?", confirm_text="Yes", icon='WARNING')
+        return context.window_manager.invoke_confirm(self, event, title="Clear all events?", confirm_text="Yes", icon='ERROR')
     
 class NWO_OT_CinematicEventSetFrame(bpy.types.Operator):
     bl_idname = "nwo.cinematic_event_set_frame"
@@ -878,3 +879,42 @@ class NWO_OT_SelectCameraLights(bpy.types.Operator):
                     item.actor.select_set(True)
                     
         return {'FINISHED'}
+    
+class NWO_GetScenarioCustsceneTitles(bpy.types.Operator):
+    bl_idname = "nwo.get_scenario_cutscene_titles"
+    bl_label = "Cutscene Titles"
+    bl_description = "Returns a list of scenario cutscene titles"
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        nwo = utils.get_scene_props()
+        if nwo.asset_type == 'cinematic':
+            tag_path = Path(utils.get_tags_path(), utils.relative_path(nwo.cinematic_scenario))
+            return tag_path.is_absolute() and tag_path.exists() and tag_path.is_file()
+        
+        return False
+    
+    def title_items(self, context):
+        nwo = utils.get_scene_props()
+        items = []
+        with ScenarioTag(path=nwo.cinematic_scenario) as scenario:
+            cutscene_titles = scenario.collection_cutscene_titles()
+        for c in cutscene_titles:
+            items.append((c, c, ""))
+
+        return items
+    
+    cutscene_title: bpy.props.EnumProperty(
+        name="Variant",
+        items=title_items,
+    )
+    
+    def execute(self, context):
+        nwo = utils.get_scene_props()
+        if str(Path(utils.get_tags_path(), nwo.cinematic_scenario)):
+            nwo.cinematic_scenario = self.cutscene_title
+            return {'FINISHED'}
+        
+        self.report({'ERROR'}, "Tag does not exist or is not a valid type. Cannot find cutscene titles")
+        return {'CANCELLED'}

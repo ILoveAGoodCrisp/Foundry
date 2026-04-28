@@ -6,7 +6,7 @@ from bpy.types import Operator, AddonPreferences
 from bpy.props import BoolProperty, StringProperty, EnumProperty, CollectionProperty
 
 from . import startup
-from .utils import ProjectXML, get_prefs, get_scene_props, get_tags_path, is_corinth, project_game_icon, project_icon, read_projects_list, relative_path, setup_projects_list, write_projects_list
+from .utils import ProjectXML, get_prefs, get_scene_props, get_tags_path, is_corinth, project_game_icon, project_icon, read_projects_list, relative_path, setup_projects_list, write_projects_list, addon_root, formalise_string
 FOUNDRY_GITHUB = r"https://github.com/ILoveAGoodCrisp/Foundry"
 import bpy
 
@@ -295,6 +295,39 @@ class FoundryPreferences(AddonPreferences):
         default=True,
         description="Renames any collection converted to a halo collection with their respective region/permutation/bsp/layer name"
     )
+    
+    def default_scale_model_items(self, context):
+        items = []
+        scale_models = Path(addon_root(), "resources", "scale_models")
+
+        root_files = [f for f in scale_models.iterdir() if f.is_file()]
+        if root_files:
+            for file in sorted(root_files, key=lambda f: f.name):
+                if file.suffix.lower() == '.bmf':
+                    items.append((str(file), formalise_string(file.with_suffix("").name), str(file)))
+
+        for folder in sorted([f for f in scale_models.iterdir() if f.is_dir()], key=lambda f: f.name):
+            files = [f for f in folder.iterdir() if f.is_file()]
+            if not files:
+                continue
+
+            items.append(("", formalise_string(folder.name), ""))
+
+            for file in sorted(files, key=lambda f: f.name):
+                if file.suffix.lower() == '.bmf':
+                    items.append((
+                        str(file),
+                        formalise_string(file.with_suffix("").name),
+                        str(file)
+                    ))
+
+        return items
+    
+    default_scale_model: EnumProperty(
+        name="Default Scale Model",
+        description="The default scale model to create using the Add > Mesh > Halo Scale Model operator",
+        items=default_scale_model_items,
+    )
 
     def draw(self, context):
         prefs = self
@@ -358,6 +391,8 @@ class FoundryPreferences(AddonPreferences):
         row.prop(prefs, "allow_foundation_plugin_install")
         row = box.row(align=True)
         row.prop(prefs, "rename_halo_collections")
+        row = box.row(align=True)
+        row.prop(prefs, "default_scale_model")
         row = box.row(align=True)
         row.prop(prefs, "granny_viewer_path")
         
