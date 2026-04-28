@@ -177,6 +177,8 @@ class MaterialTag(ShaderTag):
                 mapping = self._setup_function_parameters(source, element, param_type)
                 self._finalize_material_parameters(mapping, element)
                 
+        return True
+                
     def _build_basic(self, map: dict):
         # Set up shader parameters
         self.group_node = map.get("mapping_root") or map.get("bsdf")
