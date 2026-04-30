@@ -33,30 +33,34 @@ def _matrix3_to_c_float9(matrix: Matrix):
         matrix[2][0], matrix[2][1], matrix[2][2],
     )
 
+EPSILON = 1e-8
+
 def granny_transform_parts(matrix_local: Matrix):
     loc = matrix_local.to_translation()
     position = (c_float * 3)(loc[0], loc[1], loc[2])
+
     quaternion = matrix_local.to_quaternion()
     orientation = (c_float * 4)(quaternion[1], quaternion[2], quaternion[3], quaternion[0])
+
     scale = matrix_local.to_scale()
     normalized_matrix = matrix_local.normalized()
+
+    inv_scale = [
+        1.0 / s if abs(s) > EPSILON else 0.0
+        for s in scale
+    ]
+
     for i in range(3):
-        normalized_matrix[i][0] /= scale[0]
-        normalized_matrix[i][1] /= scale[1]
-        normalized_matrix[i][2] /= scale[2]
-        
-    # shear = (
-    #     normalized_matrix[1][0],
-    #     normalized_matrix[2][0],
-    #     normalized_matrix[2][1]
-    # )
-    
-    # scale_shear = scale[0], shear[0], shear[1], 0.0, scale[1], shear[2], 0.0, 0.0, scale[2]
-    
-    scale_shear = scale[0], 0.0, 0.0, 0.0, scale[1], 0.0, 0.0, 0.0, 0.0
-    
-    scale_shear = (c_float * 3 * 3)((scale[0], 0.0, 0.0), (0.0, scale[1], 0.0), (0.0, 0.0, scale[2]))
-    
+        normalized_matrix[i][0] *= inv_scale[0]
+        normalized_matrix[i][1] *= inv_scale[1]
+        normalized_matrix[i][2] *= inv_scale[2]
+
+    scale_shear = (c_float * 3 * 3)(
+        (scale[0], 0.0, 0.0),
+        (0.0, scale[1], 0.0),
+        (0.0, 0.0, scale[2])
+    )
+
     return position, orientation, scale_shear
 
 class Material():

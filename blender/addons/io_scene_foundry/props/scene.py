@@ -1882,20 +1882,25 @@ def poll_actor(self, object):
 class NWO_CinematicEvent(PropertyGroup):
     def cinematic_event_types(self, context):
         return [
-            ("DIALOGUE", "Dialogue", ""),
-            ("EFFECT", "Effect", ""),
-            ("SCRIPT", "Script", "")
+            ("DIALOGUE", "Dialogue", "Play dialogue on a cinematic actor"),
+            ("EFFECT", "Effect", "Play an effect on a cinematic actor, optionally on a particular marker"),
+            ("SCRIPT", "Script", "Execute arbitary halo script at a frame"),
+            ("MUSIC", "Music / Foley", "Start or stop a sound or sound_looping tag"),
+            ("FUNCTION", "Functions", "Set a function value on a cinematic actor at a given frame"),
+            ("SCREEN_EFFECT", "Screen Effects", "Start or stop display of an area screen effect"),
+            ("INPUT", "User Input", "Start or stop (and optionally constrain within bounds) user input"),
         ]
         
     def get_name(self):
+        start_stop = "Stop" if self.stop else "Start"
         match self.type:
             case 'DIALOGUE':
                 # layout.prop(item, "name", icon='PLAY_SOUND', text="", emboss=False)
                 if self.sound_tag.strip():
-                    if self.lipsync_actor is None:
+                    if utils.pointer_ob_valid(self.actor):
                         return f"{Path(self.sound_tag).with_suffix('').name} -> NONE"
                     else:
-                        return f"{Path(self.sound_tag).with_suffix('').name} -> {self.lipsync_actor.name}"
+                        return f"{Path(self.sound_tag).with_suffix('').name} -> {self.actor.name}"
                 else:
                     return "NONE"
             case 'EFFECT':
@@ -1925,24 +1930,36 @@ class NWO_CinematicEvent(PropertyGroup):
                         return self.text.name
                 else:
                     if self.script_type in script_object_types:
-                        if self.script_object is None:
+                        if utils.pointer_ob_valid(self.actor):
                             return f"{self.script_type.lower()} -> NONE"
                         else:
                             match self.script_type:
                                 case 'SET_VARIANT':
-                                    return f"{self.script_type.lower()} -> {self.script_object.name} -> {self.script_variant}"
+                                    return f"{self.script_type.lower()} -> {self.actor.name} -> {self.script_variant}"
                                 case 'SET_PERMUTATION':
-                                    return f"{self.script_type.lower()} -> {self.script_object.name} -> {self.script_region} {self.script_permutation}"
+                                    return f"{self.script_type.lower()} -> {self.actor.name} -> {self.script_region} {self.script_permutation}"
                                 case 'SET_REGION_STATE':
-                                    return f"{self.script_type.lower()} -> {self.script_object.name} -> {self.script_region} {self.script_state}"
+                                    return f"{self.script_type.lower()} -> {self.actor.name} -> {self.script_region} {self.script_state}"
                                 case 'SET_MODEL_STATE_PROPERTY':
-                                    return f"{self.script_type.lower()} -> {self.script_object.name} -> {self.script_state_property} {'on' if self.script_bool else 'off'}"
+                                    return f"{self.script_type.lower()} -> {self.actor.name} -> {self.script_state_property} {'on' if self.script_bool else 'off'}"
                                 case 'DAMAGE_OBJECT':
-                                    return f"{self.script_type.lower()} -> {self.script_object.name} -> {self.script_region} -> {round(self.script_damage, 2)}"
+                                    return f"{self.script_type.lower()} -> {self.actor.name} -> {self.script_region} -> {round(self.script_damage, 2)}"
                                 case _:
-                                    return f"{self.script_type.lower()} -> {self.script_object.name}"
+                                    return f"{self.script_type.lower()} -> {self.actor.name}"
                     else:
                         return self.script_type.lower()
+                    
+            case 'MUSIC':
+                f"{start_stop} {Path(self.sound_tag).with_suffix('').name}"
+            case 'FUNCTION':
+                if utils.pointer_ob_valid(self.actor):
+                    f"{Path(self.function_name)} -> {self.actor.name}"
+                else:
+                    f"{Path(self.function_name)} -> NONE"
+            case 'SCREEN_EFFECT':
+                f"{start_stop} {Path(self.screen_effect).with_suffix('').name}"
+            case 'INPUT':
+                f"{start_stop} {Path(self.screen_effect).with_suffix('').name}"
         
     name: bpy.props.StringProperty(
         name="Name",
@@ -1958,10 +1975,15 @@ class NWO_CinematicEvent(PropertyGroup):
     
     frame: bpy.props.IntProperty(
         name="Frame",
-        description="Play on which this event plays",
+        description="Frame on which this event plays",
         default=1,
         min=0,
         options=set(),
+    )
+    
+    stop: bpy.props.BoolProperty(
+        name="Stop",
+        description="Stop this event rather than starting it at the given frame",
     )
     
     # Dialogue
@@ -1984,9 +2006,9 @@ class NWO_CinematicEvent(PropertyGroup):
         options=set(),
     )
     
-    lipsync_actor: bpy.props.PointerProperty(
-        name="Lipsync Actor",
-        description="The actor who should lipsync to this sound",
+    actor: bpy.props.PointerProperty(
+        name="Actor",
+        description="The actor associated with this event",
         type=bpy.types.Object,
         poll=poll_actor,
         options=set(),
@@ -2111,13 +2133,6 @@ class NWO_CinematicEvent(PropertyGroup):
     
     script_text: bpy.props.StringProperty()
     
-    script_object: bpy.props.PointerProperty(
-        name="Object",
-        type=bpy.types.Object,
-        poll=poll_actor,
-        options=set(),
-    )
-    
     script_variant: bpy.props.StringProperty(
         name="Script Variant",
     )
@@ -2179,6 +2194,28 @@ class NWO_CinematicEvent(PropertyGroup):
         subtype='FACTOR',
         options=set(),
     )
+    
+    # Music
+    music: bpy.props.StringProperty()
+    
+    # Function
+    function_name: bpy.props.StringProperty()
+    value: bpy.props.FloatProperty()
+    interpolation_time: bpy.props.FloatProperty(
+        name="Interpolation Time",
+        description="Time to go from the current function value to the new one, in seconds"
+    )
+    
+    screen_effect: bpy.props.StringProperty()
+    
+    shot_only: bpy.props.BoolProperty(
+        name="Shot Only",
+        description="Event plays for the whole shot, then ends"
+    )
+    
+    # User input
+    frictional_force: bpy.props.FloatProperty()
+    
     
 class NWO_CinematicScene(PropertyGroup):
     
