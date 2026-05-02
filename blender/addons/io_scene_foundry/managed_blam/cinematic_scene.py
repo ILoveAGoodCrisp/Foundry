@@ -504,42 +504,43 @@ class CinematicSceneTag(Tag):
         object_events = defaultdict(list)
         
         for scene_element, data_element in zip(scene_shots.Elements, data_shots.Elements):
-            utils.print_step(f"Importing cinematic events for shot: {scene_element.ElementIndex + 1}")
+            # NOTE Temp comment out while WIP
+            # utils.print_step(f"Importing cinematic events for shot: {scene_element.ElementIndex + 1}")
             
-            for dialogue_element in data_element.SelectField("dialogue").Elements:
-                dialogue = CinematicDialogue()
-                dialogue.from_element(dialogue_element)
-                object_events[dialogue.actor].append(dialogue.to_event(cin_scene_nwo, self.corinth))
+            # for dialogue_element in data_element.SelectField("dialogue").Elements:
+            #     dialogue = CinematicDialogue()
+            #     dialogue.from_element(dialogue_element)
+            #     object_events[dialogue.actor].append(dialogue.to_event(cin_scene_nwo, self.corinth))
                 
-            for music_element in scene_element.SelectField("music").Elements:
-                music = CinematicMusic()
-                music.from_element(music_element)
-                music.to_event(cin_scene_nwo)
+            # for music_element in scene_element.SelectField("music").Elements:
+            #     music = CinematicMusic()
+            #     music.from_element(music_element)
+            #     music.to_event(cin_scene_nwo)
                 
-            for effect_element in data_element.SelectField("effects").Elements:
-                effect = CinematicEffect()
-                effect.from_element(effect_element)
-                effect.to_event(cin_scene_nwo)
+            # for effect_element in data_element.SelectField("effects").Elements:
+            #     effect = CinematicEffect()
+            #     effect.from_element(effect_element)
+            #     effect.to_event(cin_scene_nwo)
                 
-            for object_functions_element in scene_element.SelectField("object functions").Elements:
-                object_function = CinematicObjectFunction()
-                object_function.from_element(object_functions_element)
-                object_function.to_event(cin_scene_nwo)
+            # for object_functions_element in scene_element.SelectField("object functions").Elements:
+            #     object_function = CinematicObjectFunction()
+            #     object_function.from_element(object_functions_element)
+            #     object_function.to_event(cin_scene_nwo)
                 
-            for screen_effects_element in scene_element.SelectField("screen effects").Elements:
-                screen_effect = CinematicScreenEffect()
-                screen_effect.from_element(screen_effects_element)
-                screen_effect.to_event(cin_scene_nwo)
+            # for screen_effects_element in scene_element.SelectField("screen effects").Elements:
+            #     screen_effect = CinematicScreenEffect()
+            #     screen_effect.from_element(screen_effects_element)
+            #     screen_effect.to_event(cin_scene_nwo)
                 
-            for script_element in data_element.SelectField("custom script").Elements:
-                script = CinematicCustomScript()
-                script.from_element(script_element)
-                script.to_event(cin_scene_nwo)
+            # for script_element in data_element.SelectField("custom script").Elements:
+            #     script = CinematicCustomScript()
+            #     script.from_element(script_element)
+            #     script.to_event(cin_scene_nwo)
                 
-            for user_element in data_element.SelectField("user input constraints").Elements:
-                user = CinematicUserInputConstraints()
-                user.from_element(user_element)
-                user.to_event(cin_scene_nwo)
+            # for user_element in data_element.SelectField("user input constraints").Elements:
+            #     user = CinematicUserInputConstraints()
+            #     user.from_element(user_element)
+            #     user.to_event(cin_scene_nwo)
             
             utils.print_step(f"Importing cinematic lighting for shot: {scene_element.ElementIndex + 1}")
             for light_element in scene_element.SelectField("Block:lighting").Elements:
