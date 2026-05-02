@@ -6134,7 +6134,7 @@ _WINDOWS_RESERVED = {
     *(f"LPT{i}" for i in range(1, 10)),
 }
 
-def clean_text(value: str, replacement: str = "_") -> str:
+def clean_text(value: str, replacement: str = "_", replace_spaces=False) -> str:
     value = unicodedata.normalize("NFKD", value)
     value = value.encode("ascii", "ignore").decode("ascii")
     value = re.sub(r"[.\s]+", replacement, value)
@@ -6148,8 +6148,11 @@ def clean_text(value: str, replacement: str = "_") -> str:
     # Avoid reserved names (case-insensitive)
     if value.upper() in _WINDOWS_RESERVED:
         value = f"{value}_"
-
-    return value
+        
+    if replace_spaces:
+        return value.replace(" ", replacement)
+    else:
+        return value
 
 
 def find_layer_collection(layer_coll, collection):

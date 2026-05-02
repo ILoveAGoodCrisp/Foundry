@@ -568,6 +568,12 @@ class NWO_Import(bpy.types.Operator):
         description="Skips importing bsp data like collision and portals. Use this if you aren't importing the BSP back into the game"
     )
     
+    tag_bsp_import_havok: bpy.props.BoolProperty(
+        name="Import Havok Collision (WIP)",
+        description="Imports serialized Havok collision from scenario_structure_bsp tags as standalone collision meshes. Experimental.",
+        default=False,
+    )
+
     tag_bsp_import_geometry: bpy.props.BoolProperty(
         name="Import BSP Geometry",
         description="Imports the all geometry data within bsp tags",
@@ -1101,6 +1107,7 @@ class NWO_Import(bpy.types.Operator):
                     importer.tag_zone_set = self.tag_zone_set
                     importer.tag_bsp_render_only = self.tag_bsp_render_only
                     importer.tag_bsp_import_geometry = self.tag_bsp_import_geometry
+                    importer.tag_bsp_import_havok = self.tag_bsp_import_havok
                     importer.tag_import_lights = self.tag_import_lights
                     importer.tag_import_design = self.tag_import_design
                     importer.tag_scenario_import_objects = self.tag_scenario_import_objects
@@ -1126,6 +1133,7 @@ class NWO_Import(bpy.types.Operator):
                 elif 'scenario_structure_bsp' in importer.extensions:
                     importer.tag_bsp_render_only = self.tag_bsp_render_only
                     importer.tag_bsp_import_geometry = self.tag_bsp_import_geometry
+                    importer.tag_bsp_import_havok = self.tag_bsp_import_havok
                     importer.tag_import_lights = self.tag_import_lights
                     importer.setup_as_asset = self.setup_as_asset
                     bsp_files = importer.sorted_filepaths["scenario_structure_bsp"]
@@ -1167,6 +1175,10 @@ class NWO_Import(bpy.types.Operator):
                     imported_objects.extend(imported_design_objects)
                         
                 elif 'prefab' in importer.extensions:
+                    importer.tag_bsp_render_only = self.tag_bsp_render_only
+                    importer.tag_bsp_import_geometry = self.tag_bsp_import_geometry
+                    importer.tag_bsp_import_havok = self.tag_bsp_import_havok
+                    importer.tag_import_lights = self.tag_import_lights
                     importer.setup_as_asset = self.setup_as_asset
                     if self.place_at_mouse:
                         key = marker.nwo.marker_game_instance_tag_name
@@ -1786,6 +1798,8 @@ class NWO_Import(bpy.types.Operator):
             box.prop(self, 'tag_zone_set')
             box.prop(self, "tag_bsp_import_geometry")
             box.prop(self, "tag_bsp_render_only")
+            if corinth:
+                box.prop(self, "tag_bsp_import_havok")
             box.prop(self, "tag_import_design")
             box.prop(self, "tag_import_lights")
             box.prop(self, "tag_sky")
@@ -2096,6 +2110,7 @@ class NWOImporter:
         self.tag_zone_set = ""
         self.tag_bsp_render_only = False
         self.tag_bsp_import_geometry = False
+        self.tag_bsp_import_havok = False
         self.tag_import_lights = False
         self.tag_import_design = False
         self.tag_scenario_import_objects = False
@@ -3257,7 +3272,7 @@ class NWOImporter:
                 scenario_collection.children.link(collection)
         with utils.TagImportMover(self.tags_dir, file) as mover:
             with ScenarioStructureBspTag(path=mover.tag_path) as bsp:
-                bsp_objects, game_objects, bvh = bsp.to_blend_objects(collection, self.tag_bsp_render_only, info_path, self.tag_bsp_import_geometry, self.tag_import_lights, always_get_structure_collision, sky_index)
+                bsp_objects, game_objects, bvh = bsp.to_blend_objects(collection, self.tag_bsp_render_only, info_path, self.tag_bsp_import_geometry, self.tag_import_lights, always_get_structure_collision, sky_index, self.tag_bsp_import_havok)
                 
                 meshes = {ob.data for ob in bsp_objects if ob.type == 'MESH'}
                 self.emissive_meshes.update({me for me in meshes if any(p.type == 'emissive' for p in me.nwo.face_props)})
@@ -3360,7 +3375,7 @@ class NWOImporter:
                 return
             
         with ScenarioStructureBspTag(path=bsp_ref) as bsp:
-            bsp_objects, _, _ = bsp.to_blend_objects(collection, self.tag_bsp_render_only)
+            bsp_objects, _, _ = bsp.to_blend_objects(collection, self.tag_bsp_render_only, import_geometry=self.tag_bsp_import_geometry, import_lights=self.tag_import_lights, import_havok=self.tag_bsp_import_havok)
             imported_objects.extend(bsp_objects)
             meshes = {ob.data for ob in bsp_objects if ob.type == 'MESH'}
             self.emissive_meshes.update({me for me in meshes if any(p.type == 'emissive' for p in me.nwo.face_props)})
@@ -4429,6 +4444,12 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         description="Skips importing bsp data like collision and portals. Use this if you aren't importing the BSP back into the game",
     )
     
+    tag_bsp_import_havok: bpy.props.BoolProperty(
+        name="Import Havok Collision (WIP)",
+        description="Imports serialized Havok collision from scenario_structure_bsp tags as standalone collision meshes. Experimental.",
+        default=False,
+    )
+
     tag_bsp_import_geometry: bpy.props.BoolProperty(
         name="Import BSP Geometry",
         description="Imports the all geometry data within bsp tags",
@@ -4807,6 +4828,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 layout.prop(self, "tag_zone_set")
                 layout.prop(self, "tag_bsp_import_geometry")
                 layout.prop(self, "tag_bsp_render_only")
+                layout.prop(self, "tag_bsp_import_havok")
                 layout.prop(self, "tag_import_design")
                 layout.prop(self, "tag_import_lights")
                 layout.prop(self, "tag_sky")
@@ -4821,6 +4843,8 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
             case "scenario_structure_bsp" | "prefab":
                 layout.prop(self, "tag_bsp_import_geometry")
                 layout.prop(self, "tag_bsp_render_only")
+                if corinth:
+                    layout.prop(self, "tag_bsp_import_havok")
                 layout.prop(self, "tag_import_lights")
                 layout.prop(self, "setup_as_asset")
                 layout.prop(self, "build_blender_materials")

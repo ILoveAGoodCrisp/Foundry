@@ -1378,7 +1378,8 @@ class ShaderTag(Tag):
         
         # EVIL exception for an EVIL cubemap
         if bitmap_path.RelativePathWithExtension == SK_TEST_CUBEMAP:
-            bitmap_path = self._TagPath_from_string(DEFAULT_CUBEMAP)
+            return
+            #bitmap_path = self._TagPath_from_string(DEFAULT_CUBEMAP)
         
         if not os.path.exists(bitmap_path.Filename):
             return
