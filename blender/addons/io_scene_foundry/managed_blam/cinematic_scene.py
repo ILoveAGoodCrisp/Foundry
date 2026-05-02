@@ -1,5 +1,6 @@
 from collections import defaultdict
 import math
+from typing import cast
 from mathutils import Matrix, Vector
 
 from .cinematic_lighting import CinematicLightingTag
@@ -84,22 +85,46 @@ class CinematicDialogue:
         self.female_dialogue: TagPath = None
         self.frame = 0
         self.scale = 1
-        self.lipsync_actor = ""
+        self.actor = ""
         self.default_sound_effect = ""
         self.subtitle = ""
         self.female_subtitle = ""
         self.character = ""
     
-    # Dialog is always sourced from Blender
-    # def from_element(self, element: TagFieldBlockElement): 
-    #     pass
+    def from_element(self, element: TagFieldBlockElement): 
+        self.dialogue = element.SelectField("dialogue").Path
+        self.female_dialogue = element.SelectField("female dialogue").Path
+        self.frame = element.SelectField("frame").Data
+        self.scale = element.SelectField("scale").Data
+        self.actor = element.SelectField("lipsync actor").GetStringData()
+        self.default_sound_effect = element.SelectField("default sound effect").GetStringData()
+        self.subtitle = element.SelectField("subtitle").GetStringData()
+        self.female_subtitle = element.SelectField("female subtitle").GetStringData()
+        self.character = element.SelectField("character").GetStringData()
+    
+    def to_event(self, nwo, corinth: bool): 
+        event = cast(NWO_CinematicEvent, nwo.cinematic_events.add())
+        if self.dialogue is not None:
+            event.sound_tag = self.dialogue.RelativePathWithExtension
+        if self.female_dialogue is not None:
+            event.female_sound_tag = self.female_dialogue.RelativePathWithExtension
+            
+        event.frame = self.frame + int((not corinth))
+        event.sound_scale = self.scale
+        event.default_sound_effect = self.default_sound_effect
+        event.subtitle = self.subtitle
+        event.female_subtitle = self.female_subtitle
+        event.subtitle_character = self.character
+        
+        return event
+        
     
     def to_element(self, element: TagFieldBlockElement):
         element.SelectField("dialogue").Path = self.dialogue
         element.SelectField("female dialogue").Path = self.female_dialogue
-        element.SelectField("LongInteger:frame").Data = self.frame
+        element.SelectField("frame").Data = self.frame
         element.SelectField("scale").Data = self.scale
-        element.SelectField("lipsync actor").SetStringData(self.lipsync_actor)
+        element.SelectField("lipsync actor").SetStringData(self.actor)
         element.SelectField("default sound effect").SetStringData(self.default_sound_effect)
         element.SelectField("subtitle").SetStringData(self.subtitle)
         element.SelectField("female subtitle").SetStringData(self.female_subtitle)
@@ -116,9 +141,9 @@ class CinematicDialogue:
             self.female_dialogue = self.dialogue
             
         self.scale = event.sound_scale
-        self.lipsync_actor = ""
-        if event.lipsync_actor is not None and event.lipsync_actor in actor_objects:
-            self.lipsync_actor = event.lipsync_actor.name
+        self.actor = ""
+        if event.actor is not None and event.actor in actor_objects:
+            self.actor = event.actor.name
         self.default_sound_effect = event.default_sound_effect
         self.subtitle = event.subtitle
         self.female_subtitle = event.female_subtitle if event.female_subtitle.strip() else self.subtitle
@@ -140,6 +165,10 @@ class CinematicMusic:
         element.SelectField("flags").SetBit("Stop Music At Frame (rather than starting it)", self.stops_music_at_frame)
         element.SelectField(r"music\foley").Path = self.music
         element.SelectField("LongInteger:frame").Data = self.frame
+        
+    def from_event(self, event: NWO_CinematicEvent):
+        self.stops_music_at_frame = event.stop
+        self.music = event.sound_tag
         
 class CinematicEffect:
     def __init__(self):
@@ -311,8 +340,8 @@ class CinematicCustomScript:
         
     def from_event(self, event: NWO_CinematicEvent, object_tag_weapon_names: dict, actor_objects: set, corinth: bool):
         self.use_maya_value = True
-        valid_object = event.script_object is not None and event.script_object in actor_objects
-        obj_text = f'(cinematic_object_get "{event.script_object.name}")' if valid_object else 'None'
+        valid_object = event.actor is not None and event.actor in actor_objects
+        obj_text = f'(cinematic_object_get "{event.actor.name}")' if valid_object else 'None'
         match event.script_type:
             case 'CUSTOM':
                 if event.text is None:
@@ -321,7 +350,7 @@ class CinematicCustomScript:
                     self.script = event.text.as_string()
             case 'WEAPON_TRIGGER_START' | 'WEAPON_TRIGGER_STOP':
                 if valid_object:
-                    weapon_name = object_tag_weapon_names.get(event.script_object.name.replace(".", "_"))
+                    weapon_name = object_tag_weapon_names.get(event.actor.name.replace(".", "_"))
                     if weapon_name is not None:
                         self.script = f'weapon_set_primary_barrel_firing (cinematic_weapon_get "{weapon_name}") {int(event.script_type == "WEAPON_TRIGGER_START")}'
             case 'SET_VARIANT':
@@ -460,6 +489,7 @@ class CinematicSceneTag(Tag):
             blender_scene.name = self.tag_path.ShortName
 
         cin_scene.scene = blender_scene
+        cin_scene_nwo = blender_scene.nwo
         
         utils.print_tag(f"Importing cinematic scene: {self.tag_path.ShortName}")
         
@@ -471,8 +501,45 @@ class CinematicSceneTag(Tag):
         object_count = scene_objects.Elements.Count
         
         object_lighting = defaultdict(list)
+        object_events = defaultdict(list)
         
         for scene_element, data_element in zip(scene_shots.Elements, data_shots.Elements):
+            utils.print_step(f"Importing cinematic events for shot: {scene_element.ElementIndex + 1}")
+            
+            for dialogue_element in data_element.SelectField("dialogue").Elements:
+                dialogue = CinematicDialogue()
+                dialogue.from_element(dialogue_element)
+                object_events[dialogue.actor].append(dialogue.to_event(cin_scene_nwo, self.corinth))
+                
+            for music_element in scene_element.SelectField("music").Elements:
+                music = CinematicMusic()
+                music.from_element(music_element)
+                music.to_event(cin_scene_nwo)
+                
+            for effect_element in data_element.SelectField("effects").Elements:
+                effect = CinematicEffect()
+                effect.from_element(effect_element)
+                effect.to_event(cin_scene_nwo)
+                
+            for object_functions_element in scene_element.SelectField("object functions").Elements:
+                object_function = CinematicObjectFunction()
+                object_function.from_element(object_functions_element)
+                object_function.to_event(cin_scene_nwo)
+                
+            for screen_effects_element in scene_element.SelectField("screen effects").Elements:
+                screen_effect = CinematicScreenEffect()
+                screen_effect.from_element(screen_effects_element)
+                screen_effect.to_event(cin_scene_nwo)
+                
+            for script_element in data_element.SelectField("custom script").Elements:
+                script = CinematicCustomScript()
+                script.from_element(script_element)
+                script.to_event(cin_scene_nwo)
+                
+            for user_element in data_element.SelectField("user input constraints").Elements:
+                user = CinematicUserInputConstraints()
+                user.from_element(user_element)
+                user.to_event(cin_scene_nwo)
             
             utils.print_step(f"Importing cinematic lighting for shot: {scene_element.ElementIndex + 1}")
             for light_element in scene_element.SelectField("Block:lighting").Elements:

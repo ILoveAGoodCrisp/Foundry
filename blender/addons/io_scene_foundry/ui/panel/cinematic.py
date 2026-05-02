@@ -449,7 +449,7 @@ class NWO_OT_CinematicEventAdd(bpy.types.Operator):
             event.marker = ob
             
         if cinematic_object_valid:
-            event.lipsync_actor = active_cinematic_object
+            event.actor = active_cinematic_object
             if not set_marker:
                 event.marker = active_cinematic_object
         
@@ -457,7 +457,7 @@ class NWO_OT_CinematicEventAdd(bpy.types.Operator):
             if event.marker != current_event.marker:
                 event.marker_name = ""
                 
-            if event.script_object != current_event.script_object:
+            if event.actor != current_event.actor:
                 event.script_variant = ""
                 event.script_region = ""
                 event.script_permutation = ""
@@ -578,7 +578,7 @@ class GetCinematicBase(bpy.types.Operator):
         global permutations
         scene_nwo = context.scene.nwo # scene specific
         event = scene_nwo.cinematic_events[scene_nwo.active_cinematic_event_index]
-        relative_tag_path = utils.relative_path(event.script_object.nwo.cinematic_object)
+        relative_tag_path = utils.relative_path(event.actor.nwo.cinematic_object)
         match self.get_type:
             case 'script_variant':
                 items = variants.get(relative_tag_path)

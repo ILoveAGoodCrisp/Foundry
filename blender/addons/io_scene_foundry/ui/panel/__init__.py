@@ -2951,7 +2951,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 draw_tag_path(col, event, "sound_tag")
                 draw_tag_path(col, event, "female_sound_tag")
                 col.prop(event, "sound_scale")
-                col.prop(event, "lipsync_actor")
+                col.prop(event, "actor")
                 row = col.row(align=True)
                 row.prop(event, "default_sound_effect")
                 row.operator_menu_enum("nwo.get_sound_effects", "fx", icon="DOWNARROW_HLT", text="")
@@ -2978,7 +2978,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             case 'SCRIPT':
                 col.prop(event, "script_type")
                 get_item_available = False
-                ob = event.script_object
+                ob = event.actor
                 if ob is not None:
                     tag_path = ob.nwo.cinematic_object
                     if tag_path.strip():
@@ -2992,15 +2992,15 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                         row.enabled = event.text is None
                         col.prop(event, "text")
                     case 'WEAPON_TRIGGER_START' | 'WEAPON_TRIGGER_STOP':
-                        col.prop(event, "script_object", text="Weapon")
+                        col.prop(event, "actor", text="Weapon")
                     case 'SET_VARIANT':
-                        col.prop(event, "script_object", text="Object")
+                        col.prop(event, "actor", text="Object")
                         row = col.row()
                         row.prop(event, "script_variant", text="Variant")
                         if get_item_available:
                             row.operator_menu_enum("nwo.get_cinematic_variant", "item", icon="DOWNARROW_HLT", text="")
                     case 'SET_PERMUTATION':
-                        col.prop(event, "script_object", text="Object")
+                        col.prop(event, "actor", text="Object")
                         row = col.row()
                         row.prop(event, "script_region", text="Region")
                         if get_item_available:
@@ -3010,20 +3010,20 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                         if get_item_available:
                             row.operator_menu_enum("nwo.get_cinematic_permutation", "item", icon="DOWNARROW_HLT", text="")
                     case 'SET_REGION_STATE':
-                        col.prop(event, "script_object", text="Object")
+                        col.prop(event, "actor", text="Object")
                         row = col.row()
                         row.prop(event, "script_region", text="Region")
                         if get_item_available:
                             row.operator_menu_enum("nwo.get_cinematic_region", "item", icon="DOWNARROW_HLT", text="")
                         col.prop(event, "script_state", text="State")
                     case 'SET_MODEL_STATE_PROPERTY':
-                        col.prop(event, "script_object", text="Object")
+                        col.prop(event, "actor", text="Object")
                         col.prop(event, "script_state_property", text="State Property")
                         col.prop(event, "script_bool", text="On")
                     case 'HIDE' | 'UNHIDE' | 'DESTROY' | 'OBJECT_CANNOT_DIE' | 'OBJECT_CAN_DIE' | 'OBJECT_PROJECTILE_COLLISION_ON' | 'OBJECT_PROJECTILE_COLLISION_OFF':
-                        col.prop(event, "script_object", text="Object")
+                        col.prop(event, "actor", text="Object")
                     case 'DAMAGE_OBJECT':
-                        col.prop(event, "script_object", text="Object")
+                        col.prop(event, "actor", text="Object")
                         row = col.row()
                         row.prop(event, "script_region", text="Region")
                         if get_item_available:
@@ -3039,7 +3039,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                             row.operator_menu_enum("nwo.get_scenario_cutscene_titles", "cutscene_title", icon="DOWNARROW_HLT", text="")
                     case 'PLAY_SOUND':
                         draw_tag_path(col, event, "sound_tag")
-                        col.prop(event, "script_object", text="Object")
+                        col.prop(event, "actor", text="Object")
                         col.prop(event, "script_factor", text="Sound Scale")
 
     def draw_animation_manager(self):

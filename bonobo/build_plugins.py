@@ -145,7 +145,7 @@ def main() -> None:
             print(f"  Copying build DLL to {target.build_path}...")
             copy_file(target.output, target.build_path)
 
-        if args.test:
+        if output_subdir == "debug":
             print(f"  Deploying test DLL to {target.test_path}...")
             copy_file(target.output, target.test_path)
 

@@ -2230,6 +2230,65 @@ class NWO_CinematicScene(PropertyGroup):
         name="Blender Scene",
         options=set(),
     )
+    
+    reset_object_lighting: bpy.props.EnumProperty( # scene specific
+        name="Reset Object Lighting",
+        options=set(),
+        items=[
+            ('0', "Default", ""),
+            ('1', "Don't Reset Lighting", ""),
+            ('2', "Reset Lighting", ""),
+        ]
+    )
+    
+    header: bpy.props.StringProperty(
+        name="Header Script",
+        description="Halo script to execute before this cinematic scene starts"
+    )
+    
+    footer: bpy.props.StringProperty(
+        name="Footer Script",
+        description="Halo script to execute after this cinematic scene ends"
+    )
+    
+class NWO_CinematicShot(PropertyGroup):
+    header: bpy.props.StringProperty(
+        name="Header Script",
+        options=set(),
+        description="Halo script to execute before this cinematic shot starts"
+    )
+    
+    footer: bpy.props.StringProperty(
+        name="Footer Script",
+        options=set(),
+        description="Halo script to execute after this cinematic shot ends"
+    )
+    
+    instant_auto_exposure: bpy.props.BoolProperty(
+        name="Instant Auto-Exposure",
+        options=set(),
+        description=""
+    )
+    force_exposure: bpy.props.BoolProperty(
+        name="Force Exposure",
+        options=set(),
+        description=""
+    )
+    generate_looping_script: bpy.props.BoolProperty(
+        name="Generate Looping Script",
+        options=set(),
+        description=""
+    )
+    blam: bpy.props.FloatProperty(
+        name="",
+        options=set(),
+        description=""
+    )
+    blam: bpy.props.FloatProperty(
+        name="",
+        options=set(),
+        description=""
+    )
 
 class NWO_ScenePropertiesGroup(PropertyGroup):
     # CINEMATIC EVENTS
