@@ -1,5 +1,5 @@
 from collections import defaultdict
-from math import degrees, radians
+from math import degrees, isfinite
 from pathlib import Path
 import bpy
 from mathutils import Euler
@@ -15,6 +15,14 @@ from ..managed_blam import Tag
 
 from .. import utils
 from ..managed_blam.camera_track import camera_correction_matrix
+
+# Blender DOF is lens based, while cinematic tags store linear blur ramps.
+# These CoC thresholds give the ramp a photographic sharp point and a sane
+# in-game blur cap without baking render-resolution-specific pixel sizes.
+CINEMATIC_SHARP_COC_MM = 0.03
+CINEMATIC_BLUR_CAP_COC_MM = 0.6
+CINEMATIC_FAR_BLUR_TARGET_FRACTION = 0.95
+MIN_CINEMATIC_FOCAL_DEPTH = 0.01
 
 class CinematicScene:
     def __init__(self, asset_path, scene_name, scene):
@@ -39,24 +47,83 @@ class CinematicScene:
             rotation = Euler((rot.z, -rot.y, rot.x), 'ZYX')
             self.anchor_ypr = degrees(rotation.x - rotation_offset), degrees(rotation.y), degrees(rotation.z)
         
+class CinematicDof:
+    def __init__(self):
+        self.enabled = False
+        self.near_focal_plane_distance = 0
+        self.far_focal_plane_distance = 0
+        self.near_focal_depth = 0
+        self.far_focal_depth = 0
+        self.near_blur_amount = 0
+        self.far_blur_amount = 0
+        self.focal_depth = 0
+        self.blur_amount = 0
+
+
+def _cinematic_distance(distance: float) -> float:
+    if not isfinite(distance):
+        return 0
+    return max(utils.halo_scale(max(distance, 0)) * 100, 0)
+
+
+def _mm_to_scene_units(value: float) -> float:
+    return value / 1000
+
+
+def _focus_distance(camera: bpy.types.Object, data: bpy.types.Camera) -> float:
+    if data.dof.focus_object:
+        focus_object = data.dof.focus_object
+        return (camera.matrix_world.translation - focus_object.matrix_world.translation).length
+    return data.dof.focus_distance
+
+
+def _circle_of_confusion(focal_length: float, focus_distance: float, aperture: float, object_distance: float) -> float:
+    if focal_length <= 0 or aperture <= 0 or focus_distance <= focal_length or object_distance <= 0:
+        return 0
+    return abs(
+        (focal_length * focal_length * (object_distance - focus_distance)) /
+        (aperture * object_distance * (focus_distance - focal_length))
+    )
+
+
+def _infinity_circle_of_confusion(focal_length: float, focus_distance: float, aperture: float) -> float:
+    if focal_length <= 0 or aperture <= 0 or focus_distance <= focal_length:
+        return 0
+    return (focal_length * focal_length) / (aperture * (focus_distance - focal_length))
+
+
+def _distance_at_coc(focal_length: float, focus_distance: float, aperture: float, coc: float, near: bool) -> float:
+    if focal_length <= 0 or aperture <= 0 or focus_distance <= focal_length or coc <= 0:
+        return focus_distance
+
+    ratio = (coc * aperture * (focus_distance - focal_length)) / (focal_length * focal_length)
+    if near:
+        return focus_distance / (1 + ratio)
+    if ratio >= 1:
+        return float("inf")
+    return focus_distance / (1 - ratio)
+
+
+def _game_blur_amount(coc: float) -> float:
+    cap = _mm_to_scene_units(CINEMATIC_BLUR_CAP_COC_MM)
+    if cap <= 0:
+        return 0
+    return max(min(coc / cap, 1), 0)
+
+
 def calculate_focal_depths(focus_distance, aperture, coc=0.03, focal_length=50):
-    hyperfocal = (focal_length ** 2) / (aperture * coc)
-    near_depth = (hyperfocal * focus_distance) / (hyperfocal + (focus_distance - focal_length))
-    far_depth = (hyperfocal * focus_distance) / (hyperfocal - (focus_distance - focal_length))
-    
-    # Ensure far depth doesn't go negative for short focus distances
-    far_depth = max(far_depth, focus_distance)
-    
-    return utils.halo_scale(near_depth), utils.halo_scale(far_depth)
+    focal_length = _mm_to_scene_units(focal_length)
+    coc = _mm_to_scene_units(coc)
+    focus_distance = max(focus_distance, focal_length * 1.001)
+    near_depth = _distance_at_coc(focal_length, focus_distance, aperture, coc, True)
+    far_depth = _distance_at_coc(focal_length, focus_distance, aperture, coc, False)
+    return _cinematic_distance(near_depth), _cinematic_distance(far_depth)
+
 
 def calculate_blur_amount(focal_length, focus_distance, aperture, object_distance, sensor_width):
-    hyperfocal = (focal_length ** 2) / (aperture * (sensor_width / 43.27))
-    coc = abs(
-        (focal_length * (object_distance - focus_distance)) /
-        (object_distance * (focus_distance - focal_length))
-    ) * (focal_length / hyperfocal)
+    focal_length = _mm_to_scene_units(focal_length)
+    return _game_blur_amount(_circle_of_confusion(focal_length, focus_distance, aperture, object_distance))
 
-    return coc
 
 def calculate_focal_distances(camera):
     if not isinstance(camera.data, bpy.types.Camera):
@@ -65,33 +132,91 @@ def calculate_focal_distances(camera):
     cam_data = camera.data
     if not cam_data.dof.use_dof:
         return 0, 0, 0
-    lens_mm = cam_data.lens
-    aperture = cam_data.dof.aperture_fstop 
-    sensor_width = cam_data.sensor_width
-    coc = 0.029
 
-    if cam_data.dof.focus_object:
-        focus_object = cam_data.dof.focus_object
-        focus_distance = (camera.matrix_world.translation - focus_object.location).length
-    else:
-        focus_distance = cam_data.dof.focus_distance
-
-    hyperfocal_distance = (lens_mm**2) / (aperture * coc)
-
-    if focus_distance > 0:
-        near_focus = (hyperfocal_distance * focus_distance) / (hyperfocal_distance + (focus_distance - lens_mm))
-        far_focus = (hyperfocal_distance * focus_distance) / (hyperfocal_distance - (focus_distance - lens_mm))
-    else:
-        near_focus = 0
-        far_focus = 0
+    lens = _mm_to_scene_units(cam_data.lens)
+    aperture = cam_data.dof.aperture_fstop
+    focus_distance = max(_focus_distance(camera, cam_data), lens * 1.001)
+    coc = _mm_to_scene_units(CINEMATIC_SHARP_COC_MM)
+    near_focus = _distance_at_coc(lens, focus_distance, aperture, coc, True)
+    far_focus = _distance_at_coc(lens, focus_distance, aperture, coc, False)
 
     return near_focus, far_focus, focus_distance
+
+
+def calculate_cinematic_dof(camera: bpy.types.Object) -> CinematicDof:
+    dof = CinematicDof()
+    data = camera.data
+    data: bpy.types.Camera
+    if not data.dof.use_dof:
+        return dof
+
+    aperture = data.dof.aperture_fstop
+    lens = _mm_to_scene_units(data.lens)
+    focus_distance = _focus_distance(camera, data)
+    if aperture <= 0 or lens <= 0 or focus_distance <= 0:
+        return dof
+
+    focus_distance = max(focus_distance, lens * 1.001)
+    clip_start = max(data.clip_start, 0.000001)
+    clip_end = max(data.clip_end, focus_distance + 0.000001)
+    sharp_coc = _mm_to_scene_units(CINEMATIC_SHARP_COC_MM)
+    blur_cap_coc = _mm_to_scene_units(CINEMATIC_BLUR_CAP_COC_MM)
+
+    near_focus = _distance_at_coc(lens, focus_distance, aperture, sharp_coc, True)
+    far_focus = _distance_at_coc(lens, focus_distance, aperture, sharp_coc, False)
+    far_blur_available = isfinite(far_focus)
+
+    near_focus = min(max(near_focus, clip_start), clip_end)
+    if not far_blur_available:
+        far_focus = clip_end
+    far_focus = min(max(far_focus, near_focus), clip_end)
+
+    dof.enabled = True
+    dof.near_focal_plane_distance = _cinematic_distance(near_focus)
+    dof.far_focal_plane_distance = _cinematic_distance(far_focus)
+
+    near_max_coc = _circle_of_confusion(lens, focus_distance, aperture, clip_start)
+    if near_focus > clip_start and near_max_coc > sharp_coc:
+        near_target_coc = min(near_max_coc, blur_cap_coc)
+        near_full_blur = _distance_at_coc(lens, focus_distance, aperture, near_target_coc, True)
+        near_full_blur = min(max(near_full_blur, clip_start), near_focus)
+        dof.near_focal_depth = max(_cinematic_distance(near_focus - near_full_blur), MIN_CINEMATIC_FOCAL_DEPTH)
+        dof.near_blur_amount = _game_blur_amount(near_target_coc)
+    else:
+        dof.near_focal_depth = MIN_CINEMATIC_FOCAL_DEPTH
+
+    far_max_coc = _infinity_circle_of_confusion(lens, focus_distance, aperture)
+    if far_focus < clip_end and far_max_coc > sharp_coc:
+        if far_max_coc > blur_cap_coc:
+            far_target_coc = blur_cap_coc
+        else:
+            far_target_coc = max(far_max_coc * CINEMATIC_FAR_BLUR_TARGET_FRACTION, sharp_coc)
+        far_full_blur = _distance_at_coc(lens, focus_distance, aperture, far_target_coc, False)
+        if not isfinite(far_full_blur):
+            far_full_blur = clip_end
+        far_full_blur = min(max(far_full_blur, far_focus), clip_end)
+        dof.far_focal_depth = max(_cinematic_distance(far_full_blur - far_focus), MIN_CINEMATIC_FOCAL_DEPTH)
+        dof.far_blur_amount = _game_blur_amount(far_target_coc)
+    else:
+        dof.far_focal_depth = MIN_CINEMATIC_FOCAL_DEPTH
+
+    near_slope = dof.near_blur_amount / dof.near_focal_depth if dof.near_focal_depth else 0
+    far_slope = dof.far_blur_amount / dof.far_focal_depth if dof.far_focal_depth else 0
+    if near_slope > far_slope:
+        dof.focal_depth = dof.near_focal_depth
+        dof.blur_amount = dof.near_blur_amount
+    else:
+        dof.focal_depth = dof.far_focal_depth
+        dof.blur_amount = dof.far_blur_amount
+
+    return dof
 
 class Actor:
     def __init__(self, ob: bpy.types.Object, scene_name: str, asset_path: str, child_asset_name=""):
         self.ob = ob
-        if "." in ob.name:
-            ob.name = ob.name.replace(".", "_")
+        valid_name = utils.clean_text(ob.name, replace_spaces=True)
+        if ob.name != valid_name:
+            ob.name = valid_name
         self.name = ob.name
         self.original_tag = utils.relative_path(ob.nwo.cinematic_object)
         self.weapon_tag = None
@@ -211,29 +336,7 @@ class Frame:
         data: bpy.types.Camera
         blender_matrix = ob.matrix_world
         matrix = utils.halo_transforms_matrix(blender_matrix)
-            
-        if data.dof.use_dof:
-            if data.dof.focus_object:
-                focus_object = data.dof.focus_object
-                focal_distance = (ob.matrix_world.translation - focus_object.location).length
-            else:
-                focal_distance = data.dof.focus_distance
-
-            aperture = data.dof.aperture_fstop
-
-            lens = data.lens
-
-            hyperfocal = (lens ** 2) / (aperture * 5)
-
-            near_focal_plane = (hyperfocal * focal_distance) / (hyperfocal + (focal_distance - lens))
-            far_focal_plane = (hyperfocal * focal_distance) / (hyperfocal - (focal_distance - lens))
-
-            blur_amount = 1 / aperture if aperture > 0 else 0
-        else:
-            focal_distance = 0
-            near_focal_plane = 0
-            far_focal_plane = 0
-            blur_amount = 0
+        dof = calculate_cinematic_dof(ob)
             
         self.position = matrix.translation.to_tuple()
         matrix_3x3 = matrix.to_3x3() @ camera_correction_matrix.inverted_safe()
@@ -242,28 +345,17 @@ class Frame:
         self.up = up.normalized().to_tuple()
         self.forward = forward.normalized().to_tuple()
         # (game aperture from globals * blender focal length) / blender sensor width
-        self.focal_length = (film_aperture * data.lens) / data.sensor_width
-        self.depth_of_field = int(data.dof.use_dof)
+        self.focal_length = (film_aperture * data.lens) / max(data.sensor_width, 0.000001)
+        self.depth_of_field = int(dof.enabled)
 
-        self.near_focal_plane_distance = utils.halo_scale(near_focal_plane) * 100
-        self.far_focal_plane_distance = utils.halo_scale(far_focal_plane) * 100
-        
-        self.focal_depth = focal_distance
-        
-        # near, far = calculate_focal_depths(focus_distance, aperture, focal_length=focal_length)
-
-        # self.near_focal_depth = near 
-        # self.far_focal_depth = far
-        
-        self.blur_amount = blur_amount
-        
-        sensor_width = data.sensor_width
-        
-        # near_blur = calculate_blur_amount(focal_length, focus_distance, aperture, data.clip_start, sensor_width)
-        # far_blur = calculate_blur_amount(focal_length, focus_distance, aperture, data.clip_end, sensor_width)
-        
-        # self.near_blur_amount = near_blur
-        # self.far_blur_amount = far_blur
+        self.near_focal_plane_distance = dof.near_focal_plane_distance
+        self.far_focal_plane_distance = dof.far_focal_plane_distance
+        self.focal_depth = dof.focal_depth
+        self.blur_amount = dof.blur_amount
+        self.near_focal_depth = dof.near_focal_depth
+        self.far_focal_depth = dof.far_focal_depth
+        self.near_blur_amount = dof.near_blur_amount
+        self.far_blur_amount = dof.far_blur_amount
 
     
 class Effect:
@@ -668,10 +760,10 @@ class QUA:
                     felement.SelectField("Struct:camera frame[0]/Struct:constant data[0]/LongInteger:depth of field").Data = frame.depth_of_field
                     felement.SelectField("Struct:camera frame[0]/Struct:constant data[0]/Real:near focal plane distance").Data = frame.near_focal_plane_distance
                     felement.SelectField("Struct:camera frame[0]/Struct:constant data[0]/Real:far focal plane distance").Data = frame.far_focal_plane_distance
-                    felement.SelectField("Struct:camera frame[0]/Struct:constant data[0]/Real:near focal depth").Data = 0.01
-                    felement.SelectField("Struct:camera frame[0]/Struct:constant data[0]/Real:far focal depth").Data = 0.01
-                    felement.SelectField("Struct:camera frame[0]/Struct:constant data[0]/Real:near blur amount").Data = 0
-                    felement.SelectField("Struct:camera frame[0]/Struct:constant data[0]/Real:far blur amount").Data = 0
+                    felement.SelectField("Struct:camera frame[0]/Struct:constant data[0]/Real:near focal depth").Data = frame.near_focal_depth
+                    felement.SelectField("Struct:camera frame[0]/Struct:constant data[0]/Real:far focal depth").Data = frame.far_focal_depth
+                    felement.SelectField("Struct:camera frame[0]/Struct:constant data[0]/Real:near blur amount").Data = frame.near_blur_amount
+                    felement.SelectField("Struct:camera frame[0]/Struct:constant data[0]/Real:far blur amount").Data = frame.far_blur_amount
             else:
                 for frame in shot.frames:
                     felement = frame_data.AddElement()
@@ -874,4 +966,3 @@ class QUA:
                 shot_element = block.Elements[shot_index]
                 data.frame = shot_frame
                 data.to_element(shot_element.SelectField("custom script").AddElement(), self.corinth)
-            
