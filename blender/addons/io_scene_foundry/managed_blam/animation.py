@@ -22,6 +22,7 @@ from .animation_resource import (
     DefaultAnimationNode,
     FrameInfoType,
     RevisedCurveCodec,
+    MovementData,
     SharedStaticCodecData,
     apply_movement_data,
     apply_shared_static_codec,
@@ -2802,6 +2803,27 @@ class AnimationTag(Tag):
 
         return source_data.first_frame(), ignore_root
 
+    def _movement_data_from_second_frame(self, movement_data: MovementData, frame_count: int) -> MovementData:
+        if frame_count < 1 or not movement_data.translations or not movement_data.rotations:
+            return MovementData(movement_data.frame_info_type, [], [])
+
+        sample_count = min(
+            max(frame_count - 1, 0),
+            len(movement_data.translations),
+            len(movement_data.rotations),
+        )
+        return MovementData(
+            frame_info_type=movement_data.frame_info_type,
+            translations=[
+                Vector((0.0, 0.0, 0.0)),
+                *(translation.copy() for translation in movement_data.translations[:sample_count]),
+            ],
+            rotations=[
+                Quaternion((1.0, 0.0, 0.0, 0.0)),
+                *(rotation.copy() for rotation in movement_data.rotations[:sample_count]),
+            ],
+        )
+
     def _build_animation(self, tag_animation: Animation, defaults, overlay_defaults, graph, shared_static_codec, resource_cache, animation_cache, all_tag_animations, final_frame_stack=None):
         index = tag_animation.index
         if index in animation_cache:
@@ -2837,7 +2859,10 @@ class AnimationTag(Tag):
                     final_frame_stack.remove(index)
             append_final_frame(animation_data, final_frame, ignore_root)
             if resource_data.movement_data is not None:
-                apply_movement_data(animation_data, resource_data.movement_data)
+                apply_movement_data(
+                    animation_data,
+                    self._movement_data_from_second_frame(resource_data.movement_data, animation_data.frame_count),
+                )
         if tag_animation.animation_type in (2, 3):
             base_candidates = self._get_base_animation_candidates(graph, tag_animation.name.tag_name)
             if base_candidates:
