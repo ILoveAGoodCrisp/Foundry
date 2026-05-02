@@ -73,10 +73,11 @@ class StructureDesignTag(Tag):
                 # This avoids putting objects in collections that already existed prior to export
                 # and therefore prevents incorrect bsp assignment
                 permitted_collections = set()
+                collection_lookup = Instance.build_collection_lookup()
                 for element in self.block_instances.Elements:
                     io = Instance(element, instance_definitions)
                     if io.definition.blender_render or io.definition.blender_collision:
-                        io_collection = io.get_collection(ig_collection, permitted_collections, self.tag_path.ShortName)
+                        io_collection = io.get_collection(ig_collection, permitted_collections, self.tag_path.ShortName, collection_lookup)
                         permitted_collections.add(io_collection)
                         ob = io.create()
                         if element.SelectField("flags").TestBit("vertical rain sheet"):

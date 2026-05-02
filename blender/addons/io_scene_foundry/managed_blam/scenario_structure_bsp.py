@@ -12,7 +12,7 @@ from .structure_meta import StructureMetaTag
 
 from .scenario_structure_lighting_info import ScenarioStructureLightingInfoTag
 
-from .connected_geometry import BSP, BSPCollisionMaterial, Cluster, CompressionBounds, Emissive, EnvironmentObject, EnvironmentObjectReference, Instance, InstanceDefinition, Material, Portal, StructureCollision, StructureMarker, SurfaceMapping
+from .connected_geometry import BSP, BSPCollisionMaterial, Cluster, CompressionBounds, Emissive, EnvironmentObject, EnvironmentObjectReference, HavokCollision, Instance, InstanceDefinition, Material, Portal, StructureCollision, StructureMarker, SurfaceMapping
 from ..utils import jstr
 from . import Tag
 from .. import utils
@@ -135,16 +135,35 @@ class ScenarioStructureBspTag(Tag):
             
         self.tag_has_changes = True
         
-    def to_blend_objects(self, collection: bpy.types.Collection, for_cinematic: bool, lighting_info_path: Path = None, import_geometry=True, import_lights=True, always_get_structure_collision=False, sky_index=-1):
+    def to_blend_objects(self, collection: bpy.types.Collection, for_cinematic: bool, lighting_info_path: Path = None, import_geometry=True, import_lights=True, always_get_structure_collision=False, sky_index=-1, import_havok=False):
         
         objects = []
         game_objects = []
         bvh = None
         
-        if not import_geometry and not import_lights:
+        if not import_geometry and not import_lights and not import_havok:
             return objects, game_objects, bvh
         
         self.collection = collection
+
+        def new_structure_collection():
+            layer = utils.add_permutation("structure")
+            structure_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_structure")
+            structure_collection.nwo.type = "permutation"
+            structure_collection.nwo.permutation = layer
+            self.collection.children.link(structure_collection)
+            return structure_collection
+
+        def add_havok_collision_objects(havok_collisions: list[HavokCollision], structure_collection: bpy.types.Collection):
+            if not havok_collisions:
+                return
+
+            utils.print_step(f"Creating Havok Collision ({len(havok_collisions)})")
+            for havok_collision in havok_collisions:
+                ob = havok_collision.to_object()
+                objects.append(ob)
+                structure_collection.objects.link(ob)
+
         # Get all collision materials
         collision_materials = []
         for element in self.tag.SelectField("Block:collision materials").Elements:
@@ -185,6 +204,12 @@ class ScenarioStructureBspTag(Tag):
                         objects.extend(light_objects)
                             
         if not import_geometry:
+            if import_havok and not for_cinematic:
+                havok_collisions = self._read_havok_collisions(collision_materials)
+                if havok_collisions:
+                    add_havok_collision_objects(havok_collisions, new_structure_collection())
+                    if always_get_structure_collision:
+                        bvh = havok_collisions[0].to_bvh()
             return objects, game_objects, bvh
                     
         # Get all render materials
@@ -227,10 +252,11 @@ class ScenarioStructureBspTag(Tag):
             # This avoids putting objects in collections that already existed prior to export
             # and therefore prevents incorrect bsp assignment
             permitted_collections = set()
+            collection_lookup = Instance.build_collection_lookup()
             for element in self.block_instances.Elements:
                 io = Instance(element, instance_definitions)
                 if io.definition.blender_render or io.definition.blender_collision:
-                    io_collection = io.get_collection(ig_collection, permitted_collections, self.tag_path.ShortName)
+                    io_collection = io.get_collection(ig_collection, permitted_collections, self.tag_path.ShortName, collection_lookup)
                     permitted_collections.add(io_collection)
                     ob = io.create()
                     objects.append(ob)
@@ -241,6 +267,7 @@ class ScenarioStructureBspTag(Tag):
         #         bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY')
         
         def get_collision():
+            collision = None
             raw_resources = self.tag.SelectField("Struct:resource interface[0]/Block:raw_resources")
             if raw_resources.Elements.Count > 0:
                 collision_bsp = raw_resources.Elements[0].SelectField("Struct:raw_items[0]/Block:collision bsp")
@@ -255,29 +282,30 @@ class ScenarioStructureBspTag(Tag):
         # Create structure
         structure_objects = []
         collision = None
+        havok_collisions = []
         
-        layer = utils.add_permutation("structure")
-        structure_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_structure")
-        structure_collection.nwo.type = "permutation"
-        structure_collection.nwo.permutation = layer
-        self.collection.children.link(structure_collection)
-        if for_cinematic:
-            structure_surface_triangle_mapping = []
-        else:
+        structure_collection = new_structure_collection()
+        structure_surface_triangle_mapping = []
+        cluster_elements = [element for element in self.tag.SelectField("Block:clusters").Elements]
+        clusters = [Cluster(element, meshes, render_materials) for element in cluster_elements]
+        if not for_cinematic:
             collision = get_collision()
+            if import_havok:
+                havok_collisions = self._read_havok_collisions(collision_materials)
+            legacy_surface_triangle_mapping = []
             if collision is not None:
-                structure_surface_triangle_mapping = [SurfaceMapping(e.Fields[0].Data, e.Fields[1].Data, collision.surfaces[e.ElementIndex], self.tag.SelectField("Block:structure surface to triangle mapping")) for e in self.tag.SelectField("Block:large structure surfaces").Elements]
+                legacy_surface_triangle_mapping = [SurfaceMapping(e.Fields[0].Data, e.Fields[1].Data, collision.surfaces[e.ElementIndex], self.tag.SelectField("Block:structure surface to triangle mapping")) for e in self.tag.SelectField("Block:large structure surfaces").Elements]
+                structure_surface_triangle_mapping = legacy_surface_triangle_mapping
         
         
-        num_clusters = self.tag.SelectField("Block:clusters").Elements.Count
+        num_clusters = len(clusters)
         if num_clusters > 0:
             instance_definitions = []
             process = "  - Creating Clusters"
             with utils.Spinner():
                 utils.update_job_count(process, "", 0, num_clusters)
-                for element in self.tag.SelectField("Block:clusters").Elements:
-                    structure = Cluster(element, meshes, render_materials)
-                    structure_obs = structure.create(render_model, temp_meshes, structure_surface_triangle_mapping, element.ElementIndex)
+                for structure in clusters:
+                    structure_obs = structure.create(render_model, temp_meshes, structure_surface_triangle_mapping, structure.index)
                     for ob in structure_obs:
                         if ob is not None and ob.data and ob.data.polygons:
                             # structure_collection.objects.link(ob)
@@ -287,7 +315,7 @@ class ScenarioStructureBspTag(Tag):
                                 structure_collection.objects.link(ob)
                             else:
                                 structure_objects.append(ob)
-                    utils.update_job_count(process, "", element.ElementIndex, num_clusters)
+                    utils.update_job_count(process, "", structure.index, num_clusters)
                 utils.update_job_count(process, "", num_clusters, num_clusters)
             
         # Create Structure Collision
@@ -318,11 +346,17 @@ class ScenarioStructureBspTag(Tag):
                     utils.add_face_prop(collision_mesh, "face_mode").face_mode = 'collision_only'
                 structure_objects.append(ob)
                 
+        if havok_collisions:
+            add_havok_collision_objects(havok_collisions, structure_collection)
+
         if always_get_structure_collision:
             if collision is None:
                 collision = get_collision()
                         
-            bvh = collision.to_bvh()
+            if collision is not None:
+                bvh = collision.to_bvh()
+            elif havok_collisions:
+                bvh = havok_collisions[0].to_bvh()
                         
         # Merge all structure objects
         main_structure_ob = None
@@ -637,6 +671,104 @@ class ScenarioStructureBspTag(Tag):
                 surfaces.AddElement()
             self.tag_has_changes = True
             
+    @staticmethod
+    def _select_field_safe(element, name: str):
+        try:
+            return element.SelectField(name)
+        except Exception:
+            return None
+
+    @staticmethod
+    def _data_field_bytes(field) -> bytes:
+        if field is None:
+            return b""
+
+        try:
+            data = field.GetData()
+        except Exception:
+            return b""
+
+        if data is None:
+            return b""
+
+        return bytes(data)
+
+    @staticmethod
+    def _cluster_triangle_ranges(clusters: list[Cluster], temp_meshes) -> list[tuple[int, int, int]]:
+        section_triangle_ranges = []
+        first_triangle_index = 0
+        for cluster in clusters:
+            try:
+                cluster.mesh.temp_meshes = temp_meshes
+                cluster.mesh.real_mesh_index = None
+                cluster.mesh._get_raw_mesh_data()
+            except Exception:
+                continue
+
+            triangle_count = len(cluster.mesh.tris)
+            if triangle_count:
+                section_triangle_ranges.append((cluster.index, first_triangle_index, triangle_count))
+                first_triangle_index += triangle_count
+
+        return section_triangle_ranges
+
+    @staticmethod
+    def _havok_surface_triangle_mapping(havok_collisions: list[HavokCollision], section_triangle_ranges: list[tuple[int, int, int]]) -> tuple[list[SurfaceMapping], dict[HavokCollision, list[int]]]:
+        surface_triangle_mapping = []
+        standalone_face_indices = {}
+        claimed_render_triangles = {}
+        for havok_collision in havok_collisions:
+            rejected_face_indices = set()
+            surface_triangle_mapping.extend(havok_collision.to_surface_triangle_mappings(section_triangle_ranges, claimed_render_triangles, rejected_face_indices))
+            if rejected_face_indices:
+                standalone_face_indices[havok_collision] = sorted(rejected_face_indices)
+
+        return surface_triangle_mapping, standalone_face_indices
+
+    def _read_havok_collisions(self, collision_materials: list[BSPCollisionMaterial]) -> list[HavokCollision]:
+        raw_resources = self._select_field_safe(self.tag, "Struct:resource interface[0]/Block:raw_resources")
+        if raw_resources is None or raw_resources.Elements.Count == 0:
+            return []
+
+        havok_collisions = []
+        for raw_resource in raw_resources.Elements:
+            havok_data = self._select_field_safe(raw_resource, "Struct:raw_items[0]/Block:Havok Data")
+            if havok_data is None or havok_data.Elements.Count == 0:
+                continue
+
+            for havok_element in havok_data.Elements:
+                bounds_min_field = self._select_field_safe(havok_element, "Shapes bounds min")
+                bounds_max_field = self._select_field_safe(havok_element, "Shapes bounds max")
+                bounds_min = bounds_min_field.Data if bounds_min_field is not None else None
+                bounds_max = bounds_max_field.Data if bounds_max_field is not None else None
+                per_collision_type = self._select_field_safe(havok_element, "Block:Serialized Per Collision Type Havok Geometry")
+                if per_collision_type is None:
+                    continue
+
+                for per_type_element in per_collision_type.Elements:
+                    collision_type_field = self._select_field_safe(per_type_element, "collision type")
+                    collision_type = collision_type_field.Data if collision_type_field is not None else per_type_element.ElementIndex
+                    try:
+                        collision_type = int(collision_type)
+                    except (TypeError, ValueError):
+                        collision_type = per_type_element.ElementIndex
+                    data_fields = (
+                        ("Serialized Havok Data", "havok_collision"),
+                        ("Serialized Static Havok Data", "static_havok_collision"),
+                    )
+                    for field_name, name_suffix in data_fields:
+                        data_field = self._select_field_safe(per_type_element, field_name)
+                        serialized_data = self._data_field_bytes(data_field)
+                        if not serialized_data:
+                            continue
+
+                        name = f"{self.tag_path.ShortName}_{name_suffix}_{collision_type}"
+                        collision = HavokCollision.from_serialized_shape(serialized_data, name, collision_materials, bounds_min, bounds_max, collision_type)
+                        if collision is not None:
+                            havok_collisions.append(collision)
+
+        return sorted(havok_collisions, key=lambda collision: collision.collision_type)
+
             
     def read_havok_collision_data(self):
         havok_data = self.tag.SelectField("Struct:resource interface[0]/Block:raw_resources[0]/Struct:raw_items[0]/Block:Havok Data").Elements[0]

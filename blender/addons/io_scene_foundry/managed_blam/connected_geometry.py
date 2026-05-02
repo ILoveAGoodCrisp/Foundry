@@ -5,6 +5,7 @@ from math import radians
 import math
 from pathlib import Path
 import re
+import struct
 import bmesh
 import bpy
 from mathutils import Matrix, Quaternion, Vector, bvhtree
@@ -156,6 +157,11 @@ class TriangleMapping:
         self.tri = int(((value >> 12) + 1) / 3 - 1)
         self.section = value & 0xFFF
         # print(self.tri, self.section)
+
+class DirectTriangleMapping:
+    def __init__(self, tri: int, section: int):
+        self.tri = tri
+        self.section = section
         
 class SurfaceMapping:
     def __init__(self, first: int, count: int, surface: 'CollisionSurface', surf_to_tri_block: TagFieldBlock):
@@ -169,6 +175,27 @@ class SurfaceMapping:
                 self.triangle_indices.append(mapping)
         else:
             self.collision_only = True
+
+    @classmethod
+    def from_render_triangles(cls, surface, triangle_indices: list[DirectTriangleMapping]):
+        mapping = cls.__new__(cls)
+        mapping.surface = surface
+        mapping.triangle_indices = triangle_indices
+        mapping.collision_only = False
+        return mapping
+
+class HavokCollisionSurface:
+    def __init__(self, index: int, material, collision_type: str):
+        self.index = index
+        self.material = material
+        self.collision_type = collision_type
+        self.ladder = False
+        self.breakable = False
+        self.slip_surface = False
+        self.invisible = False
+        self.two_sided = False
+        self.negated = False
+        self.invalid = False
             
 class InstanceDefinition:
     def __init__(self, element: TagFieldBlockElement, mesh_block: TagFieldBlock, compression_bounds: list['CompressionBounds'], render_materials: list['Material'], collision_materials: list['BSPCollisionMaterial'], for_cinematic = False):
@@ -428,16 +455,40 @@ class Instance:
         
         return ob
 
-    def get_collection(self, ig_collection, permitted_collections, bsp_name: str) -> bpy.types.Collection:
+    @staticmethod
+    def build_collection_lookup():
+        lookup = {"exact": {}, "base": {}}
+        for collection in bpy.data.collections:
+            lookup["exact"][collection.name] = collection
+            lookup["base"].setdefault(collection.name.rsplit(".", 1)[0], collection)
+
+        return lookup
+
+    @staticmethod
+    def _remember_collection(collection_lookup, collection):
+        if collection_lookup is None:
+            return
+
+        collection_lookup.setdefault("exact", {})[collection.name] = collection
+        collection_lookup.setdefault("base", {}).setdefault(collection.name.rsplit(".", 1)[0], collection)
+
+    def get_collection(self, ig_collection, permitted_collections, bsp_name: str, collection_lookup=None) -> bpy.types.Collection:
         def find_collection(name: str) -> bpy.types.Collection | None:
             """Finds a collection by name, ignoring .001/.002 suffixes."""
-            col = bpy.data.collections.get(name)
-            if col:
-                return col
             base = name.rsplit(".", 1)[0]
-            for c in bpy.data.collections:
-                if c.name.rsplit(".", 1)[0] == base:
-                    return c
+            if collection_lookup is not None:
+                exact_lookup = collection_lookup.setdefault("exact", {})
+                base_lookup = collection_lookup.setdefault("base", {})
+                col = exact_lookup.get(name) or base_lookup.get(base)
+                if col:
+                    return col
+            else:
+                col = bpy.data.collections.get(name)
+                if col:
+                    return col
+                for c in bpy.data.collections:
+                    if c.name.rsplit(".", 1)[0] == base:
+                        return c
             return None
 
         if "(" in self.name and ")" in self.name.rpartition("(")[2]:
@@ -460,12 +511,13 @@ class Instance:
                 # truly doesn't exist → create it
                 main_collection = bpy.data.collections.new(name=main_collection_name)
                 ig_collection.children.link(main_collection)
+                self._remember_collection(collection_lookup, main_collection)
                 utils.add_permutation(main_collection_name_main)
                 main_collection.nwo.type = 'permutation'
                 main_collection.nwo.permutation = main_collection_name_main
             elif main_collection not in permitted_collections:
                 # exists but not permitted → just link it instead of creating duplicates
-                if main_collection.name not in ig_collection.children:
+                if main_collection.name not in ig_collection.children.keys():
                     ig_collection.children.link(main_collection)
 
             # ---- SUB COLLECTION ----
@@ -477,8 +529,9 @@ class Instance:
                 if sub_collection is None:
                     sub_collection = bpy.data.collections.new(name=sub_collection_name)
                     main_collection.children.link(sub_collection)
+                    self._remember_collection(collection_lookup, sub_collection)
                 elif sub_collection not in permitted_collections:
-                    if sub_collection.name not in main_collection.children:
+                    if sub_collection.name not in main_collection.children.keys():
                         main_collection.children.link(sub_collection)
 
                 return sub_collection
@@ -1395,6 +1448,429 @@ class StructureCollision(BSP):
         self.uses_materials = True
         self.sky_index = sky_index
     
+class HavokCollision:
+    """A minimal importer for Tool's serialized HaloCompressedMeshShape data."""
+
+    _MAX_POOL_VALUES = 4_000_000
+    _COLLISION_TYPE_NAMES = {
+        0: "default",
+        1: "invisible_wall",
+        2: "play_collision",
+        3: "bullet_collision",
+        4: "none",
+    }
+
+    def __init__(self, name: str, vertices: list[tuple[float, float, float]], faces: list[tuple[int, int, int]], material_indices: list[int], collision_materials: list[BSPCollisionMaterial], render_triangle_mappings: list[tuple[int, ...]] | None = None, collision_type: int = 0):
+        self.name = name
+        self.vertices = vertices
+        self.faces = faces
+        self.material_indices = material_indices
+        self.collision_materials = collision_materials
+        self.render_triangle_mappings = render_triangle_mappings or []
+        try:
+            collision_type = int(collision_type)
+        except (TypeError, ValueError):
+            collision_type = 0
+        self.collision_type = collision_type
+        self.collision_type_name = self._COLLISION_TYPE_NAMES.get(collision_type, "default")
+
+    @property
+    def has_render_triangle_mappings(self) -> bool:
+        return len(self.render_triangle_mappings) == len(self.faces) and any(self.render_triangle_mappings)
+
+    @property
+    def unmapped_face_indices(self) -> list[int]:
+        return self.get_unmapped_face_indices()
+
+    def get_unmapped_face_indices(self, section_triangle_ranges: list[tuple[int, int, int]] | None = None) -> list[int]:
+        if not self.has_render_triangle_mappings:
+            return list(range(len(self.faces)))
+
+        unmapped_face_indices = []
+        for face_index, render_triangle_indices in enumerate(self.render_triangle_mappings):
+            if not any(self._resolve_render_triangle_index(index, section_triangle_ranges) is not None for index in render_triangle_indices):
+                unmapped_face_indices.append(face_index)
+
+        return unmapped_face_indices
+
+    def to_surface_triangle_mappings(
+        self,
+        section_triangle_ranges: list[tuple[int, int, int]] | None = None,
+        claimed_render_triangles: dict[tuple[int, int], str] | None = None,
+        rejected_face_indices: set[int] | None = None,
+    ) -> list[SurfaceMapping]:
+        if not self.has_render_triangle_mappings:
+            return []
+
+        grouped_mappings = {}
+        for face_index, render_triangle_indices in enumerate(self.render_triangle_mappings):
+            resolved_triangles = []
+            has_collision_type_conflict = False
+            for render_triangle_index in render_triangle_indices:
+                resolved = self._resolve_render_triangle_index(render_triangle_index, section_triangle_ranges)
+                if resolved is None:
+                    continue
+
+                if claimed_render_triangles is not None:
+                    claimed_collision_type = claimed_render_triangles.get(resolved)
+                    if claimed_collision_type is not None:
+                        if claimed_collision_type != self.collision_type_name:
+                            has_collision_type_conflict = True
+                        continue
+
+                resolved_triangles.append(resolved)
+
+            if has_collision_type_conflict and rejected_face_indices is not None:
+                rejected_face_indices.add(face_index)
+            if not resolved_triangles:
+                continue
+
+            material_index = self.material_indices[face_index] if face_index < len(self.material_indices) else -1
+            material = self.collision_materials[material_index] if 0 <= material_index < len(self.collision_materials) else None
+            group_key = material_index
+            surface, triangle_mappings = grouped_mappings.get(group_key, (None, None))
+            if surface is None:
+                surface = HavokCollisionSurface(material_index, material, self.collision_type_name)
+                triangle_mappings = []
+                grouped_mappings[group_key] = (surface, triangle_mappings)
+
+            for section_index, local_triangle_index in resolved_triangles:
+                triangle_mappings.append(DirectTriangleMapping(local_triangle_index, section_index))
+                if claimed_render_triangles is not None:
+                    claimed_render_triangles[(section_index, local_triangle_index)] = self.collision_type_name
+
+        return [
+            SurfaceMapping.from_render_triangles(surface, triangle_mappings)
+            for surface, triangle_mappings in grouped_mappings.values()
+            if triangle_mappings
+        ]
+
+    @staticmethod
+    def _resolve_render_triangle_index(render_triangle_index: int, section_triangle_ranges: list[tuple[int, int, int]] | None):
+        if render_triangle_index < 0:
+            return None
+
+        if not section_triangle_ranges:
+            return 0, render_triangle_index
+
+        if len(section_triangle_ranges) == 1:
+            section_index, _, triangle_count = section_triangle_ranges[0]
+            if render_triangle_index < triangle_count:
+                return section_index, render_triangle_index
+            return None
+
+        for section_index, first_triangle_index, triangle_count in section_triangle_ranges:
+            if first_triangle_index <= render_triangle_index < first_triangle_index + triangle_count:
+                return section_index, render_triangle_index - first_triangle_index
+
+        return None
+
+    @classmethod
+    def from_serialized_shape(cls, serialized_data: bytes, name: str, collision_materials: list[BSPCollisionMaterial], bounds_min=None, bounds_max=None, collision_type: int = 0):
+        if not serialized_data:
+            return None
+
+        data = bytes(serialized_data)
+        mesh_data = cls._extract_mesh_data(data, len(collision_materials))
+        if mesh_data is None:
+            return None
+
+        vertices, faces, material_indices, render_triangle_mappings = mesh_data
+        vertices = cls._fit_vertices_to_bounds(vertices, bounds_min, bounds_max)
+        if not vertices or not faces:
+            return None
+
+        return cls(name, vertices, faces, material_indices, collision_materials, render_triangle_mappings, collision_type)
+
+    @staticmethod
+    def _read_packed_int(data: bytes, offset: int) -> tuple[int, int]:
+        result = 0
+        shift = 0
+        while offset < len(data):
+            byte = data[offset]
+            offset += 1
+            result |= (byte & 0x7F) << shift
+            if not byte & 0x80:
+                value = (result >> 1) ^ -(result & 1)
+                return value, offset
+            shift += 7
+            if shift > 63:
+                break
+
+        raise ValueError("Invalid packed Havok integer")
+
+    @classmethod
+    def _extract_mesh_data(cls, data: bytes, material_count: int):
+        if b"HaloCompressedMeshShape" not in data or b"VertexPool" not in data or b"IndexPool" not in data:
+            return None
+
+        scan_start = 0
+        for marker in (b"IORenderTriangleIndices", b"RenderMapping", b"IndexPool", b"VertexPool"):
+            index = data.find(marker)
+            if index != -1:
+                scan_start = max(scan_start, index + len(marker) + 1)
+
+        candidates = []
+        for offset in range(scan_start, len(data) - 8):
+            try:
+                vertex_float_count, vertex_data_offset = cls._read_packed_int(data, offset)
+            except ValueError:
+                continue
+
+            if vertex_float_count < 9 or vertex_float_count % 3:
+                continue
+            if vertex_float_count > cls._MAX_POOL_VALUES:
+                continue
+
+            vertex_data_end = vertex_data_offset + vertex_float_count * 4
+            if vertex_data_end >= len(data):
+                continue
+
+            try:
+                vertex_values = struct.unpack_from(f"<{vertex_float_count}f", data, vertex_data_offset)
+            except struct.error:
+                continue
+
+            if not cls._valid_vertex_pool(vertex_values):
+                continue
+
+            try:
+                index_value_count, index_data_offset = cls._read_packed_int(data, vertex_data_end)
+            except ValueError:
+                continue
+
+            if index_value_count < 4 or index_value_count % 4:
+                continue
+            if index_value_count > cls._MAX_POOL_VALUES:
+                continue
+
+            vertex_count = vertex_float_count // 3
+            vertices = [
+                (vertex_values[i], vertex_values[i + 1], vertex_values[i + 2])
+                for i in range(0, vertex_float_count, 3)
+            ]
+            for index_pool_header_size in (0, 1):
+                index_values = []
+                cursor = index_data_offset + index_pool_header_size
+                try:
+                    for _ in range(index_value_count):
+                        value, cursor = cls._read_packed_int(data, cursor)
+                        if value < 0:
+                            raise ValueError
+                        index_values.append(value)
+                except ValueError:
+                    continue
+
+                faces = []
+                material_indices = []
+                valid_triangle_indices = []
+                material_score = 0
+                invalid_triangle_count = 0
+                for triangle_index, i in enumerate(range(0, index_value_count, 4)):
+                    a, b, c, combined_material = index_values[i:i + 4]
+                    if a >= vertex_count or b >= vertex_count or c >= vertex_count or len({a, b, c}) < 3:
+                        invalid_triangle_count += 1
+                        continue
+
+                    material_index = cls._material_index_from_combined_data(combined_material, material_count)
+                    if not material_count or material_index < material_count:
+                        material_score += 1
+
+                    faces.append((a, b, c))
+                    material_indices.append(material_index)
+                    valid_triangle_indices.append(triangle_index)
+
+                triangle_count = index_value_count // 4
+                if not faces or invalid_triangle_count > max(0, triangle_count // 10):
+                    continue
+
+                render_triangle_mappings = cls._extract_render_mappings(data, cursor, triangle_count)
+                if render_triangle_mappings and len(render_triangle_mappings) == triangle_count:
+                    render_triangle_mappings = [render_triangle_mappings[i] for i in valid_triangle_indices]
+                else:
+                    render_triangle_mappings = []
+                candidates.append((len(faces), material_score, vertex_count, len(render_triangle_mappings), offset, vertices, faces, material_indices, render_triangle_mappings))
+
+        if not candidates:
+            return None
+
+        _, _, _, _, _, vertices, faces, material_indices, render_triangle_mappings = max(candidates, key=lambda c: (c[0], c[1], c[2], c[3], -c[4]))
+        return vertices, faces, material_indices, render_triangle_mappings
+
+    @classmethod
+    def _extract_render_mappings(cls, data: bytes, offset: int, triangle_count: int) -> list[tuple[int, ...]]:
+        if triangle_count <= 0:
+            return []
+
+        for start_offset in (offset, offset + 1):
+            try:
+                mapping_reference_count, cursor = cls._read_packed_int(data, start_offset)
+            except ValueError:
+                continue
+
+            if mapping_reference_count != triangle_count:
+                continue
+            if cursor >= len(data):
+                continue
+
+            # The next byte is the tagfile array payload marker, followed by one
+            # 4-byte mapping reference per collision triangle.
+            pointer_table_cursor = cursor + 1
+            mapped_indices_cursor = pointer_table_cursor + triangle_count * 4
+            if mapped_indices_cursor >= len(data):
+                continue
+
+            try:
+                mapped_count, cursor = cls._read_packed_int(data, mapped_indices_cursor)
+            except ValueError:
+                continue
+
+            if mapped_count != triangle_count or cursor >= len(data):
+                continue
+
+            # The render triangle indices array has the same one-byte payload marker.
+            cursor += 1
+            mapped_indices = []
+            try:
+                for _ in range(triangle_count):
+                    render_triangle_index, cursor = cls._read_packed_int(data, cursor)
+                    if render_triangle_index < 0:
+                        raise ValueError
+                    mapped_indices.append(render_triangle_index)
+            except ValueError:
+                continue
+
+            if len(mapped_indices) == triangle_count:
+                return [(index,) for index in mapped_indices]
+
+        return []
+
+    @staticmethod
+    def _valid_vertex_pool(values) -> bool:
+        if not values:
+            return False
+
+        has_non_zero = False
+        for value in values:
+            if not math.isfinite(value) or abs(value) > 1.0e8:
+                return False
+            if abs(value) > 1.0e-8:
+                has_non_zero = True
+
+        return has_non_zero
+
+    @staticmethod
+    def _material_index_from_combined_data(combined_data: int, material_count: int) -> int:
+        material_index = combined_data & 0x0FFF
+        if material_count:
+            if material_index < material_count:
+                return material_index
+            if combined_data < material_count:
+                return combined_data
+
+        return material_index
+
+    @staticmethod
+    def _fit_vertices_to_bounds(vertices: list[tuple[float, float, float]], bounds_min, bounds_max) -> list[tuple[float, float, float]]:
+        if bounds_min is None or bounds_max is None:
+            return [(x * 100, y * 100, z * 100) for x, y, z in vertices]
+
+        try:
+            target_min = tuple(float(bounds_min[i]) for i in range(3))
+            target_max = tuple(float(bounds_max[i]) for i in range(3))
+        except (IndexError, TypeError, ValueError):
+            return [(x * 100, y * 100, z * 100) for x, y, z in vertices]
+
+        raw_min = tuple(min(v[axis] for v in vertices) for axis in range(3))
+        raw_max = tuple(max(v[axis] for v in vertices) for axis in range(3))
+        target_extent = tuple(target_max[axis] - target_min[axis] for axis in range(3))
+        raw_extent = tuple(raw_max[axis] - raw_min[axis] for axis in range(3))
+
+        max_target_extent = max(abs(value) for value in target_extent)
+        max_bounds_delta = max(
+            max(abs(raw_min[axis] - target_min[axis]), abs(raw_max[axis] - target_max[axis]))
+            for axis in range(3)
+        )
+
+        if max_bounds_delta <= max(0.001, max_target_extent * 0.001):
+            return [(x * 100, y * 100, z * 100) for x, y, z in vertices]
+
+        fitted_vertices = []
+        for vertex in vertices:
+            fitted = []
+            for axis in range(3):
+                if abs(raw_extent[axis]) > 1.0e-8 and abs(target_extent[axis]) > 1.0e-8:
+                    fitted_value = (vertex[axis] - raw_min[axis]) * (target_extent[axis] / raw_extent[axis]) + target_min[axis]
+                elif abs(target_extent[axis]) <= 1.0e-8:
+                    fitted_value = target_min[axis]
+                else:
+                    fitted_value = vertex[axis] + target_min[axis] - raw_min[axis]
+                fitted.append(fitted_value * 100)
+
+            fitted_vertices.append(tuple(fitted))
+
+        return fitted_vertices
+
+    def to_bvh(self):
+        if self.vertices and self.faces:
+            return bvhtree.BVHTree.FromPolygons([Vector(v) for v in self.vertices], self.faces)
+
+    def to_object(self, face_indices: list[int] | None = None, name: str | None = None) -> bpy.types.Object:
+        if face_indices is None:
+            vertices = self.vertices
+            faces = self.faces
+            material_indices = self.material_indices
+            render_triangle_mappings = self.render_triangle_mappings
+        else:
+            used_vertex_indices = sorted({vertex_index for face_index in face_indices for vertex_index in self.faces[face_index]})
+            vertex_remap = {vertex_index: remapped_index for remapped_index, vertex_index in enumerate(used_vertex_indices)}
+            vertices = [self.vertices[vertex_index] for vertex_index in used_vertex_indices]
+            faces = [
+                tuple(vertex_remap[vertex_index] for vertex_index in self.faces[face_index])
+                for face_index in face_indices
+            ]
+            material_indices = [self.material_indices[face_index] for face_index in face_indices]
+            render_triangle_mappings = [
+                self.render_triangle_mappings[face_index] if face_index < len(self.render_triangle_mappings) else ()
+                for face_index in face_indices
+            ]
+
+        mesh = bpy.data.meshes.new(name or self.name)
+        mesh.from_pydata(vertices=vertices, edges=[], faces=faces)
+        mesh.update()
+
+        material_slots = {}
+        for material_index in sorted(set(material_indices)):
+            if material_index < 0 or material_index >= len(self.collision_materials):
+                continue
+
+            collision_material = self.collision_materials[material_index]
+            if collision_material.blender_material is None:
+                continue
+
+            material_slots[material_index] = len(mesh.materials)
+            mesh.materials.append(collision_material.blender_material)
+
+        if material_slots:
+            mesh.polygons.foreach_set("material_index", [material_slots.get(i, 0) for i in material_indices])
+
+        if len(render_triangle_mappings) == len(mesh.polygons):
+            render_triangle_indices = np.array([mapping[0] if mapping else -1 for mapping in render_triangle_mappings], dtype=np.int32)
+            render_triangle_counts = np.array([len(mapping) for mapping in render_triangle_mappings], dtype=np.int32)
+            render_triangle_index_attribute = mesh.attributes.new("foundry_havok_render_triangle_index", 'INT', 'FACE')
+            render_triangle_index_attribute.data.foreach_set("value", render_triangle_indices)
+            render_triangle_count_attribute = mesh.attributes.new("foundry_havok_render_triangle_count", 'INT', 'FACE')
+            render_triangle_count_attribute.data.foreach_set("value", render_triangle_counts)
+
+        utils.add_face_prop(mesh, "collision_type").collision_type = self.collision_type_name
+
+        mesh.nwo.mesh_type = "_connected_geometry_mesh_type_collision"
+        ob = bpy.data.objects.new(name or self.name, mesh)
+        if not mesh.materials:
+            apply_props_material(ob, "Collision")
+
+        return ob
+
 class PathfindingSphere:
     def __init__(self, element: TagFieldBlockElement, nodes: list[str] = None):
         self.index = element.ElementIndex
@@ -2249,6 +2725,7 @@ class Mesh:
             slip_mask = np.zeros(face_count, dtype=np.int8)
             ladder_mask = np.zeros(face_count, dtype=np.int8)
             breakable_mask = np.zeros(face_count, dtype=np.int8)
+            collision_type_masks = {}
             
             for mapping in surface_triangle_mapping:
                 surf = mapping.surface
@@ -2257,6 +2734,9 @@ class Mesh:
                         continue
 
                     idx = t.tri
+                    if idx < 0 or idx >= face_count:
+                        continue
+
                     collision_face_indices.add(idx)
 
                     if surf.slip_surface:
@@ -2265,6 +2745,10 @@ class Mesh:
                         ladder_mask[idx] = 1
                     if surf.breakable:
                         breakable_mask[idx] = 1
+
+                    collision_type = getattr(surf, "collision_type", "")
+                    if collision_type:
+                        collision_type_masks.setdefault(collision_type, np.zeros(face_count, dtype=np.int8))[idx] = 1
                         
             render_only_mask = np.zeros(face_count, dtype=np.int8)
             for f in indices:
@@ -2277,6 +2761,9 @@ class Mesh:
                 utils.add_face_prop(mesh, "ladder", None if ladder_mask.all() else ladder_mask)
             if breakable_mask.any():
                 utils.add_face_prop(mesh, "face_mode", None if breakable_mask.all() else breakable_mask).face_mode = 'breakable'
+            for collision_type, collision_type_mask in collision_type_masks.items():
+                if collision_type_mask.any():
+                    utils.add_face_prop(mesh, "collision_type", None if collision_type_mask.all() else collision_type_mask).collision_type = collision_type
             if render_only_mask.any():
                 utils.add_face_prop(mesh, "face_mode", None if render_only_mask.all() else render_only_mask).face_mode = 'render_only'
 
