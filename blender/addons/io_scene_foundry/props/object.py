@@ -105,7 +105,6 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     
     cinematic_variant: bpy.props.StringProperty(
         name="Cinematic Variant",
-        options={'HIDDEN'},
     )
     
     cinematic_lighting: bpy.props.EnumProperty( # TODO Generate a lighting tag
@@ -116,6 +115,159 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
             ('PERSIST', "Persist", ""),
             ('PER_SHOT', "Per Shot", ""),
         ]
+    )
+    
+    # cinematic flags
+    placed_manually_in_sapien: bpy.props.BoolProperty(
+        name="Placed Manually in Sapien",
+        description="",
+        options=set(),
+    )
+    object_comes_from_game: bpy.props.BoolProperty(
+        name="Object Comes From Game",
+        description="",
+        options=set(),
+    )
+    special_case: bpy.props.BoolProperty(
+        name="Special Case (like player0)",
+        description="",
+        options=set(),
+    )
+    effect_object: bpy.props.BoolProperty(
+        name="Effect Object",
+        description="",
+        options=set(),
+    )
+    no_lightmap_shadow: bpy.props.BoolProperty(
+        name="No Lightmap Shadow",
+        description="",
+        options=set(),
+    )
+    apply_player_customization: bpy.props.BoolProperty(
+        name="Apply Player Customization",
+        description="",
+        options=set(),
+    )
+    apply_first_person_player_customization: bpy.props.BoolProperty(
+        name="Apply First Person Player Customization",
+        description="",
+        options=set(),
+    )
+    english_lipsync_manual: bpy.props.BoolProperty(
+        name="Manually Animated English Lipsync",
+        description="",
+        options=set(),
+    )
+    
+    # override creation flags
+    override_1_player: bpy.props.BoolProperty(
+        name="Single Player",
+        description="",
+        options=set(),
+    )
+    override_2_player: bpy.props.BoolProperty(
+        name="2 Player Co-op",
+        description="",
+        options=set(),
+    )
+    override_3_player: bpy.props.BoolProperty(
+        name="3 Player Co-op",
+        description="",
+        options=set(),
+    )
+    override_4_player: bpy.props.BoolProperty(
+        name="4 Player Co-op",
+        description="",
+        options=set(),
+    )
+    
+    override_script: bpy.props.StringProperty(
+        name="Custom Override Conditions",
+        description="Custom halo script which returns whether this object should be created"
+    )
+    
+    # Shot props
+    header: bpy.props.StringProperty(
+        name="Header Script",
+        options=set(),
+        description="Halo script to execute before this cinematic shot starts"
+    )
+    
+    footer: bpy.props.StringProperty(
+        name="Footer Script",
+        options=set(),
+        description="Halo script to execute after this cinematic shot ends"
+    )
+    
+    instant_auto_exposure: bpy.props.BoolProperty(
+        name="Instant Auto-Exposure",
+        options=set(),
+        description=""
+    )
+    force_exposure: bpy.props.BoolProperty(
+        name="Force Exposure",
+        options=set(),
+        description=""
+    )
+    generate_looping_script: bpy.props.BoolProperty(
+        name="Generate Looping Script",
+        options=set(),
+        description=""
+    )
+    environment_darker: bpy.props.FloatProperty(
+        name="Environment Darker",
+        options=set(),
+        description="Works best with auto-exposure off",
+        subtype='FACTOR',
+        soft_min=-1,
+        soft_max=1
+    )
+    forced_exposure: bpy.props.FloatProperty(
+        name="",
+        options=set(),
+        description="Disables auto-exposure",
+        subtype='FACTOR',
+        soft_min=-1,
+        soft_max=1
+    )
+    
+    # H4+ props
+    # flags
+    blah: bpy.props.BoolProperty(
+        name="blam",
+        description="",
+        options=set(),
+    )
+    
+    lightmap_direct_scalar: bpy.props.FloatProperty(
+        name="blam",
+        description="",
+        options=set(),
+    )
+    lightmap_indirect_scalar: bpy.props.FloatProperty(
+        name="blam",
+        description="",
+        options=set(),
+    )
+    sun_scalar: bpy.props.FloatProperty(
+        name="blam",
+        description="",
+        options=set(),
+    )
+    atmosphere_fog: bpy.props.StringProperty(
+        name="blam",
+        description="",
+        options=set(),
+    )
+    camera_effects: bpy.props.StringProperty(
+        name="blam",
+        description="",
+        options=set(),
+    )
+    cubemap: bpy.props.StringProperty(
+        name="blam",
+        description="",
+        options=set(),
     )
     
     ### PROXY
@@ -169,6 +321,15 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         ],
         options=set(),
         override={'LIBRARY_OVERRIDABLE'},
+    )
+    
+    game_use_near_clip: bpy.props.BoolProperty(
+        name="Use Clip Start",
+        description="Set the clip start distance from this camera for all in game shots it covers"
+    )
+    game_use_far_clip: bpy.props.BoolProperty(
+        name="Use Clip end",
+        description="Set the clip end distance from this camera for all in game shots it covers"
     )
     
     # LIGHTS (H4 Only)

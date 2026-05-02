@@ -2250,45 +2250,6 @@ class NWO_CinematicScene(PropertyGroup):
         name="Footer Script",
         description="Halo script to execute after this cinematic scene ends"
     )
-    
-class NWO_CinematicShot(PropertyGroup):
-    header: bpy.props.StringProperty(
-        name="Header Script",
-        options=set(),
-        description="Halo script to execute before this cinematic shot starts"
-    )
-    
-    footer: bpy.props.StringProperty(
-        name="Footer Script",
-        options=set(),
-        description="Halo script to execute after this cinematic shot ends"
-    )
-    
-    instant_auto_exposure: bpy.props.BoolProperty(
-        name="Instant Auto-Exposure",
-        options=set(),
-        description=""
-    )
-    force_exposure: bpy.props.BoolProperty(
-        name="Force Exposure",
-        options=set(),
-        description=""
-    )
-    generate_looping_script: bpy.props.BoolProperty(
-        name="Generate Looping Script",
-        options=set(),
-        description=""
-    )
-    blam: bpy.props.FloatProperty(
-        name="",
-        options=set(),
-        description=""
-    )
-    blam: bpy.props.FloatProperty(
-        name="",
-        options=set(),
-        description=""
-    )
 
 class NWO_ScenePropertiesGroup(PropertyGroup):
     # CINEMATIC EVENTS
