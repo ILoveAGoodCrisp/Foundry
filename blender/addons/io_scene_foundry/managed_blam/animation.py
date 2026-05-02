@@ -2694,7 +2694,7 @@ class AnimationTag(Tag):
             next_animation = self._seek_best_matching_base_animation(animation, idle_name, all_tag_animations)
             ignore_root = True
 
-        elif "enter" in name.state:
+        elif name.state.startswith("enter"):
             idle_name = name.copy()
             idle_name.state = "idle"
             next_animation = self._seek_best_matching_base_animation(animation, idle_name, all_tag_animations)
@@ -2703,19 +2703,19 @@ class AnimationTag(Tag):
                 boarding_name.mode = idle_name.mode.replace("_b_", "_")
                 next_animation = self._seek_best_matching_base_animation(animation, boarding_name, all_tag_animations)
 
-        elif "ejection" in name.state:
-            next_animation = animation
-            ignore_root = True
+        # elif "ejection" in name.state:
+        #     next_animation = animation
+        #     ignore_root = True
 
-        elif "exit" in name.state:
-            return next_animation, ignore_root
-            idle_name = name.copy()
-            if name.mode.endswith(("_b", "_d", "_p")) or "_p_" in name.mode:
-                return next_animation, ignore_root
-            idle_name.state = "idle"
-            idle_name.mode = "combat"
-            next_animation = self._seek_best_matching_base_animation(animation, idle_name, all_tag_animations)
-            ignore_root = True
+        # elif name.state == "exit":
+        #     return next_animation, ignore_root
+        #     idle_name = name.copy()
+        #     if name.mode.endswith(("_b", "_d", "_p")) or "_p_" in name.mode:
+        #         return next_animation, ignore_root
+        #     idle_name.state = "idle"
+        #     idle_name.mode = "combat"
+        #     next_animation = self._seek_best_matching_base_animation(animation, idle_name, all_tag_animations)
+        #     ignore_root = True
 
         # elif name.state.endswith("exit_patrol"):
         #     idle_name = name.copy()
