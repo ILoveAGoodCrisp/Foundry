@@ -3485,6 +3485,7 @@ class AnimationTag(Tag):
                 
                 if tag_animation.composite_index > -1:
                     blender_animation.animation_type = "composite"
+                    blender_animation.overlay = overlay 
                     self._import_composite(blender_animation, tag_animation.composite_index, tag_animations)
                     continue
                 
