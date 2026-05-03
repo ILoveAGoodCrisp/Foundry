@@ -3485,7 +3485,7 @@ class AnimationTag(Tag):
                 
                 if tag_animation.composite_index > -1:
                     blender_animation.animation_type = "composite"
-                    self._import_composite(blender_animation, tag_animation.composite_index)
+                    self._import_composite(blender_animation, tag_animation.composite_index, tag_animations)
                     continue
                 
                 action = bpy.data.actions.new(animation_name)
@@ -3752,7 +3752,7 @@ class AnimationTag(Tag):
         
         base_transforms[frame] = frame_data
         
-    def _import_composite(self, blender_animation, composite_index: int):
+    def _import_composite(self, blender_animation, composite_index: int, tag_animations):
         composites_block = self.tag.SelectField("Struct:definitions[0]/Block:composites")
         if composites_block.Elements.Count == 0 or composite_index >= composites_block.Elements.Count:
             return
@@ -3765,52 +3765,11 @@ class AnimationTag(Tag):
         anims_block = composite.SelectField("Block:anims")
         adjust_names = ("none", "on_start", "on_loop", "continuous")
         
-        def _resolve_animation_name(anim_element: TagFieldBlockElement) -> str:
-            animation_name = ""
-            anim_index = anim_element.SelectField("animIndex").Data
-            if isinstance(anim_index, int) and 0 <= anim_index < self.block_animations.Elements.Count:
-                animation_name = self.block_animations.Elements[anim_index].SelectField("name").GetStringData()
-            if not animation_name:
-                animation_name = anim_element.SelectField("source")
-            if not animation_name:
-                return ""
-            return utils.AnimationName(animation_name).data_name
-        
-        def _select_timing_source() -> str:
-            if anims_block is None:
-                return blender_animation.name
-            
-            best_name = ""
-            best_score = None
-            for anim_element in anims_block.Elements:
-                animation_name = _resolve_animation_name(anim_element)
-                if not animation_name:
-                    continue
-                overridden = anim_element.SelectField("overridden").Data
-                slide_axis = anim_element.SelectField("slideAxis").Data
-                score = (
-                    0 if overridden == 1 else 1,
-                    0 if slide_axis == 0 else 1,
-                    anim_element.ElementIndex,
-                )
-                if best_score is None or score < best_score:
-                    best_score = score
-                    best_name = animation_name
-            
-            return best_name or blender_animation.name
-        
         def _leaf_value_from_tag(axis, raw_value: float) -> float:
-            axis_name = axis.name
-            if axis_name not in {"movement_angles", "turn_angle", "turn_rate", "aim_pitch", "aim_yaw", "aim_yaw_from_start"}:
-                return raw_value
-            
-            if not axis.animation_source_bounds_manual:
-                return raw_value
-            
             axis_min, axis_max = axis.animation_source_bounds
             return axis_min + (raw_value * (axis_max - axis_min))
         
-        blender_animation.timing_source = _select_timing_source()
+        blender_animation.timing_source = tag_animations[composite.SelectField("timingAnimIndex").Data].name.data_name
         
         imported_axes = []
         for axis_index, axis in enumerate(axes_block.Elements):
@@ -3844,8 +3803,8 @@ class AnimationTag(Tag):
                 blender_dead_zone = blender_axis.dead_zones.add()
                 blender_dead_zone.name = f"dead_zone{dead_zone_index}"
                 bounds = dead_zone.SelectField("bounds").Data
-                blender_dead_zone.bounds = (*bounds,)
-                blender_dead_zone.rate = dead_zone.SelectField("rate").Data
+                blender_dead_zone.bounds = [n * 360 for n in bounds]
+                blender_dead_zone.rate = dead_zone.SelectField("rate").Data * 360
             
             imported_axes.append(blender_axis)
         
@@ -3859,7 +3818,7 @@ class AnimationTag(Tag):
             return
         
         for anim_element in anims_block.Elements:
-            animation_name = _resolve_animation_name(anim_element)
+            animation_name = tag_animations[anim_element.SelectField("animIndex").Data].name.data_name
             if not animation_name:
                 continue
             
