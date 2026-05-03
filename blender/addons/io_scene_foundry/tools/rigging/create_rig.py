@@ -41,16 +41,12 @@ class NWO_OT_BakeToControl(bpy.types.Operator):
         for action in actions:
             print(f"Baking action: {action.name}")
             
-            if action.use_frame_range:
-                start, end = int(action.frame_start), int(action.frame_end)
-                frame_range = range(int(action.frame_start), int(action.frame_end))
-            else:
-                start, end = utils.get_frame_start_end_from_keyframes(action, arm)
+            start, end = utils.get_frame_start_end_from_keyframes(action, arm)
             
             if end - start < 1:
                 continue
             
-            frame_range = range(start, end)
+            frame_range = range(start, end + 1)
 
             if self.all_actions:
                 arm.animation_data.action = action

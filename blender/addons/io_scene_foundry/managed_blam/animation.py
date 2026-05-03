@@ -182,7 +182,7 @@ class Animation:
         self.frame_count = shared_element.SelectField("frame count").Data
         self.animation_type = AnimationType(shared_element.SelectField("animation type").Value)
         self.frame_info_type = FrameInfoType(shared_element.SelectField("frame info type").Value)
-        self.compression = Compression(shared_element.SelectField("current compression").Value)
+        self.compression = Compression(shared_element.SelectField("desired compression").Value)
         self.resource_group = shared_element.SelectField("resource_group").Data
         self.resource_group_member = shared_element.SelectField("resource_group_member").Data
         self.element = element
@@ -2310,8 +2310,8 @@ class AnimationTag(Tag):
         action = bpy.data.actions.new(action_name)
         slot = action.slots.new("OBJECT", obj.name)
         action.use_frame_range = True
-        action.frame_start = blender_animation.frame_start
-        action.frame_end = blender_animation.frame_end
+        action.frame_start = 1.0
+        action.frame_end = float(blender_animation.frame_end)
 
         obj.animation_data_create()
         obj.animation_data.last_slot_identifier = slot.identifier
@@ -2607,13 +2607,251 @@ class AnimationTag(Tag):
 
         return len(tag_events)
 
-    def _get_base_animation_candidates(self, graph: dict, name: str):
-        tokens = name.split(":")
-        if tokens[-1].startswith("var"):
-            tokens.pop(-1)
-        if tokens:
-            tokens[-1] = "idle"
-        return self.find_animation(graph, tokens, ["actions"])
+    def _base_state_candidates(self, base_name: utils.AnimationName, animation_type: AnimationType) -> tuple[str, ...]:
+        candidates = []
+        used = set()
+
+        def add(state: str):
+            if not state or state in used:
+                return
+            candidates.append(state)
+            used.add(state)
+
+        def add_family(state: str):
+            state = state.strip("_")
+            if not state:
+                return
+            add(state)
+            if state.endswith("_fast") or state.endswith("_slow"):
+                add(state.rsplit("_", 1)[0])
+            else:
+                add(f"{state}_fast")
+                add(f"{state}_slow")
+
+        if animation_type in (AnimationType.OVERLAY, AnimationType.REPLACEMENT):
+            state = base_name.state
+            tokens = state.split("_")
+            motion_tokens = {"move", "walk", "run", "jog", "locomote", "turn"}
+            direction_tokens = {"front", "right", "left", "back"}
+
+            for index, token in enumerate(tokens):
+                if token not in direction_tokens:
+                    continue
+
+                for start_index in range(index - 1, -1, -1):
+                    if tokens[start_index] not in motion_tokens:
+                        continue
+
+                    add_family("_".join(tokens[start_index:index + 1]))
+                    if tokens[start_index] == "locomote" and start_index + 1 < index:
+                        add_family("_".join(tokens[start_index + 1:index + 1]))
+
+            for prefix in ("aim_", "look_", "acc_", "steer_"):
+                if state.startswith(prefix):
+                    stripped_state = state[len(prefix):]
+                    add_family(stripped_state)
+                    for suffix in ("_up", "_down", "_left", "_right"):
+                        if stripped_state.endswith(suffix):
+                            add_family(stripped_state.removesuffix(suffix))
+
+        add("idle")
+        return tuple(candidates)
+
+    def _matching_base_actions(self, actions: dict, state: str):
+        state_key = state.replace(" ", "_").lower()
+        matches = []
+        used_indices = set()
+
+        def add_match(animation):
+            if animation is None:
+                return
+            index = getattr(animation, "index", None)
+            if index in used_indices:
+                return
+            used_indices.add(index)
+            matches.append(animation)
+
+        add_match(actions.get(state))
+        for key, animation in actions.items():
+            if animation is None:
+                continue
+
+            key_name = utils.AnimationName(key)
+            key_state = key_name.state if key_name.valid else key
+            key_state = key_state.replace(" ", "_").lower()
+            key_token = key.replace(":", " ").replace(" ", "_").lower()
+            if key_state != state_key and not key_token.startswith(f"{state_key}_var"):
+                continue
+
+            add_match(animation)
+
+        return matches
+
+    def _get_base_animation_candidates(self, graph: dict, name: str, animation_type: AnimationType = AnimationType.NONE):
+        base_name = utils.AnimationName(name)
+        if not base_name.valid or base_name.type != utils.AnimationStateType.ACTION:
+            return []
+
+        def branch_groups(level: dict, token: str, depth: int):
+            nested_keys = [key for key, value in level.items() if isinstance(value, dict)]
+            groups = []
+            used = set()
+
+            def add(key):
+                if key in used or key not in level or not isinstance(level[key], dict):
+                    return
+                groups.append([key])
+                used.add(key)
+
+            if depth == 1:
+                if token == "any":
+                    add("rifle")
+                    add("any")
+                    for key in nested_keys:
+                        add(key)
+                else:
+                    add(token)
+                    add("any")
+            elif token == "any":
+                for key in nested_keys:
+                    add(key)
+            else:
+                add(token)
+                add("any")
+
+            return groups
+
+        def walk_tree(level, remaining_tokens, state: str, depth=0):
+            if not isinstance(level, dict):
+                return []
+            if not remaining_tokens:
+                actions = level.get("actions")
+                if actions:
+                    return self._matching_base_actions(actions, state)
+                results = []
+                for branch in level.values():
+                    results.extend(walk_tree(branch, [], state, depth + 1))
+                return results
+
+            token = remaining_tokens[0]
+            next_tokens = remaining_tokens[1:]
+            for group in branch_groups(level, token, depth):
+                results = []
+                for branch_key in group:
+                    results.extend(walk_tree(level[branch_key], next_tokens, state, depth + 1))
+                if results:
+                    return results
+
+            return []
+
+        for state in self._base_state_candidates(base_name, animation_type):
+            results = walk_tree(graph, (base_name.mode, base_name.weapon_class, base_name.weapon_type, base_name.set), state)
+            if results:
+                return results
+
+        return []
+
+    def _resolve_tag_animation_candidate(self, candidate, all_tag_animations) -> Animation | None:
+        index = getattr(candidate, "index", None)
+        if index is None:
+            return None
+
+        if 0 <= index < len(all_tag_animations):
+            animation = all_tag_animations[index]
+            if getattr(animation, "index", None) == index:
+                return animation
+
+        for animation in all_tag_animations:
+            if getattr(animation, "index", None) == index:
+                return animation
+
+        return candidate if isinstance(candidate, Animation) else None
+
+    def _first_resolved_base_candidate(self, candidates, all_tag_animations) -> Animation | None:
+        for candidate in candidates:
+            animation = self._resolve_tag_animation_candidate(candidate, all_tag_animations)
+            if animation is not None and animation.animation_type in (AnimationType.NONE, AnimationType.BASE):
+                return animation
+
+        return None
+
+    def _field_data_or_value(self, element: TagFieldBlockElement, field_name: str):
+        field = element.SelectField(field_name)
+        if field is None:
+            raise ValueError(f"Field [{field_name}] was not found")
+        try:
+            return field.Data
+        except Exception:
+            return field.Value
+
+    def _object_space_parent_rotation(self, element: TagFieldBlockElement) -> Quaternion:
+        try:
+            rotation = self._to_quaternion(element.SelectField("default rotation").Data)
+            if rotation.magnitude <= tolerance:
+                return Quaternion((1.0, 0.0, 0.0, 0.0))
+            rotation.normalize()
+            return rotation
+        except Exception:
+            pass
+
+        x = float(self._field_data_or_value(element, "rotation x"))
+        y = float(self._field_data_or_value(element, "rotation y"))
+        z = float(self._field_data_or_value(element, "rotation z"))
+        w = float(self._field_data_or_value(element, "rotation w"))
+        rotation = Quaternion((w, x, y, z))
+        if rotation.magnitude <= tolerance:
+            return Quaternion((1.0, 0.0, 0.0, 0.0))
+        rotation.normalize()
+        return rotation
+
+    def _object_space_parent_transform_targets(self, tag_animation: Animation) -> list[tuple[int, Vector, Quaternion | None, float | None]]:
+        targets: list[tuple[int, Vector, Quaternion | None, float | None]] = []
+        try:
+            parent_nodes = tag_animation.shared_element.SelectField("object-space parent nodes")
+        except Exception:
+            return targets
+
+        if parent_nodes is None:
+            return targets
+
+        for element in parent_nodes.Elements:
+            try:
+                node_index = int(element.Fields[0].Value)
+            except Exception:
+                continue
+            if node_index < 0:
+                continue
+
+            try:
+                translation = self._to_vector(element.SelectField("default translation").Data) * 100.0
+            except Exception:
+                continue
+
+            try:
+                rotation = self._object_space_parent_rotation(element)
+            except Exception:
+                rotation = None
+
+            try:
+                scale = float(self._field_data_or_value(element, "default scale"))
+            except Exception:
+                scale = None
+
+            targets.append((node_index, translation, rotation, scale))
+
+        return targets
+
+    def _apply_object_space_parent_base_frame(self, tag_animation: Animation, base_frame):
+        for node_index, translation, rotation, scale in self._object_space_parent_transform_targets(tag_animation):
+            if node_index >= len(base_frame.translations):
+                continue
+            base_frame.translations[node_index] = translation.copy()
+
+            if rotation is not None and node_index < len(base_frame.rotations):
+                base_frame.rotations[node_index] = rotation.copy()
+
+            if scale is not None and node_index < len(base_frame.scales):
+                base_frame.scales[node_index] = scale
 
     def _seek_best_matching_base_animation(self, animation: Animation, name: utils.AnimationName, all_tag_animations):
         def find_for_mode(mode: str):
@@ -2864,13 +3102,19 @@ class AnimationTag(Tag):
                     self._movement_data_from_second_frame(resource_data.movement_data, animation_data.frame_count),
                 )
         if tag_animation.animation_type in (2, 3):
-            base_candidates = self._get_base_animation_candidates(graph, tag_animation.name.tag_name)
-            if base_candidates:
-                base_tag_animation = all_tag_animations[base_candidates[0].index]
+            base_candidates = self._get_base_animation_candidates(
+                graph,
+                tag_animation.name.tag_name,
+                tag_animation.animation_type,
+            )
+            base_tag_animation = self._first_resolved_base_candidate(base_candidates, all_tag_animations)
+
+            if base_tag_animation is not None:
                 base_animation = self._build_animation(base_tag_animation, defaults, overlay_defaults, graph, shared_static_codec, resource_cache, animation_cache, all_tag_animations, final_frame_stack)
                 base_frame = base_animation.first_frame()
             else:
                 base_frame = default_frame_channels(defaults)
+            # self._apply_object_space_parent_base_frame(tag_animation, base_frame)
 
             if tag_animation.animation_type == 2:
                 animation_data = compose_overlay_animation(animation_data, base_frame)
@@ -3210,26 +3454,7 @@ class AnimationTag(Tag):
             shared_static_codec = self._read_shared_static_codec()
             native_resource_cache = {}
             native_animation_cache = {}
-            exporter = None
-            animation_nodes = None
             nodes_count = len(node_names)
-
-            def ensure_exporter():
-                nonlocal exporter, animation_nodes, nodes_count
-                if exporter is not None:
-                    return True
-                if model is None:
-                    return False
-                exporter = self._AnimationExporter()
-                ready = exporter.UseTags(self.tag, model.tag)
-                if not ready:
-                    return False
-                nodes_count = exporter.GetGraphNodeCount()
-                from System import Array  # type: ignore
-
-                animation_nodes = [self._GameAnimationNode() for _ in range(nodes_count)]
-                animation_nodes = Array[self._GameAnimationNodeType()](animation_nodes)
-                return True
             
             self.nodes_count = nodes_count
 
@@ -3330,80 +3555,21 @@ class AnimationTag(Tag):
                 track = blender_animation.action_tracks.add()
                 track.object = armature
                 track.action = action
-                success = False
                 imported = False
                 try:
                     transforms = self._animation_transforms(tag_animation, defaults, overlay_defaults, native_nodes, graph, shared_static_codec, native_resource_cache,native_animation_cache, tag_animations)
                     if transforms:
                         blender_animation.frame_end = max(blender_animation.frame_end, max(transforms))
                     self._to_armature_action(transforms, armature, action, native_nodes, {}, set(), blender_animation.pose_overlay)
-                    success = True
                     imported = True
                 except Exception:
-                    utils.print_warning(f"Foundry animation decode failed for {tag_animation.name.data_name}. Falling back to ManagedBlam ({traceback.format_exc()})")
-
-                if not success:
-                    # Runs the old ManagedBlam animation extractor
-                    if overlay:
-                        utils.print_warning(f"{tag_animation.name.data_name} is an overlay, rotations will not be imported")
-
-                    if not ensure_exporter():
-                        if model is None:
-                            utils.print_warning(
-                                f"ManagedBlam fallback is unavailable for {tag_animation.name.data_name} because no render model was provided"
-                            )
-                        else:
-                            utils.print_warning(f"Failed to use ManagedBlam animation exporter for {tag_animation.name.data_name}")
-                        continue
-
-                    if exporter.GetRenderModelBasePose(animation_nodes, nodes_count):
-                        nodes = [Node(n.Name, n.ParentIndex) for n in animation_nodes]
-                        for node in nodes:
-                            if node.parent_index > -1:
-                                node.parent = nodes[node.parent_index]
-
-                        node_base_matrices = {}
-                        self._get_base_pose(animation_nodes, nodes, node_base_matrices)
-                        transforms = {}
-                        base_transforms = {}
-                        nodes_with_animations = set()
-                        if overlay or replacement:
-                            transforms[1] = {
-                                node: cast(Matrix, node_base_matrices[node]).copy()
-                                for node in nodes
-                            }
-                        for frame in range(tag_animation.frame_count):
-                            if exporter.GetAnimationFrame(tag_animation.index, frame, animation_nodes, nodes_count):
-                                imported_frame = frame + 2 if (overlay or replacement) else frame + 1
-                                nodes_with_animations.update(
-                                    self._add_transforms(
-                                        animation_nodes,
-                                        nodes,
-                                        imported_frame,
-                                        overlay,
-                                        node_base_matrices,
-                                        transforms,
-                                    )
-                                )
-                        if tag_animation.animation_type == 3:
-                            replacement_base_animations = self._get_base_animation_candidates(graph, tag_animation.name.tag_name)
-                            if replacement_base_animations:
-                                base_transforms[1] = {
-                                    node: cast(Matrix, node_base_matrices[node]).copy()
-                                    for node in nodes
-                                }
-                                for frame in range(tag_animation.frame_count):
-                                    if exporter.GetAnimationFrame(replacement_base_animations[0].index, frame, animation_nodes, nodes_count):
-                                        self._add_base_transforms(animation_nodes, nodes, frame + 2, node_base_matrices, base_transforms)
-
-                        self._to_armature_action(transforms, armature, action, nodes, base_transforms, nodes_with_animations, blender_animation.pose_overlay)
-                        imported = True
+                    utils.print_warning(f"Foundry animation decode failed for {tag_animation.name.data_name}. {traceback.format_exc()}")
 
                 if imported:
                     actions.append(action)
                     action.frame_end = blender_animation.frame_end
                     self._apply_regular_animation_events(tag_animation, blender_animation, armature, actions)
-                    self._infer_wrap_events(tag_animation, blender_animation, armature, native_nodes if success else nodes, transforms, node_usages)
+                    self._infer_wrap_events(tag_animation, blender_animation, armature, native_nodes, transforms, node_usages)
                     self._add_animation_settings(tag_animation, blender_animation)
                 else:
                     utils.print_warning(f"Failed to import animation {tag_animation.name.data_name}")
@@ -3967,7 +4133,7 @@ class AnimationTag(Tag):
     def test_find_animation(self, tokens: list | str, categories=[], graph_dict={}):
         if not graph_dict:
             tag_animations = self.get_animations()
-            graph = self.to_dict(tag_animations)
+            graph_dict = self.to_dict(tag_animations)
         print("")
         for animation in self.find_animation(graph_dict, tokens):
             print(animation.name, sorted(list(animation.state_types)))
