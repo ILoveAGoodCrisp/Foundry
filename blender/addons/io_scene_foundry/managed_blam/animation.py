@@ -2840,23 +2840,23 @@ class AnimationTag(Tag):
         if tag_animation.animation_type in (AnimationType.NONE, AnimationType.BASE):
             final_frame = None
             ignore_root = False
-            if index not in final_frame_stack:
-                final_frame_stack.add(index)
-                try:
-                    final_frame, ignore_root = self._base_final_frame_pose(
-                        tag_animation,
-                        animation_data,
-                        defaults,
-                        overlay_defaults,
-                        graph,
-                        shared_static_codec,
-                        resource_cache,
-                        animation_cache,
-                        all_tag_animations,
-                        final_frame_stack,
-                    )
-                finally:
-                    final_frame_stack.remove(index)
+            # if index not in final_frame_stack:
+            #     final_frame_stack.add(index)
+            #     try:
+            #         final_frame, ignore_root = self._base_final_frame_pose(
+            #             tag_animation,
+            #             animation_data,
+            #             defaults,
+            #             overlay_defaults,
+            #             graph,
+            #             shared_static_codec,
+            #             resource_cache,
+            #             animation_cache,
+            #             all_tag_animations,
+            #             final_frame_stack,
+            #         )
+            #     finally:
+            #         final_frame_stack.remove(index)
             append_final_frame(animation_data, final_frame, ignore_root)
             if resource_data.movement_data is not None:
                 apply_movement_data(
@@ -3434,7 +3434,7 @@ class AnimationTag(Tag):
         fcurves = utils.get_fcurves(action, armature.animation_data.last_slot_identifier)
         fcurves.clear()
         
-        key_options = {'FAST'} if pose_overlay else {'FAST'}
+        key_options = {'FAST'} if pose_overlay else {'FAST', 'NEEDED'}
         
         armature_bone_names = {utils.remove_node_prefix(bone.name): bone for bone in armature.pose.bones}
         valid_nodes = []
