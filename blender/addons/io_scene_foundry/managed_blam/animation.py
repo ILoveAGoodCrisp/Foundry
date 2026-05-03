@@ -3801,7 +3801,7 @@ class AnimationTag(Tag):
         
         def _leaf_value_from_tag(axis, raw_value: float) -> float:
             axis_name = axis.name
-            if axis_name != "movement_angles":
+            if axis_name not in {"movement_angles", "turn_angle", "turn_rate", "aim_pitch", "aim_yaw", "aim_yaw_from_start"}:
                 return raw_value
             
             if not axis.animation_source_bounds_manual:
