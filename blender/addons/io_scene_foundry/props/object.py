@@ -930,6 +930,19 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     )
 
     # WATER VOLUME PROPERTIES
+    
+    water_type: bpy.props.EnumProperty(
+        name="Water Type",
+        options=set(),
+        description="",
+        override={'LIBRARY_OVERRIDABLE'},
+        items=[
+            ('BOTH', "Both", "Generate a water surface and water physics. The water surface requires a .shader_water or a .material tag which supports water"),
+            ('SURFACE', "Surface", "Generate a visible render only water surface. Requires a .shader_water or a .material tag which supports water"),
+            ('PHYSICS', "Physics", "Generate a water physics volume only"),
+        ]
+    )
+    
     water_volume_depth: bpy.props.FloatProperty(  # this something which can probably be automated?
         name="Water Volume Depth",
         options=set(),

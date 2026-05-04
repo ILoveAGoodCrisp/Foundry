@@ -591,7 +591,7 @@ class ExportScene:
                 result = self.get_halo_props(ob)
                 if result is None:
                     continue
-                props, region, permutation, mesh_props, copy, is_pca = result
+                props, region, permutation, mesh_props, copy, is_pca, copy_only = result
                 
                 is_armature = ob.type == 'ARMATURE'
                 
@@ -645,7 +645,6 @@ class ExportScene:
                                             break
                             
                     
-                copy_only = False
                 if copy is not None:
                     copy_props = props.copy()
                     copy_ob = ob.copy()
@@ -915,9 +914,9 @@ class ExportScene:
         if is_mesh:
             mesh_type = nwo.mesh_type or '_connected_geometry_mesh_type_default'
             if not self.type_is_relevant or _type_valid_cached(mesh_type, asset_name_lower, game_version):
-                copy = self._setup_mesh_properties(ob, nwo, supports_bsp, props, region, permutation, mesh_props)
-                if copy is not None and not copy:
-                    return  # lightmap region
+                copy, skip = self._setup_mesh_properties(ob, nwo, supports_bsp, props, region, permutation, mesh_props)
+                if skip and not copy:
+                    return
                 if ob.type == 'MESH' and ob.data.shape_keys and asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.ANIMATION, AssetType.CINEMATIC, AssetType.SINGLE_ANIMATION}:
                     is_pca = True
             elif self.type_is_relevant:
@@ -938,13 +937,14 @@ class ExportScene:
             else:
                 return
 
-        return props, region, permutation, mesh_props, copy, is_pca
+        return props, region, permutation, mesh_props, copy, is_pca, skip
     
     def _setup_mesh_properties(self, ob: bpy.types.Object, nwo: NWO_ObjectPropertiesGroup, supports_bsp: bool, props: dict, region: str, permutation: str, mesh_props: dict):
         mesh_type = ob.data.nwo.mesh_type
         mesh = ob.data
         data_nwo: NWO_MeshPropertiesGroup = mesh.nwo
         copy = None
+        skip = False
         
         match self.asset_type:
             case AssetType.MODEL | AssetType.MULTI_MODEL:
@@ -1006,12 +1006,17 @@ class ExportScene:
                             props["bungie_mesh_portal_is_door"] = 1
                             
                     case "_connected_geometry_mesh_type_water_surface":
-                        if nwo.water_volume_depth > 0:
-                            if mesh.materials and any_render_materials(mesh):
+                        match nwo.water_type:
+                            case 'BOTH':
                                 copy = ObjectCopy.WATER_PHYSICS
-                            else:
-                                mesh_type = '_connected_geometry_mesh_type_water_physics_volume'
-                                self._setup_water_physics_props(nwo, props)
+                                props["foundry_simplify"] = 1
+                            case 'PHYSICS':
+                                if self.processed_meshes.get(ob.data):
+                                    copy = ObjectCopy.WATER_PHYSICS
+                                    skip = True
+                                else:
+                                    mesh_type = '_connected_geometry_mesh_type_water_physics_volume'
+                                    self._setup_water_physics_props(nwo, props)
                                 
                     case "_connected_geometry_mesh_type_poop_vertical_rain_sheet" | "_connected_geometry_mesh_type_poop_rain_blocker":
                         mesh_props["bungie_face_mode"] = FaceMode.render_only.value
@@ -1022,7 +1027,7 @@ class ExportScene:
                         
                     case "_connected_geometry_mesh_type_lightmap_region": # Never written to granny
                         self.lightmap_regions[ob] = region
-                        return False
+                        return copy, True
                         
                     case "_connected_geometry_mesh_type_boundary_surface":
                         match data_nwo.boundary_surface_type:
@@ -1033,7 +1038,7 @@ class ExportScene:
                             case 'SLIP_SURFACE':
                                 props["bungie_mesh_boundary_surface_type"] = BoundarySurfaceType.slip_surface.value
                             case _:
-                                return
+                                return copy, True
                             
                         props["bungie_mesh_boundary_surface_name"] = utils.dot_partition(ob.name)
                         
@@ -1044,7 +1049,7 @@ class ExportScene:
                             case 'STREAMING_VOLUME':
                                 props["bungie_mesh_obb_type"] = MeshObbVolumeType.streamingvolume.value
                             case _:
-                                return
+                                return copy, True
                             
                     case "_connected_geometry_mesh_type_default":
                         if self.corinth:
@@ -1076,7 +1081,7 @@ class ExportScene:
         else:
             mesh_props.update(tmp_mesh_props)
 
-        return copy
+        return copy, skip
     
     def _setup_water_physics_props(self, nwo: NWO_ObjectPropertiesGroup, props: dict):
         props["bungie_mesh_water_volume_depth"] = nwo.water_volume_depth * WU_SCALAR

@@ -2056,34 +2056,37 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             elif (
                 nwo.mesh_type == "_connected_geometry_mesh_type_water_surface"
             ):
-                col.prop(
-                    nwo,
-                    "water_volume_depth",
-                    text="Water Depth",
-                )
-                if nwo.water_volume_depth:
+                row = col.row()
+                row.prop(nwo, "water_type", expand=True)
+                if nwo.water_type != 'SURFACE':  
                     col.prop(
                         nwo,
-                        "water_volume_flow_direction",
-                        text="Water Flow Direction",
+                        "water_volume_depth",
+                        text="Water Depth",
                     )
-                    col.prop(
-                        nwo,
-                        "water_volume_flow_velocity",
-                        text="Water Flow Velocity",
-                    )
-                    col.prop(
-                        nwo,
-                        "water_volume_fog_color",
-                        text="Underwater Fog Color",
-                    )
-                    col.prop(
-                        nwo,
-                        "water_volume_fog_murkiness",
-                        text="Underwater Fog Murkiness",
-                    )
-                    col.separator()
-                    col.operator("nwo.show_water_direction", depress=self.scene_nwo.show_water_direction, icon='MATFLUID')
+                    if nwo.water_volume_depth:
+                        col.prop(
+                            nwo,
+                            "water_volume_flow_direction",
+                            text="Water Flow Direction",
+                        )
+                        col.prop(
+                            nwo,
+                            "water_volume_flow_velocity",
+                            text="Water Flow Velocity",
+                        )
+                        col.prop(
+                            nwo,
+                            "water_volume_fog_color",
+                            text="Underwater Fog Color",
+                        )
+                        col.prop(
+                            nwo,
+                            "water_volume_fog_murkiness",
+                            text="Underwater Fog Murkiness",
+                        )
+                        col.separator()
+                        col.operator("nwo.show_water_direction", depress=self.scene_nwo.show_water_direction, icon='MATFLUID')
 
             elif nwo.mesh_type in (
                 "_connected_geometry_mesh_type_default",

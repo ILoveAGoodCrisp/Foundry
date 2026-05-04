@@ -1281,7 +1281,7 @@ class VirtualMesh:
         else:
             mesh = ob.data
             
-        if mesh_type_value in {MeshType.water_physics_volume.value, MeshType.boundary_surface.value}:
+        if props.get("foundry_simplify"):
             bm = bmesh.new()
             bm.from_mesh(mesh)
             bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.1)
