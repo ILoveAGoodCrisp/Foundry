@@ -2357,6 +2357,13 @@ class NWO_OT_PreviewIKEvent(bpy.types.Operator):
             return {'CANCELLED'}
 
         proxy_target = event.ik_target_marker
+        proxy_target_bone = None
+        proxy_target_matrix = proxy_target.matrix_world
+        if proxy_target.type == 'ARMATURE' and event.ik_target_marker_bone:
+            proxy_target_bone = proxy_target.pose.bones.get(event.ik_target_marker_bone)
+            if proxy_target_bone is not None:
+                proxy_target_matrix = proxy_target.matrix_world @ proxy_target_bone.matrix
+
         preview_target = bpy.data.objects.new(_ik_preview_target_name(armature, chain.name), None)
         preview_target.empty_display_type = 'PLAIN_AXES'
         preview_target.empty_display_size = 0.02
@@ -2367,8 +2374,11 @@ class NWO_OT_PreviewIKEvent(bpy.types.Operator):
         target_collection.objects.link(preview_target)
         preview_target.rotation_mode = 'QUATERNION'
         preview_target.parent = proxy_target
+        if proxy_target_bone is not None:
+            preview_target.parent_type = 'BONE'
+            preview_target.parent_bone = proxy_target_bone.name
         preview_target.matrix_parent_inverse = Matrix.Identity(4)
-        offset_matrix = proxy_target.matrix_world.inverted_safe() @ (armature.matrix_world @ effector_bone.matrix)
+        offset_matrix = proxy_target_matrix.inverted_safe() @ (armature.matrix_world @ effector_bone.matrix)
         offset_location, offset_rotation, offset_scale = offset_matrix.decompose()
         preview_target.location = offset_location
         preview_target.rotation_quaternion = offset_rotation
@@ -2384,6 +2394,10 @@ class NWO_OT_PreviewIKEvent(bpy.types.Operator):
 
         if event.ik_pole_vector is not None:
             constraint.pole_target = event.ik_pole_vector
+            if event.ik_pole_vector.type == 'ARMATURE' and getattr(event, "ik_pole_vector_bone", ""):
+                pole_target_bone = event.ik_pole_vector.pose.bones.get(event.ik_pole_vector_bone)
+                if pole_target_bone is not None:
+                    constraint.pole_subtarget = pole_target_bone.name
 
         if event_data_path:
             fcurve = constraint.driver_add("influence")

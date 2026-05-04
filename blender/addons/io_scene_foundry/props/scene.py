@@ -985,6 +985,11 @@ class NWO_Animation_ListItems(bpy.types.PropertyGroup):
         options=set(),
     )
 
+    ik_pole_vector_bone: bpy.props.StringProperty(
+        name="Pole Target Bone",
+        description="Optional bone if the Pole Target is an armature"
+    )
+
     # cinematic_effect_tag: bpy.props.StringProperty(
     #     name="Cinematic Effect Tag",
     #     default="",
