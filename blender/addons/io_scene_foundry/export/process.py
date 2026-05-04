@@ -825,6 +825,7 @@ class ExportScene:
         mesh_props = {}
         copy = None
         is_pca = False
+        skip = False
 
         tmp_region = region = default_region
         tmp_perm = permutation = default_perm
