@@ -6185,3 +6185,19 @@ def bpy_enum_from_list(l: list, start_with_none=False):
         return [("none", "None", "")]
     
     return items
+
+def uses_array_mod(ob: bpy.types.Object):
+    try:
+        if bpy.app.version >= (5, 2, 0):
+            return any(
+                mod.type == 'NODES' and mod.name.lower().startswith("array") and not mod.properties.inputs.Socket_38
+                for mod in ob.modifiers
+            )
+        else:
+            return any(
+                mod.type == 'NODES' and mod.name.lower().startswith("array") and not mod.get("Socket_38")
+                for mod in ob.modifiers
+            )
+    except:
+        print_warning(f"Failed to check for array modifier on {ob.name}")
+        return False

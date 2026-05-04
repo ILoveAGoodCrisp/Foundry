@@ -1271,7 +1271,7 @@ class VirtualMesh:
         if evaluated:
             for mod in eval_ob.modifiers:
                 if mod.type == 'NODES':
-                    if mod.name.lower().startswith("array") and not mod.get("Socket_38"):
+                    if utils.uses_array_mod(eval_ob):
                         mod.show_viewport = False
 
             if true_mesh:
