@@ -1760,6 +1760,39 @@ class ExportScene:
                 return
             process = "--- Sampling Animations"
             num_animations = len(valid_animations)
+
+            composite_animation_names = set()
+
+            def add_composite_animation_name(name):
+                if not name:
+                    return
+
+                for candidate in (name, name.replace(":", " "), name.replace(" ", ":")):
+                    key = candidate.strip().lower()
+                    if key:
+                        composite_animation_names.add(key)
+
+            def gather_composite_animation_names(parent):
+                for leaf in getattr(parent, "leaves", []):
+                    add_composite_animation_name(leaf.animation)
+
+                for group in getattr(parent, "groups", []):
+                    gather_composite_animation_names(group)
+
+                for phase_set in getattr(parent, "phase_sets", []):
+                    gather_composite_animation_names(phase_set)
+
+            for composite in self.sidecar.animation_composites:
+                for blend_axis in composite.blend_axis:
+                    gather_composite_animation_names(blend_axis)
+
+            def is_composite_animation_source(animation):
+                names = (
+                    animation.name,
+                    animation.name.replace(":", " "),
+                    animation.name.replace(" ", ":"),
+                )
+                return any(name.strip().lower() in composite_animation_names for name in names if name)
             
         for armature in self.armature_poses.keys():
             armature.pose_position = 'POSE'
@@ -1812,8 +1845,11 @@ class ExportScene:
             else:
                 active_only = self.export_settings.export_animations == 'ACTIVE'
                 for animation in valid_animations:
-                    if active_only and animation == self.current_animation:
-                        self.active_animation = animation.name.strip().lower()
+                    sample_active_animation = active_only and animation == self.current_animation
+                    sample_composite_source = not sample_active_animation and is_composite_animation_source(animation)
+                    if sample_active_animation or sample_composite_source:
+                        if sample_active_animation:
+                            self.active_animation = animation.name.strip().lower()
                         shape_key_objects = [ob for anim, l in self.pca_objects.items() if anim == animation for ob in l]
                         for track in animation.action_tracks:
                             if track.object and track.action:
@@ -1836,12 +1872,15 @@ class ExportScene:
                                         track.object.data.animation_data.last_slot_identifier = slot_id
                                         track.object.data.animation_data.action = track.action
                                         
-                                        
-                        print("--- Sampling Active Animation ", end="")
-                        with utils.Spinner():
+                        if sample_active_animation:
+                            print("--- Sampling Active Animation ", end="")
+                            with utils.Spinner():
+                                controls, vector_events = self.create_event_objects(animation)
+                                self.virtual_scene.add_animation(animation, controls=controls, shape_key_objects=shape_key_objects, vector_events=vector_events)
+                            print(" ", end="")
+                        else:
                             controls, vector_events = self.create_event_objects(animation)
                             self.virtual_scene.add_animation(animation, controls=controls, shape_key_objects=shape_key_objects, vector_events=vector_events)
-                        print(" ", end="")
                     else:
                         self.virtual_scene.add_animation(animation, sample=False)
                         
@@ -2137,6 +2176,8 @@ class ExportScene:
                 blend_path = Path(granny_path.parent.parent.parent, "animations", granny_path.with_suffix("").name).with_suffix(".blend")
                 print(f"--- {granny_path.with_suffix('').name}")
                 self.sidecar.add_animation_file_data(granny_path, blend_path, animation.name, animation.compression, animation.animation_type, animation.animation_movement_data, animation.animation_space, animation.pose_overlay, animation.has_pca)
+
+            self.sidecar.composite_blend_axis_values.update(self.virtual_scene.composite_blend_axis_values)
                 
     def _export_single_animation(self):
         if self.virtual_scene.skeleton_node and self.virtual_scene.animations:

@@ -62,6 +62,7 @@ class Sidecar:
         self.external_blend = self.relative_blend == bpy.data.filepath
         self.scene_settings = scene_settings
         self.animation_composites = []
+        self.composite_blend_axis_values = {}
         self.corinth = corinth
         self.context = context
         self.nwo = utils.get_scene_props()
@@ -811,7 +812,7 @@ class Sidecar:
                     "ContentNetwork",
                     Name=item.name,
                     Type="CompositeOverlay" if item.overlay else "Composite",
-                    NetworkReference=write_composite_xml(item),
+                    NetworkReference=write_composite_xml(item, self.composite_blend_axis_values),
                 )
                 
             for element in self.child_animation_elements:
@@ -883,8 +884,8 @@ class Sidecar:
             
         contents.extend(self.child_scene_elements)
     
-def write_composite_xml(composite) -> str:
-    composite_xml = CompositeXML(composite)
+def write_composite_xml(composite, blend_axis_values=None) -> str:
+    composite_xml = CompositeXML(composite, blend_axis_values)
     return composite_xml.build_xml()
 
 def get_cinematic_scenes(filepath: Path | str) -> list[str] | None:

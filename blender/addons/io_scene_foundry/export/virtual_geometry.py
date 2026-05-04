@@ -386,6 +386,7 @@ class VirtualAnimation:
         self.is_pca = False
         
         self.vector_tracks = []
+        self.composite_blend_axis_values = {}
             
         self.granny_animation = None
         self.granny_track_group = None
@@ -462,6 +463,9 @@ class VirtualAnimation:
         pose_overlay_frame_data = defaultdict(list)
         morph_target_datas = defaultdict(list)
         shape_key_data = {}
+        root_track_bone = self._composite_root_bone(bones, scene)
+        root_translations = []
+        root_rotations = []
 
         for ob in shape_key_objects:
             node = scene.nodes.get(ob)
@@ -548,6 +552,10 @@ class VirtualAnimation:
                     
                 loc, rot, sca = matrix.decompose()
 
+                if bone is root_track_bone:
+                    root_translations.append(loc.copy())
+                    root_rotations.append(rot.copy())
+
                 if self.overlay and bone.is_aim_bone and not first_frame:
                     frame_data = tuple((rot.x, rot.y, rot.z, wrap_events.get(frame)))
                     pose_overlay_frame_data[bone.name].append(frame_data)
@@ -568,6 +576,10 @@ class VirtualAnimation:
             if shape_key_data:
                 for ob, node in shape_key_data.items():
                     morph_target_datas[node].append(VirtualMorphTargetData(ob, scene, node))
+
+        self.composite_blend_axis_values = self.calculate_composite_blend_axis_values(root_translations, root_rotations, scene)
+        if self.composite_blend_axis_values:
+            scene.add_composite_blend_axis_values(self.name, self.composite_blend_axis_values)
 
         self.create_vector_track_groups(scene, vector_events)
         
@@ -680,6 +692,82 @@ class VirtualAnimation:
             scene.morph_vertex_data[self].extend([m.vertex_data for m in morphs])
             self.granny_morph_targets_counts[node] = len(morphs)
             self.granny_morph_targets[node] = (GrannyMorphTarget * len(morphs))(*morphs)
+
+    def calculate_composite_blend_axis_values(self, translations: list[Vector], rotations: list[Quaternion], scene: 'VirtualScene') -> dict[str, float]:
+        translation = Vector((0.0, 0.0, 0.0))
+        if translations:
+            translation = translations[-1] - translations[0]
+
+        movement = self.movement or "none"
+        has_xy_translation = movement in {"xy", "xyyaw", "xyzyaw", "full", "world"} or self.animation_type == "world"
+        has_z_translation = movement in {"xyzyaw", "full", "world"} or self.animation_type == "world"
+        has_yaw_rotation = movement in {"xyyaw", "xyzyaw", "full", "world"} or self.animation_type == "world"
+
+        if not has_xy_translation:
+            translation.x = 0.0
+            translation.y = 0.0
+        if not has_z_translation:
+            translation.z = 0.0
+
+        horizontal = translation.to_2d().length
+        movement_angle = 0.0 if horizontal < 1e-3 else degrees(atan2(translation.y, translation.x))
+
+        total_angular_offset = 0.0
+        if has_yaw_rotation and len(rotations) > 1:
+            previous_yaw = self._yaw_degrees(rotations[0])
+            for rotation in rotations[1:]:
+                yaw = self._yaw_degrees(rotation)
+                total_angular_offset += self._signed_angle_difference(previous_yaw, yaw)
+                previous_yaw = yaw
+
+        sampled_duration = scene.time_step * (self.frame_count - 1)
+        linear_speed = 0.0 if sampled_duration <= 0.0 else horizontal / sampled_duration
+        average_angular_rate = 0.0 if sampled_duration <= 0.0 else total_angular_offset / sampled_duration
+
+        return {
+            "none": 0.0,
+            "linear_movement_angle": self._zero_small(movement_angle),
+            "linear_movement_speed": self._zero_small(linear_speed),
+            "total_angular_offset": self._zero_small(total_angular_offset),
+            "average_angular_rate": self._zero_small(average_angular_rate),
+            "translation_offset_x": self._zero_small(translation.x),
+            "translation_offset_y": self._zero_small(translation.y),
+            "translation_offset_z": self._zero_small(translation.z),
+            "translation_offset_horizontal": self._zero_small(horizontal),
+            "negative_translation_offset_x": self._zero_small(-translation.x),
+            "negative_translation_offset_y": self._zero_small(-translation.y),
+            "negative_translation_offset_z": self._zero_small(-translation.z),
+        }
+
+    @staticmethod
+    def _composite_root_bone(bones: list['AnimatedBone'], scene: 'VirtualScene'):
+        if scene.root_bone is not None:
+            for bone in bones:
+                if not bone.is_object and bone.pbone == scene.root_bone:
+                    return bone
+
+        for bone in bones:
+            if not bone.is_object and bone.parent is None:
+                return bone
+
+        for bone in bones:
+            if not bone.is_object:
+                return bone
+
+        return None
+
+    @staticmethod
+    def _yaw_degrees(rotation: Quaternion) -> float:
+        return degrees(rotation.to_euler().z)
+
+    @staticmethod
+    def _signed_angle_difference(a: float, b: float) -> float:
+        delta = (b - a + 180.0) % 360.0 - 180.0
+        return 180.0 if delta == -180.0 else delta
+
+    @staticmethod
+    def _zero_small(value: float) -> float:
+        return 0.0 if abs(value) < 1e-3 else value
 
     def to_granny_animation(self, scene: 'VirtualScene'):
         frame_total = self.frame_count - 1
@@ -2351,6 +2439,7 @@ class VirtualScene:
         self.bsps_with_structure = set()
         self.warnings = []
         self.animations = []
+        self.composite_blend_axis_values = {}
         self.shots = []
         self.default_animation_compression = animation_compression
         
@@ -2808,6 +2897,12 @@ class VirtualScene:
         animation = VirtualAnimation(anim, self, sample, controls, shape_key_objects, vector_events)
         self.animations.append(animation)
         return animation.name
+
+    def add_composite_blend_axis_values(self, animation_name: str, values: dict[str, float]):
+        for name in (animation_name, animation_name.replace(":", " "), animation_name.replace(" ", ":")):
+            key = name.strip().lower()
+            if key:
+                self.composite_blend_axis_values[key] = values
     
     def add_shot(self, frame_start: int, frame_end: int, actors: list[bpy.types.Object], camera: bpy.types.Object, index: int, in_scope: bool, film_aperture: float):
         shot = VirtualShot(frame_start, frame_end, actors, camera, index, self, in_scope)
