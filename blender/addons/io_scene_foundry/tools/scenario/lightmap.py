@@ -1,6 +1,7 @@
 import datetime
 from pathlib import Path
 import bpy
+from subprocess import CalledProcessError
 
 from ...patches import ToolPatcher
 
@@ -32,6 +33,15 @@ def calc_job_id(scenario, bsp):
     for char in bsp:
         hash ^= (hash << 7) ^ ord(char)
     return abs(ulong_to_long_sub(hash))
+
+def tool_error_code(error=None, returncode=None):
+    code = returncode if returncode is not None else getattr(error, "returncode", None)
+    if code is None:
+        return "unknown"
+    signed_code = ulong_to_long_sub(code) if isinstance(code, int) else code
+    if signed_code != code:
+        return f"{signed_code} ({code})"
+    return str(code)
 
 class NWO_OT_Lightmap(bpy.types.Operator):
     bl_idname = "nwo.lightmap"
@@ -75,18 +85,28 @@ class NWO_OT_Lightmap(bpy.types.Operator):
                 self.report({'WARNING'}, f"Specified BSP [{scene_nwo_export.lightmap_specific_bsp}] does not exist in the scenario tag: {scenario.tag_path.RelativePathWithExtension}")
                 return {'CANCELLED'}
             
-        run_lightmapper(
-            is_corinth,
-            scenario_path,
-            scene_nwo_export.lightmap_quality,
-            scene_nwo_export.lightmap_quality_h4,
-            scene_nwo_export.lightmap_all_bsps,
-            scene_nwo_export.lightmap_specific_bsp,
-            scene_nwo_export.lightmap_region.name if utils.pointer_ob_valid(scene_nwo_export.lightmap_region) else "",
-            asset_type in ("model", "sky") and is_corinth,
-            scene_nwo_export.lightmap_threads,
-            bsps)
+        try:
+            lightmap_results = run_lightmapper(
+                is_corinth,
+                scenario_path,
+                scene_nwo_export.lightmap_quality,
+                scene_nwo_export.lightmap_quality_h4,
+                scene_nwo_export.lightmap_all_bsps,
+                scene_nwo_export.lightmap_specific_bsp,
+                scene_nwo_export.lightmap_region.name if utils.pointer_ob_valid(scene_nwo_export.lightmap_region) else "",
+                asset_type in ("model", "sky") and is_corinth,
+                scene_nwo_export.lightmap_threads,
+                bsps)
+        except CalledProcessError as error:
+            message = f"Lightmapping aborted because Tool.exe exited with code {tool_error_code(error)}"
+            utils.print_error(message)
+            self.report({'WARNING'}, message)
+            return {'CANCELLED'}
         
+        if lightmap_results.lightmap_failed:
+            self.report({'WARNING'}, lightmap_results.lightmap_message)
+            return {'CANCELLED'}
+
         return {"FINISHED"}
     
 def run_lightmapper(
@@ -114,15 +134,19 @@ def run_lightmapper(
         structure_bsps,
     )
     
-    if not_bungie_game:
-        lightmap_results = lightmap.lightmap_h4()
-    else:
-        lightmap_results = lightmap.lightmap_reach()
+    try:
+        if not_bungie_game:
+            lightmap_results = lightmap.lightmap_h4()
+        else:
+            lightmap_results = lightmap.lightmap_reach()
+    except CalledProcessError as error:
+        lightmap.abort_tool_error("lightmapping", error=error)
+        lightmap_results = lightmap
         
     if lightmap_results.lightmap_failed:
         utils.print_error(lightmap_results.lightmap_message)
         proj = utils.get_project_path()
-        if proj:
+        if proj and lightmap_results.show_crash_report:
             crash_report = Path(proj, "crash_report", "crash_info.txt")
             if crash_report.exists():
                 utils.print_warning("Showing last crash report")
@@ -150,6 +174,7 @@ class LightMapper:
     ):
         self.lightmap_message = "Lightmap Successful"
         self.lightmap_failed = False
+        self.show_crash_report = True
         self.model_lightmap = model_lightmap
         self.scenario = scenario_path
         self.bsp = self.bsp_to_lightmap(lightmap_all_bsps, lightmap_specific_bsp)
@@ -169,6 +194,23 @@ class LightMapper:
 
     def print_exec_time(self):
         print(datetime.datetime.now() - self.start_time)
+
+    def abort_tool_error(self, stage, error=None, returncode=None, log_filename=""):
+        self.lightmap_failed = True
+        self.show_crash_report = False
+        message = f"Lightmapping aborted during {stage}: Tool.exe exited with code {tool_error_code(error, returncode)}"
+        if log_filename:
+            message += f". See error log for details: {log_filename}"
+            message += "\nIf nothing is written to the above log, it may be that you have minimal space remaining on your disk drive"
+        self.lightmap_message = message
+
+    def run_tool_or_abort(self, tool_args, stage, **kwargs):
+        try:
+            utils.run_tool(tool_args, **kwargs)
+        except CalledProcessError as error:
+            self.abort_tool_error(stage, error=error)
+            return False
+        return True
 
     def threads(self, stage, thread_index):
         log_filename = os.path.join(self.blob_dir, "logs", stage, f"{thread_index}.txt")
@@ -197,19 +239,28 @@ class LightMapper:
         ]
         print("--- Waiting for processes to complete")
         for idx, (p, log_filename) in enumerate(processes):
-            if p.wait() != 0:
-                self.lightmap_message = f"Lightmapper failed during {stage} on process {idx}. See error log for details: {log_filename}\nIf nothing is written to the above log, it may be that you have minimal space remaining on your disk drive"
-                self.lightmap_failed = True
+            returncode = p.wait()
+            if returncode != 0:
+                for remaining_process, _remaining_log in processes[idx + 1:]:
+                    try:
+                        if remaining_process.poll() is None:
+                            remaining_process.kill()
+                            remaining_process.wait()
+                    except Exception:
+                        pass
+                self.abort_tool_error(stage, returncode=returncode, log_filename=log_filename)
                 return False
 
-        utils.run_tool(
+        if not self.run_tool_or_abort(
             [
                 "faux_farm_" + stage + "_merge",
                 self.blob_dir,
                 str(self.thread_count),
             ],
+            "faux_farm_" + stage + "_merge",
             force_tool_fast=True,
-        )
+        ):
+            return False
 
         return True
 
@@ -228,11 +279,7 @@ class LightMapper:
             "-------------------------------------------------------------------------\n"
         )
         # self.print_exec_time()
-        try:
-            utils.run_tool(["faux_data_sync", self.scenario, self.bsp], force_tool_fast=True)
-        except:
-            self.lightmap_failed = True
-            self.lightmap_message = "Lightmapping failed during faux_data_sync"
+        if not self.run_tool_or_abort(["faux_data_sync", self.scenario, self.bsp], "faux_data_sync", force_tool_fast=True):
             return self
 
         print("\nFaux Farm")
@@ -240,7 +287,7 @@ class LightMapper:
             "-------------------------------------------------------------------------\n"
         )
         # self.print_exec_time()
-        utils.run_tool(
+        if not self.run_tool_or_abort(
             [
                 "faux_farm_begin",
                 self.scenario,
@@ -250,8 +297,10 @@ class LightMapper:
                 self.blob_dir_name,
                 self.analytical_light,
             ],
+            "faux_farm_begin",
             force_tool_fast=True
-        )
+        ):
+            return self
 
         print("\nDirect Illumination")
         print(
@@ -282,17 +331,20 @@ class LightMapper:
         print(
             "-------------------------------------------------------------------------\n"
         )
-        utils.run_tool(["faux_farm_finish", self.blob_dir], force_tool_fast=True)
+        if not self.run_tool_or_abort(["faux_farm_finish", self.blob_dir], "faux_farm_finish", force_tool_fast=True):
+            return self
 
-        utils.run_tool(
+        if not self.run_tool_or_abort(
             [
                 "faux-reorganize-mesh-for-analytical-lights",
                 self.scenario,
                 self.bsp,
             ],
+            "faux-reorganize-mesh-for-analytical-lights",
             force_tool_fast=True
-        )
-        utils.run_tool(
+        ):
+            return self
+        if not self.run_tool_or_abort(
             [
                 "faux-build-vmf-textures-from-quadratic",
                 self.scenario,
@@ -300,8 +352,10 @@ class LightMapper:
                 "true",
                 "true",
             ],
+            "faux-build-vmf-textures-from-quadratic",
             force_tool_fast=True
-        )
+        ):
+            return self
         self.lightmap_message = f"{utils.formalise_string(self.quality)} Quality lightmap complete"
         return self
 
@@ -406,7 +460,12 @@ class LightMapper:
                                 self.settings,
                             ]
                         )
-        except:
-            utils.print_warning("Lightmapper did not run")
+        except CalledProcessError as error:
+            self.abort_tool_error("faux_lightmap", error=error)
+        except Exception:
+            self.lightmap_failed = True
+            self.show_crash_report = False
+            self.lightmap_message = "Lightmapper did not run"
+            utils.print_warning(self.lightmap_message)
 
         return self
