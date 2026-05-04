@@ -3549,9 +3549,13 @@ def save_loop_normals(bm: bmesh.types.BMesh, mesh: bpy.types.Mesh):
             
 def save_loop_normals_mesh(mesh: bpy.types.Mesh):
     bm = bmesh.new()
-    bm.from_mesh(mesh)
-    save_loop_normals(bm, mesh)
-    bm.free()
+    try:
+        bm.from_mesh(mesh)
+        if bm.faces:
+            save_loop_normals(bm, mesh)
+            bm.to_mesh(mesh)
+    finally:
+        bm.free()
             
 def remove_face_attributes(bm: bmesh.types.BMesh, layer_prefix="ln"):
     layers_to_remove = [layer for layer in bm.faces.layers.float_vector.keys() if layer.startswith(layer_prefix)]
@@ -4978,68 +4982,76 @@ def connect_verts_on_edge(mesh: bpy.types.Mesh, do_degen_dissolve=True):
     """Split edges so that stray verts become connected"""
 
     bm = bmesh.new()
-    bm.from_mesh(mesh)
-    bm.verts.ensure_lookup_table()
-    bm.edges.ensure_lookup_table()
+    preserve_normals = mesh.has_custom_normals
+    try:
+        bm.from_mesh(mesh)
+        if preserve_normals and bm.faces:
+            save_loop_normals(bm, mesh)
+        bm.verts.ensure_lookup_table()
+        bm.edges.ensure_lookup_table()
 
-    tol=0.005
-    
-    tol2 = tol * tol
+        tol=0.005
 
-    for e in bm.edges:
-        if not e.is_valid:
-            continue
-        a, b = e.verts
-        seg = b.co - a.co
-        if seg.length_squared == 0.0:
-            continue
+        tol2 = tol * tol
 
-        bb_min = Vector((min(a.co.x, b.co.x) - tol,
-                         min(a.co.y, b.co.y) - tol,
-                         min(a.co.z, b.co.z) - tol))
-        bb_max = Vector((max(a.co.x, b.co.x) + tol,
-                         max(a.co.y, b.co.y) + tol,
-                         max(a.co.z, b.co.z) + tol))
-
-        stray = []
-        for v in bm.verts:
-            if v in e.verts:
+        for e in bm.edges:
+            if not e.is_valid:
+                continue
+            a, b = e.verts
+            seg = b.co - a.co
+            if seg.length_squared == 0.0:
                 continue
 
-            c = v.co
-            if (c.x < bb_min.x or c.x > bb_max.x or
-                c.y < bb_min.y or c.y > bb_max.y or
-                c.z < bb_min.z or c.z > bb_max.z):
+            bb_min = Vector((min(a.co.x, b.co.x) - tol,
+                             min(a.co.y, b.co.y) - tol,
+                             min(a.co.z, b.co.z) - tol))
+            bb_max = Vector((max(a.co.x, b.co.x) + tol,
+                             max(a.co.y, b.co.y) + tol,
+                             max(a.co.z, b.co.z) + tol))
+
+            stray = []
+            for v in bm.verts:
+                if v in e.verts:
+                    continue
+
+                c = v.co
+                if (c.x < bb_min.x or c.x > bb_max.x or
+                    c.y < bb_min.y or c.y > bb_max.y or
+                    c.z < bb_min.z or c.z > bb_max.z):
+                    continue
+
+                closest, t = geom.intersect_point_line(c, a.co, b.co)
+                if (c - closest).length_squared > tol2:
+                    continue
+                if tol < t < 1 - tol:
+                    stray.append((t, v))
+
+            if not stray:
                 continue
 
-            closest, t = geom.intersect_point_line(c, a.co, b.co)
-            if (c - closest).length_squared > tol2:
-                continue
-            if tol < t < 1 - tol:
-                stray.append((t, v))
+            stray.sort(key=lambda tv: tv[0])
+            cur_e   = e
+            cur_src = a
 
-        if not stray:
-            continue
+            for _t, v in stray:
+                closest, t = geom.intersect_point_line(v.co,
+                                                       cur_src.co,
+                                                       cur_e.other_vert(cur_src).co)
 
-        stray.sort(key=lambda tv: tv[0])
-        cur_e   = e
-        cur_src = a
+                _, helper = bmesh.utils.edge_split(cur_e, cur_src, t)
+                bmesh.ops.pointmerge(bm, verts=[v, helper], merge_co=v.co)
+                cur_src = v
+                cur_e   = next(ed for ed in v.link_edges if ed.other_vert(v) == b)
 
-        for _t, v in stray:
-            closest, t = geom.intersect_point_line(v.co,
-                                                   cur_src.co,
-                                                   cur_e.other_vert(cur_src).co)
+        # if do_degen_dissolve:
+        #     bmesh.ops.dissolve_degenerate(bm, dist=0.000725/0.03048, edges=bm.edges)
 
-            _, helper = bmesh.utils.edge_split(cur_e, cur_src, t)
-            bmesh.ops.pointmerge(bm, verts=[v, helper], merge_co=v.co)
-            cur_src = v
-            cur_e   = next(ed for ed in v.link_edges if ed.other_vert(v) == b)
-            
-    # if do_degen_dissolve:
-    #     bmesh.ops.dissolve_degenerate(bm, dist=0.000725/0.03048, edges=bm.edges)
+        bm.to_mesh(mesh)
+    finally:
+        bm.free()
 
-    bm.to_mesh(mesh)
-    bm.free()
+    if preserve_normals:
+        apply_loop_normals(mesh)
 
 def set_two_sided(mesh, is_io=False):
     face_dict = {}
