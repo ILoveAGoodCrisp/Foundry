@@ -95,12 +95,6 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             elif p == "animation_manager":
                 if not utils.poll_ui(('model', 'animation', 'camera_track_set', 'cinematic')):
                     continue
-            elif p in ("material_properties", 'sets_manager'):
-                if self.scene_nwo.asset_type in ('camera_track_set', 'animation', 'cinematic', 'single_animation') or (p == "material_properties" and self.scene_nwo.asset_type == "animation"):
-                    continue
-            elif p == "object_properties":
-                if self.scene_nwo.asset_type in ('camera_track_set', 'animation', 'single_animation'):
-                    continue
             
             row_icon = box.row(align=True)
             panel_active = getattr(self.scene_nwo, f"{p}_active")
