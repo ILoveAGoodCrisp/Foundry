@@ -4047,9 +4047,7 @@ class AnimationTag(Tag):
             
             start_bone = node_bone_dict[start_node] if start_node is not None else ""
             effector_bone = node_bone_dict[effector_node] if effector_node is not None else ""
-            
-            
-            
+
             chain = blender_ik_chains.get(name)
             if chain is None:
                 chain = blender_ik_chains.add()

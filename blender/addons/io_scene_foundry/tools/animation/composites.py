@@ -425,7 +425,11 @@ class CompositeXML:
     def build_xml(self):
         self._automatic_value_ranges = self.automatic_value_ranges()
         element_composite = ET.Element("composite")
-        timing_name = utils.space_partition(self.data.timing_source.replace(":", " "), True)
+        timing_source_name = utils.AnimationName(self.data.timing_source)
+        if timing_source_name.variant:
+            timing_name = f"{timing_source_name.state} {timing_source_name.variant}"
+        else:
+            timing_name = timing_source_name.state
         ET.SubElement(element_composite, "timing", source=timing_name)
         
         parent_stack = []
@@ -633,13 +637,14 @@ class CompositeXML:
 
         for leaf in group.leaves:
             self.write_leaf_entry(element_blend_axis, leaf, parent_stack, props, emitted_leaf_values)
-            
+
     def write_leaf_entry(self, element, leaf, parent_stack, inherited_props=None, emitted_leaf_values=None):
-        tokens = utils.tokenise(leaf.animation)
-        state = tokens[-1]
-        if state.startswith("var") and len(tokens) > 1:
-            state = tokens[-2]
-            
+        name = utils.AnimationName(leaf.animation)
+        state = name.state
+
+        if name.variant:
+            state = f"{state} {name.variant}"
+
         props = {"source": state}
         if inherited_props:
             props.update(inherited_props)
@@ -752,9 +757,20 @@ class CompositeXML:
         return f"{numeric:.6f}".rstrip("0").rstrip(".")
 
     def animation_bounds_for_axis(self, blend_axis):
+        source = animation_source_from_name(blend_axis.name)
         if blend_axis.animation_source_bounds_manual:
             bounds = blend_axis.animation_source_bounds
+            if source == "linear_movement_speed":
+                return 0.0, float(bounds[1])
+
             return float(bounds[0]), float(bounds[1])
+
+        if source == "linear_movement_speed":
+            value_range = self._automatic_value_ranges.get(id(blend_axis))
+            if value_range is not None:
+                max_speed = max(float(value_range[1]), 0.0)
+                if max_speed > 0.0:
+                    return 0.0, max_speed
 
         return 0.0, 1.0
 
@@ -771,6 +787,9 @@ class CompositeXML:
             return 0.0
 
         numeric = float(value)
+        if automatic and source == "linear_movement_speed":
+            return numeric
+
         bounds_min, bounds_max = self.animation_bounds_for_axis(blend_axis)
         bounds_span = bounds_max - bounds_min
 

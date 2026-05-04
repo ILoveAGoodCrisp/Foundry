@@ -2371,7 +2371,7 @@ class ExportScene:
         """ManagedBlam tasks to run before tool import is called"""
         self.node_usage_set = self.asset_type != AssetType.CINEMATIC and self.has_animations and self.any_node_usage_override()
         
-        if self.node_usage_set or self.scene_settings.ik_chains or self.has_animations:
+        if self.node_usage_set or self.scene_settings.ik_chains or self.exported_animations:
             has_skeleton = self.virtual_scene.skeleton_model is not None and self.virtual_scene.skeleton_model.skeleton is not None
             
             if self.scene_settings.template_model_animation_graph:
