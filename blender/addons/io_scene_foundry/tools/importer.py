@@ -60,6 +60,7 @@ from ..constants import IDENTITY_MATRIX, OBJECT_TAG_EXTS, VALID_MESHES, WU_SCALA
 from ..managed_blam.connected_material import GameFunctionType, game_functions
 from .. import utils
 from .model_to_instance import ModelInstance
+from functools import partial
 
 legacy_model_formats = '.jms', '.ass'
 legacy_animation_formats = '.jmm', '.jma', '.jmt', '.jmz', '.jmv', '.jmw', '.jmo', '.jmr', '.jmrx'
@@ -143,6 +144,8 @@ filetype_suffixes = (
 tag_files_cache = set()
 tag_files_by_name_cache = {}
 objects_cache = {}
+
+deferred_ops = []
 
 def set_asset(tag_ext: str, ob: bpy.types.Object=None, is_sky=False):
     scene_nwo = utils.get_scene_props()
@@ -743,6 +746,8 @@ class NWO_Import(bpy.types.Operator):
     )
     
     def execute(self, context):
+        global deferred_ops
+        deferred_ops = []
         scene_nwo = utils.get_scene_props()
         scene_nwo_export = utils.get_export_props()
         failed = False
@@ -1600,6 +1605,9 @@ class NWO_Import(bpy.types.Operator):
                     context.window.scene = switch_blender_scene
                     
                 apply_prefix_bulk(imported_objects)
+                
+                for op in deferred_ops:
+                    op()
                     
                 # # Clamp lights
                 # utils.print_tag("Clamping Lights")
@@ -2863,6 +2871,9 @@ class NWOImporter:
             constraint.target = marker
             return constraint
         
+        def defer_copy_marker_transform(target: bpy.types.Object, marker: bpy.types.Object):
+            deferred_ops.append(partial(_copy_marker_transform, target, marker))
+        
         # cache_key = child_object.child_object, child_object.child_variant_name
         # cached = objects_cache.get(cache_key)
         # need_to_cache = cached is None
@@ -2987,7 +2998,7 @@ class NWOImporter:
                         if marker_children:
                             _copy_marker_transform(attach_point, marker_parents[0])
                         else:
-                            _copy_marker_transform(armature, marker_parents[0])
+                            defer_copy_marker_transform(armature, marker_parents[0])
                     else:
                         if marker_children:
                             attach_point.parent = parent_armature
