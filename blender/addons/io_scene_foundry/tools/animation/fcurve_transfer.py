@@ -124,6 +124,23 @@ class NWO_OT_MovementDataToPedestal(bpy.types.Operator):
         default=True,
         description=""
     )
+    use_x_scale: bpy.props.BoolProperty(
+        name="X Scale",
+        description=""
+    )
+    use_y_scale: bpy.props.BoolProperty(
+        name="Y Scale",
+        description=""
+    )
+    use_z_scale: bpy.props.BoolProperty(
+        name="Z Scale",
+        description=""
+    )
+    relative_to_root_start: bpy.props.BoolProperty(
+        name="Keep Root Start In Place",
+        description="Frame 1 keeps the root bone's existing transform. Later frames receive the selected source transform deltas, and the source bone is counter-keyed so the visible animation stays the same",
+        default=True,
+    )
     
     relative: bpy.props.BoolProperty(
         name="Relative Source Transforms",
@@ -176,6 +193,7 @@ class NWO_OT_MovementDataToPedestal(bpy.types.Operator):
         layout.prop(self, "root_bone")
         layout.prop(self, "all_animations")
         layout.prop(self, "relative")
+        layout.prop(self, "relative_to_root_start")
         layout.prop(self, "movement_type", expand=True)
         if self.movement_type == 'MANUAL':
             layout.prop(self, "use_x_loc")
@@ -184,6 +202,9 @@ class NWO_OT_MovementDataToPedestal(bpy.types.Operator):
             layout.prop(self, "use_x_rot")
             layout.prop(self, "use_y_rot")
             layout.prop(self, "use_z_rot")
+            layout.prop(self, "use_x_scale")
+            layout.prop(self, "use_y_scale")
+            layout.prop(self, "use_z_scale")
         elif self.movement_type == 'ANIMATION':
             layout.prop_search(self, "animation", utils.get_scene_props(), "animations", icon='ANIM')
             layout.prop(self, "start_end", expand=True)
@@ -237,6 +258,9 @@ class NWO_OT_MovementDataToPedestal(bpy.types.Operator):
             settings_dict["use_x_rot"] = self.use_x_rot
             settings_dict["use_y_rot"] = self.use_y_rot
             settings_dict["use_z_rot"] = self.use_z_rot
+            settings_dict["use_x_scale"] = self.use_x_scale
+            settings_dict["use_y_scale"] = self.use_y_scale
+            settings_dict["use_z_scale"] = self.use_z_scale
         elif self.movement_type == 'POSE':
             if self.pose_type == 'CURRENT':
                 root_matrix = self.ob.pose.bones[self.root_bone].matrix.copy()
@@ -324,10 +348,10 @@ class NWO_OT_MovementDataToPedestal(bpy.types.Operator):
             for idx, animation in enumerate(scene_nwo.animations):
                 if root_matrix is not None or settings_dict or self.has_movement_data(animation):
                     print(f"--- {animation.name}")
-                    transfer_movement(context, animation, idx, self.ob, self.source_bone, self.root_bone, root_rest_matrix, root_matrix, settings_dict)
+                    transfer_movement(context, animation, idx, self.ob, self.source_bone, self.root_bone, root_rest_matrix, root_matrix, settings_dict, source_bone_anim_matrices.get(idx), self.relative_to_root_start)
         else:
             print(f"Calculating new root movement for {current_animation.name}")
-            transfer_movement(context, current_animation, current_animation_index, self.ob, self.source_bone, self.root_bone, root_rest_matrix, root_matrix, settings_dict)
+            transfer_movement(context, current_animation, current_animation_index, self.ob, self.source_bone, self.root_bone, root_rest_matrix, root_matrix, settings_dict, source_bone_anim_matrices.get(current_animation_index), self.relative_to_root_start)
             
         bpy.ops.object.editmode_toggle()
         self.ob.data.edit_bones[self.source_bone].parent = self.ob.data.edit_bones[self.root_bone]
@@ -379,110 +403,200 @@ def fix_source_movement(context: bpy.types.Context, animation, animation_index: 
         context.view_layer.update()
         source_bone.keyframe_insert(data_path='location', frame=i, options={'INSERTKEY_VISUAL'})
         source_bone.keyframe_insert(data_path='rotation_quaternion', frame=i, options={'INSERTKEY_VISUAL'})
+        source_bone.keyframe_insert(data_path='scale', frame=i, options={'INSERTKEY_VISUAL'})
         
-def transfer_movement(context: bpy.types.Context, animation, animation_index: int, ob: bpy.types.Object, source_bone_name: str, root_bone_name: str, root_rest_matrix: Matrix, root_matrix: Matrix, custom_settings: dict = {}):
+
+def _safe_scale_ratio(value: float, base: float) -> float:
+    if abs(base) < 1e-8:
+        return 1.0
+    return value / base
+
+
+def _movement_channel_masks(animation, custom_settings: dict, root_matrix: Matrix | list[Matrix] | None):
+    """Returns (use_loc, use_rot, use_scale, special_turn, final_token)."""
+    use_root_transform = root_matrix is not None
+    special_turn = False
+    final_token = ""
+
+    if custom_settings:
+        return (
+            (
+                custom_settings.get("use_x_loc", False),
+                custom_settings.get("use_y_loc", False),
+                custom_settings.get("use_z_loc", False),
+            ),
+            (
+                custom_settings.get("use_x_rot", False),
+                custom_settings.get("use_y_rot", False),
+                custom_settings.get("use_z_rot", False),
+            ),
+            (
+                custom_settings.get("use_x_scale", False),
+                custom_settings.get("use_y_scale", False),
+                custom_settings.get("use_z_scale", False),
+            ),
+            False,
+            final_token,
+        )
+
+    if use_root_transform:
+        return (True, True, True), (True, True, True), (True, True, True), False, final_token
+
+    movement = animation.animation_movement_data
+    if animation.animation_type == 'world':
+        return (True, True, True), (True, True, True), (False, False, False), False, final_token
+
+    if movement == "none":
+        return (True, True, False), (False, False, True), (False, False, False), False, final_token
+
+    horizontal = "xy" in movement
+    vertical = "z" in movement
+    yaw = "yaw" in movement
+    full = movement == "full"
+
+    if yaw:
+        final_token = animation.name.rpartition(" ")[2].lower()
+        if turn_rots.get(final_token) is not None:
+            special_turn = True
+            yaw = False
+
+    use_loc = (horizontal or full, horizontal or full, vertical or full)
+    use_rot = (full, full, yaw or full)
+    use_scale = (False, False, False)
+    return use_loc, use_rot, use_scale, special_turn, final_token
+
+
+def _compose_selected_delta_matrix(
+    source_matrix: Matrix,
+    source_start_matrix: Matrix,
+    root_start_matrix: Matrix,
+    use_loc: tuple[bool, bool, bool],
+    use_rot: tuple[bool, bool, bool],
+    use_scale: tuple[bool, bool, bool],
+) -> Matrix:
+    """
+    Builds a new root matrix where frame 1 is root_start_matrix, and later frames
+    are driven by the source bone while preserving the frame-1 source->root offset.
+
+    Important matrix order:
+        root frame N = source frame N @ inverse(source frame 1) @ root frame 1
+
+    This means the root starts exactly where it already was on frame 1, then follows
+    the source/pelvis motion with the same initial offset, instead of applying a
+    source delta in root-start space and drifting away from the source.
+
+    Selected transform masks are then applied from that wanted follow matrix onto the
+    root's frame-1 matrix, so disabled channels remain unchanged.
+    """
+    wanted_follow_matrix = source_matrix @ source_start_matrix.inverted_safe() @ root_start_matrix
+    return _compose_selected_absolute_matrix(
+        root_start_matrix,
+        wanted_follow_matrix,
+        use_loc,
+        use_rot,
+        use_scale,
+    )
+
+
+def _compose_selected_absolute_matrix(
+    existing_matrix: Matrix,
+    incoming_matrix: Matrix,
+    use_loc: tuple[bool, bool, bool],
+    use_rot: tuple[bool, bool, bool],
+    use_scale: tuple[bool, bool, bool],
+) -> Matrix:
+    existing_loc, existing_rot, existing_scale = existing_matrix.decompose()
+    incoming_loc, incoming_rot, incoming_scale = incoming_matrix.decompose()
+
+    loc = existing_loc.copy()
+    for axis, use_axis in enumerate(use_loc):
+        if use_axis:
+            loc[axis] = incoming_loc[axis]
+
+    if all(use_rot):
+        rot = incoming_rot
+    elif any(use_rot):
+        euler_order = existing_rot.to_euler().order
+        existing_euler = existing_rot.to_euler(euler_order)
+        incoming_euler = incoming_rot.to_euler(euler_order)
+        for axis, use_axis in enumerate(use_rot):
+            if use_axis:
+                existing_euler[axis] = incoming_euler[axis]
+        rot = existing_euler.to_quaternion()
+    else:
+        rot = existing_rot
+
+    scale = existing_scale.copy()
+    for axis, use_axis in enumerate(use_scale):
+        if use_axis:
+            scale[axis] = incoming_scale[axis]
+
+    return Matrix.LocRotScale(loc, rot, scale)
+
+
+def _insert_selected_root_keyframes(
+    root_bone: bpy.types.PoseBone,
+    frame: int,
+    use_loc: tuple[bool, bool, bool],
+    use_rot: tuple[bool, bool, bool],
+    use_scale: tuple[bool, bool, bool],
+):
+    if any(use_loc):
+        root_bone.keyframe_insert(data_path='location', frame=frame, options={'INSERTKEY_VISUAL'})
+    if any(use_rot):
+        root_bone.keyframe_insert(data_path='rotation_quaternion', frame=frame, options={'INSERTKEY_VISUAL'})
+    if any(use_scale):
+        root_bone.keyframe_insert(data_path='scale', frame=frame, options={'INSERTKEY_VISUAL'})
+
+
+def transfer_movement(
+    context: bpy.types.Context,
+    animation,
+    animation_index: int,
+    ob: bpy.types.Object,
+    source_bone_name: str,
+    root_bone_name: str,
+    root_rest_matrix: Matrix,
+    root_matrix: Matrix | list[Matrix] | None,
+    custom_settings: dict = {},
+    source_bone_matrices: list[Matrix] | None = None,
+    relative_to_root_start: bool = True,
+):
     scene_nwo = utils.get_scene_props()
     scene_nwo.active_animation_index = animation_index
     scene = context.scene
-    horizontal = False
-    vertical = False
-    yaw = False
-    full = False
-    special_turn = False
-    use_root_transform = root_matrix is not None
-    if not custom_settings and not use_root_transform:
-        movement = animation.animation_movement_data
-        if animation.animation_type == 'world':
-            full = True
-        elif movement == "none":
-            horizontal = True
-            yaw = True
-        else:
-            horizontal = "xy" in movement
-            vertical = "z" in movement
-            yaw = "yaw" in movement
-            full = movement == "full"
-            
-            # special turn
-            final_token = animation.name.rpartition(" ")[2].lower()
-            if yaw and turn_rots.get(final_token) is not None:
-                special_turn = True
-                yaw = False
-    
-    # Reach TURN
-    # turn_left 6.66 -> 120
-    # turn_left_slow 1.92 -> 86.7
-    # turn_left_fast 12.1 -> 360
-    # turn_right
-    # turn_right_slow
-    # turn_right_fast
-    
+
     root_bone = ob.pose.bones[root_bone_name]
     root_bone: bpy.types.PoseBone
-       
-    con_rot = None
-    con_loc = None
-    con_limit_rot = None
-    con_limit_loc = None
-    
-    # Add constraints if rotation
-    if custom_settings:
-        con_rot = root_bone.constraints.new(type='COPY_ROTATION')
-        con_rot.target = ob
-        con_rot.subtarget = source_bone_name
-        con_rot.target_space = 'LOCAL_OWNER_ORIENT'
-        con_rot.owner_space = 'LOCAL'
-        
-        con_loc = root_bone.constraints.new(type='COPY_LOCATION')
-        con_loc.target = ob
-        con_loc.subtarget = source_bone_name
-        con_loc.target_space = 'LOCAL_OWNER_ORIENT'
-        con_loc.owner_space = 'LOCAL'
-        
-        con_limit_rot = root_bone.constraints.new(type='LIMIT_ROTATION')
-        con_limit_rot.use_limit_x = not custom_settings.get("use_x_rot")
-        con_limit_rot.use_limit_y = not custom_settings.get("use_y_rot")
-        con_limit_rot.use_limit_z = not custom_settings.get("use_z_rot")
-        con_limit_rot.owner_space = 'LOCAL'
-        
-        con_limit_loc = root_bone.constraints.new(type='LIMIT_LOCATION')
-        con_limit_loc.use_min_x = not custom_settings.get("use_x_loc")
-        con_limit_loc.use_max_x = not custom_settings.get("use_x_loc")
-        con_limit_loc.use_min_y = not custom_settings.get("use_y_loc")
-        con_limit_loc.use_max_y = not custom_settings.get("use_y_loc")
-        con_limit_loc.use_min_z = not custom_settings.get("use_z_loc")
-        con_limit_loc.use_max_z = not custom_settings.get("use_z_loc")
-        con_limit_loc.owner_space = 'LOCAL'  
-    elif not use_root_transform:
-        if yaw or full:
-            con_rot = root_bone.constraints.new(type='COPY_ROTATION')
-            con_rot.target = ob
-            con_rot.subtarget = source_bone_name
-            con_rot.target_space = 'LOCAL_OWNER_ORIENT'
-            con_rot.owner_space = 'LOCAL'
-            
-            if not full:
-                con_limit_rot = root_bone.constraints.new(type='LIMIT_ROTATION')
-                con_limit_rot.use_limit_x = True
-                con_limit_rot.use_limit_y = True
-                con_limit_rot.owner_space = 'LOCAL'
-        
-        if horizontal or vertical or full:
-            con_loc = root_bone.constraints.new(type='COPY_LOCATION')
-            con_loc.target = ob
-            con_loc.subtarget = source_bone_name
-            con_loc.target_space = 'LOCAL_OWNER_ORIENT'
-            con_loc.owner_space = 'LOCAL'
-            
-            if not (vertical or full):
-                con_limit_loc = root_bone.constraints.new(type='LIMIT_LOCATION')
-                con_limit_loc.use_min_z = True
-                con_limit_loc.use_max_z = True
-                con_limit_loc.owner_space = 'LOCAL'
-    
-    # Neutralise source movement and save offets
-    # source_rest_loc = source_rest_matrix.to_translation()
-    # Apply offsets to root
+
+    use_loc, use_rot, use_scale, special_turn, final_token = _movement_channel_masks(animation, custom_settings, root_matrix)
+    use_root_transform = root_matrix is not None
+
+    # New path: root frame 1 remains where it already is. Later frames receive the
+    # selected source deltas. The source bone is restored/counter-keyed later by
+    # fix_source_movement(), so the visible skeleton animation stays the same.
+    if relative_to_root_start and source_bone_matrices:
+        scene.frame_set(animation.frame_start)
+        context.view_layer.update()
+        root_start_matrix = root_bone.matrix.copy()
+        source_start_matrix = source_bone_matrices[0].copy()
+
+        for idx, frame in enumerate(range(animation.frame_start, animation.frame_end + 1)):
+            scene.frame_set(frame)
+            source_matrix = source_bone_matrices[min(idx, len(source_bone_matrices) - 1)]
+            root_bone.matrix = _compose_selected_delta_matrix(
+                source_matrix,
+                source_start_matrix,
+                root_start_matrix,
+                use_loc,
+                use_rot,
+                use_scale,
+            )
+            context.view_layer.update()
+            _insert_selected_root_keyframes(root_bone, frame, use_loc, use_rot, use_scale)
+        return
+
+    # Original absolute/special-turn behaviour below.
     if not custom_settings and not use_root_transform and special_turn:
         root_rest_rot = root_rest_matrix.to_euler()
         turn_start, turn_end = turn_rots.get(final_token)
@@ -498,41 +612,96 @@ def transfer_movement(context: bpy.types.Context, animation, animation_index: in
         loc, _, sca = root_bone.matrix.decompose()
         root_bone.matrix = Matrix.LocRotScale(loc, euler_rot, sca)
         root_bone.keyframe_insert(data_path='rotation_quaternion', frame=animation.frame_end, options={'INSERTKEY_VISUAL'})
-            
+
         for i in range(animation.frame_start, animation.frame_end + 1):
             scene.frame_set(i)
             root_bone.keyframe_insert(data_path='rotation_quaternion', frame=i, options={'INSERTKEY_VISUAL'})
-            
-    elif use_root_transform:
+        return
+
+    if use_root_transform:
         if isinstance(root_matrix, Matrix):
-            for i in range(animation.frame_start, animation.frame_end + 1):
-                scene.frame_set(i)
-                root_bone.matrix = root_matrix
+            for frame in range(animation.frame_start, animation.frame_end + 1):
+                scene.frame_set(frame)
+                root_bone.matrix = _compose_selected_absolute_matrix(root_bone.matrix.copy(), root_matrix, use_loc, use_rot, use_scale)
                 context.view_layer.update()
-                root_bone.keyframe_insert(data_path='location', frame=i, options={'INSERTKEY_VISUAL'})
-                root_bone.keyframe_insert(data_path='rotation_quaternion', frame=i, options={'INSERTKEY_VISUAL'})
-                root_bone.keyframe_insert(data_path='scale', frame=i, options={'INSERTKEY_VISUAL'})
-        else: # list
-            for idx, i in enumerate(range(animation.frame_start, animation.frame_end + 1)):
-                scene.frame_set(i)
-                root_bone.matrix = root_matrix[idx]
+                _insert_selected_root_keyframes(root_bone, frame, use_loc, use_rot, use_scale)
+        else:
+            for idx, frame in enumerate(range(animation.frame_start, animation.frame_end + 1)):
+                scene.frame_set(frame)
+                root_bone.matrix = _compose_selected_absolute_matrix(root_bone.matrix.copy(), root_matrix[idx], use_loc, use_rot, use_scale)
                 context.view_layer.update()
-                root_bone.keyframe_insert(data_path='location', frame=i, options={'INSERTKEY_VISUAL'})
-                root_bone.keyframe_insert(data_path='rotation_quaternion', frame=i, options={'INSERTKEY_VISUAL'})
-                root_bone.keyframe_insert(data_path='scale', frame=i, options={'INSERTKEY_VISUAL'})
-    elif custom_settings:
-        for i in range(animation.frame_start, animation.frame_end + 1):
-            scene.frame_set(i)
-            root_bone.keyframe_insert(data_path='location', frame=i, options={'INSERTKEY_VISUAL'})
-            root_bone.keyframe_insert(data_path='rotation_quaternion', frame=i, options={'INSERTKEY_VISUAL'})
+                _insert_selected_root_keyframes(root_bone, frame, use_loc, use_rot, use_scale)
+        return
+
+    con_rot = None
+    con_loc = None
+    con_limit_rot = None
+    con_limit_loc = None
+
+    if custom_settings:
+        con_rot = root_bone.constraints.new(type='COPY_ROTATION')
+        con_rot.target = ob
+        con_rot.subtarget = source_bone_name
+        con_rot.target_space = 'LOCAL_OWNER_ORIENT'
+        con_rot.owner_space = 'LOCAL'
+
+        con_loc = root_bone.constraints.new(type='COPY_LOCATION')
+        con_loc.target = ob
+        con_loc.subtarget = source_bone_name
+        con_loc.target_space = 'LOCAL_OWNER_ORIENT'
+        con_loc.owner_space = 'LOCAL'
+
+        con_limit_rot = root_bone.constraints.new(type='LIMIT_ROTATION')
+        con_limit_rot.use_limit_x = not custom_settings.get("use_x_rot")
+        con_limit_rot.use_limit_y = not custom_settings.get("use_y_rot")
+        con_limit_rot.use_limit_z = not custom_settings.get("use_z_rot")
+        con_limit_rot.owner_space = 'LOCAL'
+
+        con_limit_loc = root_bone.constraints.new(type='LIMIT_LOCATION')
+        con_limit_loc.use_min_x = not custom_settings.get("use_x_loc")
+        con_limit_loc.use_max_x = not custom_settings.get("use_x_loc")
+        con_limit_loc.use_min_y = not custom_settings.get("use_y_loc")
+        con_limit_loc.use_max_y = not custom_settings.get("use_y_loc")
+        con_limit_loc.use_min_z = not custom_settings.get("use_z_loc")
+        con_limit_loc.use_max_z = not custom_settings.get("use_z_loc")
+        con_limit_loc.owner_space = 'LOCAL'
     else:
-        for i in range(animation.frame_start, animation.frame_end + 1):
-            scene.frame_set(i)
-            if horizontal or vertical or full:
-                root_bone.keyframe_insert(data_path='location', frame=i, options={'INSERTKEY_VISUAL'})
-            if yaw or full:
-                root_bone.keyframe_insert(data_path='rotation_quaternion', frame=i, options={'INSERTKEY_VISUAL'})
-                
+        if any(use_rot):
+            con_rot = root_bone.constraints.new(type='COPY_ROTATION')
+            con_rot.target = ob
+            con_rot.subtarget = source_bone_name
+            con_rot.target_space = 'LOCAL_OWNER_ORIENT'
+            con_rot.owner_space = 'LOCAL'
+
+            if use_rot != (True, True, True):
+                con_limit_rot = root_bone.constraints.new(type='LIMIT_ROTATION')
+                con_limit_rot.use_limit_x = not use_rot[0]
+                con_limit_rot.use_limit_y = not use_rot[1]
+                con_limit_rot.use_limit_z = not use_rot[2]
+                con_limit_rot.owner_space = 'LOCAL'
+
+        if any(use_loc):
+            con_loc = root_bone.constraints.new(type='COPY_LOCATION')
+            con_loc.target = ob
+            con_loc.subtarget = source_bone_name
+            con_loc.target_space = 'LOCAL_OWNER_ORIENT'
+            con_loc.owner_space = 'LOCAL'
+
+            if use_loc != (True, True, True):
+                con_limit_loc = root_bone.constraints.new(type='LIMIT_LOCATION')
+                con_limit_loc.use_min_x = not use_loc[0]
+                con_limit_loc.use_max_x = not use_loc[0]
+                con_limit_loc.use_min_y = not use_loc[1]
+                con_limit_loc.use_max_y = not use_loc[1]
+                con_limit_loc.use_min_z = not use_loc[2]
+                con_limit_loc.use_max_z = not use_loc[2]
+                con_limit_loc.owner_space = 'LOCAL'
+
+    for frame in range(animation.frame_start, animation.frame_end + 1):
+        scene.frame_set(frame)
+        context.view_layer.update()
+        _insert_selected_root_keyframes(root_bone, frame, use_loc, use_rot, use_scale)
+
     if con_loc is not None:
         root_bone.constraints.remove(con_loc)
         if con_limit_loc is not None:
