@@ -290,8 +290,8 @@ class InstanceDefinition:
                             
                         utils.save_loop_normals_mesh(self.blender_render.data)
                         bm = bmesh.new()
-                        bm.from_mesh(collision_mesh)
                         bm.from_mesh(self.blender_render.data)
+                        bm.from_mesh(collision_mesh)
                         bm.to_mesh(self.blender_render.data)
                         bm.free()
                                 

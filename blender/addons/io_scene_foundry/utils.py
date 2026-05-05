@@ -3578,7 +3578,7 @@ def apply_loop_normals(mesh: bpy.types.Mesh):
             mesh.normals_split_custom_set(loop_normals)
     finally:
         bm.free()
-    
+
 def loop_normal_magic(mesh: bpy.types.Mesh, distance=0.01):
     '''Saves current normals, merges vertices, and then restores the normals as loop normals'''
     bm = bmesh.new()
@@ -5083,12 +5083,20 @@ def set_two_sided(mesh, is_io=False):
         else:
             add_face_prop(mesh, "face_sides", two_sided)
         
+        preserve_normals = mesh.has_custom_normals
         bm = bmesh.new()
-        bm.from_mesh(mesh)
-        bm.faces.ensure_lookup_table()
-        bmesh.ops.delete(bm, geom=[bm.faces[i] for i in to_remove], context='FACES')
-        bm.to_mesh(mesh)
-        bm.free()
+        try:
+            bm.from_mesh(mesh)
+            if preserve_normals and bm.faces:
+                save_loop_normals(bm, mesh)
+            bm.faces.ensure_lookup_table()
+            bmesh.ops.delete(bm, geom=[bm.faces[i] for i in to_remove], context='FACES')
+            bm.to_mesh(mesh)
+        finally:
+            bm.free()
+
+        if preserve_normals:
+            apply_loop_normals(mesh)
 
 def join_objects(objects: list[bpy.types.Object]) -> bpy.types.Object:
     """Joins an iterable of objects together, ensuring no material or face property conflicts. All objects are joined into the first object in the list"""
