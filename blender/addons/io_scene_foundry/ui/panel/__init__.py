@@ -3038,6 +3038,21 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                         draw_tag_path(col, event, "sound_tag")
                         col.prop(event, "actor", text="Object")
                         col.prop(event, "script_factor", text="Sound Scale")
+                        
+            case 'MUSIC':
+                draw_tag_path(col, event, "sound_tag")
+                col.prop(event, "stop", text="Stop Music / Foley")
+            case 'FUNCTION':
+                col.prop(event, "actor")
+                col.prop(event, "function_name")
+                col.prop(event, "clear_function")
+                row = col.row()
+                row.enabled = (not event.clear_function)
+                row.prop(event, "value")
+                row = col.row()
+                row.enabled = (not event.clear_function)
+                row.prop(event, "interpolation_time")
+                
 
     def draw_animation_manager(self):
         box = self.box

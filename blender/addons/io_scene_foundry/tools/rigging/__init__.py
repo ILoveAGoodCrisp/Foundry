@@ -667,7 +667,8 @@ class HaloRig:
 
                 ikb = self.rig_data.edit_bones.new(fkb.name.replace("FK_", "IK_"))
                 ikb: bpy.types.EditBone
-                ikb.matrix = fkb.matrix
+                ikb.head = fkb.head
+                ikb.tail = fkb.tail
                 ikb.parent = root
                 
                 pole_target = self.rig_data.edit_bones.new(ikb.name.replace("IK_", "PT_"))
@@ -807,14 +808,14 @@ class HaloRig:
             ptb.color.palette = 'THEME01'
 
             ikb.custom_shape = ik_shape
-            ikb.custom_shape_scale_xyz = Vector((0.1, 0.1, 0.1)) * shape_scale * self.scale
-            ikb.use_custom_shape_bone_size = False
+            ikb.custom_shape_scale_xyz *= self.scale / 0.03048
+            ikb.use_custom_shape_bone_size = True
             ikb.custom_shape_translation = Vector((0.0, ikb.length, 0.0))
             ikb.custom_shape_rotation_euler = Vector((0.0, 0.0, 0.0))
 
             ptb.custom_shape = pole_shape
-            ptb.custom_shape_scale_xyz = Vector((0.05, 0.05, 0.05)) * shape_scale * self.scale
-            ptb.use_custom_shape_bone_size = False
+            ptb.custom_shape_scale_xyz *= self.scale / 0.03048
+            ptb.use_custom_shape_bone_size = True
             ptb.custom_shape_translation = Vector((0.0, 0.0, 0.0))
             ptb.custom_shape_rotation_euler = Vector((0.0, 0.0, 0.0))
             

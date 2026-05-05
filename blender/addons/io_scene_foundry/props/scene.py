@@ -1891,9 +1891,7 @@ class NWO_CinematicEvent(PropertyGroup):
             ("EFFECT", "Effect", "Play an effect on a cinematic actor, optionally on a particular marker"),
             ("SCRIPT", "Script", "Execute arbitary halo script at a frame"),
             ("MUSIC", "Music / Foley", "Start or stop a sound or sound_looping tag"),
-            ("FUNCTION", "Functions", "Set a function value on a cinematic actor at a given frame"),
-            ("SCREEN_EFFECT", "Screen Effects", "Start or stop display of an area screen effect"),
-            ("INPUT", "User Input", "Start or stop (and optionally constrain within bounds) user input"),
+            ("FUNCTION", "Function", "Set a function value on a cinematic actor at a given frame"),
         ]
         
     def get_name(self):
@@ -1961,10 +1959,6 @@ class NWO_CinematicEvent(PropertyGroup):
                     f"{Path(self.function_name)} -> {self.actor.name}"
                 else:
                     f"{Path(self.function_name)} -> NONE"
-            case 'SCREEN_EFFECT':
-                f"{start_stop} {Path(self.screen_effect).with_suffix('').name}"
-            case 'INPUT':
-                f"{start_stop} {Path(self.screen_effect).with_suffix('').name}"
         
     name: bpy.props.StringProperty(
         name="Name",
@@ -1988,6 +1982,7 @@ class NWO_CinematicEvent(PropertyGroup):
     
     stop: bpy.props.BoolProperty(
         name="Stop",
+        options=set(),
         description="Stop this event rather than starting it at the given frame",
     )
     
@@ -2180,6 +2175,7 @@ class NWO_CinematicEvent(PropertyGroup):
     script_seconds: bpy.props.FloatProperty( # converted to ticks with seconds * 30 for scripts
         name="Script Argument Seconds",
         options=set(),
+        subtype='TIME_ABSOLUTE',
         default=1,
         min=0,
     )
@@ -2204,10 +2200,28 @@ class NWO_CinematicEvent(PropertyGroup):
     music: bpy.props.StringProperty()
     
     # Function
-    function_name: bpy.props.StringProperty()
-    value: bpy.props.FloatProperty()
+    clear_function: bpy.props.BoolProperty(
+        name="Clear Function",
+        description="Reset a function to its default value immediately",
+        options=set(),
+    )
+    function_name: bpy.props.StringProperty(
+        name="Function Name",
+        description="Name of the function to set the value of. Select from the object tag functions or input a built in function name"
+    )
+    value: bpy.props.FloatProperty(
+        name="Value",
+        subtype='FACTOR',
+        options=set(),
+        soft_min=0,
+        soft_max=1,
+        description="Value of the function at the given frame. If interpolation time is 0, this value is set instantly, otherwise the will interpolate at the given frame to its new value over the given number of seconds"
+    )
     interpolation_time: bpy.props.FloatProperty(
         name="Interpolation Time",
+        options=set(),
+        subtype='TIME_ABSOLUTE',
+        min=0,
         description="Time to go from the current function value to the new one, in seconds"
     )
     

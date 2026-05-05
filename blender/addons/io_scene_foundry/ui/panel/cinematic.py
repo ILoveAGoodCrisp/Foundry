@@ -355,6 +355,10 @@ class NWO_UL_CinematicEvents(bpy.types.UIList):
                 layout.label(text=item.name, icon_value=get_icon_id("effects"))
             case 'SCRIPT':
                 layout.label(text=item.name, icon='TEXT')
+            case 'MUSIC':
+                layout.label(text=item.name, icon='SOUND')
+            case 'FUNCTION':
+                layout.label(text=item.name, icon='FCURVE')
         
         row = layout.row()
         row.alignment = 'RIGHT'
