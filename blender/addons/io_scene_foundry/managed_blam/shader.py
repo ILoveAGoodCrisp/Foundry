@@ -278,26 +278,7 @@ class ShaderTag(Tag):
     def write_tag(self, blender_material, linked_to_blender, material_shader=''):
         self.blender_material = blender_material
         self.material_shader = material_shader
-        def _get_group_node(blender_material):
-            """Gets a group node from a blender material node tree if one exists and it plugged into the output node"""
-            tree = self.blender_material.node_tree
-            if tree is None:
-                return None
-            nodes = tree.nodes
-            for n in nodes:
-                if n.type != "OUTPUT_MATERIAL":
-                    continue
-                links = n.inputs[0].links
-                if not links:
-                    continue
-                from_node = links[0].from_node
-                if from_node.type != "GROUP":
-                    continue
-                group_tree = from_node.node_tree
-                if group_tree:
-                    return from_node
-            return None
-        self.group_node = _get_group_node(blender_material)
+        self.group_node = self._find_group_node(blender_material)
         if self.corinth:
             self.custom = self.group_node is not None
         else:
@@ -316,6 +297,54 @@ class ShaderTag(Tag):
             self._build_basic(self._get_basic_mapping(self.blender_material))
         
         self.tag_has_changes = True
+
+    def _iter_material_output_surface_links(self, node_tree: bpy.types.NodeTree):
+        for node in node_tree.nodes:
+            if node.type != "OUTPUT_MATERIAL":
+                continue
+            surface_input = node.inputs.get('Surface')
+            if surface_input is None and node.inputs:
+                surface_input = node.inputs[0]
+            if surface_input is None:
+                continue
+            for link in surface_input.links:
+                yield link
+
+    def _iter_upstream_nodes_from_material_outputs(self, node_tree: bpy.types.NodeTree):
+        pending = [link.from_node for link in self._iter_material_output_surface_links(node_tree)]
+        visited = set()
+        while pending:
+            node = pending.pop(0)
+            if node is None or id(node) in visited:
+                continue
+            visited.add(id(node))
+            yield node
+            for input_socket in node.inputs:
+                for link in input_socket.links:
+                    pending.append(link.from_node)
+
+    def _group_node_is_export_candidate(self, group_node: bpy.types.Node | None) -> bool:
+        return self._group_node_matches(group_node)
+
+    def _find_group_node(self, blender_material: bpy.types.Material) -> bpy.types.Node | None:
+        tree = blender_material.node_tree
+        if tree is None:
+            return
+
+        for node in self._iter_upstream_nodes_from_material_outputs(tree):
+            if node.type == "GROUP" and getattr(node, "node_tree", None) and self._group_node_is_export_candidate(node):
+                return node
+
+        for node in tree.nodes:
+            if node.type == "GROUP" and getattr(node, "node_tree", None) and self._group_node_is_export_candidate(node):
+                return node
+
+        for link in self._iter_material_output_surface_links(tree):
+            from_node = link.from_node
+            if from_node.type == "GROUP" and getattr(from_node, "node_tree", None):
+                return from_node
+
+        return None
 
     @staticmethod
     def _normalize_group_name(name: str) -> str:

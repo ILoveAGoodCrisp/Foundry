@@ -130,7 +130,68 @@ class MaterialTag(ShaderTag):
         if not path:
             return ''
         return utils.relative_path(path)
-                
+
+    def _group_node_is_export_candidate(self, group_node: bpy.types.Node | None) -> bool:
+        if group_node is None or group_node.type != "GROUP":
+            return False
+        group_tree = getattr(group_node, "node_tree", None)
+        if group_tree is None:
+            return False
+
+        group_node_name = utils.dot_partition(group_tree.name.lower().replace(' ', '_'))
+        return bool(self._material_shader_path_from_group_node(group_node_name))
+
+    def _material_parameter_from_input(self, input: bpy.types.NodeSocket, parameters: dict[str, MaterialParameter], cull_chars: str, ignored_parameters: set[str] = None):
+        ignored_parameters = ignored_parameters or set()
+        input_name = utils.remove_chars(input.name.lower(), cull_chars)
+        for parameter_name, value in parameters.items():
+            if parameter_name in ignored_parameters:
+                continue
+            parameter_name_culled = utils.remove_chars(parameter_name.lower(), cull_chars)
+            display_name = utils.remove_chars(value.ui_name.lower(), cull_chars)
+            if input_name == parameter_name_culled or input_name == display_name:
+                return parameter_name, value
+
+        return None, None
+
+    def _iter_upstream_group_nodes(self, node: bpy.types.Node):
+        visited = []
+        pending = []
+        for input in node.inputs:
+            for link in input.links:
+                pending.append(link.from_node)
+
+        while pending:
+            upstream_node = pending.pop(0)
+            if upstream_node in visited:
+                continue
+
+            visited.append(upstream_node)
+            if upstream_node.type == 'GROUP':
+                yield upstream_node
+
+            for input in upstream_node.inputs:
+                for link in input.links:
+                    pending.append(link.from_node)
+
+    def _source_from_input_and_parameter_type(self, input, parameter_type, source_node=None):
+        source_node = source_node or self.group_node
+        input_name = input.name.lower()
+        match parameter_type:
+            case 'bitmap':
+                linked = utils.find_linked_node(source_node, input_name, 'TEX_IMAGE')
+                if linked is None:
+                    linked = utils.find_linked_node(source_node, input_name, 'TEX_ENVIRONMENT')
+                return linked
+            case 'real':
+                return float(input.default_value)
+            case 'int':
+                return int(input.default_value)
+            case 'bool':
+                return int(bool(input.default_value))
+            case 'color':
+                return utils.get_material_albedo(source_node, input)
+
     def _from_nodes_group(self):
         name_type_node_dict = {}
         inputs = self.group_node.inputs
@@ -162,14 +223,20 @@ class MaterialTag(ShaderTag):
                 blend_mode_items = [i.EnumName for i in self.alpha_blend_mode.Items]
                 if i.default_value in blend_mode_items:
                     self.alpha_blend_mode.Value = blend_mode_items.index(i.default_value)
-            for parameter_name, value in parameters.items():
-                parameter_name_culled = utils.remove_chars(parameter_name.lower(), cull_chars)
-                display_name = utils.remove_chars(value.ui_name.lower(), cull_chars)
-                input_name = utils.remove_chars(i.name.lower(), cull_chars)
-                if input_name == parameter_name_culled or input_name == display_name:
-                    name_type_node_dict[parameter_name] = [value.type_name, self._source_from_input_and_parameter_type(i, value.type_name)]
-                    break
-                    
+            parameter_name, value = self._material_parameter_from_input(i, parameters, cull_chars)
+            if parameter_name:
+                name_type_node_dict[parameter_name] = [value.type_name, self._source_from_input_and_parameter_type(i, value.type_name, self.group_node)]
+
+        for upstream_node in self._iter_upstream_group_nodes(self.group_node):
+            for i in upstream_node.inputs:
+                ignored_parameters = {
+                    name for name, (param_type, source) in name_type_node_dict.items()
+                    if param_type != 'bitmap' or source is not None
+                }
+                parameter_name, value = self._material_parameter_from_input(i, parameters, cull_chars, ignored_parameters)
+                if parameter_name:
+                    name_type_node_dict[parameter_name] = [value.type_name, self._source_from_input_and_parameter_type(i, value.type_name, upstream_node)]
+
         for name, value in name_type_node_dict.items():
             param_type, source = value
             element = self._setup_parameter(source, name, param_type)
@@ -562,6 +629,49 @@ class MaterialTag(ShaderTag):
                 
                 tree.links.new(input=group_node.inputs["layer2_coMap_xz"], output=coMap_xz_node.outputs[0])
                 tree.links.new(input=group_node.inputs["layer2_coMap_alpha_xz"], output=coMap_xz_node.outputs[1])
+                
+            case 'srf_blinn_detail_satramp':
+                vector_node = tree.nodes.new('ShaderNodeGroup')
+                vector_node.node_tree = utils.add_node_from_resources("h4_nodes", name='srf_blinn_detail_satramp - saturation_ramp_vector')
+                
+                if group_node.inputs['saturation_ramp'].links:
+                    sat_ramp_node = group_node.inputs['saturation_ramp'].links[0].from_node
+                    tree.links.new(input=sat_ramp_node.inputs[0], output=vector_node.outputs[0])
+                    
+                self.populate_chiefster_node(tree, vector_node, material_parameters, material_parameters_true)
+                
+            case 'srf_matcap_normal_uv2':
+                vector_node = tree.nodes.new('ShaderNodeGroup')
+                vector_node.node_tree = utils.add_node_from_resources("h4_nodes", name='srf_matcap_normal_uv2 - edge_map_vector')
+                has_edge_map = False
+                if group_node.inputs['edge_map'].links:
+                    has_edge_map = True
+                    edge_map_node = group_node.inputs['edge_map'].links[0].from_node
+                    tree.links.new(input=edge_map_node.inputs[0], output=vector_node.outputs[0])
+                    
+                if group_node.inputs['edge_map_alpha'].links:
+                    if has_edge_map:
+                        edge_map_alpha_node = tree.nodes.new('ShaderNodeTexImage')
+                        edge_map_alpha_node.image = edge_map_node.image
+                        tree.links.new(input=group_node.inputs['edge_map_alpha'], output=edge_map_alpha_node.outputs[1])
+                    else:
+                        edge_map_alpha_node = group_node.inputs['edge_map_alpha'].links[0].from_node
+                    tree.links.new(input=edge_map_alpha_node.inputs[0], output=vector_node.outputs[1])
+                    
+                self.populate_chiefster_node(tree, vector_node, material_parameters, material_parameters_true)
+                
+            case 'srf_env_m90_phong_reflection':
+                if group_node.inputs['control_map_spglrf'].links:
+                    control_map_node = group_node.inputs['control_map_spglrf'].links[0].from_node
+                    utils.insert_uv_map_node(control_map_node, "UVMap1")
+                    
+            case 'srf_env_m90_phong_reflection_detail':
+                if group_node.inputs['control_map_spglrf'].links:
+                    control_map_node = group_node.inputs['control_map_spglrf'].links[0].from_node
+                    utils.insert_uv_map_node(control_map_node, "UVMap1")
+                if group_node.inputs['normal_detail_map'].links:
+                    normal_detail_node = group_node.inputs['normal_detail_map'].links[0].from_node
+                    utils.insert_uv_map_node(normal_detail_node, "UVMap1")
 
         # Make the Output
         node_output = nodes.new(type='ShaderNodeOutputMaterial')
