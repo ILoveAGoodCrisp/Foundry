@@ -1772,7 +1772,7 @@ class ShaderTag(Tag):
     
     def add_texcoord_node(self, tree, input):
         nodes = tree.nodes
-        node = nodes.new(type="ShaderNodeTexCoord")
+        node = nodes.new(type="ShaderNodeTexCoord" if self.generated_uvs else "ShaderNodeUVMap")
         if self.generated_uvs:
             vec_node = nodes.new(type="ShaderNodeVectorRotate")
             vec_node.rotation_type = 'Z_AXIS'
@@ -1781,7 +1781,7 @@ class ShaderTag(Tag):
             tree.links.new(input=vec_node.inputs[0], output=node.outputs[0])
             tree.links.new(input=input, output=vec_node.outputs[0])
         else:
-            tree.links.new(input=input, output=node.outputs[2])
+            tree.links.new(input=input, output=node.outputs[0])
     
     def _to_nodes_group(self, blender_material: bpy.types.Material):
         # Get options
