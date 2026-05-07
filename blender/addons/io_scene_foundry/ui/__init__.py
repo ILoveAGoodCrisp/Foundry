@@ -201,6 +201,8 @@ classes = [
     cinematic.NWO_OT_CinematicEventAdd,
     cinematic.NWO_OT_CinematicEventRemove,
     cinematic.NWO_OT_CinematicEventSetFrame,
+    cinematic.NWO_OT_UpdateActor,
+    cinematic.NWO_OT_TransformCinematicEventFrames,
     cinematic.NWO_OT_GetSoundEffects,
     cinematic.NWO_OT_CinematicEventsClear,
     cinematic.NWO_OT_GetCinematicVariant,

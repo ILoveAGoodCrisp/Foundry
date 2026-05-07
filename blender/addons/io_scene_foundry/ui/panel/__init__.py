@@ -1548,6 +1548,16 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         col1 = row.column()
         col1.template_ID(context.view_layer.objects, "active", filter="AVAILABLE")
         if ob.type == 'CAMERA' and is_cinematic:
+            box.label(text="Camera Shot Properties")
+            box.prop(nwo, "header")
+            box.prop(nwo, "footer")
+            box.prop(nwo, "instant_auto_exposure")
+            box.prop(nwo, "force_exposure")
+            box.prop(nwo, "generate_looping_script")
+            box.prop(nwo, "environment_darker")
+            box.prop(nwo, "forced_exposure")
+            box.separator()
+
             box.operator("nwo.bake_visibility_to_keyframes", icon='DECORATE_KEYFRAME')
             box.operator("nwo.clear_visibility_keyframes", icon='X') 
             markers = utils.get_timeline_markers(self.scene)
@@ -1647,7 +1657,31 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 col.separator()
                 box = col.box()
                 box.label(text="Cinematic Properties")
+                col = box.column()
                 draw_tag_path(col, nwo, "cinematic_object")
+                row = col.row(align=True)
+                row.prop(nwo, "cinematic_variant")
+                if bpy.ops.nwo.get_cinematic_model_variants.poll():
+                    row.operator_menu_enum("nwo.get_cinematic_model_variants", "variant", icon="DOWNARROW_HLT", text="")
+
+                col.operator("nwo.update_actor", icon='FILE_REFRESH')
+                col.prop(nwo, "object_source")
+                col.label(text="Flags")
+                col.prop(nwo, "effect_object")
+                col.prop(nwo, "no_lightmap_shadow")
+                col.prop(nwo, "apply_player_customization")
+                col.prop(nwo, "apply_first_person_player_customization")
+                col.prop(nwo, "english_lipsync_manual")
+                if self.h4:
+                    col.prop(nwo, "primary_cortana")
+                    col.prop(nwo, "preload_textures")
+
+                col.label(text="Creation Overrides")
+                col.prop(nwo, "override_1_player")
+                col.prop(nwo, "override_2_player")
+                col.prop(nwo, "override_3_player")
+                col.prop(nwo, "override_4_player")
+                col.prop(nwo, "override_script")
                     
             elif utils.poll_ui(("model", "sky", "animation")):
                 col.separator()
@@ -2930,6 +2964,12 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         col.operator("nwo.cinematic_event_remove", icon="REMOVE", text="")
         col.separator()
         col.operator("nwo.cinematic_events_clear", icon="CANCEL", text="")
+        if nwo.cinematic_events:
+            col.separator()
+            op = col.operator("nwo.transform_cinematic_event_frames", icon="ARROW_LEFTRIGHT", text="")
+            op.operation = 'MOVE'
+            op = col.operator("nwo.transform_cinematic_event_frames", icon="FULLSCREEN_ENTER", text="")
+            op.operation = 'SCALE'
         
         if not (nwo.cinematic_events and nwo.active_cinematic_event_index > -1):
             return
@@ -3639,6 +3679,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         col.operator("nwo.shader_farm", text=f"Batch Build {shader_type}s", icon_value=get_icon_id("material_exporter"))
         col.separator()
         col.operator("nwo.shader_to_nodes_bulk", text=f"Convert {shader_type}s to Blender Materials", icon='NODE_MATERIAL')
+        if h4:
+            col.operator("nwo.shader_to_material", text="Convert Shaders to Material Tags", icon_value=get_icon_id("material_exporter"))
         col.operator("nwo.build_shader_templates", text=f"Generate Missing Shader Templates", icon='VIEWZOOM')
         col.separator()
         col.operator("nwo.stomp_materials", text=f"Remove Duplicate Materials", icon='X')

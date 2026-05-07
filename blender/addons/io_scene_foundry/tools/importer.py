@@ -5,7 +5,7 @@ from enum import Enum
 import logging
 from math import radians
 import os
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 import re
 import time
 import traceback
@@ -75,6 +75,8 @@ last_used_decorator_type = ""
 
 sky_items = []
 cinematic_scene_items = []
+BIPED_WEAPON_SOURCE_BIPED_TAG = "biped_tag_weapons"
+biped_weapon_source_item_cache = []
 
 zone_set_items = {"blah": "blah"}
 
@@ -82,6 +84,35 @@ ammo_names = "primary_ammunition", "airstrike_launch_count", "secondary_ammuniti
 tether_name = "tether_distance"
 
 checked_asset_once = False
+
+def biped_weapon_source_items(_self, _context):
+    global biped_weapon_source_item_cache
+    items = [
+        (BIPED_WEAPON_SOURCE_BIPED_TAG, "Default", "Import the weapons referenced by the biped tag"),
+    ]
+    weapon_paths = defaultdict(set)
+
+    with Tag(path=r"multiplayer\globals.multiplayer_object_type_list", tag_must_exist=True, raise_on_error=False) as mp_globals:
+        
+        object_types = mp_globals.tag.SelectField("object types")
+        types_count = object_types.Elements.Count
+        
+        for element in mp_globals.tag.SelectField("Block:weapons").Elements:
+            type_value = element.Fields[0].Value
+            if type_value > -1 and type_value < types_count:
+                type_element = object_types.Elements[type_value]
+                object_tag_path = type_element.Fields[2].Path
+                if mp_globals.path_exists(object_tag_path):
+                    folder = Path(object_tag_path.RelativePath).parent.parent
+                    weapon_paths[folder.name].add(object_tag_path.RelativePathWithExtension)
+    
+    for folder, paths in weapon_paths.items():
+        items.append(("", folder, ""))
+        for path in sorted(paths, key=lambda p: Path(p).with_suffix("").name):
+            items.append((path, Path(path).with_suffix("").name, ""))
+
+    biped_weapon_source_item_cache = items
+    return biped_weapon_source_item_cache
 
 ### Steps for adding a new file type ###
 ########################################
@@ -528,6 +559,12 @@ class NWO_Import(bpy.types.Operator):
     import_biped_weapon: bpy.props.BoolProperty(
         name="Import Biped Weapons",
         description="Imports all the biped's weapons if it has any",
+    )
+
+    biped_weapon_source: bpy.props.EnumProperty(
+        name="Biped Weapon",
+        description="Weapon source to import when importing biped weapons",
+        items=biped_weapon_source_items,
     )
     
     tag_state: bpy.props.EnumProperty(
@@ -1006,6 +1043,7 @@ class NWO_Import(bpy.types.Operator):
                         importer.graph_import_ik_chains = self.graph_import_ik_chains
                         importer.import_variant_children = self.import_variant_children
                         importer.import_biped_weapon = self.import_biped_weapon
+                        importer.biped_weapon_source = self.biped_weapon_source
                         importer.setup_as_asset = self.setup_as_asset
                         importer.import_fp_arms = FPARMS[self.import_fp_arms]
                         importer.from_vert_normals = self.from_vert_normals
@@ -1794,6 +1832,8 @@ class NWO_Import(bpy.types.Operator):
                 box.prop(self, "import_variant_children")
             
             box.prop(self, 'import_biped_weapon')
+            if self.import_biped_weapon:
+                box.prop(self, "biped_weapon_source")
             box.prop(self, "setup_as_asset")
             box.prop(self, "from_vert_normals")
             box.prop(self, "tag_import_attachments")
@@ -2128,6 +2168,8 @@ class NWOImporter:
         self.tag_animation_filter = ""
         self.import_variant_children = False
         self.import_biped_weapon = False
+        self.biped_weapon_source = BIPED_WEAPON_SOURCE_BIPED_TAG
+        self.import_biped_weapon_non_export = True
         self.setup_as_asset = False
         self.tag_sky = ""
         self.for_cinematic = self.scene_nwo.asset_type == "cinematic"
@@ -2819,21 +2861,34 @@ class NWOImporter:
                                     self.context.view_layer.update()
                                     
                             if self.import_biped_weapon and obj.tag_path.Extension == "biped":
-                                weapons = obj.tag.SelectField("Struct:unit[0]/Block:weapons")
-                                if weapons is not None and weapons.Elements.Count > 0:
+                                weapon_paths = []
+                                if self.biped_weapon_source and self.biped_weapon_source != BIPED_WEAPON_SOURCE_BIPED_TAG:
+                                    weapon_paths.append(self.biped_weapon_source)
+                                else:
+                                    weapons = obj.tag.SelectField("Struct:unit[0]/Block:weapons")
+                                    if weapons is not None:
+                                        weapon_paths.extend([element.Fields[0].Path for element in weapons.Elements if element.Fields[0].Path is not None])
+
+                                if weapon_paths:
                                     weapon_collection = bpy.data.collections.new(name=f"{model.tag_path.ShortName}_weapon")
                                     model_collection.children.link(weapon_collection)
-                                    for wep_element in weapons.Elements:
-                                        weapon = wep_element.Fields[0].Path
-                                        if weapon is not None:
-                                            utils.print_section(f"Importing Weapon: {weapon.ShortNameWithExtension}")
-                                            child = ChildObject()
-                                            parent_marker = obj.tag.SelectField("Struct:unit[0]/StringId:right_hand_node").GetStringData()
-                                            child.parent_marker = parent_marker if parent_marker else "primary_weapon"
-                                            child_marker = obj.tag.SelectField("Struct:unit[0]/Struct:more damn nodes[0]/StringId:preferred_gun_node").GetStringData()
-                                            child.child_marker = child_marker if child_marker else "right_hand"
-                                            child.child_object = weapon
-                                            imported_file_objects.extend(self.import_child_object(child, armature, {ob: ob.nwo.marker_model_group for ob in render_objects if ob.type == 'EMPTY'}, weapon_collection, is_game_object))
+                                    for weapon in weapon_paths:
+                                        weapon_name = weapon.ShortNameWithExtension if hasattr(weapon, "ShortNameWithExtension") else PureWindowsPath(weapon).name
+                                        utils.print_section(f"Importing Weapon: {weapon_name}")
+                                        child = ChildObject()
+                                        parent_marker = obj.tag.SelectField("Struct:unit[0]/StringId:right_hand_node").GetStringData()
+                                        child.parent_marker = parent_marker if parent_marker else "primary_weapon"
+                                        child_marker = obj.tag.SelectField("Struct:unit[0]/Struct:more damn nodes[0]/StringId:preferred_gun_node").GetStringData()
+                                        child.child_marker = child_marker if child_marker else "right_hand"
+                                        child.child_object = weapon
+                                        imported_file_objects.extend(self.import_child_object(
+                                            child,
+                                            armature,
+                                            {ob: ob.nwo.marker_model_group for ob in render_objects if ob.type == 'EMPTY'},
+                                            weapon_collection,
+                                            is_game_object,
+                                            make_armature_non_export=self.import_biped_weapon_non_export and self.scene_nwo.asset_type != 'cinematic',
+                                        ))
                                     self.context.view_layer.update()
                                     
                             if not is_game_object and self.setup_as_asset:
@@ -2858,7 +2913,7 @@ class NWOImporter:
         else:
             return imported_objects, imported_animations
     
-    def import_child_object(self, child_object: ChildObject, parent_armature: bpy.types.Object, markers: dict[bpy.types.Object: str], child_collection, is_game_object):
+    def import_child_object(self, child_object: ChildObject, parent_armature: bpy.types.Object, markers: dict[bpy.types.Object: str], child_collection, is_game_object, make_armature_non_export=True):
         imported_objects = []
         armature = None
         if child_object.child_object is None:
@@ -2933,7 +2988,8 @@ class NWOImporter:
                                 self.obs_for_props[ob] = functions
                                 
                         if ob.type == 'ARMATURE':
-                            ob.nwo.export_this = False
+                            if make_armature_non_export:
+                                ob.nwo.export_this = False
                             ob.nwo.cinematic_object = obj.tag_path.RelativePathWithExtension
                             if temp_variant == self.tag_variant:
                                 ob.nwo.cinematic_variant = temp_variant
@@ -4635,6 +4691,12 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         name="Import Biped Weapons",
         description="Imports all the biped's weapons if it has any",
     )
+
+    biped_weapon_source: bpy.props.EnumProperty(
+        name="Biped Weapon",
+        description="Weapon source to import when importing biped weapons",
+        items=biped_weapon_source_items,
+    )
     
     amf_okay : bpy.props.BoolProperty(options={"HIDDEN", "SKIP_SAVE"})
     legacy_okay : bpy.props.BoolProperty(options={"HIDDEN", "SKIP_SAVE"})
@@ -4814,6 +4876,8 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                         layout.prop(self, "import_fp_arms")
                     elif self.import_type == "biped":
                         layout.prop(self, "import_biped_weapon")
+                        if self.import_biped_weapon:
+                            layout.prop(self, "biped_weapon_source")
                 layout.prop(self, "build_blender_materials")
                 layout.prop(self, "always_extract_bitmaps")
             case 'decorator_set':
@@ -4839,7 +4903,8 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 layout.prop(self, "tag_zone_set")
                 layout.prop(self, "tag_bsp_import_geometry")
                 layout.prop(self, "tag_bsp_render_only")
-                layout.prop(self, "tag_bsp_import_havok")
+                if corinth:
+                    layout.prop(self, "tag_bsp_import_havok")
                 layout.prop(self, "tag_import_design")
                 layout.prop(self, "tag_import_lights")
                 layout.prop(self, "tag_sky")

@@ -492,6 +492,7 @@ class CinObject():
         self.animations = None
         self.cameras = {}
         self.cinematic_lighting: CinematicLighting = None
+        self.events = []
     
 class CinematicSceneTag(Tag):
     tag_ext = 'cinematic_scene'
@@ -546,6 +547,8 @@ class CinematicSceneTag(Tag):
         
         for scene_element, data_element in zip(scene_shots.Elements, data_shots.Elements):
             utils.print_step(f"Importing cinematic events for shot: {scene_element.ElementIndex + 1}")
+            main_screen_effect = None
+            main_user_constraint = None
             
             for dialogue_element in data_element.SelectField("dialogue").Elements:
                 dialogue = CinematicDialogue()
@@ -571,7 +574,7 @@ class CinematicSceneTag(Tag):
             for screen_effects_element in scene_element.SelectField("screen effects").Elements:
                 screen_effect = CinematicScreenEffect()
                 screen_effect.from_element(screen_effects_element)
-                camera_events[scene_element.ElementIndex].append(screen_effect)
+                main_screen_effect = screen_effect
                 
             for script_element in data_element.SelectField("custom script").Elements:
                 script = CinematicCustomScript()
@@ -581,7 +584,7 @@ class CinematicSceneTag(Tag):
             for user_element in data_element.SelectField("user input constraints").Elements:
                 user = CinematicUserInputConstraints()
                 user.from_element(user_element)
-                
+                main_user_constraint = user
             
             utils.print_step(f"Importing cinematic lighting for shot: {scene_element.ElementIndex + 1}")
             for light_element in scene_element.SelectField("Block:lighting").Elements:
@@ -606,6 +609,12 @@ class CinematicSceneTag(Tag):
             shot_camera_data.display_size *= (1 / 0.03048)
             shot_camera_data.clip_end = 100000
             camera_objects.append(shot_camera)
+            
+            if main_screen_effect is not None:
+                shot_camera.nwo.screen_effect = main_screen_effect.screen_effect.RelativePathWithExtension
+            
+            if main_user_constraint is not None:
+                shot_camera.nwo.user_input_bounds = main_user_constraint.maximum_look_angles
             
             cam_frames = []
             
@@ -707,6 +716,7 @@ class CinematicSceneTag(Tag):
                 cin_object.graph_path = graph.Filename
                 cin_object.object_path = obj.Filename
                 cin_object.cinematic_lighting = object_lighting.get(scene_element.ElementIndex)
+                cin_object.events = object_events.get(name, [])
                 object_animations.append(cin_object)
                 flags = data_element.SelectField("shots active flags")
                 shots = []

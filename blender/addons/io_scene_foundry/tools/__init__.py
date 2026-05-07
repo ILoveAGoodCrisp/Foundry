@@ -45,7 +45,8 @@ from .sets_manager import NWO_BSPContextMenu, NWO_BSPInfo, NWO_BSPSetLightmapRes
 from .shader_farm import NWO_FarmShaders
 from .shader_finder import NWO_ShaderFinder_Find, NWO_ShaderFinder_FindSingle
 from .shader_reader import NWO_OT_BuildShaderTemplates, NWO_OT_ShaderToNodesBulk, NWO_ShaderToNodes
-from .get_model_variants import NWO_GetModelVariants
+from .shader_to_material import NWO_OT_ShaderToMaterial
+from .get_model_variants import NWO_GetModelVariants, NWO_OT_GetCinematicModelVariants
 from .get_zone_sets import NWO_GetZoneSets
 from .get_tag_list import NWO_GetTagsList, NWO_TagExplore
 from .halo_launcher import NWO_HaloLauncher_Data, NWO_HaloLauncher_Foundation, NWO_HaloLauncher_Granny, NWO_HaloLauncher_Sapien, NWO_HaloLauncher_TagTest, NWO_HaloLauncher_Tags, NWO_OpenFoundationTag
@@ -112,6 +113,7 @@ classes = (
     NWO_ExportBitmapsSingle,
     NWO_OT_ReloadImages,
     NWO_GetModelVariants,
+    NWO_OT_GetCinematicModelVariants,
     NWO_GetZoneSets,
     NWO_GetTagsList,
     NWO_TagExplore,
@@ -163,6 +165,7 @@ classes = (
     NWO_BSPSetLightmapRes,
     NWO_ShaderToNodes,
     NWO_OT_BuildShaderTemplates,
+    NWO_OT_ShaderToMaterial,
     NWO_OT_ShaderToNodesBulk,
     NWO_AppendFoundryMaterials,
     NWO_ClearShaderPaths,

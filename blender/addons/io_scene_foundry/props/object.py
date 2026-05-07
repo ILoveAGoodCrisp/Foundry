@@ -43,6 +43,17 @@ class NWO_ActorItems(bpy.types.PropertyGroup):
         poll=poll_actor,
     )
     
+    lightmap_shadow: bpy.props.BoolProperty(
+        name="Lightmap Shadow",
+        description="Object receives and casts shadows from the lightmap",
+        default=True,
+    )
+    high_res: bpy.props.BoolProperty(
+        name="High Resolution",
+        description="Object never switches to its imposter model",
+        default=True,
+    )
+    
 def poll_cinematic_light(self, object):
     if object.type == 'LIGHT':
         for item in self.id_data.nwo.cinematic_lights:
@@ -92,6 +103,24 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     
     # CINEMATIC
     
+    # CIN CAMERA
+    screen_effect: bpy.props.StringProperty(
+        name="Screen Effect",
+        description="Screen Effect tag to play while this camera is used for a shot"
+    )
+    
+    user_input_bounds: bpy.props.FloatVectorProperty(
+        name="User Input Bounds",
+        description="Bounds representing a rectangle in which the player can move the camera"
+    )
+    
+    frictional_force: bpy.props.FloatProperty(
+        name="User Input Friction",
+        description="Amount of friction applied when the user attempts to move the camera"
+    )
+    
+    # CIN ACTOR
+    
     def cinematic_object_clean_tag_path(self, context):
         self["cinematic_object"] = utils.clean_tag_path(self["cinematic_object"]).strip('"')
     
@@ -105,37 +134,49 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     
     cinematic_variant: bpy.props.StringProperty(
         name="Cinematic Variant",
+        description="Cinematic Object Variant"
     )
     
-    cinematic_lighting: bpy.props.EnumProperty( # TODO Generate a lighting tag
-        name="Cinematic Lighting",
+    # cinematic_lighting: bpy.props.EnumProperty( # TODO Generate a lighting tag
+    #     name="Cinematic Lighting",
+    #     items=[
+    #         ('TAG', "Tag", ""),
+    #         ('NONE', "None", ""),
+    #         ('PERSIST', "Persist", ""),
+    #         ('PER_SHOT', "Per Shot", ""),
+    #     ]
+    # )
+    
+    # cinematic flags
+    
+    object_source: bpy.props.EnumProperty( # ignored if actor name is player0, player1, player2, or player3
+        name="Actor Source",
+        description="How the cinematic gets or creates this actor",
         items=[
-            ('TAG', "Tag", ""),
-            ('NONE', "None", ""),
-            ('PERSIST', "Persist", ""),
-            ('PER_SHOT', "Per Shot", ""),
+            ('CREATE', "Create", "Creates the object from the specified object tag and variant"),
+            ('CREATE_ANEW', "Create from Scenario", "Destroys and creates anew the object from the scenario. This requires that the object exists in the scenario object names block and that the name of the actor matches the scenario object name"),
+            ('USE', "From Scenario", "Uses an existing placed object in the scenario. This requires that the object exists in the scenario object names block and that the name of the actor matches the scenario object name"),
         ]
     )
     
-    # cinematic flags
-    placed_manually_in_sapien: bpy.props.BoolProperty(
-        name="Placed Manually in Sapien",
-        description="",
-        options=set(),
-    )
-    object_comes_from_game: bpy.props.BoolProperty(
-        name="Object Comes From Game",
-        description="",
-        options=set(),
-    )
-    special_case: bpy.props.BoolProperty(
-        name="Special Case (like player0)",
-        description="",
-        options=set(),
-    )
+    # placed_manually_in_sapien: bpy.props.BoolProperty(
+    #     name="Placed Manually in Sapien",
+    #     description="",
+    #     options=set(),
+    # )
+    # object_comes_from_game: bpy.props.BoolProperty(
+    #     name="Object Comes From Game",
+    #     description="The cinematic script won't create this object, instead it will be retrieved from the scenario. For this flag to work the name of the cinematic actor (i.e. the armature name in Blender) must match an object in the scenario object names block",
+    #     options=set(),
+    # )
+    # special_case: bpy.props.BoolProperty( # NOTE user should name their object player0, player1 etc
+    #     name="Special Case (like player0)",
+    #     description="",
+    #     options=set(),
+    # )
     effect_object: bpy.props.BoolProperty(
         name="Effect Object",
-        description="",
+        description="Cinematic does not play animations on this object",
         options=set(),
     )
     no_lightmap_shadow: bpy.props.BoolProperty(
@@ -155,6 +196,16 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     )
     english_lipsync_manual: bpy.props.BoolProperty(
         name="Manually Animated English Lipsync",
+        description="",
+        options=set(),
+    )
+    primary_cortana: bpy.props.BoolProperty(
+        name="Primary Cortana",
+        description="Will the real Cortana please stand up. Indicates the primary Cortana in case you have multiple at once",
+        options=set(),
+    )
+    preload_textures: bpy.props.BoolProperty(
+        name="Preload Textures",
         description="",
         options=set(),
     )
@@ -223,7 +274,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         soft_max=1
     )
     forced_exposure: bpy.props.FloatProperty(
-        name="",
+        name="Forced Exposure",
         options=set(),
         description="Disables auto-exposure",
         subtype='FACTOR',

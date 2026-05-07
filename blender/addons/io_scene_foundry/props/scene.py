@@ -2225,17 +2225,6 @@ class NWO_CinematicEvent(PropertyGroup):
         description="Time to go from the current function value to the new one, in seconds"
     )
     
-    screen_effect: bpy.props.StringProperty()
-    
-    shot_only: bpy.props.BoolProperty(
-        name="Shot Only",
-        description="Event plays for the whole shot, then ends"
-    )
-    
-    # User input
-    frictional_force: bpy.props.FloatProperty()
-    
-    
 class NWO_CinematicScene(PropertyGroup):
     
     name: bpy.props.StringProperty(
