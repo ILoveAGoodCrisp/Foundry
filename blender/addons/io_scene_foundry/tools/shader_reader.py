@@ -247,19 +247,3 @@ def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str, always_e
         if mat.node_tree is not None:
             arrange(mat.node_tree)
         return shader.sequence_drivers
-    
-class NWO_OT_ShaderToMaterial(bpy.types.Operator):
-    bl_idname = "nwo.shader_to_material"
-    bl_label = "Converts a Shader Tag to a Material Tag"
-    bl_description = "Converts a Shader Tag to a Material Tag"
-    bl_options = {"UNDO"}
-    
-    def execute(self, context):
-        return super().execute(context)
-    
-def shader_to_material(shader_path):
-    with ShaderTag(path=shader_path) as shader:
-        pass
-    
-        with MaterialTag(path=Path(shader_path).with_suffix(".material")) as material:
-            pass

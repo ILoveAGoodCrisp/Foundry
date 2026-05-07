@@ -2072,6 +2072,67 @@ def find_mapping_node(node: bpy.types.Node, start_node: bpy.types.Node) -> bpy.t
     
     return None, None
 
+def insert_uv_map_node(image_node: bpy.types.Node, uvmap_name: str) -> bpy.types.Node | None:
+    """Adds a UV Map node at the start of the vector chain feeding an image node."""
+    vector_input = image_node.inputs.get('Vector')
+    if vector_input is None:
+        return
+
+    node_tree = image_node.id_data
+    if node_tree is None:
+        return
+
+    def input_by_name(node: bpy.types.Node, *names: str) -> bpy.types.NodeSocket | None:
+        for name in names:
+            if not name:
+                continue
+            for socket in node.inputs:
+                if socket.name.lower() == name.lower():
+                    return socket
+        return None
+
+    def linked_vector_input(node: bpy.types.Node, from_socket: bpy.types.NodeSocket) -> bpy.types.NodeSocket | None:
+        if node.type == 'REROUTE':
+            return node.inputs[0] if node.inputs else None
+
+        return input_by_name(node, from_socket.name, 'Vector', 'UV')
+
+    target_input = vector_input
+    visited_nodes = []
+    while target_input.links:
+        link = target_input.links[0]
+        source_node = link.from_node
+        if source_node in visited_nodes:
+            break
+
+        visited_nodes.append(source_node)
+        next_input = linked_vector_input(source_node, link.from_socket)
+        if next_input is None:
+            break
+
+        target_input = next_input
+
+    existing_links = list(target_input.links)
+    if existing_links and existing_links[0].from_node.type == 'UVMAP':
+        uv_node = existing_links[0].from_node
+        uv_node.uv_map = uvmap_name
+        return uv_node
+
+    uv_node = node_tree.nodes.new(type='ShaderNodeUVMap')
+    uv_node.uv_map = uvmap_name
+
+    if existing_links:
+        uv_node.location = existing_links[0].from_node.location
+    else:
+        uv_node.location.x = target_input.node.location.x - 300
+        uv_node.location.y = target_input.node.location.y
+
+    for link in existing_links:
+        node_tree.links.remove(link)
+
+    node_tree.links.new(input=target_input, output=uv_node.outputs['UV'])
+    return uv_node
+
 def find_linked_node(start_node: bpy.types.Node, input_name: str, node_type: str) -> bpy.types.Node:
     """Using the given node as a base, finds the first node from the given input that matches the given node type"""
     for i in start_node.inputs:
