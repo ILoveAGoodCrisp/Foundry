@@ -1405,14 +1405,15 @@ def foundry_toolbar(layout, context):
         sub0 = row.row(align=True)
         
         single_animation = utils.nwo_asset_type() == 'single_animation'
+        child_animation = nwo.is_child_asset and nwo.asset_type == 'animation'
         
         if nwo.is_child_asset:
             sub0.operator("nwo.open_parent_asset", icon='BLENDER')
-            if single_animation:
+            if single_animation or child_animation:
                 sub0 = row.row(align=True)
         
-        if single_animation or not nwo.is_child_asset:
-            if single_animation or (nwo.is_valid_asset and nwo.asset_type != 'resource'):
+        if single_animation or child_animation or not nwo.is_child_asset:
+            if single_animation or child_animation or (nwo.is_valid_asset and nwo.asset_type != 'resource'):
                 sub0.operator(
                     "nwo.export_quick",
                     text="" if icons_only else "Export",

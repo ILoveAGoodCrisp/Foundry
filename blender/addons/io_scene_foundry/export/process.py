@@ -2099,8 +2099,10 @@ class ExportScene:
         if single_animation:
             self._export_single_animation()
         else:
+            child_animation = self.scene_settings.is_child_asset and self.asset_type == AssetType.ANIMATION
             self._create_export_groups()
-            self._export_models()
+            if not child_animation:
+                self._export_models()
             if self.asset_type == AssetType.CINEMATIC:
                 self._export_shots()
             else:
@@ -2176,7 +2178,10 @@ class ExportScene:
                 print("\n\nNoting External Animations")
                 print("-----------------------------------------------------------------------\n")
             for animation, granny_path in self.external_animations.items():
-                blend_path = Path(granny_path.parent.parent.parent, "animations", granny_path.with_suffix("").name).with_suffix(".blend")
+                if animation.blend_path.strip():
+                    blend_path = Path(animation.blend_path)
+                else:
+                    blend_path = Path(granny_path.parent.parent.parent, "animations", granny_path.with_suffix("").name).with_suffix(".blend")
                 print(f"--- {granny_path.with_suffix('').name}")
                 self.sidecar.add_animation_file_data(granny_path, blend_path, animation.name, animation.compression, animation.animation_type, animation.animation_movement_data, animation.animation_space, animation.pose_overlay, animation.has_pca)
 

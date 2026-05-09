@@ -64,6 +64,38 @@ sidecar_path = ""
 def menu_func_export(self, context):
     self.layout.operator(NWO_ExportScene.bl_idname, text="Halo Foundry Export")
 
+
+def _is_child_animation_export(scene_nwo) -> bool:
+    return scene_nwo.is_child_asset and scene_nwo.asset_type == 'animation'
+
+
+def _data_path(path_value: str | Path) -> Path:
+    value = Path(path_value)
+    if value.is_absolute():
+        return value
+
+    return Path(get_data_path(), value)
+
+
+def _child_animation_parent_asset_path(scene_nwo) -> Path | None:
+    parent_sidecar = scene_nwo.parent_sidecar.strip()
+    if parent_sidecar:
+        return _data_path(parent_sidecar).parent
+
+    parent_asset = scene_nwo.parent_asset.strip()
+    if parent_asset:
+        path = _data_path(parent_asset)
+        if path.suffix == ".blend" or path.is_file():
+            return path.parent
+
+        return path
+
+    if scene_nwo.sidecar_path.strip():
+        return _data_path(scene_nwo.sidecar_path).parent
+
+    return None
+
+
 class NWO_ExportScene(Operator, ExportHelper):
     bl_idname = "nwo.export_scene"
     bl_label = "Export Asset"
@@ -82,7 +114,8 @@ class NWO_ExportScene(Operator, ExportHelper):
     
     @classmethod
     def poll(cls, context):
-        return utils.current_project_valid() and not validate_ek() and utils.get_scene_props().asset_type != 'resource' and (utils.nwo_asset_type() == 'single_animation' or not utils.get_scene_props().is_child_asset)
+        scene_nwo = utils.get_scene_props()
+        return utils.current_project_valid() and not validate_ek() and scene_nwo.asset_type != 'resource' and (utils.nwo_asset_type() == 'single_animation' or _is_child_animation_export(scene_nwo) or not scene_nwo.is_child_asset)
     
     @classmethod
     def description(cls, context, properties):
@@ -207,6 +240,7 @@ class NWO_ExportScene(Operator, ExportHelper):
         start = time.perf_counter()
         # get the asset name and path to the asset folder
         single_animation = utils.nwo_asset_type() == 'single_animation'
+        child_animation = _is_child_animation_export(scene_nwo)
         
         if single_animation and not bpy.data.filepath:
             self.report({'WARNING'}, "Single Animation files must be saved before export")
@@ -224,6 +258,21 @@ class NWO_ExportScene(Operator, ExportHelper):
                 if par_sidecar.exists():
                     sidecar_path_full = str(par_sidecar)
                     sidecar_path = utils.relative_path(par_sidecar)
+        elif child_animation:
+            parent_asset_path = _child_animation_parent_asset_path(scene_nwo)
+            if parent_asset_path is None:
+                self.report({'WARNING'}, "Child animation asset has no parent asset path")
+                return {'CANCELLED'}
+
+            asset_path = str(parent_asset_path)
+            asset_name = parent_asset_path.name
+            sidecar_path_full = str(Path(parent_asset_path, asset_name).with_suffix(".sidecar.xml"))
+            sidecar_path = utils.relative_path(sidecar_path_full)
+
+            if self.export_invalid(asset_path):
+                scene_nwo_export.export_quick = False
+                self.report({"WARNING"}, "Export aborted")
+                return {"CANCELLED"}
             
         else:
             if scene_nwo.sidecar_path:
@@ -629,6 +678,7 @@ def unregister():
 
 def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_path, scene_settings, export_settings, corinth, single_animation, for_cache_build, collection_view_layer=None):
     asset_type = scene_settings.asset_type
+    child_animation = _is_child_animation_export(scene_settings)
     if asset_type == 'camera_track_set':
         return export_current_action_as_camera_track(context, asset_path) # Return early if this is a camera track export
     start_scene = context.scene
@@ -679,7 +729,7 @@ def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_pat
                     export_scene.export_files(single_animation)
             finally:
                 export_scene.restore_scene()
-        if not single_animation:
+        if not single_animation and not child_animation:
             export_scene.write_sidecar()
             
     if single_animation and export_settings.export_mode in {'FULL', 'TAGS'} and sidecar_path:
@@ -687,7 +737,7 @@ def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_pat
         print("-----------------------------------------------------------------------\n")
         export_scene.tool_import_simple(sidecar_path)
         
-    if not single_animation and export_settings.export_mode in {'FULL', 'TAGS'}:
+    if not single_animation and not child_animation and export_settings.export_mode in {'FULL', 'TAGS'}:
         if export_settings.export_mode == 'TAGS':
             # Need to figure out what perms/bsps are selected in this case
             print("\n\nQuick Scene Process")

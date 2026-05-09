@@ -379,7 +379,7 @@ class NWO_OT_EditMode(bpy.types.Operator):
         return context.object and context.object.type == "MESH" and context.mode != 'EDIT_MESH' and bpy.ops.object.mode_set.poll()
 
     def execute(self, context):
-        bpy.ops.object.editmode_toggle()
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         return {"FINISHED"}
     
 attributes_list = []
@@ -883,8 +883,8 @@ class NWO_OT_FaceAttributeColor(bpy.types.Operator):
             context.window_manager.modal_handler_add(self)
 
             # toggle Edit mode twice to ensure redraw
-            bpy.ops.object.editmode_toggle()
-            bpy.ops.object.editmode_toggle()
+            bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+            bpy.ops.object.mode_set(mode='EDIT', toggle=False)
             return {'RUNNING_MODAL'}
 
         return {'CANCELLED'}

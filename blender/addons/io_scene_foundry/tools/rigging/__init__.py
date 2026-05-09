@@ -323,7 +323,7 @@ class HaloRig:
     
     def build_bones(self, pedestal=None, pitch=None, yaw=None, set_control=True):
         bone_tail = globals()[f"bone_{self.forward.replace('-', '_negative')}"]
-        bpy.ops.object.editmode_toggle()
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         if pedestal is None:
             for b in self.rig_data.edit_bones:
                 if utils.remove_node_prefix(b.name).lower() == pedestal_name:
@@ -377,14 +377,14 @@ class HaloRig:
             aim_control.parent = pedestal
             aim_control.tail = bone_tail
 
-        bpy.ops.object.editmode_toggle()
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
                 
     def make_parent(self, child_bone_name):
-        bpy.ops.object.editmode_toggle()
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         pedestal = self.rig_data.edit_bones.get(pedestal_name)
         child_bone = self.rig_data.edit_bones.get(child_bone_name)
         child_bone.parent = pedestal
-        bpy.ops.object.editmode_toggle()
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
     
     def build_armature(self):
         self.rig_data = bpy.data.armatures.new('Armature')
@@ -596,7 +596,7 @@ class HaloRig:
                 
                 return f"FK_{end}{side}"
 
-            bpy.ops.object.editmode_toggle()
+            bpy.ops.object.mode_set(mode='EDIT', toggle=False)
             
             root = self.rig_data.edit_bones[0]
             for chain in bone_chains:
@@ -684,7 +684,7 @@ class HaloRig:
                 ik_bone_names.append(pole_target.name)
                 
                     
-            bpy.ops.object.editmode_toggle()
+            bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
             
             for b in self.rig_data.bones:
                 if b.name in fk_bone_names or b.name in ik_bone_names or b.name in switch_bone_names:

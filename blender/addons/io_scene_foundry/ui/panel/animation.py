@@ -125,6 +125,289 @@ def _clear_ik_preview_targets(armature: bpy.types.Object) -> int:
     return removed
 
 
+def _copy_property_group(source, target):
+    for prop in source.bl_rna.properties:
+        identifier = prop.identifier
+        if identifier == "rna_type" or prop.is_readonly:
+            continue
+
+        try:
+            if prop.type == 'COLLECTION':
+                _copy_property_collection(getattr(source, identifier), getattr(target, identifier))
+            else:
+                setattr(target, identifier, getattr(source, identifier))
+        except (AttributeError, TypeError, ValueError, RuntimeError):
+            pass
+
+
+def _copy_property_collection(source, target):
+    target.clear()
+    for source_item in source:
+        target_item = target.add()
+        _copy_property_group(source_item, target_item)
+
+
+def _action_slot_identifier(action: bpy.types.Action) -> str:
+    try:
+        slots = action.slots
+    except AttributeError:
+        return ""
+
+    if not slots:
+        return ""
+
+    if slots.active:
+        return slots.active.identifier
+
+    return slots[0].identifier
+
+
+def _set_animation_data_action(animation_data, action: bpy.types.Action, slot_id: str):
+    if animation_data is None:
+        return
+
+    if slot_id:
+        try:
+            animation_data.last_slot_identifier = slot_id
+        except (AttributeError, TypeError, ValueError):
+            pass
+
+    animation_data.action = action
+
+
+def _set_animation_tracks_active(animation, object_map: dict[bpy.types.Object, bpy.types.Object] | None = None):
+    if object_map is None:
+        object_map = {}
+
+    for track in animation.action_tracks:
+        if track.object is None or track.action is None:
+            continue
+
+        ob = object_map.get(track.object, track.object)
+        slot_id = _action_slot_identifier(track.action)
+        if track.is_shape_key_action:
+            if ob.type != 'MESH' or ob.data.shape_keys is None:
+                continue
+
+            shape_keys = ob.data.shape_keys
+            _set_animation_data_action(shape_keys.animation_data_create(), track.action, slot_id)
+        else:
+            _set_animation_data_action(ob.animation_data_create(), track.action, slot_id)
+            if ob.data is not None and ob.data.animation_data is not None:
+                _set_animation_data_action(ob.data.animation_data, track.action, slot_id)
+
+
+def _snapshot_animation_owner(owner):
+    animation_data = owner.animation_data
+    had_animation_data = animation_data is not None
+    action = animation_data.action if had_animation_data else None
+    use_nla = animation_data.use_nla if had_animation_data else False
+    slot_id = ""
+    if had_animation_data:
+        try:
+            slot_id = animation_data.last_slot_identifier
+        except AttributeError:
+            pass
+
+    return owner, had_animation_data, action, slot_id, use_nla
+
+
+def _affected_animation_owners(animations):
+    owners = set()
+    for animation in animations:
+        for track in animation.action_tracks:
+            if track.object is None:
+                continue
+
+            owners.add(track.object)
+            if track.object.data is not None:
+                owners.add(track.object.data)
+            if track.object.type == 'MESH' and track.object.data.shape_keys is not None:
+                owners.add(track.object.data.shape_keys)
+
+    return owners
+
+
+def _snapshot_animation_state(animations):
+    return [_snapshot_animation_owner(owner) for owner in _affected_animation_owners(animations)]
+
+
+def _restore_animation_state(snapshots):
+    for owner, had_animation_data, action, slot_id, use_nla in snapshots:
+        if not had_animation_data:
+            if owner.animation_data is not None:
+                owner.animation_data_clear()
+            continue
+
+        animation_data = owner.animation_data_create()
+        _set_animation_data_action(animation_data, action, slot_id)
+        animation_data.use_nla = use_nla
+
+
+def _animation_action_datablocks(animations, object_map: dict[bpy.types.Object, bpy.types.Object] | None = None) -> set[bpy.types.ID]:
+    if object_map is None:
+        object_map = {}
+
+    datablocks = set()
+    for animation in animations:
+        for track in animation.action_tracks:
+            if track.object is not None:
+                datablocks.add(object_map.get(track.object, track.object))
+            if track.action is not None:
+                datablocks.add(track.action)
+
+    return datablocks
+
+
+def _scene_animation_owners(scene: bpy.types.Scene):
+    owners = set()
+    for ob in scene.objects:
+        owners.add(ob)
+        if ob.data is not None:
+            owners.add(ob.data)
+        if ob.type == 'MESH' and ob.data.shape_keys is not None:
+            owners.add(ob.data.shape_keys)
+
+    return owners
+
+
+def _clear_unmatched_animation_data_actions(owners, allowed_actions: set[bpy.types.Action]):
+    for owner in owners:
+        animation_data = owner.animation_data
+        if animation_data is None:
+            continue
+
+        if animation_data.action not in allowed_actions:
+            animation_data.action = None
+            animation_data.use_nla = False
+
+
+def _safe_blend_path_part(value: str, fallback: str) -> str:
+    value = value.strip().replace(":", " ")
+    for char in '<>:"/\\|?*':
+        value = value.replace(char, "_")
+
+    value = " ".join(value.split())
+    return value or fallback
+
+
+def _parent_animation_gr2_path(parent_asset_path: Path, animation) -> Path:
+    return Path(parent_asset_path, "export", "animations", animation.name).with_suffix(".gr2")
+
+
+def _configure_single_animation_scene(scene: bpy.types.Scene, animation, parent_blend: str, parent_sidecar: str):
+    scene.frame_start = animation.frame_start
+    scene.frame_end = animation.frame_end
+    scene_nwo = scene.nwo
+    scene_nwo.asset_type = 'single_animation'
+    scene_nwo.is_child_asset = True
+    scene_nwo.parent_asset = parent_blend
+    scene_nwo.parent_sidecar = parent_sidecar
+    scene_nwo.animation_overlay = animation.animation_type == 'overlay'
+    scene_nwo.animations.clear()
+    _copy_property_collection(animation.animation_events, scene_nwo.animation_events)
+    _copy_property_collection(animation.animation_nodes, scene_nwo.animation_nodes)
+    scene_nwo.active_animation_event_index = min(animation.active_animation_event_index, len(scene_nwo.animation_events) - 1) if scene_nwo.animation_events else 0
+    scene_nwo.active_animation_node_index = min(animation.active_animation_node_index, len(scene_nwo.animation_nodes) - 1) if scene_nwo.animation_nodes else 0
+
+
+def _configure_child_animation_scene(scene: bpy.types.Scene, animations, parent_blend: str, parent_sidecar: str):
+    scene_nwo = scene.nwo
+    scene_nwo.asset_type = 'animation'
+    scene_nwo.asset_animation_type = 'standalone'
+    scene_nwo.is_child_asset = True
+    scene_nwo.parent_asset = parent_blend
+    scene_nwo.parent_sidecar = parent_sidecar
+
+    animation_names = {animation.name for animation in animations}
+    for idx in reversed(range(len(scene_nwo.animations))):
+        if scene_nwo.animations[idx].name not in animation_names:
+            scene_nwo.animations.remove(idx)
+
+    for animation in scene_nwo.animations:
+        animation.external = False
+        animation.gr2_path = ""
+        animation.blend_path = ""
+
+    scene_nwo.active_animation_index = 0 if scene_nwo.animations else -1
+    scene.frame_start = min(animation.frame_start for animation in animations)
+    scene.frame_end = max(animation.frame_end for animation in animations)
+
+
+def _write_animation_asset_blend(context: bpy.types.Context, blend_path: Path, animations, asset_type: str, parent_blend: str, parent_sidecar: str):
+    blend_path.parent.mkdir(parents=True, exist_ok=True)
+    temp_scene = context.scene.copy()
+    temp_scene.name = f"{context.scene.name}_animation_split"
+    owners = _scene_animation_owners(context.scene)
+    snapshots = [_snapshot_animation_owner(owner) for owner in owners]
+    try:
+        if asset_type == 'single_animation':
+            _configure_single_animation_scene(temp_scene, animations[0], parent_blend, parent_sidecar)
+        else:
+            _configure_child_animation_scene(temp_scene, animations, parent_blend, parent_sidecar)
+
+        allowed_actions = {track.action for animation in animations for track in animation.action_tracks if track.action is not None}
+        _clear_unmatched_animation_data_actions(owners, allowed_actions)
+        for animation in animations:
+            _set_animation_tracks_active(animation)
+
+        datablocks = {temp_scene}
+        datablocks.update(_animation_action_datablocks(animations))
+        bpy.data.libraries.write(
+            str(blend_path),
+            datablocks,
+            compress=context.preferences.filepaths.use_file_compression,
+        )
+    finally:
+        _restore_animation_state(snapshots)
+        bpy.data.scenes.remove(temp_scene)
+
+
+def _write_all_animations_child_copy(context: bpy.types.Context, blend_path: Path, parent_blend: str, parent_sidecar: str):
+    blend_path.parent.mkdir(parents=True, exist_ok=True)
+    scene_nwo = utils.get_scene_props()
+    restore = {
+        "asset_type": scene_nwo.asset_type,
+        "asset_animation_type": scene_nwo.asset_animation_type,
+        "is_child_asset": scene_nwo.is_child_asset,
+        "parent_asset": scene_nwo.parent_asset,
+        "parent_sidecar": scene_nwo.parent_sidecar,
+    }
+    try:
+        scene_nwo.asset_type = 'animation'
+        scene_nwo.asset_animation_type = 'standalone'
+        scene_nwo.is_child_asset = True
+        scene_nwo.parent_asset = parent_blend
+        scene_nwo.parent_sidecar = parent_sidecar
+        bpy.ops.wm.save_as_mainfile(
+            filepath=str(blend_path),
+            check_existing=False,
+            copy=True,
+            compress=context.preferences.filepaths.use_file_compression,
+        )
+    finally:
+        for key, value in restore.items():
+            setattr(scene_nwo, key, value)
+
+
+def _delete_actions_from_main_blend(actions: set[bpy.types.Action], scene_nwo):
+    actions_in_internal_animations = set()
+    for animation in scene_nwo.animations:
+        if animation.external:
+            continue
+
+        for track in animation.action_tracks:
+            if track.action is not None:
+                actions_in_internal_animations.add(track.action)
+
+    for action in actions:
+        if action is not None and action.name in bpy.data.actions and action not in actions_in_internal_animations:
+            try:
+                bpy.data.actions.remove(action, do_unlink=True)
+            except RuntimeError:
+                pass
+
+
 def _ik_event_value_data_path(scene_nwo, single_animation: bool) -> str | None:
     if single_animation:
         event_index = scene_nwo.active_animation_event_index
@@ -646,11 +929,18 @@ class NWO_OT_OpenExternalAnimationBlend(bpy.types.Operator):
         if not animation.external:
             self.report({'WARNING'}, "Animation is not external. No blend to open")
             return {'CANCELLED'}
-            
-        root_asset = Path(animation.gr2_path).parent.parent.parent
-        blend = Path(utils.get_data_path(), root_asset, "animations", animation.name).with_suffix(".blend")
+
+        blend_path = animation.blend_path.strip()
+        if blend_path:
+            blend = Path(blend_path)
+            if not blend.is_absolute():
+                blend = Path(utils.get_data_path(), blend)
+        else:
+            root_asset = Path(animation.gr2_path).parent.parent.parent
+            blend = Path(utils.get_data_path(), root_asset, "animations", animation.name).with_suffix(".blend")
         
         if not blend.exists():
+            root_asset = Path(animation.gr2_path).parent.parent.parent
             sidecar = Path(utils.get_data_path(), root_asset, f"{root_asset.name}.sidecar.xml")
             blend = utils.source_blend_from_sidecar(sidecar)
             
@@ -700,6 +990,9 @@ class NWO_OT_AnimationMoveToOwnBlend(bpy.types.Operator):
         is_overlay = animation.animation_type == 'overlay'
         animation.external = True
         animation.gr2_path = utils.relative_path(gr2_path)
+        animation.blend_path = utils.relative_path(blend_path)
+        animation.pose_overlay = self.pose_overlay
+        animation.has_pca = utils.is_corinth(context) and self.pca
         
         bpy.ops.wm.save_mainfile(compress=context.preferences.filepaths.use_file_compression)
         
@@ -712,6 +1005,10 @@ class NWO_OT_AnimationMoveToOwnBlend(bpy.types.Operator):
         
         scene = bpy.context.scene
         scene.frame_start, scene.frame_end = frame_start, frame_end
+        _copy_property_collection(animation.animation_events, scene_nwo.animation_events)
+        _copy_property_collection(animation.animation_nodes, scene_nwo.animation_nodes)
+        scene_nwo.active_animation_event_index = min(animation.active_animation_event_index, len(scene_nwo.animation_events) - 1) if scene_nwo.animation_events else 0
+        scene_nwo.active_animation_node_index = min(animation.active_animation_node_index, len(scene_nwo.animation_nodes) - 1) if scene_nwo.animation_nodes else 0
         scene_nwo.animations.clear()
         
         scene_nwo.asset_type = 'single_animation'
@@ -733,6 +1030,172 @@ class NWO_OT_AnimationMoveToOwnBlend(bpy.types.Operator):
         layout.prop(self, "pose_overlay")
         if utils.is_corinth(context):
             layout.prop(self, "pca")
+
+
+class NWO_OT_AnimationsMoveToAssetBlends(bpy.types.Operator):
+    bl_label = "Bulk Move to Blends"
+    bl_idname = "nwo.animations_move_to_asset_blends"
+    bl_description = "Moves animations into external animation blend files and links them back to this parent asset"
+    bl_options = {'UNDO'}
+
+    split_type: bpy.props.EnumProperty(
+        name="Split Type",
+        items=[
+            (
+                'SINGLE_ANIMATION',
+                "Single Animation Assets",
+                "Create one single-animation child blend for every animation",
+            ),
+            (
+                'CHILD_ANIMATION',
+                "Standalone Child Asset",
+                "Create one standalone animation child blend containing all animations",
+            ),
+            (
+                'MODE',
+                "Mode Child Assets",
+                "Create standalone animation child blends grouped by animation mode",
+            ),
+            (
+                'WEAPON_CLASS',
+                "Weapon Class Child Assets",
+                "Create standalone animation child blends grouped by animation mode and weapon class",
+            ),
+            (
+                'WEAPON_TYPE',
+                "Weapon Type Child Assets",
+                "Create standalone animation child blends grouped by animation mode, weapon class, and weapon type",
+            ),
+        ],
+    )
+
+    overwrite_existing: bpy.props.BoolProperty(
+        name="Overwrite Existing",
+        description="Replace existing animation blend files at the generated paths",
+        default=True,
+    )
+
+    delete_actions: bpy.props.BoolProperty(
+        name="Delete Actions from Parent",
+        description="Delete actions used by the moved animations from this parent blend after the child blends are written",
+    )
+
+    @classmethod
+    def poll(cls, context):
+        scene_nwo = utils.get_scene_props()
+        return bool(bpy.data.filepath and scene_nwo.animations and utils.valid_nwo_asset(context))
+
+    def _eligible_animations(self, scene_nwo):
+        return [
+            animation
+            for animation in scene_nwo.animations
+            if animation.name.strip() and not animation.external and animation.animation_type != 'composite'
+        ]
+
+    def _animation_groups(self, asset_path: Path, animations):
+        if self.split_type == 'SINGLE_ANIMATION':
+            return [
+                (Path(asset_path, "animations", animation.name).with_suffix(".blend"), [animation])
+                for animation in animations
+            ]
+
+        if self.split_type == 'CHILD_ANIMATION':
+            return [(Path(asset_path, "animations", f"{asset_path.name}_animations").with_suffix(".blend"), animations)]
+
+        groups = defaultdict(list)
+        for animation in animations:
+            animation_name = utils.AnimationName(animation.name)
+            mode = _safe_blend_path_part(animation_name.mode if animation_name.valid else "any", "any")
+            weapon_class = _safe_blend_path_part(animation_name.weapon_class if animation_name.valid else "any", "any")
+            groups[(mode, weapon_class)].append(animation)
+
+        return [
+            (Path(asset_path, "animations", mode, weapon_class).with_suffix(".blend"), group)
+            for (mode, weapon_class), group in groups.items()
+        ]
+
+    def execute(self, context):
+        scene_nwo = utils.get_scene_props()
+        asset_path = utils.get_asset_path_full()
+        if asset_path is None:
+            self.report({'WARNING'}, "No valid parent asset path found")
+            return {'CANCELLED'}
+
+        animations = self._eligible_animations(scene_nwo)
+        if not animations:
+            self.report({'WARNING'}, "No internal non-composite animations to move")
+            return {'CANCELLED'}
+
+        asset_path = Path(asset_path)
+        parent_blend = utils.relative_path(bpy.data.filepath)
+        parent_sidecar = scene_nwo.sidecar_path
+        child_asset_type = 'single_animation' if self.split_type == 'SINGLE_ANIMATION' else 'animation'
+        jobs = self._animation_groups(asset_path, animations)
+
+        bpy.ops.wm.save_mainfile(compress=context.preferences.filepaths.use_file_compression)
+
+        written = []
+        skipped_existing = 0
+        snapshots = _snapshot_animation_state(animations)
+        try:
+            for blend_path, group in jobs:
+                if blend_path.exists() and not self.overwrite_existing:
+                    skipped_existing += len(group)
+                    continue
+
+                if self.split_type == 'CHILD_ANIMATION':
+                    _write_all_animations_child_copy(context, blend_path, parent_blend, parent_sidecar)
+                elif len(group) == 1:
+                    _set_animation_tracks_active(group[0])
+                    _write_animation_asset_blend(context, blend_path, group, child_asset_type, parent_blend, parent_sidecar)
+                else:
+                    _write_animation_asset_blend(context, blend_path, group, child_asset_type, parent_blend, parent_sidecar)
+                written.extend((animation, blend_path) for animation in group)
+        finally:
+            _restore_animation_state(snapshots)
+
+        if not written:
+            self.report({'WARNING'}, "No animation blend files were written")
+            return {'CANCELLED'}
+
+        moved_actions = set()
+        for animation, blend_path in written:
+            for track in animation.action_tracks:
+                if track.action is not None:
+                    moved_actions.add(track.action)
+
+        if self.delete_actions:
+            for animation, _ in written:
+                utils.clear_animation(animation)
+
+        for animation, blend_path in written:
+            animation.external = True
+            animation.gr2_path = utils.relative_path(_parent_animation_gr2_path(asset_path, animation))
+            animation.blend_path = utils.relative_path(blend_path)
+
+        if self.delete_actions:
+            _delete_actions_from_main_blend(moved_actions, scene_nwo)
+
+        bpy.ops.wm.save_mainfile(compress=context.preferences.filepaths.use_file_compression)
+        if context.area is not None:
+            context.area.tag_redraw()
+
+        blend_count = len({str(blend_path) for _, blend_path in written})
+        message = f"Moved {len(written)} animations into {blend_count} blend file{'s' if blend_count != 1 else ''}"
+        if skipped_existing:
+            message += f"; skipped {skipped_existing} because files already existed"
+        self.report({'INFO'}, message)
+        return {'FINISHED'}
+
+    def invoke(self, context, _):
+        return context.window_manager.invoke_props_dialog(self, width=420)
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "split_type")
+        layout.prop(self, "overwrite_existing")
+        layout.prop(self, "delete_actions")
+
 
 class NWO_OT_AnimationLinkToGR2(bpy.types.Operator):
     bl_label = "Link to GR2"
@@ -925,6 +1388,9 @@ class NWO_MT_AnimationTools(bpy.types.Menu):
         layout = self.layout
         layout.operator("nwo.animations_from_actions", icon='UV_SYNC_SELECT')
         layout.operator("nwo.animations_from_blend", icon='IMPORT')
+        layout.separator()
+        layout.operator("nwo.animations_move_to_asset_blends", icon='EXPORT')
+        layout.separator()
         layout.operator("nwo.clear_animations", icon='CANCEL')
         layout.operator("nwo.clear_renames", icon='CANCEL')
         layout.operator("nwo.clear_events", icon='CANCEL')

@@ -1263,7 +1263,7 @@ def set_object_mode(context):
         return
 
     if mode.startswith("EDIT") and not mode.endswith("GPENCIL"):
-        bpy.ops.object.editmode_toggle()
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
     else:
         match mode:
             case "POSE":
@@ -1296,7 +1296,7 @@ def restore_mode(mode):
         return
 
     if mode.startswith("EDIT") and not mode.endswith("GPENCIL"):
-        bpy.ops.object.editmode_toggle()
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
     else:
         match mode:
             case "POSE":
@@ -2889,7 +2889,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                     arm.select_set(True)
                     arm_linkyness[arm] = should_be_hidden, should_be_unlinked
                     
-                bpy.ops.object.editmode_toggle()   
+                bpy.ops.object.mode_set(mode='EDIT', toggle=False)
                 for arm in armatures:
                     data = arm.data
                     if data not in arm_datas:
@@ -2914,7 +2914,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
 
                         data.use_mirror_x = uses_edit_mirror
 
-                bpy.ops.object.editmode_toggle()
+                bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
                 for arm in armatures:
                     uses_pose_mirror = bool(arm.pose.use_mirror_x)
                     arm.pose.use_mirror_x = False
@@ -3728,7 +3728,7 @@ def add_to_collection(objects: list[bpy.types.Object], always_new=False, parent_
     parent_collection.children.link(collection)
     
     [collection.objects.link(ob) for ob in objects]
-    
+
 def get_major_vertex_group(ob: bpy.types.Object):
     if not ob.data.vertices or not ob.vertex_groups:
         return
@@ -4605,7 +4605,7 @@ def actor_validation(ob) -> str | None:
 
 def current_shot_index(context: bpy.types.Context):
     scene = context.scene
-    markers = [m for m in scene.timeline_markers if m.camera is not None and m.frame > scene.frame_start and m.frame <= scene.frame_end]
+    markers = [m for m in scene.timeline_markers if m.camera is not None and m.frame >= scene.frame_start and m.frame <= scene.frame_end]
     markers.sort(key=lambda m: m.frame)
     # Remove markers that cover the same frame
     to_remove_indexes = []
@@ -4628,7 +4628,7 @@ def current_shot_index(context: bpy.types.Context):
     return 0
 
 def get_timeline_markers(scene: bpy.types.Scene) -> list[bpy.types.TimelineMarker]:
-    markers = [m for m in scene.timeline_markers if m.camera is not None and m.camera.type == 'CAMERA' and m.frame > scene.frame_start and m.frame <= scene.frame_end]
+    markers = [m for m in scene.timeline_markers if m.camera is not None and m.camera.type == 'CAMERA' and m.frame >= scene.frame_start and m.frame <= scene.frame_end]
     markers.sort(key=lambda m: m.frame)
     return markers
 
@@ -5616,6 +5616,7 @@ class AnimationName:
         self.destination_state = ""
         self.variant = ""
         self.type = AnimationStateType.ACTION
+        self.custom = False
         
         tokens = list(tokenise(name))
         if not tokens:
@@ -5623,6 +5624,10 @@ class AnimationName:
         
         if tokens[-1].startswith("var"):
             self.variant = tokens.pop()
+
+        if len(tokens) == 1:
+            self.custom = True
+            return
         
         if len(tokens) > 2 and tokens[-1] in regions:
             if tokens[-2] in directions and tokens[-3] in damage_states:
