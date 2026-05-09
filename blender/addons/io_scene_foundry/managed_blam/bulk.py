@@ -3,6 +3,8 @@
 '''A collection of tools to read/write various tags in bulk'''
 
 from pathlib import Path
+
+from ..managed_blam import Tag
 from ..managed_blam.scenario_structure_bsp import ScenarioStructureBspTag
 from ..managed_blam.animation import AnimationTag
 from ..managed_blam.object import ObjectTag
@@ -233,3 +235,8 @@ def report_instance_lightmap_res():
     print('\n')
     for items in lm_res_list:
         print(items[2], items[1], items[0])
+        
+        
+def serialize_field(path, field_path):
+    with Tag(path=path) as t:
+        print(bytes(t.tag.SelectField(field_path).Serialize()))
