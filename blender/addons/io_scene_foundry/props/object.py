@@ -111,7 +111,8 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     
     user_input_bounds: bpy.props.FloatVectorProperty(
         name="User Input Bounds",
-        description="Bounds representing a rectangle in which the player can move the camera"
+        description="Bounds representing a rectangle in which the player can move the camera",
+        size=4,
     )
     
     frictional_force: bpy.props.FloatProperty(
