@@ -2052,6 +2052,135 @@ class IndexBuffer:
                 yield indices[pos]
                 yield indices[pos+2]
                 yield indices[pos+1]
+
+def _serialized_block_data(block):
+    count = block.Elements.Count
+    if count == 0:
+        return memoryview(b""), 0, 0
+
+    block_size = int(block.Size)
+    if block_size <= 0 or block_size % count:
+        element_size = sum(int(field.Size) for field in block.Elements[0].Fields)
+    else:
+        element_size = block_size // count
+
+    data = bytes(block.Serialize())
+    chunk_start = data.find(b"lbgt")
+    if chunk_start == -1:
+        raise ValueError("Serialized tag block does not contain an lbgt chunk")
+
+    chunk_count = struct.unpack_from("<I", data, chunk_start + 12)[0]
+    if chunk_count != count:
+        raise ValueError(f"Serialized tag block count mismatch: {chunk_count} != {count}")
+
+    values_start = chunk_start + 20
+    values_end = values_start + element_size * count
+    if values_end > len(data):
+        raise ValueError("Serialized tag block ended before all element data was read")
+
+    return memoryview(data)[values_start:values_end], element_size, count
+
+def _raw_vertex_offsets(raw_vertices, element_size: int):
+    offsets = []
+    offset = 0
+    for field in raw_vertices.Elements[0].Fields:
+        offsets.append(offset)
+        offset += int(field.Size)
+
+    if offset > element_size:
+        raise ValueError(f"Raw vertex field size {offset} exceeds serialized element size {element_size}")
+
+    return offsets
+
+def _unsigned_int(value: int, field_size: int):
+    if value < 0:
+        return (1 << (field_size * 8)) + value
+
+    return value
+
+def _read_index_elements(raw_indices):
+    if raw_indices.Elements.Count == 0:
+        return []
+
+    field_size = int(raw_indices.Elements[0].Fields[0].Size)
+    return [_unsigned_int(element.Fields[0].Data, field_size) for element in raw_indices.Elements]
+
+def _read_serialized_indices(raw_indices):
+    data, element_size, count = _serialized_block_data(raw_indices)
+    if count == 0:
+        return []
+
+    field_size = int(raw_indices.Elements[0].Fields[0].Size)
+    if field_size not in (1, 2, 4):
+        raise ValueError(f"Unsupported raw index size: {field_size}")
+    if element_size < field_size:
+        raise ValueError(f"Raw index field size {field_size} exceeds serialized element size {element_size}")
+
+    dtype = np.dtype(f"<u{field_size}")
+    if element_size == field_size:
+        return np.frombuffer(data, dtype=dtype, count=count).tolist()
+
+    index_dtype = np.dtype({
+        "names": ["index"],
+        "formats": [dtype],
+        "offsets": [0],
+        "itemsize": element_size,
+    })
+    return np.frombuffer(data, dtype=index_dtype, count=count)["index"].tolist()
+
+def _read_serialized_raw_vertices(raw_vertices, read_texcoord1: bool):
+    data, element_size, count = _serialized_block_data(raw_vertices)
+    if count == 0:
+        return {
+            "positions": [],
+            "texcoords": [],
+            "normals": [],
+            "lightmap_texcoords": [],
+            "node_indices": [],
+            "node_weights": [],
+            "vertex_colors": [],
+            "texcoords1": [],
+        }
+
+    offsets = _raw_vertex_offsets(raw_vertices, element_size)
+    if len(offsets) < 9:
+        raise ValueError(f"Raw vertex block has {len(offsets)} fields, expected at least 9")
+
+    names = ["position", "texcoord", "normal", "lightmap_texcoord", "node_indices", "node_weights", "vertex_color"]
+    formats = [
+        ("<f4", (3,)),
+        ("<f4", (2,)),
+        ("<f4", (3,)),
+        ("<f4", (2,)),
+        ("<i1", (4,)),
+        ("<f4", (4,)),
+        ("<f4", (3,)),
+    ]
+    field_offsets = [offsets[0], offsets[1], offsets[2], offsets[5], offsets[6], offsets[7], offsets[8]]
+
+    if read_texcoord1 and len(offsets) > 9:
+        names.append("texcoord1")
+        formats.append(("<f4", (2,)))
+        field_offsets.append(offsets[9])
+
+    dtype = np.dtype({
+        "names": names,
+        "formats": formats,
+        "offsets": field_offsets,
+        "itemsize": element_size,
+    })
+    vertices = np.frombuffer(data, dtype=dtype, count=count)
+
+    return {
+        "positions": vertices["position"].tolist(),
+        "texcoords": vertices["texcoord"].tolist(),
+        "normals": vertices["normal"].tolist(),
+        "lightmap_texcoords": vertices["lightmap_texcoord"].tolist(),
+        "node_indices": vertices["node_indices"].tolist(),
+        "node_weights": vertices["node_weights"].tolist(),
+        "vertex_colors": vertices["vertex_color"].tolist(),
+        "texcoords1": vertices["texcoord1"].tolist() if "texcoord1" in vertices.dtype.names else [],
+    }
                 
 class Tessellation(Enum):
     none = 0
@@ -2485,21 +2614,43 @@ class Mesh:
             if raw_indices.Elements.Count == 0:
                 raw_indices = temp_mesh.SelectField("raw indices32")
 
-            raw_positions = list(self.render_model.GetPositionsFromMesh(self.temp_meshes, raw_mesh_index))
-            raw_texcoords = list(self.render_model.GetTexCoordsFromMesh(self.temp_meshes, raw_mesh_index))
-            raw_normals = list(self.render_model.GetNormalsFromMesh(self.temp_meshes, raw_mesh_index))
-            index_stream = [utils.unsigned_int16(element.Fields[0].Data) for element in raw_indices.Elements]
+            try:
+                vertex_data = _read_serialized_raw_vertices(raw_vertices, self.corinth)
+            except Exception as ex:
+                utils.print_warning(f"Failed to read raw vertices with Field.Serialize(); falling back to ManagedBlam mesh helpers: {ex}")
+                raw_positions = list(self.render_model.GetPositionsFromMesh(self.temp_meshes, raw_mesh_index))
+                raw_texcoords = list(self.render_model.GetTexCoordsFromMesh(self.temp_meshes, raw_mesh_index))
+                raw_normals = list(self.render_model.GetNormalsFromMesh(self.temp_meshes, raw_mesh_index))
+                vertex_data = {
+                    "positions": [tuple(raw_positions[i:i + 3]) for i in range(0, len(raw_positions), 3)],
+                    "texcoords": [tuple(raw_texcoords[i:i + 2]) for i in range(0, len(raw_texcoords), 2)],
+                    "normals": [tuple(raw_normals[i:i + 3]) for i in range(0, len(raw_normals), 3)],
+                    "lightmap_texcoords": [tuple(float(v) for v in e.Fields[5].Data) for e in raw_vertices.Elements],
+                    "vertex_colors": [tuple(float(v) for v in e.Fields[8].Data) for e in raw_vertices.Elements],
+                    "texcoords1": (
+                        [tuple(float(v) for v in e.Fields[9].Data) for e in raw_vertices.Elements]
+                        if self.corinth and raw_vertices.Elements.Count and len(raw_vertices.Elements[0].Fields) > 9 else []
+                    ),
+                    "node_indices": None,
+                    "node_weights": None,
+                }
+
+            try:
+                index_stream = _read_serialized_indices(raw_indices)
+            except Exception as ex:
+                utils.print_warning(f"Failed to read raw indices with Field.Serialize(); falling back to field reads: {ex}")
+                index_stream = _read_index_elements(raw_indices)
 
             cache_entry = {
-                "positions": [tuple(raw_positions[i:i + 3]) for i in range(0, len(raw_positions), 3)],
-                "texcoords": [tuple(raw_texcoords[i:i + 2]) for i in range(0, len(raw_texcoords), 2)],
-                "normals": [tuple(raw_normals[i:i + 3]) for i in range(0, len(raw_normals), 3)],
-                "lightmap_texcoords": [tuple(float(v) for v in e.Fields[5].Data) for e in raw_vertices.Elements],
-                "vertex_colors": [tuple(float(v) for v in e.Fields[8].Data) for e in raw_vertices.Elements],
-                "texcoords1": [tuple(float(v) for v in e.Fields[9].Data) for e in raw_vertices.Elements] if self.corinth else [],
+                "positions": vertex_data["positions"],
+                "texcoords": vertex_data["texcoords"],
+                "normals": vertex_data["normals"],
+                "lightmap_texcoords": vertex_data["lightmap_texcoords"],
+                "vertex_colors": vertex_data["vertex_colors"],
+                "texcoords1": vertex_data["texcoords1"],
                 "index_stream": index_stream,
-                "node_indices": None,
-                "node_weights": None,
+                "node_indices": vertex_data["node_indices"],
+                "node_weights": vertex_data["node_weights"],
                 "water_indices_local": [],
                 "water_texcoords_local": [],
             }
