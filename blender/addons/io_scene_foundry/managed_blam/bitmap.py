@@ -15,6 +15,12 @@ from .. import utils
 import bpy
 
 path_cache = set()
+NORMAL_DEBUG_GAMMA = 2.2
+NORMAL_DEBUG_GAMMA_LOOKUP = tuple(
+    int(round(((i / 255.0) ** NORMAL_DEBUG_GAMMA) * 255.0))
+    for i in range(256)
+)
+NORMAL_DEBUG_GAMMA_LOOKUP_NP = np.array(NORMAL_DEBUG_GAMMA_LOOKUP, dtype=np.uint8)
 
 def clear_path_cache():
     global path_cache
@@ -217,6 +223,12 @@ class BitmapTag(Tag):
         if bitmap_type == 'default':
             bitmap_type = get_type_from_name(bitmap_name)
             
+        normal_bitmap_types = (
+            "ZBrush Bump Map (from Bump Map)",
+            "Normal Map (aka zbump)",
+            "Normal Map (from Standard Orientation of Maya, Modo, Zbrush)",
+        )
+
         self.longenum_usage.SetValue(bitmap_type)
         self.charenum_usage.SetValue('force PRETTY')
         if not self.block_usage_override.Elements.Count:
@@ -225,7 +237,10 @@ class BitmapTag(Tag):
         # Running this command sets up needed default values for the bitmap type
         override.SelectField("reset usage override").RunCommand()
         source_gamma = override.SelectField('source gamma')
-        source_gamma_value = self._source_gamma_from_color_space(color_space)
+        if bitmap_type in normal_bitmap_types:
+            source_gamma_value = 1.0
+        else:
+            source_gamma_value = self._source_gamma_from_color_space(color_space)
         source_gamma.Data = source_gamma_value
         bitmap_curve = override.SelectField("bitmap curve")
         if source_gamma_value > 2.0:
@@ -243,7 +258,7 @@ class BitmapTag(Tag):
             # bitmap_format.SetValue('Best Uncompressed Color Format')
             if bitmap_type == 'Material Map':
                 override.SelectField('mipmap limit').Data = -1
-        elif bitmap_type in ("ZBrush Bump Map (from Bump Map)", "Normal Map (aka zbump)", "Normal Map (from Standard Orientation of Maya, Modo, Zbrush)"):
+        elif bitmap_type in normal_bitmap_types:
             bitmap_format.SetValue('DXN Compressed Normals (better)')
             
         self.tag_has_changes = True
@@ -274,7 +289,7 @@ class BitmapTag(Tag):
         bitmap.UnlockBits(bitmap_data)
         
         if calc_blue_channel:
-            rgba_array = self.bgra_to_rgba_with_calculated_blue(total_bytes, bgra_array, gamma)
+            rgba_array = self.bgra_to_rgba_with_calculated_blue(total_bytes, bgra_array, gamma, self.normal_type() == NormalType.OPENGL)
         elif fill_alpha:
             rgba_array = self.bgra_to_rgba_solid_alpha(total_bytes, bgra_array, gamma)
         else:
@@ -341,24 +356,24 @@ class BitmapTag(Tag):
         return bgra_array
     
     @staticmethod
-    def bgra_to_rgba_with_calculated_blue(total_bytes, bgra_array, gamma):
+    def bgra_to_rgba_with_calculated_blue(total_bytes, bgra_array, _gamma, standard_orientation=False):
         for i in range(0, total_bytes, 4):
-            red = bgra_array[i + 2] / 255.0
-            green = bgra_array[i + 1] / 255.0
-            blue = calculate_z_vector(red, green)
-            match gamma:
-                case 'linear':
-                    red = red ** 2.0
-                    green = green ** 2.0
-                    blue = blue ** 2.0
-                case 'srgb':
-                    red = utils.linear_to_srgb(red ** 2.0)
-                    green = utils.linear_to_srgb(green ** 2.0)
-                    blue = utils.linear_to_srgb(blue ** 2.0)
+            if standard_orientation:
+                red_byte = bgra_array[i + 1]
+                green_byte = 255 - bgra_array[i + 2]
+            else:
+                red_byte = bgra_array[i + 2]
+                green_byte = bgra_array[i + 1]
+
+            red_byte = NORMAL_DEBUG_GAMMA_LOOKUP[red_byte]
+            green_byte = NORMAL_DEBUG_GAMMA_LOOKUP[green_byte]
+            red = red_byte / 255.0
+            green = green_byte / 255.0
+            blue_byte = int(calculate_z_vector(red, green) * 255 + 0.5)
                     
-            bgra_array[i] = int(red * 255)
-            bgra_array[i + 1] = int(green * 255)
-            bgra_array[i + 2] = int(blue * 255)
+            bgra_array[i] = red_byte
+            bgra_array[i + 1] = green_byte
+            bgra_array[i + 2] = blue_byte
             
         return bgra_array
     
@@ -513,25 +528,34 @@ class BitmapTag(Tag):
                 G = array[..., 1]
                 R = array[..., 2]
                 
-                if single_pixel or blue_channel_fix or self.curve.Value == 3:
-                    lookup_table = (np.round(((np.arange(256) / 255.0) ** 2.2) * 255)).astype(np.uint8)
-                elif self.curve.Value == 1:
-                    lookup_table = (np.round(((np.arange(256) / 255.0)) * 255)).astype(np.uint8)
-                else:
-                    lookup_table = (np.round(((np.arange(256) / 255.0) ** (2.2/2.0)) * 255)).astype(np.uint8)
-                    
-                r_linear = lookup_table[R]
-                g_linear = lookup_table[G]
-
                 if blue_channel_fix:
-                    r = r_linear.astype(np.float32) / 255.0
-                    g = g_linear.astype(np.float32) / 255.0
+                    if self.normal_type() == NormalType.OPENGL:
+                        # ManagedBlam's debug plate stores standard-orientation normals with the axes swapped.
+                        managed_r = R.copy()
+                        managed_g = G.copy()
+                        R[:] = managed_g
+                        G[:] = 255 - managed_r
 
-                    b = np.sqrt(np.clip(1.0 - r*r - g*g, 0.0, 1.0))
-                    R[:] = r_linear
-                    G[:] = g_linear
+                    # ManagedBlam's debug plate is display-oriented; darken R/G back before reconstructing Z.
+                    R[:] = NORMAL_DEBUG_GAMMA_LOOKUP_NP[R]
+                    G[:] = NORMAL_DEBUG_GAMMA_LOOKUP_NP[G]
+
+                    r = R.astype(np.float32) / 255.0
+                    g = G.astype(np.float32) / 255.0
+                    x = r * 2.0 - 1.0
+                    y = g * 2.0 - 1.0
+                    b = np.sqrt(np.clip(1.0 - x*x - y*y, 0.0, 1.0)) * 0.5 + 0.5
                     B[:] = (b * 255.0 + 0.5).astype(np.uint8)
                 else:
+                    if single_pixel or self.curve.Value == 3:
+                        lookup_table = (np.round(((np.arange(256) / 255.0) ** 2.2) * 255)).astype(np.uint8)
+                    elif self.curve.Value == 1:
+                        lookup_table = (np.round(((np.arange(256) / 255.0)) * 255)).astype(np.uint8)
+                    else:
+                        lookup_table = (np.round(((np.arange(256) / 255.0) ** (2.2/2.0)) * 255)).astype(np.uint8)
+
+                    r_linear = lookup_table[R]
+                    g_linear = lookup_table[G]
                     b_linear = lookup_table[B]
                     
                     R[:] = r_linear
