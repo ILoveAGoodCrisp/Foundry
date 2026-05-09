@@ -35,7 +35,6 @@ def _tag_redraw_areas(context: bpy.types.Context):
         area.tag_redraw()
 
 def clear_vis_keyframes(context, do_viewport=True, do_render=True, set_visible=True):
-    corinth = utils.is_corinth(context)
     view_objects = context.view_layer.objects
 
     for ob in view_objects:
@@ -43,7 +42,7 @@ def clear_vis_keyframes(context, do_viewport=True, do_render=True, set_visible=T
             if ob.nwo.cinematic_object:
                 pass
             continue
-        if corinth and ob.type == 'LIGHT' and ob.nwo.is_cinematic_light:
+        if ob.type == 'LIGHT' and ob.nwo.is_cinematic_light:
             pass
         elif utils.ultimate_armature_parent(ob) is not None:
             pass
@@ -89,8 +88,10 @@ def bake_vis_to_keyframes(context, do_viewport=True, do_render=True):
             fc = fcurves.find(dp)
             if fc is None:
                 fc = fcurves.new(data_path=dp)
-            fc.keyframe_points.insert(frame, hide_bool, options={'FAST'})
-            fc.keyframe_points.insert(end_frame, hide_bool, options={'FAST'})
+            start_key = fc.keyframe_points.insert(frame, hide_bool, options={'FAST'})
+            end_key = fc.keyframe_points.insert(end_frame, hide_bool, options={'FAST'})
+            start_key.interpolation = 'CONSTANT'
+            end_key.interpolation = 'CONSTANT'
             count += 1
 
         for ob in camera_target_set:
@@ -130,7 +131,6 @@ def bake_vis_to_keyframes(context, do_viewport=True, do_render=True):
                 find_and_set('hide_render', hide_non)
             
     scene = context.scene
-    corinth = utils.is_corinth(context)
     
     camera_frames = {m.frame: m.camera for m in utils.get_timeline_markers(scene)}
     frame_list = list(camera_frames)
@@ -157,7 +157,7 @@ def bake_vis_to_keyframes(context, do_viewport=True, do_render=True):
                 if ob.nwo.cinematic_object:
                     actors.add(ob)
                 continue
-            if corinth and ob.type == 'LIGHT' and ob.nwo.is_cinematic_light:
+            if ob.type == 'LIGHT' and ob.nwo.is_cinematic_light:
                 lights.add(ob)
             elif utils.ultimate_armature_parent(ob) is not None:
                 geometry.add(ob)
@@ -548,6 +548,12 @@ class NWO_OT_UpdateActor(bpy.types.Operator):
     bl_description = "Replaces this armature and its child meshes / markers with the model and variant set"
     bl_options = {"UNDO"}
 
+    import_variant_children: bpy.props.BoolProperty(
+        name="Import Variant Child Objects",
+        description="Imports the child objects associated with this model variant",
+        default=True,
+    )
+
     import_biped_weapon: bpy.props.BoolProperty(
         name="Import Biped Weapons",
         description="Imports all weapons referenced by the biped tag",
@@ -601,6 +607,7 @@ class NWO_OT_UpdateActor(bpy.types.Operator):
             layout.prop(self, "import_biped_weapon")
             if self.import_biped_weapon:
                 layout.prop(self, "biped_weapon_source")
+        layout.prop(self, 'import_variant_children')
         layout.prop(self, "tag_import_attachments")
         layout.prop(self, "build_blender_materials")
         layout.prop(self, "always_extract_bitmaps")
@@ -703,6 +710,7 @@ class NWO_OT_UpdateActor(bpy.types.Operator):
         importer.biped_weapon_source = self.biped_weapon_source
         importer.import_biped_weapon_non_export = False
         importer.tag_import_attachments = self.tag_import_attachments
+        importer.import_variant_children = self.import_variant_children
 
         try:
             if importer.needs_scaling:
