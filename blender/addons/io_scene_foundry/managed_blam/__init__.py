@@ -32,6 +32,7 @@ Animation = GameAnimation()
 mb_active = False
 mb_path = ""
 mb_operational = False
+mb_system_instance = None
 
 class Tag():
     # Stuff classes that inherit from this one may overwrite
@@ -420,11 +421,12 @@ def mb_init(tag_path=None):
         SystemInstance = Halo.ManagedBlamSystem()
         SystemInstance.Start(get_project_path(), callback, startup_parameters)
 
-        global Tags, Animation, mb_active, mb_operational
+        global Tags, Animation, mb_active, mb_operational, mb_system_instance
         Tags = Halo.Tags
         Animation = Halo.Game.Animation
         mb_active = True
         mb_operational = True
+        mb_system_instance = SystemInstance
 
     except Exception as e:
         print_error(f"Failed to initialise ManagedBlam: {e}")
@@ -432,8 +434,12 @@ def mb_init(tag_path=None):
 
         
 def close_managed_blam():
-    if mb_active:
-        Halo.ManagedBlamSystem.Stop()
+    global mb_active, mb_operational, mb_system_instance
+    if mb_active and mb_system_instance is not None:
+        mb_system_instance.Stop()
+        mb_system_instance = None
+        mb_active = False
+        mb_operational = False
     
 def tag_path_from_string(path: str | Path) -> TagPath:
     """Returns a Bungie TagPath from the given tag filepath. Filepath must include file extension"""
