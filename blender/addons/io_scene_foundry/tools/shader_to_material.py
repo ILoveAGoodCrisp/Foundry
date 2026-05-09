@@ -57,12 +57,16 @@ BITMAP_PARAMETER_REMAP = {
     "noise_map_a": "noise_a_map",
     "noise_map_b": "noise_b_map",
     "blend_map": "blend_map",
-    "base_map_m_0": "r_color",
-    "base_map_m_1": "g_color",
-    "base_map_m_2": "b_color",
-    "bump_map_m_0": "r_normal",
-    "bump_map_m_1": "g_normal",
-    "bump_map_m_2": "b_normal",
+    "base_map_m_0": "layer2_comap",
+    "base_map_m_1": "layer1_comap",
+    "base_map_m_2": "layer0_comap",
+    "bump_map_m_0": "layer2_nmmap",
+    "bump_map_m_1": "layer1_nmmap",
+    "bump_map_m_2": "layer0_nmmap",
+    "detail_bump_m_0": "layer2_detailnmmap",
+    "detail_bump_m_1": "layer1_detailnmmap",
+    "detail_bump_m_2": "layer0_detailnmmap",
+    "detail_map_m_0": "all_layers_color_detail_map", # pain, h4 has no per layer color detail
     "alpha_map": "alpha_map",
     "palette": "palette_map",
     "vector_map": "vector_map",
@@ -416,7 +420,7 @@ class ShaderToMaterialConverter:
                 if not material_was_new and not self._material_is_converted_from_shader(material):
                     self.report.skipped += 1
                     print(f"    Skipped existing non-converted material: {material_path}")
-                    return ""
+                    return material_path
 
                 self._mark_material_converted(material)
                 success = self._convert_render_method_to_material(material, shader, Path(shader_path).suffix.lower())
@@ -626,7 +630,7 @@ class ShaderToMaterialConverter:
         if shader_group == ".shader_decal":
             return self._set_material_shader_from_decal_shader(material, shader)
         if shader_group == ".shader_terrain":
-            self._set_material_shader_reference(material, self._material_shader_path("materials", "srf_layered_three"))
+            self._set_material_shader_reference(material, self._material_shader_path("materials", "srf_ca_layered_three_height_detailnormal"))
             return True
         if shader_group == ".shader_water":
             self._set_material_shader_reference(material, self._material_shader_path("materials", "water", "water"))
@@ -706,40 +710,34 @@ class ShaderToMaterialConverter:
         return result
 
     def _set_material_physics_from_shader(self, material: MaterialTag, shader: ShaderTag, shader_group: str):
-        physics = ""
-        if shader_group in {".shader", ".shader_halogram"}:
-            physics = self._string_id(shader.tag, "material name", "material name 0")
-        elif shader_group == ".shader_terrain":
-            physics = self._string_id(shader.tag, "material name 0", "material name")
-
-        if not physics and shader.reference.Path is not None and shader.path_exists(shader.reference.Path):
-            with ShaderTag(path=shader.reference.Path) as reference_shader:
-                physics = self._physics_from_reference(reference_shader, shader_group)
+        physics, physics_2, physics_3, physics_4 = self._physics_from_reference(shader, shader_group)
 
         if not physics:
             physics = "default_material"
-
+    
         material.tag.SelectField("StringId:physics material name").SetStringData(physics)
+        material.tag.SelectField("StringId:physics material name 2").SetStringData(physics_2)
+        material.tag.SelectField("StringId:physics material name 3").SetStringData(physics_3)
+        material.tag.SelectField("StringId:physics material name 4").SetStringData(physics_4)
 
     def _physics_from_reference(self, shader: ShaderTag, shader_group: str) -> str:
+        physics = ""
+        physics_2 = ""
+        physics_3 = ""
+        physics_4 = ""
         if shader_group in {".shader", ".shader_halogram"}:
-            physics = self._string_id(shader.tag, "material name", "material name 0")
+            physics = shader.tag.SelectField("material name").GetStringData()
         elif shader_group == ".shader_terrain":
-            physics = self._string_id(shader.tag, "material name 0", "material name")
-        else:
-            physics = ""
+            physics = shader.tag.SelectField("material name 0").GetStringData()
+            physics_2 = shader.tag.SelectField("material name 1").GetStringData()
+            physics_3 = shader.tag.SelectField("material name 2").GetStringData()
+            physics_4 = shader.tag.SelectField("material name 3").GetStringData()
 
         if not physics and shader.reference.Path is not None and shader.path_exists(shader.reference.Path):
             with ShaderTag(path=shader.reference.Path) as reference_shader:
                 return self._physics_from_reference(reference_shader, shader_group)
-        return physics
-
-    def _string_id(self, container, *names) -> str:
-        for name in names:
-            value = container.SelectField(f"StringId:{name}").GetStringData()
-            if value:
-                return value
-        return ""
+            
+        return physics, physics_2, physics_3, physics_4
 
     def _set_blend_mode(self, material: MaterialTag, shader: ShaderTag, shader_group: str):
         if shader_group == ".shader_glass":
@@ -793,21 +791,7 @@ class ShaderToMaterialConverter:
         animated_parameters = shader_parameter.SelectField("Block:animated parameters")
         for animated_parameter in animated_parameters.Elements:
             animated_type = self._animated_parameter_type(animated_parameter)
-            parameter_base = target_parameter_name[:-4] if target_parameter_name.endswith("_map") else target_parameter_name
-            match animated_type:
-                case 2:
-                    self._add_material_function_parameter(material, f"{parameter_base}_tile_u", "real", animated_parameter)
-                    self._add_material_function_parameter(material, f"{parameter_base}_tile_v", "real", animated_parameter)
-                case 3:
-                    self._add_material_function_parameter(material, f"{parameter_base}_tile_u", "real", animated_parameter)
-                case 4:
-                    self._add_material_function_parameter(material, f"{parameter_base}_tile_v", "real", animated_parameter)
-                case 5:
-                    self._add_material_function_parameter(material, f"{parameter_base}_offset_u", "real", animated_parameter)
-                case 6:
-                    self._add_material_function_parameter(material, f"{parameter_base}_offset_v", "real", animated_parameter)
-                case 7:
-                    self._add_function_to_material_parameter(material_parameter, animated_parameter, 7)
+            self._add_function_to_material_parameter(material_parameter, animated_parameter, animated_type)
 
         return result
 
@@ -889,7 +873,7 @@ class ShaderToMaterialConverter:
             if convert_function is None:
                 self._add_material_function_parameter(material, target_parameter_name, "real", first_animated)
             else:
-                self._add_real_parameter(material, target_parameter_name, convert_function(self._evaluate_function_scalar(first_animated, 0.0, 1.0)))
+                self._add_real_parameter(material, target_parameter_name, convert_function(first_animated.SelectField("animation function").Value.ClampRangeMin))
         else:
             value = shader_parameter.SelectField("real").Data
             if convert_function is not None:
@@ -984,13 +968,6 @@ class ShaderToMaterialConverter:
         target_type = 1 if parameter_type == "color" else 0
         self._add_function_to_material_parameter(material_parameter, shader_function, target_type)
 
-        if parameter_type == "color":
-            material_parameter.SelectField("color").Data = self._function_color(shader_function, 0)
-        else:
-            value = self._evaluate_function_scalar(shader_function, 0.0, 0.0)
-            material_parameter.SelectField("real").Data = value
-            material_parameter.SelectField("vector").Data = [value, 0.0, 0.0]
-
         return material_parameter
 
     def _add_function_to_material_parameter(self, material_parameter, shader_function, target_type: int):
@@ -1004,6 +981,19 @@ class ShaderToMaterialConverter:
         material_function.SelectField("range name").SetStringData(range_name)
         material_function.SelectField("time period").Data = shader_function.SelectField("time period").Data
         material_function.SelectField("function").Deserialize(shader_function.SelectField("animation function").Serialize())
+        
+        if target_type == 1:
+            material_parameter.SelectField("color").Data = self._function_color(shader_function, 0)
+        else:
+            value = shader_function.SelectField("animation function").Value.ClampRangeMin
+            if target_type in {2, 3}:
+                material_parameter.SelectField("real").Data = value
+            if target_type in {2, 4}:
+                material_parameter.SelectField("vector").Data[0] = value
+            elif target_type == 5:
+                material_parameter.SelectField("vector").Data[1] = value
+            elif target_type == 6:
+                material_parameter.SelectField("vector").Data[2] = value
 
         return material_function
 
@@ -1071,7 +1061,7 @@ class ShaderToMaterialConverter:
         animated_parameters = shader_parameter.SelectField("Block:animated parameters")
         for animated_parameter in animated_parameters.Elements:
             if self._animated_parameter_type(animated_parameter) == 0:
-                return self._evaluate_function_scalar(animated_parameter, 0.0, 0.0)
+                return animated_parameter.SelectField("animation function").Value.ClampRangeMin
         return float(shader_parameter.SelectField("real").Data)
 
     def _evaluate_color_parameter(self, shader_parameter):
@@ -1081,9 +1071,6 @@ class ShaderToMaterialConverter:
                 color = self._function_color(animated_parameter, 0)
                 return [color[1], color[2], color[3]]
         return None
-
-    def _evaluate_function_scalar(self, animated_parameter, input_value: float, range_value: float) -> float:
-        return float(animated_parameter.SelectField("animation function").Value.Evaluate(input_value, range_value))
 
     def _function_color(self, animated_parameter, color_index: int):
         editor = animated_parameter.SelectField("animation function")
