@@ -42,7 +42,12 @@ from ..ui.panel.cinematic import bake_vis_to_keyframes
 from ..managed_blam.object import ObjectTag
 from ..managed_blam.particle_model import ParticleModelTag
 from ..managed_blam.scenario_structure_bsp import ScenarioStructureBspTag
-from ..managed_blam.scenario import ScenarioTag
+from ..managed_blam.scenario import (
+    DECORATOR_ATTR_ROTATION_EULER,
+    DECORATOR_ATTR_SCALE_VECTOR,
+    DECORATOR_CLOUD_PROP,
+    ScenarioTag,
+)
 from ..managed_blam.animation import AnimationTag
 from ..managed_blam.pca_animation import PCAAnimationTag
 from ..managed_blam.render_model import RenderModelTag
@@ -66,6 +71,88 @@ legacy_model_formats = '.jms', '.ass'
 legacy_animation_formats = '.jmm', '.jma', '.jmt', '.jmz', '.jmv', '.jmw', '.jmo', '.jmr', '.jmrx'
 legacy_poop_prefixes = '%', '+', '-', '?', '!', '>', '*', '&', '^', '<', '|',
 legacy_frame_prefixes = "frame_", "frame ", "bip_", "bip ", "b_", "b "
+DECORATOR_INSTANCE_SOURCE_PROP = "nwo_decorator_instance_source"
+
+def _node_socket(sockets, *names):
+    for name in names:
+        if name in sockets:
+            return sockets[name]
+    
+    return None
+
+def _geometry_node_group(name):
+    group = bpy.data.node_groups.new(name, "GeometryNodeTree")
+    if hasattr(group, "interface"):
+        group.interface.new_socket(name="Geometry", in_out='INPUT', socket_type='NodeSocketGeometry')
+        group.interface.new_socket(name="Geometry", in_out='OUTPUT', socket_type='NodeSocketGeometry')
+    else:
+        group.inputs.new("NodeSocketGeometry", "Geometry")
+        group.outputs.new("NodeSocketGeometry", "Geometry")
+    
+    return group
+
+def _named_attribute_node(nodes, attribute_name, data_type):
+    node = nodes.new("GeometryNodeInputNamedAttribute")
+    if hasattr(node, "data_type"):
+        node.data_type = data_type
+    _node_socket(node.inputs, "Name").default_value = attribute_name
+    return node
+
+def _decorator_instance_source_empty(cloud: bpy.types.Object, game_object_collection: bpy.types.Collection):
+    collection = cloud.users_collection[0] if cloud.users_collection else bpy.context.scene.collection
+    name = f"{cloud.name}_instance_source"
+    source = bpy.data.objects.get(name)
+    if source is None:
+        source = bpy.data.objects.new(name, None)
+    
+    if source.name not in collection.objects.keys():
+        collection.objects.link(source)
+    
+    source[DECORATOR_INSTANCE_SOURCE_PROP] = True
+    source.empty_display_type = 'PLAIN_AXES'
+    source.empty_display_size = 0.01
+    source.hide_select = True
+    source.hide_viewport = True
+    source.hide_render = True
+    source.instance_type = 'COLLECTION'
+    source.instance_collection = game_object_collection
+    source.matrix_world = Matrix.Identity(4)
+    source.nwo.export_this = False
+    return source
+
+def _add_decorator_cloud_instance_nodes(cloud: bpy.types.Object, source: bpy.types.Object):
+    modifier_name = "Decorator Instances"
+    mod = cloud.modifiers.get(modifier_name) or cloud.modifiers.new(modifier_name, 'NODES')
+    group = _geometry_node_group(f"{cloud.name}_decorator_instances")
+    mod.node_group = group
+    
+    nodes = group.nodes
+    links = group.links
+    group_input = nodes.new("NodeGroupInput")
+    group_output = nodes.new("NodeGroupOutput")
+    group_output.is_active_output = True
+    instance_on_points = nodes.new("GeometryNodeInstanceOnPoints")
+    object_info = nodes.new("GeometryNodeObjectInfo")
+    rotation_attr = _named_attribute_node(nodes, DECORATOR_ATTR_ROTATION_EULER, 'FLOAT_VECTOR')
+    scale_attr = _named_attribute_node(nodes, DECORATOR_ATTR_SCALE_VECTOR, 'FLOAT_VECTOR')
+    
+    object_input = _node_socket(object_info.inputs, "Object")
+    if object_input is not None:
+        object_input.default_value = source
+    as_instance = _node_socket(object_info.inputs, "As Instance")
+    if as_instance is not None:
+        as_instance.default_value = True
+    
+    links.new(_node_socket(group_input.outputs, "Geometry"), _node_socket(instance_on_points.inputs, "Points"))
+    links.new(_node_socket(object_info.outputs, "Geometry"), _node_socket(instance_on_points.inputs, "Instance"))
+    links.new(_node_socket(rotation_attr.outputs, "Attribute"), _node_socket(instance_on_points.inputs, "Rotation"))
+    links.new(_node_socket(scale_attr.outputs, "Attribute"), _node_socket(instance_on_points.inputs, "Scale"))
+    links.new(_node_socket(instance_on_points.outputs, "Instances"), _node_socket(group_output.inputs, "Geometry"))
+    return mod
+
+def add_decorator_cloud_instancer(cloud: bpy.types.Object, game_object_collection: bpy.types.Collection):
+    source = _decorator_instance_source_empty(cloud, game_object_collection)
+    return _add_decorator_cloud_instance_nodes(cloud, source)
 
 variant_items = []
 last_used_variant = ""
@@ -1410,14 +1497,17 @@ class NWO_Import(bpy.types.Operator):
                             object_lighting_collection = bpy.data.collections.new(f"object_lighting_{sdata.name}")
                             context.scene.collection.children.link(object_lighting_collection)
                             # scene_collection_map[sdata.blender_scene].add(object_lighting_collection)
-                            lights_to_bake_matrix = []
-                            
-                            def setup_light(light_ob, camera_shot, receiver_collection):
+
+                            def setup_light(light_ob, camera_shot, receiver_collection, lighting_shot=None):
                                 object_lighting_coll.objects.link(light_ob)
                                 camera_light_mask[camera_shot].add(light_ob)
                                 light_objects_all.append(light_ob)
                                 imported_cinematic_objects.append(light_ob)
                                 scene_imported_objects.append(light_ob)
+                                if lighting_shot is not None:
+                                    light_ob["cinematic_light_marker"] = lighting_shot.marker
+                                    light_ob["cinematic_light_persist"] = lighting_shot.persist
+                                    light_ob["cinematic_light_shot"] = lighting_shot.shot_index + 1
                                 if receiver_collection is not None:
                                     light_ob.light_linking.receiver_collection = model_collection
                             
@@ -1425,6 +1515,7 @@ class NWO_Import(bpy.types.Operator):
                                 camera_actor_mask = {cam: set() for cam in sdata.camera_objects}
                                 do_vis_bake = True
                                 all_actors = set()
+                                actor_event_links = []
                                 for cin_object in sdata.object_animations:
                                     importer.tag_variant = cin_object.variant
                                     imported_cinematic_object_objects, armature, render_path, model_collection = importer.import_object([cin_object.object_path], None, return_cin_stuff=True, parent_collection=cinematic_objects_collection)
@@ -1432,6 +1523,10 @@ class NWO_Import(bpy.types.Operator):
                                     scene_imported_objects.extend(imported_cinematic_object_objects)
                                     cin_object.armature = armature
                                     armature.name = cin_object.name
+
+                                    for event_index in cin_object.events:
+                                        actor_event_links.append((event_index, armature))
+
                                     model_collection.name = cin_object.name
                                     cin_actions, cin_animations = importer.import_animation_graph(cin_object.graph_path, armature, render_path, return_animations=True)
                                     
@@ -1452,22 +1547,21 @@ class NWO_Import(bpy.types.Operator):
                                     object_lighting_collection.children.link(object_lighting_coll)
                                     
                                     for lighting_shot in cin_object.cinematic_lighting:
+                                        marker = markers.get(lighting_shot.marker)
                                         for idx, vmf_light in enumerate(lighting_shot.vmf_lights):
                                             c = cin_object.cameras.get(lighting_shot.shot_index)
                                             if c is None:
                                                 continue
                                             light_name = f"{armature.name}_light_2_shot_{lighting_shot.shot_index + 1}" if idx == 1 else f"{armature.name}_light_1_shot_{lighting_shot.shot_index + 1}"
-                                            setup_light(vmf_light.to_blender(armature, light_name), c, model_collection)
+                                            setup_light(vmf_light.to_blender(armature, marker, light_name), c, model_collection, lighting_shot)
                                             
                                         for idx, dynamic_light in enumerate(lighting_shot.dynamic_lights):
                                             c = cin_object.cameras.get(lighting_shot.shot_index)
                                             if c is None:
                                                 continue
                                             light_name = f"{armature.name}_dynamic_light_{lighting_shot.marker}_shot_{lighting_shot.shot_index + 1}" if (lighting_shot.marker and dynamic_light.use_marker) else f"{armature.name}_dynamic_light_shot_{lighting_shot.shot_index + 1}"
-                                            l_ob = dynamic_light.to_blender(armature, markers.get(lighting_shot.marker), light_name)
-                                            setup_light(l_ob, c, None)
-                                            if not dynamic_light.follow_object:
-                                                lights_to_bake_matrix.append(l_ob)
+                                            l_ob = dynamic_light.to_blender(armature, marker, light_name)
+                                            setup_light(l_ob, c, None, lighting_shot)
                                 
                                 for cam, actors in camera_actor_mask.items():
                                     cam_actors = cam.nwo.actors
@@ -1553,6 +1647,16 @@ class NWO_Import(bpy.types.Operator):
 
                             if importer.needs_scaling and (scene_imported_objects or scene_imported_actions):
                                 utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', scene_nwo.forward_direction, objects=scene_imported_objects, actions=scene_imported_actions)
+
+                            if self.tag_cinematic_import_actors:
+                                cinematic_events = sdata.blender_scene.nwo.cinematic_events
+                                for event_index, actor in actor_event_links:
+                                    if event_index < len(cinematic_events):
+                                        e = cinematic_events[event_index]
+                                        if e.type == 'EFFECT':
+                                            e.marker = actor
+                                        else:
+                                            e.actor = actor
 
                             # scene_collection_map[sdata.blender_scene].add(anchor)
                             first_scene = False
@@ -2770,7 +2874,7 @@ class NWOImporter:
                                                                         parent_index = fp_root_node_element.SelectField("ShortBlockIndex:parent node index").Value
                                                                         parent_node = node_names[parent_index]
                                                         
-                                                        bpy.ops.object.editmode_toggle()
+                                                        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
                                                         root_gun_edit_bone = armature.data.edit_bones.get(root_gun_bone)
                                                         if root_gun_edit_bone is not None:
                                                             for bone in armature.data.edit_bones:
@@ -2778,7 +2882,7 @@ class NWOImporter:
                                                                     root_gun_edit_bone.parent = bone
                                                                     break
                                                                 
-                                                        bpy.ops.object.editmode_toggle()
+                                                        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
                                                         
                                                         for ob in fp_objects:
                                                             if ob.type == 'MESH':
@@ -3293,6 +3397,10 @@ class NWOImporter:
                                         self.scene_collection.children.unlink(game_object_collection)
                                         # bpy.data.collections.link(game_object_collection)
                                         game_object_collection = self.cache_game_object_collection(merged_collection, *key)
+                                    
+                                    if ob.get(DECORATOR_CLOUD_PROP):
+                                        add_decorator_cloud_instancer(ob, game_object_collection)
+                                        continue
                                         
                                     ob.instance_type = 'COLLECTION'
                                     ob.instance_collection = game_object_collection
@@ -5606,20 +5714,46 @@ def duplicate_cached_import(template_objects, render_ref, collection_name, paren
 
     return list(obj_map.values()), armature, render_ref, new_collection
 
+def remove_orphan_object_data(data):
+    if data.users != 0:
+        return
+
+    for data_type, data_collection in (
+        (bpy.types.Mesh, bpy.data.meshes),
+        (bpy.types.Armature, bpy.data.armatures),
+        (bpy.types.Light, bpy.data.lights),
+        (bpy.types.Camera, bpy.data.cameras),
+        (bpy.types.Curve, bpy.data.curves),
+        (bpy.types.Lattice, bpy.data.lattices),
+        (bpy.types.MetaBall, bpy.data.metaballs),
+    ):
+        if isinstance(data, data_type):
+            data_collection.remove(data, do_unlink=True)
+            return
+
 def remove_collection_hierarchy(collection: bpy.types.Collection):
     if collection not in frozenset(bpy.data.collections):
         return
 
-    ids_to_remove = []
-    for obj in collection.all_objects:
-        ids_to_remove.append(obj)
+    data_to_remove = []
+    for obj in list(collection.all_objects):
         data = getattr(obj, "data", None)
-        if data is not None and data.users == 1:
-            ids_to_remove.append(data)
+        if data is not None:
+            data_to_remove.append(data)
+        try:
+            bpy.data.objects.remove(obj, do_unlink=True)
+        except TypeError:
+            return
 
-    ids_to_remove.extend(collection.children_recursive)
-    ids_to_remove.append(collection)
-    bpy.data.batch_remove(list(dict.fromkeys(ids_to_remove)))
+    for data in dict.fromkeys(data_to_remove):
+        remove_orphan_object_data(data)
+
+    for child_collection in reversed(list(collection.children_recursive)):
+        if child_collection in frozenset(bpy.data.collections):
+            bpy.data.collections.remove(child_collection, do_unlink=True)
+
+    if collection in frozenset(bpy.data.collections):
+        bpy.data.collections.remove(collection, do_unlink=True)
 
 def clear_cache():
     global objects_cache
@@ -5628,7 +5762,10 @@ def clear_cache():
         if isinstance(cache_entry, dict):
             collection = cache_entry.get("collection")
             if collection is not None:
-                remove_collection_hierarchy(collection)
+                try:
+                    remove_collection_hierarchy(collection)
+                except Exception as e:
+                    utils.print_warning(f"Could not clear import cache collection '{collection.name}': {e}")
     objects_cache = {}
     tag_files_by_name_cache = {}
     connected_geometry.clear_cache()
