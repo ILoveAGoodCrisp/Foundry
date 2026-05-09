@@ -323,9 +323,9 @@ class NWO_OT_MovementDataToPedestal(bpy.types.Operator):
         self.ob.data.pose_position = 'REST'
         context.view_layer.update()
         root_rest_matrix = self.ob.pose.bones[self.root_bone].matrix.copy()
-        bpy.ops.object.editmode_toggle()
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         self.ob.data.edit_bones[self.source_bone].parent = None
-        bpy.ops.object.editmode_toggle()
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         self.ob.data.pose_position = 'POSE'
         context.view_layer.update()
         
@@ -353,9 +353,9 @@ class NWO_OT_MovementDataToPedestal(bpy.types.Operator):
             print(f"Calculating new root movement for {current_animation.name}")
             transfer_movement(context, current_animation, current_animation_index, self.ob, self.source_bone, self.root_bone, root_rest_matrix, root_matrix, settings_dict, source_bone_anim_matrices.get(current_animation_index), self.relative_to_root_start)
             
-        bpy.ops.object.editmode_toggle()
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         self.ob.data.edit_bones[self.source_bone].parent = self.ob.data.edit_bones[self.root_bone]
-        bpy.ops.object.editmode_toggle()
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         
         print(f"\nSetting new source bone keyframes")
         for idx, source_bone_matrices in source_bone_anim_matrices.items():
