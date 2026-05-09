@@ -104,6 +104,7 @@ class CinematicDialogue:
     
     def to_event(self, nwo, corinth: bool): 
         event = cast(NWO_CinematicEvent, nwo.cinematic_events.add())
+        event.type = 'DIALOGUE'
         if self.dialogue is not None:
             event.sound_tag = self.dialogue.RelativePathWithExtension
         if self.female_dialogue is not None:
@@ -168,6 +169,7 @@ class CinematicMusic:
         
     def to_event(self, nwo, corinth: bool):
         event = cast(NWO_CinematicEvent, nwo.cinematic_events.add())
+        event.type = 'MUSIC'
         event.stop = self.stops_music_at_frame
         event.sound_tag = self.music.RelativePathWithExtension
         event.frame = utils.blender_frame(self.frame + int((not corinth)))
@@ -227,7 +229,7 @@ class CinematicEffect:
             
     def to_event(self, nwo, corinth: bool):
         event = cast(NWO_CinematicEvent, nwo.cinematic_events.add())
-        
+        event.type = 'EFFECT'
         event.effect = self.effect.RelativePathWithExtension
         event.marker_name = self.marker_name
         event.function_a = self.function_a
@@ -292,7 +294,7 @@ class CinematicObjectFunctionKeyframe:
         
     def to_event(self, nwo, corinth: bool):
         event = cast(NWO_CinematicEvent, nwo.cinematic_events.add())
-        
+        event.type = 'FUNCTION'
         event.clear_function = self.clear_function
         event.value = self.value
         event.interpolation_time = self.interpolation_time
@@ -345,16 +347,6 @@ class CinematicScreenEffect:
         element.SelectField("stop frame").Data = self.stop_frame
         if corinth:
             element.SelectField("flags").SetBit("Persist Entire Shot", self.persist_entire_shot)
-            
-    def to_event(self, nwo, corinth: bool):
-        event = cast(NWO_CinematicEvent, nwo.cinematic_events.add())
-        
-        event.screen_effect = self.screen_effect.RelativePathWithExtension
-        event.shot_only = self.persist_entire_shot
-        event.frame = utils.blender_frame(self.frame + int((not corinth)))
-        
-        return event
-        
         
 class CinematicCustomScript:
     def __init__(self):
@@ -377,6 +369,14 @@ class CinematicCustomScript:
         element.SelectField("script").Elements[0].Fields[0].DataAsText = convert(self.script) if corinth else self.script
         element.SelectField("node id").Data = self.node_id
         element.SelectField("sequence id").Data = self.sequence_id
+        
+    def to_event(self, nwo):
+        event = cast(NWO_CinematicEvent, nwo.cinematic_events.add())
+        event.type = 'SCRIPT'
+        event.script_type = 'CUSTOM'
+        event.script = self.script
+        
+        return event
         
     def from_event(self, event: NWO_CinematicEvent, object_tag_weapon_names: dict, actor_objects: set, corinth: bool):
         self.use_maya_value = True
@@ -522,12 +522,8 @@ class CinematicSceneTag(Tag):
         cin_scene.name = scene_id
         blender_scene = bpy.data.scenes.get(self.tag_path.ShortName)
         if blender_scene is None:
-            current_scenes = set(bpy.data.scenes)
-            bpy.ops.scene.new(type='EMPTY')
-            self.context.window.scene = self.scene_nwo.id_data # because the above op switches the scene
-            blender_scene = next(s for s in bpy.data.scenes if s not in current_scenes)
+            blender_scene = bpy.data.scenes.new(self.tag_path.ShortName)
             blender_scene.nwo.is_main_scene = False
-            blender_scene.name = self.tag_path.ShortName
 
         cin_scene.scene = blender_scene
         cin_scene_nwo = blender_scene.nwo
@@ -553,7 +549,8 @@ class CinematicSceneTag(Tag):
             for dialogue_element in data_element.SelectField("dialogue").Elements:
                 dialogue = CinematicDialogue()
                 dialogue.from_element(dialogue_element)
-                object_events[dialogue.actor].append(dialogue.to_event(cin_scene_nwo, self.corinth))
+                dialogue.to_event(cin_scene_nwo, self.corinth)
+                object_events[dialogue.actor].append(len(cin_scene_nwo.cinematic_events) - 1)
                 
             for music_element in scene_element.SelectField("music").Elements:
                 music = CinematicMusic()
@@ -562,18 +559,20 @@ class CinematicSceneTag(Tag):
                 
             for effect_element in data_element.SelectField("effects").Elements:
                 effect = CinematicEffect()
-                effect.from_element(effect_element)
-                object_events[effect.marker_parent].append(effect.to_event(cin_scene_nwo, self.corinth))
+                effect.from_element(effect_element, data_objects, self.corinth)
+                effect.to_event(cin_scene_nwo, self.corinth)
+                object_events[effect.marker_parent].append(len(cin_scene_nwo.cinematic_events) - 1)
                 
             for object_functions_element in scene_element.SelectField("object functions").Elements:
                 object_function = CinematicObjectFunction()
-                object_function.from_element(object_functions_element)
+                object_function.from_element(object_functions_element, scene_objects)
                 for keyframe in object_function.keyframes:
-                    object_events[object_function.object].append(keyframe.to_event(cin_scene_nwo, self.corinth))
+                    keyframe.to_event(cin_scene_nwo, self.corinth)
+                    object_events[object_function.object].append(len(cin_scene_nwo.cinematic_events) - 1)
                 
             for screen_effects_element in scene_element.SelectField("screen effects").Elements:
                 screen_effect = CinematicScreenEffect()
-                screen_effect.from_element(screen_effects_element)
+                screen_effect.from_element(screen_effects_element, self.corinth)
                 main_screen_effect = screen_effect
                 
             for script_element in data_element.SelectField("custom script").Elements:
