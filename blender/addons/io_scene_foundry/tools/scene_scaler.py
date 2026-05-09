@@ -125,7 +125,7 @@ class NWO_ScaleScene(bpy.types.Operator):
         [ob.select_set(True) for ob in old_selection]
         
         if 'EDIT' in old_mode:
-            bpy.ops.object.editmode_toggle()
+            bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         if old_mode == 'POSE':
             bpy.ops.object.posemode_toggle()
         
