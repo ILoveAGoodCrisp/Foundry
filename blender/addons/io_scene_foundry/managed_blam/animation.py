@@ -3571,10 +3571,8 @@ class AnimationTag(Tag):
         else:
             blender_animation.disable_subframe_interp_on_loop = flags.TestBit("disable subframe interp on loop")
             
-        if flags.TestBit("use custom blend-in time" if self.corinth else "override default blend time"):
-            blender_animation.override_blend_in_time = tag_animation.element.SelectField("override blend in time").Data
-        if flags.TestBit("use custom blend-out time" if self.corinth else "override default blend out time"):
-            blender_animation.override_blend_out_time = tag_animation.element.SelectField("override blend out time").Data
+        blender_animation.override_blend_in_time = tag_animation.element.SelectField("override blend in time").Data
+        blender_animation.override_blend_out_time = tag_animation.element.SelectField("override blend out time").Data
         
         match tag_animation.compression:
             case Compression.medium_compression | Compression.reach_medium_compression:
