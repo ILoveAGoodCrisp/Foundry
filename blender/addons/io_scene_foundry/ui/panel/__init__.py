@@ -2995,14 +2995,15 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 col.prop(event, "subtitle")
                 col.prop(event, "female_subtitle")
                 col.prop(event, "subtitle_character")
-                col.prop_search(
-                    event,
-                    "sound_strip",
-                    self.scene.sequence_editor,
-                    "strips_all",
-                    text="Sound Strip",
-                    icon='PLAY_SOUND'
-                )
+                if self.scene.sequence_editor:
+                    col.prop_search(
+                        event,
+                        "sound_strip",
+                        self.scene.sequence_editor,
+                        "strips_all",
+                        text="Sound Strip",
+                        icon='PLAY_SOUND'
+                    )
             case 'EFFECT':
                 draw_tag_path(col, event, "effect")
                 col.prop(event, "marker")
@@ -3203,6 +3204,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col.prop(animation, "external")
             col.prop(animation, "pose_overlay")
             col.prop(animation, "gr2_path")
+            col.prop(animation, "blend_path")
             col.operator("nwo.open_external_animation_blend", icon='BLENDER')
         else:
             row = col.row()
