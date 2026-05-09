@@ -123,15 +123,9 @@ class ShaderToMaterialReport:
 def _norm(value) -> str:
     return utils.game_str(str(value)).replace("-", "_")
 
-
-def _enum_name(field) -> str:
-    return _norm(field.Items[int(field.Value)].EnumName)
-
-
 def _tag_reference_path(tag: MaterialTag, relative_without_extension: str):
     relative = f"{relative_without_extension}.material_shader"
     return tag._TagPath_from_string(relative)
-
 
 def _shader_name_for_log(path: str) -> str:
     return utils.dot_partition(path)
@@ -359,14 +353,7 @@ class ShaderToMaterialConverter:
     def convert_paths(self, shader_paths: list[str], update_blend_references: bool = False) -> ShaderToMaterialReport:
         successful_shader_paths: list[str] = []
         for shader_path in shader_paths:
-            try:
-                material_path = self.convert_shader(shader_path)
-            except Exception as exc:
-                self.report.failed += 1
-                self.report.warnings.append(f"{shader_path}: {exc}")
-                print(f"*** Failed to convert {shader_path}: {exc}")
-                continue
-
+            material_path = self.convert_shader(shader_path)
             if material_path:
                 self._record_converted_path(shader_path, material_path)
                 successful_shader_paths.append(shader_path)
@@ -527,10 +514,10 @@ class ShaderToMaterialConverter:
         return True
 
     def _material_is_converted_from_shader(self, material: MaterialTag) -> bool:
-        return bool(material.tag.SelectField("WordFlags:flags").TestBit("converted from shader"))
+        return material.tag.SelectField("flags").TestBit("converted from shader")
 
     def _mark_material_converted(self, material: MaterialTag):
-        material.tag.SelectField("WordFlags:flags").SetBit("converted from shader", True)
+        material.tag.SelectField("flags").SetBit("converted from shader", True)
 
     def _convert_render_method_to_material(self, material: MaterialTag, shader: ShaderTag, shader_group: str) -> bool:
         success = True
@@ -772,7 +759,7 @@ class ShaderToMaterialConverter:
 
             if parameter_type == 0:
                 target = BITMAP_PARAMETER_REMAP.get(parameter_name)
-                bitmap = shader_parameter.SelectField("Reference:bitmap")
+                bitmap = shader_parameter.SelectField("bitmap")
                 if target and bitmap.Path is not None:
                     result &= self._convert_bitmap_parameter(material, shader_parameter, target)
                 elif target:
@@ -789,7 +776,7 @@ class ShaderToMaterialConverter:
     def _convert_bitmap_parameter(self, material: MaterialTag, shader_parameter, target_parameter_name: str) -> bool:
         result = True
         material_parameter = self._add_material_parameter(material, target_parameter_name, "bitmap")
-        material_parameter.SelectField("Reference:bitmap").Deserialize(shader_parameter.SelectField("Reference:bitmap").Serialize())
+        material_parameter.SelectField("bitmap").Path = shader_parameter.SelectField("bitmap").Path
 
         for name in (
             "bitmap flags",
@@ -798,11 +785,10 @@ class ShaderToMaterialConverter:
             "bitmap address mode x",
             "bitmap address mode y",
             "bitmap sharpen mode",
-            "bitmap anisotropy amount",
         ):
-            material_parameter.SelectField(name).Deserialize(shader_parameter.SelectField(name).Serialize())
+            material_parameter.SelectField(name).Data = shader_parameter.SelectField(name).Data
 
-        result &= self._remap_bitmap_extern_mode(shader_parameter, material_parameter)
+        # result &= self._remap_bitmap_extern_mode(shader_parameter, material_parameter)
 
         animated_parameters = shader_parameter.SelectField("Block:animated parameters")
         for animated_parameter in animated_parameters.Elements:
@@ -825,14 +811,15 @@ class ShaderToMaterialConverter:
 
         return result
 
-    def _remap_bitmap_extern_mode(self, shader_parameter, material_parameter) -> bool:
-        source = shader_parameter.SelectField("bitmap extern mode")
-        target = material_parameter.SelectField("bitmap extern mode")
-        source_name = _enum_name(source)
-        if source_name in BITMAP_EXTERN_UNSUPPORTED:
-            return False
-        target.SetValue(BITMAP_EXTERN_REMAP.get(source_name, "none"))
-        return True
+    # def _remap_bitmap_extern_mode(self, shader_parameter, material_parameter) -> bool:
+    #     source = shader_parameter.SelectField("bitmap extern mode")
+    #     target = material_parameter.SelectField("bitmap extern mode")
+    #     source_items = [i.EnumName for i in source.Items]
+    #     source_name = source_items[source.Value]
+    #     if source_name in BITMAP_EXTERN_UNSUPPORTED:
+    #         return False
+    #     target.SetValue(BITMAP_EXTERN_REMAP.get(source_name, "none"))
+    #     return True
 
     def _convert_color_parameter(
         self,
@@ -973,7 +960,10 @@ class ShaderToMaterialConverter:
                 continue
             if parameter_type is None:
                 return element
-            if _enum_name(element.SelectField("parameter type")) == _norm(parameter_type):
+            ptype = element.SelectField("parameter type")
+            ptype_items = [i.EnumName for i in ptype.Items]
+            ptype_name = ptype_items[ptype.Value]
+            if ptype_name == parameter_type:
                 return element
             return element
         return None
@@ -1012,9 +1002,7 @@ class ShaderToMaterialConverter:
         range_name = shader_function.SelectField("range name").GetStringData()
         material_function.SelectField("input name").SetStringData(input_name)
         material_function.SelectField("range name").SetStringData(range_name)
-        material_function.SelectField("output modifier").Value = 0
-        material_function.SelectField("output modifier input").SetStringData("")
-        material_function.SelectField("time period").Deserialize(shader_function.SelectField("time period").Serialize())
+        material_function.SelectField("time period").Data = shader_function.SelectField("time period").Data
         material_function.SelectField("function").Deserialize(shader_function.SelectField("animation function").Serialize())
 
         return material_function
@@ -1160,15 +1148,8 @@ class NWO_OT_ShaderToMaterial(bpy.types.Operator):
         start = time.perf_counter()
 
         converter = ShaderToMaterialConverter(delete_shaders=self.delete_shaders)
-        try:
-            converter.prepare_shader_paths_for_gather(self.scope, self.path)
-            shader_paths = converter.gather_shader_paths(self.scope, self.path)
-        except FileNotFoundError:
-            self.report({"WARNING"}, "Path does not exist")
-            return {"CANCELLED"}
-        except ValueError as exc:
-            self.report({"WARNING"}, str(exc))
-            return {"CANCELLED"}
+        converter.prepare_shader_paths_for_gather(self.scope, self.path)
+        shader_paths = converter.gather_shader_paths(self.scope, self.path)
 
         print(f"--- Found {len(shader_paths)} supported shader paths in scope")
         if not shader_paths:
