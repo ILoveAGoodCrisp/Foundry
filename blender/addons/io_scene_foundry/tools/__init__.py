@@ -2,7 +2,7 @@
 
 import bpy
 
-from .decorator_exporter import NWO_OT_ExportDecorators, NWO_OT_GetDecoratorTypes
+from .decorator_exporter import NWO_OT_DecoratorCloudToInstances, NWO_OT_ExportDecorators, NWO_OT_GetDecoratorTypes
 
 from .scenario.wetness import NWO_OT_GenerateWetnessData
 
@@ -233,6 +233,7 @@ classes = (
     NWO_OT_GenerateWetnessData,
     NWO_OT_ExportDecorators,
     NWO_OT_GetDecoratorTypes,
+    NWO_OT_DecoratorCloudToInstances,
     NWO_OT_InstancerToInstance,
     NWO_OT_ExportBMF,
 )

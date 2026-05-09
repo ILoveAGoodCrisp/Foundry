@@ -43,9 +43,9 @@ from ..managed_blam.object import ObjectTag
 from ..managed_blam.particle_model import ParticleModelTag
 from ..managed_blam.scenario_structure_bsp import ScenarioStructureBspTag
 from ..managed_blam.scenario import (
-    DECORATOR_ATTR_ROTATION_EULER,
-    DECORATOR_ATTR_SCALE_VECTOR,
+    DECORATOR_ATTR_SCALE,
     DECORATOR_CLOUD_PROP,
+    DECORATOR_INSTANCE_SOURCE_PROP,
     ScenarioTag,
 )
 from ..managed_blam.animation import AnimationTag
@@ -71,32 +71,7 @@ legacy_model_formats = '.jms', '.ass'
 legacy_animation_formats = '.jmm', '.jma', '.jmt', '.jmz', '.jmv', '.jmw', '.jmo', '.jmr', '.jmrx'
 legacy_poop_prefixes = '%', '+', '-', '?', '!', '>', '*', '&', '^', '<', '|',
 legacy_frame_prefixes = "frame_", "frame ", "bip_", "bip ", "b_", "b "
-DECORATOR_INSTANCE_SOURCE_PROP = "nwo_decorator_instance_source"
-
-def _node_socket(sockets, *names):
-    for name in names:
-        if name in sockets:
-            return sockets[name]
-    
-    return None
-
-def _geometry_node_group(name):
-    group = bpy.data.node_groups.new(name, "GeometryNodeTree")
-    if hasattr(group, "interface"):
-        group.interface.new_socket(name="Geometry", in_out='INPUT', socket_type='NodeSocketGeometry')
-        group.interface.new_socket(name="Geometry", in_out='OUTPUT', socket_type='NodeSocketGeometry')
-    else:
-        group.inputs.new("NodeSocketGeometry", "Geometry")
-        group.outputs.new("NodeSocketGeometry", "Geometry")
-    
-    return group
-
-def _named_attribute_node(nodes, attribute_name, data_type):
-    node = nodes.new("GeometryNodeInputNamedAttribute")
-    if hasattr(node, "data_type"):
-        node.data_type = data_type
-    _node_socket(node.inputs, "Name").default_value = attribute_name
-    return node
+DECORATOR_INSTANCER_GROUP = "Instanced Decorators"
 
 def _decorator_instance_source_empty(cloud: bpy.types.Object, game_object_collection: bpy.types.Collection):
     collection = cloud.users_collection[0] if cloud.users_collection else bpy.context.scene.collection
@@ -109,6 +84,7 @@ def _decorator_instance_source_empty(cloud: bpy.types.Object, game_object_collec
         collection.objects.link(source)
     
     source[DECORATOR_INSTANCE_SOURCE_PROP] = True
+    cloud[DECORATOR_INSTANCE_SOURCE_PROP] = source.name
     source.empty_display_type = 'PLAIN_AXES'
     source.empty_display_size = 0.01
     source.hide_select = True
@@ -120,34 +96,105 @@ def _decorator_instance_source_empty(cloud: bpy.types.Object, game_object_collec
     source.nwo.export_this = False
     return source
 
+def _modifier_input_identifier(node_group: bpy.types.NodeTree, socket_name: str):
+    search_name = socket_name.casefold()
+    if hasattr(node_group, "interface"):
+        for item in node_group.interface.items_tree:
+            if getattr(item, "item_type", None) != 'SOCKET':
+                continue
+            if getattr(item, "in_out", None) != 'INPUT':
+                continue
+            if getattr(item, "name", "").casefold() == search_name:
+                return getattr(item, "identifier", None)
+    
+    for socket in getattr(node_group, "inputs", []):
+        if socket.name.casefold() == search_name:
+            return socket.identifier
+    
+    return None
+
+def _set_modifier_input(mod: bpy.types.NodesModifier, node_group: bpy.types.NodeTree, socket_name: str, value):
+    identifier = _modifier_input_identifier(node_group, socket_name)
+    if identifier is None:
+        return False
+    
+    if bpy.app.version >= (5, 2, 0):
+        modifier_input = _modifier_property_input(mod, identifier)
+        if modifier_input is None:
+            return False
+        modifier_input.value = value
+    else:
+        mod[identifier] = value
+    return True
+
+def _modifier_property_input(mod: bpy.types.NodesModifier, identifier: str):
+    properties = getattr(mod, "properties", None)
+    inputs = getattr(properties, "inputs", None) if properties is not None else None
+    if inputs is not None:
+        modifier_input = getattr(inputs, identifier, None)
+        if modifier_input is not None:
+            return modifier_input
+    
+    view_layer = getattr(bpy.context, "view_layer", None)
+    if view_layer is not None:
+        view_layer.update()
+        properties = getattr(mod, "properties", None)
+        inputs = getattr(properties, "inputs", None) if properties is not None else None
+        if inputs is None:
+            return None
+        modifier_input = getattr(inputs, identifier, None)
+        if modifier_input is not None:
+            return modifier_input
+    
+    try:
+        return inputs[identifier]
+    except (KeyError, TypeError):
+        return None
+
+def _set_modifier_attribute_input(mod: bpy.types.NodesModifier, node_group: bpy.types.NodeTree, socket_name: str, attribute_name: str):
+    identifier = _modifier_input_identifier(node_group, socket_name)
+    if identifier is None:
+        return False
+    
+    use_attribute_key = f"{identifier}_use_attribute"
+    attribute_name_key = f"{identifier}_attribute_name"
+    
+    if bpy.app.version >= (5, 2, 0):
+        modifier_input = _modifier_property_input(mod, identifier)
+        if modifier_input is None:
+            return False
+        if hasattr(modifier_input, "type"):
+            modifier_input.type = "ATTRIBUTE"
+        modifier_input.attribute_name = attribute_name
+    else:
+        modifier_keys = mod.keys()
+        if use_attribute_key in modifier_keys:
+            mod[use_attribute_key] = True
+        if attribute_name_key in modifier_keys:
+            mod[attribute_name_key] = attribute_name
+            return True
+        
+        mod[identifier] = attribute_name
+    return True
+
 def _add_decorator_cloud_instance_nodes(cloud: bpy.types.Object, source: bpy.types.Object):
-    modifier_name = "Decorator Instances"
+    modifier_name = DECORATOR_INSTANCER_GROUP
     mod = cloud.modifiers.get(modifier_name) or cloud.modifiers.new(modifier_name, 'NODES')
-    group = _geometry_node_group(f"{cloud.name}_decorator_instances")
+    group = utils.add_node_from_resources("geometry_nodes", DECORATOR_INSTANCER_GROUP)
+    if group is None:
+        return mod
+    
     mod.node_group = group
-    
-    nodes = group.nodes
-    links = group.links
-    group_input = nodes.new("NodeGroupInput")
-    group_output = nodes.new("NodeGroupOutput")
-    group_output.is_active_output = True
-    instance_on_points = nodes.new("GeometryNodeInstanceOnPoints")
-    object_info = nodes.new("GeometryNodeObjectInfo")
-    rotation_attr = _named_attribute_node(nodes, DECORATOR_ATTR_ROTATION_EULER, 'FLOAT_VECTOR')
-    scale_attr = _named_attribute_node(nodes, DECORATOR_ATTR_SCALE_VECTOR, 'FLOAT_VECTOR')
-    
-    object_input = _node_socket(object_info.inputs, "Object")
-    if object_input is not None:
-        object_input.default_value = source
-    as_instance = _node_socket(object_info.inputs, "As Instance")
-    if as_instance is not None:
-        as_instance.default_value = True
-    
-    links.new(_node_socket(group_input.outputs, "Geometry"), _node_socket(instance_on_points.inputs, "Points"))
-    links.new(_node_socket(object_info.outputs, "Geometry"), _node_socket(instance_on_points.inputs, "Instance"))
-    links.new(_node_socket(rotation_attr.outputs, "Attribute"), _node_socket(instance_on_points.inputs, "Rotation"))
-    links.new(_node_socket(scale_attr.outputs, "Attribute"), _node_socket(instance_on_points.inputs, "Scale"))
-    links.new(_node_socket(instance_on_points.outputs, "Instances"), _node_socket(group_output.inputs, "Geometry"))
+    if bpy.app.version >= (5, 2, 0):
+        _set_modifier_input(mod, group, "Instance On", "Points")
+        _set_modifier_input(mod, group, "Instance Type", "Object")
+    else:
+        _set_modifier_input(mod, group, "Instance On", 0)
+        _set_modifier_input(mod, group, "Instance Type", 0)
+    _set_modifier_input(mod, group, "Object", source)
+    _set_modifier_input(mod, group, "Keep Surface", True)
+    _set_modifier_input(mod, group, "Align Rotation", True)
+    _set_modifier_attribute_input(mod, group, "Scale", DECORATOR_ATTR_SCALE)
     return mod
 
 def add_decorator_cloud_instancer(cloud: bpy.types.Object, game_object_collection: bpy.types.Collection):

@@ -19,14 +19,11 @@ from .. import utils
 import bpy
 
 DECORATOR_CLOUD_PROP = "nwo_decorator_placement_cloud"
-DECORATOR_ATTR_ROTATION = "nwo_decorator_rotation"
-DECORATOR_ATTR_ROTATION_W = "nwo_decorator_rotation_w"
-DECORATOR_ATTR_ROTATION_EULER = "nwo_decorator_rotation_euler"
-DECORATOR_ATTR_SCALE = "nwo_decorator_scale"
-DECORATOR_ATTR_SCALE_VECTOR = "nwo_decorator_scale_vector"
-DECORATOR_ATTR_MOTION_SCALE = "nwo_decorator_motion_scale"
-DECORATOR_ATTR_GROUND_TINT = "nwo_decorator_ground_tint"
-DECORATOR_ATTR_TINT = "nwo_decorator_tint"
+DECORATOR_INSTANCE_SOURCE_PROP = "nwo_decorator_instance_source"
+DECORATOR_ATTR_NORMAL = "normal"
+DECORATOR_ATTR_INFO = "decorator_info"
+DECORATOR_ATTR_SCALE = "decorator_scale"
+DECORATOR_ATTR_TINT = "decorator_tint"
 
 def _serialized_block_data(block):
     count = block.Elements.Count
@@ -296,24 +293,62 @@ class ScenarioDecorator:
         
         return ob
 
-def _set_float_point_attribute(mesh, name, values):
-    attr = mesh.attributes.new(name, 'FLOAT', 'POINT')
-    attr.data.foreach_set("value", np.ascontiguousarray(values, dtype=np.float32))
-
 def _set_vector_point_attribute(mesh, name, values):
     attr = mesh.attributes.new(name, 'FLOAT_VECTOR', 'POINT')
     attr.data.foreach_set("vector", np.ascontiguousarray(values, dtype=np.float32).reshape(-1))
 
-def _decorator_rotation_eulers(rotations):
+def _set_color_point_attribute(mesh, name, values):
+    attr = mesh.attributes.new(name, 'FLOAT_COLOR', 'POINT')
+    attr.data.foreach_set("color", np.ascontiguousarray(values, dtype=np.float32).reshape(-1))
+
+def _decorator_up_vectors(rotations):
     x = rotations[:, 0]
     y = rotations[:, 1]
     z = rotations[:, 2]
     w = rotations[:, 3]
-    eulers = np.empty((len(rotations), 3), dtype=np.float32)
-    eulers[:, 0] = np.arctan2(2.0 * (w * x + y * z), 1.0 - 2.0 * (x * x + y * y))
-    eulers[:, 1] = np.arcsin(np.clip(2.0 * (w * y - z * x), -1.0, 1.0))
-    eulers[:, 2] = np.arctan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z))
-    return eulers
+    up = np.empty((len(rotations), 3), dtype=np.float32)
+    up[:, 0] = 2.0 * (x * z + w * y)
+    up[:, 1] = 2.0 * (y * z - w * x)
+    up[:, 2] = 1.0 - 2.0 * (x * x + y * y)
+    lengths = np.linalg.norm(up, axis=1)
+    valid = lengths > 0.000001
+    up[valid] /= lengths[valid, None]
+    up[~valid] = (0.0, 0.0, 1.0)
+    return up
+
+def _decorator_rotation_values(rotations, up):
+    x = rotations[:, 0]
+    y = rotations[:, 1]
+    z = rotations[:, 2]
+    w = rotations[:, 3]
+    original_x = np.empty((len(rotations), 3), dtype=np.float32)
+    original_x[:, 0] = 1.0 - 2.0 * (y * y + z * z)
+    original_x[:, 1] = 2.0 * (x * y + z * w)
+    original_x[:, 2] = 2.0 * (x * z - y * w)
+
+    align = np.empty((len(rotations), 4), dtype=np.float32)
+    align[:, 0] = 1.0 + up[:, 2]
+    align[:, 1] = -up[:, 1]
+    align[:, 2] = up[:, 0]
+    align[:, 3] = 0.0
+    fallback = align[:, 0] < 0.000001
+    align[fallback] = (0.0, 1.0, 0.0, 0.0)
+    lengths = np.linalg.norm(align, axis=1)
+    align /= lengths[:, None]
+
+    aw = align[:, 0]
+    ax = align[:, 1]
+    ay = align[:, 2]
+    az = align[:, 3]
+    base_x = np.empty_like(up)
+    base_x[:, 0] = 1.0 - 2.0 * (ay * ay + az * az)
+    base_x[:, 1] = 2.0 * (ax * ay + az * aw)
+    base_x[:, 2] = 2.0 * (ax * az - ay * aw)
+
+    cross = np.cross(base_x, original_x)
+    sin = np.einsum("ij,ij->i", up, cross)
+    cos = np.einsum("ij,ij->i", base_x, original_x)
+    return np.mod(np.arctan2(sin, cos), 2.0 * np.pi) / (2.0 * np.pi)
 
 def _serialized_decorators_to_clouds(serialized_placements, path: str, name: str, types: dict, collection):
     clouds = []
@@ -333,15 +368,20 @@ def _serialized_decorators_to_clouds(serialized_placements, path: str, name: str
         mesh = bpy.data.meshes.new(cloud_name)
         mesh.vertices.add(len(indices))
         mesh.vertices.foreach_set("co", positions.reshape(-1))
-        _set_vector_point_attribute(mesh, DECORATOR_ATTR_ROTATION, rotations[:, :3])
-        _set_float_point_attribute(mesh, DECORATOR_ATTR_ROTATION_W, rotations[:, 3])
-        _set_vector_point_attribute(mesh, DECORATOR_ATTR_ROTATION_EULER, _decorator_rotation_eulers(rotations))
+        up = _decorator_up_vectors(rotations)
+        _set_vector_point_attribute(mesh, DECORATOR_ATTR_NORMAL, up)
         scales = np.asarray(serialized_placements["scale"][indices], dtype=np.float32)
-        _set_float_point_attribute(mesh, DECORATOR_ATTR_SCALE, scales)
-        _set_vector_point_attribute(mesh, DECORATOR_ATTR_SCALE_VECTOR, np.column_stack((scales, scales, scales)))
-        _set_float_point_attribute(mesh, DECORATOR_ATTR_MOTION_SCALE, np.asarray(serialized_placements["motion_scale"][indices], dtype=np.float32) / 255.0)
-        _set_float_point_attribute(mesh, DECORATOR_ATTR_GROUND_TINT, np.asarray(serialized_placements["ground_tint"][indices], dtype=np.float32) / 255.0)
-        _set_vector_point_attribute(mesh, DECORATOR_ATTR_TINT, np.asarray(serialized_placements["tint"][indices], dtype=np.float32) ** 2.2)
+        info = np.ones((len(indices), 4), dtype=np.float32)
+        info[:, 0] = _decorator_rotation_values(rotations, up)
+        info[:, 1] = np.asarray(serialized_placements["ground_tint"][indices], dtype=np.float32) / 255.0
+        info[:, 2] = np.asarray(serialized_placements["motion_scale"][indices], dtype=np.float32) / 255.0
+        _set_color_point_attribute(mesh, DECORATOR_ATTR_INFO, info)
+        scale = np.ones((len(indices), 4), dtype=np.float32)
+        scale[:, :3] = scales[:, None]
+        _set_color_point_attribute(mesh, DECORATOR_ATTR_SCALE, scale)
+        tint = np.ones((len(indices), 4), dtype=np.float32)
+        tint[:, :3] = np.asarray(serialized_placements["tint"][indices], dtype=np.float32) ** 2.2
+        _set_color_point_attribute(mesh, DECORATOR_ATTR_TINT, tint)
         mesh.update()
 
         ob = bpy.data.objects.new(name=cloud_name, object_data=mesh)
@@ -688,7 +728,7 @@ class ScenarioTag(Tag):
                 parent_collection.children.link(objects_collection)
             
             for i, element in enumerate(block.Elements):
-                set_start = time.perf_counter()
+                # set_start = time.perf_counter()
                 decorator_set_path = self.get_path_str(element.SelectField("Reference:decorator set").Path, True)
                 
                 if decorator_set_path and Path(decorator_set_path).exists():
@@ -725,9 +765,9 @@ class ScenarioTag(Tag):
                         if decorator.type is None:
                             continue
                         
-                        # if bvh:
-                        #     if not utils.test_point_bvh(bvh, decorator.position):
-                        #         continue
+                        if bvh:
+                            if not utils.test_point_bvh(bvh, decorator.position):
+                                continue
                         
                         ob = decorator.to_object()
                         if ob is not None:
@@ -735,8 +775,8 @@ class ScenarioTag(Tag):
                             objects.append(ob)
                             placement_count += 1
                 
-                set_elapsed = time.perf_counter() - set_start
-                print(f"  Decorator set {i + 1}/{block.Elements.Count} processed in {set_elapsed:.3f}s")
+                # set_elapsed = time.perf_counter() - set_start
+                # print(f"  Decorator set {i + 1}/{block.Elements.Count} processed in {set_elapsed:.3f}s")
 
         total_elapsed = time.perf_counter() - start_time
         if placement_count != len(objects):
