@@ -95,7 +95,7 @@ class NWO_ProxyInstanceEdit(bpy.types.Operator):
         deselect_all_objects()
         self.proxy_ob.select_set(True)
         set_active_object(self.proxy_ob)
-        bpy.ops.object.editmode_toggle()
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         bpy.ops.mesh.select_all(action='SELECT')
         for area in context.screen.areas:
             if area.type == 'VIEW_3D':
@@ -116,7 +116,7 @@ class NWO_ProxyInstanceEdit(bpy.types.Operator):
         
         if event.type == 'TIMER' and not active:
             if context.mode == 'EDIT_MESH':
-                bpy.ops.object.editmode_toggle()
+                bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
             self.exit_local_view(context)
             if self.shading_attr is not None:
