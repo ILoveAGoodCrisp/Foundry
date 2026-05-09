@@ -3271,12 +3271,14 @@ class AnimationTag(Tag):
                     self._movement_data_from_second_frame(resource_data.movement_data, animation_data.frame_count),
                 )
         if tag_animation.animation_type in (2, 3):
-            base_candidates = self._get_base_animation_candidates(
-                graph,
-                tag_animation.name.tag_name,
-                tag_animation.animation_type,
-            )
-            base_tag_animation = self._first_resolved_base_candidate(base_candidates, all_tag_animations)
+            base_tag_animation = None
+            if not tag_animation.name.custom:
+                base_candidates = self._get_base_animation_candidates(
+                    graph,
+                    tag_animation.name.tag_name,
+                    tag_animation.animation_type,
+                )
+                base_tag_animation = self._first_resolved_base_candidate(base_candidates, all_tag_animations)
 
             if base_tag_animation is not None:
                 base_animation = self._build_animation(base_tag_animation, defaults, overlay_defaults, graph, shared_static_codec, resource_cache, animation_cache, all_tag_animations, final_frame_stack)
