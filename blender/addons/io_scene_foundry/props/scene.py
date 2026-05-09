@@ -470,6 +470,8 @@ class NWO_AnimationEventData_ListItems(bpy.types.PropertyGroup):
             ('SOUND', "Sound", ""),
             ('EFFECT', "Effect", ""),
             ('DIALOGUE', "Dialogue", ""),
+            ('MUSIC', "Music / Foley", ""),
+            ('FUNCTION', "Function", ""),
         ]
     )
     
@@ -760,6 +762,8 @@ class NWO_Animation_ListItems(bpy.types.PropertyGroup):
                 return f"{self.ik_target_usage}|{self.ik_chain}|{self.ik_game_marker_name}|active"
             case '_connected_geometry_animation_event_type_ik_passive':
                 return f"{self.ik_target_usage}|{self.ik_chain}|{self.ik_game_marker_name}|passive"
+
+        return "none"
 
     name: bpy.props.StringProperty(
         name="Event Name",
@@ -1149,6 +1153,11 @@ class NWO_AnimationPropertiesGroup(bpy.types.PropertyGroup):
     gr2_path: bpy.props.StringProperty(
         name="GR2 Path",
         description="Data relative path to the file that contains animation data"
+    )
+
+    blend_path: bpy.props.StringProperty(
+        name="Blend Path",
+        description="Data relative path to the blend file that authors this external animation"
     )
     
     pose_overlay: bpy.props.BoolProperty(
@@ -1901,9 +1910,9 @@ class NWO_CinematicEvent(PropertyGroup):
                 # layout.prop(item, "name", icon='PLAY_SOUND', text="", emboss=False)
                 if self.sound_tag.strip():
                     if utils.pointer_ob_valid(self.actor):
-                        return f"{Path(self.sound_tag).with_suffix('').name} -> NONE"
-                    else:
                         return f"{Path(self.sound_tag).with_suffix('').name} -> {self.actor.name}"
+                    else:
+                        return f"{Path(self.sound_tag).with_suffix('').name} -> NONE"
                 else:
                     return "NONE"
             case 'EFFECT':
@@ -1926,7 +1935,7 @@ class NWO_CinematicEvent(PropertyGroup):
                 if self.script_type == 'CUSTOM':
                     if self.text is None:
                         if self.script.strip():
-                            return self.script
+                            return "CUSTOM"
                         else:
                             return "NONE"
                     else:
@@ -1953,12 +1962,12 @@ class NWO_CinematicEvent(PropertyGroup):
                         return self.script_type.lower()
                     
             case 'MUSIC':
-                f"{start_stop} {Path(self.sound_tag).with_suffix('').name}"
+                return f"{start_stop} {Path(self.sound_tag).with_suffix('').name}"
             case 'FUNCTION':
                 if utils.pointer_ob_valid(self.actor):
-                    f"{Path(self.function_name)} -> {self.actor.name}"
+                    return f"{Path(self.function_name)} -> {self.actor.name} -> {'CLEAR' if self.clear_function else self.value}"
                 else:
-                    f"{Path(self.function_name)} -> NONE"
+                    return f"{Path(self.function_name)} -> NONE -> {'CLEAR' if self.clear_function else self.value}"
         
     name: bpy.props.StringProperty(
         name="Name",
