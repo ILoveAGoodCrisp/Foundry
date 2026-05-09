@@ -1,5 +1,6 @@
 from math import radians
 from pathlib import Path
+import struct
 import time
 
 import bmesh
@@ -16,6 +17,91 @@ from ..managed_blam import Tag
 import os
 from .. import utils
 import bpy
+
+DECORATOR_CLOUD_PROP = "nwo_decorator_placement_cloud"
+DECORATOR_ATTR_ROTATION = "nwo_decorator_rotation"
+DECORATOR_ATTR_ROTATION_W = "nwo_decorator_rotation_w"
+DECORATOR_ATTR_ROTATION_EULER = "nwo_decorator_rotation_euler"
+DECORATOR_ATTR_SCALE = "nwo_decorator_scale"
+DECORATOR_ATTR_SCALE_VECTOR = "nwo_decorator_scale_vector"
+DECORATOR_ATTR_MOTION_SCALE = "nwo_decorator_motion_scale"
+DECORATOR_ATTR_GROUND_TINT = "nwo_decorator_ground_tint"
+DECORATOR_ATTR_TINT = "nwo_decorator_tint"
+
+def _serialized_block_data(block):
+    count = block.Elements.Count
+    if count == 0:
+        return memoryview(b""), 0, 0
+
+    block_size = int(block.Size)
+    if block_size <= 0 or block_size % count:
+        element_size = sum(int(field.Size) for field in block.Elements[0].Fields)
+    else:
+        element_size = block_size // count
+
+    data = bytes(block.Serialize())
+    chunk_start = data.find(b"lbgt")
+    if chunk_start == -1:
+        raise ValueError("Serialized tag block does not contain an lbgt chunk")
+
+    chunk_count = struct.unpack_from("<I", data, chunk_start + 12)[0]
+    if chunk_count != count:
+        raise ValueError(f"Serialized tag block count mismatch: {chunk_count} != {count}")
+
+    values_start = chunk_start + 20
+    values_end = values_start + element_size * count
+    if values_end > len(data):
+        raise ValueError("Serialized tag block ended before all element data was read")
+
+    return memoryview(data)[values_start:values_end], element_size, count
+
+def _field_offsets(block, element_size: int):
+    offsets = {}
+    offset = 0
+    for field in block.Elements[0].Fields:
+        offsets[field.FieldName] = offset
+        offset += int(field.Size)
+
+    if offset > element_size:
+        raise ValueError(f"Field size {offset} exceeds serialized element size {element_size}")
+
+    return offsets
+
+def _read_serialized_decorator_placements(placements, corinth: bool):
+    data, element_size, count = _serialized_block_data(placements)
+    if count == 0:
+        return None
+
+    offsets = _field_offsets(placements, element_size)
+    required_fields = ("position", "type index", "motion scale", "ground tint", "rotation", "scale", "tint color")
+    missing_fields = [name for name in required_fields if name not in offsets]
+    if missing_fields:
+        raise ValueError(f"Decorator placement block is missing fields: {', '.join(missing_fields)}")
+
+    dtype = np.dtype({
+        "names": ["position", "type_index", "motion_scale", "ground_tint", "rotation", "scale", "tint"],
+        "formats": [("<f4", (3,)), "<i1", "<i1", "<i1", ("<f4", (4,)), "<f4", ("<f4", (3,))],
+        "offsets": [offsets[name] for name in required_fields],
+        "itemsize": element_size,
+    })
+    rows = np.frombuffer(data, dtype=dtype, count=count)
+
+    motion_scale = rows["motion_scale"]
+    ground_tint = rows["ground_tint"]
+    if not corinth:
+        motion_scale = motion_scale.astype(np.uint8)
+        ground_tint = ground_tint.astype(np.uint8)
+
+    return {
+        "position": rows["position"],
+        "type_index": rows["type_index"],
+        "motion_scale": motion_scale,
+        "ground_tint": ground_tint,
+        "rotation": rows["rotation"],
+        "scale": rows["scale"],
+        "tint": rows["tint"],
+        "count": count,
+    }
 
 class ScenarioObjectReference:
     def __init__(self, element: TagFieldBlockElement, for_decal=False, corinth=False):
@@ -159,7 +245,7 @@ class ScenarioDecorator:
         self.rotation = utils.ijkw_to_wxyz([n for n in element.SelectField("rotation").Data])
         self.scale = element.SelectField("scale").Data
         type_index = element.SelectField("type index").Data
-        self.type = next((t for t in types if t.decorator_type_index == type_index), None)
+        self.type = types.get(type_index) if isinstance(types, dict) else next((t for t in types if t.decorator_type_index == type_index), None)
         if self.type is None:
             return
         
@@ -173,6 +259,28 @@ class ScenarioDecorator:
         if not corinth:
             self.motion_scale = utils.unsigned_int8(self.motion_scale)
             self.ground_tint = utils.unsigned_int8(self.ground_tint)
+
+    @classmethod
+    def from_values(cls, position, rotation, scale, type_index: int, motion_scale: int, ground_tint: int, tint, path: str, name: str, types: dict, corinth: bool):
+        decorator = cls.__new__(cls)
+        decorator.position = Vector((float(position[0]) * 100, float(position[1]) * 100, float(position[2]) * 100))
+        decorator.rotation = utils.ijkw_to_wxyz((float(rotation[0]), float(rotation[1]), float(rotation[2]), float(rotation[3])))
+        decorator.scale = float(scale)
+        decorator.type = types.get(int(type_index))
+        if decorator.type is None:
+            return decorator
+
+        decorator.name = f"{name}_{decorator.type}"
+        decorator.path = path
+        decorator.motion_scale = int(motion_scale)
+        decorator.ground_tint = int(ground_tint)
+        decorator.tint = (float(tint[0]), float(tint[1]), float(tint[2]))
+        
+        if not corinth:
+            decorator.motion_scale = utils.unsigned_int8(decorator.motion_scale)
+            decorator.ground_tint = utils.unsigned_int8(decorator.ground_tint)
+
+        return decorator
         
     def to_object(self):
         ob = bpy.data.objects.new(name=self.name, object_data=None)
@@ -187,6 +295,65 @@ class ScenarioDecorator:
         ob.nwo.decorator_tint = [utils.srgb_to_linear(c) for c in self.tint]
         
         return ob
+
+def _set_float_point_attribute(mesh, name, values):
+    attr = mesh.attributes.new(name, 'FLOAT', 'POINT')
+    attr.data.foreach_set("value", np.ascontiguousarray(values, dtype=np.float32))
+
+def _set_vector_point_attribute(mesh, name, values):
+    attr = mesh.attributes.new(name, 'FLOAT_VECTOR', 'POINT')
+    attr.data.foreach_set("vector", np.ascontiguousarray(values, dtype=np.float32).reshape(-1))
+
+def _decorator_rotation_eulers(rotations):
+    x = rotations[:, 0]
+    y = rotations[:, 1]
+    z = rotations[:, 2]
+    w = rotations[:, 3]
+    eulers = np.empty((len(rotations), 3), dtype=np.float32)
+    eulers[:, 0] = np.arctan2(2.0 * (w * x + y * z), 1.0 - 2.0 * (x * x + y * y))
+    eulers[:, 1] = np.arcsin(np.clip(2.0 * (w * y - z * x), -1.0, 1.0))
+    eulers[:, 2] = np.arctan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z))
+    return eulers
+
+def _serialized_decorators_to_clouds(serialized_placements, path: str, name: str, types: dict, collection):
+    clouds = []
+    type_indices = serialized_placements["type_index"].astype(np.int16, copy=False)
+    for type_index in np.unique(type_indices):
+        decorator_type = types.get(int(type_index))
+        if decorator_type is None:
+            continue
+
+        indices = np.flatnonzero(type_indices == type_index)
+        if not len(indices):
+            continue
+
+        cloud_name = f"{name}_{decorator_type.decorator_type_name}_decorator_cloud"
+        positions = np.ascontiguousarray(serialized_placements["position"][indices], dtype=np.float32) * 100.0
+        rotations = np.ascontiguousarray(serialized_placements["rotation"][indices], dtype=np.float32)
+        mesh = bpy.data.meshes.new(cloud_name)
+        mesh.vertices.add(len(indices))
+        mesh.vertices.foreach_set("co", positions.reshape(-1))
+        _set_vector_point_attribute(mesh, DECORATOR_ATTR_ROTATION, rotations[:, :3])
+        _set_float_point_attribute(mesh, DECORATOR_ATTR_ROTATION_W, rotations[:, 3])
+        _set_vector_point_attribute(mesh, DECORATOR_ATTR_ROTATION_EULER, _decorator_rotation_eulers(rotations))
+        scales = np.asarray(serialized_placements["scale"][indices], dtype=np.float32)
+        _set_float_point_attribute(mesh, DECORATOR_ATTR_SCALE, scales)
+        _set_vector_point_attribute(mesh, DECORATOR_ATTR_SCALE_VECTOR, np.column_stack((scales, scales, scales)))
+        _set_float_point_attribute(mesh, DECORATOR_ATTR_MOTION_SCALE, np.asarray(serialized_placements["motion_scale"][indices], dtype=np.float32) / 255.0)
+        _set_float_point_attribute(mesh, DECORATOR_ATTR_GROUND_TINT, np.asarray(serialized_placements["ground_tint"][indices], dtype=np.float32) / 255.0)
+        _set_vector_point_attribute(mesh, DECORATOR_ATTR_TINT, np.asarray(serialized_placements["tint"][indices], dtype=np.float32) ** 2.2)
+        mesh.update()
+
+        ob = bpy.data.objects.new(name=cloud_name, object_data=mesh)
+        ob[DECORATOR_CLOUD_PROP] = True
+        ob.nwo.marker_type = '_connected_geometry_marker_type_game_instance'
+        ob.nwo.marker_game_instance_tag_name = path
+        ob.nwo.marker_game_instance_tag_variant_name = decorator_type.decorator_type_name
+        ob.nwo.export_this = False
+        collection.objects.link(ob)
+        clouds.append(ob)
+
+    return clouds
     
 class ScenarioDecal:
     def __init__(self, element: TagFieldBlockElement, palette: list[ScenarioObjectReference], corinth: bool):
@@ -508,6 +675,7 @@ class ScenarioTag(Tag):
     def decorators_to_blender(self, parent_collection=None, bvh=None):
         start_time = time.perf_counter()
         objects = []
+        placement_count = 0
         
         block = self.tag.SelectField("Block:decorators[0]/Block:sets")
         if block.Elements.Count > 0:
@@ -529,29 +697,52 @@ class ScenarioTag(Tag):
                         dec_rel_path = decorator_set.tag_path.RelativePathWithExtension
                         dec_short_name = decorator_set.tag_path.ShortName
                         corinth = decorator_set.corinth
+                        decorator_types_by_index = {t.decorator_type_index: t for t in decorator_types}
                     
                     placements = element.SelectField("Block:placements")
                     print(f"  Processing {dec_rel_path} - {placements.Elements.Count} placed in scenario")
-                    for placement in placements.Elements:
-                        decorator = ScenarioDecorator(placement, dec_rel_path, dec_short_name, decorator_types, corinth)
+                    try:
+                        serialized_placements = _read_serialized_decorator_placements(placements, corinth)
+                    except Exception as ex:
+                        utils.print_warning(f"Failed to read decorator placements with Field.Serialize(); falling back to field reads: {ex}")
+                        serialized_placements = None
+
+                    if serialized_placements is not None:
+                        try:
+                            objects.extend(_serialized_decorators_to_clouds(serialized_placements, dec_rel_path, dec_short_name, decorator_types_by_index, objects_collection))
+                            placement_count += serialized_placements["count"]
+                            continue
+                        except Exception as ex:
+                            utils.print_warning(f"Failed to create decorator placement clouds; falling back to object creation: {ex}")
+
+                    decorators = (
+                        ScenarioDecorator(placement, dec_rel_path, dec_short_name, decorator_types_by_index, corinth)
+                        for placement in placements.Elements
+                    )
+
+                    for decorator in decorators:
                         
                         if decorator.type is None:
                             continue
                         
-                        if bvh:
-                            if not utils.test_point_bvh(bvh, decorator.position):
-                                continue
+                        # if bvh:
+                        #     if not utils.test_point_bvh(bvh, decorator.position):
+                        #         continue
                         
                         ob = decorator.to_object()
                         if ob is not None:
                             objects_collection.objects.link(ob)
                             objects.append(ob)
+                            placement_count += 1
                 
                 set_elapsed = time.perf_counter() - set_start
                 print(f"  Decorator set {i + 1}/{block.Elements.Count} processed in {set_elapsed:.3f}s")
 
         total_elapsed = time.perf_counter() - start_time
-        print(f"Finished creating {len(objects)} decorators in {total_elapsed:.3f}s total")
+        if placement_count != len(objects):
+            print(f"Finished creating {placement_count} decorator placements in {len(objects)} cloud objects in {total_elapsed:.3f}s total")
+        else:
+            print(f"Finished creating {len(objects)} decorators in {total_elapsed:.3f}s total")
 
         return objects
                 
