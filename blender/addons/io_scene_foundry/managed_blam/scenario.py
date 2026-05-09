@@ -20,6 +20,8 @@ import bpy
 
 DECORATOR_CLOUD_PROP = "nwo_decorator_placement_cloud"
 DECORATOR_INSTANCE_SOURCE_PROP = "nwo_decorator_instance_source"
+DECORATOR_TAG_PROP = "nwo_decorator_tag"
+DECORATOR_VARIANT_PROP = "nwo_decorator_variant"
 DECORATOR_ATTR_NORMAL = "normal"
 DECORATOR_ATTR_INFO = "decorator_info"
 DECORATOR_ATTR_SCALE = "decorator_scale"
@@ -386,9 +388,8 @@ def _serialized_decorators_to_clouds(serialized_placements, path: str, name: str
 
         ob = bpy.data.objects.new(name=cloud_name, object_data=mesh)
         ob[DECORATOR_CLOUD_PROP] = True
-        ob.nwo.marker_type = '_connected_geometry_marker_type_game_instance'
-        ob.nwo.marker_game_instance_tag_name = path
-        ob.nwo.marker_game_instance_tag_variant_name = decorator_type.decorator_type_name
+        ob[DECORATOR_TAG_PROP] = path
+        ob[DECORATOR_VARIANT_PROP] = decorator_type.decorator_type_name
         ob.nwo.export_this = False
         collection.objects.link(ob)
         clouds.append(ob)

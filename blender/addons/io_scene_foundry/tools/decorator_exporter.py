@@ -18,6 +18,8 @@ from ..managed_blam.scenario import (
     DECORATOR_ATTR_TINT,
     DECORATOR_CLOUD_PROP,
     DECORATOR_INSTANCE_SOURCE_PROP,
+    DECORATOR_TAG_PROP,
+    DECORATOR_VARIANT_PROP,
     ScenarioTag,
 )
 from .. import utils
@@ -118,8 +120,17 @@ class NWO_OT_DecoratorCloudToInstances(bpy.types.Operator):
 def _is_decorator_instance(nwo):
     return nwo.marker_type == '_connected_geometry_marker_type_game_instance' and nwo.marker_game_instance_tag_name.lower().endswith(".decorator_set")
 
+def _decorator_cloud_marker_data(ob):
+    tag_path = ob.get(DECORATOR_TAG_PROP) or ob.nwo.marker_game_instance_tag_name
+    variant = ob.get(DECORATOR_VARIANT_PROP) or ob.nwo.marker_game_instance_tag_variant_name
+    return tag_path, variant
+
 def _is_decorator_cloud(ob):
-    return ob and ob.type == 'MESH' and ob.get(DECORATOR_CLOUD_PROP) and ob.nwo.marker_game_instance_tag_name.lower().endswith(".decorator_set")
+    if not (ob and ob.type == 'MESH' and ob.get(DECORATOR_CLOUD_PROP)):
+        return False
+    
+    tag_path, _ = _decorator_cloud_marker_data(ob)
+    return isinstance(tag_path, str) and tag_path.lower().endswith(".decorator_set")
 
 def gather_decorators(context):
     print("--- Start decorator gather")
@@ -206,6 +217,7 @@ def _decorator_cloud_proxies(ob, matrix_world):
     info = _color_attribute(mesh, DECORATOR_ATTR_INFO, (0.0, ob.nwo.decorator_ground_tint, ob.nwo.decorator_motion_scale, 1.0))
     scales = _color_attribute(mesh, DECORATOR_ATTR_SCALE, (1.0, 1.0, 1.0, 1.0))
     tints = _color_attribute(mesh, DECORATOR_ATTR_TINT, (*ob.nwo.decorator_tint, 1.0))
+    tag_path, variant = _decorator_cloud_marker_data(ob)
     
     proxies = []
     for idx in range(count):
@@ -216,8 +228,8 @@ def _decorator_cloud_proxies(ob, matrix_world):
             normal.normalize()
 
         nwo = types.SimpleNamespace()
-        nwo.marker_game_instance_tag_name = ob.nwo.marker_game_instance_tag_name
-        nwo.marker_game_instance_tag_variant_name = ob.nwo.marker_game_instance_tag_variant_name
+        nwo.marker_game_instance_tag_name = tag_path
+        nwo.marker_game_instance_tag_variant_name = variant
         nwo.decorator_motion_scale = float(info[idx][2])
         nwo.decorator_ground_tint = float(info[idx][1])
         nwo.decorator_tint = tuple(float(v) for v in tints[idx][:3])

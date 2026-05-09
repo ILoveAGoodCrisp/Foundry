@@ -46,6 +46,8 @@ from ..managed_blam.scenario import (
     DECORATOR_ATTR_SCALE,
     DECORATOR_CLOUD_PROP,
     DECORATOR_INSTANCE_SOURCE_PROP,
+    DECORATOR_TAG_PROP,
+    DECORATOR_VARIANT_PROP,
     ScenarioTag,
 )
 from ..managed_blam.animation import AnimationTag
@@ -73,27 +75,36 @@ legacy_poop_prefixes = '%', '+', '-', '?', '!', '>', '*', '&', '^', '<', '|',
 legacy_frame_prefixes = "frame_", "frame ", "bip_", "bip ", "b_", "b "
 DECORATOR_INSTANCER_GROUP = "Instanced Decorators"
 
-def _decorator_instance_source_empty(cloud: bpy.types.Object, game_object_collection: bpy.types.Collection):
-    collection = cloud.users_collection[0] if cloud.users_collection else bpy.context.scene.collection
+def _decorator_cloud_marker_data(cloud: bpy.types.Object):
+    tag_path = cloud.get(DECORATOR_TAG_PROP) or cloud.nwo.marker_game_instance_tag_name
+    variant = cloud.get(DECORATOR_VARIANT_PROP) or cloud.nwo.marker_game_instance_tag_variant_name
+    return tag_path, variant
+
+def _decorator_instance_source_empty(cloud: bpy.types.Object, game_object_collection: bpy.types.Collection=None):
     name = f"{cloud.name}_instance_source"
     source = bpy.data.objects.get(name)
     if source is None:
         source = bpy.data.objects.new(name, None)
     
-    if source.name not in collection.objects.keys():
-        collection.objects.link(source)
+    for collection in tuple(source.users_collection):
+        collection.objects.unlink(source)
     
     source[DECORATOR_INSTANCE_SOURCE_PROP] = True
     cloud[DECORATOR_INSTANCE_SOURCE_PROP] = source.name
     source.empty_display_type = 'PLAIN_AXES'
     source.empty_display_size = 0.01
-    source.hide_select = True
-    source.hide_viewport = True
-    source.hide_render = True
+    source.hide_select = False
+    source.hide_viewport = False
+    source.hide_render = False
     source.instance_type = 'COLLECTION'
     source.instance_collection = game_object_collection
     source.matrix_world = Matrix.Identity(4)
-    source.nwo.export_this = False
+    tag_path, variant = _decorator_cloud_marker_data(cloud)
+    source.nwo.marker_type = '_connected_geometry_marker_type_game_instance'
+    source.nwo.marker_game_instance_tag_name = tag_path
+    source.nwo.marker_game_instance_tag_variant_name = variant
+    source.nwo.marker_instance = True
+    source.nwo.export_this = True
     return source
 
 def _modifier_input_identifier(node_group: bpy.types.NodeTree, socket_name: str):
@@ -112,20 +123,6 @@ def _modifier_input_identifier(node_group: bpy.types.NodeTree, socket_name: str)
             return socket.identifier
     
     return None
-
-def _set_modifier_input(mod: bpy.types.NodesModifier, node_group: bpy.types.NodeTree, socket_name: str, value):
-    identifier = _modifier_input_identifier(node_group, socket_name)
-    if identifier is None:
-        return False
-    
-    if bpy.app.version >= (5, 2, 0):
-        modifier_input = _modifier_property_input(mod, identifier)
-        if modifier_input is None:
-            return False
-        modifier_input.value = value
-    else:
-        mod[identifier] = value
-    return True
 
 def _modifier_property_input(mod: bpy.types.NodesModifier, identifier: str):
     properties = getattr(mod, "properties", None)
@@ -150,6 +147,20 @@ def _modifier_property_input(mod: bpy.types.NodesModifier, identifier: str):
         return inputs[identifier]
     except (KeyError, TypeError):
         return None
+
+def _set_modifier_input(mod: bpy.types.NodesModifier, node_group: bpy.types.NodeTree, socket_name: str, value):
+    identifier = _modifier_input_identifier(node_group, socket_name)
+    if identifier is None:
+        return False
+    
+    if bpy.app.version >= (5, 2, 0):
+        modifier_input = _modifier_property_input(mod, identifier)
+        if modifier_input is None:
+            return False
+        modifier_input.value = value
+    else:
+        mod[identifier] = value
+    return True
 
 def _set_modifier_attribute_input(mod: bpy.types.NodesModifier, node_group: bpy.types.NodeTree, socket_name: str, attribute_name: str):
     identifier = _modifier_input_identifier(node_group, socket_name)
@@ -187,9 +198,11 @@ def _add_decorator_cloud_instance_nodes(cloud: bpy.types.Object, source: bpy.typ
     mod.node_group = group
     if bpy.app.version >= (5, 2, 0):
         _set_modifier_input(mod, group, "Instance On", "Points")
+        _set_modifier_input(mod, group, "Input Type", "Data-Block")
         _set_modifier_input(mod, group, "Instance Type", "Object")
     else:
         _set_modifier_input(mod, group, "Instance On", 0)
+        _set_modifier_input(mod, group, "Input Type", 1)
         _set_modifier_input(mod, group, "Instance Type", 0)
     _set_modifier_input(mod, group, "Object", source)
     _set_modifier_input(mod, group, "Keep Surface", True)
@@ -3434,18 +3447,26 @@ class NWOImporter:
                                 print("Importing Decorator Set Geometry")
                                 imported_objects.extend(decorator_objects)
                                 for ob in decorator_objects:
-                                    key = ob.nwo.marker_game_instance_tag_name, ob.nwo.marker_game_instance_tag_variant_name
+                                    is_decorator_cloud = ob.get(DECORATOR_CLOUD_PROP)
+                                    if is_decorator_cloud:
+                                        tag_path, variant = _decorator_cloud_marker_data(ob)
+                                    else:
+                                        tag_path = ob.nwo.marker_game_instance_tag_name
+                                        variant = ob.nwo.marker_game_instance_tag_variant_name
+                                    
+                                    key = tag_path, variant
                                     game_object_collection = self.get_cached_game_object_collection(*key)
                                     
                                     if game_object_collection is None:
-                                        game_object_collection = self.import_decorator_set(ob, build_blender_materials, always_extract_bitmaps, single_type=ob.nwo.marker_game_instance_tag_variant_name, lod=self.decorator_lod, only_single_type=True)
+                                        decorator_source = _decorator_instance_source_empty(ob) if is_decorator_cloud else ob
+                                        game_object_collection = self.import_decorator_set(decorator_source, build_blender_materials, always_extract_bitmaps, single_type=variant, lod=self.decorator_lod, only_single_type=True)
                                         merged_collection = merge_collection(game_object_collection, suffix="Decorator")
                                         imported_objects.extend(game_object_collection.all_objects)
                                         self.scene_collection.children.unlink(game_object_collection)
                                         # bpy.data.collections.link(game_object_collection)
                                         game_object_collection = self.cache_game_object_collection(merged_collection, *key)
                                     
-                                    if ob.get(DECORATOR_CLOUD_PROP):
+                                    if is_decorator_cloud:
                                         add_decorator_cloud_instancer(ob, game_object_collection)
                                         continue
                                         
