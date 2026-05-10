@@ -856,7 +856,6 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
                         new_anim.animation_renames.clear()
 
                     if keep_tracks:
-                        print(new_anim.name)
                         for track in new_anim.action_tracks:
                             ob = track.object
                             track.object = None
@@ -880,7 +879,7 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
                             if self.use_existing_actions:
                                 action = track.action
                                 if action is not None:
-                                    last_potential_name = ob.name
+                                    last_potential_name = action.name
                                     while True:
                                         potential_name = utils.reduce_suffix(last_potential_name)
                                         potential_action = all_actions.get(potential_name)

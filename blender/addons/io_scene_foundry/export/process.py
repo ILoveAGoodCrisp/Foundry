@@ -1903,6 +1903,7 @@ class ExportScene:
         name = animation.name
         event_ob_props = {}
         vector_events = []
+        
         for event in reversed(animation.animation_events):
             event: NWO_Animation_ListItems
             props = {}
