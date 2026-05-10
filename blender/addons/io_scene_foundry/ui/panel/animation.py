@@ -848,7 +848,7 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
                             new_anim.gr2_path = utils.relative_path(expected_gr2_path)
                             
                     keep_events = (not new_anim.external) and self.import_events
-                    keep_tracks = (not new_anim.external) and self.linked_gr2_keep_actions
+                    keep_tracks = (not new_anim.external) or self.linked_gr2_keep_actions
                         
                     if not keep_events:
                         new_anim.animation_events.clear()
@@ -935,6 +935,26 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
                                                         event.ik_pole_vector = potential_ob
                                                     else:
                                                         event.ik_pole_vector = None
+                                                    break
+                                                
+                                                if potential_name == last_potential_name:
+                                                    break
+
+                                                last_potential_name = potential_name
+                                                
+                                for edata in event.event_data:
+                                    ob = edata.marker
+                                    if ob is not None:
+                                        last_potential_name = ""
+                                        if ob is not None:
+                                            while True:
+                                                potential_name = utils.reduce_suffix(ob.name)
+                                                if potential_name in scope_objects:
+                                                    potential_ob = bpy.data.objects.get(potential_name)
+                                                    if potential_ob:
+                                                        edata.marker = potential_ob
+                                                    else:
+                                                        edata.marker = None
                                                     break
                                                 
                                                 if potential_name == last_potential_name:
