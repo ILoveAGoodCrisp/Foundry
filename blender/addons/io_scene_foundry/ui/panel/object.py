@@ -1118,7 +1118,7 @@ class NWO_MT_MeshTypes(bpy.types.Menu):
             layout.operator('nwo.apply_type_mesh_single', text='Structure', icon_value=get_icon_id('structure')).m_type = 'structure'
             layout.operator('nwo.apply_type_mesh_single', text='Seam', icon_value=get_icon_id('seam')).m_type = 'seam'
             layout.operator('nwo.apply_type_mesh_single', text='Portal', icon_value=get_icon_id('portal')).m_type = 'portal'
-            layout.operator('nwo.apply_type_mesh_single', text='Water Surface', icon_value=get_icon_id('water')).m_type = 'water_surface'
+            layout.operator('nwo.apply_type_mesh_single', text='Water', icon_value=get_icon_id('water')).m_type = 'water_surface'
             layout.operator('nwo.apply_type_mesh_single', text='Boundary Surface', icon_value=get_icon_id('soft_ceiling')).m_type = 'boundary_surface'
             layout.operator('nwo.apply_type_mesh_single', text='Lightmap Region', icon_value=get_icon_id('lightmap')).m_type = 'lightmap_region'
             if h4:
@@ -1477,7 +1477,7 @@ class NWO_OT_List_Remove_MarkerPermutation(bpy.types.Operator):
 class NWO_OT_ShowWaterDirection(bpy.types.Operator):
     bl_idname = "nwo.show_water_direction"
     bl_label = "Show Water Direction"
-    bl_description = "Temporarily replaces selected water surface object materials with arrows to indicate the direction of physical water flow. Requires material or rendered shading mode to be active"
+    bl_description = "Temporarily replaces selected water object materials with arrows to indicate the direction of physical water flow. Requires material or rendered shading mode to be active"
     bl_options = {"REGISTER"}
 
     @classmethod

@@ -2621,7 +2621,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
                 (
                     "_connected_geometry_mesh_type_plane",
                     "Plane",
-                    "Non rendered geometry which provides various utility functions in a bsp. The planes can cut through bsp geometry. Supports portals, fog planes, and water surfaces",
+                    "Non rendered geometry which provides various utility functions in a bsp. The planes can cut through bsp geometry. Supports portals, fog planes, and water",
                     get_icon_id("surface"),
                     3,
                 )
@@ -3503,7 +3503,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     connected_geometry_mesh_type_structure_visible: bpy.props.BoolProperty(default=True, options=set(), name="Structure", update=update_connected_geometry_mesh_type_structure_visible)
     connected_geometry_mesh_type_seam_visible: bpy.props.BoolProperty(default=True, options=set(), name="Seam", update=update_connected_geometry_mesh_type_seam_visible)
     connected_geometry_mesh_type_portal_visible: bpy.props.BoolProperty(default=True, options=set(), name="Portal", update=update_connected_geometry_mesh_type_portal_visible)
-    connected_geometry_mesh_type_water_surface_visible: bpy.props.BoolProperty(default=True, options=set(), name="Water Surface", update=update_connected_geometry_mesh_type_water_surface_visible)
+    connected_geometry_mesh_type_water_surface_visible: bpy.props.BoolProperty(default=True, options=set(), name="Water", update=update_connected_geometry_mesh_type_water_surface_visible)
     connected_geometry_mesh_type_poop_vertical_rain_sheet_visible: bpy.props.BoolProperty(default=True, options=set(), name="Rain Sheet", update=update_connected_geometry_mesh_type_poop_vertical_rain_sheet_visible)
     connected_geometry_mesh_type_planar_fog_volume_visible: bpy.props.BoolProperty(default=True, options=set(), name="Fog", update=update_connected_geometry_mesh_type_planar_fog_volume_visible)
     connected_geometry_mesh_type_lightmap_region_visible: bpy.props.BoolProperty(default=True, options=set(), name="Lightmap Region", update=update_connected_geometry_mesh_type_lightmap_region_visible)

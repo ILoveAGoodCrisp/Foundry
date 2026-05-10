@@ -766,6 +766,12 @@ class NWO_Import(bpy.types.Operator):
         description="Imports the all geometry data within bsp tags",
         default=True,
     )
+
+    tag_bsp_skip_structure_merge: bpy.props.BoolProperty(
+        name="Skip Structure Merge",
+        description="Keeps imported BSP structure as separate cluster/collision objects instead of joining them into one structure mesh",
+        default=False,
+    )
     
     tag_import_design: bpy.props.BoolProperty(
         name="Import Structure Design",
@@ -1297,6 +1303,7 @@ class NWO_Import(bpy.types.Operator):
                     importer.tag_zone_set = self.tag_zone_set
                     importer.tag_bsp_render_only = self.tag_bsp_render_only
                     importer.tag_bsp_import_geometry = self.tag_bsp_import_geometry
+                    importer.tag_bsp_skip_structure_merge = self.tag_bsp_skip_structure_merge
                     importer.tag_bsp_import_havok = self.tag_bsp_import_havok
                     importer.tag_import_lights = self.tag_import_lights
                     importer.tag_import_design = self.tag_import_design
@@ -1323,6 +1330,7 @@ class NWO_Import(bpy.types.Operator):
                 elif 'scenario_structure_bsp' in importer.extensions:
                     importer.tag_bsp_render_only = self.tag_bsp_render_only
                     importer.tag_bsp_import_geometry = self.tag_bsp_import_geometry
+                    importer.tag_bsp_skip_structure_merge = self.tag_bsp_skip_structure_merge
                     importer.tag_bsp_import_havok = self.tag_bsp_import_havok
                     importer.tag_import_lights = self.tag_import_lights
                     importer.setup_as_asset = self.setup_as_asset
@@ -1367,6 +1375,7 @@ class NWO_Import(bpy.types.Operator):
                 elif 'prefab' in importer.extensions:
                     importer.tag_bsp_render_only = self.tag_bsp_render_only
                     importer.tag_bsp_import_geometry = self.tag_bsp_import_geometry
+                    importer.tag_bsp_skip_structure_merge = self.tag_bsp_skip_structure_merge
                     importer.tag_bsp_import_havok = self.tag_bsp_import_havok
                     importer.tag_import_lights = self.tag_import_lights
                     importer.setup_as_asset = self.setup_as_asset
@@ -1508,6 +1517,7 @@ class NWO_Import(bpy.types.Operator):
                         if scenario and zone_set:
                             importer.tag_zone_set = zone_set
                             importer.tag_bsp_import_geometry = True
+                            importer.tag_bsp_skip_structure_merge = self.tag_bsp_skip_structure_merge
                             importer.tag_bsp_render_only = True
                             importer.tag_import_lights = self.tag_import_lights
                             importer.tag_scenario_import_objects = self.tag_scenario_import_objects
@@ -2009,6 +2019,7 @@ class NWO_Import(bpy.types.Operator):
             box.label(text='Scenario Tag Settings')
             box.prop(self, 'tag_zone_set')
             box.prop(self, "tag_bsp_import_geometry")
+            box.prop(self, "tag_bsp_skip_structure_merge")
             box.prop(self, "tag_bsp_render_only")
             if corinth:
                 box.prop(self, "tag_bsp_import_havok")
@@ -2322,6 +2333,7 @@ class NWOImporter:
         self.tag_zone_set = ""
         self.tag_bsp_render_only = False
         self.tag_bsp_import_geometry = False
+        self.tag_bsp_skip_structure_merge = False
         self.tag_bsp_import_havok = False
         self.tag_import_lights = False
         self.tag_import_design = False
@@ -3515,7 +3527,7 @@ class NWOImporter:
                 scenario_collection.children.link(collection)
         with utils.TagImportMover(self.tags_dir, file) as mover:
             with ScenarioStructureBspTag(path=mover.tag_path) as bsp:
-                bsp_objects, game_objects, bvh = bsp.to_blend_objects(collection, self.tag_bsp_render_only, info_path, self.tag_bsp_import_geometry, self.tag_import_lights, always_get_structure_collision, sky_index, self.tag_bsp_import_havok)
+                bsp_objects, game_objects, bvh = bsp.to_blend_objects(collection, self.tag_bsp_render_only, info_path, self.tag_bsp_import_geometry, self.tag_import_lights, always_get_structure_collision, sky_index, self.tag_bsp_import_havok, self.tag_bsp_skip_structure_merge)
                 
                 meshes = {ob.data for ob in bsp_objects if ob.type == 'MESH'}
                 self.emissive_meshes.update({me for me in meshes if any(p.type == 'emissive' for p in me.nwo.face_props)})
@@ -3618,7 +3630,7 @@ class NWOImporter:
                 return
             
         with ScenarioStructureBspTag(path=bsp_ref) as bsp:
-            bsp_objects, _, _ = bsp.to_blend_objects(collection, self.tag_bsp_render_only, import_geometry=self.tag_bsp_import_geometry, import_lights=self.tag_import_lights, import_havok=self.tag_bsp_import_havok)
+            bsp_objects, _, _ = bsp.to_blend_objects(collection, self.tag_bsp_render_only, import_geometry=self.tag_bsp_import_geometry, import_lights=self.tag_import_lights, import_havok=self.tag_bsp_import_havok, skip_structure_merge=self.tag_bsp_skip_structure_merge)
             imported_objects.extend(bsp_objects)
             meshes = {ob.data for ob in bsp_objects if ob.type == 'MESH'}
             self.emissive_meshes.update({me for me in meshes if any(p.type == 'emissive' for p in me.nwo.face_props)})
@@ -4698,6 +4710,12 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         description="Imports the all geometry data within bsp tags",
         default=True,
     )
+
+    tag_bsp_skip_structure_merge: bpy.props.BoolProperty(
+        name="Skip Structure Merge",
+        description="Keeps imported BSP structure as separate cluster/collision objects instead of joining them into one structure mesh",
+        default=False,
+    )
     
     tag_import_design: bpy.props.BoolProperty(
         name="Import Structure Design",
@@ -5078,6 +5096,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
             case "scenario":
                 layout.prop(self, "tag_zone_set")
                 layout.prop(self, "tag_bsp_import_geometry")
+                layout.prop(self, "tag_bsp_skip_structure_merge")
                 layout.prop(self, "tag_bsp_render_only")
                 if corinth:
                     layout.prop(self, "tag_bsp_import_havok")
@@ -5094,6 +5113,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 layout.prop(self, "always_extract_bitmaps")
             case "scenario_structure_bsp" | "prefab":
                 layout.prop(self, "tag_bsp_import_geometry")
+                layout.prop(self, "tag_bsp_skip_structure_merge")
                 layout.prop(self, "tag_bsp_render_only")
                 if corinth:
                     layout.prop(self, "tag_bsp_import_havok")

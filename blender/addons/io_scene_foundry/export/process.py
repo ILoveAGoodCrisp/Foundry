@@ -2174,18 +2174,18 @@ class ExportScene:
             if export and not exported_something:
                 print("--- No animations to export")
             
-            if self.external_animations:
-                print("\n\nNoting External Animations")
-                print("-----------------------------------------------------------------------\n")
-            for animation, granny_path in self.external_animations.items():
-                if animation.blend_path.strip():
-                    blend_path = Path(animation.blend_path)
-                else:
-                    blend_path = Path(granny_path.parent.parent.parent, "animations", granny_path.with_suffix("").name).with_suffix(".blend")
-                print(f"--- {granny_path.with_suffix('').name}")
-                self.sidecar.add_animation_file_data(granny_path, blend_path, animation.name, animation.compression, animation.animation_type, animation.animation_movement_data, animation.animation_space, animation.pose_overlay, animation.has_pca)
+        if self.external_animations:
+            print("\n\nNoting External Animations")
+            print("-----------------------------------------------------------------------\n")
+        for animation, granny_path in self.external_animations.items():
+            if animation.blend_path.strip():
+                blend_path = Path(animation.blend_path)
+            else:
+                blend_path = Path(granny_path.parent.parent.parent, "animations", granny_path.with_suffix("").name).with_suffix(".blend")
+            print(f"--- {granny_path.with_suffix('').name}")
+            self.sidecar.add_animation_file_data(granny_path, blend_path, animation.name, animation.compression, animation.animation_type, animation.animation_movement_data, animation.animation_space, animation.pose_overlay, animation.has_pca)
 
-            self.sidecar.composite_blend_axis_values.update(self.virtual_scene.composite_blend_axis_values)
+        self.sidecar.composite_blend_axis_values.update(self.virtual_scene.composite_blend_axis_values)
                 
     def _export_single_animation(self):
         if self.virtual_scene.skeleton_node and self.virtual_scene.animations:

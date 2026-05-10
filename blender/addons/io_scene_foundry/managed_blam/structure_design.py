@@ -166,6 +166,7 @@ class StructureDesignTag(Tag):
 
                 ob = bpy.data.objects.new(name, mesh)
                 ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_water_surface'
+                ob.nwo.water_type = 'PHYSICS'
                 ob.nwo.water_volume_depth = (highest_z - lowest_z) / 100 * (1 / WU_SCALAR)
                 direction, velocity = get_water_flow_direction_velocity(Vector((*element.SelectField("RealVector3d:flow velocity").Data,)))
                 

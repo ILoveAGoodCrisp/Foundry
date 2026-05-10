@@ -75,7 +75,7 @@ BITMAP_PARAMETER_REMAP = {
 }
 
 COLOR_PARAMETER_REMAP = {
-    "albedo_color": ("diffuse_color", "diffuse_alpha", None),
+    "albedo_color": ("albedo_tint", "diffuse_alpha", None),
     "specular_color_by_angle": ("specular_color", "glancing_specular_color", "fresnel_power"),
     "self_illum_color": ("si_color", None, None),
     "env_tint_color": ("reflection_color", "reflection_intensity", None),
@@ -980,12 +980,15 @@ class ShaderToMaterialConverter:
         material_function.SelectField("input name").SetStringData(input_name)
         material_function.SelectField("range name").SetStringData(range_name)
         material_function.SelectField("time period").Data = shader_function.SelectField("time period").Data
-        material_function.SelectField("function").Deserialize(shader_function.SelectField("animation function").Serialize())
+        source_function = shader_function.SelectField("animation function")
+        target_function = material_function.SelectField("function")
+        target_function.Deserialize(source_function.Serialize())
         
         if target_type == 1:
+            self._copy_function_colors(source_function.Value, target_function.Value)
             material_parameter.SelectField("color").Data = self._function_color(shader_function, 0)
         else:
-            value = shader_function.SelectField("animation function").Value.ClampRangeMin
+            value = source_function.Value.ClampRangeMin
             if target_type in {2, 3}:
                 material_parameter.SelectField("real").Data = value
             if target_type in {2, 4}:
@@ -996,6 +999,17 @@ class ShaderToMaterialConverter:
                 material_parameter.SelectField("vector").Data[2] = value
 
         return material_function
+
+    def _copy_function_colors(self, source_editor, target_editor):
+        target_editor.MasterType = source_editor.MasterType
+        target_editor.ColorGraphType = source_editor.ColorGraphType
+
+        color_count = max(1, min(int(source_editor.ColorCount), 4))
+        for color_index in range(color_count):
+            game_color = source_editor.GetColor(color_index)
+            if game_color.ColorMode == 1:
+                game_color = game_color.ToRgb()
+            target_editor.SetColor(color_index, game_color)
 
     def _selected_option(self, shader: ShaderTag, category_name: str) -> str:
         categories = self._definition_categories(shader)

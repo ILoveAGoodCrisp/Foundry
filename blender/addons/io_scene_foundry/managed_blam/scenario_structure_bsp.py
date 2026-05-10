@@ -135,7 +135,7 @@ class ScenarioStructureBspTag(Tag):
             
         self.tag_has_changes = True
         
-    def to_blend_objects(self, collection: bpy.types.Collection, for_cinematic: bool, lighting_info_path: Path = None, import_geometry=True, import_lights=True, always_get_structure_collision=False, sky_index=-1, import_havok=False):
+    def to_blend_objects(self, collection: bpy.types.Collection, for_cinematic: bool, lighting_info_path: Path = None, import_geometry=True, import_lights=True, always_get_structure_collision=False, sky_index=-1, import_havok=False, skip_structure_merge=False):
         
         objects = []
         game_objects = []
@@ -358,39 +358,33 @@ class ScenarioStructureBspTag(Tag):
             elif havok_collisions:
                 bvh = havok_collisions[0].to_bvh()
                         
-        # Merge all structure objects
-        main_structure_ob = None
-        utils.print_step("Merging Structure")
-        if len(structure_objects) > 1:
-            main_structure_ob, remaining_structure_obs = structure_objects[0], structure_objects[1:]
-            main_structure_ob.name = f"{self.tag_path.ShortName}_structure"
-            utils.join_objects([main_structure_ob] + remaining_structure_obs)
-            
-        elif structure_objects:
-            main_structure_ob = structure_objects[0]
-        
-        if main_structure_ob is not None:
+        seam_collection = None
+
+        def add_structure_object(ob: bpy.types.Object, seam_name: str | None = None):
+            nonlocal seam_collection
             if not for_cinematic:
-                utils.connect_verts_on_edge(main_structure_ob.data)
-            objects.append(main_structure_ob)
-            # utils.unlink(main_structure_ob)
-            structure_collection.objects.link(main_structure_ob)
-            main_structure_ob.nwo.proxy_instance = True
-            main_structure_ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_structure'
+                utils.connect_verts_on_edge(ob.data)
+            objects.append(ob)
+            # utils.unlink(ob)
+            structure_collection.objects.link(ob)
+            ob.nwo.proxy_instance = True
+            ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_structure'
             
             # separate out the seams
-            seam_material_indices = {idx for idx, m in enumerate(main_structure_ob.data.materials) if m.name == "+seam"}
+            seam_material_indices = {idx for idx, m in enumerate(ob.data.materials) if m.name == "+seam"}
             if seam_material_indices:
-                seam_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_seams")
-                seam_collection.hide_render = True
-                structure_collection.children.link(seam_collection)
-                seam_ob = main_structure_ob.copy()
-                seam_ob.data = main_structure_ob.data.copy()
+                if seam_collection is None:
+                    seam_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_seams")
+                    seam_collection.hide_render = True
+                    structure_collection.children.link(seam_collection)
+
+                seam_ob = ob.copy()
+                seam_ob.data = ob.data.copy()
                 
                 bm = bmesh.new()
-                bm.from_mesh(main_structure_ob.data)
+                bm.from_mesh(ob.data)
                 bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.material_index in seam_material_indices], context='FACES')
-                bm.to_mesh(main_structure_ob.data)
+                bm.to_mesh(ob.data)
                 bm.free()
                 
                 bm = bmesh.new()
@@ -401,9 +395,29 @@ class ScenarioStructureBspTag(Tag):
                 
                 seam_ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_seam'
                 seam_ob.nwo.seam_back_manual = True
-                seam_ob.name = f"{self.tag_path.ShortName}_seams"
+                seam_ob.name = seam_name or f"{ob.name}_seams"
                 objects.append(seam_ob)
                 seam_collection.objects.link(seam_ob)
+
+        # Merge all structure objects
+        if skip_structure_merge:
+            if structure_objects:
+                utils.print_step("Adding Unmerged Structure")
+                for ob in structure_objects:
+                    add_structure_object(ob)
+        else:
+            main_structure_ob = None
+            utils.print_step("Merging Structure")
+            if len(structure_objects) > 1:
+                main_structure_ob, remaining_structure_obs = structure_objects[0], structure_objects[1:]
+                main_structure_ob.name = f"{self.tag_path.ShortName}_structure"
+                utils.join_objects([main_structure_ob] + remaining_structure_obs)
+
+            elif structure_objects:
+                main_structure_ob = structure_objects[0]
+
+            if main_structure_ob is not None:
+                add_structure_object(main_structure_ob, f"{self.tag_path.ShortName}_seams")
         
         utils.print_step("Removing Duplicate Material Slots")
         ob_meshes = {o.data for o in objects if o.type == 'MESH'}

@@ -1634,7 +1634,7 @@ def get_mesh_display(mesh_type):
         case '_connected_geometry_mesh_type_portal':
             return 'Portal', get_icon_id('portal')
         case '_connected_geometry_mesh_type_water_surface':
-            return 'Water Surface', get_icon_id('water')
+            return 'Water', get_icon_id('water')
         case '_connected_geometry_mesh_type_boundary_surface':
             return 'Boundary Surface', get_icon_id('soft_ceiling')
         case '_connected_geometry_mesh_type_poop_rain_blocker':

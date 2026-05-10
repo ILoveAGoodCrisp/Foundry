@@ -2588,6 +2588,7 @@ class Mesh:
                 
                 ob_water.data.nwo.mesh_type = '_connected_geometry_mesh_type_water_surface'
                 ob_water.nwo.water_volume_depth = 0
+                ob_water.nwo.water_type = 'SURFACE'
                 
                 if ob_water.data.materials:
                     utils.consolidate_materials(ob_water.data)
