@@ -250,26 +250,39 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="Halo script to execute after this cinematic shot ends"
     )
+    header_text: bpy.props.PointerProperty(
+        name="Header Text",
+        options=set(),
+        type=bpy.types.Text,
+        description="Use the script located in the referenced blender text file. Executed before this cinematic shot starts"
+    )
+    
+    footer_text: bpy.props.PointerProperty(
+        name="Footer Text",
+        options=set(),
+        type=bpy.types.Text,
+        description="Use the script located in the referenced blender text file. Executed after this cinematic shot ends"
+    )
     
     instant_auto_exposure: bpy.props.BoolProperty(
         name="Instant Auto-Exposure",
         options=set(),
-        description=""
+        description="Instantly adopt auto exposure values in the first shot frame"
     )
     force_exposure: bpy.props.BoolProperty(
         name="Force Exposure",
         options=set(),
-        description=""
+        description="Set the animated exposure specified by the Forced Exposure field"
     )
     generate_looping_script: bpy.props.BoolProperty(
         name="Generate Looping Script",
         options=set(),
-        description=""
+        description="Makes the shot loop... forever!"
     )
     environment_darker: bpy.props.FloatProperty(
         name="Environment Darker",
         options=set(),
-        description="Works best with auto-exposure off",
+        description="Darkens the environment. Works best with auto-exposure off",
         subtype='FACTOR',
         soft_min=-1,
         soft_max=1
@@ -277,7 +290,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     forced_exposure: bpy.props.FloatProperty(
         name="Forced Exposure",
         options=set(),
-        description="Disables auto-exposure",
+        description="Disables auto-exposure, and allows setting it manually",
         subtype='FACTOR',
         soft_min=-1,
         soft_max=1

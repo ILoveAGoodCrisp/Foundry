@@ -57,6 +57,35 @@ class CinematicTag(Tag):
     
     def create(self, name: str, cinematic_scenes, scenario_path: Path | None = None, zone_set: str = "cinematic"):
         self.tag_has_changes = True
+        
+        # Add Cinematic Settings
+        channel_type_value = int(self.scene_nwo.cinematic_channel_type)
+        if not self.corinth:
+            channel_type_value = min(4, channel_type_value)
+            
+        self.channel_type.Value = channel_type_value
+        self.tag.SelectField("easing in time").Data = self.scene_nwo.cinematic_easing_in_time
+        self.tag.SelectField("easing out time").Data = self.scene_nwo.cinematic_easing_out_time
+        if self.scene_nwo.cinematic_transition_settings.strip():
+            transition = Path(utils.relative_path(self.scene_nwo.cinematic_transition_settings)).with_suffix(".cinematic_transition")
+        else:
+            transition = Path(self.tag_path.RelativePath).with_suffix(".cinematic_transition")
+        with Tag(path=transition) as trans:
+            self.tag.SelectField("Reference:transition settings").Path = trans.tag_path
+            
+        if self.scene_nwo.cinematic_bink_movie.strip():
+            b_path = Path(utils.relative_path(self.scene_nwo.cinematic_bink_movie)).with_suffix(".bink")
+            self.tag.SelectField("Reference:bink movie").Path = self._TagPath_from_string(b_path)
+            
+        self.flags.SetBit("Outro", self.scene_nwo.cinematic_outro)
+        if self.corinth:
+            self.flags.SetBit("Extra Memory Bink", self.scene_nwo.cinematic_extra_memory_bink)
+            self.flags.SetBit("Opaque Bink", self.scene_nwo.cinematic_opaque_bink)
+            self.flags.SetBit("Don't Stretch Bink", self.scene_nwo.cinematic_dont_stretch_bink)
+            self.flags.SetBit("Don't Force Hologram Render", self.scene_nwo.cinematic_dont_force_hologram_render)
+            
+            self.tag.SelectField("bink movie on disc").SetStringData(self.scene_nwo.cinematic_bink_movie_on_disc)
+
         # Add scenes to cinematic
         scene_paths = [cs.name for cs in cinematic_scenes]
         if scene_paths:

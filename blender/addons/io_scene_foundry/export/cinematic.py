@@ -65,10 +65,8 @@ def _cinematic_distance(distance: float) -> float:
         return 0
     return max(utils.halo_scale(max(distance, 0)) * 100, 0)
 
-
 def _mm_to_scene_units(value: float) -> float:
     return value / 1000
-
 
 def _focus_distance(camera: bpy.types.Object, data: bpy.types.Camera) -> float:
     if data.dof.focus_object:

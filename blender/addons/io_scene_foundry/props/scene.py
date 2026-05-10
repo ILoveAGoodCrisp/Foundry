@@ -45,6 +45,7 @@ def animation_from_leaf(self, context):
         animation_from_composite(leaf, context)
         
 def animation_from_composite(self, context):
+    previous_animation = None
     if self.id_data.nwo.active_animation_index > -1 and self.id_data.nwo.animations:
         current_animation = self.id_data.nwo.animations[self.id_data.nwo.active_animation_index]
         if current_animation.animation_type != 'composite':
@@ -2109,6 +2110,7 @@ class NWO_CinematicEvent(PropertyGroup):
         name="Script Text",
         type=bpy.types.Text,
         options=set(),
+        description="Use the script located in the referenced blender text file"
     )
     
     script_type: bpy.props.EnumProperty(
@@ -2260,12 +2262,27 @@ class NWO_CinematicScene(PropertyGroup):
     
     header: bpy.props.StringProperty(
         name="Header Script",
+        options=set(),
         description="Halo script to execute before this cinematic scene starts"
     )
     
     footer: bpy.props.StringProperty(
         name="Footer Script",
+        options=set(),
         description="Halo script to execute after this cinematic scene ends"
+    )
+    header_text: bpy.props.PointerProperty(
+        name="Header Text",
+        options=set(),
+        type=bpy.types.Text,
+        description="Use the script located in the referenced blender text file. Executed before this cinematic scene starts"
+    )
+    
+    footer_text: bpy.props.PointerProperty(
+        name="Footer Text",
+        options=set(),
+        type=bpy.types.Text,
+        description="Use the script located in the referenced blender text file. Executed after this cinematic scene ends"
     )
 
 class NWO_ScenePropertiesGroup(PropertyGroup):
@@ -2440,6 +2457,122 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     )
     
     active_cinematic_scene_index: bpy.props.IntProperty(options={'HIDDEN'})
+    
+    # cinematic tag settings
+    
+    
+    cinematic_header: bpy.props.StringProperty(
+        name="Header Script",
+        options=set(),
+        description="Halo script to execute before this cinematic starts"
+    )
+    
+    cinematic_footer: bpy.props.StringProperty(
+        name="Footer Script",
+        options=set(),
+        description="Halo script to execute after this cinematic ends"
+    )
+    cinematic_header_text: bpy.props.PointerProperty(
+        name="Header Text",
+        options=set(),
+        type=bpy.types.Text,
+        description="Use the script located in the referenced blender text file. Executed before this cinematic starts"
+    )
+    
+    cinematic_footer_text: bpy.props.PointerProperty(
+        name="Footer Text",
+        options=set(),
+        type=bpy.types.Text,
+        description="Use the script located in the referenced blender text file. Executed after this cinematic ends"
+    )
+    
+    cinematic_skip_footer: bpy.props.StringProperty(
+        name="Skip Script",
+        options=set(),
+        description="Halo script to execute if the player skips the cinematic"
+    )
+    
+    cinematic_skip_footer_text: bpy.props.PointerProperty(
+        name="Skip Text",
+        options=set(),
+        type=bpy.types.Text,
+        description="Use the script located in the referenced blender text file. Executed if the player skips this cinematic"
+    )
+    
+    cinematic_channel_type: bpy.props.EnumProperty(
+        name="Channel Type",
+        options=set(),
+        description="Type of cinematic to play",
+        items=[
+            ('0', "Letterbox", "The standard for cinematics"),
+            ('1', "Briefing", "I wish I knew"),
+            ('2', "Perspective", "You know what I'm craving? A little perspective. That's it. I'd like some fresh, clear, well-seasoned perspective\nIn gameplay cinematic, skipping the cinematic doesn't revert to the last checkpoint"),
+            ('3', "Vignette", "Why don't you tell me what something does for once"),
+            ('4', "Bink Briefing", "I imagine this works like briefing but plays a bink"),
+            ('5', "Bink Full Screen", "Full screen bink movie. In game cinematics are overrated. Only works in H4+"),
+        ]
+    )
+    
+    cinematic_easing_in_time: bpy.props.FloatProperty(
+        name="Easing In Time",
+        options=set(),
+        description="Time in seconds to ease into the cinematic from gameplay",
+        subtype='TIME_ABSOLUTE'
+    )
+    cinematic_easing_out_time: bpy.props.FloatProperty(
+        name="Easing Out Time",
+        options=set(),
+        description="Time in seconds to ease from the cinematic to gameplay",
+        subtype='TIME_ABSOLUTE'
+    )
+    
+    cinematic_transition_settings: bpy.props.StringProperty(
+        name="Transition Settings",
+        options=set(),
+        description="Tag which defines the fade in / out colors and sounds and sound classes to stop/play/fade when this cinematic starts and ends\nIf you leave this empty on export, and new transition settings tag will be generated for you"
+    )
+    
+    cinematic_bink_movie: bpy.props.StringProperty(
+        name="Bink Movie Tag",
+        description="Tag which contains a bink movie to play for this cinematic"
+    )
+    
+    cinematic_outro: bpy.props.BoolProperty(
+        name="Outro",
+        options=set(),
+        description="To mark that this cinematic plays at the of a level"
+    )
+    
+    # H4 flags
+    cinematic_extra_memory_bink: bpy.props.BoolProperty(
+        name="Extra Memory Bink",
+        options=set(),
+        description="Check this if the bink is large and needs extra memory to run (not needed for opaque binks)"
+    )
+    
+    cinematic_opaque_bink: bpy.props.BoolProperty(
+        name="Opaque Bink",
+        options=set(),
+        description="This bink is full screen and opaque. It will make bink steal extra memory from the render targets. Don't ask me what render targets are"
+    )
+    
+    cinematic_dont_stretch_bink: bpy.props.BoolProperty(
+        name="Don't Stretch Bink",
+        options=set(),
+        description="Play full-screen bink at the authored size (i.e. don't stretch it to fill the screen)"
+    )
+    
+    cinematic_dont_force_hologram_render: bpy.props.BoolProperty(
+        name="Don't Force Hologram Render",
+        options=set(),
+        description="A mystery to be sure. Maybe something todo with cortana rendering"
+    )
+    
+    cinematic_bink_movie_on_disc: bpy.props.StringProperty(
+        name="Bink Movie",
+        description="Plays a raw bink movie file. The directory and '_60.bik' are implied. '081_crash' will play the file bink\\081_crash_60.bik\n"
+    )
+    
     
     # ANIMATION
     def update_active_animation_index(self, context):
