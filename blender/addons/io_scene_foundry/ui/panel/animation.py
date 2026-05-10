@@ -862,6 +862,7 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
                     if keep_tracks:
                         for track in new_anim.action_tracks:
                             ob = track.object
+                            track.object = None
                             if ob is not None:
                                 if armature is not None and ob.type == 'ARMATURE':
                                     track.object = armature
@@ -869,14 +870,11 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
                                     last_potential_name = ""
                                     while True:
                                         potential_name = utils.reduce_suffix(ob.name)
-                                        if potential_name in scope_objects:
-                                            potential_ob = scene_objects.get(potential_name)
-                                            if potential_ob:
-                                                track.object = potential_ob
-                                            else:
-                                                track.object = None
+                                        potential_ob = scene_objects.get(potential_name)
+                                        if potential_ob:
+                                            track.object = potential_ob
                                             break
-                                        
+                                            
                                         if potential_name == last_potential_name:
                                             break
 
@@ -888,20 +886,19 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
                                     last_potential_name = ""
                                     while True:
                                         potential_name = utils.reduce_suffix(action.name)
-                                        if potential_name in scope_actions:
-                                            potential_action = all_actions.get(potential_name)
-                                            if potential_action:
-                                                track.action = potential_action
-                                                break
+                                        potential_action = all_actions.get(potential_name)
+                                        if potential_action:
+                                            track.action = potential_action
+                                            break
                                         
                                         if potential_name == last_potential_name:
                                             break
 
                                         last_potential_name = potential_name
                                         
-                                        
                             for event in new_anim.animation_events:
                                 ob = event.ik_target_marker
+                                event.ik_target_marker = None
                                 if ob is not None:
                                     if armature is not None and ob.type == 'ARMATURE':
                                         event.ik_target_marker = armature
@@ -910,20 +907,18 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
                                         if ob is not None:
                                             while True:
                                                 potential_name = utils.reduce_suffix(ob.name)
-                                                if potential_name in scope_objects:
-                                                    potential_ob = scene_objects.get(potential_name)
-                                                    if potential_ob:
-                                                        event.ik_target_marker = potential_ob
-                                                    else:
-                                                        event.ik_target_marker = None
+                                                potential_ob = scene_objects.get(potential_name)
+                                                if potential_ob:
+                                                    event.ik_target_marker = potential_ob
                                                     break
-                                                
+
                                                 if potential_name == last_potential_name:
                                                     break
 
                                                 last_potential_name = potential_name
                                     
                                 ob = event.ik_pole_vector
+                                event.ik_pole_vector = None
                                 if ob is not None:
                                     if armature is not None and ob.type == 'ARMATURE':
                                         event.ik_pole_vector = armature
@@ -932,13 +927,10 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
                                         if ob is not None:
                                             while True:
                                                 potential_name = utils.reduce_suffix(ob.name)
-                                                if potential_name in scope_objects:
-                                                    potential_ob = scene_objects.get(potential_name)
-                                                    if potential_ob:
-                                                        event.ik_pole_vector = potential_ob
-                                                    else:
-                                                        event.ik_pole_vector = None
-                                                    break
+                                                potential_ob = scene_objects.get(potential_name)
+                                                if potential_ob:
+                                                    event.ik_pole_vector = potential_ob
+                                                    break  
                                                 
                                                 if potential_name == last_potential_name:
                                                     break
@@ -947,17 +939,15 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
                                                 
                                 for edata in event.event_data:
                                     ob = edata.marker
+                                    edata.marker = None
                                     if ob is not None:
                                         last_potential_name = ""
                                         if ob is not None:
                                             while True:
                                                 potential_name = utils.reduce_suffix(ob.name)
-                                                if potential_name in scope_objects:
-                                                    potential_ob = scene_objects.get(potential_name)
-                                                    if potential_ob:
-                                                        edata.marker = potential_ob
-                                                    else:
-                                                        edata.marker = None
+                                                potential_ob = scene_objects.get(potential_name)
+                                                if potential_ob:
+                                                    edata.marker = potential_ob
                                                     break
                                                 
                                                 if potential_name == last_potential_name:
