@@ -111,22 +111,12 @@ def dump_frame_animation_events(
 def import_frame_animation_events(
     animation_events,
     filepath: str | Path,
-    clear_existing: bool = False,
 ):
     filepath = Path(filepath)
 
     with filepath.open("r", encoding="utf-8") as f:
         data = json.load(f)
-
-    if clear_existing:
-        to_remove = []
-        for i, e in enumerate(animation_events):
-            if e.event_type == FRAME_EVENT_TYPE:
-                to_remove.append(i)
-                
-        for i in reversed(to_remove):
-            animation_events.remove(i)
-
+        
     for event_data in data:
         event = animation_events.add()
         event.event_type = FRAME_EVENT_TYPE
@@ -367,10 +357,19 @@ class FrameEventListTag(Tag):
 
         for b_animation in blender_animations.values():
             if b_animation.external:
+                
+                to_remove = []
+                for i, e in enumerate(b_animation.animation_events):
+                    if e.event_type == FRAME_EVENT_TYPE:
+                        to_remove.append(i)
+                        
+                for i in reversed(to_remove):
+                    b_animation.animation_events.remove(i)
+                
                 gr2_path = utils.relative_path(b_animation.gr2_path)
                 json_path = Path(self.tags_dir, gr2_path).with_suffix(".json")
                 if json_path.exists():
-                    import_frame_animation_events(b_animation.animation_events, json_path, True)
+                    import_frame_animation_events(b_animation.animation_events, json_path)
                 
             for event in b_animation.animation_events:
                 for data in event.event_data:
