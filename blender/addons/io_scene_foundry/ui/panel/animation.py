@@ -846,22 +846,21 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
                         if expected_gr2_path.exists():
                             new_anim.external = True
                             new_anim.gr2_path = utils.relative_path(expected_gr2_path)
+                            
+                    keep_events = (not new_anim.external) and self.import_events
+                    keep_tracks = (not new_anim.external) and self.linked_gr2_keep_actions
                         
-                    if not self.import_events:
+                    if not keep_events:
                         new_anim.animation_events.clear()
                         
                     if not self.import_renames:
                         new_anim.animation_renames.clear()
 
-                    if (not new_anim.external) or self.linked_gr2_keep_actions:
+                    if keep_tracks:
                         for track in new_anim.action_tracks:
                             ob = track.object
                             if ob is not None:
-                                print("SELECTED ARMATURE: ", armature)
-                                print("IMPORTED OBJECT: ", ob)
-                                print("IMPORTED OBJECT TYPE: ", ob.type)
                                 if armature is not None and ob.type == 'ARMATURE':
-                                    print("Track set to our selected")
                                     track.object = armature
                                 else:
                                     last_potential_name = ""
@@ -957,7 +956,7 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
         for scene in new_scenes:
             bpy.data.scenes.remove(scene)
             
-        bpy.ops.outliner.orphans_purge(do_recursive=True)
+        # bpy.ops.outliner.orphans_purge(do_recursive=True)
         
         self.report({'INFO'}, f"Imported {new_anim_count} animations")
         return {'FINISHED'}

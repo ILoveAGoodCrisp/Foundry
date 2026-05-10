@@ -3304,14 +3304,15 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             self.draw_expandable_box(box.box(), scene_nwo, "animation_renames", "Renames", ob=animation)
 
         # ANIMATION EVENTS
-        if not animation.animation_events:
-            if animation.animation_renames:
-                row = box.row()
-            row.operator("nwo.animation_event_list_add", text="New Event", icon_value=get_icon_id('animation_event'))
-            if bpy.ops.nwo.paste_events.poll():
-                row.operator("nwo.paste_events", icon="PASTEDOWN")
-        else:
-            self.draw_expandable_box(box.box(), scene_nwo, "animation_events", "Events", ob=animation)
+        if not animation.external:
+            if not animation.animation_events:
+                if animation.animation_renames:
+                    row = box.row()
+                row.operator("nwo.animation_event_list_add", text="New Event", icon_value=get_icon_id('animation_event'))
+                if bpy.ops.nwo.paste_events.poll():
+                    row.operator("nwo.paste_events", icon="PASTEDOWN")
+            else:
+                self.draw_expandable_box(box.box(), scene_nwo, "animation_events", "Events", ob=animation)
                     
         # ANIMATION NODES
         col = box.column()
