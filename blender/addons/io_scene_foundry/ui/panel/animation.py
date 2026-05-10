@@ -836,7 +836,7 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
                         
                     if self.use_external_gr2 and export_animations_path is not None and not anim.external:
                         expected_gr2_path = Path(export_animations_path, f"{anim.name}.gr2")
-                        print(expected_gr2_path)
+                        # print(expected_gr2_path)
                         if expected_gr2_path.exists():
                             new_anim.external = True
                             new_anim.gr2_path = utils.relative_path(expected_gr2_path)
@@ -881,6 +881,44 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
                                             track.action = potential_action
                                         else:
                                             track.action = None
+                                        break
+                                    
+                                    if potential_name == last_potential_name:
+                                        break
+
+                                    last_potential_name = potential_name
+                                    
+                                    
+                        for event in new_anim.animation_events:
+                            ob = event.ik_target_marker
+                            last_potential_name = ""
+                            if ob is not None:
+                                while True:
+                                    potential_name = utils.reduce_suffix(ob.name)
+                                    if potential_name in scope_objects:
+                                        potential_ob = bpy.data.objects.get(potential_name)
+                                        if potential_ob:
+                                            event.ik_target_marker = potential_ob
+                                        else:
+                                            event.ik_target_marker = None
+                                        break
+                                    
+                                    if potential_name == last_potential_name:
+                                        break
+
+                                    last_potential_name = potential_name
+                                
+                            ob = event.ik_pole_vector
+                            last_potential_name = ""
+                            if ob is not None:
+                                while True:
+                                    potential_name = utils.reduce_suffix(ob.name)
+                                    if potential_name in scope_objects:
+                                        potential_ob = bpy.data.objects.get(potential_name)
+                                        if potential_ob:
+                                            event.ik_pole_vector = potential_ob
+                                        else:
+                                            event.ik_pole_vector = None
                                         break
                                     
                                     if potential_name == last_potential_name:
