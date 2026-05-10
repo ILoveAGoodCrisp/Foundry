@@ -960,6 +960,7 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
         layout.prop(self, "import_renames")
         layout.prop(self, "prioritise_selected_armature")
         layout.prop(self, "use_external_gr2")
+        layout.prop(self, "linked_gr2_keep_actions")
         layout.prop(self, "animation_filter")
 
 class NWO_OT_OpenExternalAnimationBlend(bpy.types.Operator):
