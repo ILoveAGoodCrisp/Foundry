@@ -1,6 +1,8 @@
 from enum import Enum
 from pathlib import Path
 
+from .lisp_to_corinth import convert
+
 from .cinematic_scene_data import CinematicSceneDataTag
 
 from .cinematic_scene import CinematicSceneTag
@@ -72,6 +74,8 @@ class CinematicTag(Tag):
             transition = Path(self.tag_path.RelativePath).with_suffix(".cinematic_transition")
         with Tag(path=transition) as trans:
             self.tag.SelectField("Reference:transition settings").Path = trans.tag_path
+            if not self.scene_nwo.cinematic_transition_settings.strip():
+                self.scene_nwo.cinematic_transition_settings = trans.tag_path.RelativePathWithExtension
             
         if self.scene_nwo.cinematic_bink_movie.strip():
             b_path = Path(utils.relative_path(self.scene_nwo.cinematic_bink_movie)).with_suffix(".bink")
@@ -85,6 +89,8 @@ class CinematicTag(Tag):
             self.flags.SetBit("Don't Force Hologram Render", self.scene_nwo.cinematic_dont_force_hologram_render)
             
             self.tag.SelectField("bink movie on disc").SetStringData(self.scene_nwo.cinematic_bink_movie_on_disc)
+        
+        # self.tag.SelectField("struct:header").Elements[0].Fields[0].DataAsText = convert()
 
         # Add scenes to cinematic
         scene_paths = [cs.name for cs in cinematic_scenes]

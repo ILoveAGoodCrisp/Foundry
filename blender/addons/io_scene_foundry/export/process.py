@@ -403,6 +403,9 @@ class ExportScene:
                 elif proxy in support_armatures:
                     self.support_armatures.append(proxy)
                     continue
+                else:
+                    continue
+                    
             
             proxy_export_objects.append(proxy)
         
@@ -826,15 +829,18 @@ class ExportScene:
 
         tmp_region = region = default_region
         tmp_perm = permutation = default_perm
-
-        if ob.nwo.collection_region:
-            tmp_region = ob.nwo.collection_region
-        else:
-            tmp_region = ob.nwo.region_name
-        if ob.nwo.collection_permutation:
-            tmp_perm = ob.nwo.collection_permutation
-        else:
-            tmp_perm = ob.nwo.permutation_name
+        
+        if self.asset_type.supports_regions:
+            if ob.nwo.collection_region:
+                tmp_region = ob.nwo.collection_region
+            else:
+                tmp_region = ob.nwo.region_name
+                
+        if self.asset_type.supports_permutations:
+            if ob.nwo.collection_permutation:
+                tmp_perm = ob.nwo.collection_permutation
+            else:
+                tmp_perm = ob.nwo.permutation_name
 
         if object_type == ObjectType.light:
             self.lights[ob] = tmp_region
