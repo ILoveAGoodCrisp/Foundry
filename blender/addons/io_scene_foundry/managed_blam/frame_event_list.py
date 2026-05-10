@@ -119,7 +119,13 @@ def import_frame_animation_events(
         data = json.load(f)
 
     if clear_existing:
-        animation_events.clear()
+        to_remove = []
+        for i, e in enumerate(animation_events):
+            if e.event_type == FRAME_EVENT_TYPE:
+                to_remove.append(i)
+                
+        for i in reversed(to_remove):
+            animation_events.remove(i)
 
     for event_data in data:
         event = animation_events.add()
