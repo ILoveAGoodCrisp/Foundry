@@ -2179,9 +2179,7 @@ class ExportScene:
                     nodes.extend(animation.nodes)
                     nodes_dict = {node.ob: node for node in nodes + [self.virtual_scene.skeleton_node]}
                     self._export_granny_file(granny_path, nodes_dict, animation)
-                    
-                    if self.dump_frame_events:
-                        dump_frame_animation_events(animation.anim.animation_events, Path(granny_path).with_suffix(".json"))
+                    dump_frame_animation_events(animation.anim.animation_events, Path(granny_path).with_suffix(".json"))
                     
                     exported_something = True
                 
