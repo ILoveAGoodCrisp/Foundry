@@ -12,6 +12,120 @@ from .render_model import RenderModelTag
 from . import Tag, tag_path_from_string
 from .. import utils
 
+import json
+from bpy.types import PropertyGroup, bpy_prop_collection
+
+FRAME_EVENT_TYPE = "_connected_geometry_animation_event_type_frame"
+
+def propgroup_to_dict(pg: PropertyGroup) -> dict:
+    data = {}
+
+    for prop in pg.bl_rna.properties:
+        key = prop.identifier
+
+        if key == "rna_type" or prop.is_readonly:
+            continue
+        if key == "marker":
+            marker = getattr(pg, key, None)
+            data["marker_name"] = marker.nwo.marker_model_group if marker else ""
+            continue
+
+        value = getattr(pg, key)
+
+        if isinstance(value, PropertyGroup):
+            data[key] = propgroup_to_dict(value)
+        elif isinstance(value, bpy_prop_collection):
+            data[key] = [
+                propgroup_to_dict(item)
+                for item in value
+            ]
+
+        else:
+            try:
+                json.dumps(value)
+                data[key] = value
+            except TypeError:
+                try:
+                    data[key] = list(value)
+                except Exception:
+                    pass
+
+    return data
+
+def animation_event_to_dict(event: PropertyGroup) -> dict:
+    data = propgroup_to_dict(event)
+    if hasattr(event, "event_data"):
+        data["event_data"] = [
+            propgroup_to_dict(item)
+            for item in event.event_data
+        ]
+
+    return data
+
+def apply_dict_to_propgroup(pg: PropertyGroup, data: dict):
+    for key, value in data.items():
+        if key == "marker_name":
+            if hasattr(pg, "marker"):
+                pg.marker = bpy.data.objects.get(value) if value else None
+            continue
+
+        if not hasattr(pg, key):
+            continue
+
+        current = getattr(pg, key)
+
+        if isinstance(current, PropertyGroup):
+            apply_dict_to_propgroup(current, value)
+        elif isinstance(current, bpy_prop_collection):
+            current.clear()
+
+            for item_data in value:
+                item = current.add()
+                apply_dict_to_propgroup(item, item_data)
+        else:
+            try:
+                setattr(pg, key, value)
+            except Exception:
+                pass
+
+
+def dump_frame_animation_events(
+    animation_events,
+    filepath: str | Path,
+):
+    filepath = Path(filepath)
+
+    data = [
+        animation_event_to_dict(event)
+        for event in animation_events
+        if getattr(event, "event_type", None) == FRAME_EVENT_TYPE
+    ]
+    
+    if data:
+        filepath.parent.mkdir(parents=True, exist_ok=True)
+
+        with filepath.open("w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4)
+
+
+def import_frame_animation_events(
+    animation_events,
+    filepath: str | Path,
+    clear_existing: bool = False,
+):
+    filepath = Path(filepath)
+
+    with filepath.open("r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    if clear_existing:
+        animation_events.clear()
+
+    for event_data in data:
+        event = animation_events.add()
+        event.event_type = FRAME_EVENT_TYPE
+        apply_dict_to_propgroup(event, event_data)
+
 class Reference:
     def __init__(self):
         self.tag = ""
@@ -182,16 +296,22 @@ class AnimationEvent:
                 case 'SOUND':
                     sound = SoundEvent()
                     sound.frame_offset = data.frame_offset
-                    if data.marker is not None:
-                        sound.marker_name = data.marker.nwo.marker_model_group
+                    if data.marker_name:
+                        sound.marker_name = data.marker_name
+                    else:
+                        if data.marker is not None:
+                            sound.marker_name = data.marker.nwo.marker_model_group
                     sound.sound_reference = unique_sounds.get((data.event_sound_tag, data.flag_allow_on_player, data.flag_left_arm_only, data.flag_right_arm_only, data.flag_first_person_only, data.flag_third_person_only, data.flag_forward_only, data.flag_reverse_only, data.flag_fp_no_aged_weapons, data.event_model, data.variant))
                     if sound.sound_reference is not None:
                         self.sound_events.append(sound)
                 case 'EFFECT':
                     effect = EffectEvent()
                     effect.frame_offset = data.frame_offset
-                    if data.marker is not None:
-                        effect.marker_name = data.marker.nwo.marker_model_group
+                    if data.marker_name:
+                        effect.marker_name = data.marker_name
+                    else:
+                        if data.marker is not None:
+                            effect.marker_name = data.marker.nwo.marker_model_group
                     effect.effect_reference = unique_effects.get((data.event_effect_tag, data.flag_allow_on_player, data.flag_left_arm_only, data.flag_right_arm_only, data.flag_first_person_only, data.flag_third_person_only, data.flag_forward_only, data.flag_reverse_only, data.flag_fp_no_aged_weapons, data.event_model, data.variant))
                     effect.damage_effect_reporting_type = data.damage_effect_reporting_type
                     if effect.effect_reference is not None:
@@ -238,8 +358,14 @@ class FrameEventListTag(Tag):
         
         unique_sounds_set = set()
         unique_effects_set = set()
-        
+
         for b_animation in blender_animations.values():
+            if b_animation.external:
+                gr2_path = utils.relative_path(b_animation.gr2_path)
+                json_path = Path(self.tags_dir, gr2_path).with_suffix(".json")
+                if json_path.exists():
+                    import_frame_animation_events(b_animation.animation_events, json_path, True)
+                
             for event in b_animation.animation_events:
                 for data in event.event_data:
                     match data.data_type:
@@ -249,7 +375,7 @@ class FrameEventListTag(Tag):
                         case 'EFFECT':
                             if data.event_effect_tag.strip():
                                 unique_effects_set.add((data.event_effect_tag, data.flag_allow_on_player, data.flag_left_arm_only, data.flag_right_arm_only, data.flag_first_person_only, data.flag_third_person_only, data.flag_forward_only, data.flag_reverse_only, data.flag_fp_no_aged_weapons, data.event_model, data.variant))
-        
+            
         unique_sounds = {}
         unique_effects = {}
         

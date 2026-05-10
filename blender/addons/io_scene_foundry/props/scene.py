@@ -533,6 +533,12 @@ class NWO_AnimationEventData_ListItems(bpy.types.PropertyGroup):
         description="Marker that this sound / effect event should play on"
     )
     
+    marker_name: bpy.props.StringProperty(
+        name="Marker Name",
+        description="Declare the marker name manually",
+        options=set(),
+    )
+    
     damage_effect_reporting_type: bpy.props.EnumProperty(
         name="Damage Effect Type",
         description="If this effect event does damage, report the following damage type to the game engine. This list is a combined list of Reach, Halo 4, and Halo 2AMP damage reporting types. Please check the description of the type to ensure it is valid for the game you are working in",

@@ -14,7 +14,7 @@ import time
 
 from ..managed_blam.globals import GlobalsTag
 
-from ..managed_blam.frame_event_list import FrameEventListTag
+from ..managed_blam.frame_event_list import FrameEventListTag, dump_frame_animation_events
 
 from ..managed_blam.material import MaterialTag
 from ..managed_blam.shader import ShaderTag
@@ -142,6 +142,9 @@ class ExportScene:
         
         self.type_is_relevant = self.asset_type in {AssetType.MODEL, AssetType.SCENARIO, AssetType.SKY, AssetType.PARTICLE_MODEL, AssetType.PREFAB, AssetType.MULTI_MODEL, AssetType.MULTI_PREFAB}
         self.uses_main_armature = self.asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.ANIMATION, AssetType.SINGLE_ANIMATION}
+        
+        self.dump_frame_events = self.asset_type in {AssetType.ANIMATION, AssetType.MODEL, AssetType.SINGLE_ANIMATION} and scene_settings.is_child_asset
+        
         # self.is_child_asset = scene_settings.is_child_asset
         # self.parent_asset_path = None
         # self.parent_asset_path_relative = None
@@ -2176,6 +2179,10 @@ class ExportScene:
                     nodes.extend(animation.nodes)
                     nodes_dict = {node.ob: node for node in nodes + [self.virtual_scene.skeleton_node]}
                     self._export_granny_file(granny_path, nodes_dict, animation)
+                    
+                    if self.dump_frame_events:
+                        dump_frame_animation_events(animation.anim.animation_events, Path(granny_path).with_suffix(".json"))
+                    
                     exported_something = True
                 
             if export and not exported_something:

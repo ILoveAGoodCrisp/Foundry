@@ -464,9 +464,11 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                         if data.data_type == 'EFFECT':
                             draw_tag_path(col, data, "event_effect_tag")
                             col.prop(data, "marker")
+                            col.prop(data, "marker_name")
                         else:
                             draw_tag_path(col, data, "event_sound_tag")
                             col.prop(data, "marker")
+                            col.prop(data, "marker_name")
                         col.separator()
                         if self.h4:
                             draw_tag_path(col, data, "event_model")
@@ -3285,10 +3287,11 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col.operator("nwo.action_track_move", icon="TRIA_DOWN", text="").direction = 'down'
             
             col = box.column(align=True)
-            col.separator()
-            row = col.row()
-            row.operator("nwo.animation_move_to_own_blend", icon='BLENDER')
-            row.operator("nwo.animation_link_to_gr2", icon='LINKED')
+            if not scene_nwo.is_child_asset:
+                col.separator()
+                row = col.row()
+                row.operator("nwo.animation_move_to_own_blend", icon='BLENDER')
+                row.operator("nwo.animation_link_to_gr2", icon='LINKED')
             col.separator()
             row = col.row()
             row.operator("nwo.animation_frames_sync_to_keyframes", text="Sync Frame Range to Keyframes", icon='FILE_REFRESH', depress=scene_nwo.keyframe_sync_active)
@@ -3297,11 +3300,12 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col.separator()
             
         row = col.row()
-        # ANIMATION RENAMES
-        if not animation.animation_renames:
-            row.operator("nwo.animation_rename_add", text="New Rename", icon_value=get_icon_id('animation_rename'))
-        else:
-            self.draw_expandable_box(box.box(), scene_nwo, "animation_renames", "Renames", ob=animation)
+        if not scene_nwo.is_child_asset:
+            # ANIMATION RENAMES
+            if not animation.animation_renames:
+                row.operator("nwo.animation_rename_add", text="New Rename", icon_value=get_icon_id('animation_rename'))
+            else:
+                self.draw_expandable_box(box.box(), scene_nwo, "animation_renames", "Renames", ob=animation)
 
         # ANIMATION EVENTS
         if not animation.external:
@@ -3315,15 +3319,17 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 self.draw_expandable_box(box.box(), scene_nwo, "animation_events", "Events", ob=animation)
                     
         # ANIMATION NODES
-        col = box.column()
-        col.separator()
-        if not animation.animation_nodes:
-            col.operator("nwo.add_animation_node", text="New Animation Node", icon='BONE_DATA')
-        else:
-            self.draw_expandable_box(box.box(), scene_nwo, "animation_nodes", "Nodes", ob=animation)
+        if not scene_nwo.is_child_asset:
+            col = box.column()
+            col.separator()
+            if not animation.animation_nodes:
+                col.operator("nwo.add_animation_node", text="New Animation Node", icon='BONE_DATA')
+            else:
+                self.draw_expandable_box(box.box(), scene_nwo, "animation_nodes", "Nodes", ob=animation)
             
         # TAG INFO
-        self.draw_expandable_box(box.box(), scene_nwo, "animation_tag_props", "Tag Properties", ob=animation)
+        if not scene_nwo.is_child_asset:
+            self.draw_expandable_box(box.box(), scene_nwo, "animation_tag_props", "Tag Properties", ob=animation)
             
     def draw_animation_renames(self, box, animation):
         rename_box = box.box()
