@@ -785,7 +785,6 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
     
     prioritise_selected_armature: bpy.props.BoolProperty(
         name="Prioritise Selected Armature",
-        default=True,
         description="Imports animations using armature animation onto the selected armature rather than looking for a matching name"
     )
     
@@ -809,6 +808,7 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
         current_animations = scene_nwo.animations
         
         scene_objects = dict(context.scene.objects)
+        all_actions = dict(bpy.data.actions)
         
         with bpy.data.libraries.load(self.filepath, link=False) as (data_from, data_to):
             
@@ -889,10 +889,10 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
                                     while True:
                                         potential_name = utils.reduce_suffix(action.name)
                                         if potential_name in scope_actions:
-                                            potential_action = scene_objects.get(potential_name)
+                                            potential_action = all_actions.get(potential_name)
                                             if potential_action:
                                                 track.action = potential_action
-                                            break
+                                                break
                                         
                                         if potential_name == last_potential_name:
                                             break
