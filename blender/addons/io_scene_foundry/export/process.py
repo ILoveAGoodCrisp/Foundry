@@ -409,11 +409,10 @@ class ExportScene:
                 else:
                     continue
                     
-            
             proxy_export_objects.append(proxy)
         
         if self.asset_type in {AssetType.ANIMATION, AssetType.SINGLE_ANIMATION} and not self.granny_animations_mesh:
-            self.export_objects = [self.main_armature] + self.support_armatures
+            self.export_objects = [self.main_armature]
             null_ob = self.make_default_render()
             self.export_objects.append(null_ob)
         elif self.asset_type == AssetType.CINEMATIC:
