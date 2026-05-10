@@ -807,6 +807,9 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
         
         current_scenes = set(bpy.data.scenes)
         current_animations = scene_nwo.animations
+        
+        scene_objects = dict(context.scene.objects)
+        
         with bpy.data.libraries.load(self.filepath, link=False) as (data_from, data_to):
             
             scope_objects = set(data_from.objects)
@@ -867,7 +870,7 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
                                     while True:
                                         potential_name = utils.reduce_suffix(ob.name)
                                         if potential_name in scope_objects:
-                                            potential_ob = context.scene.objects.get(potential_name)
+                                            potential_ob = scene_objects.get(potential_name)
                                             if potential_ob:
                                                 track.object = potential_ob
                                             else:
@@ -886,7 +889,7 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
                                     while True:
                                         potential_name = utils.reduce_suffix(action.name)
                                         if potential_name in scope_actions:
-                                            potential_action = context.scene.objects.get(potential_name)
+                                            potential_action = scene_objects.get(potential_name)
                                             if potential_action:
                                                 track.action = potential_action
                                             break
@@ -908,7 +911,7 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
                                             while True:
                                                 potential_name = utils.reduce_suffix(ob.name)
                                                 if potential_name in scope_objects:
-                                                    potential_ob = context.scene.objects.get(potential_name)
+                                                    potential_ob = scene_objects.get(potential_name)
                                                     if potential_ob:
                                                         event.ik_target_marker = potential_ob
                                                     else:
@@ -930,7 +933,7 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
                                             while True:
                                                 potential_name = utils.reduce_suffix(ob.name)
                                                 if potential_name in scope_objects:
-                                                    potential_ob = context.scene.objects.get(potential_name)
+                                                    potential_ob = scene_objects.get(potential_name)
                                                     if potential_ob:
                                                         event.ik_pole_vector = potential_ob
                                                     else:
@@ -950,7 +953,7 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
                                             while True:
                                                 potential_name = utils.reduce_suffix(ob.name)
                                                 if potential_name in scope_objects:
-                                                    potential_ob = context.scene.objects.get(potential_name)
+                                                    potential_ob = scene_objects.get(potential_name)
                                                     if potential_ob:
                                                         edata.marker = potential_ob
                                                     else:
