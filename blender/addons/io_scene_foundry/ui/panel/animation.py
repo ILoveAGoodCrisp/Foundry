@@ -857,7 +857,11 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
                         for track in new_anim.action_tracks:
                             ob = track.object
                             if ob is not None:
+                                print("SELECTED ARMATURE: ", armature)
+                                print("IMPORTED OBJECT: ", ob)
+                                print("IMPORTED OBJECT TYPE: ", ob.type)
                                 if armature is not None and ob.type == 'ARMATURE':
+                                    print("Track set to our selected armature")
                                     track.object = armature
                                 else:
                                     last_potential_name = ""
