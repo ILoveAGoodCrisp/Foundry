@@ -891,6 +891,9 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
                                     
                         for event in new_anim.animation_events:
                             ob = event.ik_target_marker
+                            if armature is not None and ob.type == 'ARMATURE':
+                                event.ik_target_marker = armature
+                                continue
                             last_potential_name = ""
                             if ob is not None:
                                 while True:
@@ -909,6 +912,9 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
                                     last_potential_name = potential_name
                                 
                             ob = event.ik_pole_vector
+                            if armature is not None and ob.type == 'ARMATURE':
+                                event.ik_pole_vector = armature
+                                continue
                             last_potential_name = ""
                             if ob is not None:
                                 while True:
