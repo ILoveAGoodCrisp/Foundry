@@ -2916,6 +2916,7 @@ class NWOImporter:
                                                             "control_aim": fp_armature.nwo.control_aim,
                                                             "invert_control_aim": fp_armature.nwo.invert_control_aim,
                                                             "invert_control_rig": fp_armature.nwo.invert_control_rig,
+                                                            "node_order_source": fp_armature.nwo.node_order_source,
                                                         }
                                                         
                                                         utils.deselect_all_objects()
