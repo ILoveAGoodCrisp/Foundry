@@ -807,8 +807,8 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
         current_scenes = set(bpy.data.scenes)
         current_animations = scene_nwo.animations
         
-        scene_objects = dict(context.view_layer.objects)
-        all_actions = dict(bpy.data.actions)
+        scene_objects = {o.name: o for o in context.scene.objects}
+        all_actions = {a.name: a for a in bpy.data.actions}
         
         with bpy.data.libraries.load(self.filepath, link=False) as (data_from, data_to):
             
