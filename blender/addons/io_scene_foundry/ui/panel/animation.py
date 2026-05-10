@@ -861,7 +861,7 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
                                 print("IMPORTED OBJECT: ", ob)
                                 print("IMPORTED OBJECT TYPE: ", ob.type)
                                 if armature is not None and ob.type == 'ARMATURE':
-                                    print("Track set to our selected armature")
+                                    print("Track set to our selected")
                                     track.object = armature
                                 else:
                                     last_potential_name = ""
@@ -902,46 +902,55 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
                                         
                             for event in new_anim.animation_events:
                                 ob = event.ik_target_marker
-                                if armature is not None and ob.type == 'ARMATURE':
-                                    event.ik_target_marker = armature
-                                else:
-                                    last_potential_name = ""
-                                    if ob is not None:
-                                        while True:
-                                            potential_name = utils.reduce_suffix(ob.name)
-                                            if potential_name in scope_objects:
-                                                potential_ob = bpy.data.objects.get(potential_name)
-                                                if potential_ob:
-                                                    event.ik_target_marker = potential_ob
-                                                else:
-                                                    event.ik_target_marker = None
-                                                break
-                                            
-                                            if potential_name == last_potential_name:
-                                                break
+                                if ob is not None:
+                                    if armature is not None and ob.type == 'ARMATURE':
+                                        event.ik_target_marker = armature
+                                    else:
+                                        last_potential_name = ""
+                                        if ob is not None:
+                                            while True:
+                                                potential_name = utils.reduce_suffix(ob.name)
+                                                if potential_name in scope_objects:
+                                                    potential_ob = bpy.data.objects.get(potential_name)
+                                                    if potential_ob:
+                                                        event.ik_target_marker = potential_ob
+                                                    else:
+                                                        event.ik_target_marker = None
+                                                    break
+                                                
+                                                if potential_name == last_potential_name:
+                                                    break
 
-                                            last_potential_name = potential_name
+                                                last_potential_name = potential_name
                                     
                                 ob = event.ik_pole_vector
-                                if armature is not None and ob.type == 'ARMATURE':
-                                    event.ik_pole_vector = armature
-                                else:
-                                    last_potential_name = ""
-                                    if ob is not None:
-                                        while True:
-                                            potential_name = utils.reduce_suffix(ob.name)
-                                            if potential_name in scope_objects:
-                                                potential_ob = bpy.data.objects.get(potential_name)
-                                                if potential_ob:
-                                                    event.ik_pole_vector = potential_ob
-                                                else:
-                                                    event.ik_pole_vector = None
-                                                break
-                                            
-                                            if potential_name == last_potential_name:
-                                                break
+                                if ob is not None:
+                                    if armature is not None and ob.type == 'ARMATURE':
+                                        event.ik_pole_vector = armature
+                                    else:
+                                        last_potential_name = ""
+                                        if ob is not None:
+                                            while True:
+                                                potential_name = utils.reduce_suffix(ob.name)
+                                                if potential_name in scope_objects:
+                                                    potential_ob = bpy.data.objects.get(potential_name)
+                                                    if potential_ob:
+                                                        event.ik_pole_vector = potential_ob
+                                                    else:
+                                                        event.ik_pole_vector = None
+                                                    break
+                                                
+                                                if potential_name == last_potential_name:
+                                                    break
 
-                                            last_potential_name = potential_name
+                                                last_potential_name = potential_name
+                                            
+                    else:
+                        for track in new_anim.action_tracks:
+                            action = track.action
+                            if action is not None:
+                                bpy.data.actions.remove(action)
+                        new_anim.action_tracks.clear()
                                     
             export_animations_path = None
                         
