@@ -889,8 +889,6 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
                                             potential_action = bpy.data.objects.get(potential_name)
                                             if potential_action:
                                                 track.action = potential_action
-                                            else:
-                                                track.action = None
                                             break
                                         
                                         if potential_name == last_potential_name:
