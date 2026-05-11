@@ -1604,13 +1604,77 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col.prop(nwo, "generate_looping_script")
             col.separator()
             col.prop(nwo, "instant_auto_exposure")
-            col.prop(nwo, "environment_darker")
+            col.prop(nwo, "environment_darken")
             col.separator()
             col.prop(nwo, "force_exposure")
             row = col.row()
             row.enabled = (not nwo.force_exposure)
             row.prop(nwo, "forced_exposure")
+            
+            if self.h4:
+                col.separator()
+                col.prop(nwo, "lightmap_direct_scalar")
+                col.prop(nwo, "lightmap_indirect_scalar")
+                col.prop(nwo, "lightmap_scalar_option")
+                col.separator()
+                col.prop(nwo, "sun_scalar")
+                col.prop(nwo, "sun_scalar_option")
+                col.separator()
+                draw_tag_path(col, nwo, "atmosphere_fog")
+                col.prop(nwo, "atmosphere_fog_option")
+                col.separator()
+                draw_tag_path(col, nwo, "camera_effects")
+                col.prop(nwo, "camera_effects_option")
+                col.separator()
+                draw_tag_path(col, nwo, "cubemap")
+                col.prop(nwo, "cubemap_option")
+            
             box.separator()
+            box_screen = box.box()
+            box_screen.label(text="Camera Screen Effect")
+            col = box_screen.column()
+            draw_tag_path(col, nwo, "screen_effect")
+            row = col.row(align=True)
+            row.prop(nwo, "screen_effect_delay")
+            row.prop(nwo, "screen_effect_time")
+            
+            box.separator()
+            box_user = box.box()
+            box_user.label(text="Camera User Input")
+
+            col = box_user.column(align=True)
+            col.label(text="Input Bounds")
+
+            grid = col.grid_flow(
+                row_major=True,
+                columns=3,
+                even_columns=True,
+                even_rows=True,
+                align=True,
+            )
+
+            # Row 1: [empty] [Up] [empty]
+            grid.label(text="")
+            grid.prop(nwo, "user_input_bounds_t", text="Up", icon='TRIA_UP')
+            grid.label(text="")
+
+            # Row 2: [Left] [empty] [Right]
+            grid.prop(nwo, "user_input_bounds_l", text="Left", icon='TRIA_LEFT')
+            grid.label(text="")
+            grid.prop(nwo, "user_input_bounds_r", text="Right", icon='TRIA_RIGHT')
+
+            # Row 3: [empty] [Down] [empty]
+            grid.label(text="")
+            grid.prop(nwo, "user_input_bounds_b", text="Down", icon='TRIA_DOWN')
+            grid.label(text="")
+
+            col.separator()
+
+            col.prop(nwo, "frictional_force", text="User Input Friction")
+
+            row = col.row(align=True)
+            row.prop(nwo, "user_input_bounds_delay", text="Delay")
+            row.prop(nwo, "user_input_bounds_time", text="End After")
 
             box.operator("nwo.bake_visibility_to_keyframes", icon='DECORATE_KEYFRAME')
             box.operator("nwo.clear_visibility_keyframes", icon='X') 
@@ -1620,10 +1684,14 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 box.label(text=f"Camera Shot: {camera_shots[0]}")
             elif camera_shots:
                 box.label(text=f"Camera Shots: {', '.join(camera_shots)}")
-            row = box.row(heading='Camera Actors')
-            row.use_property_split = False
+            actor_box = box.box()
+            actor_box.label(text="Camera Actors")
+            actor_box.use_property_split = False
+            actor_box.prop(nwo, "use_lightmap", icon='SHADING_RENDERED')
+            actor_box.prop(nwo, "use_high_res", icon='MESH_MONKEY')
+            row = actor_box.row()
             row.prop(nwo, "actors_type", text=" ", expand=True)
-            row = box.row(align=True)
+            row = actor_box.row()
             row.template_list(
                 "NWO_UL_CameraActors",
                 "",
@@ -1638,19 +1706,21 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col.separator()
             col.operator("nwo.camera_actor_clear", text="", icon='CANCEL')
             if nwo.actors and nwo.active_actor_index > -1:
-                row = box.row(align=True)
+                row = actor_box.row(align=True)
                 row.prop(nwo.actors[nwo.active_actor_index], "actor", icon='OUTLINER_OB_ARMATURE')
-            row = box.row(align=True)
+            row = actor_box.row(align=True)
             row.operator("nwo.camera_actors_select", icon='RESTRICT_SELECT_OFF')
             
             if not self.h4:
                 return
             
             box.separator()
-            row = box.row(heading='Camera Lights')
-            row.use_property_split = False
+            light_box = box.box()
+            light_box.label(text="Camera Lights")
+            light_box.use_property_split = False
+            row = light_box.row()
             row.prop(nwo, "cinematic_lights_type", text=" ", expand=True)
-            row = box.row(align=True)
+            row = light_box.row()
             row.template_list(
                 "NWO_UL_CameraLights",
                 "",
@@ -1665,9 +1735,9 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col.separator()
             col.operator("nwo.camera_light_clear", text="", icon='CANCEL')
             if nwo.cinematic_lights and nwo.active_cinematic_light_index > -1:
-                row = box.row(align=True)
+                row = light_box.row(align=True)
                 row.prop(nwo.cinematic_lights[nwo.active_cinematic_light_index], "light", icon='OUTLINER_OB_LIGHT')
-            row = box.row(align=True)
+            row = light_box.row(align=True)
             row.operator("nwo.camera_lights_select", icon='RESTRICT_SELECT_OFF')
             
             return
@@ -1720,6 +1790,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     row.operator_menu_enum("nwo.get_cinematic_model_variants", "variant", icon="DOWNARROW_HLT", text="")
 
                 col.operator("nwo.update_actor", icon='FILE_REFRESH')
+                col.separator()
                 col.prop(nwo, "object_source")
                 col.label(text="Flags")
                 col.prop(nwo, "effect_object")
@@ -1731,12 +1802,13 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     col.prop(nwo, "primary_cortana")
                     col.prop(nwo, "preload_textures")
 
-                col.label(text="Creation Overrides")
+                col.label(text="Don't Create If Game Is:")
                 col.prop(nwo, "override_1_player")
                 col.prop(nwo, "override_2_player")
                 col.prop(nwo, "override_3_player")
                 col.prop(nwo, "override_4_player")
                 col.prop(nwo, "override_script")
+                col.prop(nwo, "override_script_text")
                     
             elif utils.poll_ui(("model", "sky", "animation")):
                 col.separator()

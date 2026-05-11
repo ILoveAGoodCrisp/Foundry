@@ -35,6 +35,12 @@ def poll_actor(self, object):
             if item.actor is object:
                 return False
         return True
+    
+actor_cam_items = [
+    ('DEFAULT', "Default", "Use the camera's setting"),
+    ('OFF', "Disabled", ""),
+    ('ON', "Enabled", ""),
+]
 
 class NWO_ActorItems(bpy.types.PropertyGroup):
     actor: bpy.props.PointerProperty(
@@ -43,15 +49,15 @@ class NWO_ActorItems(bpy.types.PropertyGroup):
         poll=poll_actor,
     )
     
-    lightmap_shadow: bpy.props.BoolProperty(
+    lightmap_shadow: bpy.props.EnumProperty(
         name="Lightmap Shadow",
         description="Object receives and casts shadows from the lightmap",
-        default=True,
+        items=actor_cam_items,
     )
-    high_res: bpy.props.BoolProperty(
-        name="High Resolution",
+    high_res: bpy.props.EnumProperty(
+        name="Never Imposter",
         description="Object never switches to its imposter model",
-        default=True,
+        items=actor_cam_items,
     )
     
 def poll_cinematic_light(self, object):
@@ -67,6 +73,12 @@ class NWO_CinematicLightItems(bpy.types.PropertyGroup):
         type=bpy.types.Object,
         poll=poll_cinematic_light,
     )
+    
+cin_shot_options = [
+    ('DEFAULT', "Default", "Enables this setting for the current shot only"),
+    ('CLEAR', "Clear", "Clear settings that have persisted across shots"),
+    ('PERSIST', "Persist Across Shots", "Carry this setting forward to future shots, stopping if cleared"),
+]
 
 # OBJECT PROPERTIES
 # ----------------------------------------------------------
@@ -106,17 +118,77 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     # CIN CAMERA
     screen_effect: bpy.props.StringProperty(
         name="Screen Effect",
+        options=set(),
         description="Screen Effect tag to play while this camera is used for a shot"
+    )
+    
+    screen_effect_delay: bpy.props.IntProperty(
+        name="Delay",
+        options=set(),
+        description="Delay the appearance of this screen effect by x frames",
+    )
+    
+    screen_effect_time: bpy.props.IntProperty(
+        name="End After",
+        options=set(),
+        description="Ends the screen effect x frames after starting. 0 means this screen effect lasts for the entire shot duration"
     )
     
     user_input_bounds: bpy.props.FloatVectorProperty(
         name="User Input Bounds",
-        description="Bounds representing a rectangle in which the player can move the camera",
+        options=set(),
+        description="Bounds representing a rectangle in which the player can move the camera. Values are as follows:\nLook Up Limit\nLook Left Limit\nLook Down Limit\nLook Right Limit",
         size=4,
+    )
+    
+    user_input_bounds_t: bpy.props.FloatProperty(
+        name="Look Up Limit",
+        description="The maximum angle the user may look up",
+        subtype='ANGLE',
+        options=set(),
+        min=0,
+        max=radians(180)
+    )
+    user_input_bounds_l: bpy.props.FloatProperty(
+        name="Look Left Limit",
+        description="The maximum angle the user may look left",
+        subtype='ANGLE',
+        options=set(),
+        min=0,
+        max=radians(180)
+    )
+    user_input_bounds_b: bpy.props.FloatProperty(
+        name="Look Down Limit",
+        description="The maximum angle the user may look down",
+        subtype='ANGLE',
+        options=set(),
+        min=0,
+        max=radians(180)
+    )
+    user_input_bounds_r: bpy.props.FloatProperty(
+        name="Look Right Limit",
+        description="The maximum angle the user may look right",
+        subtype='ANGLE',
+        options=set(),
+        min=0,
+        max=radians(180)
+    )
+    
+    user_input_bounds_delay: bpy.props.IntProperty(
+        name="Delay",
+        options=set(),
+        description="Delay allowing user input by x frames"
+    )
+    
+    user_input_bounds_time: bpy.props.IntProperty(
+        name="End After",
+        options=set(),
+        description="Restricts user input x frames after starting. 0 means the user input is allowed for the entire shot duration"
     )
     
     frictional_force: bpy.props.FloatProperty(
         name="User Input Friction",
+        options=set(),
         description="Amount of friction applied when the user attempts to move the camera"
     )
     
@@ -152,6 +224,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     
     object_source: bpy.props.EnumProperty( # ignored if actor name is player0, player1, player2, or player3
         name="Actor Source",
+        options=set(),
         description="How the cinematic gets or creates this actor",
         items=[
             ('CREATE', "Create", "Creates the object from the specified object tag and variant"),
@@ -214,28 +287,34 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     # override creation flags
     override_1_player: bpy.props.BoolProperty(
         name="Single Player",
-        description="",
+        description="Don't create this actor if the game is singleplayer",
         options=set(),
     )
     override_2_player: bpy.props.BoolProperty(
         name="2 Player Co-op",
-        description="",
+        description="Don't create this actor if the game is 2 player co-op",
         options=set(),
     )
     override_3_player: bpy.props.BoolProperty(
         name="3 Player Co-op",
-        description="",
+        description="Don't create this actor if the game is 3 player co-op",
         options=set(),
     )
     override_4_player: bpy.props.BoolProperty(
         name="4 Player Co-op",
-        description="",
+        description="Don't create this actor if the game is 4 player co-op",
         options=set(),
     )
     
     override_script: bpy.props.StringProperty(
-        name="Custom Override Conditions",
-        description="Custom halo script which returns whether this object should be created"
+        name="Script",
+        description="Custom halo script which if prevents the actor from being created if the script returns true"
+    )
+    override_script_text: bpy.props.PointerProperty(
+        name="Script Text",
+        options=set(),
+        type=bpy.types.Text,
+        description="Use the script located in the referenced blender text file. Custom halo script which if prevents the actor from being created if the script returns true"
     )
     
     # Shot props
@@ -279,12 +358,12 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="Makes the shot loop... forever!"
     )
-    environment_darker: bpy.props.FloatProperty(
-        name="Environment Darker",
+    environment_darken: bpy.props.FloatProperty(
+        name="Environment Darken",
         options=set(),
         description="Darkens the environment. Works best with auto-exposure off",
         subtype='FACTOR',
-        soft_min=-1,
+        soft_min=0,
         soft_max=1
     )
     forced_exposure: bpy.props.FloatProperty(
@@ -298,39 +377,72 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     
     # H4+ props
     # flags
-    blah: bpy.props.BoolProperty(
-        name="blam",
-        description="",
-        options=set(),
-    )
-    
     lightmap_direct_scalar: bpy.props.FloatProperty(
-        name="blam",
+        name="Lightmap Direct Scalar",
         description="",
+        default=1.0,
         options=set(),
     )
     lightmap_indirect_scalar: bpy.props.FloatProperty(
-        name="blam",
+        name="Lightmap Indirect Scalar",
+        description="",
+        default=1.0,
+        options=set(),
+    )
+    lightmap_scalar_option: bpy.props.EnumProperty(
+        name="Lightmap Scalar Option",
         description="",
         options=set(),
+        items=cin_shot_options,
     )
     sun_scalar: bpy.props.FloatProperty(
-        name="blam",
+        name="Sun Scalar",
+        description="",
+        default=1.0,
+        options=set(),
+    )
+    sun_scalar_option: bpy.props.EnumProperty(
+        name="Sun Scalar Option",
         description="",
         options=set(),
+        items=cin_shot_options,
     )
     atmosphere_fog: bpy.props.StringProperty(
-        name="blam",
+        name="Atmosphere Fog",
         description="",
         options=set(),
+    )
+    atmosphere_fog_option: bpy.props.EnumProperty(
+        name="Atmosphere Fog Option",
+        description="",
+        options=set(),
+        items=cin_shot_options,
     )
     camera_effects: bpy.props.StringProperty(
-        name="blam",
+        name="Camera Effects",
         description="",
         options=set(),
     )
+    camera_effects_option: bpy.props.EnumProperty(
+        name="Camera Effects Option",
+        description="",
+        options=set(),
+        items=cin_shot_options,
+    )
     cubemap: bpy.props.StringProperty(
-        name="blam",
+        name="Cubemap",
+        description="",
+        options=set(),
+    )
+    cubemap_option: bpy.props.EnumProperty(
+        name="Cubemap Option",
+        description="",
+        options=set(),
+        items=cin_shot_options,
+    )
+    
+    disable_all_lightmap_shadows: bpy.props.BoolProperty(
+        name="Disable All Lightmap Shadows",
         description="",
         options=set(),
     )
@@ -387,6 +499,20 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         override={'LIBRARY_OVERRIDABLE'},
     )
+    
+    use_lightmap: bpy.props.BoolProperty(
+        name="Actors Use Lightmap Shadows",
+        options=set(),
+        default=True,
+        description="Sets whether by default actors receive and cast shadows from the lightmap"
+    )
+    use_high_res: bpy.props.BoolProperty(
+        name="Never Imposter",
+        options=set(),
+        default=True,
+        description="Sets whether actors may switch to their imposter models for this shot"
+    )
+
     
     game_use_near_clip: bpy.props.BoolProperty(
         name="Use Clip Start",

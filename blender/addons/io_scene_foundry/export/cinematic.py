@@ -24,6 +24,8 @@ CINEMATIC_BLUR_CAP_COC_MM = 0.6
 CINEMATIC_FAR_BLUR_TARGET_FRACTION = 0.95
 MIN_CINEMATIC_FOCAL_DEPTH = 0.01
 
+SPECIAL_CASE_NAMES = "player0", "player1", "player2", "player3"
+
 class CinematicScene:
     def __init__(self, asset_path, scene_name, scene):
         nwo = utils.get_scene_props()
@@ -236,6 +238,8 @@ class Actor:
         self.render_model = None
         self.bones: list = []
         self.shots_active = []
+        self.shots_lightmap = []
+        self.shots_high_res = []
         self.node_order = None
         self.variant = ob.nwo.cinematic_variant
         self.validation_complete = False
@@ -615,10 +619,16 @@ class QUA:
     #             f"{camera.type}\n\n"
     #         )
             
-    def write_to_tag(self):
+    def write_to_tag(self, cin_scene_settings):
         with Tag(path=self.tag_path.with_suffix(".cinematic_scene")) as scene:
             scene.tag.SelectField("StringId:name").SetStringData(self.scene_name)
             scene.tag.SelectField("StringId:anchor").SetStringData(f"{self.scene_name}_anchor")
+            
+            # other props
+            scene.tag.SelectField("reset object lighting").Value = int(cin_scene_settings.reset_object_lighting)
+            # scene.tag.SelectField("struct:header").Elements[0].Fields[0].DataAsText = x
+            # scene.tag.SelectField("struct:footer").Elements[0].Fields[0].DataAsText = y
+            
             scene.tag_has_changes = True
             if self.corinth:
                 with Tag(path=self.tag_path.with_suffix(".cinematic_scene_data")) as data:
@@ -629,7 +639,7 @@ class QUA:
                 self._write_scene_data(scene, scene.tag.SelectField("Block:objects"), scene.tag.SelectField("Block:shots"), scene.tag.SelectField("Block:extra camera frame data"))
             
     def _write_scene_data(self, tag, block_objects: TagFieldBlock, block_shots: TagFieldBlock, block_extra_camera: TagFieldBlock, block_data_objects: TagFieldBlock = None, block_data_shots: TagFieldBlock = None):
-        # EXTRA CAMERAS TODO
+        # EXTRA CAMERAS TODO or perhaps never do? They may not work
         
         # Read existing data
         lighting = {}
@@ -646,107 +656,164 @@ class QUA:
 
         if self.corinth:
             elements_zip = zip(block_shots.Elements, block_data_shots.Elements)
+            block_shots.RemoveAllElements()
+            block_data_shots.RemoveAllElements()
         else:
             elements_zip = zip(block_shots.Elements, block_shots.Elements)
+            block_shots.RemoveAllElements()
+            
         
-        for element, data_element in elements_zip:
-            block_dialogue = data_element.SelectField("dialogue")
-            block_dialogue.RemoveAllElements()
+        # for element, data_element in elements_zip:
+        #     block_dialogue = data_element.SelectField("dialogue")
+        #     block_dialogue.RemoveAllElements()
             
-            block_effects = data_element.SelectField("effects")
-            for sub_element in block_effects.Elements:
-                c = CinematicEffect()
-                c.from_element(sub_element, block_objects, self.corinth)
-                if not c.use_maya_value:
-                    effects[c] = current_frame_index + c.frame + int(self.corinth)
-            block_effects.RemoveAllElements()
+        #     block_effects = data_element.SelectField("effects")
+        #     for sub_element in block_effects.Elements:
+        #         c = CinematicEffect()
+        #         c.from_element(sub_element, block_objects, self.corinth)
+        #         if not c.use_maya_value:
+        #             effects[c] = current_frame_index + c.frame + int(self.corinth)
+        #     block_effects.RemoveAllElements()
             
-            block_custom_script = data_element.SelectField("custom script")
-            for sub_element in block_custom_script.Elements:
-                c = CinematicCustomScript()
-                c.from_element(sub_element)
-                if not c.use_maya_value:
-                    custom_scripts[c] = current_frame_index + c.frame + int(self.corinth)
-            block_custom_script.RemoveAllElements()
+        #     block_custom_script = data_element.SelectField("custom script")
+        #     for sub_element in block_custom_script.Elements:
+        #         c = CinematicCustomScript()
+        #         c.from_element(sub_element)
+        #         if not c.use_maya_value:
+        #             custom_scripts[c] = current_frame_index + c.frame + int(self.corinth)
+        #     block_custom_script.RemoveAllElements()
         
-            # dicts of element blocks and their overall scene frame
-            block_lighting = element.SelectField("lighting")
-            for sub_element in block_lighting.Elements:
-                c = CinematicLighting()
-                c.from_element(sub_element, block_objects)
-                lighting[c] = element.ElementIndex # lighting only stores its shot index as it isn't bound to a frame
-            block_lighting.RemoveAllElements()
+        #     # dicts of element blocks and their overall scene frame
+        #     block_lighting = element.SelectField("lighting")
+        #     for sub_element in block_lighting.Elements:
+        #         c = CinematicLighting()
+        #         c.from_element(sub_element, block_objects)
+        #         lighting[c] = element.ElementIndex # lighting only stores its shot index as it isn't bound to a frame
+        #     block_lighting.RemoveAllElements()
             
-            block_clip = element.SelectField("clip")
-            for sub_element in block_clip.Elements:
-                c = CinematicClip()
-                c.from_element(sub_element, block_objects)
-                clips[c] = current_frame_index + c.frame_start + int(self.corinth) # corinth uses index 1 for frames
-            block_clip.RemoveAllElements()
+        #     block_clip = element.SelectField("clip")
+        #     for sub_element in block_clip.Elements:
+        #         c = CinematicClip()
+        #         c.from_element(sub_element, block_objects)
+        #         clips[c] = current_frame_index + c.frame_start + int(self.corinth) # corinth uses index 1 for frames
+        #     block_clip.RemoveAllElements()
             
-            block_music = element.SelectField("music")
-            for sub_element in block_music.Elements:
-                c = CinematicMusic()
-                c.from_element(sub_element)
-                music[c] = current_frame_index + c.frame + int(self.corinth)
-            block_music.RemoveAllElements()
+        #     block_music = element.SelectField("music")
+        #     for sub_element in block_music.Elements:
+        #         c = CinematicMusic()
+        #         c.from_element(sub_element)
+        #         music[c] = current_frame_index + c.frame + int(self.corinth)
+        #     block_music.RemoveAllElements()
 
-            block_object_functions = element.SelectField("object functions")
-            for sub_element in block_object_functions.Elements:
-                c = CinematicObjectFunction()
-                c.from_element(sub_element, block_objects)
-                for keyframe in c.keyframes:
-                    object_function_keyframes[keyframe] = current_frame_index + keyframe.frame + int(self.corinth)
-            block_object_functions.RemoveAllElements()
+        #     block_object_functions = element.SelectField("object functions")
+        #     for sub_element in block_object_functions.Elements:
+        #         c = CinematicObjectFunction()
+        #         c.from_element(sub_element, block_objects)
+        #         for keyframe in c.keyframes:
+        #             object_function_keyframes[keyframe] = current_frame_index + keyframe.frame + int(self.corinth)
+        #     block_object_functions.RemoveAllElements()
 
-            block_screen_effects = element.SelectField("screen effects")
-            for sub_element in block_screen_effects.Elements:
-                c = CinematicScreenEffect()
-                c.from_element(sub_element, self.corinth)
-                screen_effects[c] = current_frame_index + c.frame + int(self.corinth)
-            block_screen_effects.RemoveAllElements()
+        #     block_screen_effects = element.SelectField("screen effects")
+        #     for sub_element in block_screen_effects.Elements:
+        #         c = CinematicScreenEffect()
+        #         c.from_element(sub_element, self.corinth)
+        #         screen_effects[c] = current_frame_index + c.frame + int(self.corinth)
+        #     block_screen_effects.RemoveAllElements()
 
-            block_user_input_constraints = element.SelectField("user input constraints")
-            for sub_element in block_user_input_constraints.Elements:
-                c = CinematicUserInputConstraints()
-                c.from_element(sub_element)
-                user_input_constraints[c] = current_frame_index + c.frame + int(self.corinth)
-            block_user_input_constraints.RemoveAllElements()
+        #     block_user_input_constraints = element.SelectField("user input constraints")
+        #     for sub_element in block_user_input_constraints.Elements:
+        #         c = CinematicUserInputConstraints()
+        #         c.from_element(sub_element)
+        #         user_input_constraints[c] = current_frame_index + c.frame + int(self.corinth)
+        #     block_user_input_constraints.RemoveAllElements()
             
-            if self.corinth:
-                block_texture_movies = element.SelectField("texture movies")
-                for sub_element in block_texture_movies.Elements:
-                    c = CinematicTextureMovie()
-                    c.from_element(sub_element)
-                    texture_movies[c] = current_frame_index + c.frame + int(self.corinth)
-                block_texture_movies.RemoveAllElements()
+        #     if self.corinth:
+        #         block_texture_movies = element.SelectField("texture movies")
+        #         for sub_element in block_texture_movies.Elements:
+        #             c = CinematicTextureMovie()
+        #             c.from_element(sub_element)
+        #             texture_movies[c] = current_frame_index + c.frame + int(self.corinth)
+        #         block_texture_movies.RemoveAllElements()
   
-            current_frame_index += (data_element.SelectField("frame count").Data - 1)
+        #     current_frame_index += (data_element.SelectField("frame count").Data - 1)
             
         # SHOTS
         # make sure shots block is same size as shots count
-        while block_shots.Elements.Count > len(self.shots):
-            block_shots.RemoveElement(block_shots.Elements.Count - 1)
-        while block_shots.Elements.Count < len(self.shots):
-            block_shots.AddElement()
+        # while block_shots.Elements.Count > len(self.shots):
+        #     block_shots.RemoveElement(block_shots.Elements.Count - 1)
+        # while block_shots.Elements.Count < len(self.shots):
+        #     block_shots.AddElement()
             
-        if self.corinth:
-            while block_data_shots.Elements.Count > len(self.shots):
-                block_data_shots.RemoveElement(block_data_shots.Elements.Count - 1)
-            while block_data_shots.Elements.Count < len(self.shots):
-                block_data_shots.AddElement()
+        # if self.corinth:
+        #     while block_data_shots.Elements.Count > len(self.shots):
+        #         block_data_shots.RemoveElement(block_data_shots.Elements.Count - 1)
+        #     while block_data_shots.Elements.Count < len(self.shots):
+        #         block_data_shots.AddElement()
                 
         for idx, shot in enumerate(self.shots):
             if self.corinth:
-                element = block_data_shots.Elements[idx]
+                element = block_data_shots.AddElement()
+                # element = block_data_shots.Elements[idx]
             else:
-                element = block_shots.Elements[idx]
+                element = block_shots.AddElement()
+                # element = block_shots.Elements[idx]
+                
             element.SelectField("frame count").Data = shot.frame_count
             frame_data = element.SelectField("frame data")
-            frame_data.RemoveAllElements()
+            # frame_data.RemoveAllElements()
             if not shot.frames:
                 continue
             
+            # SHOT SETTINGS
+            camera_nwo = shot.camera.nwo
+            # element.SelectField("struct:header").Elements[0].Fields[0].DataAsText = x
+            # element.SelectField("struct:hfootereader").Elements[0].Fields[0].DataAsText = y
+            element.SelectField("Real:environment darken").Data = camera_nwo.environment_darken
+            element.SelectField("Real:forced exposure").Data = camera_nwo.forced_exposure
+            shot_flags = element.SelectField("flags")
+            shot_flags.SetBit("Instance Auto-Exposure", camera_nwo.instant_auto_exposure)
+            shot_flags.SetBit("Force Exposure", camera_nwo.force_exposure)
+            shot_flags.SetBit("Generate Looping Script", camera_nwo.generate_looping_script)
+            if self.corinth:
+                settings_flags = element.SelectField("settings flags")
+                
+                def flag_set(name, option):
+                    match option:
+                        case 'CLEAR':
+                            settings_flags.SetBit(f"{name} - clear", True)
+                        case 'PERSIST':
+                            settings_flags.SetBit(f"{name} - persist across shots", True)
+                
+                
+                if camera_nwo.lightmap_direct_scalar != 1.0:
+                    settings_flags.SetBit("Lightmap Scalars - set", True)
+                    element.SelectField("Lightmap Direct Scalar").Data = camera_nwo.lightmap_direct_scalar
+                    
+                if camera_nwo.lightmap_indirect_scalar != 1.0:
+                    settings_flags.SetBit("Lightmap Scalars - set", True)
+                    element.SelectField("Lightmap Indirect Scalar").Data = camera_nwo.lightmap_indirect_scalar
+                    
+                flag_set("Lightmap Scalars", camera_nwo.lightmap_scalar_option)
+                
+                if camera_nwo.sun_scalar != 1.0:
+                    settings_flags.SetBit("Sun Scalar - set", True)
+                    element.SelectField("Sun Scalar").Data = camera_nwo.sun_scalar
+
+                flag_set("Sun Scalar", camera_nwo.sun_scalar_option)
+                
+                if camera_nwo.atmosphere_fog.strip():
+                    element.SelectField("Atmosphere Fog").Path = tag._TagPath_from_string(camera_nwo.atmosphere_fog)
+                if camera_nwo.camera_effects.strip():
+                    element.SelectField("Camera Effects").Path = tag._TagPath_from_string(camera_nwo.camera_effects)
+                if camera_nwo.cubemap.strip():
+                    element.SelectField("Cubemap").Path = tag._TagPath_from_string(camera_nwo.cubemap)
+                    
+                flag_set("Atmosphere Fog", camera_nwo.atmosphere_fog_option)
+                flag_set("Camera Effects", camera_nwo.camera_effects_option)
+                flag_set("Cubemap", camera_nwo.cubemap_option)
+                
+                settings_flags.SetBit("Disable All Lightmap Shadows", camera_nwo.disable_all_lightmap_shadows)
+
             # FRAME DATA
             if self.corinth:
                 for frame in shot.frames:
@@ -776,51 +843,97 @@ class QUA:
                     felement.SelectField("Struct:camera frame[0]/Real:blur amount").Data = frame.blur_amount
         
         # OBJECTS
-        actor_elements = {actor: None for actor in self.objects}
-        to_remove_object_element_indexes = []
+        # to_remove_object_element_indexes = []
         # Loop through elements and assign actors where they already exist, else mark them for deletion
-        for element in block_objects.Elements:
-            for actor in self.objects:
-                if actor.name == element.SelectField("name").GetStringData():
-                    actor_elements[actor] = element
-                    break
-            else:
-                to_remove_object_element_indexes.append(element.ElementIndex)
+        # for element in block_objects.Elements:
+        #     for actor in self.objects:
+        #         if actor.name == element.SelectField("name").GetStringData():
+        #             actor_elements[actor] = element
+        #             break
+        #     else:
+        #         to_remove_object_element_indexes.append(element.ElementIndex)
         
         # Remove any elements that don't have a valid actor
-        for idx in reversed(to_remove_object_element_indexes):
-            block_objects.RemoveElement(idx)
+        # for idx in reversed(to_remove_object_element_indexes):
+        #     block_objects.RemoveElement(idx)
             
         object_tag_weapon_names = {} # used for custom scripts
         actor_objects = {a.ob for a in self.objects} # for checking an event is valid
+        block_objects.RemoveAllElements()
         # Add elements for actors without them
-        for actor, element in actor_elements.items():
-            if element is None:
-                element = block_objects.AddElement()
-                element.SelectField("name").SetStringData(actor.name)
-                element.SelectField("variant name").SetStringData(actor.variant)
+        for actor in self.objects:
+            element = block_objects.AddElement()
+            element.SelectField("name").SetStringData(actor.name)
+            element.SelectField("variant name").SetStringData(actor.variant)
             if actor.weapon_tag is not None:
                 # print(actor.name, element)
                 block_attachments = element.SelectField("Block:attachments")
-                for attachment_element in block_attachments.Elements:
-                    attachment_path = attachment_element.SelectField("Reference:attachment type").Path
-                    if attachment_path is None:
-                        continue
-                    elif attachment_path.RelativePathWithExtension == actor.weapon_tag:
-                        object_tag_weapon_names[actor.name] = attachment_element.SelectField("attachment object name").GetStringData()
-                        break
-                else:
-                    attachment_element = block_attachments.AddElement()
-                    attachment_element.SelectField("flags").SetBit("invisible", True)
-                    attachment_element.SelectField("object marker name").SetStringData("primary_trigger")
-                    attachment_element.SelectField("attachment object name").SetStringData(f"{actor.name}_weapon")
-                    attachment_element.SelectField("attachment marker name").SetStringData("primary_trigger")
-                    attachment_element.SelectField("attachment type").Path = tag._TagPath_from_string(actor.weapon_tag)
-                    object_tag_weapon_names[actor.name] = attachment_element.SelectField("attachment object name").GetStringData()
-                        
-            actor_elements[actor] = element
+                attachment_element = block_attachments.AddElement()
+                attachment_element.SelectField("flags").SetBit("invisible", True)
+                attachment_element.SelectField("object marker name").SetStringData("primary_trigger")
+                attachment_element.SelectField("attachment object name").SetStringData(f"{actor.name}_weapon")
+                attachment_element.SelectField("attachment marker name").SetStringData("primary_trigger")
+                attachment_element.SelectField("attachment type").Path = tag._TagPath_from_string(actor.weapon_tag)
+                object_tag_weapon_names[actor.name] = attachment_element.SelectField("attachment object name").GetStringData()
+                
 
-            if not self.corinth:  
+            actor_nwo = actor.ob.nwo
+            # Set flags
+            actor_flags = element.SelectField("flags")
+            
+            if actor.name in SPECIAL_CASE_NAMES:
+                actor_flags.SetBit("Special Case (like player0)", True)
+            else:
+                match actor_nwo.object_source:
+                    case 'CREATE_ANEW':
+                        actor_flags.SetBit("Placed Manually in Sapien", True)
+                    case 'USE':
+                        actor_flags.SetBit("Object Comes From Game", True)
+                        
+            actor_flags.SetBit("Effect Object", actor_nwo.effect_object)
+            actor_flags.SetBit("No Lightmap Shadow", actor_nwo.no_lightmap_shadow)
+            actor_flags.SetBit("Apply Player Customization", actor_nwo.apply_player_customization)
+            actor_flags.SetBit("Apply First Person Player Customization", actor_nwo.apply_first_person_player_customization)
+            actor_flags.SetBit("I will animate the English lipsync manually", actor_nwo.english_lipsync_manual)
+            
+            override_flags = element.SelectField("override creation flags")
+            override_flags.SetBit("single player", actor_nwo.override_1_player)
+            override_flags.SetBit("2 player co-op", actor_nwo.override_2_player)
+            override_flags.SetBit("3 player co-op", actor_nwo.override_3_player)
+            override_flags.SetBit("4 player co-op", actor_nwo.override_4_player)
+            
+            # element.SelectField("don't create condition").Elements[0].Fields[0].DataAsText = x
+            
+            if self.corinth:
+                actor_flags.SetBit("Primary Cortana", actor_nwo.primary_cortana)
+                actor_flags.SetBit("Preload Textures", actor_nwo.preload_textures)
+                
+                lightmap_flags = element.SelectField("lightmap shadow flags")
+                lightmap_flags.RefreshShots()
+                lightmap_flags.ClearShots()
+                for idx in actor.shots_lightmap:
+                    lightmap_flags.SetShotChecked(idx, True)
+        
+                high_res_flags = element.SelectField("high res flags")
+                high_res_flags.RefreshShots()
+                high_res_flags.ClearShots()
+                for idx in actor.shots_high_res:
+                    high_res_flags.SetShotChecked(idx, True)
+                
+                block_data_objects.RemoveAllElements()
+                for actor in self.objects:
+                    data_element = block_data_objects.AddElement()
+                    data_element.SelectField("name").SetStringData(actor.name)
+                    data_element.SelectField("identifier").SetStringData(actor.name)
+                    data_element.SelectField("model animation graph").Path = tag._TagPath_from_string(actor.graph)
+                    data_element.SelectField("object type").Path = tag._TagPath_from_string(actor.tag)
+                    shot_flags = data_element.SelectField("shots active flags")
+                    shot_flags.RefreshShots() # shots won't register unless we call this
+                    shot_flags.ClearShots()
+                    for idx in actor.shots_active:
+                        shot_flags.SetShotChecked(idx, True) # SetShotChecked is part of TagFieldCustomCinematicShotFlags, which is not used by Reach
+            
+            else:
                 # Reach writes this data to the cinematic_scene tag so lets do it now
                 element.SelectField("identifier").SetStringData(actor.name)
                 element.SelectField("model animation graph").Path = tag._TagPath_from_string(actor.graph)
@@ -830,24 +943,14 @@ class QUA:
                     item.IsSet = False
                 for idx in actor.shots_active:
                     flag_items[idx].IsSet = True
-                
-        # Clear the cinematic_scene_data objects if corinth, and write the object data
-        if self.corinth:
-            block_data_objects.RemoveAllElements()
-            # process actors by element index, not sure if order matters here but I'm choosing to play it safe
-            actors = [k for k, v in sorted(actor_elements.items(), key=lambda item: item[1].ElementIndex)]
-            for actor in actors:
-                element = block_data_objects.AddElement()
-                element.SelectField("name").SetStringData(actor.name)
-                element.SelectField("identifier").SetStringData(actor.name)
-                element.SelectField("model animation graph").Path = tag._TagPath_from_string(actor.graph)
-                element.SelectField("object type").Path = tag._TagPath_from_string(actor.tag)
-                flags = element.SelectField("shots active flags")
-                flags.RefreshShots() # shots won't register unless we call this
-                flags.ClearShots()
-                for idx in actor.shots_active:
-                    flags.SetShotChecked(idx, True) # SetShotChecked is part of TagFieldCustomCinematicShotFlags, which is not used by Reach
-        
+                    
+                lightmap_flag_items = element.SelectField("lightmap shadow flags").Items
+                for item in lightmap_flag_items:
+                    item.IsSet = False
+                for idx in actor.shots_lightmap:
+                    lightmap_flag_items[idx].IsSet = True
+                    
+                    
         # Add cinematic events
         frame_start = utils.game_frame(int(bpy.context.scene.frame_start))
         sound_sequences = {}
@@ -875,25 +978,36 @@ class QUA:
                     c.from_event(event, object_tag_weapon_names, actor_objects, self.corinth)
                     if c.script.strip():
                         custom_scripts[c] = frame - frame_start + int(self.corinth)
+                        
+                case 'MUSIC':
+                    c = CinematicMusic()
+                    c.from_event(event)
+                    if c.music is not None:
+                        music[c] = frame - frame_start + int(self.corinth)
+                case 'FUNCTION':
+                    pass
+                
+        # Events from camera
+        
         
         
         # Add back data blocks
         # Dialogue comes from blender
         block = block_shots
         
-        for data, shot_index in lighting.items():
-            shot_element = block.Elements[shot_index]
-            data.to_element(shot_element.SelectField("lighting").AddElement(), block_objects)
+        # for data, shot_index in lighting.items():
+        #     shot_element = block.Elements[shot_index]
+        #     data.to_element(shot_element.SelectField("lighting").AddElement(), block_objects)
             
-        for data, frame_index in clips.items():
-            shot_index, shot_frame = self.get_shot_index_and_frame(frame_index)
-            if shot_index is None:
-                continue
-            shot_element = block.Elements[shot_index]
-            end_offset = data.frame_end - data.frame_start
-            data.frame_start = shot_frame
-            data.frame_end = shot_frame + end_offset
-            data.to_element(shot_element.SelectField("clip").AddElement(), block_objects)
+        # for data, frame_index in clips.items():
+        #     shot_index, shot_frame = self.get_shot_index_and_frame(frame_index)
+        #     if shot_index is None:
+        #         continue
+        #     shot_element = block.Elements[shot_index]
+        #     end_offset = data.frame_end - data.frame_start
+        #     data.frame_start = shot_frame
+        #     data.frame_end = shot_frame + end_offset
+        #     data.to_element(shot_element.SelectField("clip").AddElement(), block_objects)
             
         for data, frame_index in music.items():
             shot_index, shot_frame = self.get_shot_index_and_frame(frame_index)
@@ -929,16 +1043,16 @@ class QUA:
             data.frame = shot_frame
             data.to_element(shot_element.SelectField("user input constraints").AddElement())
         
-        if self.corinth:
-            for data, frame_index in texture_movies.items():
-                shot_index, shot_frame = self.get_shot_index_and_frame(frame_index)
-                if shot_index is None:
-                    continue
-                shot_element = block.Elements[shot_index]
-                data.frame = shot_frame
-                data.to_element(shot_element.SelectField("texture movies").AddElement())
+        # if self.corinth:
+        #     for data, frame_index in texture_movies.items():
+        #         shot_index, shot_frame = self.get_shot_index_and_frame(frame_index)
+        #         if shot_index is None:
+        #             continue
+        #         shot_element = block.Elements[shot_index]
+        #         data.frame = shot_frame
+        #         data.to_element(shot_element.SelectField("texture movies").AddElement())
         
-            block = block_data_shots
+        block = block_data_shots
             
         for data, frame_index in dialogue.items():
             shot_index, shot_frame = self.get_shot_index_and_frame(frame_index)

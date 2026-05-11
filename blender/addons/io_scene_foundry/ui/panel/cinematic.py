@@ -1,3 +1,4 @@
+import math
 from pathlib import Path
 from typing import cast
 import blf
@@ -548,6 +549,12 @@ class NWO_OT_UpdateActor(bpy.types.Operator):
     bl_description = "Replaces this armature and its child meshes / markers with the model and variant set"
     bl_options = {"UNDO"}
 
+    build_control_rig: bpy.props.BoolProperty(
+        name="Build Control Rig",
+        description="Builds an FK & IK control rig for imported models",
+        default=False,
+    )
+    
     import_variant_children: bpy.props.BoolProperty(
         name="Import Variant Child Objects",
         description="Imports the child objects associated with this model variant",
@@ -603,6 +610,7 @@ class NWO_OT_UpdateActor(bpy.types.Operator):
         layout = self.layout
         layout.use_property_split = True
         layout.label(text=f"Updating: {Path(context.object.nwo.cinematic_object).name}")
+        layout.prop(self, 'build_control_rig')
         if self._tag_is_biped(context):
             layout.prop(self, "import_biped_weapon")
             if self.import_biped_weapon:
@@ -711,6 +719,7 @@ class NWO_OT_UpdateActor(bpy.types.Operator):
         importer.import_biped_weapon_non_export = False
         importer.tag_import_attachments = self.tag_import_attachments
         importer.import_variant_children = self.import_variant_children
+        importer.build_control_rig = self.build_control_rig
 
         try:
             if importer.needs_scaling:
@@ -1263,6 +1272,10 @@ class NWO_OT_GetCinematicPermutation(GetCinematicBase):
 class NWO_UL_CameraActors(bpy.types.UIList):
     def draw_item(self, context, layout: bpy.types.UILayout, data, item, icon, active_data, active_propname, index):
         layout.label(text=item.actor.name if item.actor else "NONE", icon='OUTLINER_OB_ARMATURE')
+        if data.actors_type == 'include':
+            layout.prop(item, "lightmap_shadow", text="", icon='SHADING_RENDERED')
+            if utils.is_corinth(context):
+                layout.prop(item, "high_res", text="", icon='MESH_MONKEY')
         
 class NWO_OT_CameraActorsClear(bpy.types.Operator):
     bl_idname = "nwo.camera_actor_clear"
@@ -1515,4 +1528,42 @@ class NWO_GetScenarioCustsceneTitles(bpy.types.Operator):
         nwo = context.scene.nwo # scene specific
         event = nwo.cinematic_events[nwo.active_cinematic_event_index]
         event.script_text = self.cutscene_title
+        return {'FINISHED'}
+
+class NWO_OT_UserInputBoundsFromCamera(bpy.types.Operator):
+    bl_idname = "nwo.user_input_bounds_from_camera"
+    bl_label = "Set Input Bounds from Camera"
+    bl_description = "Set camera user input bounds from the current viewport/camera framing"
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    @classmethod
+    def poll(cls, context):
+        return context.object and context.object.type == 'CAMERA'
+
+    def execute(self, context):
+        camera = context.object
+        nwo = camera.nwo
+        cam_data = camera.dat
+
+        if cam_data.type == 'ORTHO':
+            self.report({'WARNING'}, "Cannot calculate angular input bounds from an orthographic camera")
+            return {'CANCELLED'}
+
+        half_h = cam_data.angle_x * 0.5
+        half_v = cam_data.angle_y * 0.5
+
+        nwo.user_input_bounds_l = half_h
+        nwo.user_input_bounds_r = half_h
+        nwo.user_input_bounds_t = half_v
+        nwo.user_input_bounds_b = half_v
+
+        self.report(
+            {'INFO'},
+            f"Set input bounds from camera FOV: "
+            f"Left {math.degrees(nwo.user_input_bounds_l):.2f}°, "
+            f"Right {math.degrees(nwo.user_input_bounds_r):.2f}°, "
+            f"Up {math.degrees(nwo.user_input_bounds_t):.2f}°, "
+            f"Down {math.degrees(nwo.user_input_bounds_b):.2f}°"
+        )
+
         return {'FINISHED'}
