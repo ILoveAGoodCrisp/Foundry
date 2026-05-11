@@ -2054,11 +2054,11 @@ class FakeBone:
         self._pending_parent: 'FakeBone | None' = None
         self.bone = bone
         self.export = ob.data.bones[bone.name].use_deform or self.name in special_bone_names
-
-        if parent_ob is None:
-            self.matrix = bone.matrix
-        else:
-            self.matrix = ob.matrix_world @ bone.matrix
+        self.matrix = bone.matrix
+        # if parent_ob is None:
+        #     self.matrix = bone.matrix
+        # else:
+        #     self.matrix = ob.matrix_world @ bone.matrix
         
 def sort_bones_by_hierarchy(fake_bones: list[FakeBone]):
     bone_depths = {}
