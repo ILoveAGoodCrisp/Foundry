@@ -322,7 +322,16 @@ class ExportScene:
             main_armature = utils.get_rig_prioritize_active(self.context)
                     
         if main_armature:
-            support_armatures = [ob for ob in main_armature.children if ob.type == 'ARMATURE']
+            for ob in bpy.data.objects:
+                if ob.type == 'ARMATURE':
+                    self.armature_poses[ob.data] = ob.data.pose_position
+                    ob.data.pose_position = 'REST'
+                    if ob is main_armature:
+                        continue
+                    if utils.ultimate_armature_parent(ob) is main_armature:
+                        support_armatures.append(ob)
+                        
+            self.context.view_layer.update()
         
         self.collection_map = utils.create_parent_mapping(self.context)
         
@@ -333,17 +342,7 @@ class ExportScene:
         valid_objects = GENERAL_OBJECTS
         if self.asset_type in {AssetType.MODEL, AssetType.ANIMATION, AssetType.SINGLE_ANIMATION, AssetType.CINEMATIC, AssetType.SKY}:
             valid_objects = GENERAL_OBJECTS | {'ARMATURE'}
-             
-            if main_armature:
-                self.armature_poses[main_armature.data] = main_armature.data.pose_position
-                main_armature.data.pose_position = 'REST'
-                
-            for support_arm in support_armatures:
-                self.armature_poses[support_arm.data] = support_arm.data.pose_position
-                support_arm.data.pose_position = 'REST'
-                
-            self.context.view_layer.update()
-        
+            
         proxy_export_objects = []
         for inst in self.depsgraph.object_instances:
             obj = inst.object
@@ -1696,26 +1695,70 @@ class ExportScene:
                                     fallback_camera = ob
                                     break
                             else:
-                                raise RuntimeError("Scene has no cameras. Cannot export cinematic")
+                                utils.print_warning("Scene has no camera, creating cinematic from current viewport position")
+                                region_3d = None
+                                for area in self.context.window.screen.areas:
+                                    if area.type == 'VIEW_3D':
+                                        for space in area.spaces:
+                                            if space.type == 'VIEW_3D':
+                                                region_3d = space.region_3d
+                                                break
+                                    if region_3d:
+                                        break
+
+                                cam_data = bpy.data.cameras.new("ViewportCamera")
+                                fallback_camera = bpy.data.objects.new("ViewportCamera", cam_data)
+                                self.context.scene.collection.objects.link(fallback_camera)
+                                
+                                self.temp_objects.add(fallback_camera)
+
+                                if region_3d:
+                                    fallback_camera.matrix_world = region_3d.view_matrix.inverted()
+                                    if region_3d.view_perspective == 'CAMERA':
+                                        cam_data.type = 'PERSP'
+                                else:
+                                    utils.print_warning("Could not find VIEW_3D region, using default camera transform")
+                                
                             
                         camera = fallback_camera
                     fallback_camera = camera
                     
-                    if camera.nwo.actors_type == 'exclude':
+                    exclude = camera.nwo.actors_type == 'exclude'
+                    if exclude:
                         if camera.nwo.actors:
-                            camera_actors = {item.actor for item in camera.nwo.actors if item.actor is not None}
+                            camera_actors = {item.actor.name: item.actor for item in camera.nwo.actors if item.actor is not None}
                             shot_actors = [a for a in self.cinematic_actors if a.ob not in camera_actors]
                         else:
                             shot_actors = self.cinematic_actors
                     else:
                         if camera.nwo.actors:
-                            camera_actors = {item.actor for item in camera.nwo.actors if item.actor is not None}
+                            camera_actors = {item.actor.name: item.actor for item in camera.nwo.actors if item.actor is not None}
                             shot_actors = [a for a in self.cinematic_actors if a.ob in camera_actors]
                         else:
                             shot_actors = []
                             
                     for act in shot_actors:
                         act.shots_active.append(i)
+                        
+                        if exclude:
+                            if camera.nwo.use_lightmap:
+                                act.shots_lightmap.append(i)
+                            if camera.nwo.use_high_res:
+                                act.shots_high_res.append(i)
+                        else:
+                            cam_act = camera_actors[act.ob.name]
+                            match cam_act.lightmap_shadow:
+                                case 'DEFAULT':
+                                    if camera.nwo.use_lightmap:
+                                        act.shots_lightmap.append(i)
+                                case 'ON':
+                                    act.shots_lightmap.append(i)
+                            match cam_act.high_res:
+                                case 'DEFAULT':
+                                    if camera.nwo.use_high_res:
+                                        act.shots_high_res.append(i)
+                                case 'ON':
+                                    act.shots_high_res.append(i)
                     
                     in_scope = not self.current_shot_only or i == current_shot
 
@@ -2151,7 +2194,7 @@ class ExportScene:
         #     writer = QUA(self.parent_asset_path_relative, self.cinematic_scene.name, self.virtual_scene.shots, self.cinematic_actors, self.corinth, False)
         # else:
         writer = QUA(self.asset_path_relative, cin_scene.name, cin_scene.shots, cin_scene.actors, self.corinth, False)
-        writer.write_to_tag()
+        writer.write_to_tag(self.scene_settings.cinematic_scenes.get(cin_scene.name))
                 
     def _export_animations(self):
         if self.virtual_scene.skeleton_node and self.virtual_scene.animations:
