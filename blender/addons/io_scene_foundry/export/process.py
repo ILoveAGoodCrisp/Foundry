@@ -405,7 +405,7 @@ class ExportScene:
                 elif proxy in support_armatures:
                     self.support_armatures.append(proxy)
                     continue
-                else:
+                elif self.asset_type != AssetType.CINEMATIC:
                     continue
                     
             proxy_export_objects.append(proxy)
@@ -2194,7 +2194,7 @@ class ExportScene:
         #     writer = QUA(self.parent_asset_path_relative, self.cinematic_scene.name, self.virtual_scene.shots, self.cinematic_actors, self.corinth, False)
         # else:
         writer = QUA(self.asset_path_relative, cin_scene.name, cin_scene.shots, cin_scene.actors, self.corinth, False)
-        writer.write_to_tag(self.scene_settings.cinematic_scenes.get(cin_scene.name))
+        writer.write_to_tag(self.scene_settings.cinematic_scenes[0]) # TODO
                 
     def _export_animations(self):
         if self.virtual_scene.skeleton_node and self.virtual_scene.animations:

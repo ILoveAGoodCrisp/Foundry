@@ -1,7 +1,7 @@
 from enum import Enum
 from pathlib import Path
 
-from .lisp_to_corinth import convert
+from .lisp_to_corinth import script_from_text
 
 from .cinematic_scene_data import CinematicSceneDataTag
 
@@ -90,7 +90,9 @@ class CinematicTag(Tag):
             
             self.tag.SelectField("bink movie on disc").SetStringData(self.scene_nwo.cinematic_bink_movie_on_disc)
         
-        # self.tag.SelectField("struct:header").Elements[0].Fields[0].DataAsText = convert()
+        self.tag.SelectField("Struct:header").Elements[0].Fields[0].DataAsText = script_from_text(self.corinth, self.scene_nwo.cinematic_header, self.scene_nwo.cinematic_header_text)
+        self.tag.SelectField("Struct:footer").Elements[0].Fields[0].DataAsText = script_from_text(self.corinth, self.scene_nwo.cinematic_footer, self.scene_nwo.cinematic_footer_text)
+        self.tag.SelectField("Struct:early exit").Elements[0].Fields[0].DataAsText = script_from_text(self.corinth, self.scene_nwo.cinematic_skip_footer, self.scene_nwo.cinematic_skip_footer_text)
 
         # Add scenes to cinematic
         scene_paths = [cs.name for cs in cinematic_scenes]

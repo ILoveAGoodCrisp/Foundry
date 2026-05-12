@@ -5,7 +5,7 @@ from mathutils import Matrix, Vector
 
 from .cinematic_lighting import CinematicLightingTag
 
-from .lisp_to_corinth import convert
+from .lisp_to_corinth import script_from_text
 
 from .cinematic_scene_data import CinematicSceneDataTag
 from .. import utils
@@ -142,9 +142,7 @@ class CinematicDialogue:
             self.female_dialogue = self.dialogue
             
         self.scale = event.sound_scale
-        self.actor = ""
-        if event.actor is not None and event.actor in actor_objects:
-            self.actor = event.actor.name
+        self.actor = actor_objects.get(event.actor, "")
         self.default_sound_effect = event.default_sound_effect
         self.subtitle = event.subtitle
         self.female_subtitle = event.female_subtitle if event.female_subtitle.strip() else self.subtitle
@@ -240,7 +238,7 @@ class CinematicEffect:
         event.frame = utils.blender_frame(self.frame + int((not corinth)))
         return event
             
-    def from_event(self, event: NWO_CinematicEvent, actor_objects: set):
+    def from_event(self, event: NWO_CinematicEvent, actor_objects: dict):
         self.use_maya_value = True
         if event.effect is not None:
             self.effect = tag_path_from_string(event.effect)
@@ -253,8 +251,8 @@ class CinematicEffect:
             
         if ob is not None:
             actor = utils.ultimate_armature_parent(ob)
-            if actor is not None and actor in actor_objects:
-                self.marker_parent = actor.name
+            actor_name = actor_objects.get(actor, "")
+            self.marker_parent = actor_name
                 
         self.function_a = event.function_a
         self.function_b = event.function_b
@@ -273,31 +271,32 @@ class CinematicObjectFunctionKeyframe:
         
     def from_element(self, element: TagFieldBlockElement):
         self.clear_function = element.SelectField("flags").TestBit("clear function (Value and Interpolation time are unused)")
-        self.frame = element.SelectField("LongInteger:frame").Data
+        self.frame = element.SelectField("frame").Data
         self.value = element.SelectField("value").Data
         self.interpolation_time = element.SelectField("interpolation time").Data
     
-    def to_element(self, block: TagFieldBlock, object_block: TagFieldBlock):
-        for element in block.Elements:
-            if self.function_name == element.SelectField("function name").GetStringData() and get_subject_name(element.SelectField("object").Value, object_block) == self.object:
-                break
-        else:
-            element = block.AddElement()
-            element.SelectField("object").Value = get_subject_index(self.object, object_block)
-            element.SelectField("function name").SetStringData(self.function_name)
+    def to_element(self, block: TagFieldBlock, frame: int):
+        element = block.AddElement()
+        element.SelectField("flags").SetBit("clear function (Value and Interpolation time are unused)", self.clear_function)
+        element.SelectField("frame").Data = frame
+        element.SelectField("value").Data = self.value
+        element.SelectField("interpolation time").Data = self.interpolation_time
         
-        sub_element = element.SelectField("keyframes").AddElement()    
-        sub_element.SelectField("flags").SetBit("clear function (Value and Interpolation time are unused)", self.clear_function)
-        sub_element.SelectField("LongInteger:frame").Data = self.frame
-        sub_element.SelectField("value").Data = self.value
-        sub_element.SelectField("interpolation time").Data = self.interpolation_time
+    def from_event(self, event: NWO_CinematicEvent, actor_objects: dict):
+        self.clear_function = event.clear_function
+        self.value = event.value
+        self.interpolation_time = int(event.interpolation_time * 30)
+        self.object = actor_objects.get(event.actor, "")
+        self.function_name = event.function_name
+        
+        return event
         
     def to_event(self, nwo, corinth: bool):
         event = cast(NWO_CinematicEvent, nwo.cinematic_events.add())
         event.type = 'FUNCTION'
         event.clear_function = self.clear_function
         event.value = self.value
-        event.interpolation_time = self.interpolation_time
+        event.interpolation_time = float(self.interpolation_time / 30)
         event.function_name = self.function_name
         event.frame = utils.blender_frame(self.frame + int((not corinth)))
         
@@ -307,7 +306,7 @@ class CinematicObjectFunction:
     def __init__(self):
         self.object = ""
         self.function_name = ""
-        self.keyframes: list[CinematicObjectFunctionKeyframe]  = []
+        self.keyframes: dict[int: CinematicObjectFunctionKeyframe]  = {}
         
     def from_element(self, element: TagFieldBlockElement, object_block: TagFieldBlock) -> bool:
         self.object = get_subject_name(element.SelectField("object").Value, object_block)
@@ -320,12 +319,12 @@ class CinematicObjectFunction:
             
         return bool(self.keyframes)
     
-    # def to_element(self, element: TagFieldBlockElement, object_block: TagFieldBlock):
-    #     element.SelectField("object").Value = get_subject_index(self.object, object_block)
-    #     element.SelectField("function name").SetStringData()
-    #     keyframes_block = element.SelectField("keyframes")
-    #     for keyframe in self.keyframes:
-    #         keyframe.to_element(keyframes_block.AddElement())
+    def to_element(self, element: TagFieldBlockElement, object_block: TagFieldBlock):
+        element.SelectField("object").Value = get_subject_index(self.object, object_block)
+        element.SelectField("function name").SetStringData()
+        keyframes_block = element.SelectField("keyframes")
+        for frame, keyframe in self.keyframes.items():
+            keyframe.to_element(keyframes_block, frame)
         
 class CinematicScreenEffect:
     def __init__(self):
@@ -366,7 +365,7 @@ class CinematicCustomScript:
     def to_element(self, element: TagFieldBlockElement, corinth: bool):
         element.SelectField("flags").SetBit("use maya value", self.use_maya_value)
         element.SelectField("LongInteger:frame").Data = self.frame
-        element.SelectField("script").Elements[0].Fields[0].DataAsText = convert(self.script) if corinth else self.script
+        element.SelectField("script").Elements[0].Fields[0].DataAsText = script_from_text(corinth, self.script)
         element.SelectField("node id").Data = self.node_id
         element.SelectField("sequence id").Data = self.sequence_id
         
@@ -380,8 +379,8 @@ class CinematicCustomScript:
         
     def from_event(self, event: NWO_CinematicEvent, object_tag_weapon_names: dict, actor_objects: set, corinth: bool):
         self.use_maya_value = True
-        valid_object = event.actor is not None and event.actor in actor_objects
-        obj_text = f'(cinematic_object_get "{event.actor.name}")' if valid_object else 'None'
+        actor_name = actor_objects.get(event.actor, "")
+        obj_text = f'(cinematic_object_get "{actor_name}")' if actor_name else 'None'
         match event.script_type:
             case 'CUSTOM':
                 if event.text is None:
@@ -389,27 +388,27 @@ class CinematicCustomScript:
                 else:
                     self.script = event.text.as_string()
             case 'WEAPON_TRIGGER_START' | 'WEAPON_TRIGGER_STOP':
-                if valid_object:
-                    weapon_name = object_tag_weapon_names.get(event.actor.name.replace(".", "_"))
-                    if weapon_name is not None:
+                if actor_name:
+                    weapon_name = object_tag_weapon_names.get(event.actor, "")
+                    if weapon_name:
                         self.script = f'weapon_set_primary_barrel_firing (cinematic_weapon_get "{weapon_name}") {int(event.script_type == "WEAPON_TRIGGER_START")}'
             case 'SET_VARIANT':
-                if valid_object and event.script_variant:
+                if actor_name and event.script_variant:
                     self.script = f'object_set_variant {obj_text} "{event.script_variant}"'
             case 'SET_PERMUTATION':
-                if valid_object and event.script_permutation:
+                if actor_name and event.script_permutation:
                     self.script = f'object_set_permutation {obj_text} "{event.script_region}" "{event.script_permutation}"'
             case 'SET_REGION_STATE':
-                if valid_object:
+                if actor_name:
                     self.script = f'object_set_region_state {obj_text} "{event.script_region}" {event.script_state}'
             case 'SET_MODEL_STATE_PROPERTY':
-                if valid_object:
+                if actor_name:
                     self.script = f'object_set_model_state_property {obj_text} {int(event.script_state_property)} {event.script_bool}'
             case 'HIDE' | 'UNHIDE':
-                if valid_object:
+                if actor_name:
                     self.script = f'object_hide {obj_text} {int(event.script_type == "HIDE")}'
             case 'DESTROY':
-                if valid_object:
+                if actor_name:
                     self.script = f'object_destroy {obj_text}'
             case 'FADE_IN':
                 red, green, blue = event.script_color
@@ -426,14 +425,14 @@ class CinematicCustomScript:
                 if not corinth:
                     self.script = f'chud_cinematic_fade 1 0\nchud_show_cinematics 0'
             case 'OBJECT_CANNOT_DIE' | 'OBJECT_CAN_DIE':
-                if valid_object:
+                if actor_name:
                     self.script = f'object_cannot_die {obj_text} {int(event.script_type == "OBJECT_CANNOT_DIE")}'
             case 'OBJECT_PROJECTILE_COLLISION_ON' | 'OBJECT_PROJECTILE_COLLISION_OFF':
-                if valid_object:
+                if actor_name:
                     # weird script function, setting this to false makes the object had projectile collision
                     self.script = f'object_cinematic_visibility {obj_text} {int(event.script_type == "OBJECT_PROJECTILE_COLLISION_OFF")}'
             case 'DAMAGE_OBJECT':
-                if valid_object:
+                if actor_name:
                     self.script = f'damage_object {obj_text} "{event.script_region}" {event.script_damage}'
             case 'PLAY_SOUND':
                 if event.sound_tag.strip():

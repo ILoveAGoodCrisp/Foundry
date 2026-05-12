@@ -3,11 +3,12 @@ from math import degrees, isfinite
 from pathlib import Path
 import bpy
 from mathutils import Euler
+from ..managed_blam.lisp_to_corinth import script_from_text
 
 from ..managed_blam.object import ObjectTag
 from ..managed_blam.model import ModelTag
 from ..managed_blam.animation import AnimationTag
-from ..managed_blam.cinematic_scene import CinematicClip, CinematicCustomScript, CinematicDialogue, CinematicEffect, CinematicLighting, CinematicMusic, CinematicObjectFunction, CinematicScreenEffect, CinematicTextureMovie, CinematicUserInputConstraints
+from ..managed_blam.cinematic_scene import CinematicClip, CinematicCustomScript, CinematicDialogue, CinematicEffect, CinematicLighting, CinematicMusic, CinematicObjectFunction, CinematicObjectFunctionKeyframe, CinematicScreenEffect, CinematicTextureMovie, CinematicUserInputConstraints
 
 from ..managed_blam.Tags import TagFieldBlock
 
@@ -626,8 +627,8 @@ class QUA:
             
             # other props
             scene.tag.SelectField("reset object lighting").Value = int(cin_scene_settings.reset_object_lighting)
-            # scene.tag.SelectField("struct:header").Elements[0].Fields[0].DataAsText = x
-            # scene.tag.SelectField("struct:footer").Elements[0].Fields[0].DataAsText = y
+            scene.tag.SelectField("struct:header").Elements[0].Fields[0].DataAsText = script_from_text(self.corinth, cin_scene_settings.header, cin_scene_settings.header_text)
+            scene.tag.SelectField("struct:footer").Elements[0].Fields[0].DataAsText = script_from_text(self.corinth, cin_scene_settings.footer, cin_scene_settings.footer_text)
             
             scene.tag_has_changes = True
             if self.corinth:
@@ -766,12 +767,12 @@ class QUA:
             
             # SHOT SETTINGS
             camera_nwo = shot.camera.nwo
-            # element.SelectField("struct:header").Elements[0].Fields[0].DataAsText = x
-            # element.SelectField("struct:hfootereader").Elements[0].Fields[0].DataAsText = y
+            element.SelectField("Struct:header").Elements[0].Fields[0].DataAsText = script_from_text(self.corinth, camera_nwo.header, camera_nwo.header_text)
+            element.SelectField("Struct:footer").Elements[0].Fields[0].DataAsText = script_from_text(self.corinth, camera_nwo.footer, camera_nwo.footer_text)
             element.SelectField("Real:environment darken").Data = camera_nwo.environment_darken
             element.SelectField("Real:forced exposure").Data = camera_nwo.forced_exposure
             shot_flags = element.SelectField("flags")
-            shot_flags.SetBit("Instance Auto-Exposure", camera_nwo.instant_auto_exposure)
+            shot_flags.SetBit("Instant Auto-Exposure", camera_nwo.instant_auto_exposure)
             shot_flags.SetBit("Force Exposure", camera_nwo.force_exposure)
             shot_flags.SetBit("Generate Looping Script", camera_nwo.generate_looping_script)
             if self.corinth:
@@ -783,7 +784,6 @@ class QUA:
                             settings_flags.SetBit(f"{name} - clear", True)
                         case 'PERSIST':
                             settings_flags.SetBit(f"{name} - persist across shots", True)
-                
                 
                 if camera_nwo.lightmap_direct_scalar != 1.0:
                     settings_flags.SetBit("Lightmap Scalars - set", True)
@@ -813,6 +813,15 @@ class QUA:
                 flag_set("Cubemap", camera_nwo.cubemap_option)
                 
                 settings_flags.SetBit("Disable All Lightmap Shadows", camera_nwo.disable_all_lightmap_shadows)
+                
+            # CAMERA EVENTS
+            if camera_nwo.screen_effect.strip():
+                c = CinematicScreenEffect()
+                c.from_camera(camera_nwo)
+                
+            if camera_nwo.user_input_bounds_t != 0.0 or camera_nwo.user_input_bounds_l != 0.0 or camera_nwo.user_input_bounds_b != 0.0 or camera_nwo.user_input_bounds_r != 0.0:
+                c = CinematicUserInputConstraints()
+                c.from_camera(camera_nwo)
 
             # FRAME DATA
             if self.corinth:
@@ -858,7 +867,7 @@ class QUA:
         #     block_objects.RemoveElement(idx)
             
         object_tag_weapon_names = {} # used for custom scripts
-        actor_objects = {a.ob for a in self.objects} # for checking an event is valid
+        actor_objects = {a.ob: a.name for a in self.objects} # for checking an event is valid
         block_objects.RemoveAllElements()
         # Add elements for actors without them
         for actor in self.objects:
@@ -871,10 +880,11 @@ class QUA:
                 attachment_element = block_attachments.AddElement()
                 attachment_element.SelectField("flags").SetBit("invisible", True)
                 attachment_element.SelectField("object marker name").SetStringData("primary_trigger")
-                attachment_element.SelectField("attachment object name").SetStringData(f"{actor.name}_weapon")
+                wep_name = f"{actor.name}_weapon"
+                attachment_element.SelectField("attachment object name").SetStringData(wep_name)
                 attachment_element.SelectField("attachment marker name").SetStringData("primary_trigger")
                 attachment_element.SelectField("attachment type").Path = tag._TagPath_from_string(actor.weapon_tag)
-                object_tag_weapon_names[actor.name] = attachment_element.SelectField("attachment object name").GetStringData()
+                object_tag_weapon_names[actor.ob] = wep_name
                 
 
             actor_nwo = actor.ob.nwo
@@ -952,6 +962,7 @@ class QUA:
                     
                     
         # Add cinematic events
+        
         frame_start = utils.game_frame(int(bpy.context.scene.frame_start))
         sound_sequences = {}
         if bpy.context.scene.sequence_editor:
@@ -977,17 +988,20 @@ class QUA:
                     c = CinematicCustomScript()
                     c.from_event(event, object_tag_weapon_names, actor_objects, self.corinth)
                     if c.script.strip():
-                        custom_scripts[c] = frame - frame_start + int(self.corinth)
-                        
+                        custom_scripts[c] = frame - frame_start + int(self.corinth)         
                 case 'MUSIC':
                     c = CinematicMusic()
                     c.from_event(event)
                     if c.music is not None:
                         music[c] = frame - frame_start + int(self.corinth)
                 case 'FUNCTION':
-                    pass
+                    c = CinematicObjectFunctionKeyframe()
+                    c.from_event(event)
+                    if c.function_name:
+                        object_function_keyframes[c] = frame - frame_start + int(self.corinth)
                 
         # Events from camera
+        camera_nwo
         
         
         
@@ -1016,14 +1030,26 @@ class QUA:
             shot_element = block.Elements[shot_index]
             data.frame = shot_frame
             data.to_element(shot_element.SelectField("music").AddElement())
-            
+        
+        
+        function_keyframe_groups = defaultdict(list)
         for data, frame_index in object_function_keyframes.items():
             shot_index, shot_frame = self.get_shot_index_and_frame(frame_index)
             if shot_index is None:
                 continue
+            
+            function_keyframe_groups[(shot_index, data.function_name, data.object)].append((data, shot_frame))
+            
+        for k, v in function_keyframe_groups.items():
+            shot_index, function_name, object_name = k
+            object_function = CinematicObjectFunction()
+            object_function.object = function_name
+            object_function.function_name = object_name
+            for data, shot_frame in v:
+                object_function.keyframes[shot_frame] = data
+            
             shot_element = block.Elements[shot_index]
-            data.frame = shot_frame
-            data.to_element(shot_element.SelectField("object functions"), block_objects)
+            object_function.to_element(shot_element.SelectField("object functions"), block_objects)
             
         for data, frame_index in screen_effects.items():
             shot_index, shot_frame = self.get_shot_index_and_frame(frame_index)

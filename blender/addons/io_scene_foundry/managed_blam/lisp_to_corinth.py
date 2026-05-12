@@ -1,4 +1,5 @@
 import re
+import bpy
 
 TOKEN_RE = re.compile(
     r'"[^"]*"|\(|\)|[^\s()]+'
@@ -56,7 +57,7 @@ def _is_atomic(src: str) -> bool:
         and " " not in src
     )
 
-def convert(src: str) -> str:
+def convert(src: str, corinth: bool) -> str:
     output = []
 
     for line in src.splitlines():
@@ -82,3 +83,14 @@ def convert(src: str) -> str:
         output.append(indent + _lisp_to_c(stripped))
 
     return "\n".join(output)
+
+def script_from_text(corinth: bool, raw_text: str = "", text_file: bpy.types.Text = None):
+    """returns valid halo script from raw text, or the optional text file"""
+    
+    if text_file is not None:
+        return convert(text_file.as_string(), corinth)
+    
+    if raw_text.strip():
+        return convert(raw_text, corinth)
+    
+    return ""
