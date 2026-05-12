@@ -11,6 +11,7 @@ from ..constants import HALO_FACTOR
 
 from .connected_geometry import CompressionBounds, InstancePlacement, MarkerGroup, Material, Mesh, Node, Region, RenderArmature
 from .Tags import *
+from . import import_transform
 
 from .. import utils
 from ..managed_blam import Tag
@@ -467,7 +468,7 @@ class RenderModelTag(Tag):
             loc = dir * radius
             sca = Vector.Fill(3, HALO_FACTOR)
             
-            obj.matrix_world = Matrix.LocRotScale(loc, rot, sca)
+            obj.matrix_world = import_transform.transform_matrix(Matrix.LocRotScale(loc, rot, sca))
             
         for element in block_sky_lights.Elements:
             direction = Vector((*element.Fields[0].Data,)).normalized()

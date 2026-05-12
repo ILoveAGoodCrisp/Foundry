@@ -13,6 +13,7 @@ from ..props.object import NWO_ObjectPropertiesGroup
 from ..props.light import NWO_LightPropertiesGroup
 from . Tags import TagFieldBlockElement
 from . import Tag
+from . import import_transform
 from .. import utils
 import bpy
 
@@ -233,9 +234,11 @@ class ScenarioStructureLightingInfoTag(Tag):
             faces = [list(range(i, i + 3)) for i in range(0, tri_count * 3, 3)]
             
             data.from_pydata(vertices=vertices, edges=[], faces=faces)
+            data.transform(import_transform.mesh_matrix())
             data.nwo.mesh_type = '_connected_geometry_mesh_type_lightmap_region'
             
             ob = bpy.data.objects.new(name, data)
+            ob.matrix_world = import_transform.rotation_matrix()
             apply_props_material(ob, 'LightmapRegion')
             objects.append(ob)
         
@@ -356,7 +359,7 @@ class ScenarioStructureLightingInfoTag(Tag):
                 (0, 0, 0, 1),
             ))
             
-            ob.matrix_world = matrix
+            ob.matrix_world = import_transform.transform_matrix(matrix)
             ob.scale *= (1 / 0.03048)
             
             match element.SelectField("light mode").Value:
@@ -424,12 +427,12 @@ class ScenarioStructureLightingInfoTag(Tag):
             
             nwo.light_physically_correct = parameters.SelectField("Lighting Mode").Value == 0
             
-            nwo.light_far_attenuation_start = parameters.SelectField("Distance Attenuation Start").Data * 100
+            nwo.light_far_attenuation_start = import_transform.distance(parameters.SelectField("Distance Attenuation Start").Data)
             atten_struct = parameters.SelectField("Distance Attenuation End")
             atten = atten_struct.Elements[0]
             atten_mapping = atten.SelectField("Custom:Mapping")
 
-            nwo.light_far_attenuation_end = atten_mapping.Value.ClampRangeMin * 100
+            nwo.light_far_attenuation_end = import_transform.distance(atten_mapping.Value.ClampRangeMin)
             
             nwo.light_cone_projection_shape = '_connected_geometry_cone_projection_shape_cone' if parameters.SelectField("Cone Projection Shape").Value == 0 else '_connected_geometry_cone_projection_shape_frustum'
             
@@ -454,7 +457,7 @@ class ScenarioStructureLightingInfoTag(Tag):
             # Static Props
             
             nwo.light_amplification_factor = element.SelectField("indirect amplification factor").Data
-            blender_light.shadow_soft_size = element.SelectField("jitter sphere radius").Data
+            blender_light.shadow_soft_size = element.SelectField("jitter sphere radius").Data * import_transform.scale_factor()
             nwo.light_jitter_angle = radians(element.SelectField("jitter angle").Data)
             
             match element.SelectField("jitter quality").Value:
@@ -502,7 +505,7 @@ class ScenarioStructureLightingInfoTag(Tag):
                 (0, 0, 0, 1),
             ))
             
-            ob.matrix_world = matrix
+            ob.matrix_world = import_transform.transform_matrix(matrix)
             ob.scale *= (1 / 0.03048)
             
             match element.SelectField("bungie light type").Value:
@@ -519,10 +522,10 @@ class ScenarioStructureLightingInfoTag(Tag):
             
             nwo.light_screenspace_has_specular = element.SelectField("screen space specular").TestBit("screen space light has specular")
             nwo.light_bounce_ratio = element.SelectField("bounce light control").Data
-            nwo.light_volume_distance = element.SelectField("light volume distance").Data
+            nwo.light_volume_distance = element.SelectField("light volume distance").Data * import_transform.scale_factor()
             nwo.light_volume_intensity = element.SelectField("light volume intensity scalar").Data
-            nwo.light_fade_end_distance = element.SelectField("fade out distance").Data
-            nwo.light_fade_start_distance = element.SelectField("fade start distance").Data
+            nwo.light_fade_end_distance = element.SelectField("fade out distance").Data * import_transform.scale_factor()
+            nwo.light_fade_start_distance = element.SelectField("fade start distance").Data * import_transform.scale_factor()
             nwo.light_tag_override = self.get_path_str(element.SelectField("user control").Path)
             nwo.light_shader_reference = self.get_path_str(element.SelectField("shader reference").Path)
             gobo_tag_path = element.SelectField("gel reference").Path
@@ -567,14 +570,13 @@ class ScenarioStructureLightingInfoTag(Tag):
             blender_light.color = [utils.srgb_to_linear(c) for c in element.SelectField("color").Data]
             blender_light.nwo.light_intensity = element.SelectField("intensity").Data
             
-            blender_light.shadow_soft_size = max((*element.SelectField("near attenuation bounds").Data,))
-            nwo.light_far_attenuation_start, nwo.light_far_attenuation_end = [a for a in element.SelectField("far attenuation bounds").Data]
+            blender_light.shadow_soft_size = max((*element.SelectField("near attenuation bounds").Data,)) * import_transform.scale_factor()
+            nwo.light_far_attenuation_start, nwo.light_far_attenuation_end = [a * import_transform.scale_factor() for a in element.SelectField("far attenuation bounds").Data]
             nwo.light_aspect = element.SelectField("aspect").Data
             if element.SelectField("flags").TestBit("invere squared falloff"):
                 self.inverse_squared_lights.add(blender_light)
             
             definitions[element.ElementIndex] = blender_light
-            
+
         return definitions
-            
-            
+

@@ -11,6 +11,7 @@ from .cinematic_scene_data import CinematicSceneDataTag
 from .. import utils
 from ..props.scene import NWO_CinematicEvent
 from . import Tag, tag_path_from_string
+from . import import_transform
 from .Tags import TagFieldBlock, TagFieldBlockElement, TagPath
 import bpy
 from ..managed_blam.camera_track import camera_correction_matrix
@@ -604,7 +605,7 @@ class CinematicSceneTag(Tag):
             shot_camera_name = f"{self.tag_path.ShortName}_shot{data_element.ElementIndex + 1}"
             shot_camera_data = bpy.data.cameras.new(shot_camera_name)
             shot_camera = bpy.data.objects.new(shot_camera_name, shot_camera_data)
-            shot_camera_data.display_size *= (1 / 0.03048)
+            shot_camera_data.display_size *= (1 / 0.03048) * import_transform.scale_factor()
             shot_camera_data.clip_end = 100000
             camera_objects.append(shot_camera)
             
@@ -635,7 +636,7 @@ class CinematicSceneTag(Tag):
                 ))
                 
                 cam_frame = CamFrame()
-                cam_frame.matrix = matrix @ camera_correction_matrix.to_4x4()
+                cam_frame.matrix = import_transform.object_matrix(matrix @ camera_correction_matrix.to_4x4())
                 cam_frame.lens = focal_length
                 cam_frames.append(cam_frame)
             

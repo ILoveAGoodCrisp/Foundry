@@ -5,6 +5,7 @@ import bpy
 from .connected_geometry import BallAndSocket, CollisionMaterial, Constraint, LimitedHinge, Prismatic, Ragdoll, RigidBody, StiffSpring
 from .. import utils
 from . import Tag
+from . import import_transform
 
 class PhysicsTag(Tag):
     tag_ext = 'physics_model'
@@ -69,7 +70,7 @@ class PhysicsTag(Tag):
                                 ob.parent = armature
                                 ob.parent_type = 'BONE'
                                 ob.parent_bone = bone
-                                ob.matrix_world = armature.pose.bones[bone].matrix @ shape.matrix
+                                ob.matrix_world = armature.pose.bones[bone].matrix @ import_transform.object_matrix(shape.matrix, rotate=False)
                                 utils.set_region(ob, region)
                                 utils.set_permutation(ob, permutation)
                                 collection.objects.link(ob)
@@ -126,4 +127,6 @@ class PhysicsTag(Tag):
         ob.parent = armature
         ob.parent_type = 'BONE'
         ob.parent_bone = bone
-        ob.matrix_world = armature.pose.bones[bone].matrix @ constraint.matrix_a # @ Matrix.LocRotScale(Vector(constraint.center) * 100, Euler((0,0,0)), Vector.Fill(3, 1))
+        ob.empty_display_size *= import_transform.scale_factor()
+        local_matrix = import_transform.object_matrix(constraint.matrix_a, rotate=False)
+        ob.matrix_world = import_transform.keep_marker_axis(armature.pose.bones[bone].matrix @ local_matrix)

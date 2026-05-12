@@ -6,6 +6,7 @@ import os
 from mathutils import Matrix, Quaternion, Vector
 from ..managed_blam import Tag
 from .. import utils
+from . import import_transform
 
 #  This matrix corrects for the camera's forward direction
 camera_correction_matrix = Matrix(((-0, 0, -1), (-1, -0, 0), (-0, 1, 0)))
@@ -69,7 +70,7 @@ class CameraTrackTag(Tag):
         action = bpy.data.actions.new(track_name)
         if not camera_ob.animation_data:
             camera_ob.animation_data_create()
-        camera_ob.data.display_size = 50
+        camera_ob.data.display_size = 50 * import_transform.scale_factor()
         camera_ob.data.clip_end = 1000
         camera_ob.animation_data.action = action
         
@@ -79,7 +80,7 @@ class CameraTrackTag(Tag):
             final_matrix = game_orientation_matrix @ camera_correction_matrix
             rot = final_matrix.to_quaternion()
             camera_ob.rotation_mode = 'QUATERNION'
-            camera_ob.matrix_world = Matrix.LocRotScale(loc, rot, Vector.Fill(3, 1))
+            camera_ob.matrix_world = import_transform.object_matrix(Matrix.LocRotScale(loc, rot, Vector.Fill(3, 1)))
             camera_ob.keyframe_insert(data_path='rotation_quaternion', frame=idx + 1)
             camera_ob.keyframe_insert(data_path='location', frame=idx + 1)
             

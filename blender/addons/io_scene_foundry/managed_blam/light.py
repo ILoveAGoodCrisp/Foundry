@@ -7,6 +7,7 @@ from .bitmap import bitmap_to_image
 from .. import utils
 from .connected_material import Function
 from . import Tag
+from . import import_transform
 import bpy
 
 class LightTag(Tag):
@@ -32,7 +33,7 @@ class LightTag(Tag):
             if hotspot_cutoff_size > 0.0:
                 data.spot_blend = 1 - self.tag.SelectField("Real:angular hotspot").Data / hotspot_cutoff_size
                 
-        data.shadow_soft_size = 0.5 * (1 / 0.03048)
+        data.shadow_soft_size = 0.5 * (1 / 0.03048) * import_transform.scale_factor()
         
         color_function = Function()
         color_function.from_element(self.color_struct.Elements[0], "Mapping")
@@ -51,9 +52,9 @@ class LightTag(Tag):
         intensity_function_name = f"{self.tag_path.ShortName}_strength"
         
         atten_falloff = self.tag.SelectField("Real:attenuation start distance").Data
-        data.nwo.light_far_attenuation_start = atten_falloff * 100
+        data.nwo.light_far_attenuation_start = import_transform.distance(atten_falloff)
         atten_cutoff = self.tag.SelectField("Real:attenuation end distance").Data
-        data.nwo.light_far_attenuation_end = atten_cutoff * 100
+        data.nwo.light_far_attenuation_end = import_transform.distance(atten_cutoff)
         
         if intensity_function.is_basic_function:
             data.nwo.light_intensity = intensity_function.clamp_min

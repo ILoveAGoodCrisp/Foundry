@@ -35,6 +35,7 @@ from .animation_resource import (
 from .source_tag_resource import read_model_animation_graph_resources
 from .render_model import RenderModelTag
 from . import Tag
+from . import import_transform
 from ..legacy.jma import Node
 from .. import utils
 
@@ -3299,7 +3300,11 @@ class AnimationTag(Tag):
         animation_data = self._build_animation(tag_animation, defaults, overlay_defaults, graph, shared_static_codec, resource_cache, animation_cache, all_tag_animations)
         transforms = {}
         for frame_index, frame_matrices in enumerate(animation_data.frame_matrices(), start=1):
-            transforms[frame_index] = {node: matrix for node, matrix in zip(nodes, frame_matrices)}
+            frame_transforms = {}
+            for node, matrix in zip(nodes, frame_matrices):
+                matrix = import_transform.armature_bone_matrix(matrix, root=node.parent is None)
+                frame_transforms[node] = matrix
+            transforms[frame_index] = frame_transforms
         return transforms
         
     def _get_animation_name_from_index(self, index):

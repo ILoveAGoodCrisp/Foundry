@@ -12,6 +12,7 @@ from ..constants import WU_SCALAR
 from .Tags import TagFieldElement
 from ..managed_blam import Tag
 from .. import utils
+from . import import_transform
 
 POLYART_SCALE_FROM = 0.001
 POLYART_SCALE_TO = 1000
@@ -86,6 +87,7 @@ class PolyArtTag(Tag):
         mesh = bpy.data.meshes.new(self.tag_path.ShortName)
         
         mesh.from_pydata(vertices=verts, edges=[], faces=indices)
+        mesh.transform(import_transform.mesh_matrix())
         
         uv_layer = mesh.uv_layers.new(name="UVMap0", do_init=False)
         for face in mesh.polygons:
@@ -112,6 +114,7 @@ class PolyArtTag(Tag):
               
         mesh.materials.append(mat)
         ob = bpy.data.objects.new(mesh.name, mesh)
+        ob.matrix_world = import_transform.rotation_matrix()
         
         if collection is None:
             bpy.context.scene.collection.objects.link(ob)
@@ -127,10 +130,10 @@ class PolyArtTag(Tag):
                 camera = bpy.data.cameras.new("polyart_camera")
                 camera.lens_unit = 'FOV'
                 camera.angle = radians(45)
-                camera.display_size /= 0.03048
+                camera.display_size = (camera.display_size / 0.03048) * import_transform.scale_factor()
                 
                 camera_ob = bpy.data.objects.new("polyart_camera", camera)
-                camera_ob.location.z = 5 / 0.03048
+                camera_ob.matrix_world = import_transform.object_matrix(Matrix.Translation((0, 0, 5 / 0.03048)))
                 if collection is None:
                     bpy.context.scene.collection.objects.link(camera_ob)
                 else:

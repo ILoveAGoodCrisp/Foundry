@@ -5,6 +5,7 @@ from mathutils import Matrix, Vector
 from .light import LightTag
 from .. import utils
 from . import Tag
+from . import import_transform
 import bpy
 
 def _cinematic_light_source_vector(direction_angle: float, front_back_angle: float) -> Vector:
@@ -23,6 +24,7 @@ def _root_bone_matrix(armature: bpy.types.Object) -> Matrix:
     return armature.matrix_world @ armature.pose.bones[0].matrix
 
 def _set_armature_root_parent(ob: bpy.types.Object, armature: bpy.types.Object, matrix: Matrix):
+    matrix = import_transform.transform_matrix(matrix, rotate=False)
     ob.parent = armature
     if len(armature.pose.bones) > 0:
         bone = armature.pose.bones[0]
@@ -35,7 +37,7 @@ def _set_armature_root_parent(ob: bpy.types.Object, armature: bpy.types.Object, 
 def _set_object_parent(ob: bpy.types.Object, parent: bpy.types.Object, matrix: Matrix):
     ob.parent = parent
     ob.matrix_parent_inverse = Matrix.Identity(4)
-    ob.matrix_local = matrix
+    ob.matrix_local = import_transform.transform_matrix(matrix, rotate=False)
 
 class CinematicLight:
     def __init__(self):
@@ -106,7 +108,7 @@ class DynamicLight(CinematicLight):
                 _set_armature_root_parent(ob, armature, self.matrix)
         else:
             parent_matrix = parent_marker.matrix_world if parent_marker is not None else _root_bone_matrix(armature)
-            ob.matrix_world = parent_matrix @ self.matrix
+            ob.matrix_world = parent_matrix @ import_transform.transform_matrix(self.matrix, rotate=False)
         self._set_metadata(ob, "dynamic")
         ob["cinematic_light_follow_object"] = self.follow_object
         ob["cinematic_light_use_marker"] = self.use_marker

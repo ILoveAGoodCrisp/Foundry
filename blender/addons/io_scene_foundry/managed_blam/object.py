@@ -16,6 +16,7 @@ from .connected_material import Function
 import bpy
 from .model import ModelTag
 from . import Tag
+from . import import_transform
 from .connected_material import game_functions
 
 class Attachment:
@@ -83,7 +84,7 @@ class ObjectTag(Tag):
                     collection.objects.link(ob)
                     if ob.type == 'LIGHT':
                         ob.matrix_world = utils.halo_transforms(ob) @ Matrix.Rotation(radians(-90.0), 4, 'X')
-                        ob.scale *= (1 / 0.03048)
+                        ob.scale *= (1 / 0.03048) * import_transform.scale_factor()
                         # ob.update_tag(refresh={'DATA'})
                         
                     ob.parent = m
@@ -251,4 +252,3 @@ class ObjectTag(Tag):
             if element.Fields[0].Path != render_tag_path:
                 element.Fields[0].Path = render_tag_path
                 self.tag_has_changes = True
-            

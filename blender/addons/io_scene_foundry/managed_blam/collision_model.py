@@ -4,6 +4,7 @@ from .connected_geometry import CollisionMaterial, ModelCollision, PathfindingSp
 
 from ..managed_blam import Tag
 from .. import utils
+from . import import_transform
 import bpy
 
 
@@ -50,7 +51,13 @@ class CollisionTag(Tag):
             ob.parent = armature
             ob.parent_type = 'BONE'
             ob.parent_bone = sphere.bone
-            ob.matrix_world = armature.pose.bones[sphere.bone].matrix @ Matrix.LocRotScale(Vector(sphere.center) * 100, Euler((0,0,0)), Vector.Fill(3, 1))
+            local_matrix = import_transform.object_matrix(
+                Matrix.LocRotScale(Vector(sphere.center) * 100, Euler((0,0,0)), Vector.Fill(3, 1)),
+                rotate=False,
+            )
+            ob.matrix_world = import_transform.keep_marker_axis(
+                armature.pose.bones[sphere.bone].matrix @ local_matrix
+            )
             collection.objects.link(ob)
             objects.append(ob)
             

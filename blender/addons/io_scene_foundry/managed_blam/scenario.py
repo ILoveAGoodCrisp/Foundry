@@ -12,6 +12,7 @@ from .decorator_set import DecoratorSetTag
 from .decal_system import DecalSystemCorinthTag, DecalSystemTag
 
 from .Tags import TagFieldBlockElement
+from . import import_transform
 
 from ..managed_blam import Tag
 import os
@@ -227,7 +228,7 @@ class ScenarioObject:
             
         ob = bpy.data.objects.new(name=self.name, object_data=None)
         ob.empty_display_type = "ARROWS"
-        ob.matrix_world = Matrix.LocRotScale(self.position, self.rotation, Vector.Fill(3, self.scale))
+        ob.matrix_world = import_transform.marker_matrix(Matrix.LocRotScale(self.position, self.rotation, Vector.Fill(3, self.scale)))
 
         ob.nwo.marker_type = '_connected_geometry_marker_type_game_instance'
         ob.nwo.marker_game_instance_tag_name = self.reference.definition
@@ -238,7 +239,7 @@ class ScenarioObject:
 class ScenarioDecorator:
     def __init__(self, element: TagFieldBlockElement, path: str, name: str, types: list, corinth: bool):
         
-        # NOTE Due to the volume of decorators, pre-processing their final transforms so they don't go through the transform_scene function
+        # NOTE Due to the volume of decorators, pre-process their final transforms at extraction time.
         
         self.position = Vector([n * 100 for n in element.SelectField("position").Data])
         self.rotation = utils.ijkw_to_wxyz([n for n in element.SelectField("rotation").Data])
@@ -283,7 +284,7 @@ class ScenarioDecorator:
         
     def to_object(self):
         ob = bpy.data.objects.new(name=self.name, object_data=None)
-        ob.matrix_world = Matrix.LocRotScale(self.position, self.rotation, Vector.Fill(3, self.scale))
+        ob.matrix_world = import_transform.marker_matrix(Matrix.LocRotScale(self.position, self.rotation, Vector.Fill(3, self.scale)))
 
         ob.nwo.marker_type = '_connected_geometry_marker_type_game_instance'
         ob.nwo.marker_game_instance_tag_name = self.path
@@ -384,9 +385,11 @@ def _serialized_decorators_to_clouds(serialized_placements, path: str, name: str
         tint = np.ones((len(indices), 4), dtype=np.float32)
         tint[:, :3] = np.asarray(serialized_placements["tint"][indices], dtype=np.float32) ** 2.2
         _set_color_point_attribute(mesh, DECORATOR_ATTR_TINT, tint)
+        mesh.transform(import_transform.mesh_matrix())
         mesh.update()
 
         ob = bpy.data.objects.new(name=cloud_name, object_data=mesh)
+        ob.matrix_world = import_transform.rotation_matrix()
         ob[DECORATOR_CLOUD_PROP] = True
         ob[DECORATOR_TAG_PROP] = path
         ob[DECORATOR_VARIANT_PROP] = decorator_type.decorator_type_name
@@ -432,13 +435,15 @@ class ScenarioDecal:
         ]
         faces = [(0, 1, 2, 3)]
         mesh.from_pydata(verts, [], faces)
+        mesh.transform(import_transform.mesh_matrix())
         ob = bpy.data.objects.new(name=self.name, object_data=mesh)
 
-        ob.matrix_world = Matrix.LocRotScale(self.position, self.rotation, Vector.Fill(3, 1))
+        matrix = Matrix.LocRotScale(self.position, self.rotation, Vector.Fill(3, 1))
         
         # add a decal offset
-        normal = ob.matrix_world.to_3x3() @ Vector((0, 0, 1))
-        ob.location += normal.normalized() * 0.1
+        normal = matrix.to_3x3() @ Vector((0, 0, 1))
+        matrix.translation += normal.normalized() * 0.1
+        ob.matrix_world = import_transform.object_matrix(matrix)
 
         if self.reference.decal_material is not None:
             mesh.materials.append(self.reference.decal_material)

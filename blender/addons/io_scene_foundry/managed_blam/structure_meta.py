@@ -7,6 +7,7 @@ from mathutils import Euler, Matrix, Vector
 
 from ..managed_blam import Tag
 from .. import utils
+from . import import_transform
 
 class StructureMetaTag(Tag):
     tag_ext = 'structure_meta'
@@ -31,8 +32,8 @@ class StructureMetaTag(Tag):
             
             ob = bpy.data.objects.new(name, None)
             ob.empty_display_type = "ARROWS"
-            ob.empty_display_size *= (1 / 0.03048)
-            ob.matrix_world = Matrix.LocRotScale(position, rotation, Vector.Fill(3, 1))
+            ob.empty_display_size *= (1 / 0.03048) * import_transform.scale_factor()
+            ob.matrix_world = import_transform.marker_matrix(Matrix.LocRotScale(position, rotation, Vector.Fill(3, 1)))
             ob.nwo.marker_type = '_connected_geometry_marker_type_envfx'
             ob.nwo.marker_looping_effect = effect
             objects.append(ob)
@@ -60,8 +61,8 @@ class StructureMetaTag(Tag):
             
             ob = bpy.data.objects.new(name, None)
             ob.empty_display_type = "SPHERE"
-            ob.empty_display_size *= (1 / 0.03048)
-            ob.matrix_world = Matrix.LocRotScale(position, Euler(), Vector.Fill(3, 1))
+            ob.empty_display_size *= (1 / 0.03048) * import_transform.scale_factor()
+            ob.matrix_world = import_transform.marker_matrix(Matrix.LocRotScale(position, Euler(), Vector.Fill(3, 1)))
             ob.nwo.marker_type = '_connected_geometry_marker_type_airprobe'
             objects.append(ob)
         
@@ -96,8 +97,8 @@ class StructureMetaTag(Tag):
             
             ob = bpy.data.objects.new(name, None)
             ob.empty_display_type = "CONE"
-            ob.empty_display_size *= (1 / 0.03048)
-            ob.matrix_world = Matrix.LocRotScale(position, rotation, Vector.Fill(3, 1))
+            ob.empty_display_size *= (1 / 0.03048) * import_transform.scale_factor()
+            ob.matrix_world = import_transform.marker_matrix(Matrix.LocRotScale(position, rotation, Vector.Fill(3, 1)))
             ob.nwo.marker_type = '_connected_geometry_marker_type_lightCone'
             ob.nwo.marker_light_cone_length = length
             ob.nwo.marker_light_cone_width = width
@@ -145,7 +146,7 @@ class StructureMetaTag(Tag):
 
             ob = bpy.data.objects.new(name, None)
             ob.empty_display_type = "ARROWS"
-            ob.matrix_world = Matrix.LocRotScale(translation, rotation, Vector.Fill(3, scale))
+            ob.matrix_world = import_transform.marker_matrix(Matrix.LocRotScale(translation, rotation, Vector.Fill(3, scale)))
             
             ob.nwo.marker_type = '_connected_geometry_marker_type_game_instance'
             ob.nwo.marker_game_instance_tag_name = object_path

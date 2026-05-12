@@ -13,6 +13,7 @@ from .structure_meta import StructureMetaTag
 from .scenario_structure_lighting_info import ScenarioStructureLightingInfoTag
 
 from .connected_geometry import BSP, BSPCollisionMaterial, Cluster, CompressionBounds, Emissive, EnvironmentObject, EnvironmentObjectReference, HavokCollision, Instance, InstanceDefinition, Material, Portal, StructureCollision, StructureMarker, SurfaceMapping
+from . import import_transform
 from ..utils import jstr
 from . import Tag
 from .. import utils
@@ -535,6 +536,7 @@ class ScenarioStructureBspTag(Tag):
             name = element.SelectField("name").GetStringData()
             ob = bpy.data.objects.new(name=name, object_data=None)
             ob.empty_display_type = "ARROWS"
+            ob.empty_display_size *= import_transform.scale_factor()
             
             ob.nwo.marker_type = '_connected_geometry_marker_type_game_instance'
             ob.nwo.marker_game_instance_tag_name = utils.relative_path(ref)
@@ -544,12 +546,13 @@ class ScenarioStructureBspTag(Tag):
             up = element.SelectField("up").Data
             position = element.SelectField("position").Data
             
-            ob.matrix_world = Matrix((
+            matrix = Matrix((
                 (forward[0], left[0], up[0], position[0] * 100),
                 (forward[1], left[1], up[1], position[1] * 100),
                 (forward[2], left[2], up[2], position[2] * 100),
                 (0, 0, 0, 1),
             ))
+            ob.matrix_world = import_transform.marker_matrix(matrix)
             
             scale = element.SelectField("scale").Data
             if scale != 0:

@@ -22,6 +22,7 @@ from .shader import ShaderTag
 from ..tools import materials as special_materials
 
 from .. import utils
+from . import import_transform
 from .Tags import TagFieldBlock, TagFieldBlockElement
 from mathutils.geometry import tessellate_polygon
 
@@ -89,8 +90,10 @@ class Portal:
     def create(self) -> bpy.types.Object:
         mesh = bpy.data.meshes.new(f"portal:{self.index}")
         mesh.from_pydata(vertices=self.vertices, edges=[], faces=[list(range(len(self.vertices)))])
+        mesh.transform(import_transform.mesh_matrix())
         mesh.nwo.mesh_type = "_connected_geometry_mesh_type_portal"
         ob = bpy.data.objects.new(mesh.name, mesh)
+        ob.matrix_world = import_transform.rotation_matrix()
         apply_props_material(ob, "Portal")
         nwo = ob.nwo
         
@@ -414,7 +417,7 @@ class Instance:
         else:
             ob = self.definition.blender_render.copy()
         ob.name = utils.any_partition(self.name, "__(")
-        ob.matrix_world = self.matrix
+        ob.matrix_world = import_transform.object_matrix(self.matrix)
         ob.scale = Vector.Fill(3, self.scale)
         nwo = ob.nwo
         nwo.poop_excluded_from_lightprobe = self.not_in_lightprobes
@@ -549,8 +552,8 @@ class StructureMarker:
     def to_object(self):
         ob = bpy.data.objects.new(name=self.name, object_data=None)
         ob.empty_display_type = "ARROWS"
-        ob.empty_display_size *= (1 / 0.03048)
-        ob.matrix_world = Matrix.LocRotScale(self.position, self.rotation, Vector.Fill(3, 1))
+        ob.empty_display_size *= (1 / 0.03048) * import_transform.scale_factor()
+        ob.matrix_world = import_transform.marker_matrix(Matrix.LocRotScale(self.position, self.rotation, Vector.Fill(3, 1)))
         return ob
         
 class EnvironmentObjectReference:
@@ -577,7 +580,7 @@ class EnvironmentObject:
             
         ob = bpy.data.objects.new(name=self.name, object_data=None)
         ob.empty_display_type = "ARROWS"
-        ob.matrix_world = Matrix.LocRotScale(self.translation, self.rotation, Vector.Fill(3, self.scale))
+        ob.matrix_world = import_transform.marker_matrix(Matrix.LocRotScale(self.translation, self.rotation, Vector.Fill(3, self.scale)))
         
         ob.nwo.marker_type = '_connected_geometry_marker_type_game_instance'
         ob.nwo.marker_game_instance_tag_name = self.reference.definition
@@ -673,7 +676,7 @@ class RenderArmature():
         
     def create_bone(self, node: Node):
         bone = self.data.edit_bones.new(node.name)
-        bone.length = 5
+        bone.length = 5 * import_transform.scale_factor()
         
         loc = (node.inverse_position)
         rot = Matrix((node.inverse_forward, node.inverse_left, node.inverse_up))
@@ -686,6 +689,7 @@ class RenderArmature():
             transform_matrix.identity()
         
         transform_matrix = Matrix.Translation(node.translation) @ node.rotation.to_matrix().to_4x4()
+        transform_matrix = import_transform.armature_bone_matrix(transform_matrix, root=node.parent is None)
         node.transform_matrix = transform_matrix
         bone.matrix = transform_matrix
         node.bone = bone
@@ -888,7 +892,9 @@ class Sphere(Shape):
         bmesh.ops.create_uvsphere(bm, u_segments=32, v_segments=16, radius=self.radius)
         bm.to_mesh(mesh)
         bm.free()
+        mesh.transform(import_transform.mesh_matrix())
         self.ob = bpy.data.objects.new(self.name, mesh)
+        self.ob.matrix_world = import_transform.rotation_matrix()
         self.ob.nwo.mesh_primitive_type = "_connected_geometry_primitive_type_sphere"
 
 class Pill(Shape):
@@ -915,7 +921,9 @@ class Pill(Shape):
         bm.transform(Matrix.Translation((0, 0, 1)))
         bm.to_mesh(mesh)
         bm.free()
+        mesh.transform(import_transform.mesh_matrix())
         self.ob = bpy.data.objects.new(self.name, mesh)
+        self.ob.matrix_world = import_transform.rotation_matrix()
         self.ob.nwo.mesh_primitive_type = "_connected_geometry_primitive_type_pill"
 
 class Box(Shape):
@@ -956,7 +964,9 @@ class Box(Shape):
         bmesh.ops.create_cube(bm, size=1)
         bm.to_mesh(mesh)
         bm.free()
+        mesh.transform(import_transform.mesh_matrix())
         self.ob = bpy.data.objects.new(self.name, mesh)
+        self.ob.matrix_world = import_transform.rotation_matrix()
         self.ob.nwo.mesh_primitive_type = "_connected_geometry_primitive_type_box"
         
 class PolyhedronFourVectors:
@@ -1009,7 +1019,9 @@ class Polyhedron(Shape):
         # bmesh.ops.scale(bm, vec=Vector((scale_factor, scale_factor, scale_factor)), verts=bm.verts)
         bm.to_mesh(mesh)
         bm.free()
+        mesh.transform(import_transform.mesh_matrix())
         self.ob = bpy.data.objects.new(self.name, mesh)
+        self.ob.matrix_world = import_transform.rotation_matrix()
         return self.ob
     
 class HavokRigidBody:
@@ -1280,6 +1292,7 @@ class BSP:
         # Create the bpy mesh
         mesh = bpy.data.meshes.new(self.name)
         mesh.from_pydata(vertices=[v.position for v in self.vertices], edges=[], faces=list(indices))
+        mesh.transform(import_transform.mesh_matrix())
         any_ladder = any_breakable = any_slip = any_invisible = False
         # Check if we need to set any per face properties
         map_material, map_two_sided, map_ladder, map_breakable, map_slip, map_negated, map_invalid, map_invisible = [], [], [], [], [], [], [], []
@@ -1406,6 +1419,7 @@ class BSP:
             return mesh
         
         ob = bpy.data.objects.new(self.name, mesh)
+        ob.matrix_world = import_transform.rotation_matrix()
         if cookie_cutter:
             mesh.nwo.mesh_type = "_connected_geometry_mesh_type_cookie_cutter"
             apply_props_material(ob, "CookieCutter")
@@ -1837,6 +1851,7 @@ class HavokCollision:
 
         mesh = bpy.data.meshes.new(name or self.name)
         mesh.from_pydata(vertices=vertices, edges=[], faces=faces)
+        mesh.transform(import_transform.mesh_matrix())
         mesh.update()
 
         material_slots = {}
@@ -1866,6 +1881,7 @@ class HavokCollision:
 
         mesh.nwo.mesh_type = "_connected_geometry_mesh_type_collision"
         ob = bpy.data.objects.new(name or self.name, mesh)
+        ob.matrix_world = import_transform.rotation_matrix()
         if not mesh.materials:
             apply_props_material(ob, "Collision")
 
@@ -1896,7 +1912,7 @@ class PathfindingSphere:
             name += "::sectors"
             
         ob = bpy.data.objects.new(name, None)
-        ob.empty_display_size = self.radius * 100
+        ob.empty_display_size = import_transform.distance(self.radius)
         ob.empty_display_type = 'SPHERE'
         ob.nwo.marker_type = "_connected_geometry_marker_type_pathfinding_sphere"
         
@@ -2719,11 +2735,13 @@ class Mesh:
     def _create_mesh(self, name, parent, nodes, subpart: MeshSubpart | None, parent_bone=None, local_matrix=None, is_io=False, surface_triangle_mapping=[], section_index=0):
         has_tag_path = self.tag_path is not None
         matrix = local_matrix or (parent.matrix_world if parent else Matrix.Identity(4))
+        final_matrix = import_transform.object_matrix(matrix)
         if has_tag_path:
+            transform_signature = import_transform.signature()
             if subpart is None:
-                mesh_key = self.index, self.tag_path
+                mesh_key = self.index, self.tag_path, transform_signature
             else:
-                mesh_key = subpart.index, self.index, self.tag_path
+                mesh_key = subpart.index, self.index, self.tag_path, transform_signature
             mesh = mesh_cache.get(mesh_key)
             if mesh is not None and mesh in frozenset(bpy.data.meshes):
                 ob = bpy.data.objects.new(name, mesh)
@@ -2733,10 +2751,9 @@ class Mesh:
                         if self.rigid_node_index > -1:
                             ob.parent_type = "BONE"
                             ob.parent_bone = parent_bone or nodes[self.rigid_node_index].name
-                            ob.matrix_world = matrix
                         else:
                             ob.modifiers.new(name="Armature", type="ARMATURE").object = parent
-                            
+                ob.matrix_world = final_matrix
                 return ob
             
         self._get_raw_mesh_data()
@@ -2768,7 +2785,7 @@ class Mesh:
 
         mesh.from_pydata(positions, [], indices)
 
-        transform_matrix = self.bounds.co_matrix if self.bounds else Matrix.Scale(100, 4)
+        transform_matrix = import_transform.mesh_matrix() @ (self.bounds.co_matrix if self.bounds else Matrix.Scale(100, 4))
         mesh.transform(transform_matrix)
 
         has_vertex_colors = any(any(v) for v in vertex_colors)
@@ -2816,7 +2833,6 @@ class Mesh:
                 if self.rigid_node_index > -1:
                     ob.parent_type = "BONE"
                     ob.parent_bone = parent_bone or nodes[self.rigid_node_index].name
-                    ob.matrix_world = matrix
                 else:
                     node_indices = self.raw_node_indices[idx_start:idx_end + 1]
                     node_weights = self.raw_node_weights[idx_start:idx_end + 1]
@@ -2835,6 +2851,8 @@ class Mesh:
                                 group.add([idx], w, 'REPLACE')
                                     
                     ob.modifiers.new(name="Armature", type="ARMATURE").object = parent
+
+        ob.matrix_world = final_matrix
 
         if not self.does_not_need_parts:
             if subpart:
@@ -3107,7 +3125,13 @@ class MarkerGroup:
             if marker.bone:
                 ob.parent_type = "BONE"
                 ob.parent_bone = marker.bone
-                ob.matrix_world = armature.pose.bones[marker.bone].matrix @ Matrix.LocRotScale(marker.translation, marker.rotation, Vector.Fill(3, 1))
+                local_matrix = import_transform.object_matrix(
+                    Matrix.LocRotScale(marker.translation, marker.rotation, Vector.Fill(3, 1)),
+                    rotate=False,
+                )
+                ob.matrix_world = import_transform.keep_marker_axis(
+                    armature.pose.bones[marker.bone].matrix @ local_matrix
+                )
 
             nwo = ob.nwo
             nwo.marker_type = self.type.name
@@ -3119,10 +3143,10 @@ class MarkerGroup:
                 utils.set_marker_permutations(ob, marker.permutations)
 
             ob.empty_display_type = "ARROWS"
-            ob.empty_display_size *= size_factor
+            ob.empty_display_size *= size_factor * import_transform.scale_factor()
             
             if self.type == MarkerType._connected_geometry_marker_type_target:
-                ob.empty_display_size = marker.scale * 100
+                ob.empty_display_size = import_transform.distance(marker.scale)
                 ob.empty_display_type = "SPHERE"
             elif self.type == MarkerType._connected_geometry_marker_type_garbage:
                 ob.nwo.marker_velocity = marker.direction

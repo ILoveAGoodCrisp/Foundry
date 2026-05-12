@@ -8,6 +8,7 @@ from .connected_geometry import BSPSeam
 
 from ..tools.property_apply import apply_props_material
 from ..managed_blam import Tag
+from . import import_transform
 import os
 from .. import utils
 
@@ -98,6 +99,7 @@ class StructureSeamsTag(Tag):
                 
             bm.to_mesh(mesh)
             bm.free()
-            
+            mesh.transform(import_transform.mesh_matrix())
+            ob.matrix_world = import_transform.rotation_matrix()
+
         return objects
-            

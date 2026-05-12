@@ -12,6 +12,7 @@ from ..constants import WU_SCALAR
 
 from .connected_geometry import CompressionBounds, Instance, InstanceDefinition, Material
 from . import Tag
+from . import import_transform
 from .. import utils
 from ..tools.property_apply import apply_props_material
 
@@ -101,8 +102,10 @@ class StructureDesignTag(Tag):
                 verts = [Vector((*e.Fields[0].Data,)) * 100 for e in block_vertices.Elements]
                 face_indices = [[i, i+1, i+2] for i in range(0, len(verts), 3)]
                 mesh.from_pydata(vertices=verts, edges=[], faces=face_indices)
+                mesh.transform(import_transform.mesh_matrix())
 
                 ob = bpy.data.objects.new(name, mesh)
+                ob.matrix_world = import_transform.rotation_matrix()
                 ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_planar_fog_volume'
                 ob.nwo.fog_appearance_tag = self.get_path_str(element.SelectField("Reference:appearance settings").Path)
                 ob.nwo.fog_volume_depth = element.SelectField("Real:depth").Data
@@ -163,8 +166,10 @@ class StructureDesignTag(Tag):
                 face_indices = [[i, i+1, i+2] for i in range(0, len(verts), 3)]
                 
                 mesh.from_pydata(vertices=verts, edges=[], faces=face_indices)
+                mesh.transform(import_transform.mesh_matrix())
 
                 ob = bpy.data.objects.new(name, mesh)
+                ob.matrix_world = import_transform.rotation_matrix()
                 ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_water_surface'
                 ob.nwo.water_type = 'PHYSICS'
                 ob.nwo.water_volume_depth = (highest_z - lowest_z) / 100 * (1 / WU_SCALAR)
@@ -203,8 +208,10 @@ class StructureDesignTag(Tag):
                 mesh = bpy.data.meshes.new(name)
                 face_indices = [[i, i+1, i+2] for i in range(0, len(verts), 3)]
                 mesh.from_pydata(vertices=verts, edges=[], faces=face_indices)
+                mesh.transform(import_transform.mesh_matrix())
                 
                 ob = bpy.data.objects.new(name, mesh)
+                ob.matrix_world = import_transform.rotation_matrix()
                 ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_boundary_surface'
                 
                 match element.SelectField("ShortEnum:type").Value:
