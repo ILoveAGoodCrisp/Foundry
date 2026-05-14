@@ -1060,6 +1060,7 @@ class HaloRig:
             pole_shape.nwo.export_this = False
 
         fk_shape = get_or_create_fk_control_shape()
+        fk_to_deform_mapping = {fk_name: deform_name for deform_name, fk_name in deform_fk_mapping.items()}
                 
         for db_name, fkb_name in deform_fk_mapping.items():
             fkb = self.rig_pose.bones[fkb_name]
@@ -1104,11 +1105,13 @@ class HaloRig:
             ikb.custom_shape_scale_xyz *= self.scale / 0.03048
             ikb.use_custom_shape_bone_size = True
             ikb.custom_shape_translation = Vector((0.0, ikb.length, 0.0))
-            ikb.custom_shape_rotation_euler = Vector((0.0, 0.0, 0.0))
+            source_deform_name = fk_to_deform_mapping.get(fkb_name)
+            source_deform = self.rig_pose.bones.get(source_deform_name) if source_deform_name is not None else None
+            ikb.custom_shape_rotation_euler = ik_shape_rotation_for_source(ikb, source_deform or fkb)
 
             ptb.custom_shape = pole_shape
             ptb.custom_shape_scale_xyz *= self.scale / 0.03048
-            ptb.use_custom_shape_bone_size = True
+            # ptb.use_custom_shape_bone_size = True
             ptb.custom_shape_translation = Vector((0.0, 0.0, 0.0))
             ptb.custom_shape_rotation_euler = Vector((0.0, 0.0, 0.0))
 
@@ -1621,6 +1624,71 @@ def apply_control_shape(pbone: bpy.types.PoseBone, shape: bpy.types.Object, scal
     pbone.custom_shape_translation = translation
     pbone.custom_shape_rotation_euler = rotation
     pbone.use_custom_shape_bone_size = False
+
+def ik_shape_rotation_for_source(ik_bone: bpy.types.PoseBone, source_bone: bpy.types.PoseBone) -> Vector:
+    if is_foot_ik_source_name(ik_bone.name):
+        return flat_foot_ik_shape_rotation(ik_bone.bone, source_bone.bone)
+
+    roll = roll_angle_between_bone_planes(ik_bone.bone, source_bone.bone)
+    return Vector((0.0, roll, 0.0))
+
+def flat_foot_ik_shape_rotation(ik_bone: bpy.types.Bone, source_bone: bpy.types.Bone) -> Vector:
+    up = Vector((0.0, 0.0, 1.0))
+    forward = projected_axis(bone_local_axis(source_bone, Vector((0.0, 1.0, 0.0))), up)
+    if forward is None:
+        forward = projected_axis(bone_local_axis(ik_bone, Vector((0.0, 1.0, 0.0))), up)
+    if forward is None:
+        forward = Vector((0.0, 1.0, 0.0))
+
+    forward.normalize()
+    side = forward.cross(up)
+    if side.length < 1e-6:
+        side = Vector((1.0, 0.0, 0.0))
+    side.normalize()
+    forward = up.cross(side)
+    forward.normalize()
+
+    desired_shape_orientation = Matrix((side, forward, up)).transposed()
+    shape_rotation = ik_bone.matrix_local.to_3x3().inverted_safe() @ desired_shape_orientation
+    return Vector(shape_rotation.to_euler())
+
+def is_foot_ik_source_name(name: str) -> bool:
+    if name.startswith(("FK_", "IK_", "PT_")):
+        name = name[3:]
+
+    return bone_name_matches_suffix(name, "foot") or bone_name_matches_suffix(name, "tarsus")
+
+def roll_angle_between_bone_planes(owner_bone: bpy.types.Bone, source_bone: bpy.types.Bone) -> float:
+    owner_y = bone_local_axis(owner_bone, Vector((0.0, 1.0, 0.0)))
+    owner_z = bone_local_axis(owner_bone, Vector((0.0, 0.0, 1.0)))
+    source_z = bone_local_axis(source_bone, Vector((0.0, 0.0, 1.0)))
+    target_z = projected_axis(source_z, owner_y)
+
+    if target_z is None:
+        source_x = bone_local_axis(source_bone, Vector((1.0, 0.0, 0.0)))
+        target_z = projected_axis(source_x, owner_y)
+
+    current_z = projected_axis(owner_z, owner_y)
+    if current_z is None or target_z is None:
+        return 0.0
+
+    return atan2(current_z.cross(target_z).dot(owner_y), current_z.dot(target_z))
+
+def bone_local_axis(bone: bpy.types.Bone, axis: Vector) -> Vector:
+    result = bone.matrix_local.to_3x3() @ axis
+    if result.length < 1e-6:
+        return axis.copy()
+
+    result.normalize()
+    return result
+
+def projected_axis(axis: Vector, normal: Vector) -> Vector | None:
+    projected = axis - normal * axis.dot(normal)
+    if projected.length < 1e-6:
+        return None
+
+    projected.normalize()
+    return projected
 
 def add_neck_assist_constraints(head_driver: bpy.types.PoseBone, rig_ob: bpy.types.Object, target_name: str):
     if not is_fk_control_bone(head_driver.name):

@@ -152,6 +152,12 @@ class RenderModelTag(Tag):
         rig.rig_data = self.armature.data
         rig.rig_pose = self.armature.pose
         rig.apply_halo_bone_shape()
+        if any(bone.name.startswith(("FK_", "IK_", "PT_")) for bone in self.armature.data.bones):
+            rig.build_fk_ik_rig(
+                reverse_controls=self.armature.nwo.invert_control_rig,
+                constraints_only=True,
+                reach_fp_ik_fix=needs_reach_fp_ik_fix(self.tag_path.RelativePathWithExtension),
+            )
     
     def _create_armature(self, existing_armature=None, build_control_rig=False):
         # print("Creating Armature")
