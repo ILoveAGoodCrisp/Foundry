@@ -5,7 +5,7 @@ import math
 import bmesh
 from mathutils import Color, Euler, Matrix, Quaternion, Vector
 
-from ..tools.rigging import HaloRig
+from ..tools.rigging import HaloRig, needs_reach_fp_ik_fix
 
 from ..constants import HALO_FACTOR
 
@@ -124,6 +124,9 @@ class RenderModelTag(Tag):
         meshes = {ob.data for ob in objects if ob.data is not None and ob.type == 'MESH'}
         for me in meshes:
             utils.consolidate_face_attributes(me)
+
+        if build_control_rig and render:
+            self._apply_control_rig_deform_shapes_after_geometry()
         
         if no_armature:
             objects.pop(0)
@@ -133,6 +136,22 @@ class RenderModelTag(Tag):
             return objects
         
         return objects, self.armature
+
+    def _apply_control_rig_deform_shapes_after_geometry(self):
+        if self.armature is None or self.armature.type != 'ARMATURE':
+            return
+
+        rig = HaloRig(
+            self.context,
+            import_transform.scale_factor(),
+            self.scene_nwo.forward_direction,
+            any(bone.name.endswith(("_pitch", "_yaw")) for bone in self.armature.pose.bones),
+            False,
+        )
+        rig.rig_ob = self.armature
+        rig.rig_data = self.armature.data
+        rig.rig_pose = self.armature.pose
+        rig.apply_halo_bone_shape()
     
     def _create_armature(self, existing_armature=None, build_control_rig=False):
         # print("Creating Armature")
@@ -144,6 +163,7 @@ class RenderModelTag(Tag):
         uses_pedestal = False
         root = None
         reach_fp_fix = False
+        reach_fp_ik_fix = False
         pedestal = None
         pitch = None
         yaw = None
@@ -189,6 +209,8 @@ class RenderModelTag(Tag):
                 
             self.nodes.append(node)
             nodes_dict[node.name] = node
+
+        reach_fp_ik_fix = reach_fp_fix and needs_reach_fp_ik_fix(self.tag_path.RelativePathWithExtension)
             
         for node in self.nodes:
             if node.parent_name and node.parent is None:
@@ -206,15 +228,15 @@ class RenderModelTag(Tag):
         
         if build_control_rig:
         # make the rig not terrible
-            rig = HaloRig(self.context, 1, 'x', uses_aim_bones, False)
+            rig = HaloRig(self.context, import_transform.scale_factor(), self.scene_nwo.forward_direction, uses_aim_bones, False)
             rig.rig_ob = arm.ob
             rig.rig_data = arm.data
             rig.rig_pose = arm.ob.pose
             rig.build_bones(pedestal=pedestal, pitch=pitch, yaw=yaw)
             if uses_pedestal or uses_aim_bones:
-                rig.build_and_apply_control_shapes(reach_fp_fix=reach_fp_fix, reverse_control=True)
+                rig.build_and_apply_control_shapes(reach_fp_fix=reach_fp_fix, reverse_control=False)
             rig.apply_halo_bone_shape()
-            rig.build_fk_ik_rig(reverse_controls=True)
+            rig.build_fk_ik_rig(reverse_controls=False, reach_fp_ik_fix=reach_fp_ik_fix)
             rig.generate_bone_collections()
 
         return arm.ob

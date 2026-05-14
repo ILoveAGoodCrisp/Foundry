@@ -6,7 +6,7 @@ import os
 from ..utils import get_project_path, get_scene_props, get_tags_path, is_corinth, os_sep_partition, redraw_area
 
 global_items = {}
-cinematic_event_props = ("sound_tag", "female_sound_tag", "effect")
+cinematic_event_props = ("sound_tag", "female_sound_tag", "effect", "music")
 scene_props = ('template_render_model', 'template_collision_model', 'template_physics_model', 'template_model_animation_graph', 'parent_animation_graph', 'render_model_path', 
                'template_model', 'template_biped', 'template_crate', 'template_creature', 'template_device_control', 'template_device_dispenser', 'template_device_machine',
                'template_device_terminal', 'template_effect_scenery', 'template_equipment', 'template_giant', 'template_scenery', 'template_vehicle', 'template_weapon', 'template_scenario', 'cinematic_scenario', 'animation_cmd_path')
@@ -161,6 +161,8 @@ def extensions_from_type(list_type):
             return (".sound")
         case 'effect':
             return (".effect")
+        case 'sound':
+            return (".sound", ".sound_looping")
         case 'event_sound_tag':
             return (".sound")
         case 'event_effect_tag':
@@ -316,6 +318,8 @@ def get_glob_from_prop(prop):
             return "*.sound"
         case 'effect':
             return "*.effect"
+        case 'sound':
+            return "*.sound:*.sound_looping"
         case 'event_sound_tag':
             return "*.sound"
         case 'event_effect_tag':

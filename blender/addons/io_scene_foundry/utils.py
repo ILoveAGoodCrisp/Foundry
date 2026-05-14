@@ -2352,11 +2352,23 @@ def clear_animation(animation):
                     if group.object.type == 'ARMATURE':
                         for bone in group.object.pose.bones:
                             bone.matrix_basis = Matrix.Identity(4)
+                        reset_control_rig_props(group.object)
                     
                     group.object.animation_data.action = None
                     # group.object.matrix_local = Matrix.Identity(4)
                     group.object.animation_data.use_nla = False
                     group.object.animation_data.action = None
+
+def reset_control_rig_props(armature: bpy.types.Object):
+    settings_bone = armature.pose.bones.get("CTRL_settings")
+    if settings_bone is None:
+        return
+
+    for key in settings_bone.keys():
+        if key.startswith("ik_") or key == "look_follow_head":
+            settings_bone[key] = 0.0
+        elif key.startswith("root_follow_"):
+            settings_bone[key] = 1.0
 
 def asset_path_from_blend_location() -> str | None:
     blend_path = bpy.data.filepath.lower()

@@ -1525,6 +1525,19 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col.separator()
             col.operator("nwo.swap_material", icon='UV_SYNC_SELECT')
             
+    def draw_armature_bone_collections(self, box: bpy.types.UILayout, arm: bpy.types.Object):
+        collections_all = getattr(arm.data, "collections_all", arm.data.collections)
+        collections = list(collections_all)
+        if not collections:
+            return
+
+        box_collections = box.box()
+        box_collections.label(text="Bone Collections")
+        grid = box_collections.grid_flow(columns=1, align=True)
+        for collection in collections:
+            display_name = collection.name if collection.parent is None else f"  {collection.name}"
+            icon = 'HIDE_OFF' if collection.is_visible else 'HIDE_ON'
+            grid.prop(collection, "is_visible", text=display_name, icon=icon, toggle=True)
 
     def draw_object_properties(self):
         box = self.box
@@ -1827,11 +1840,35 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 
             box_rigging.operator("nwo.invert_aim_control", icon='CONSTRAINT_BONE', depress=nwo.invert_control_aim)
             box_rigging.separator()
-            # if not any(b for b in ob.pose.bones if b.name.startswith("FK_")): NOTE Not working correctly
-            #     box_rigging.operator("nwo.build_control_rig", icon='BONE_DATA')
+            has_control_rig = any(b.name.startswith(("FK_", "IK_", "PT_", "CTRL_")) for b in ob.data.bones)
+            box_rigging.operator(
+                "nwo.build_control_rig",
+                text="Update Control Rig" if has_control_rig else "Build Control Rig",
+                icon='BONE_DATA',
+            )
             box_rigging.operator("nwo.invert_control_rig", icon='CONSTRAINT_BONE', depress=nwo.invert_control_rig)
             box_rigging.separator()
             box_rigging.operator("nwo.bake_to_control", icon='POSE_HLT')
+
+            self.draw_armature_bone_collections(box, ob)
+
+            settings_bone = ob.pose.bones.get("CTRL_settings")
+            if settings_bone is not None:
+                box_pose = box.box()
+                box_pose.label(text="Armature Pose Controls")
+                custom_props = sorted(key for key in settings_bone.keys() if not key.startswith("_"))
+                if not custom_props:
+                    box_pose.label(text="No custom pose controls")
+                for key in custom_props:
+                    row = box_pose.row(align=True)
+                    row.prop(settings_bone, f'["{key}"]', text=utils.formalise_string(key))
+                    if key.startswith("ik_"):
+                        op = row.operator("nwo.bake_ik_control", text="FK to IK", icon='CON_KINEMATIC')
+                        op.prop_name = key
+                        op.direction = 'FK_TO_IK'
+                        op = row.operator("nwo.bake_ik_control", text="IK to FK", icon='CONSTRAINT_BONE')
+                        op.prop_name = key
+                        op.direction = 'IK_TO_FK'
             
             return
 

@@ -62,6 +62,7 @@ from ..managed_blam.camera_track import CameraTrackTag
 from ..managed_blam.collision_model import CollisionTag
 from ..tools.clear_duplicate_materials import clear_duplicate_materials
 from ..tools.property_apply import apply_props_material, apply_prefix_bulk
+from ..tools.rigging.create_rig import bake_imported_actions_to_control_rig
 from ..tools.shader_finder import find_shaders
 from ..tools.shader_reader import tag_to_nodes
 from ..constants import IDENTITY_MATRIX, OBJECT_TAG_EXTS, VALID_MESHES, WU_SCALAR
@@ -1737,6 +1738,8 @@ class NWO_Import(bpy.types.Operator):
                 if self.generate_frames and imported_animations:
                     generator = FrameGenerator(a for a in scene_nwo.animations if a not in current_animations)
                     generator.generate()
+
+                importer.bake_imported_control_rig_actions()
                     
                 # if importer.deferred_parenting:
                 #     for ob, parent in importer.deferred_parenting.items():
@@ -2321,6 +2324,7 @@ class NWOImporter:
         self.tag_cinematic_scene = ""
         self.build_control_rig = False
         self.tag_import_attachments = False
+        self.control_rig_action_batches = []
         
         self.tag_model_override_type = None
         
@@ -2377,6 +2381,23 @@ class NWOImporter:
         collection.nwo.game_object_variant = variant
         self._ensure_game_object_collection_cache()[(tag_path, variant)] = collection
         return collection
+
+    def register_control_rig_actions(self, armature: bpy.types.Object, actions):
+        if armature is not None and actions:
+            self.control_rig_action_batches.append((armature, list(actions)))
+
+    def bake_imported_control_rig_actions(self):
+        baked_count = 0
+        for armature, actions in self.control_rig_action_batches:
+            if armature.name not in bpy.data.objects:
+                continue
+
+            baked_count += bake_imported_actions_to_control_rig(self.context, armature, actions)
+
+        if baked_count:
+            utils.print_bullet(f"Baked {baked_count} imported animations to control rig FK bones")
+
+        return baked_count
 
     def _should_cache_object_import(self, existing_armature, pose, make_non_export, for_instance_conversion, return_cin_stuff):
         return (
@@ -3284,7 +3305,9 @@ class NWOImporter:
             if do_reset:
                 with AnimationTag(path=mover.tag_path) as graph:
                     graph.reset_forced_compression(forced_compression_value)
-        
+
+        self.register_control_rig_actions(armature, actions)
+
         if return_animations:
             return actions, animations
         
@@ -4421,7 +4444,8 @@ class NWOImporter:
                 
             if self.scene_nwo.asset_type in {'model', 'animation'}:
                 self.scene_nwo.active_animation_index = len(self.scene_nwo.animations) - 1
-            
+
+            self.register_control_rig_actions(arm, self.actions)
             return self.actions
             
     def import_legacy_animation(self, path, arm):
