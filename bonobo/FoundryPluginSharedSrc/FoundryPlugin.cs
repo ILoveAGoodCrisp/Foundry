@@ -64,6 +64,7 @@ namespace FoundryPlugin
 
 
         private static readonly bool EnableCustomTheme = false; // DISABLE/ENABLE THEME
+        private static readonly bool EnableXboxUiCleanup = false; // Global Loaded sweeps make tag view scrolling slow.
 
         private static bool _sourceControlToolTipsInstalled;
 
@@ -74,7 +75,10 @@ namespace FoundryPlugin
             InstallSourceControlToolTipOverride();
             InstallContextMenuCleanup();
             InstallRenderModelDropButtonOverride();
-            InstallXboxUiCleanup();
+
+            if (EnableXboxUiCleanup)
+                InstallXboxUiCleanup();
+
             SuppressSourceControlStyles();
 
             if (EnableCustomTheme)
