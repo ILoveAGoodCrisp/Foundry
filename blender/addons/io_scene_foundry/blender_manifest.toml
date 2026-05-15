@@ -23,7 +23,6 @@ wheels = [
   "./wheels/cffi-2.0.0-cp313-cp313-win_amd64.whl",
   "./wheels/clr_loader-0.2.7.post0-py3-none-any.whl",
   "./wheels/pycparser-3.0-py3-none-any.whl",
-  "./wheels/pymem-1.13.1-py3-none-any.whl",
   "./wheels/pythonnet-3.0.5-py3-none-any.whl",
   "./wheels/networkx-3.4.2-py3-none-any.whl",
   "./wheels/scipy-1.16.0-cp313-cp313-win_amd64.whl",

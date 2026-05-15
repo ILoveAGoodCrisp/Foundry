@@ -1,7 +1,26 @@
 import bpy
 
 from ... import utils
-from ...tools.rigging import HaloRig, aim_control_name, ik_control_property_name, needs_reach_fp_ik_fix, settings_control_name
+from ...tools.rigging import (
+    HaloRig,
+    aim_control_name,
+    eye_track_constraint_name,
+    fk_collection_name,
+    gun_copy_transforms_constraint_name,
+    head_track_constraint_name,
+    ik_collection_name,
+    ik_constraint_name,
+    ik_control_property_name,
+    ik_copy_rotation_constraint_name,
+    is_control_bone_name,
+    look_child_of_constraint_name,
+    misc_control_collection_name,
+    neck_assist_constraint_name,
+    needs_reach_fp_ik_fix,
+    remove_empty_bone_collection,
+    root_child_of_constraint_name,
+    settings_control_name,
+)
 from bpy_extras import anim_utils
 from math import ceil, floor
 from mathutils import Vector
@@ -21,6 +40,57 @@ def armature_has_fk_ik_control_rig(arm: bpy.types.Object):
 
 def armature_has_control_rig(arm: bpy.types.Object):
     return armature_has_fk_ik_control_rig(arm) or bool(arm.nwo.control_aim and arm.pose.bones.get(arm.nwo.control_aim))
+
+
+control_rig_constraint_names = (
+    head_track_constraint_name,
+    neck_assist_constraint_name,
+    eye_track_constraint_name,
+    root_child_of_constraint_name,
+    look_child_of_constraint_name,
+    gun_copy_transforms_constraint_name,
+    ik_constraint_name,
+    ik_copy_rotation_constraint_name,
+)
+
+
+def generated_control_bone_names(arm: bpy.types.Object) -> set[str]:
+    return {bone.name for bone in arm.data.bones if is_control_bone_name(bone.name)}
+
+
+def clear_control_rig_constraints(arm: bpy.types.Object, control_bone_names: set[str]):
+    for pbone in arm.pose.bones:
+        for con in reversed(pbone.constraints):
+            con_name = con.name
+            subtarget = getattr(con, "subtarget", "")
+            target = getattr(con, "target", None)
+            name_matches = any(con_name == name or con_name.startswith(f"{name}.") for name in control_rig_constraint_names)
+            target_matches_removed_control = target == arm and subtarget in control_bone_names
+            owner_is_removed_control = pbone.name in control_bone_names
+
+            if name_matches or target_matches_removed_control or owner_is_removed_control:
+                pbone.constraints.remove(con)
+
+
+def control_bone_remove_order(arm: bpy.types.Object, control_bone_names: set[str]) -> list[str]:
+    depths = {}
+    for bone in arm.data.bones:
+        if bone.name not in control_bone_names:
+            continue
+
+        depth = 0
+        parent = bone.parent
+        while parent is not None:
+            depth += 1
+            parent = parent.parent
+        depths[bone.name] = depth
+
+    return [name for name, _ in sorted(depths.items(), key=lambda item: item[1], reverse=True)]
+
+
+def remove_control_bone_collections(armature_data: bpy.types.Armature):
+    for name in (fk_collection_name, ik_collection_name, misc_control_collection_name):
+        remove_empty_bone_collection(armature_data, name)
 
 
 def set_control_rig_inverted(context, arm: bpy.types.Object, inverted: bool):
@@ -444,6 +514,66 @@ class NWO_OT_BuildControlRig(bpy.types.Operator):
     def draw(self, context):
         self.layout.prop(self, "apply_deform_bone_shape")
         self.layout.prop(self, "apply_reach_fp_ik_fix")
+
+
+class NWO_OT_ClearControlRig(bpy.types.Operator):
+    bl_idname = "nwo.clear_control_rig"
+    bl_label = "Clear Control Rig"
+    bl_description = "Removes generated FK, IK, and control bones from this armature"
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        arm = context.object
+        return bool(arm and arm.type == 'ARMATURE' and generated_control_bone_names(arm))
+
+    def execute(self, context):
+        arm = context.object
+        control_bone_names = generated_control_bone_names(arm)
+        if not control_bone_names:
+            self.report({'INFO'}, "No control rig bones found")
+            return {'CANCELLED'}
+
+        original_mode = context.mode
+        utils.set_object_mode(context)
+        utils.set_active_object(arm)
+
+        try:
+            clear_control_rig_constraints(arm, control_bone_names)
+            remove_order = control_bone_remove_order(arm, control_bone_names)
+
+            bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+            edit_bones = arm.data.edit_bones
+            removed_count = 0
+            for name in remove_order:
+                bone = edit_bones.get(name)
+                if bone is None:
+                    continue
+
+                edit_bones.remove(bone)
+                removed_count += 1
+
+            bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+            arm.nwo.invert_control_rig = False
+            if arm.nwo.control_aim in control_bone_names:
+                arm.nwo.control_aim = ""
+                arm.nwo.invert_control_aim = False
+
+            rig = HaloRig(context, scale=scene_control_scale())
+            rig.rig_ob = arm
+            rig.rig_data = arm.data
+            rig.rig_pose = arm.pose
+            rig.generate_bone_collections()
+            remove_control_bone_collections(arm.data)
+
+        finally:
+            utils.restore_mode(original_mode)
+
+        self.report({'INFO'}, f"Cleared {removed_count} control rig bones")
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_confirm(self, event)
     
 class NWO_OT_InvertControlRig(bpy.types.Operator):
     bl_idname = "nwo.invert_control_rig"

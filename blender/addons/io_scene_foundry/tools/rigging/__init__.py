@@ -29,6 +29,7 @@ head_look_shape_name = 'head_look_shape'
 eye_look_shape_name = 'eye_look_shape'
 pelvis_shape_name = 'pelvis_shape'
 torso_shape_name = 'torso_shape'
+settings_shape_name = 'settings_shape'
 
 free_deform_collection_name = "Free Deform Bones"
 controlled_deform_collection_name = "Controlled Deform Bones"
@@ -64,6 +65,8 @@ ik_copy_rotation_constraint_name = 'Foundry IK Copy Rotation'
 head_follow_root_prop_name = "root_follow_head"
 look_follow_root_prop_name = "root_follow_look"
 look_follow_head_prop_name = "look_follow_head"
+head_track_prop_name = "head_track"
+eye_track_prop_name = "eye_track"
 
 reach_fp_ik_fix_render_models = frozenset({
     r"objects\characters\spartans\fp\fp.render_model",
@@ -505,13 +508,15 @@ class HaloRig:
         for name in legacy_deform_collection_names:
             remove_empty_bone_collection(self.rig_data, name)
 
+        ctrl_collection.is_visible = False
+
         if any(not bone.use_deform for bone in self.rig_data.bones):
             halo_controlled.is_visible = False
             halo_free.is_visible = False
             halo_helpers.is_visible = False
             halo_face.is_visible = False
-            pedestal_collection.is_visible = True
-            aim_collection.is_visible = True
+            # pedestal_collection.is_visible = True
+            # aim_collection.is_visible = True
 
     def apply_halo_bone_shape(self):
         """Applies a custom shape to every halo bone that is not the pedestal or an aim bone"""
@@ -660,7 +665,7 @@ class HaloRig:
 
         settings_control = self.rig_pose.bones.get(settings_control_name)
         if settings_control is not None:
-            apply_settings_control_shape(settings_control, get_or_create_fk_control_shape())
+            apply_settings_control_shape(settings_control, get_or_create_shape(settings_shape_name, settings_shape_vert_coords, settings_shape_edges))
             ensure_look_control_props(settings_control)
 
         if root_control is not None and settings_control is not None:
@@ -689,6 +694,9 @@ class HaloRig:
                 con.target = self.rig_ob
                 con.subtarget = head_control_name
                 con.track_axis = 'TRACK_Z'
+                con.influence = 0.0
+                if settings_control is not None:
+                    add_settings_control_prop_driver(con, self.rig_ob, head_track_prop_name)
                 add_neck_assist_constraints(head_driver, self.rig_ob, head_control_name)
                 if head_driver.name == head_deform_name:
                     self.bones_with_fk_controllers.add(head_driver.name)
@@ -727,6 +735,9 @@ class HaloRig:
                 con.target = self.rig_ob
                 con.subtarget = look_control_name
                 con.track_axis = 'TRACK_X'
+                con.influence = 0.0
+                if settings_control is not None:
+                    add_settings_control_prop_driver(con, self.rig_ob, eye_track_prop_name)
                 self.bones_with_fk_controllers.add(eye_name)
 
         if gun_pose_bone_name and gun_control is not None:
@@ -1087,7 +1098,7 @@ class HaloRig:
 
         settings_pb = self.rig_pose.bones.get(settings_control_name)
         if settings_pb is not None:
-            apply_settings_control_shape(settings_pb, fk_shape)
+            apply_settings_control_shape(settings_pb, get_or_create_shape(settings_shape_name, settings_shape_vert_coords, settings_shape_edges))
             ensure_ik_control_props(settings_pb, fk_ik_mapping)
 
         root_control = self.rig_pose.bones[0] if len(self.rig_pose.bones) else None
@@ -1102,7 +1113,7 @@ class HaloRig:
             ptb.color.palette = 'THEME01'
 
             ikb.custom_shape = ik_shape
-            ikb.custom_shape_scale_xyz *= self.scale / 0.03048
+            ikb.custom_shape_scale_xyz *= self.scale / 0.03048 * 1.2
             ikb.use_custom_shape_bone_size = True
             ikb.custom_shape_translation = Vector((0.0, ikb.length, 0.0))
             source_deform_name = fk_to_deform_mapping.get(fkb_name)
@@ -1168,7 +1179,7 @@ def fk_ik_chain_count(fkb: bpy.types.PoseBone):
         
     return count
 
-def add_settings_control_prop_driver(con: bpy.types.Constraint, rig_ob: bpy.types.Object, prop_name: str):
+def add_settings_control_prop_driver(con: bpy.types.Constraint, rig_ob: bpy.types.Object, prop_name: str, multiplier=1.0):
     driver = con.driver_add("influence").driver
     driver.type = 'SCRIPTED'
 
@@ -1179,7 +1190,7 @@ def add_settings_control_prop_driver(con: bpy.types.Constraint, rig_ob: bpy.type
     control_target.id = rig_ob
     control_target.data_path = f'pose.bones["{settings_control_name}"]["{prop_name}"]'
 
-    driver.expression = "min(max(control_value, 0.0), 1.0)"
+    driver.expression = f"min(max(control_value, 0.0), 1.0) * {multiplier:.6f}"
 
 def add_ik_control_prop_driver(con: bpy.types.Constraint, rig_ob: bpy.types.Object, prop_name: str):
     add_settings_control_prop_driver(con, rig_ob, prop_name)
@@ -1614,7 +1625,7 @@ def apply_settings_control_shape(pbone: bpy.types.PoseBone, shape: bpy.types.Obj
     pbone.custom_shape = shape
     pbone.custom_shape_scale_xyz = Vector.Fill(3, 1.0)
     pbone.custom_shape_translation = Vector((0.0, pbone.length * 0.5, 0.0))
-    pbone.custom_shape_rotation_euler = Vector((0.0, 0.0, 0.0))
+    pbone.custom_shape_rotation_euler = Vector((0.0, 0.0, radians(90)))
     pbone.use_custom_shape_bone_size = True
 
 def apply_control_shape(pbone: bpy.types.PoseBone, shape: bpy.types.Object, scale: float, palette='THEME04', rotation=Vector((0.0, 0.0, 0.0)), translation= Vector((0.0, 0.0, 0.0))):
@@ -1709,7 +1720,8 @@ def add_neck_assist_constraints(head_driver: bpy.types.PoseBone, rig_ob: bpy.typ
         con.target = rig_ob
         con.subtarget = target_name
         con.track_axis = 'TRACK_Z'
-        con.influence = influence
+        con.influence = 0.0
+        add_settings_control_prop_driver(con, rig_ob, head_track_prop_name, influence)
 
         influence *= 0.6
         neck_bone = neck_bone.parent
@@ -1784,6 +1796,16 @@ def ensure_ik_control_props(settings_bone: bpy.types.PoseBone, fk_ik_mapping: di
         )
 
 def ensure_look_control_props(settings_bone: bpy.types.PoseBone):
+    ensure_settings_float_prop(
+        settings_bone,
+        head_track_prop_name,
+        f"How much the head tracks {head_control_name}",
+    )
+    ensure_settings_float_prop(
+        settings_bone,
+        eye_track_prop_name,
+        f"How much the eyes track {look_control_name}",
+    )
     ensure_settings_float_prop(
         settings_bone,
         head_follow_root_prop_name,

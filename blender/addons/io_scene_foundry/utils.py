@@ -2365,7 +2365,7 @@ def reset_control_rig_props(armature: bpy.types.Object):
         return
 
     for key in settings_bone.keys():
-        if key.startswith("ik_") or key == "look_follow_head":
+        if key.startswith("ik_") or key in {"look_follow_head", "head_track", "eye_track"}:
             settings_bone[key] = 0.0
         elif key.startswith("root_follow_"):
             settings_bone[key] = 1.0
@@ -3250,6 +3250,9 @@ class DebugMenuType(Enum):
     DEFAULT = 0
     CUBEMAP = 1
     IMPOSTER = 2
+    CAMERA = 3
+
+CAMERA_SYNC_DEBUG_NAME = "foundry_camera_sync"
     
 def update_debug_menu(asset_dir="", asset_name="", update_type=DebugMenuType.DEFAULT, bsp_names=[]):
     menu_commands: list[DebugMenuCommand] = []
@@ -3267,15 +3270,19 @@ def update_debug_menu(asset_dir="", asset_name="", update_type=DebugMenuType.DEF
         case DebugMenuType.IMPOSTER:
             for idx, name in enumerate(bsp_names):
                 menu_commands.append(f'<item type = command name = "Foundry: Generate Instance Imposters for BSP {name}" variable = "\\(structure_instance_snapshot {idx}\\)">\n')
+        case DebugMenuType.CAMERA:
+            menu_commands.append(f'<item type = command name = "Foundry: Load Game Camera from Blender" variable = "\\(debug_camera_load_simple_name \\"{CAMERA_SYNC_DEBUG_NAME}\\"\\)">\n')
+            menu_commands.append(f'<item type = command name = "Foundry: Save Game Camera for Blender" variable = "\\(debug_camera_save_simple_name \\"{CAMERA_SYNC_DEBUG_NAME}\\"\\)">\n')
             
     menu_path = os.path.join(get_project_path(), 'bin', 'debug_menu_user_init.txt')
+    Path(menu_path).parent.mkdir(parents=True, exist_ok=True)
     valid_lines = None
     # Read first so we can keep the users existing commands
     if os.path.exists(menu_path):
         with open(menu_path, 'r') as menu:
             existing_menu = menu.readlines()
-            # Strip out Foundry commands. These get rebuilt in the next step
-            valid_lines = [line for line in existing_menu if not line.startswith('<item type = command name = "Foundry: ')]
+            # Strip out Foundry entries. These get rebuilt in the next step.
+            valid_lines = [line for line in existing_menu if '"Foundry: ' not in line]
             
     with open(menu_path, 'w') as menu:
         if valid_lines is not None:

@@ -116,10 +116,15 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     # CINEMATIC
     
     # CIN CAMERA
+    
+    def screen_effect_clean_tag_path(self, context):
+        self["screen_effect"] = utils.clean_tag_path(self["screen_effect"]).strip('"')
+    
     screen_effect: bpy.props.StringProperty(
         name="Screen Effect",
         options=set(),
-        description="Screen Effect tag to play while this camera is used for a shot"
+        description="Screen Effect tag to play while this camera is used for a shot",
+        update=screen_effect_clean_tag_path,
     )
     
     screen_effect_delay: bpy.props.IntProperty(
@@ -210,15 +215,14 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         description="Cinematic Object Variant"
     )
     
-    # cinematic_lighting: bpy.props.EnumProperty( # TODO Generate a lighting tag
-    #     name="Cinematic Lighting",
-    #     items=[
-    #         ('TAG', "Tag", ""),
-    #         ('NONE', "None", ""),
-    #         ('PERSIST', "Persist", ""),
-    #         ('PER_SHOT', "Per Shot", ""),
-    #     ]
-    # )
+    cinematic_lighting: bpy.props.EnumProperty(
+        name="Cinematic Lighting",
+        items=[
+            ('NONE', "None", ""),
+            ('PERSIST', "Persist", ""),
+            ('PER_SHOT', "Per Shot", ""),
+        ]
+    )
     
     # cinematic flags
     

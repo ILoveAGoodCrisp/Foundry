@@ -27,7 +27,6 @@ REQUIRED_WHEELS: tuple[tuple[str, str], ...] = (
     ("cffi", "2.0.0"),
     ("clr_loader", "0.2.7.post0"),
     ("pycparser", "3.0"),
-    ("pymem", "1.13.1"),
     ("pythonnet", "3.0.5"),
     ("networkx", "3.4.2"),
     ("scipy", "1.16.0"),

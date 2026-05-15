@@ -9,7 +9,7 @@ global_items = {}
 cinematic_event_props = ("sound_tag", "female_sound_tag", "effect", "music")
 scene_props = ('template_render_model', 'template_collision_model', 'template_physics_model', 'template_model_animation_graph', 'parent_animation_graph', 'render_model_path', 
                'template_model', 'template_biped', 'template_crate', 'template_creature', 'template_device_control', 'template_device_dispenser', 'template_device_machine',
-               'template_device_terminal', 'template_effect_scenery', 'template_equipment', 'template_giant', 'template_scenery', 'template_vehicle', 'template_weapon', 'template_scenario', 'cinematic_scenario', 'animation_cmd_path')
+               'template_device_terminal', 'template_effect_scenery', 'template_equipment', 'template_giant', 'template_scenery', 'template_vehicle', 'template_weapon', 'template_scenario', 'cinematic_scenario', 'animation_cmd_path', 'cinematic_transition_settings')
 
 event_data_props = 'event_sound_tag', 'event_effect_tag', 'event_model'
 
@@ -161,8 +161,12 @@ def extensions_from_type(list_type):
             return (".sound")
         case 'effect':
             return (".effect")
-        case 'sound':
+        case 'music':
             return (".sound", ".sound_looping")
+        case 'screen_effect':
+            return (".area_screen_effect")
+        case 'cinematic_transition_settings':
+            return (".cinematic_transition")
         case 'event_sound_tag':
             return (".sound")
         case 'event_effect_tag':
@@ -318,8 +322,12 @@ def get_glob_from_prop(prop):
             return "*.sound"
         case 'effect':
             return "*.effect"
-        case 'sound':
-            return "*.sound:*.sound_looping"
+        case 'music':
+            return "*.sound;*.sound_looping"
+        case 'screen_effect':
+            return "*.area_screen_effect"
+        case 'cinematic_transition_settings':
+            return "*.cinematic_transition"
         case 'event_sound_tag':
             return "*.sound"
         case 'event_effect_tag':

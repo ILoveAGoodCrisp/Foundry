@@ -2214,7 +2214,15 @@ class NWO_CinematicEvent(PropertyGroup):
     )
     
     # Music
-    music: bpy.props.StringProperty()
+    
+    def music_clean_tag_path(self, context):
+        self["music"] = utils.clean_tag_path(self["music"]).strip('"')
+    
+    music: bpy.props.StringProperty(
+        name="Music / Foley",
+        description="Tag path to a .sound or .sound_looping tag",
+        update=music_clean_tag_path,
+    )
     
     # Function
     clear_function: bpy.props.BoolProperty(

@@ -296,7 +296,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 col.prop(nwo, "cinematic_channel_type")
                 col.prop(nwo, "cinematic_easing_in_time")
                 col.prop(nwo, "cinematic_easing_out_time")
-                col.prop(nwo, "cinematic_transition_settings")
+                draw_tag_path(col, nwo, "cinematic_transition_settings")
                 col.separator()
                 col.prop(nwo, "cinematic_bink_movie")
                 if self.h4:
@@ -1804,6 +1804,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
 
                 col.operator("nwo.update_actor", icon='FILE_REFRESH')
                 col.separator()
+                col.prop(nwo, "cinematic_lighting")
                 col.prop(nwo, "object_source")
                 col.label(text="Flags")
                 col.prop(nwo, "effect_object")
@@ -1847,6 +1848,9 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 icon='BONE_DATA',
             )
             box_rigging.operator("nwo.invert_control_rig", icon='CONSTRAINT_BONE', depress=nwo.invert_control_rig)
+            row = box_rigging.row()
+            row.enabled = has_control_rig
+            row.operator("nwo.clear_control_rig", icon='TRASH')
             box_rigging.separator()
             box_rigging.operator("nwo.bake_to_control", icon='POSE_HLT')
 
@@ -3245,7 +3249,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                         col.prop(event, "script_factor", text="Sound Scale")
                         
             case 'MUSIC':
-                draw_tag_path(col, event, "sound_tag")
+                draw_tag_path(col, event, "music")
                 col.prop(event, "stop", text="Stop Music / Foley")
             case 'FUNCTION':
                 col.prop(event, "actor")
@@ -3722,7 +3726,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         shader_type = "Material" if self.h4 else "Shader"
         self.draw_expandable_box(self.box.box(), nwo, "asset_shaders", f"Asset {shader_type}s")
         self.draw_expandable_box(self.box.box(), nwo, "importer")
-        # self.draw_expandable_box(self.box.box(), nwo, "camera_sync") TEMP
+        self.draw_expandable_box(self.box.box(), nwo, "camera_sync")
         self.draw_expandable_box(self.box.box(), nwo, "animation_tools")
         if utils.poll_ui(('model', 'animation', 'sky', 'resource')):
             self.draw_expandable_box(self.box.box(), nwo, "rig_tools")
@@ -3745,12 +3749,15 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col.operator("nwo.open_mod_folder", icon='FILE_FOLDER')
         
     def draw_camera_sync(self, box: bpy.types.UILayout, nwo):
-        col = box.column()
-        if self.scene_nwo.camera_sync_active:
-            col.operator("nwo.camera_sync", icon="PAUSE", depress=True).cancel_sync = True
-        else:
-            col.operator("nwo.camera_sync", icon="PLAY")
-            
+        col = box.column(align=True)
+        row = col.row(align=True)
+        row.operator("nwo.camera_sync", text="Write Viewport", icon='VIEW_CAMERA').mode = "WRITE_VIEWPORT"
+        row.operator("nwo.camera_sync", text="Write Camera", icon='CAMERA_DATA').mode = "WRITE_CAMERA"
+        row = col.row(align=True)
+        row.operator("nwo.camera_sync", text="Read Viewport", icon='HIDE_OFF').mode = "READ_VIEWPORT"
+        row.operator("nwo.camera_sync", text="Read Camera", icon='CAMERA_DATA').mode = "READ_CAMERA"
+        col.operator("nwo.camera_sync", text="Update Game Debug Menu", icon='FILE_REFRESH').mode = "UPDATE_DEBUG_MENU"
+        col.separator()
         if self.h4:
             col.operator("nwo.launch_sapien", text="Launch Sapien", icon_value=get_icon_id("sapien")).ignore_play = True
         else:

@@ -912,7 +912,7 @@ class QUA:
             override_flags.SetBit("3 player co-op", actor_nwo.override_3_player)
             override_flags.SetBit("4 player co-op", actor_nwo.override_4_player)
             
-            # element.SelectField("don't create condition").Elements[0].Fields[0].DataAsText = x
+            element.SelectField("don't create condition").Elements[0].Fields[0].DataAsText = script_from_text(self.corinth, actor_nwo.override_script, actor_nwo.override_script_text)
             
             if self.corinth:
                 actor_flags.SetBit("Primary Cortana", actor_nwo.primary_cortana)
