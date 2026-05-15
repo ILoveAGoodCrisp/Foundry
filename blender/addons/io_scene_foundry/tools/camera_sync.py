@@ -1,231 +1,283 @@
-
-
-import ctypes
+from dataclasses import dataclass
 import math
 from pathlib import Path
-import struct
-import subprocess
-import sys
+import re
+
 import bpy
-import numpy as np
+from mathutils import Matrix, Vector
+
 from .. import utils
 
-pymem_installed = False
-try:
-    import pymem
-    pymem_installed = True
-except:
+
+CAMERA_SYNC_NAME = utils.CAMERA_SYNC_DEBUG_NAME
+CAMERA_SYNC_FILENAME = f"{CAMERA_SYNC_NAME}.txt"
+FLOAT_PATTERN = re.compile(r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?")
+MIN_FOV = math.radians(1.0)
+MAX_FOV = math.radians(150.0)
+VECTOR_EPSILON = 1e-6
+
+
+class CameraSyncError(Exception):
     pass
 
-import logging
-logging.getLogger("pymem").setLevel(logging.CRITICAL)
 
-r90 = math.radians(90)
+@dataclass
+class CameraState:
+    location: Vector
+    forward: Vector
+    up: Vector
+    fov: float
 
-pm = None
-base = None
+
+def camera_sync_path() -> Path:
+    project_path = utils.get_project_path()
+    if not project_path:
+        raise CameraSyncError("No valid Halo project is selected")
+
+    return Path(project_path, CAMERA_SYNC_FILENAME)
+
+
+def clamp_fov(fov: float) -> float:
+    if not math.isfinite(fov):
+        return math.radians(78.0)
+
+    return utils.clamp(fov, MIN_FOV, MAX_FOV)
+
+
+def format_float(value: float) -> str:
+    return f"{value:.6f}"
+
+
+def format_vector(vector: Vector) -> str:
+    return " ".join(format_float(v) for v in vector)
+
+
+def orthonormalize(forward: Vector, up: Vector) -> tuple[Vector, Vector]:
+    if forward.length <= VECTOR_EPSILON:
+        raise CameraSyncError("Camera file has an invalid forward vector")
+    if up.length <= VECTOR_EPSILON:
+        raise CameraSyncError("Camera file has an invalid up vector")
+
+    forward = forward.normalized()
+    up = up.normalized()
+    right = forward.cross(up)
+    if right.length <= VECTOR_EPSILON:
+        raise CameraSyncError("Camera file forward and up vectors are parallel")
+
+    right.normalize()
+    up = right.cross(forward)
+    up.normalize()
+
+    return forward, up
+
+
+def state_from_blender_matrix(matrix: Matrix, fov: float) -> CameraState:
+    halo_matrix = utils.halo_transform_matrix(matrix)
+    rotation = halo_matrix.to_3x3().normalized()
+    forward, up = orthonormalize(-rotation.col[2], rotation.col[1])
+
+    return CameraState(
+        location=halo_matrix.translation.copy(),
+        forward=forward,
+        up=up,
+        fov=clamp_fov(fov),
+    )
+
+
+def blender_matrix_from_state(state: CameraState) -> Matrix:
+    forward, up = orthonormalize(state.forward, state.up)
+    right = forward.cross(up)
+    right.normalize()
+    back = -forward
+
+    halo_matrix = Matrix(
+        (
+            (right.x, up.x, back.x, state.location.x),
+            (right.y, up.y, back.y, state.location.y),
+            (right.z, up.z, back.z, state.location.z),
+            (0.0, 0.0, 0.0, 1.0),
+        )
+    )
+
+    return utils.blender_transform_matrix(halo_matrix)
+
+
+def state_to_text(state: CameraState) -> str:
+    return (
+        f"{format_vector(state.location)}\n"
+        f"{format_vector(state.forward)}\n"
+        f"{format_vector(state.up)}\n"
+        f"{format_float(clamp_fov(state.fov))}\n"
+    )
+
+
+def state_from_text(text: str) -> CameraState:
+    values = [float(match.group(0)) for match in FLOAT_PATTERN.finditer(text)]
+    if len(values) < 10:
+        raise CameraSyncError("Camera file must contain position, forward, up, and FOV values")
+
+    if any(not math.isfinite(value) for value in values[:10]):
+        raise CameraSyncError("Camera file contains non-finite values")
+
+    forward, up = orthonormalize(Vector(values[3:6]), Vector(values[6:9]))
+    return CameraState(
+        location=Vector(values[:3]),
+        forward=forward,
+        up=up,
+        fov=clamp_fov(values[9]),
+    )
+
+
+def write_camera_state(state: CameraState) -> Path:
+    path = camera_sync_path()
+    path.write_text(state_to_text(state), encoding="utf-8")
+    return path
+
+
+def read_camera_state() -> CameraState:
+    path = camera_sync_path()
+    if not path.exists():
+        raise CameraSyncError(f"Camera sync file does not exist: {path}")
+
+    return state_from_text(path.read_text(encoding="utf-8"))
+
+
+def viewport_region_3d(context: bpy.types.Context) -> bpy.types.RegionView3D:
+    space = context.space_data
+    if not space or space.type != 'VIEW_3D' or not space.region_3d:
+        raise CameraSyncError("A 3D Viewport must be active for viewport camera sync")
+
+    return space.region_3d
+
+
+def viewport_fov(context: bpy.types.Context) -> float:
+    sensor_width = 36.0 if utils.is_corinth(context) else 74.0
+    lens = max(context.space_data.lens, VECTOR_EPSILON)
+    return clamp_fov(2.0 * math.atan(sensor_width / (2.0 * lens)))
+
+
+def set_viewport_fov(context: bpy.types.Context, fov: float):
+    sensor_width = 36.0 if utils.is_corinth(context) else 74.0
+    context.space_data.lens = sensor_width / (2.0 * math.tan(clamp_fov(fov) / 2.0))
+
+
+def write_viewport_camera(context: bpy.types.Context) -> Path:
+    region_3d = viewport_region_3d(context)
+    matrix = region_3d.view_matrix.inverted_safe()
+    return write_camera_state(state_from_blender_matrix(matrix, viewport_fov(context)))
+
+
+def write_scene_camera(context: bpy.types.Context) -> Path:
+    camera = context.scene.camera
+    if not camera:
+        raise CameraSyncError("Scene has no active camera")
+
+    return write_camera_state(state_from_blender_matrix(camera.matrix_world, camera.data.angle))
+
+
+def read_to_viewport(context: bpy.types.Context):
+    region_3d = viewport_region_3d(context)
+    state = read_camera_state()
+    matrix = blender_matrix_from_state(state)
+
+    region_3d.view_perspective = 'PERSP'
+    try:
+        region_3d.view_matrix = matrix.inverted_safe()
+    except Exception:
+        region_3d.view_location = matrix.translation
+        region_3d.view_rotation = matrix.to_quaternion()
+        region_3d.view_distance = 0.0
+
+    set_viewport_fov(context, state.fov)
+    if context.area:
+        context.area.tag_redraw()
+
+
+def read_to_scene_camera(context: bpy.types.Context):
+    camera = context.scene.camera
+    if not camera:
+        name = "Game Camera"
+        camera_data = bpy.data.cameras.new(name)
+        camera = bpy.data.objects.new(name, camera_data)
+        context.scene.collection.objects.link(camera)
+
+    state = read_camera_state()
+    camera.matrix_world = blender_matrix_from_state(state)
+    camera.data.angle = state.fov
+
+
+def update_camera_debug_menu() -> bool:
+    utils.update_debug_menu(update_type=utils.DebugMenuType.CAMERA)
+    return True
+
 
 class NWO_OT_CameraSync(bpy.types.Operator):
     bl_idname = "nwo.camera_sync"
     bl_label = "Camera Sync"
-    bl_description = "Syncs the in game camera with the Blender viewport camera."
+    bl_description = "Reads and writes camera positions between Blender the game. Please note that writing camera positions to the game in Halo 4 Sapien is bugged and will always put the camera to the world origin"
     bl_options = {'REGISTER'}
-    
-    cancel_sync: bpy.props.BoolProperty(options={'HIDDEN', 'SKIP_SAVE'})
+
+    mode: bpy.props.EnumProperty(
+        items=[
+            ("WRITE_VIEWPORT", "Write Viewport", ""),
+            ("WRITE_CAMERA", "Write Camera", ""),
+            ("READ_VIEWPORT", "Read Viewport", ""),
+            ("READ_CAMERA", "Read Camera", ""),
+            ("UPDATE_DEBUG_MENU", "Update Debug Menu", ""),
+        ],
+        default="WRITE_VIEWPORT",
+        options={'SKIP_SAVE'},
+    )
 
     @classmethod
     def poll(cls, context):
         return utils.current_project_valid()
-    
-    def execute(self, context):
-        return {'CANCELLED'} # TEMP
-        scene_nwo = utils.get_scene_props()
-        if self.cancel_sync:
-            scene_nwo.camera_sync_active = False
-            return {'CANCELLED'}
-        if not pymem_installed:
-            pymem_install()
-            return {'CANCELLED'}
-        scene_nwo.camera_sync_active = True
-        wm = context.window_manager
-        self.timer = wm.event_timer_add(0.01, window=context.window)
-        wm.modal_handler_add(self)
-        return {'RUNNING_MODAL'}
 
-    def modal(self, context, event):
-        nwo = utils.get_scene_props()
-        if not nwo.camera_sync_active:
-            return self.cancel(context)
-        if event.type == 'TIMER':
-            if context.space_data and context.space_data.type == 'VIEW_3D':
-                # try:
-                sync_camera_to_game(context)
-                # except:
-                #     pass
-                return {'PASS_THROUGH'}
-                
-        return {'PASS_THROUGH'}
-    
-    def cancel(self, context):
-        wm = context.window_manager
-        wm.event_timer_remove(self.timer)
-        global pm
-        global base
-        pm = None
-        base = None
-        
-        return {'CANCELLED'}
-    
+    def execute(self, context):
+        try:
+            match self.mode:
+                case "WRITE_VIEWPORT":
+                    path = write_viewport_camera(context)
+                    update_camera_debug_menu()
+                    self.report({'INFO'}, f"Wrote viewport camera to {path}")
+                case "WRITE_CAMERA":
+                    path = write_scene_camera(context)
+                    update_camera_debug_menu()
+                    self.report({'INFO'}, f"Wrote scene camera to {path}")
+                case "READ_VIEWPORT":
+                    read_to_viewport(context)
+                    update_camera_debug_menu()
+                    self.report({'INFO'}, f"Read camera sync file into viewport")
+                case "READ_CAMERA":
+                    read_to_scene_camera(context)
+                    update_camera_debug_menu()
+                    self.report({'INFO'}, f"Read camera sync file into scene camera")
+                case "UPDATE_DEBUG_MENU":
+                    update_camera_debug_menu()
+                    self.report({'INFO'}, "Updated camera sync debug menu entries")
+                case _:
+                    raise CameraSyncError(f"Unknown camera sync mode: {self.mode}")
+        except CameraSyncError as error:
+            self.report({'WARNING'}, str(error))
+            return {'CANCELLED'}
+        except OSError as error:
+            self.report({'WARNING'}, f"Camera sync file error: {error}")
+            return {'CANCELLED'}
+
+        return {'FINISHED'}
+
     @classmethod
     def description(cls, context, properties) -> str:
-        desc = "Syncs the in game camera with the Blender viewport camera\n\nHow to Use:\n"
-        if utils.is_corinth(context):
-            desc += "Ensure Sapien is running (do not use the sapien_play)\nPress this button while in control of the editor camera to let Blender take control"
-        else:
-            desc += "Ensure TagTest is running (do not use tag_play)\nIn the in game console enter 'DisablePauseOnDefocus 1'. This will allow the game to run when the game window is not in focus\nPress this button while in control of the director camera to let Blender take control. To switch from the player camera to director camera press BACKSPACE"
-        
-        return desc
-    
-def resolve_pointer_chain(pm, base, offsets):
-    addr = pm.read_int(base)
-    for offset in offsets[:-1]:
-        addr = pm.read_int(addr + offset)
-    return addr + offsets[-1]
+        match properties.mode:
+            case "WRITE_VIEWPORT":
+                return f"Write the current Blender viewport to {CAMERA_SYNC_FILENAME}"
+            case "WRITE_CAMERA":
+                return f"Write the active Blender camera to {CAMERA_SYNC_FILENAME}"
+            case "READ_VIEWPORT":
+                return f"Move the current Blender viewport to the camera in {CAMERA_SYNC_FILENAME}"
+            case "READ_CAMERA":
+                return f"Move the active Blender camera to the camera in {CAMERA_SYNC_FILENAME}"
+            case "UPDATE_DEBUG_MENU":
+                return "Create game debug menu entries for loading and saving the Foundry camera sync file"
 
-def write_rot(pm, address, floats):
-    byte_array = struct.pack('3f', *floats)
-    pm.write_bytes(address, byte_array, len(byte_array))
-    
-def write_camera(pm, address, floats):
-    byte_array = struct.pack('6f', *floats)
-    pm.write_bytes(address, byte_array, len(byte_array))
-
-def sync_reach_tag_test(location, yaw, pitch, roll, in_camera, context):
-    try:
-        camera_address = resolve_pointer_chain(pm, base + 0x04063500, [0xE0, 0x20])
-        write_camera(pm, camera_address, (location[0], location[1], location[2], yaw + r90, pitch - r90, roll))
-    except:
-        try:
-            camera_address = resolve_pointer_chain(pm, base + 0x01D2C0A0, [0x268, 0x1D4, 0x20])
-            write_camera(pm, camera_address, (location[0], location[1], location[2], yaw + r90, pitch - r90, roll))
-        except:
-            pass
-        
-    if in_camera:
-        fov = np.median([math.degrees(context.scene.camera.data.angle), 1, 150])
-    else:
-        fov = np.median([math.degrees(2 * math.atan(74 /(2 * context.space_data.lens))), 1, 150])
-        
-    pm.write_float(0x141EFA350, fov)
-    
-def sync_h4_sapien(location, yaw, pitch, roll, in_camera, context):
-    camera_address = resolve_pointer_chain(pm, base + 0x04F966E8, [0x8, 0x20])
-    write_camera(pm, camera_address, (location[0], location[1], location[2], yaw + r90, pitch - r90, roll))
-    if in_camera:
-        fov = np.median([math.degrees(context.scene.camera.data.angle), 1, 150])
-    else:
-        fov = np.median([math.degrees(2 * math.atan(36 /(2 * context.space_data.lens))), 1, 150])
-        
-    pm.write_float(0x1425F5A50, fov)
-    
-def sync_h2amp_sapien(location, yaw, pitch, roll, in_camera, context):
-    camera_address = resolve_pointer_chain(pm, base + 0x035FCAC8, [0x8, 0x20])
-    write_camera(pm, camera_address, (location[0], location[1], location[2], yaw + r90, pitch - r90, roll))
-    if in_camera:
-        fov = np.median([math.degrees(context.scene.camera.data.angle), 1, 150])
-    else:
-        fov = np.median([math.degrees(2 * math.atan(36 /(2 * context.space_data.lens))), 1, 150])
-        
-    pm.write_float(0x1425F5A50, fov)
-    
-def sync_camera_to_game(context: bpy.types.Context):
-    r3d = context.space_data.region_3d
-    # matrix = utils.halo_transform_matrix(view_matrix)
-    matrix = utils.halo_transform_matrix(r3d.view_matrix.inverted_safe())
-    location = [round(t, 3) for t in matrix.translation]
-    yaw, pitch, roll = utils.quaternion_to_ypr(matrix.to_quaternion())
-    
-    SAFE_EPSILON = 1e-5
-    pitch = max(min(pitch, math.pi/2 - SAFE_EPSILON), -math.pi/2 + SAFE_EPSILON)
-
-    in_camera = r3d.view_perspective == 'CAMERA' and context.scene.camera
-    if not in_camera:
-        roll = 0
-    
-    # print(location, "location")
-    # print(roll)
-    exe_name = ""
-    global pm
-    global base
-    if utils.is_corinth(context):
-        exe_name = Path(utils.get_exe("sapien")).name
-        if not base:
-            pm = pymem.Pymem(exe_name)
-            base = pymem.process.module_from_name(pm.process_handle, exe_name).lpBaseOfDll
-        if utils.project_game_for_mcc(context) == 'Halo2A':
-            sync_h2amp_sapien(location, yaw, pitch, roll, in_camera, context)
-        else:
-            sync_h4_sapien(location, yaw, pitch, roll, in_camera, context)
-    else:
-        exe_name = Path(utils.get_exe("tag_test")).name
-        if not base:
-            pm = pymem.Pymem(exe_name)
-            base = pymem.process.module_from_name(pm.process_handle, exe_name).lpBaseOfDll
-        sync_reach_tag_test(location, yaw, pitch, roll, in_camera, context)
-                
-                
-# pymem install handler
-def pymem_install():
-    print("Couldn't find pymem module, attempting pymem install")
-    install = ctypes.windll.user32.MessageBoxW(
-        0,
-        "Camera Sync requires the pymem module to be installed for Blender.\n\nInstall pymem now?",
-        f"Pymem Install Required",
-        4,
-    )
-    if install != 6:
-        return {"CANCELLED"}
-    
-    py_exe = sys.executable
-    python_dir = Path(py_exe).parent.parent
-    site_packages = Path(python_dir, "lib", "site-packages")
-    test_file = Path(site_packages, "foundry_test.txt")
-    try:
-        # check if folder writable
-        with open(test_file, mode="w") as _: pass
-        test_file.unlink(missing_ok=True)
-    except:
-        shutdown = ctypes.windll.user32.MessageBoxW(
-            0,
-            "Blender does not have sufficient privilege to install new python modules. Launch Blender with admin priviledges and re-attempt install\n\nQuit Blender now?",
-            f"Could not install python module",
-            4,
-        )
-        if shutdown != 6:
-            return {"CANCELLED"}
-        
-        bpy.ops.wm.quit_blender()
-        return {"CANCELLED"}
-    
-    try:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "--ignore-installed", "pymem"])
-        print("Succesfully installed necessary modules")
-
-        shutdown = ctypes.windll.user32.MessageBoxW(
-            0,
-            "Pymem module installed for Blender. Please restart Blender to use Camera Sync.\n\nRestart Blender now?",
-            f"Pymem Installed for Blender",
-            4,
-        )
-        if shutdown != 6:
-            return {"CANCELLED"}
-        
-        utils.restart_blender()
-
-    except:
-        print("Failed to install pymem")
-        return {"CANCELLED"}
-
-    
-
-
+        return cls.bl_description
