@@ -655,23 +655,26 @@ class NWO_OT_ClearAnimations(bpy.types.Operator):
     def execute(self, context):
         scene_nwo = utils.get_scene_props()
         animations = scene_nwo.animations
-        if self.delete_actions:
-            self.action_map(animations)
             
         if self.filter:
-            filtered_animations = [idx for idx, a in enumerate(animations) if self.filter.lower() in a.name.lower()]
+            filtered_animations = {idx: a for idx, a in enumerate(animations) if self.filter.lower() in a.name.lower()}
             total_animations = len(filtered_animations)
             if total_animations == 0:
                 self.report({'WARNING'}, f"No animations found that match filter: {self.filter}")
                 return {'CANCELLED'}
             
-            if total_animations == len(filtered_animations):
+            if self.delete_actions:
+                self.action_map(filtered_animations.values())
+            
+            if total_animations == len(animations):
                 animations.clear()
             else:
-                for idx in reversed(filtered_animations):
+                for idx in reversed(filtered_animations.keys()):
                     animations.remove(idx)
                 
         else:
+            if self.delete_actions:
+                self.action_map(animations)
             total_animations = len(animations)
             animations.clear()
             
