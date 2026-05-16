@@ -30,6 +30,10 @@ MIN_CINEMATIC_FOCAL_DEPTH = 0.01
 
 SPECIAL_CASE_NAMES = "player0", "player1", "player2", "player3"
 
+BANNED_FUNCTIONS = {
+    'heat'
+}
+
 class CinematicScene:
     def __init__(self, asset_path, scene_name, scene):
         nwo = utils.get_scene_props()
@@ -317,10 +321,20 @@ class Actor:
                     scenery_object.SelectField("material effects").Path = obj_object.SelectField("material effects").Path
                     scenery_object.SelectField("simulation_interpolation").Path = obj_object.SelectField("material effects").Path
                     # Copy tag blocks
-                    # obj_object.SelectField("functions").CopyEntireTagBlock() # NOTE not copying functions because it can cause a crash
-                    # scenery_object.SelectField("functions").PasteReplaceEntireBlock()
-                    # obj_object.SelectField("attachments").CopyEntireTagBlock()
-                    # scenery_object.SelectField("attachments").PasteReplaceEntireBlock()
+                    obj_object.SelectField("functions").CopyEntireTagBlock()
+                    funcs = scenery_object.SelectField("functions")
+                    funcs.PasteReplaceEntireBlock()
+                    # The import function "heat" causes a crash so remove it
+                    to_remove = []
+                    for e in funcs.Elements:
+                        if e.SelectField("import name").GetStringData() in BANNED_FUNCTIONS:
+                            to_remove.append(e.ElementIndex)
+                    
+                    for i in reversed(to_remove):
+                        funcs.RemoveElement(i)
+                
+                    obj_object.SelectField("attachments").CopyEntireTagBlock()
+                    scenery_object.SelectField("attachments").PasteReplaceEntireBlock()
                     obj_object.SelectField("hull surfaces").CopyEntireTagBlock()
                     scenery_object.SelectField("hull surfaces").PasteReplaceEntireBlock()
                     obj_object.SelectField("jetwash").CopyEntireTagBlock()

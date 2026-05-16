@@ -671,7 +671,6 @@ class NWO_OT_ClearAnimations(bpy.types.Operator):
             else:
                 for idx in reversed(filtered_animations.keys()):
                     animations.remove(idx)
-                
         else:
             if self.delete_actions:
                 self.action_map(animations)
