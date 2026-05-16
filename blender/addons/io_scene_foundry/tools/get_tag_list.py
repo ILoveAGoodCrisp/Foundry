@@ -3,7 +3,7 @@
 from pathlib import Path
 import bpy
 import os
-from ..utils import get_project_path, get_scene_props, get_tags_path, is_corinth, os_sep_partition, redraw_area
+from ..utils import get_prefs, get_project_path, get_scene_props, get_tags_path, is_corinth, os_sep_partition, redraw_area
 
 global_items = {}
 cinematic_event_props = ("sound_tag", "female_sound_tag", "effect", "music")
@@ -57,6 +57,8 @@ class NWO_GetTagsList(bpy.types.Operator):
             nwo = scene_nwo
         elif self.list_type == 'shader_path':
             nwo = context.object.active_material.nwo
+            if get_prefs().rename_material:
+                context.object.active_material.name = Path(self.tag_list).with_suffix("").name
         elif self.list_type.startswith('light'):
             nwo = context.object.data.nwo
         elif self.list_type in cinematic_event_props:

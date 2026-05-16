@@ -296,6 +296,11 @@ class FoundryPreferences(AddonPreferences):
         description="Renames any collection converted to a halo collection with their respective region/permutation/bsp/layer name"
     )
     
+    rename_material: BoolProperty(
+        name="Rename Material on New Shader Path",
+        description="Renames the active material after settings its shader path"
+    )
+    
     def default_scale_model_items(self, context):
         items = []
         scale_models = Path(addon_root(), "resources", "scale_models")
@@ -391,6 +396,8 @@ class FoundryPreferences(AddonPreferences):
         row.prop(prefs, "allow_foundation_plugin_install")
         row = box.row(align=True)
         row.prop(prefs, "rename_halo_collections")
+        row = box.row(align=True)
+        row.prop(prefs, "rename_material")
         row = box.row(align=True)
         row.prop(prefs, "default_scale_model")
         row = box.row(align=True)
