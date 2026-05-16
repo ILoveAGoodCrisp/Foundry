@@ -170,13 +170,13 @@ class CinematicMusic:
         event = cast(NWO_CinematicEvent, nwo.cinematic_events.add())
         event.type = 'MUSIC'
         event.stop = self.stops_music_at_frame
-        event.sound_tag = self.music.RelativePathWithExtension
+        event.music = self.music.RelativePathWithExtension
         event.frame = utils.blender_frame(self.frame + int((not corinth)))
         return event
         
     def from_event(self, event: NWO_CinematicEvent):
         self.stops_music_at_frame = event.stop
-        self.music = event.sound_tag
+        self.music = tag_path_from_string(event.music)
         
 class CinematicEffect:
     def __init__(self):
@@ -262,7 +262,7 @@ class CinematicEffect:
             
         
 class CinematicObjectFunctionKeyframe:
-    def __init__(self, ob: str, func: str):
+    def __init__(self, ob: str = "", func: str = ""):
         self.clear_function = False
         self.frame = 0
         self.value = 0
@@ -322,7 +322,7 @@ class CinematicObjectFunction:
     
     def to_element(self, element: TagFieldBlockElement, object_block: TagFieldBlock):
         element.SelectField("object").Value = get_subject_index(self.object, object_block)
-        element.SelectField("function name").SetStringData()
+        element.SelectField("function name").SetStringData(self.function_name)
         keyframes_block = element.SelectField("keyframes")
         for frame, keyframe in self.keyframes.items():
             keyframe.to_element(keyframes_block, frame)

@@ -41,7 +41,6 @@ def _get_active_animation_event(scene_nwo, single_animation: bool):
 
     return owner, owner.animation_events[event_index]
 
-
 def _find_animation_armature(context: bpy.types.Context, animation, single_animation: bool) -> bpy.types.Object | None:
     if not single_animation and animation is not None:
         for track in animation.action_tracks:
@@ -666,7 +665,7 @@ class NWO_OT_ClearAnimations(bpy.types.Operator):
                 self.report({'WARNING'}, f"No animations found that match filter: {self.filter}")
                 return {'CANCELLED'}
             
-            if total_animations == len(animations):
+            if total_animations == len(filtered_animations):
                 animations.clear()
             else:
                 for idx in reversed(filtered_animations):

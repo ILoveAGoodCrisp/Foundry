@@ -1562,3 +1562,37 @@ class NWO_OT_UserInputBoundsFromCamera(bpy.types.Operator):
         )
 
         return {'FINISHED'}
+
+# class NWO_OT_GetCinematicFunctions(bpy.types.Operator):
+#     bl_idname = "nwo.get_cinematic_functions"
+#     bl_label = "Cinematic Variants"
+#     bl_description = "Returns a list of cinematic object variants"
+#     bl_options = {"REGISTER", "UNDO"}
+
+#     @classmethod
+#     def poll(cls, context):
+#         if context.object is None:
+#             return False
+#         if not context.object.nwo.cinematic_object.strip():
+#             return False
+        
+#         if not current_project_valid():
+#             return False
+        
+#         tag_path = Path(get_tags_path(), relative_path(context.object.nwo.cinematic_object))
+#         return tag_path.is_absolute() and tag_path.exists() and tag_path.is_file()
+    
+#     def variant_items(self, context):
+#         with ObjectTag(path=context.object.nwo.cinematic_object) as object:
+#             model_tag = object.get_model_tag_path()
+#         if not model_tag or not Path(get_tags_path(), model_tag).exists():
+#             return [("default", "default", "")]
+#         with ModelTag(path=model_tag) as model:
+#             variants = model.get_model_variants()
+#         if not variants:
+#             return [("default", "default", "")]
+#         items = []
+#         for v in variants:
+#             items.append((v, v, ""))
+
+#         return items

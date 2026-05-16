@@ -1026,7 +1026,7 @@ class QUA:
                         music[c] = frame - frame_start + int(self.corinth)
                 case 'FUNCTION':
                     c = CinematicObjectFunctionKeyframe()
-                    c.from_event(event)
+                    c.from_event(event, actor_objects)
                     if c.function_name:
                         object_function_keyframes[c] = frame - frame_start + int(self.corinth)
         
@@ -1070,13 +1070,13 @@ class QUA:
         for k, v in function_keyframe_groups.items():
             shot_index, function_name, object_name = k
             object_function = CinematicObjectFunction()
-            object_function.object = function_name
-            object_function.function_name = object_name
+            object_function.object = object_name
+            object_function.function_name = function_name
             for data, shot_frame in v:
                 object_function.keyframes[shot_frame] = data
             
             shot_element = block.Elements[shot_index]
-            object_function.to_element(shot_element.SelectField("object functions"), block_objects)
+            object_function.to_element(shot_element.SelectField("object functions").AddElement(), block_objects)
             
         for data, frame_index in screen_effects.items():
             shot_index, shot_frame = self.get_shot_index_and_frame(frame_index)

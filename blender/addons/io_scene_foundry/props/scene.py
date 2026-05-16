@@ -1969,7 +1969,7 @@ class NWO_CinematicEvent(PropertyGroup):
                         return self.script_type.lower()
                     
             case 'MUSIC':
-                return f"{start_stop} {Path(self.sound_tag).with_suffix('').name}"
+                return f"{start_stop} {Path(self.music).with_suffix('').name if self.music.strip() else 'NONE'}"
             case 'FUNCTION':
                 if utils.pointer_ob_valid(self.actor):
                     return f"{self.actor.name} -> {Path(self.function_name)} -> {'CLEAR' if self.clear_function else self.value}"
