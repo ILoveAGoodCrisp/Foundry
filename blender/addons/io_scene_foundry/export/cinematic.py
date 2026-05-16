@@ -1,4 +1,5 @@
 from collections import defaultdict
+from enum import Enum
 from math import degrees, isfinite
 from pathlib import Path
 import bpy
@@ -212,6 +213,11 @@ def calculate_cinematic_dof(camera: bpy.types.Object) -> CinematicDof:
 
     return dof
 
+class ActorLighting(Enum):
+    NONE = 0
+    PERSIST = 1
+    PER_SHOT = 2
+
 class Actor:
     def __init__(self, ob: bpy.types.Object, scene_name: str, asset_path: str, child_asset_name=""):
         self.ob = ob
@@ -244,6 +250,8 @@ class Actor:
         self.node_order = None
         self.variant = ob.nwo.cinematic_variant
         self.validation_complete = False
+        self.lighting = ActorLighting[ob.nwo.cinematic_lighting]
+        self.lighting_marker = utils.clean_text(ob.nwo.cinematic_lighting_marker)
         
     def validate(self) -> str | None:
         """Ensures that the tag will function for the cinematic. Returns a string with the reason for validation for failure, else None"""
@@ -329,8 +337,6 @@ class ShotActor:
         self.ob = ob
         self.name = ob.name
         self.animation_name = f"{self.name}_{shot_index}"
-    
-class Shot: ...
     
 class Frame:
     def __init__(self, ob: bpy.types.Object, corinth: bool, film_aperture: float):
@@ -817,11 +823,13 @@ class QUA:
             # CAMERA EVENTS
             if camera_nwo.screen_effect.strip():
                 c = CinematicScreenEffect()
-                c.from_camera(camera_nwo)
+                c.from_camera(camera_nwo, shot.frame_count - 1, self.corinth)
+                screen_effects[c] = shot.frame_start + int(self.corinth)
                 
             if camera_nwo.user_input_bounds_t != 0.0 or camera_nwo.user_input_bounds_l != 0.0 or camera_nwo.user_input_bounds_b != 0.0 or camera_nwo.user_input_bounds_r != 0.0:
                 c = CinematicUserInputConstraints()
                 c.from_camera(camera_nwo)
+                user_input_constraints[c] = shot.frame_start + int(self.corinth)
 
             # FRAME DATA
             if self.corinth:
@@ -865,7 +873,7 @@ class QUA:
         # Remove any elements that don't have a valid actor
         # for idx in reversed(to_remove_object_element_indexes):
         #     block_objects.RemoveElement(idx)
-            
+        
         object_tag_weapon_names = {} # used for custom scripts
         actor_objects = {a.ob: a.name for a in self.objects} # for checking an event is valid
         block_objects.RemoveAllElements()
@@ -961,6 +969,27 @@ class QUA:
                     lightmap_flag_items[idx].IsSet = True
                     
                     
+            def setup_lighting_element(lighting_element, shot_index: int, persist=False):
+                lighting_name = f"{self.scene_name}_sh{shot_index + 1}_{actor.name}.cinematic_lighting"
+                lighting_path = Path(self.tag_path.parent, "lights", lighting_name)
+                with Tag(path=lighting_path) as cin_lighting:
+                    lighting_element.SelectField("lighting").Path = cin_lighting.tag_path
+                lighting_element.SelectField("flags").SetBit("persists across shots", persist)
+                lighting_element.SelectField("marker").SetStringData(actor.lighting_marker)
+                lighting_element.SelectField("subject").Value = element.ElementIndex
+                
+
+            # Add actor lighting
+            match actor.lighting:
+                case ActorLighting.PERSIST:
+                    first_shot_element = block_data_shots.Elements[actor.shots_active[0]]
+                    setup_lighting_element(first_shot_element.SelectField("lighting").AddElement(), first_shot_element.ElementIndex, True)
+                case ActorLighting.PER_SHOT:
+                    first_shot_element = block_data_shots.Elements[actor.shots_active[0]]
+                    for shot_i in actor.shots_active:
+                        next_shot_element = block_data_shots.Elements[shot_i]
+                        setup_lighting_element(next_shot_element.SelectField("lighting").AddElement(), next_shot_element.ElementIndex)
+ 
         # Add cinematic events
         
         frame_start = utils.game_frame(int(bpy.context.scene.frame_start))
@@ -999,9 +1028,6 @@ class QUA:
                     c.from_event(event)
                     if c.function_name:
                         object_function_keyframes[c] = frame - frame_start + int(self.corinth)
-                
-        # Events from camera
-        camera_nwo
         
         
         
@@ -1056,9 +1082,6 @@ class QUA:
             if shot_index is None:
                 continue
             shot_element = block.Elements[shot_index]
-            end_offset = data.stop_frame - data.frame
-            data.frame = shot_frame
-            data.stop_frame = shot_frame + end_offset
             data.to_element(shot_element.SelectField("screen effects").AddElement(), self.corinth)
             
         for data, frame_index in user_input_constraints.items():

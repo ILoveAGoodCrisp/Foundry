@@ -651,7 +651,7 @@ class NWO_OT_UpdateActor(bpy.types.Operator):
         bpy.ops.object.mode_set(mode='OBJECT')
 
     def execute(self, context: bpy.types.Context):
-        from ...tools.importer import NWOImporter, clear_path_cache, setup_materials
+        from ...tools import importer as importer_module
 
         armature = context.object
         if armature is None or armature.type != 'ARMATURE':
@@ -700,7 +700,7 @@ class NWO_OT_UpdateActor(bpy.types.Operator):
         imported_objects = []
         starting_materials = set(bpy.data.materials)
         if self.always_extract_bitmaps:
-            clear_path_cache()
+            importer_module.clear_path_cache()
 
         utils.set_object_mode(context)
         utils.deselect_all_objects()
@@ -709,7 +709,8 @@ class NWO_OT_UpdateActor(bpy.types.Operator):
         armature.data.pose_position = 'REST'
         context.view_layer.update()
 
-        importer = NWOImporter(context, [str(tag_path_full)], ['object'])
+        importer_module.deferred_ops = []
+        importer = importer_module.NWOImporter(context, [str(tag_path_full)], ['object'])
         importer.tag_render = True
         importer.tag_markers = True
         importer.tag_variant = variant
@@ -720,42 +721,36 @@ class NWO_OT_UpdateActor(bpy.types.Operator):
         importer.tag_import_attachments = self.tag_import_attachments
         importer.import_variant_children = self.import_variant_children
         importer.build_control_rig = self.build_control_rig
+        importer.tag_state = "default"
+        deleted_count = self._delete_child_objects(armature)
+        self._clear_armature_bones(context, armature)
 
         try:
-            if importer.needs_scaling:
-                utils.transform_scene(context, (1 / importer.scale_factor), importer.to_x_rot, scene_nwo.forward_direction, 'x', objects=[armature], actions=[])
-                transformed_for_import = True
-
-            deleted_count = self._delete_child_objects(armature)
-            self._clear_armature_bones(context, armature)
-
             imported_objects, imported_armature, _render, _model_collection = importer.import_object([str(tag_path_full)], armature, return_cin_stuff=True)
             if imported_armature is not None:
                 armature = imported_armature
             if armature not in imported_objects:
                 imported_objects.append(armature)
 
-            if importer.needs_scaling:
-                utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', scene_nwo.forward_direction, objects=imported_objects, actions=[])
-                transformed_for_import = False
+            importer_module.setup_materials(context, importer, starting_materials, imported_objects, self.build_blender_materials, self.always_extract_bitmaps, importer.emissive_meshes)
 
-            setup_materials(context, importer, starting_materials, imported_objects, self.build_blender_materials, self.always_extract_bitmaps, importer.emissive_meshes)
-
+            for op in importer_module.deferred_ops:
+                op()
         finally:
-            utils.set_object_mode(context)
-            if transformed_for_import:
-                utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', scene_nwo.forward_direction, objects=[armature], actions=[])
-            if armature.name in bpy.data.objects:
-                armature.name = armature_name
-                armature.data.pose_position = armature_pose_position
-                nwo = armature.nwo
-                nwo.cinematic_object = tag_path_rel
-                if importer.tag_variant:
-                    nwo.cinematic_variant = importer.tag_variant
-                utils.deselect_all_objects()
-                armature.select_set(True)
-                utils.set_active_object(armature)
-            context.view_layer.update()
+            importer_module.deferred_ops = []
+
+        utils.set_object_mode(context)
+        if armature.name in bpy.data.objects:
+            armature.name = armature_name
+            armature.data.pose_position = armature_pose_position
+            nwo = armature.nwo
+            nwo.cinematic_object = tag_path_rel
+            if importer.tag_variant:
+                nwo.cinematic_variant = importer.tag_variant
+            utils.deselect_all_objects()
+            armature.select_set(True)
+            utils.set_active_object(armature)
+        context.view_layer.update()
 
         new_child_count = len(armature.children_recursive)
         self.report({'INFO'}, f"Updated actor from {tag_path_full.name}: removed {deleted_count}, added {new_child_count}")

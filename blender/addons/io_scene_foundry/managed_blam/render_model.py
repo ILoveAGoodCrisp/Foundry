@@ -57,6 +57,9 @@ class RenderModelTag(Tag):
             for element in self.block_regions.Elements:
                 permutations.update({e.Fields[0].GetStringData(): None for e in element.Fields[1].Elements}) # using dict instead of set to maintain insertion order
             return list(permutations)
+        
+    def get_markers(self):
+        return [e.Fields[0].GetStringData() for e in self.block_marker_groups.Elements]
     
     def read_render_geometry(self):
         render_geo = self._GameRenderGeometry()

@@ -38,6 +38,23 @@ class ModelTag(Tag):
         self.reference_physics_model = self.tag.SelectField("Reference:physics_model")
         self.block_variants = self.tag.SelectField("Block:variants")
         
+    def get_render_model(self, optional_tag_root=None, override_type: RenderModelOverrideType=None):
+        render = ""
+        render_path = self.reference_render_model.Path
+        if self.corinth and override_type is not None:
+            for element in self.tag.SelectField("Block:game mode render model override").Elements:
+                if element.Fields[0].Value == override_type.value:
+                    render_path = element.Fields[1].Path
+                    break
+                
+        if render_path:
+            if optional_tag_root:
+                render = str(Path(optional_tag_root, render_path.RelativePathWithExtension))
+            else:
+                render = render_path.Filename
+                
+        return render
+        
     def get_model_paths(self, optional_tag_root=None, override_type: RenderModelOverrideType=None) -> tuple[str]:
         """Returns string paths from model tag dependencies: render, collision, animation, physics"""
         render = ""

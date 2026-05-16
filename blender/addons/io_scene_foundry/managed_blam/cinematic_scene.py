@@ -316,7 +316,7 @@ class CinematicObjectFunction:
         for sub_element in element.SelectField("keyframes").Elements:
             keyframe = CinematicObjectFunctionKeyframe(self.object, self.function_name)
             keyframe.from_element(sub_element)
-            self.keyframes.append(keyframe)
+            self.keyframes[keyframe.frame] = keyframe
             
         return bool(self.keyframes)
     
@@ -336,17 +336,29 @@ class CinematicScreenEffect:
         
     def from_element(self, element: TagFieldBlockElement, corinth: bool):
         self.screen_effect = element.SelectField("screen effect").Path
-        self.frame = element.SelectField("LongInteger:frame").Data
+        self.frame = element.SelectField("frame").Data
         self.stop_frame = element.SelectField("stop frame").Data
         if corinth:
             self.persist_entire_shot = element.SelectField("flags").TestBit("Persist Entire Shot")
     
     def to_element(self, element: TagFieldBlockElement, corinth: bool):
         element.SelectField("screen effect").Path = self.screen_effect
-        element.SelectField("LongInteger:frame").Data = self.frame
+        element.SelectField("frame").Data = self.frame
         element.SelectField("stop frame").Data = self.stop_frame
         if corinth:
             element.SelectField("flags").SetBit("Persist Entire Shot", self.persist_entire_shot)
+            
+    def from_camera(self, nwo, shot_frame_count: int, corinth: bool):
+        self.screen_effect = tag_path_from_string(nwo.screen_effect)
+        self.frame = utils.game_frame(nwo.screen_effect_delay) + int(corinth)
+        if nwo.screen_effect_time > 0:
+            self.stop_frame = self.frame + utils.game_frame(nwo.screen_effect_time)
+        else:
+            if corinth:
+                self.persist_entire_shot = True
+                self.stop_frame = 1
+            else:
+                self.stop_frame = shot_frame_count
         
 class CinematicCustomScript:
     def __init__(self):
@@ -447,16 +459,22 @@ class CinematicUserInputConstraints:
         self.frictional_force = 0
         
     def from_element(self, element: TagFieldBlockElement):
-        self.frame = element.SelectField("LongInteger:frame").Data
+        self.frame = element.SelectField("frame").Data
         self.ticks = element.SelectField("ticks").Data
         self.maximum_look_angles = element.SelectField("maximum look angles").Data
         self.frictional_force = element.SelectField("frictional force").Data
     
     def to_element(self, element: TagFieldBlockElement):
-        element.SelectField("LongInteger:frame").Data = self.frame
+        element.SelectField("frame").Data = self.frame
         element.SelectField("ticks").Data = self.ticks
         element.SelectField("maximum look angles").Data = self.maximum_look_angles
         element.SelectField("frictional force").Data = self.frictional_force
+        
+    def from_camera(self, camera_nwo, corinth: bool):
+        self.frame = utils.game_frame(camera_nwo.user_input_bounds_delay) + int(corinth)
+        self.ticks = utils.game_frame(camera_nwo.user_input_bounds_time)
+        self.maximum_look_angles = [camera_nwo.user_input_bounds_t, -camera_nwo.user_input_bounds_l, -camera_nwo.user_input_bounds_b, camera_nwo.user_input_bounds_r]
+        self.frictional_force = camera_nwo.frictional_force
         
     
 class CinematicTextureMovie:
@@ -566,7 +584,7 @@ class CinematicSceneTag(Tag):
             for object_functions_element in scene_element.SelectField("object functions").Elements:
                 object_function = CinematicObjectFunction()
                 object_function.from_element(object_functions_element, scene_objects)
-                for keyframe in object_function.keyframes:
+                for keyframe in object_function.keyframes.values():
                     keyframe.to_event(cin_scene_nwo, self.corinth)
                     object_events[object_function.object].append(len(cin_scene_nwo.cinematic_events) - 1)
                 
@@ -613,7 +631,11 @@ class CinematicSceneTag(Tag):
                 shot_camera.nwo.screen_effect = main_screen_effect.screen_effect.RelativePathWithExtension
             
             if main_user_constraint is not None:
-                shot_camera.nwo.user_input_bounds = main_user_constraint.maximum_look_angles
+                t, l, b, r,  = main_user_constraint.maximum_look_angles
+                shot_camera.nwo.user_input_bounds_t = abs(t)
+                shot_camera.nwo.user_input_bounds_l = abs(l)
+                shot_camera.nwo.user_input_bounds_b = abs(b)
+                shot_camera.nwo.user_input_bounds_r = abs(r)
             
             cam_frames = []
             

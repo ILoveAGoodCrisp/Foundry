@@ -1972,9 +1972,9 @@ class NWO_CinematicEvent(PropertyGroup):
                 return f"{start_stop} {Path(self.sound_tag).with_suffix('').name}"
             case 'FUNCTION':
                 if utils.pointer_ob_valid(self.actor):
-                    return f"{Path(self.function_name)} -> {self.actor.name} -> {'CLEAR' if self.clear_function else self.value}"
+                    return f"{self.actor.name} -> {Path(self.function_name)} -> {'CLEAR' if self.clear_function else self.value}"
                 else:
-                    return f"{Path(self.function_name)} -> NONE -> {'CLEAR' if self.clear_function else self.value}"
+                    return f"NONE -> {Path(self.function_name)} -> {'CLEAR' if self.clear_function else self.value}"
         
     name: bpy.props.StringProperty(
         name="Name",

@@ -139,13 +139,6 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         description="Ends the screen effect x frames after starting. 0 means this screen effect lasts for the entire shot duration"
     )
     
-    user_input_bounds: bpy.props.FloatVectorProperty(
-        name="User Input Bounds",
-        options=set(),
-        description="Bounds representing a rectangle in which the player can move the camera. Values are as follows:\nLook Up Limit\nLook Left Limit\nLook Down Limit\nLook Right Limit",
-        size=4,
-    )
-    
     user_input_bounds_t: bpy.props.FloatProperty(
         name="Look Up Limit",
         description="The maximum angle the user may look up",
@@ -212,16 +205,24 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     
     cinematic_variant: bpy.props.StringProperty(
         name="Cinematic Variant",
-        description="Cinematic Object Variant"
+        description="Cinematic Object Variant",
+        options=set()
     )
     
     cinematic_lighting: bpy.props.EnumProperty(
         name="Cinematic Lighting",
+        options=set(),
         items=[
-            ('NONE', "None", ""),
-            ('PERSIST', "Persist", ""),
-            ('PER_SHOT', "Per Shot", ""),
+            ('NONE', "None", "No special cinematic lighting tag is created for this actor"),
+            ('PERSIST', "Persist", "One cinematic lighting tag is created for this actor and it persists in each shot the actor is active"),
+            ('PER_SHOT', "Per Shot", "A cinematic lighting tag is created per shot for this actor"),
         ]
+    )
+    
+    cinematic_lighting_marker: bpy.props.StringProperty(
+        name="Lighting Marker",
+        description="Marker to use as the lighting origin. If blank, the root of the character is the lighting origin",
+        options=set(),
     )
     
     # cinematic flags

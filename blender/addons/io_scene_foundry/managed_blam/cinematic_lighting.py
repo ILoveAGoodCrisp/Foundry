@@ -135,37 +135,37 @@ class CinematicLightingTag(Tag):
         if lights is not None and lights.Elements.Count > 0:
             element = lights.Elements[0]
             # Light 1
-            light_1 = CinematicLight()
-            light_1.set_color(element.SelectField("RealRgbColor:Direct color 1").Data)
-            light_1.set_intensity(element.SelectField("Real:Direct intensity 1").Data * element.SelectField("Real:Authored Light Probe Intensity Scale").Data)
-            if light_1.valid_color and light_1.valid_intensity:
-                light_1.compute_matrix(element.SelectField("Real:Direction 1").Data, element.SelectField("Real:Front-Back 1").Data)
-                cin_lighting.vmf_lights.append(light_1)
+            # light_1 = CinematicLight()
+            # light_1.set_color(element.SelectField("RealRgbColor:Direct color 1").Data)
+            # light_1.set_intensity(element.SelectField("Real:Direct intensity 1").Data * element.SelectField("Real:Authored Light Probe Intensity Scale").Data)
+            # if light_1.valid_color and light_1.valid_intensity:
+            #     light_1.compute_matrix(element.SelectField("Real:Direction 1").Data, element.SelectField("Real:Front-Back 1").Data)
+            #     cin_lighting.vmf_lights.append(light_1)
             
-            # Light 2
-            light_2 = CinematicLight()
-            light_2.set_color(element.SelectField("RealRgbColor:Direct color 2").Data)
-            light_2.set_intensity(element.SelectField("Real:Direct intensity 2").Data * element.SelectField("Real:Authored Light Probe Intensity Scale").Data)
-            if light_2.valid_color and light_2.valid_intensity:
-                light_2.compute_matrix(element.SelectField("Real:Direction 2").Data, element.SelectField("Real:Front-Back 2").Data)
-                cin_lighting.vmf_lights.append(light_2)
+            # # Light 2
+            # light_2 = CinematicLight()
+            # light_2.set_color(element.SelectField("RealRgbColor:Direct color 2").Data)
+            # light_2.set_intensity(element.SelectField("Real:Direct intensity 2").Data * element.SelectField("Real:Authored Light Probe Intensity Scale").Data)
+            # if light_2.valid_color and light_2.valid_intensity:
+            #     light_2.compute_matrix(element.SelectField("Real:Direction 2").Data, element.SelectField("Real:Front-Back 2").Data)
+            #     cin_lighting.vmf_lights.append(light_2)
     
     def _from_reach(self, cin_lighting: CinLighting):
         # Directional VMF Light
-        directional_vmf_light = CinematicLight()
-        directional_vmf_light.set_color(self.tag.SelectField("RealRgbColor:Directional Color").Data)
-        directional_vmf_light.set_intensity(self.tag.SelectField("Real:Directional scale").Data * self.tag.SelectField("Real:vmf light scale").Data)
-        if directional_vmf_light.valid_color and directional_vmf_light.valid_intensity:
-            directional_vmf_light.compute_matrix(self.tag.SelectField("Real:Direction").Data, self.tag.SelectField("Real:Front-Back").Data)
-            cin_lighting.vmf_lights.append(directional_vmf_light)
+        # directional_vmf_light = CinematicLight()
+        # directional_vmf_light.set_color(self.tag.SelectField("RealRgbColor:Directional Color").Data)
+        # directional_vmf_light.set_intensity(self.tag.SelectField("Real:Directional scale").Data * self.tag.SelectField("Real:vmf light scale").Data)
+        # if directional_vmf_light.valid_color and directional_vmf_light.valid_intensity:
+        #     directional_vmf_light.compute_matrix(self.tag.SelectField("Real:Direction").Data, self.tag.SelectField("Real:Front-Back").Data)
+        #     cin_lighting.vmf_lights.append(directional_vmf_light)
         
-        # Analytical VMF Light
-        analytical_vmf_light = CinematicLight()
-        analytical_vmf_light.set_color(self.tag.SelectField("RealRgbColor:Analytical color").Data)
-        analytical_vmf_light.set_intensity(self.tag.SelectField("Real:Analytical scale").Data * self.tag.SelectField("Real:analytical light scale").Data)
-        if analytical_vmf_light.valid_color and analytical_vmf_light.valid_intensity:
-            analytical_vmf_light.compute_matrix(self.tag.SelectField("Real:Direction(A)").Data, self.tag.SelectField("Real:Front-Back(A)").Data)
-            cin_lighting.vmf_lights.append(analytical_vmf_light)
+        # # Analytical VMF Light
+        # analytical_vmf_light = CinematicLight()
+        # analytical_vmf_light.set_color(self.tag.SelectField("RealRgbColor:Analytical color").Data)
+        # analytical_vmf_light.set_intensity(self.tag.SelectField("Real:Analytical scale").Data * self.tag.SelectField("Real:analytical light scale").Data)
+        # if analytical_vmf_light.valid_color and analytical_vmf_light.valid_intensity:
+        #     analytical_vmf_light.compute_matrix(self.tag.SelectField("Real:Direction(A)").Data, self.tag.SelectField("Real:Front-Back(A)").Data)
+        #     cin_lighting.vmf_lights.append(analytical_vmf_light)
             
         # Dynamic Lights
         for element in self.tag.SelectField("dynamic lights").Elements:

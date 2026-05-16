@@ -18,6 +18,8 @@ AMF_ADDON = r"https://github.com/Gravemind2401/Reclaimer/blob/master/Reclaimer.B
 RECLAIMER = r"https://github.com/Gravemind2401/Reclaimer/releases"
 ANIMATION_REPO = r"https://github.com/77Mynameislol77/HaloAnimationRepository"
 
+from mathutils import Vector
+
 
 from ...managed_blam.connected_material import functions_list
 game_functions = {func.name for func in functions_list}
@@ -1550,13 +1552,13 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             return
         
         def draw_custom_props():
-            custom_props = [k for k in ob.keys() if not k.startswith("_")]
+            custom_props = [k for k, v in ob.items() if not k.startswith("_") and not isinstance(v, str)]
             
             change_colors_props = [k for k in custom_props if k in all_change_color_prop_names]
             weapon_props = [k for k in custom_props if k in ("Ammo", "Tether Distance")]
             function_props = [k for k in custom_props if k in game_functions]
             built_in_props = set(change_colors_props + weapon_props + function_props)
-            tag_props = [k for k in custom_props if k.lower() == k and k not in built_in_props]
+            tag_props = [k for k in custom_props if k.lower() == k and k and k not in built_in_props]
             has_driver_remap = ob.type == 'ARMATURE'
             
             if change_colors_props or weapon_props or function_props or has_driver_remap:
@@ -1621,7 +1623,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col.separator()
             col.prop(nwo, "force_exposure")
             row = col.row()
-            row.enabled = (not nwo.force_exposure)
+            row.enabled = nwo.force_exposure
             row.prop(nwo, "forced_exposure")
             
             if self.h4:
@@ -1701,7 +1703,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             actor_box.label(text="Camera Actors")
             actor_box.use_property_split = False
             actor_box.prop(nwo, "use_lightmap", icon='SHADING_RENDERED')
-            actor_box.prop(nwo, "use_high_res", icon='MESH_MONKEY')
+            if self.h4:
+                actor_box.prop(nwo, "use_high_res", icon='MESH_MONKEY')
             row = actor_box.row()
             row.prop(nwo, "actors_type", text=" ", expand=True)
             row = actor_box.row()
@@ -1805,6 +1808,10 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 col.operator("nwo.update_actor", icon='FILE_REFRESH')
                 col.separator()
                 col.prop(nwo, "cinematic_lighting")
+                row = col.row(align=True)
+                row.prop(nwo, "cinematic_lighting_marker")
+                if bpy.ops.nwo.get_model_markers.poll():
+                    row.operator_menu_enum("nwo.get_model_markers", "marker", icon="DOWNARROW_HLT", text="")
                 col.prop(nwo, "object_source")
                 col.label(text="Flags")
                 col.prop(nwo, "effect_object")
