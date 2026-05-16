@@ -2,6 +2,90 @@ import bpy
 from . import bar, node_editor, outliner, viewport, panel, timeline, properties
 from .panel import animation, asset, help, material, object, scene, sets, setting, tools, cinematic, light
 
+_TOOLBAR_WATCHDOG_INTERVAL = 5.0
+_TOOLBAR_FORCE_REPAIR_TICKS = 12
+_toolbar_watchdog_enabled = False
+_toolbar_watchdog_ticks = 0
+_toolbar_draw_identity = None
+
+
+def _tool_header_draw_identity():
+    draw = bpy.types.VIEW3D_HT_tool_header.draw
+
+    return (
+        id(draw),
+        getattr(draw, "__module__", None),
+        getattr(draw, "__qualname__", None),
+    )
+
+
+def _remove_foundry_toolbar():
+    bpy.types.VIEW3D_HT_tool_header.remove(bar.draw_foundry_toolbar)
+
+def _tag_view3d_headers_redraw():
+    if bpy.app.background:
+        return
+    
+    windows = bpy.context.window_manager.windows
+
+    for window in windows:
+        screen = getattr(window, "screen", None)
+        if not screen:
+            continue
+        for area in screen.areas:
+            if area.type == "VIEW_3D":
+                area.tag_redraw()
+
+
+def _ensure_foundry_toolbar():
+    global _toolbar_draw_identity
+    _remove_foundry_toolbar()
+    bpy.types.VIEW3D_HT_tool_header.append(bar.draw_foundry_toolbar)
+    _toolbar_draw_identity = _tool_header_draw_identity()
+    _tag_view3d_headers_redraw()
+
+
+def _foundry_toolbar_watchdog():
+    global _toolbar_watchdog_ticks
+
+    if not _toolbar_watchdog_enabled or bpy.app.background:
+        return None
+
+    _toolbar_watchdog_ticks += 1
+    draw_changed = _tool_header_draw_identity() != _toolbar_draw_identity
+    force_repair = _toolbar_watchdog_ticks >= _TOOLBAR_FORCE_REPAIR_TICKS
+
+    if draw_changed or force_repair:
+        _toolbar_watchdog_ticks = 0
+        _ensure_foundry_toolbar()
+
+    return _TOOLBAR_WATCHDOG_INTERVAL
+
+
+def _start_foundry_toolbar_watchdog():
+    global _toolbar_watchdog_enabled, _toolbar_watchdog_ticks
+    _toolbar_watchdog_enabled = True
+    _toolbar_watchdog_ticks = 0
+    _ensure_foundry_toolbar()
+
+    if bpy.app.background:
+        return
+    
+    if not bpy.app.timers.is_registered(_foundry_toolbar_watchdog):
+        bpy.app.timers.register(_foundry_toolbar_watchdog, first_interval=0.25)
+
+
+def _stop_foundry_toolbar_watchdog():
+    global _toolbar_watchdog_enabled, _toolbar_watchdog_ticks, _toolbar_draw_identity
+    _toolbar_watchdog_enabled = False
+    _toolbar_watchdog_ticks = 0
+    _toolbar_draw_identity = None
+
+    if bpy.app.timers.is_registered(_foundry_toolbar_watchdog):
+        bpy.app.timers.unregister(_foundry_toolbar_watchdog)
+
+    _remove_foundry_toolbar()
+
 classes = [
     bar.NWO_MT_ProjectChooserMenuDisallowNew,
     bar.NWO_MT_ProjectChooserMenu,
@@ -224,7 +308,7 @@ def register():
     bpy.types.VIEW3D_MT_object_context_menu.append(viewport.object_context_sets)
     bpy.types.OUTLINER_MT_collection.append(viewport.collection_context)
     bpy.types.NODE_MT_add.append(node_editor.node_context_menu)
-    bpy.types.VIEW3D_HT_tool_header.append(bar.draw_foundry_toolbar)
+    _start_foundry_toolbar_watchdog()
     # bpy.types.NODE_HT_header.append(bar.draw_foundry_nodes_toolbar)
     bpy.types.VIEW3D_MT_mesh_add.append(viewport.add_halo_scale_model_button)
     bpy.types.VIEW3D_MT_armature_add.append(viewport.add_halo_armature_buttons)
@@ -243,7 +327,7 @@ def unregister():
     bpy.types.VIEW3D_MT_object_parent.remove(object.draw_halo_attach)
     bpy.types.DOPESHEET_HT_header.remove(timeline.draw_cinematic_info)
     bpy.types.TOPBAR_MT_file_import.remove(bar.menu_func_import)
-    bpy.types.VIEW3D_HT_tool_header.remove(bar.draw_foundry_toolbar)
+    _stop_foundry_toolbar_watchdog()
     # bpy.types.NODE_HT_header.remove(bar.draw_foundry_nodes_toolbar)
     bpy.types.VIEW3D_MT_mesh_add.remove(viewport.add_halo_scale_model_button)
     bpy.types.VIEW3D_MT_armature_add.remove(viewport.add_halo_armature_buttons)

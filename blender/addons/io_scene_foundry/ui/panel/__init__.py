@@ -3957,6 +3957,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         row = box.row(align=True)
         row.prop(prefs, "rename_halo_collections")
         row = box.row(align=True)
+        row.prop(prefs, "rename_material")
+        row = box.row(align=True)
         row.prop(prefs, "default_scale_model")
         row = box.row(align=True)
         row.prop(prefs, "granny_viewer_path")
