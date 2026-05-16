@@ -1654,7 +1654,13 @@ class NWO_Import(bpy.types.Operator):
                                 anchor.nwo.export_this = False
                                 scenario_instance_empty.parent = anchor
                                 scenario_instance_empty.parent_type = 'OBJECT'
-                                scenario_instance_empty.matrix_world = import_transform.marker_matrix(Matrix.Identity(4))
+                                scenario_instance_empty.matrix_parent_inverse = Matrix.Identity(4)
+                                if scene_nwo.maintain_marker_axis:
+                                    scenario_instance_empty.matrix_local = Matrix.Rotation(
+                                        -import_transform.rotation(scene_nwo), 4, 'Z'
+                                    )
+                                else:
+                                    scenario_instance_empty.matrix_local = Matrix.Identity(4)
                             else:
                                 anchor = bpy.data.objects.new(name=sdata.anchor_name, object_data=None)
                                 anchor.nwo.is_frame = True
