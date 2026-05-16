@@ -2275,7 +2275,7 @@ class NWO_CinematicScene(PropertyGroup):
     )
     
     header: bpy.props.StringProperty(
-        name="Header Script",
+        name="Header",
         options=set(),
         description="Halo script to execute before this cinematic scene starts"
     )
@@ -2286,7 +2286,7 @@ class NWO_CinematicScene(PropertyGroup):
     )
     
     footer: bpy.props.StringProperty(
-        name="Footer Script",
+        name="Footer",
         options=set(),
         description="Halo script to execute after this cinematic scene ends"
     )
