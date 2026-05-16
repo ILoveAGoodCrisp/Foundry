@@ -405,6 +405,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     col_end.use_property_split = True
                     col_end.prop(cin_scene, "name")
                     col_end.prop(cin_scene, "scene")
+                    col_end.prop(cin_scene, "reset_object_lighting")
                     self.draw_script_field(col_end, cin_scene, "header", "header_text", "header_use_text", "Script")
                     self.draw_script_field(col_end, cin_scene, "footer", "footer_text", "footer_use_text", "Script")
 

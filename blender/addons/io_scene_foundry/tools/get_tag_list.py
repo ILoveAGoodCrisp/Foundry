@@ -327,7 +327,7 @@ def get_glob_from_prop(prop):
         case 'music':
             return "*.sound;*.sound_looping"
         case 'screen_effect':
-            return "*.area_screen_effect"
+            return "*.a*s*n_effect"
         case 'cinematic_transition_settings':
             return "*.cinematic_transition"
         case 'event_sound_tag':
