@@ -4,6 +4,8 @@ from math import degrees, isfinite
 from pathlib import Path
 import bpy
 from mathutils import Euler
+
+from ..managed_blam.cinematic_lighting import CinematicLightingTag
 from ..managed_blam.lisp_to_corinth import script_from_text
 
 from ..managed_blam.object import ObjectTag
@@ -633,8 +635,8 @@ class QUA:
             
             # other props
             scene.tag.SelectField("reset object lighting").Value = int(cin_scene_settings.reset_object_lighting)
-            scene.tag.SelectField("struct:header").Elements[0].Fields[0].DataAsText = script_from_text(self.corinth, cin_scene_settings.header, cin_scene_settings.header_text)
-            scene.tag.SelectField("struct:footer").Elements[0].Fields[0].DataAsText = script_from_text(self.corinth, cin_scene_settings.footer, cin_scene_settings.footer_text)
+            scene.tag.SelectField("struct:header").Elements[0].Fields[0].DataAsText = script_from_text(self.corinth, cin_scene_settings.header, cin_scene_settings.header_text, cin_scene_settings.header_use_text)
+            scene.tag.SelectField("struct:footer").Elements[0].Fields[0].DataAsText = script_from_text(self.corinth, cin_scene_settings.footer, cin_scene_settings.footer_text, cin_scene_settings.footer_use_text)
             
             scene.tag_has_changes = True
             if self.corinth:
@@ -773,8 +775,8 @@ class QUA:
             
             # SHOT SETTINGS
             camera_nwo = shot.camera.nwo
-            element.SelectField("Struct:header").Elements[0].Fields[0].DataAsText = script_from_text(self.corinth, camera_nwo.header, camera_nwo.header_text)
-            element.SelectField("Struct:footer").Elements[0].Fields[0].DataAsText = script_from_text(self.corinth, camera_nwo.footer, camera_nwo.footer_text)
+            element.SelectField("Struct:header").Elements[0].Fields[0].DataAsText = script_from_text(self.corinth, camera_nwo.header, camera_nwo.header_text, camera_nwo.header_use_text)
+            element.SelectField("Struct:footer").Elements[0].Fields[0].DataAsText = script_from_text(self.corinth, camera_nwo.footer, camera_nwo.footer_text, camera_nwo.footer_use_text)
             element.SelectField("Real:environment darken").Data = camera_nwo.environment_darken
             element.SelectField("Real:forced exposure").Data = camera_nwo.forced_exposure
             shot_flags = element.SelectField("flags")
@@ -915,12 +917,12 @@ class QUA:
             actor_flags.SetBit("I will animate the English lipsync manually", actor_nwo.english_lipsync_manual)
             
             override_flags = element.SelectField("override creation flags")
-            override_flags.SetBit("single player", actor_nwo.override_1_player)
-            override_flags.SetBit("2 player co-op", actor_nwo.override_2_player)
-            override_flags.SetBit("3 player co-op", actor_nwo.override_3_player)
-            override_flags.SetBit("4 player co-op", actor_nwo.override_4_player)
+            override_flags.SetBit("single player", (not actor_nwo.override_1_player))
+            override_flags.SetBit("2 player co-op", (not actor_nwo.override_2_player))
+            override_flags.SetBit("3 player co-op", (not actor_nwo.override_3_player))
+            override_flags.SetBit("4 player co-op", (not actor_nwo.override_4_player))
             
-            element.SelectField("don't create condition").Elements[0].Fields[0].DataAsText = script_from_text(self.corinth, actor_nwo.override_script, actor_nwo.override_script_text)
+            element.SelectField("custom don't create condition").Elements[0].Fields[0].DataAsText = script_from_text(self.corinth, actor_nwo.override_script, actor_nwo.override_script_text, actor_nwo.override_script_use_text)
             
             if self.corinth:
                 actor_flags.SetBit("Primary Cortana", actor_nwo.primary_cortana)
@@ -970,24 +972,23 @@ class QUA:
                     
                     
             def setup_lighting_element(lighting_element, shot_index: int, persist=False):
-                lighting_name = f"{self.scene_name}_sh{shot_index + 1}_{actor.name}.cinematic_lighting"
+                lighting_name = f"{self.scene_name}_sh{shot_index + 1}_{actor.name}"
                 lighting_path = Path(self.tag_path.parent, "lights", lighting_name)
-                with Tag(path=lighting_path) as cin_lighting:
+                with CinematicLightingTag(path=lighting_path) as cin_lighting:
                     lighting_element.SelectField("lighting").Path = cin_lighting.tag_path
                 lighting_element.SelectField("flags").SetBit("persists across shots", persist)
                 lighting_element.SelectField("marker").SetStringData(actor.lighting_marker)
                 lighting_element.SelectField("subject").Value = element.ElementIndex
-                
 
             # Add actor lighting
             match actor.lighting:
                 case ActorLighting.PERSIST:
-                    first_shot_element = block_data_shots.Elements[actor.shots_active[0]]
+                    first_shot_element = block_data_shots.Elements[0] if self.corinth else block_shots.Elements[0]
                     setup_lighting_element(first_shot_element.SelectField("lighting").AddElement(), first_shot_element.ElementIndex, True)
                 case ActorLighting.PER_SHOT:
                     first_shot_element = block_data_shots.Elements[actor.shots_active[0]]
                     for shot_i in actor.shots_active:
-                        next_shot_element = block_data_shots.Elements[shot_i]
+                        next_shot_element = block_data_shots.Elements[shot_i] if self.corinth else block_shots.Elements[shot_i]
                         setup_lighting_element(next_shot_element.SelectField("lighting").AddElement(), next_shot_element.ElementIndex)
  
         # Add cinematic events

@@ -127,7 +127,7 @@ class CinLighting:
         self.cortana_lights: list[CinematicLight] = []
     
 class CinematicLightingTag(Tag):
-    tag_ext = 'cinematic_lighting'
+    tag_ext = 'new_cinematic_lighting'
     
     def _from_corinth(self, cin_lighting: CinLighting):
         lights = self.tag.SelectField("Block:Authored Light Probe[0]/Block:Lights")

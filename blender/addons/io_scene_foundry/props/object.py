@@ -292,34 +292,43 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     # override creation flags
     override_1_player: bpy.props.BoolProperty(
         name="Single Player",
-        description="Don't create this actor if the game is singleplayer",
+        description="Create this actor if the game is singleplayer",
+        default=True,
         options=set(),
     )
     override_2_player: bpy.props.BoolProperty(
         name="2 Player Co-op",
-        description="Don't create this actor if the game is 2 player co-op",
+        description="Create this actor if the game is 2 player co-op",
+        default=True,
         options=set(),
     )
     override_3_player: bpy.props.BoolProperty(
         name="3 Player Co-op",
-        description="Don't create this actor if the game is 3 player co-op",
+        description="Create this actor if the game is 3 player co-op",
+        default=True,
         options=set(),
     )
     override_4_player: bpy.props.BoolProperty(
         name="4 Player Co-op",
-        description="Don't create this actor if the game is 4 player co-op",
+        description="Create this actor if the game is 4 player co-op",
+        default=True,
         options=set(),
     )
     
     override_script: bpy.props.StringProperty(
         name="Script",
-        description="Custom halo script which if prevents the actor from being created if the script returns true"
+        description="Custom halo script which creates this actor if the script returns true or is left empty"
+    )
+    override_script_use_text: bpy.props.BoolProperty(
+        name="Use Script Text",
+        description="Use a Blender text datablock for the custom create condition instead of inline script text",
+        options=set(),
     )
     override_script_text: bpy.props.PointerProperty(
         name="Script Text",
         options=set(),
         type=bpy.types.Text,
-        description="Use the script located in the referenced blender text file. Custom halo script which if prevents the actor from being created if the script returns true"
+        description="Use the script located in the referenced blender text file. Custom halo script which creates this actor if the script returns true or is left empty"
     )
     
     # Shot props
@@ -328,11 +337,21 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="Halo script to execute before this cinematic shot starts"
     )
+    header_use_text: bpy.props.BoolProperty(
+        name="Use Header Text",
+        description="Use a Blender text datablock for the header script instead of inline script text",
+        options=set(),
+    )
     
     footer: bpy.props.StringProperty(
         name="Footer Script",
         options=set(),
         description="Halo script to execute after this cinematic shot ends"
+    )
+    footer_use_text: bpy.props.BoolProperty(
+        name="Use Footer Text",
+        description="Use a Blender text datablock for the footer script instead of inline script text",
+        options=set(),
     )
     header_text: bpy.props.PointerProperty(
         name="Header Text",
@@ -361,7 +380,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     generate_looping_script: bpy.props.BoolProperty(
         name="Generate Looping Script",
         options=set(),
-        description="Makes the shot loop... forever!"
+        description="Adds a script function to the cinematic script which can be called to loop this shot. Doesn't actually make the shot itself loop without added scripting"
     )
     environment_darken: bpy.props.FloatProperty(
         name="Environment Darken",

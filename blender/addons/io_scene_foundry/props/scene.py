@@ -2279,11 +2279,21 @@ class NWO_CinematicScene(PropertyGroup):
         options=set(),
         description="Halo script to execute before this cinematic scene starts"
     )
+    header_use_text: bpy.props.BoolProperty(
+        name="Use Header Text",
+        description="Use a Blender text datablock for the header script instead of inline script text",
+        options=set(),
+    )
     
     footer: bpy.props.StringProperty(
         name="Footer Script",
         options=set(),
         description="Halo script to execute after this cinematic scene ends"
+    )
+    footer_use_text: bpy.props.BoolProperty(
+        name="Use Footer Text",
+        description="Use a Blender text datablock for the footer script instead of inline script text",
+        options=set(),
     )
     header_text: bpy.props.PointerProperty(
         name="Header Text",
@@ -2480,11 +2490,21 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         options=set(),
         description="Halo script to execute before this cinematic starts"
     )
+    cinematic_header_use_text: bpy.props.BoolProperty(
+        name="Use Header Text",
+        description="Use a Blender text datablock for the header script instead of inline script text",
+        options=set(),
+    )
     
     cinematic_footer: bpy.props.StringProperty(
         name="Footer Script",
         options=set(),
         description="Halo script to execute after this cinematic ends"
+    )
+    cinematic_footer_use_text: bpy.props.BoolProperty(
+        name="Use Footer Text",
+        description="Use a Blender text datablock for the footer script instead of inline script text",
+        options=set(),
     )
     cinematic_header_text: bpy.props.PointerProperty(
         name="Header Text",
@@ -2504,6 +2524,11 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         name="Skip Script",
         options=set(),
         description="Halo script to execute if the player skips the cinematic"
+    )
+    cinematic_skip_footer_use_text: bpy.props.BoolProperty(
+        name="Use Skip Text",
+        description="Use a Blender text datablock for the skip script instead of inline script text",
+        options=set(),
     )
     
     cinematic_skip_footer_text: bpy.props.PointerProperty(
@@ -3189,6 +3214,16 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     regions_table_expanded: bpy.props.BoolProperty(default=True, options=set())
     permutations_table_expanded: bpy.props.BoolProperty(default=True, options=set())
     object_visibility_expanded: bpy.props.BoolProperty(default=True, options=set())
+    cinematic_lighting_expanded: bpy.props.BoolProperty(default=True, options=set())
+    custom_properties_expanded: bpy.props.BoolProperty(default=False, options=set())
+    armature_controls_expanded: bpy.props.BoolProperty(default=True, options=set())
+    bone_collections_expanded: bpy.props.BoolProperty(default=False, options=set())
+    armature_pose_controls_expanded: bpy.props.BoolProperty(default=True, options=set())
+    camera_shot_properties_expanded: bpy.props.BoolProperty(default=True, options=set())
+    camera_screen_effect_expanded: bpy.props.BoolProperty(default=True, options=set())
+    camera_user_input_expanded: bpy.props.BoolProperty(default=True, options=set())
+    camera_actors_expanded: bpy.props.BoolProperty(default=True, options=set())
+    camera_lights_expanded: bpy.props.BoolProperty(default=True, options=set())
 
     mesh_properties_expanded: bpy.props.BoolProperty(default=True, options=set())
     material_attributes_expanded: bpy.props.BoolProperty(default=True, options=set())

@@ -2365,10 +2365,7 @@ def reset_control_rig_props(armature: bpy.types.Object):
         return
 
     for key in settings_bone.keys():
-        if key.startswith("ik_") or key in {"look_follow_head", "head_track", "eye_track"}:
-            settings_bone[key] = 0.0
-        elif key.startswith("root_follow_"):
-            settings_bone[key] = 1.0
+        settings_bone[key] = 0.0
 
 def asset_path_from_blend_location() -> str | None:
     blend_path = bpy.data.filepath.lower()
@@ -6239,7 +6236,7 @@ _WINDOWS_RESERVED = {
     *(f"LPT{i}" for i in range(1, 10)),
 }
 
-def clean_text(value: str, replacement: str = "_", replace_spaces=False) -> str:
+def clean_text(value: str, replacement: str = "_", replace_spaces=False, empty_string_allowed=False) -> str:
     value = unicodedata.normalize("NFKD", value)
     value = value.encode("ascii", "ignore").decode("ascii")
     value = re.sub(r"[.\s]+", replacement, value)
@@ -6248,7 +6245,7 @@ def clean_text(value: str, replacement: str = "_", replace_spaces=False) -> str:
 
     # Prevent empty string
     if not value:
-        value = "default"
+        value = "" if empty_string_allowed else "default"
 
     # Avoid reserved names (case-insensitive)
     if value.upper() in _WINDOWS_RESERVED:

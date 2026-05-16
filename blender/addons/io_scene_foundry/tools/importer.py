@@ -62,6 +62,7 @@ from ..managed_blam.camera_track import CameraTrackTag
 from ..managed_blam.collision_model import CollisionTag
 from ..tools.clear_duplicate_materials import clear_duplicate_materials
 from ..tools.property_apply import apply_props_material, apply_prefix_bulk
+from ..tools.rigging import HaloRig, aim_pitch_name, aim_yaw_name, needs_reach_fp_ik_fix, pedestal_name
 from ..tools.rigging.create_rig import bake_imported_actions_to_control_rig
 from ..tools.shader_finder import find_shaders
 from ..tools.shader_reader import tag_to_nodes
@@ -2720,6 +2721,53 @@ class NWOImporter:
                         set_asset(Path(file).suffix, armature, model.is_sky())
         
         return imported_objects, imported_animations
+
+    def build_imported_control_rig(self, armature: bpy.types.Object):
+        if not self.build_control_rig or armature is None or armature.type != 'ARMATURE':
+            return
+
+        if any(bone.name.startswith(("FK_", "IK_", "PT_", "CTRL_")) for bone in armature.data.bones):
+            return
+
+        pedestal = None
+        pitch = None
+        yaw = None
+        uses_pedestal = False
+        for bone in armature.data.bones:
+            node_name = utils.remove_node_prefix(bone.name).lower()
+            if node_name == pedestal_name and pedestal is None:
+                pedestal = bone.name
+                uses_pedestal = True
+            elif node_name == aim_pitch_name and pitch is None:
+                pitch = bone.name
+            elif node_name == aim_yaw_name and yaw is None:
+                yaw = bone.name
+
+        uses_aim_bones = pitch is not None or yaw is not None
+        reach_fp_fix = needs_reach_fp_ik_fix(armature.nwo.node_order_source)
+
+        utils.deselect_all_objects()
+        armature.select_set(True)
+        utils.set_active_object(armature)
+        if armature.mode != 'OBJECT':
+            bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
+        rig = HaloRig(
+            self.context,
+            import_transform.scale_factor(),
+            self.scene_nwo.forward_direction,
+            uses_aim_bones,
+            False,
+        )
+        rig.rig_ob = armature
+        rig.rig_data = armature.data
+        rig.rig_pose = armature.pose
+        rig.build_bones(pedestal=pedestal, pitch=pitch, yaw=yaw)
+        if uses_pedestal or uses_aim_bones:
+            rig.build_and_apply_control_shapes(reach_fp_fix=reach_fp_fix, reverse_control=False)
+        rig.apply_halo_bone_shape()
+        rig.build_fk_ik_rig(reverse_controls=False, reach_fp_ik_fix=reach_fp_fix)
+        rig.generate_bone_collections()
     
     def import_object(self, paths, existing_armature, pose=None, make_non_export=False, for_instance_conversion=False, return_cin_stuff=False, blender_scene=None, parent_collection=None) -> tuple[list[bpy.types.Object], list] | bpy.types.Collection:
         imported_objects = []
@@ -2877,7 +2925,7 @@ class NWOImporter:
                                                     fp_collection = bpy.data.collections.new(f"FP Arms - {self.import_fp_arms.name.title()}")
                                                     scene_collection.children.link(fp_collection)
                                                     with RenderModelTag(path=fp_arms_path) as render_model:
-                                                        fp_objects, fp_armature = render_model.to_blend_objects(fp_collection, True, self.tag_markers, scene_collection, None, allowed_fp_region_permutations, no_io=True, build_control_rig=self.build_control_rig)
+                                                        fp_objects, fp_armature = render_model.to_blend_objects(fp_collection, True, self.tag_markers, scene_collection, None, allowed_fp_region_permutations, no_io=True, build_control_rig=False)
                                                         fp_objects.remove(fp_armature)
                                                         render_objects.extend(fp_objects)
                                                         
@@ -2937,6 +2985,8 @@ class NWOImporter:
                                                                         
                                                         for k, v in fp_arm_props.items():
                                                             setattr(armature.nwo, k, v)
+
+                                                        self.build_imported_control_rig(armature)
                                     else:
                                         print(f"Couldn't find globals tag [{globals_path}], cannot import fp arms")
                                     

@@ -696,9 +696,9 @@ def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_pat
                 utils.print_warning(f"Cinematic Scene Index {idx} has no blender scene linked, skipping")
                 continue
             
-            if not cin_scene.scene.camera:
-                utils.print_warning(f"Cinematic Scene Index {idx} has no active camera, skipping")
-                continue
+            # if not cin_scene.scene.camera:
+            #     utils.print_warning(f"Cinematic Scene Index {idx} has no active camera, skipping")
+            #     continue
             
             if cin_scene.scene not in scenes:
                 scenes[cin_scene.scene] = cin_scene.name

@@ -1695,7 +1695,7 @@ class ExportScene:
                                     fallback_camera = ob
                                     break
                             else:
-                                utils.print_warning("Scene has no camera, creating cinematic from current viewport position")
+                                self.warnings.append("Scene has no camera, created camera from current viewport position")
                                 region_3d = None
                                 for area in self.context.window.screen.areas:
                                     if area.type == 'VIEW_3D':
@@ -1706,18 +1706,16 @@ class ExportScene:
                                     if region_3d:
                                         break
 
-                                cam_data = bpy.data.cameras.new("ViewportCamera")
-                                fallback_camera = bpy.data.objects.new("ViewportCamera", cam_data)
+                                cam_data = bpy.data.cameras.new("Camera")
+                                fallback_camera = bpy.data.objects.new(cam_data.name, cam_data)
                                 self.context.scene.collection.objects.link(fallback_camera)
                                 
-                                self.temp_objects.add(fallback_camera)
+                                # self.temp_objects.add(fallback_camera)
 
                                 if region_3d:
                                     fallback_camera.matrix_world = region_3d.view_matrix.inverted()
                                     if region_3d.view_perspective == 'CAMERA':
                                         cam_data.type = 'PERSP'
-                                else:
-                                    utils.print_warning("Could not find VIEW_3D region, using default camera transform")
                                 
                             
                         camera = fallback_camera

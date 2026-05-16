@@ -255,6 +255,7 @@ classes = [
     panel.NWO_HotkeyDescription,
     panel.NWO_OpenURL,
     panel.NWO_OT_FoundryTip,
+    panel.NWO_OT_ToggleBoneCollectionSelection,
     panel.NWO_OT_PanelUnpin,
     panel.NWO_OT_PanelSet,
     panel.NWO_OT_PanelExpand,

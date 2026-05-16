@@ -26,6 +26,22 @@ game_functions = {func.name for func in functions_list}
 all_change_color_prop_names = ("Primary Color", "Secondary Color", "Tertiary Color", "Quaternary Color")
 all_change_color_prop_display_names = ("Primary", "Secondary", "Tertiary", "Quaternary")
 
+BONE_COLLECTION_UI_GROUPS = (
+    ("Deform", ("Free Deform Bones", "Controlled Deform Bones", "Helper Deform Bones", "Face Deform Bones")),
+    ("Game Data", ("Pedestal Bones", "Aim Bones")),
+    ("Controls", ("FK", "IK", "Other")),
+    ("Utility", ("Settings Control",)),
+)
+
+POSE_CONTROL_UI_GROUPS = (
+    ("Look", "VIEWZOOM"),
+    ("Gun", "CONSTRAINT_BONE"),
+    ("IK Blend", "CON_KINEMATIC"),
+    ("IK Root Follow", "CON_CHILDOF"),
+    ("Root Follow", "CON_CHILDOF"),
+    ("Other", "PROPERTIES"),
+)
+
 HOTKEYS = [
     ("show_foundry_panel", "SHIFT+F"),
     ("apply_mesh_type", "CTRL+F"),
@@ -48,6 +64,60 @@ PANELS_PROPS = [
     "help",
     "settings"
 ]
+
+def bone_collection_bone_names(collection) -> set[str]:
+    names = {bone.name for bone in collection.bones}
+    for child in getattr(collection, "children", ()):
+        names.update(bone_collection_bone_names(child))
+
+    return names
+
+def selected_armature_bone_names(arm: bpy.types.Object) -> set[str]:
+    if arm.mode == 'EDIT':
+        return {bone.name for bone in arm.data.edit_bones if bone.select}
+
+    return {bone.name for bone in arm.pose.bones if bone.select}
+
+def grouped_bone_collections(collections: list):
+    by_name = {collection.name: collection for collection in collections}
+    grouped_names = set()
+    for group_name, names in BONE_COLLECTION_UI_GROUPS:
+        group = [by_name[name] for name in names if name in by_name]
+        if group:
+            grouped_names.update(collection.name for collection in group)
+            yield group_name, group
+
+    other = [collection for collection in collections if collection.name not in grouped_names]
+    if other:
+        yield "Other", other
+
+def pose_control_group_name(prop_name: str) -> str:
+    lower_name = prop_name.lower()
+    follows_root = "follow root" in lower_name or "follows root" in lower_name or "root_follow" in lower_name
+    is_ik = lower_name.startswith(("ik ", "ik_")) or lower_name.startswith("root_follow_ik")
+    if "gun" in lower_name:
+        return "Gun"
+    if is_ik:
+        if follows_root:
+            return "IK Root Follow"
+        return "IK Blend"
+    if any(token in lower_name for token in ("head", "eye", "look")):
+        if follows_root:
+            return "Root Follow"
+        return "Look"
+    if follows_root:
+        return "Root Follow"
+
+    return "Other"
+
+def is_ik_blend_pose_control(prop_name: str) -> bool:
+    lower_name = prop_name.lower()
+    is_ik = lower_name.startswith("ik ") or lower_name.startswith("ik_")
+    follows_root = "follow root" in lower_name or "follows root" in lower_name or "root_follow" in lower_name
+    return is_ik and not follows_root
+
+def pose_control_label(prop_name: str) -> str:
+    return utils.formalise_string(prop_name)
 
 class NWO_FoundryPanelProps(bpy.types.Panel):
     bl_label = "Foundry"
@@ -282,18 +352,9 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 box_cin_set.label(text="Cinematic Settings")
                 col = box_cin_set.column()
                 col.use_property_split = True
-                col.prop(nwo, "cinematic_header")
-                row = col.row()
-                row.enabled = (not nwo.cinematic_header)
-                row.prop(nwo, "cinematic_header_text")
-                col.prop(nwo, "cinematic_footer")
-                row = col.row()
-                row.enabled = (not nwo.cinematic_footer)
-                row.prop(nwo, "cinematic_footer_text")
-                col.prop(nwo, "cinematic_skip_footer")
-                row = col.row()
-                row.enabled = (not nwo.cinematic_skip_footer)
-                row.prop(nwo, "cinematic_skip_footer_text")
+                self.draw_script_field(col, nwo, "cinematic_header", "cinematic_header_text", "cinematic_header_use_text", "Header Script")
+                self.draw_script_field(col, nwo, "cinematic_footer", "cinematic_footer_text", "cinematic_footer_use_text", "Footer Script")
+                self.draw_script_field(col, nwo, "cinematic_skip_footer", "cinematic_skip_footer_text", "cinematic_skip_footer_use_text", "Skip Script")
                 col.separator()
                 col.prop(nwo, "cinematic_channel_type")
                 col.prop(nwo, "cinematic_easing_in_time")
@@ -561,6 +622,11 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 return panel_expanded
             
         return False
+
+    def draw_script_field(self, layout: bpy.types.UILayout, prop_group, script_prop: str, text_prop: str, use_text_prop: str, label: str):
+        row = layout.row(align=True)
+        row.prop(prop_group, text_prop if getattr(prop_group, use_text_prop) else script_prop)
+        row.prop(prop_group, use_text_prop, text="", icon='TEXT', toggle=True)
     
     def draw_scenario(self, box: bpy.types.UILayout, nwo):
         tag_path = utils.get_asset_tag(".scenario")
@@ -1527,19 +1593,305 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col.separator()
             col.operator("nwo.swap_material", icon='UV_SYNC_SELECT')
             
-    def draw_armature_bone_collections(self, box: bpy.types.UILayout, arm: bpy.types.Object):
+    def draw_custom_properties(self, box: bpy.types.UILayout, ob: bpy.types.Object):
+        custom_props = [k for k, v in ob.items() if not k.startswith("_") and not isinstance(v, str)]
+
+        change_colors_props = [k for k in custom_props if k in all_change_color_prop_names]
+        weapon_props = [k for k in custom_props if k in ("Ammo", "Tether Distance")]
+        function_props = [k for k in custom_props if k in game_functions]
+        built_in_props = set(change_colors_props + weapon_props + function_props)
+        tag_props = [k for k in custom_props if k.lower() == k and k and k not in built_in_props]
+        has_driver_remap = ob.type == 'ARMATURE'
+
+        if not (change_colors_props or weapon_props or function_props or tag_props or has_driver_remap):
+            box.label(text="No custom properties")
+            return
+
+        box.use_property_split = True
+        if has_driver_remap:
+            box.operator("nwo.remap_child_drivers_to_armature", icon='DRIVER')
+            if change_colors_props or weapon_props or function_props or tag_props:
+                box.separator()
+        if change_colors_props:
+            change_colors_box = box.box()
+            change_colors_box.label(text="Change Colors")
+            change_colors_box.separator()
+            for key, display in zip(all_change_color_prop_names, all_change_color_prop_display_names):
+                if key in change_colors_props:
+                    change_colors_box.prop(ob, f'["{key}"]', text=display)
+
+        if weapon_props:
+            weapon_box = box.box()
+            weapon_box.label(text="Weapon")
+            weapon_box.separator()
+            for key in sorted(weapon_props):
+                weapon_box.prop(ob, f'["{key}"]')
+
+        if function_props:
+            function_box = box.box()
+            function_box.label(text="Built In Functions")
+            function_box.separator()
+            for key in sorted(function_props):
+                function_box.prop(ob, f'["{key}"]', text="Engine RPM" if key.endswith("_rpm") else utils.formalise_string(key))
+
+        if tag_props:
+            tag_box = box.box()
+            tag_box.label(text="Object Tag Functions")
+            tag_box.separator()
+            for key in sorted(tag_props):
+                tag_box.prop(ob, f'["{key}"]', text=utils.formalise_string(key))
+
+    def draw_cinematic_lighting(self, box: bpy.types.UILayout, arm: bpy.types.Object):
+        nwo = arm.nwo
+        col = box.column()
+        col.use_property_split = True
+        col.prop(nwo, "cinematic_lighting")
+        row = col.row(align=True)
+        row.prop(nwo, "cinematic_lighting_marker")
+        if bpy.ops.nwo.get_model_markers.poll():
+            row.operator_menu_enum("nwo.get_model_markers", "marker", icon="DOWNARROW_HLT", text="")
+        col.prop(nwo, "object_source")
+        col.label(text="Flags")
+        col.prop(nwo, "effect_object")
+        col.prop(nwo, "no_lightmap_shadow")
+        col.prop(nwo, "apply_player_customization")
+        col.prop(nwo, "apply_first_person_player_customization")
+        col.prop(nwo, "english_lipsync_manual")
+        if self.h4:
+            col.prop(nwo, "primary_cortana")
+            col.prop(nwo, "preload_textures")
+
+        col.label(text="Don't Create If Game Is:")
+        col.prop(nwo, "override_1_player", invert_checkbox=True)
+        col.prop(nwo, "override_2_player", invert_checkbox=True)
+        col.prop(nwo, "override_3_player", invert_checkbox=True)
+        col.prop(nwo, "override_4_player", invert_checkbox=True)
+        self.draw_script_field(col, nwo, "override_script", "override_script_text", "override_script_use_text", "Script")
+
+    def draw_armature_controls(self, box: bpy.types.UILayout, arm: bpy.types.Object):
+        nwo = arm.nwo
+        box.use_property_split = True
+        row = box.row(align=True)
+        row.prop_search(nwo, 'control_aim', arm.pose, 'bones')
+        if not nwo.control_aim:
+            row.operator('nwo.add_pose_bones', text='', icon='ADD').skip_invoke = True
+
+        box.operator("nwo.invert_aim_control", icon='CONSTRAINT_BONE', depress=nwo.invert_control_aim)
+        box.separator()
+        has_control_rig = any(b.name.startswith(("FK_", "IK_", "PT_", "CTRL_")) for b in arm.data.bones)
+        box.operator(
+            "nwo.build_control_rig",
+            text="Update Control Rig" if has_control_rig else "Build Control Rig",
+            icon='BONE_DATA',
+        )
+        box.operator("nwo.invert_control_rig", icon='CONSTRAINT_BONE', depress=nwo.invert_control_rig)
+        row = box.row()
+        row.enabled = has_control_rig
+        row.operator("nwo.clear_control_rig", icon='TRASH')
+        box.separator()
+        box.operator("nwo.bake_to_control", icon='POSE_HLT')
+
+    def draw_bone_collections(self, box: bpy.types.UILayout, arm: bpy.types.Object):
         collections_all = getattr(arm.data, "collections_all", arm.data.collections)
         collections = list(collections_all)
         if not collections:
             return
 
-        box_collections = box.box()
-        box_collections.label(text="Bone Collections")
-        grid = box_collections.grid_flow(columns=1, align=True)
-        for collection in collections:
-            display_name = collection.name if collection.parent is None else f"  {collection.name}"
-            icon = 'HIDE_OFF' if collection.is_visible else 'HIDE_ON'
-            grid.prop(collection, "is_visible", text=display_name, icon=icon, toggle=True)
+        selected_names = selected_armature_bone_names(arm)
+        for group_name, group_collections in grouped_bone_collections(collections):
+            section = box.box()
+            header = section.row(align=True)
+            header.label(text=group_name, icon='BONE_DATA')
+            rows = section.column(align=True)
+            for collection in group_collections:
+                bone_names = bone_collection_bone_names(collection)
+                all_selected = bool(bone_names) and bone_names.issubset(selected_names)
+                display_name = collection.name if collection.parent is None else f"  {collection.name}"
+                icon = 'HIDE_OFF' if collection.is_visible else 'HIDE_ON'
+
+                row = rows.row(align=True)
+                row.prop(collection, "is_visible", text="", icon=icon, toggle=True)
+                select_col = row.column(align=True)
+                select_col.enabled = bool(bone_names)
+                op = select_col.operator(
+                    "nwo.toggle_bone_collection_selection",
+                    text="",
+                    icon='REMOVE' if all_selected else 'ADD',
+                )
+                op.collection_name = collection.name
+                row.label(text=display_name)
+                count = row.column(align=True)
+                count.alignment = 'RIGHT'
+                count.label(text=str(len(bone_names)))
+
+    def draw_armature_pose_controls(self, box: bpy.types.UILayout, arm: bpy.types.Object):
+        settings_bone = arm.pose.bones.get("CTRL_settings")
+        if settings_bone is None:
+            box.label(text="No CTRL_settings bone")
+            return
+
+        custom_props = sorted(key for key in settings_bone.keys() if not key.startswith("_"))
+        if not custom_props:
+            box.label(text="No custom pose controls")
+            return
+
+        box.operator("nwo.keyframe_control_rig_settings", icon='KEY_HLT')
+
+        grouped_props = {group_name: [] for group_name, _ in POSE_CONTROL_UI_GROUPS}
+        for key in custom_props:
+            grouped_props.setdefault(pose_control_group_name(key), []).append(key)
+
+        for group_name, icon in POSE_CONTROL_UI_GROUPS:
+            props = grouped_props.get(group_name)
+            if not props:
+                continue
+
+            section = box.box()
+            section.label(text=group_name, icon=icon)
+            col = section.column(align=True)
+            col.use_property_split = True
+            for key in props:
+                row = col.row(align=True)
+                row.prop(settings_bone, f'["{key}"]', text=key)
+                if is_ik_blend_pose_control(key):
+                    op = row.operator("nwo.bake_ik_control", text="", icon='CON_KINEMATIC')
+                    op.prop_name = key
+                    op.direction = 'FK_TO_IK'
+                    op = row.operator("nwo.bake_ik_control", text="", icon='CONSTRAINT_BONE')
+                    op.prop_name = key
+                    op.direction = 'IK_TO_FK'
+
+    def draw_camera_shot_properties(self, box: bpy.types.UILayout, camera: bpy.types.Object):
+        nwo = camera.nwo
+        col = box.column()
+        col.use_property_split = True
+        self.draw_script_field(col, nwo, "header", "header_text", "header_use_text", "Header Script")
+        self.draw_script_field(col, nwo, "footer", "footer_text", "footer_use_text", "Footer Script")
+        col.separator()
+        col.prop(nwo, "generate_looping_script")
+        col.separator()
+        col.prop(nwo, "instant_auto_exposure")
+        col.prop(nwo, "environment_darken")
+        col.separator()
+        col.prop(nwo, "force_exposure")
+        row = col.row()
+        row.enabled = nwo.force_exposure
+        row.prop(nwo, "forced_exposure")
+
+        if self.h4:
+            col.separator()
+            col.prop(nwo, "lightmap_direct_scalar")
+            col.prop(nwo, "lightmap_indirect_scalar")
+            col.prop(nwo, "lightmap_scalar_option")
+            col.separator()
+            col.prop(nwo, "sun_scalar")
+            col.prop(nwo, "sun_scalar_option")
+            col.separator()
+            draw_tag_path(col, nwo, "atmosphere_fog")
+            col.prop(nwo, "atmosphere_fog_option")
+            col.separator()
+            draw_tag_path(col, nwo, "camera_effects")
+            col.prop(nwo, "camera_effects_option")
+            col.separator()
+            draw_tag_path(col, nwo, "cubemap")
+            col.prop(nwo, "cubemap_option")
+
+    def draw_camera_screen_effect(self, box: bpy.types.UILayout, camera: bpy.types.Object):
+        nwo = camera.nwo
+        col = box.column()
+        draw_tag_path(col, nwo, "screen_effect")
+        row = col.row(align=True)
+        row.prop(nwo, "screen_effect_delay")
+        row.prop(nwo, "screen_effect_time")
+
+    def draw_camera_user_input(self, box: bpy.types.UILayout, camera: bpy.types.Object):
+        nwo = camera.nwo
+        col = box.column(align=True)
+        col.label(text="Input Bounds")
+
+        grid = col.grid_flow(
+            row_major=True,
+            columns=3,
+            even_columns=True,
+            even_rows=True,
+            align=True,
+        )
+
+        # Row 1: [empty] [Up] [empty]
+        grid.label(text="")
+        grid.prop(nwo, "user_input_bounds_t", text="Up", icon='TRIA_UP')
+        grid.label(text="")
+
+        # Row 2: [Left] [empty] [Right]
+        grid.prop(nwo, "user_input_bounds_l", text="Left", icon='TRIA_LEFT')
+        grid.label(text="")
+        grid.prop(nwo, "user_input_bounds_r", text="Right", icon='TRIA_RIGHT')
+
+        # Row 3: [empty] [Down] [empty]
+        grid.label(text="")
+        grid.prop(nwo, "user_input_bounds_b", text="Down", icon='TRIA_DOWN')
+        grid.label(text="")
+
+        col.separator()
+
+        col.prop(nwo, "frictional_force", text="User Input Friction")
+
+        row = col.row(align=True)
+        row.prop(nwo, "user_input_bounds_delay", text="Delay")
+        row.prop(nwo, "user_input_bounds_time", text="End After")
+
+    def draw_camera_actors(self, box: bpy.types.UILayout, camera: bpy.types.Object):
+        nwo = camera.nwo
+        box.use_property_split = False
+        box.prop(nwo, "use_lightmap", icon='SHADING_RENDERED')
+        if self.h4:
+            box.prop(nwo, "use_high_res", icon='MESH_MONKEY')
+        row = box.row()
+        row.prop(nwo, "actors_type", text=" ", expand=True)
+        row = box.row()
+        row.template_list(
+            "NWO_UL_CameraActors",
+            "",
+            nwo,
+            "actors",
+            nwo,
+            "active_actor_index",
+        )
+        col = row.column(align=True)
+        col.operator("nwo.camera_actor_add", text="", icon='ADD')
+        col.operator("nwo.camera_actor_remove", text="", icon='REMOVE')
+        col.separator()
+        col.operator("nwo.camera_actor_clear", text="", icon='CANCEL')
+        if nwo.actors and nwo.active_actor_index > -1:
+            row = box.row(align=True)
+            row.prop(nwo.actors[nwo.active_actor_index], "actor", icon='OUTLINER_OB_ARMATURE')
+        row = box.row(align=True)
+        row.operator("nwo.camera_actors_select", icon='RESTRICT_SELECT_OFF')
+
+    def draw_camera_lights(self, box: bpy.types.UILayout, camera: bpy.types.Object):
+        nwo = camera.nwo
+        box.use_property_split = False
+        row = box.row()
+        row.prop(nwo, "cinematic_lights_type", text=" ", expand=True)
+        row = box.row()
+        row.template_list(
+            "NWO_UL_CameraLights",
+            "",
+            nwo,
+            "cinematic_lights",
+            nwo,
+            "active_cinematic_light_index",
+        )
+        col = row.column(align=True)
+        col.operator("nwo.camera_light_add", text="", icon='ADD')
+        col.operator("nwo.camera_light_remove", text="", icon='REMOVE')
+        col.separator()
+        col.operator("nwo.camera_light_clear", text="", icon='CANCEL')
+        if nwo.cinematic_lights and nwo.active_cinematic_light_index > -1:
+            row = box.row(align=True)
+            row.prop(nwo.cinematic_lights[nwo.active_cinematic_light_index], "light", icon='OUTLINER_OB_LIGHT')
+        row = box.row(align=True)
+        row.operator("nwo.camera_lights_select", icon='RESTRICT_SELECT_OFF')
 
     def draw_object_properties(self):
         box = self.box
@@ -1550,222 +1902,42 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         if ob is None:
             row.label(text="No Active Object")
             return
-        
-        def draw_custom_props():
-            custom_props = [k for k, v in ob.items() if not k.startswith("_") and not isinstance(v, str)]
-            
-            change_colors_props = [k for k in custom_props if k in all_change_color_prop_names]
-            weapon_props = [k for k in custom_props if k in ("Ammo", "Tether Distance")]
-            function_props = [k for k in custom_props if k in game_functions]
-            built_in_props = set(change_colors_props + weapon_props + function_props)
-            tag_props = [k for k in custom_props if k.lower() == k and k and k not in built_in_props]
-            has_driver_remap = ob.type == 'ARMATURE'
-            
-            if change_colors_props or weapon_props or function_props or has_driver_remap:
-                custom_box = box.box()
-                custom_box.label(text="Custom Properties")
-                custom_box.use_property_split = True
-                if has_driver_remap:
-                    custom_box.operator("nwo.remap_child_drivers_to_armature", icon='DRIVER')
-                    if change_colors_props or weapon_props or function_props or tag_props:
-                        custom_box.separator()
-                if change_colors_props:
-                    change_colors_box = custom_box.box()
-                    change_colors_box.label(text="Change Colors")
-                    change_colors_box.separator()
-                    for key, display in zip(all_change_color_prop_names, all_change_color_prop_display_names):
-                        if key in change_colors_props:
-                            change_colors_box.prop(ob, f'["{key}"]', text=display)
-                        
-                if weapon_props:
-                    weapon_box = custom_box.box()
-                    weapon_box.label(text="Weapon")
-                    weapon_box.separator()
-                    for key in sorted(weapon_props):
-                        weapon_box.prop(ob, f'["{key}"]')
-                        
-                if function_props:
-                    function_box = custom_box.box()
-                    function_box.label(text="Built In Functions")
-                    function_box.separator()
-                    for key in sorted(function_props):
-                        function_box.prop(ob, f'["{key}"]', text="Engine RPM" if key.endswith("_rpm") else utils.formalise_string(key))
-                        
-                if tag_props:
-                    tag_box = custom_box.box()
-                    tag_box.label(text="Object Tag Functions")
-                    tag_box.separator()
-                    for key in sorted(tag_props):
-                        tag_box.prop(ob, f'["{key}"]', text=utils.formalise_string(key))
 
         is_cinematic = self.asset_type == 'cinematic'
         nwo = ob.nwo
         col1 = row.column()
         col1.template_ID(context.view_layer.objects, "active", filter="AVAILABLE")
         if ob.type == 'CAMERA' and is_cinematic:
-            box_cin = box.box()
-            col = box_cin.column()
-            col.use_property_split = True
-            col.label(text="Camera Shot Properties")
-            col.prop(nwo, "header")
-            row = col.row()
-            row.enabled = (not nwo.header)
-            row.prop(nwo, "header_text")
-            col.prop(nwo, "footer")
-            row = col.row()
-            row.enabled = (not nwo.footer)
-            row.prop(nwo, "footer_text")
-            col.separator()
-            col.prop(nwo, "generate_looping_script")
-            col.separator()
-            col.prop(nwo, "instant_auto_exposure")
-            col.prop(nwo, "environment_darken")
-            col.separator()
-            col.prop(nwo, "force_exposure")
-            row = col.row()
-            row.enabled = nwo.force_exposure
-            row.prop(nwo, "forced_exposure")
-            
-            if self.h4:
-                col.separator()
-                col.prop(nwo, "lightmap_direct_scalar")
-                col.prop(nwo, "lightmap_indirect_scalar")
-                col.prop(nwo, "lightmap_scalar_option")
-                col.separator()
-                col.prop(nwo, "sun_scalar")
-                col.prop(nwo, "sun_scalar_option")
-                col.separator()
-                draw_tag_path(col, nwo, "atmosphere_fog")
-                col.prop(nwo, "atmosphere_fog_option")
-                col.separator()
-                draw_tag_path(col, nwo, "camera_effects")
-                col.prop(nwo, "camera_effects_option")
-                col.separator()
-                draw_tag_path(col, nwo, "cubemap")
-                col.prop(nwo, "cubemap_option")
-            
-            box.separator()
-            box_screen = box.box()
-            box_screen.label(text="Camera Screen Effect")
-            col = box_screen.column()
-            draw_tag_path(col, nwo, "screen_effect")
-            row = col.row(align=True)
-            row.prop(nwo, "screen_effect_delay")
-            row.prop(nwo, "screen_effect_time")
-            
-            box.separator()
-            box_user = box.box()
-            box_user.label(text="Camera User Input")
-
-            col = box_user.column(align=True)
-            col.label(text="Input Bounds")
-
-            grid = col.grid_flow(
-                row_major=True,
-                columns=3,
-                even_columns=True,
-                even_rows=True,
-                align=True,
-            )
-
-            # Row 1: [empty] [Up] [empty]
-            grid.label(text="")
-            grid.prop(nwo, "user_input_bounds_t", text="Up", icon='TRIA_UP')
-            grid.label(text="")
-
-            # Row 2: [Left] [empty] [Right]
-            grid.prop(nwo, "user_input_bounds_l", text="Left", icon='TRIA_LEFT')
-            grid.label(text="")
-            grid.prop(nwo, "user_input_bounds_r", text="Right", icon='TRIA_RIGHT')
-
-            # Row 3: [empty] [Down] [empty]
-            grid.label(text="")
-            grid.prop(nwo, "user_input_bounds_b", text="Down", icon='TRIA_DOWN')
-            grid.label(text="")
-
-            col.separator()
-
-            col.prop(nwo, "frictional_force", text="User Input Friction")
-
-            row = col.row(align=True)
-            row.prop(nwo, "user_input_bounds_delay", text="Delay")
-            row.prop(nwo, "user_input_bounds_time", text="End After")
-
+            self.draw_expandable_box(box.box(), self.scene_nwo, "camera_shot_properties", ob=ob)
+            self.draw_expandable_box(box.box(), self.scene_nwo, "camera_screen_effect", ob=ob)
+            self.draw_expandable_box(box.box(), self.scene_nwo, "camera_user_input", ob=ob)
             box.operator("nwo.bake_visibility_to_keyframes", icon='DECORATE_KEYFRAME')
-            box.operator("nwo.clear_visibility_keyframes", icon='X') 
+            box.operator("nwo.clear_visibility_keyframes", icon='X')
             markers = utils.get_timeline_markers(self.scene)
             camera_shots = [str(idx + 2) for idx, marker in enumerate(markers) if marker.camera == ob]
             if len(camera_shots) == 1:
                 box.label(text=f"Camera Shot: {camera_shots[0]}")
             elif camera_shots:
                 box.label(text=f"Camera Shots: {', '.join(camera_shots)}")
-            actor_box = box.box()
-            actor_box.label(text="Camera Actors")
-            actor_box.use_property_split = False
-            actor_box.prop(nwo, "use_lightmap", icon='SHADING_RENDERED')
-            if self.h4:
-                actor_box.prop(nwo, "use_high_res", icon='MESH_MONKEY')
-            row = actor_box.row()
-            row.prop(nwo, "actors_type", text=" ", expand=True)
-            row = actor_box.row()
-            row.template_list(
-                "NWO_UL_CameraActors",
-                "",
-                nwo,
-                "actors",
-                nwo,
-                "active_actor_index",
-            )
-            col = row.column(align=True)
-            col.operator("nwo.camera_actor_add", text="", icon='ADD')
-            col.operator("nwo.camera_actor_remove", text="", icon='REMOVE')
-            col.separator()
-            col.operator("nwo.camera_actor_clear", text="", icon='CANCEL')
-            if nwo.actors and nwo.active_actor_index > -1:
-                row = actor_box.row(align=True)
-                row.prop(nwo.actors[nwo.active_actor_index], "actor", icon='OUTLINER_OB_ARMATURE')
-            row = actor_box.row(align=True)
-            row.operator("nwo.camera_actors_select", icon='RESTRICT_SELECT_OFF')
-            
+            self.draw_expandable_box(box.box(), self.scene_nwo, "camera_actors", ob=ob)
+
             if not self.h4:
                 return
-            
-            box.separator()
-            light_box = box.box()
-            light_box.label(text="Camera Lights")
-            light_box.use_property_split = False
-            row = light_box.row()
-            row.prop(nwo, "cinematic_lights_type", text=" ", expand=True)
-            row = light_box.row()
-            row.template_list(
-                "NWO_UL_CameraLights",
-                "",
-                nwo,
-                "cinematic_lights",
-                nwo,
-                "active_cinematic_light_index",
-            )
-            col = row.column(align=True)
-            col.operator("nwo.camera_light_add", text="", icon='ADD')
-            col.operator("nwo.camera_light_remove", text="", icon='REMOVE')
-            col.separator()
-            col.operator("nwo.camera_light_clear", text="", icon='CANCEL')
-            if nwo.cinematic_lights and nwo.active_cinematic_light_index > -1:
-                row = light_box.row(align=True)
-                row.prop(nwo.cinematic_lights[nwo.active_cinematic_light_index], "light", icon='OUTLINER_OB_LIGHT')
-            row = light_box.row(align=True)
-            row.operator("nwo.camera_lights_select", icon='RESTRICT_SELECT_OFF')
-            
+
+            self.draw_expandable_box(box.box(), self.scene_nwo, "camera_lights", ob=ob)
+
             return
         
         col2 = row.column()
         col2.alignment = "RIGHT"
         col2.prop(nwo, "export_this", text="Export")
+        custom_properties_drawn = False
 
         if not nwo.export_this:
             box.label(text="Object is excluded from export")
             if ob.type == 'ARMATURE':
-                draw_custom_props()
+                self.draw_expandable_box(box.box(), self.scene_nwo, "custom_properties", ob=ob)
+                custom_properties_drawn = True
         
         elif nwo.ignore_for_export:
             txt = "Object is excluded from export. "
@@ -1791,13 +1963,13 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
 
         elif ob.type == "ARMATURE":
             box.label(text='Frame' if self.asset_type != 'cinematic' else "Cinematic Actor")
-            col = box.column()
-            col.operator("nwo.select_child_objects", icon='CON_CHILDOF')
+            armature_col = box.column()
+            armature_col.operator("nwo.select_child_objects", icon='CON_CHILDOF')
             if is_cinematic:
-                col.separator()
-                box = col.box()
-                box.label(text="Cinematic Properties")
-                col = box.column()
+                armature_col.separator()
+                box_cinematic = armature_col.box()
+                box_cinematic.label(text="Actor Properties")
+                col = box_cinematic.column()
                 col.use_property_split = True
                 draw_tag_path(col, nwo, "cinematic_object")
                 row = col.row(align=True)
@@ -1806,80 +1978,25 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     row.operator_menu_enum("nwo.get_cinematic_model_variants", "variant", icon="DOWNARROW_HLT", text="")
 
                 col.operator("nwo.update_actor", icon='FILE_REFRESH')
-                col.separator()
-                col.prop(nwo, "cinematic_lighting")
-                row = col.row(align=True)
-                row.prop(nwo, "cinematic_lighting_marker")
-                if bpy.ops.nwo.get_model_markers.poll():
-                    row.operator_menu_enum("nwo.get_model_markers", "marker", icon="DOWNARROW_HLT", text="")
-                col.prop(nwo, "object_source")
-                col.label(text="Flags")
-                col.prop(nwo, "effect_object")
-                col.prop(nwo, "no_lightmap_shadow")
-                col.prop(nwo, "apply_player_customization")
-                col.prop(nwo, "apply_first_person_player_customization")
-                col.prop(nwo, "english_lipsync_manual")
-                if self.h4:
-                    col.prop(nwo, "primary_cortana")
-                    col.prop(nwo, "preload_textures")
-
-                col.label(text="Don't Create If Game Is:")
-                col.prop(nwo, "override_1_player")
-                col.prop(nwo, "override_2_player")
-                col.prop(nwo, "override_3_player")
-                col.prop(nwo, "override_4_player")
-                col.prop(nwo, "override_script")
-                col.prop(nwo, "override_script_text")
+                self.draw_expandable_box(armature_col.box(), self.scene_nwo, "cinematic_lighting", ob=ob, panel_display_name="Actor Settings")
                     
             elif utils.poll_ui(("model", "sky", "animation")):
-                col.separator()
-                box = col.box()
-                box.prop(nwo, "node_order_source", icon_value=get_icon_id("tags"))
+                armature_col.separator()
+                box_node_order = armature_col.box()
+                box_node_order.prop(nwo, "node_order_source", icon_value=get_icon_id("tags"))
                 
-            draw_custom_props()
+            if not custom_properties_drawn:
+                self.draw_expandable_box(box.box(), self.scene_nwo, "custom_properties", ob=ob)
             
-            box_rigging = box.box()
-            box_rigging.label(text="Armature Controls")
-            box_rigging.use_property_split = True
-            row = box_rigging.row(align=True)
-            row.prop_search(nwo, 'control_aim', ob.pose, 'bones')
-            if not nwo.control_aim:
-                row.operator('nwo.add_pose_bones', text='', icon='ADD').skip_invoke = True
-                
-            box_rigging.operator("nwo.invert_aim_control", icon='CONSTRAINT_BONE', depress=nwo.invert_control_aim)
-            box_rigging.separator()
-            has_control_rig = any(b.name.startswith(("FK_", "IK_", "PT_", "CTRL_")) for b in ob.data.bones)
-            box_rigging.operator(
-                "nwo.build_control_rig",
-                text="Update Control Rig" if has_control_rig else "Build Control Rig",
-                icon='BONE_DATA',
-            )
-            box_rigging.operator("nwo.invert_control_rig", icon='CONSTRAINT_BONE', depress=nwo.invert_control_rig)
-            row = box_rigging.row()
-            row.enabled = has_control_rig
-            row.operator("nwo.clear_control_rig", icon='TRASH')
-            box_rigging.separator()
-            box_rigging.operator("nwo.bake_to_control", icon='POSE_HLT')
+            self.draw_expandable_box(box.box(), self.scene_nwo, "armature_controls", ob=ob)
 
-            self.draw_armature_bone_collections(box, ob)
+            collections_all = getattr(ob.data, "collections_all", ob.data.collections)
+            if list(collections_all):
+                self.draw_expandable_box(box.box(), self.scene_nwo, "bone_collections", ob=ob)
 
             settings_bone = ob.pose.bones.get("CTRL_settings")
             if settings_bone is not None:
-                box_pose = box.box()
-                box_pose.label(text="Armature Pose Controls")
-                custom_props = sorted(key for key in settings_bone.keys() if not key.startswith("_"))
-                if not custom_props:
-                    box_pose.label(text="No custom pose controls")
-                for key in custom_props:
-                    row = box_pose.row(align=True)
-                    row.prop(settings_bone, f'["{key}"]', text=utils.formalise_string(key))
-                    if key.startswith("ik_"):
-                        op = row.operator("nwo.bake_ik_control", text="FK to IK", icon='CON_KINEMATIC')
-                        op.prop_name = key
-                        op.direction = 'FK_TO_IK'
-                        op = row.operator("nwo.bake_ik_control", text="IK to FK", icon='CONSTRAINT_BONE')
-                        op.prop_name = key
-                        op.direction = 'IK_TO_FK'
+                self.draw_expandable_box(box.box(), self.scene_nwo, "armature_pose_controls", ob=ob)
             
             return
 
@@ -4026,6 +4143,50 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             row = col.row()
             row.use_property_split = False
             row.prop(nwo, "seam_back_manual")
+
+class NWO_OT_ToggleBoneCollectionSelection(bpy.types.Operator):
+    bl_idname = "nwo.toggle_bone_collection_selection"
+    bl_label = "Toggle Bone Collection Selection"
+    bl_description = "Adds or removes the bones in this collection from the armature selection"
+    bl_options = {"UNDO"}
+
+    collection_name: bpy.props.StringProperty()
+
+    @classmethod
+    def poll(cls, context):
+        return context.object is not None and context.object.type == 'ARMATURE'
+
+    def execute(self, context):
+        arm = context.object
+        collections_all = getattr(arm.data, "collections_all", arm.data.collections)
+        collection = collections_all.get(self.collection_name)
+        if collection is None:
+            self.report({'WARNING'}, f"Bone collection not found: {self.collection_name}")
+            return {'CANCELLED'}
+
+        bone_names = bone_collection_bone_names(collection)
+        if not bone_names:
+            self.report({'INFO'}, f"{self.collection_name} has no bones")
+            return {'CANCELLED'}
+
+        selected_names = selected_armature_bone_names(arm)
+        select_bones = not bone_names.issubset(selected_names)
+        if arm.mode == 'EDIT':
+            for name in bone_names:
+                bone = arm.data.edit_bones.get(name)
+                if bone is None:
+                    continue
+                bone.select = select_bones
+                bone.select_head = select_bones
+                bone.select_tail = select_bones
+        else:
+            for name in bone_names:
+                bone = arm.pose.bones.get(name)
+                if bone is not None:
+                    bone.select = select_bones
+
+        context.view_layer.update()
+        return {'FINISHED'}
             
 class NWO_FoundryPanelPopover(bpy.types.Operator, NWO_FoundryPanelProps):
     bl_label = "Foundry"

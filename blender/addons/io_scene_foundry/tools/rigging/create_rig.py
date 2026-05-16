@@ -19,6 +19,7 @@ from ...tools.rigging import (
     needs_reach_fp_ik_fix,
     remove_empty_bone_collection,
     root_child_of_constraint_name,
+    settings_control_collection_name,
     settings_control_name,
 )
 from bpy_extras import anim_utils
@@ -89,7 +90,7 @@ def control_bone_remove_order(arm: bpy.types.Object, control_bone_names: set[str
 
 
 def remove_control_bone_collections(armature_data: bpy.types.Armature):
-    for name in (fk_collection_name, ik_collection_name, misc_control_collection_name):
+    for name in (fk_collection_name, ik_collection_name, settings_control_collection_name, misc_control_collection_name):
         remove_empty_bone_collection(armature_data, name)
 
 
@@ -239,6 +240,13 @@ class NWO_OT_BakeIKControl(bpy.types.Operator):
     )
 
     @classmethod
+    def description(cls, context, properties):
+        if properties.direction == 'FK_TO_IK':
+            return "Snap IK controls to the current FK pose and enable IK"
+        else:
+            return "Snap FK controls to the current IK pose and disable IK"
+
+    @classmethod
     def poll(cls, context):
         arm = context.object
         return bool(arm and arm.type == 'ARMATURE' and arm.pose.bones.get(settings_control_name))
@@ -320,6 +328,41 @@ class NWO_OT_BakeIKControl(bpy.types.Operator):
             context.scene.frame_set(original_frame)
             utils.restore_mode(original_mode)
 
+        return {'FINISHED'}
+
+class NWO_OT_KeyframeControlRigSettings(bpy.types.Operator):
+    bl_idname = "nwo.keyframe_control_rig_settings"
+    bl_label = "Keyframe Non-Zero Pose Controls"
+    bl_description = "Adds keyframes at the current frame for all non-zero CTRL_settings pose control properties"
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        arm = context.object
+        return bool(arm and arm.type == 'ARMATURE' and arm.pose.bones.get(settings_control_name))
+
+    def execute(self, context):
+        settings_bone = context.object.pose.bones.get(settings_control_name)
+        frame = context.scene.frame_current
+        keyed_count = 0
+
+        for prop_name in sorted(key for key in settings_bone.keys()):
+            try:
+                value = float(settings_bone[prop_name])
+            except (TypeError, ValueError):
+                continue
+
+            if abs(value) <= 1e-6:
+                continue
+
+            keyframe_settings_prop(settings_bone, prop_name, frame)
+            keyed_count += 1
+
+        if keyed_count == 0:
+            self.report({'INFO'}, f"No non-zero {settings_control_name} properties to key")
+            return {'CANCELLED'}
+
+        self.report({'INFO'}, f"Keyframed {keyed_count} {settings_control_name} propert{'y' if keyed_count == 1 else 'ies'}")
         return {'FINISHED'}
 
 def fk_bone_from_ik_prop(arm: bpy.types.Object, prop_name: str) -> bpy.types.PoseBone | None:

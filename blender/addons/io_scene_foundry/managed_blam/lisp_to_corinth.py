@@ -1055,10 +1055,15 @@ def convert(src: str, corinth: bool) -> str:
     return corinth_to_lisp(src)
 
 
-def script_from_text(corinth: bool, raw_text: str = "", text_file: bpy.types.Text = None):
+def script_from_text(corinth: bool, raw_text: str = "", text_file: bpy.types.Text = None, use_text_file: bool | None = None):
     """Returns valid halo script from raw text, or the optional text file."""
 
-    if text_file is not None:
+    if use_text_file is None:
+        use_text_file = text_file is not None
+
+    if use_text_file:
+        if text_file is None:
+            return ""
         return convert(text_file.as_string(), corinth)
 
     if raw_text.strip():
