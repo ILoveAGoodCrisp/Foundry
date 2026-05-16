@@ -959,6 +959,9 @@ def _read_flag_triplet(reader: BinaryReader, total_size: int, node_count: int) -
 
 
 def _bit_array_from_ints(values: list[int], count: int) -> list[bool]:
+    if count <= 0:
+        return []
+
     result: list[bool] = []
     for value in values:
         for bit in range(32):
@@ -966,6 +969,14 @@ def _bit_array_from_ints(values: list[int], count: int) -> list[bool]:
     if len(result) < count:
         result.extend([False] * (count - len(result)))
     return result[:count]
+
+
+def _fit_node_flags(flags: list[bool] | None, node_count: int) -> list[bool]:
+    if not flags:
+        return [False] * node_count
+    if len(flags) >= node_count:
+        return flags[:node_count]
+    return flags + ([False] * (node_count - len(flags)))
 
 def _angle_axis_vector_to_quaternion(v: Vector) -> Quaternion:
     angle = v.length
@@ -1190,8 +1201,6 @@ def build_animation(
 ) -> AnimationData:
     if resource_data.animation_data is None:
         raise ValueError("Animation resource has no animated codec data")
-    if resource_data.node_count != len(default_nodes):
-        raise ValueError(f"Animation node count mismatch: resource={resource_data.node_count}, defaults={len(default_nodes)}")
 
     use_defaults = missing_mode == "default"
     rotations: list[list[Quaternion]] = []
@@ -1208,12 +1217,13 @@ def build_animation(
     static_scale_index = 0
     animated_scale_index = 0
 
-    static_rot_flags = resource_data.static_rotated_node_flags or [False] * resource_data.node_count
-    static_trans_flags = resource_data.static_translated_node_flags or [False] * resource_data.node_count
-    static_scale_flags = resource_data.static_scaled_node_flags or [False] * resource_data.node_count
-    anim_rot_flags = resource_data.animated_rotated_node_flags or [False] * resource_data.node_count
-    anim_trans_flags = resource_data.animated_translated_node_flags or [False] * resource_data.node_count
-    anim_scale_flags = resource_data.animated_scaled_node_flags or [False] * resource_data.node_count
+    node_count = len(default_nodes)
+    static_rot_flags = _fit_node_flags(resource_data.static_rotated_node_flags, node_count)
+    static_trans_flags = _fit_node_flags(resource_data.static_translated_node_flags, node_count)
+    static_scale_flags = _fit_node_flags(resource_data.static_scaled_node_flags, node_count)
+    anim_rot_flags = _fit_node_flags(resource_data.animated_rotated_node_flags, node_count)
+    anim_trans_flags = _fit_node_flags(resource_data.animated_translated_node_flags, node_count)
+    anim_scale_flags = _fit_node_flags(resource_data.animated_scaled_node_flags, node_count)
     for node_index, default_node in enumerate(default_nodes):
         rotation_present = anim_rot_flags[node_index]
         translation_present = anim_trans_flags[node_index]

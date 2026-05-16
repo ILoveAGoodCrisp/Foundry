@@ -3244,6 +3244,13 @@ class AnimationTag(Tag):
             resource_data = self._read_animation_resource_data(tag_animation, shared_static_codec)
             resource_cache[index] = resource_data
 
+        if resource_data.node_count != len(defaults):
+            utils.print_warning(
+                f"Animation {tag_animation.name.data_name} node count mismatch "
+                f"(resource={resource_data.node_count}, defaults={len(defaults)}). "
+                "Importing available nodes and using defaults for the rest."
+            )
+
         animation_data = build_animation(resource_data, defaults, "default" if tag_animation.animation_type in (0, 1) else "neutral")
         if tag_animation.animation_type in (AnimationType.NONE, AnimationType.BASE):
             final_frame = None

@@ -780,6 +780,13 @@ def _int_value(value: Any, default: int = 0) -> int:
         return default
 
 
+def _node_count_value(value: Any, default: int = 0) -> int:
+    count = _int_value(value, default)
+    if -128 <= count < 0:
+        count += 256
+    return count
+
+
 _RESOURCE_SECTION_NAME_ALIASES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("static_node_flags", ("static_node_flags", "static node flags")),
     ("animated_node_flags", ("animated_node_flags", "animated node flags")),
@@ -846,7 +853,7 @@ def read_model_animation_graph_resources(serialized_tag_data: bytes) -> list[lis
                     animation_index=_int_value(member.get("animation_index", "animation index"), -1),
                     animation_checksum=_int_value(member.get("animation_checksum", "animation checksum"), 0),
                     frame_count=_int_value(member.get("frame count"), 0),
-                    node_count=_int_value(member.get("node count"), 0),
+                    node_count=_node_count_value(member.get("node count"), 0),
                     movement_data_type=_int_value(member.get("movement_data_type", "movement data type"), 0),
                     layout_version=parser.layout_version,
                     static_flags_size=_int_value(data_sizes.get("static_node_flags", "static node flags"), 0),
