@@ -727,16 +727,16 @@ class VirtualAnimation:
         return {
             "none": 0.0,
             "linear_movement_angle": self._zero_small(movement_angle),
-            "linear_movement_speed": self._zero_small(linear_speed),
+            "linear_movement_speed": self._zero_small(linear_speed * WU_SCALAR),
             "total_angular_offset": self._zero_small(total_angular_offset),
             "average_angular_rate": self._zero_small(average_angular_rate),
-            "translation_offset_x": self._zero_small(translation.x),
-            "translation_offset_y": self._zero_small(translation.y),
-            "translation_offset_z": self._zero_small(translation.z),
+            "translation_offset_x": self._zero_small(translation.x * WU_SCALAR),
+            "translation_offset_y": self._zero_small(translation.y * WU_SCALAR),
+            "translation_offset_z": self._zero_small(translation.z * WU_SCALAR),
             "translation_offset_horizontal": self._zero_small(horizontal),
-            "negative_translation_offset_x": self._zero_small(-translation.x),
-            "negative_translation_offset_y": self._zero_small(-translation.y),
-            "negative_translation_offset_z": self._zero_small(-translation.z),
+            "negative_translation_offset_x": self._zero_small(-translation.x * WU_SCALAR),
+            "negative_translation_offset_y": self._zero_small(-translation.y * WU_SCALAR),
+            "negative_translation_offset_z": self._zero_small(-translation.z * WU_SCALAR),
         }
 
     @staticmethod
