@@ -473,7 +473,7 @@ class CinematicUserInputConstraints:
     def from_camera(self, camera_nwo, corinth: bool):
         self.frame = utils.game_frame(camera_nwo.user_input_bounds_delay) + int(corinth)
         self.ticks = utils.game_frame(camera_nwo.user_input_bounds_time)
-        self.maximum_look_angles = [camera_nwo.user_input_bounds_t, -camera_nwo.user_input_bounds_l, -camera_nwo.user_input_bounds_b, camera_nwo.user_input_bounds_r]
+        self.maximum_look_angles = [int(math.degrees(camera_nwo.user_input_bounds_t)), int(math.degrees(-camera_nwo.user_input_bounds_l)), int(math.degrees(-camera_nwo.user_input_bounds_b)), int(math.degrees(camera_nwo.user_input_bounds_r))]
         self.frictional_force = camera_nwo.frictional_force
         
     

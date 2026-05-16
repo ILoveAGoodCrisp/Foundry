@@ -844,7 +844,7 @@ class QUA:
                 
             if camera_nwo.user_input_bounds_t != 0.0 or camera_nwo.user_input_bounds_l != 0.0 or camera_nwo.user_input_bounds_b != 0.0 or camera_nwo.user_input_bounds_r != 0.0:
                 c = CinematicUserInputConstraints()
-                c.from_camera(camera_nwo)
+                c.from_camera(camera_nwo, self.corinth)
                 user_input_constraints[c] = shot.frame_start + int(self.corinth)
 
             # FRAME DATA
