@@ -1116,7 +1116,8 @@ class QUA:
         #         data.frame = shot_frame
         #         data.to_element(shot_element.SelectField("texture movies").AddElement())
         
-        block = block_data_shots
+        if self.corinth:
+            block = block_data_shots
             
         for data, frame_index in dialogue.items():
             shot_index, shot_frame = self.get_shot_index_and_frame(frame_index)
