@@ -1949,7 +1949,7 @@ class NWO_CinematicEvent(PropertyGroup):
                         return self.text.name
                 else:
                     if self.script_type in script_object_types:
-                        if utils.pointer_ob_valid(self.actor):
+                        if not utils.pointer_ob_valid(self.actor):
                             return f"{self.script_type.lower()} -> NONE"
                         else:
                             match self.script_type:
