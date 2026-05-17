@@ -225,6 +225,8 @@ class NWO_TagExplore(bpy.types.Operator):
             nwo = scene_nwo
         elif self.prop == 'shader_path':
             nwo = context.object.active_material.nwo
+            if get_prefs().rename_material:
+                context.object.active_material.name = Path(self.filepath).with_suffix("").name
         elif self.prop.startswith('light'):
             nwo = context.object.data.nwo
         elif self.prop in cinematic_event_props:
