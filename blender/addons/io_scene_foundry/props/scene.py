@@ -2189,6 +2189,7 @@ class NWO_CinematicEvent(PropertyGroup):
         name="Script Type",
         description="Type of script to execute",
         options=set(),
+        default="CUSTOM",
         items=[
             ("", "Custom", ""),
             ("CUSTOM", "Custom", "Custom script to execute"),
