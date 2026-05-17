@@ -451,6 +451,23 @@ class CinematicCustomScript:
             case 'PLAY_SOUND':
                 if event.sound_tag.strip():
                     self.script = f'sound_impulse_start {event.sound_tag} {obj_text} {event.script_factor}'
+            case 'SOUND_CLASS_GAIN':
+                self.script = f'sound_class_set_gain_db "{event.script_text}" {event.script_float} {int(event.script_seconds * utils.real_frame_rate())}'
+            case 'SOUND_ENABLE_DUCKER':
+                self.script = f'sound_class_enable_ducker "{event.script_text}" 1'
+            case 'SOUND_DISABLE_DUCKER':
+                self.script = f'sound_class_enable_ducker "{event.script_text}" 0'
+            case 'START_GLOBAL_EFFECT':
+                if self.script_text.strip():
+                    if self.script_seconds > 0.0:
+                        self.script = f'sound_start_timed_global_effect "{event.script_text}" {self.script_factor} {event.script_seconds}'
+                    else:
+                        self.script = f'sound_start_global_effect "{event.script_text}" {self.script_factor}'
+            case 'STOP_GLOBAL_EFFECT':
+                if self.script_text.strip():
+                    self.script = f'sound_stop_global_effect "{event.script_text}"'
+            case 'SET_GRAVITY':
+                self.script = f'physics_set_gravity {event.script_float}'
         
 class CinematicUserInputConstraints:
     def __init__(self):

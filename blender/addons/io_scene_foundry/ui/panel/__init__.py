@@ -3371,6 +3371,28 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                         draw_tag_path(col, event, "sound_tag")
                         col.prop(event, "actor", text="Object")
                         col.prop(event, "script_factor", text="Sound Scale")
+                    case 'SOUND_CLASS_GAIN':
+                        row = col.row()
+                        row.prop(event, "script_text", text="Sound Class(es)")
+                        row.operator_menu_enum("nwo.get_sound_classes", "sound_class", icon="DOWNARROW_HLT", text="")
+                        col.prop(event, "script_float", text="Gain (dB)")
+                        col.prop(event, "script_seconds", text="Transition Time")
+                    case 'SOUND_ENABLE_DUCKER' | 'SOUND_DISABLE_DUCKER':
+                        row = col.row()
+                        row.prop(event, "script_text", text="Sound Class(es)")
+                        row.operator_menu_enum("nwo.get_sound_classes", "sound_class", icon="DOWNARROW_HLT", text="")
+                    case 'START_GLOBAL_EFFECT':
+                        row = col.row()
+                        row.prop(event, "default_sound_effect", text="Sound Effect")
+                        row.operator_menu_enum("nwo.get_sound_effects", "fx", icon="DOWNARROW_HLT", text="")
+                        col.prop(event, "script_factor", text="Scale")
+                        col.prop(event, "script_seconds", text="Duration")
+                    case 'STOP_GLOBAL_EFFECT':
+                        row = col.row()
+                        row.prop(event, "default_sound_effect", text="Sound Effect")
+                        row.operator_menu_enum("nwo.get_sound_effects", "fx", icon="DOWNARROW_HLT", text="")
+                    case 'SET_GRAVITY':
+                        col.prop(event, "script_float", text="Gravity Scale")
                         
             case 'MUSIC':
                 draw_tag_path(col, event, "music")

@@ -290,6 +290,7 @@ classes = [
     cinematic.NWO_OT_UpdateActor,
     cinematic.NWO_OT_TransformCinematicEventFrames,
     cinematic.NWO_OT_GetSoundEffects,
+    cinematic.NWO_OT_GetSoundClasses,
     cinematic.NWO_OT_CinematicEventsClear,
     cinematic.NWO_OT_GetCinematicVariant,
     cinematic.NWO_OT_GetCinematicRegion,

@@ -14,6 +14,7 @@ from ...icons import get_icon_id
 from ... import utils
 
 SOUND_FX_TAG = r"sound\global_fx.sound_effect_collection"
+SOUND_CLASSES_TAG = r"sound\sound_classes.sound_classes"
 MIN_CINEMATIC_EVENT_FRAME = 0
 MAX_CINEMATIC_EVENT_FRAME = 2_147_483_647
 MAX_CINEMATIC_EVENT_SCALE = 10_000.0
@@ -1161,9 +1162,46 @@ class NWO_OT_GetSoundEffects(bpy.types.Operator):
         if not Path(utils.get_tags_path(), SOUND_FX_TAG).exists():
             self.report({'WARNING'}, f"Could not find tag {SOUND_FX_TAG}")
             return {'CANCELLED'}
-        nwo = utils.get_scene_props()
+        nwo = context.scene.nwo # scene specific
         event = nwo.cinematic_events[nwo.active_cinematic_event_index]
         event.default_sound_effect = self.fx
+        return {'FINISHED'}
+    
+class NWO_OT_GetSoundClasses(bpy.types.Operator):
+    bl_label = "Get Sound Classes"
+    bl_idname = 'nwo.get_sound_classes'
+    bl_description = f"Returns a searchable list of sound classes from {SOUND_CLASSES_TAG}"
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        scene_nwo = context.scene.nwo # scene specific
+        return scene_nwo.cinematic_events and scene_nwo.active_cinematic_event_index > -1 and scene_nwo.active_cinematic_event_index < len(scene_nwo.cinematic_events)
+    
+    def sound_class_items(self, context):
+        items = []
+        if not Path(utils.get_tags_path(), SOUND_CLASSES_TAG).exists():
+            return items
+        
+        with Tag(path=SOUND_CLASSES_TAG) as fx:
+            for element in fx.tag.SelectField("Block:sound classes").Elements:
+                name = element.ElementHeaderText
+                items.append((name, name, ""))
+
+        return items
+    
+    sound_class: bpy.props.EnumProperty(
+        name="Sound Effect",
+        items=sound_class_items,
+    )
+    
+    def execute(self, context):
+        if not Path(utils.get_tags_path(), SOUND_CLASSES_TAG).exists():
+            self.report({'WARNING'}, f"Could not find tag {SOUND_CLASSES_TAG}")
+            return {'CANCELLED'}
+        nwo = context.scene.nwo # scene specific
+        event = nwo.cinematic_events[nwo.active_cinematic_event_index]
+        event.script_text = self.sound_class
         return {'FINISHED'}
     
 class GetCinematicBase(bpy.types.Operator):

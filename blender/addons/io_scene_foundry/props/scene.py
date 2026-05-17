@@ -45,6 +45,12 @@ script_type_map = {
     "SHOW_HUD": "Show Player HUD",
     "HIDE_HUD": "Hide Player HUD",
     "PLAY_SOUND": "Play Sound",
+    "SOUND_CLASS_GAIN": "Set Sound Class Gain",
+    "SOUND_ENABLE_DUCKER": "Enable Audio Ducker",
+    "SOUND_DISABLE_DUCKER": "Disable Audio Ducker",
+    "START_GLOBAL_EFFECT": "Start Global Sound Effect",
+    "STOP_GLOBAL_EFFECT": "Stop Global Sound Effect",
+    "SET_GRAVITY": "Set Gravity",
 }
 
 def poll_armature(self, object: bpy.types.Object):
@@ -1979,29 +1985,42 @@ class NWO_CinematicEvent(PropertyGroup):
                 elif self.script_type in script_object_types:
                     if not utils.pointer_ob_valid(self.actor):
                         if self.script_type == 'PLAY_SOUND':
-                            return f"{ui_name} -> NONE -> {Path(self.sound_tag).with_suffix('').name}"
+                            return f"{ui_name} on NONE with sound tag '{Path(self.sound_tag).with_suffix('').name}'"
                         else:
                             return f"{ui_name} -> NONE"
                     else:
                         match self.script_type:
                             case 'SET_VARIANT':
-                                return f"{ui_name} -> {self.actor.name} -> {self.script_variant}"
+                                return f"{ui_name} of {self.actor.name} to '{self.script_variant}'"
                             case 'SET_PERMUTATION':
-                                return f"{ui_name} -> {self.actor.name} -> {self.script_region} {self.script_permutation}"
+                                return f"{ui_name} of {self.actor.name} with region '{self.script_region}' to permutation '{self.script_permutation}'"
                             case 'SET_REGION_STATE':
-                                return f"{ui_name} -> {self.actor.name} -> {self.script_region} {self.script_state}"
+                                return f"{ui_name} of {self.actor.name} with region '{self.script_region}' to state {self.script_state}"
                             case 'SET_MODEL_STATE_PROPERTY':
-                                return f"{ui_name} -> {self.actor.name} -> {self.script_state_property} {'on' if self.script_bool else 'off'}"
+                                return f"{ui_name} of {self.actor.name} with state property {self.script_state_property} to {'on' if self.script_bool else 'off'}"
                             case 'DAMAGE_OBJECT':
-                                return f"{ui_name} -> {self.actor.name} -> {self.script_region} -> {round(self.script_damage, 2)}"
+                                return f"{ui_name} -> {self.actor.name} with region '{self.script_region}' by {round(self.script_damage, 2)}"
                             case 'PLAY_SOUND':
-                                return f"{ui_name} -> {self.actor.name} -> {Path(self.sound_tag).with_suffix('').name}"
+                                return f"{ui_name} on {self.actor.name} with sound tag '{Path(self.sound_tag).with_suffix('').name}'"
                             case _:
                                 return f"{ui_name} -> {self.actor.name}"
                 else:
                     match self.script_type:
                         case 'SET_TITLE':
-                            return f"{ui_name} -> {self.script_text}"
+                            return f"{ui_name} to '{self.script_text}'"
+                        case 'SOUND_CLASS_GAIN':
+                            return f"{ui_name} to {self.script_float} dB for {self.script_text}"
+                        case 'SOUND_ENABLE_DUCKER' | 'SOUND_DISABLE_DUCKER':
+                            return f"{ui_name} for sound classes matching '{self.script_text}'"
+                        case 'START_GLOBAL_EFFECT':
+                            if self.script_seconds > 0.0:
+                                return f"{ui_name} using '{self.script_text}' with scale {round(self.script_factor, 2)} for {round(self.script_seconds, 2)} seconds"
+                            else:
+                                return f"{ui_name} using '{self.script_text}' with scale {round(self.script_factor, 2)}"
+                        case 'STOP_GLOBAL_EFFECT':
+                             return f"{ui_name} using '{self.script_text}'"
+                        case 'SET_GRAVITY':
+                            return f"{ui_name} to {self.script_float}"
                         case 'FADE_IN':
                             return f"{ui_name} from {get_named_color((self.script_color.r, self.script_color.g, self.script_color.b))} over {round(self.script_seconds, 2)} second{'s' if round(self.script_seconds, 2) != 1.0 else ''}"
                         case 'FADE_OUT':
@@ -2191,17 +2210,31 @@ class NWO_CinematicEvent(PropertyGroup):
             ("SET_REGION_STATE", "Set Region State", "Sets a region(s) state. Leave region blank for all regions"),
             ("SET_MODEL_STATE_PROPERTY", "Set Model State Property", ""),
             ('', "Screen", ""),
-            ('FADE_IN', "Fade in from Color", "Screen starts with the chosen color and then fades into the cinematic over x seconds"),
-            ('FADE_OUT', "Fade out to Color", "Screen starts with the cinematic and then fades into the chosen color over x seconds"),
+            ('FADE_IN', "Fade In", "Screen starts with the chosen color and then fades into the cinematic over x seconds"),
+            ('FADE_OUT', "Fade Out", "Screen starts with the cinematic and then fades into the chosen color over x seconds"),
             ('SET_TITLE', "Set Cinematic Title", "Set a cinematic title using a string ID. This must be setup in the scenario cutscene titles block and the relevant string to display must be imported if it does not already exist"),
             ('SHOW_HUD', "Show Player HUD", "Non functional in Halo 4"),
             ('HIDE_HUD', "Hide Player HUD", "Non functional in Halo 4"),
             ('', "Sound", ""),
             ('PLAY_SOUND', "Play Sound", "Plays a sound on the named object or none"),
+            ('SOUND_CLASS_GAIN', "Set Sound Class Gain", "Changes the gain on the specified sound class(es) (using sub-string matching, matches all sound classes if left empty) to the specified gain in decibels over the specified number of seconds"),
+            ('SOUND_ENABLE_DUCKER', "Enable Audio Ducker", "Enables the ducker on all sound classes matching the substring"),
+            ('SOUND_DISABLE_DUCKER', "Disable Audio Ducker", "Disables the ducker on all sound classes matching the substring"),
+            ('START_GLOBAL_EFFECT', "Start Global Sound Effect", "Starts a global sound effect with a scale (i.e. how much the effect is active with 1=fully active). Optionally with a duration. Leaving the duration blank means the effect will last until stopped"),
+            ('STOP_GLOBAL_EFFECT', "Stop Global Sound Effect", "Stops a global sound effect"),
+            ('', "Physics", ""),
+            ('SET_GRAVITY', "Set Gravity", "Sets gravity relative to Halo gravity"),
         ]
     )
     
-    script_text: bpy.props.StringProperty()
+    script_text: bpy.props.StringProperty(
+        name="Script Text",
+    )
+    
+    script_float: bpy.props.FloatProperty(
+        name="Script Float",
+        default=1.0,
+    )
     
     script_variant: bpy.props.StringProperty(
         name="Script Variant",
