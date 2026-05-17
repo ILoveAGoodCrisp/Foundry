@@ -2009,7 +2009,7 @@ class NWO_CinematicEvent(PropertyGroup):
                         case 'SET_TITLE':
                             return f"{ui_name} to '{self.script_text}'"
                         case 'SOUND_CLASS_GAIN':
-                            return f"{ui_name} to {self.script_float} dB for {self.script_text}"
+                            return f"{ui_name} to {round(self.script_float, 2)} dB for {self.script_text}"
                         case 'SOUND_ENABLE_DUCKER' | 'SOUND_DISABLE_DUCKER':
                             return f"{ui_name} for sound classes matching '{self.script_text}'"
                         case 'START_GLOBAL_EFFECT':
@@ -2020,7 +2020,7 @@ class NWO_CinematicEvent(PropertyGroup):
                         case 'STOP_GLOBAL_EFFECT':
                              return f"{ui_name} using '{self.script_text}'"
                         case 'SET_GRAVITY':
-                            return f"{ui_name} to {self.script_float}"
+                            return f"{ui_name} to {round(self.script_float, 2)}"
                         case 'FADE_IN':
                             return f"{ui_name} from {get_named_color((self.script_color.r, self.script_color.g, self.script_color.b))} over {round(self.script_seconds, 2)} second{'s' if round(self.script_seconds, 2) != 1.0 else ''}"
                         case 'FADE_OUT':
@@ -2220,7 +2220,7 @@ class NWO_CinematicEvent(PropertyGroup):
             ('SOUND_CLASS_GAIN', "Set Sound Class Gain", "Changes the gain on the specified sound class(es) (using sub-string matching, matches all sound classes if left empty) to the specified gain in decibels over the specified number of seconds"),
             ('SOUND_ENABLE_DUCKER', "Enable Audio Ducker", "Enables the ducker on all sound classes matching the substring"),
             ('SOUND_DISABLE_DUCKER', "Disable Audio Ducker", "Disables the ducker on all sound classes matching the substring"),
-            ('START_GLOBAL_EFFECT', "Start Global Sound Effect", "Starts a global sound effect with a scale (i.e. how much the effect is active with 1=fully active). Optionally with a duration. Leaving the duration blank means the effect will last until stopped"),
+            ('START_GLOBAL_EFFECT', "Start Global Sound Effect", "Starts a global sound effect with a scale (i.e. how much the effect is active with 1=fully active). Optionally with a duration. Leaving the duration at 0 means the effect will last until stopped"),
             ('STOP_GLOBAL_EFFECT', "Stop Global Sound Effect", "Stops a global sound effect"),
             ('', "Physics", ""),
             ('SET_GRAVITY', "Set Gravity", "Sets gravity relative to Halo gravity"),
@@ -2279,7 +2279,7 @@ class NWO_CinematicEvent(PropertyGroup):
         name="Script Argument Seconds",
         options=set(),
         subtype='TIME_ABSOLUTE',
-        default=1,
+        default=0,
         min=0,
     )
     script_damage: bpy.props.FloatProperty(

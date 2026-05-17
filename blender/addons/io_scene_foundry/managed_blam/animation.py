@@ -3,9 +3,8 @@
 from collections import defaultdict
 from contextlib import nullcontext
 from enum import Enum, IntEnum
-from math import degrees
+from math import acos, degrees
 from pathlib import Path
-import traceback
 from typing import cast
 import bpy
 from mathutils import Matrix, Quaternion, Vector
@@ -40,6 +39,10 @@ from ..legacy.jma import Node
 from .. import utils
 
 tolerance = 1e-6
+OBJECT_SPACE_PARENT_TRANSLATION_TOLERANCE = 1e-2
+OBJECT_SPACE_PARENT_ROTATION_TOLERANCE = 5e-3
+OBJECT_SPACE_PARENT_SCALE_TOLERANCE = 1e-3
+INT16_NORMALIZED_MAX = 0x7FFF
 
 EVENT_TYPE_FRAME = "_connected_geometry_animation_event_type_frame"
 EVENT_TYPE_OBJECT_FUNCTION = "_connected_geometry_animation_event_type_object_function"
@@ -483,258 +486,6 @@ class AnimationTag(Tag):
         if path:
             return path.RelativePathWithExtension
 
-    # def _select_field_candidates(self, container, *paths):
-    #     if container is None:
-    #         return None
-    #     for path in paths:
-    #         if not path:
-    #             continue
-    #         variants = [path]
-    #         underscore_variant = path.replace(" ", "_")
-    #         if underscore_variant not in variants:
-    #             variants.append(underscore_variant)
-    #         space_variant = path.replace("_", " ")
-    #         if space_variant not in variants:
-    #             variants.append(space_variant)
-    #         for variant in variants:
-    #             try:
-    #                 field = container.SelectField(variant)
-    #             except Exception:
-    #                 field = None
-    #             if field is not None:
-    #                 return field
-    #     return None
-
-    # def _field_int(self, container, *paths, default=None):
-    #     field = self._select_field_candidates(container, *paths)
-    #     if field is None:
-    #         return default
-    #     for attr in ("Value", "Data"):
-    #         try:
-    #             return int(getattr(field, attr))
-    #         except Exception:
-    #             pass
-    #     try:
-    #         return int(field.GetStringData())
-    #     except Exception:
-    #         return default
-
-    # def _field_string(self, container, *paths, default=""):
-    #     field = self._select_field_candidates(container, *paths)
-    #     if field is None:
-    #         return default
-    #     try:
-    #         return field.GetStringData()
-    #     except Exception:
-    #         pass
-    #     try:
-    #         return str(field.Data)
-    #     except Exception:
-    #         return default
-
-    # def _field_enum_string(self, container, *paths, default=""):
-    #     field = self._select_field_candidates(container, *paths)
-    #     if field is None:
-    #         return default
-    #     try:
-    #         items = field.Items
-    #         index = int(field.Value)
-    #         try:
-    #             count = int(items.Count)
-    #         except Exception:
-    #             count = len(items)
-    #         if 0 <= index < count:
-    #             return str(items[index].EnumName)
-    #     except Exception:
-    #         pass
-    #     try:
-    #         return field.GetStringData()
-    #     except Exception:
-    #         return default
-
-    # def _field_float(self, container, *paths, default=None):
-    #     field = self._select_field_candidates(container, *paths)
-    #     if field is None:
-    #         return default
-    #     for attr in ("Data", "Value"):
-    #         try:
-    #             return float(getattr(field, attr))
-    #         except Exception:
-    #             pass
-    #     try:
-    #         return float(field.GetStringData())
-    #     except Exception:
-    #         return default
-
-    # def _field_data_bytes(self, container, *paths):
-    #     field = self._select_field_candidates(container, *paths)
-    #     if field is None:
-    #         return None
-    #     try:
-    #         return bytes(field.GetData())
-    #     except Exception:
-    #         return None
-
-    # def _field_vector(self, container, *paths, default=None):
-    #     field = self._select_field_candidates(container, *paths)
-    #     if field is None:
-    #         return default.copy() if hasattr(default, "copy") else default
-    #     for attr in ("Data", "Value"):
-    #         try:
-    #             values = tuple(float(component) for component in getattr(field, attr))
-    #             if len(values) == 3:
-    #                 return Vector(values)
-    #         except Exception:
-    #             pass
-    #     try:
-    #         values = tuple(float(component.strip()) for component in field.GetStringData().split(","))
-    #         if len(values) == 3:
-    #             return Vector(values)
-    #     except Exception:
-    #         pass
-    #     return default.copy() if hasattr(default, "copy") else default
-
-    # def _field_quaternion(self, container, *paths, default=None):
-    #     field = self._select_field_candidates(container, *paths)
-    #     if field is None:
-    #         return default.copy() if hasattr(default, "copy") else default
-    #     for attr in ("Data", "Value"):
-    #         try:
-    #             values = tuple(float(component) for component in getattr(field, attr))
-    #             if len(values) == 4:
-    #                 return Quaternion((values[3], values[0], values[1], values[2]))
-    #         except Exception:
-    #             pass
-    #     try:
-    #         values = tuple(float(component.strip()) for component in field.GetStringData().split(","))
-    #         if len(values) == 4:
-    #             return Quaternion((values[3], values[0], values[1], values[2]))
-    #     except Exception:
-    #         pass
-    #     return default.copy() if hasattr(default, "copy") else default
-
-    # def _normalized_field_name(self, value):
-    #     if not value:
-    #         return ""
-    #     text = str(value).strip()
-    #     if not text:
-    #         return ""
-    #     text = text.rsplit("/", 1)[-1]
-    #     text = text.rsplit(":", 1)[-1]
-    #     return text.replace(" ", "_").lower()
-
-    # def _iter_sequence(self, value):
-    #     if value is None:
-    #         return
-    #     try:
-    #         count = value.Count
-    #     except Exception:
-    #         count = None
-    #     if count is not None:
-    #         for index in range(count):
-    #             try:
-    #                 yield value[index]
-    #             except Exception:
-    #                 continue
-    #         return
-    #     try:
-    #         for item in value:
-    #             yield item
-    #     except Exception:
-    #         return
-
-    # def _iter_resource_structs(self, container):
-    #     pending = [container]
-    #     seen = set()
-    #     while pending:
-    #         current = pending.pop(0)
-    #         if current is None:
-    #             continue
-    #         current_id = id(current)
-    #         if current_id in seen:
-    #             continue
-    #         seen.add(current_id)
-
-    #         has_fields = False
-    #         try:
-    #             if current.Fields is not None:
-    #                 has_fields = True
-    #         except Exception:
-    #             has_fields = False
-    #         if has_fields:
-    #             yield current
-
-    #         for attr in ("Element", "Value", "Data", "Reference"):
-    #             try:
-    #                 child = getattr(current, attr)
-    #             except Exception:
-    #                 child = None
-    #             if child is not None:
-    #                 pending.append(child)
-
-    #         try:
-    #             structs = current.Structs
-    #         except Exception:
-    #             structs = None
-    #         if structs is not None:
-    #             for struct in self._iter_sequence(structs):
-    #                 pending.append(struct)
-
-    # def _find_direct_child_field(self, container, *names):
-    #     field = self._select_field_candidates(container, *names)
-    #     if field is not None:
-    #         return field
-
-    #     targets = {self._normalized_field_name(name) for name in names if name}
-    #     targets.discard("")
-    #     if not targets:
-    #         return None
-
-    #     for struct in self._iter_resource_structs(container):
-    #         try:
-    #             fields = struct.Fields
-    #         except Exception:
-    #             continue
-    #         for field in self._iter_sequence(fields):
-    #             for attr in ("FieldName", "DisplayName", "FieldPathWithoutindices", "FieldPath"):
-    #                 try:
-    #                     candidate = getattr(field, attr)
-    #                 except Exception:
-    #                     candidate = None
-    #                 if self._normalized_field_name(candidate) in targets:
-    #                     return field
-    #     return None
-
-    # def _block_element_count(self, block_field):
-    #     if block_field is None:
-    #         return 0
-    #     try:
-    #         elements = block_field.Elements
-    #     except Exception:
-    #         return 0
-    #     try:
-    #         return int(elements.Count)
-    #     except Exception:
-    #         try:
-    #             return len(elements)
-    #         except Exception:
-    #             return 0
-
-    # def _block_element_at(self, block_field, index):
-    #     if block_field is None or index < 0:
-    #         return None
-    #     try:
-    #         elements = block_field.Elements
-    #     except Exception:
-    #         return None
-    #     try:
-    #         return elements[index]
-    #     except Exception:
-    #         try:
-    #             return list(elements)[index]
-    #         except Exception:
-    #             return None
-
     def _get_shared_animation_element(self, animation_element: TagFieldBlockElement) -> TagFieldBlockElement | None:
         shared_block = animation_element.SelectField("Block:shared animation data")
         if shared_block is not None and shared_block.Elements.Count:
@@ -747,10 +498,7 @@ class AnimationTag(Tag):
             return None
 
         if graph_reference is not None:
-            try:
-                ref_path = graph_reference.Path
-            except Exception:
-                ref_path = None
+            ref_path = graph_reference.Path
             if ref_path is not None and ref_path.RelativePathWithExtension != self.tag_path.RelativePathWithExtension:
                 return None
 
@@ -953,11 +701,8 @@ class AnimationTag(Tag):
         if cache is not None:
             return cache
 
-        try:
-            with open(self.system_path, "rb") as handle:
-                cache = handle.read()
-        except Exception as exc:
-            raise ValueError(f"Failed to read source tag bytes for native animation decode: {exc}") from exc
+        with open(self.system_path, "rb") as handle:
+            cache = handle.read()
 
         self._native_serialized_tag_bytes = cache
         return cache
@@ -1070,10 +815,7 @@ class AnimationTag(Tag):
         def track_count(codec, attr_name):
             if codec is None:
                 return 0
-            try:
-                values = getattr(codec, attr_name)
-            except Exception:
-                return 0
+            values = getattr(codec, attr_name, None)
             return len(values or ())
 
         def flag_count(flags):
@@ -1267,46 +1009,13 @@ class AnimationTag(Tag):
             slot = action.slots.get(animation_data.last_slot_identifier)
 
         if slot is None and create:
-            try:
-                slot = action.slots.new("SCENE", scene.name)
-            except Exception:
-                slot = None
+            slot = action.slots.new("SCENE", scene.name)
 
         if slot is not None:
             animation_data.last_slot_identifier = slot.identifier
             animation_data.action = action
 
         return scene, animation_data, slot
-
-    # def _clear_event_value_fcurves(self, blender_animation):
-    #     action = self._animation_event_action(blender_animation)
-    #     if action is None:
-    #         return
-
-    #     _, _, slot = self._ensure_scene_event_slot(action, create=False)
-    #     if slot is None:
-    #         return
-
-    #     prefix = f"{blender_animation.path_from_id()}.animation_events["
-    #     fcurves = utils.get_fcurves(action, slot)
-    #     if not fcurves:
-    #         return
-    #     stale_curves = [
-    #         fcurve
-    #         for fcurve in fcurves
-    #         if fcurve.data_path.startswith(prefix) and fcurve.data_path.endswith(".event_value")
-    #     ]
-    #     for fcurve in stale_curves:
-    #         fcurves.remove(fcurve)
-
-    # def _iter_block_elements(self, container, *paths):
-    #     block = self._select_field_candidates(container, *paths)
-    #     if block is None:
-    #         return []
-    #     try:
-    #         return list(self._iter_sequence(block.Elements))
-    #     except Exception:
-    #         return []
 
     def _remove_animation_events(self, blender_animation, predicate):
         for index in range(len(blender_animation.animation_events) - 1, -1, -1):
@@ -1343,13 +1052,10 @@ class AnimationTag(Tag):
         field = element.SelectField(field_name)
         if field is None:
             return ""
-        try:
-            index = field.Value
-            items = field.Items
-            if 0 <= index < len(items):
-                return items[index].DisplayName
-        except Exception:
-            return ""
+        index = getattr(field, "Value", None)
+        items = getattr(field, "Items", None)
+        if items is not None and index is not None and 0 <= index < len(items):
+            return items[index].DisplayName
         return ""
 
     def _blend_screen_connection_type(self, tag_animation: Animation):
@@ -1358,10 +1064,7 @@ class AnimationTag(Tag):
         if not blend_screen_data:
             return None
 
-        try:
-            return blend_screen_data[0]
-        except Exception:
-            return None
+        return blend_screen_data[0]
 
     def _find_animation_node_by_usage(self, nodes: list[Node], usage_name: str):
         if not usage_name:
@@ -1623,14 +1326,11 @@ class AnimationTag(Tag):
             return None
 
         reader = BinaryReader(curve_data)
-        try:
-            version = reader.read_u8()
-            curve_count = reader.read_u8()
-            reader.read_u16()
-            metadata_offset = reader.read_u32()
-            record_offsets_offset = reader.read_u32()
-        except Exception:
-            return None
+        version = reader.read_u8()
+        curve_count = reader.read_u8()
+        reader.read_u16()
+        metadata_offset = reader.read_u32()
+        record_offsets_offset = reader.read_u32()
 
         if curve_count <= 0:
             curve_count = version
@@ -1642,13 +1342,10 @@ class AnimationTag(Tag):
         if metadata_entry_offset + 2 > len(curve_data) or record_offset_entry + 4 > len(curve_data):
             return None
 
-        try:
-            reader.seek(metadata_entry_offset)
-            metadata_frame_count = reader.read_u16()
-            reader.seek(record_offset_entry)
-            record_offset = reader.read_u32()
-        except Exception:
-            return None
+        reader.seek(metadata_entry_offset)
+        metadata_frame_count = reader.read_u16()
+        reader.seek(record_offset_entry)
+        record_offset = reader.read_u32()
 
         if expected_frame_count:
             frame_count = expected_frame_count
@@ -1662,17 +1359,14 @@ class AnimationTag(Tag):
         if frame_count <= 0 or record_offset < 0 or record_offset + 16 > len(curve_data):
             return None
 
-        try:
-            reader.seek(record_offset)
-            reader.read_u16()
-            key_count = reader.read_u16()
-            flags = reader.read_u8()
-            reader.read_u8()
-            reader.read_u16()
-            offset = reader.read_f32()
-            scale = reader.read_f32()
-        except Exception:
-            return None
+        reader.seek(record_offset)
+        reader.read_u16()
+        key_count = reader.read_u16()
+        flags = reader.read_u8()
+        reader.read_u8()
+        reader.read_u16()
+        offset = reader.read_f32()
+        scale = reader.read_f32()
 
         return self._read_scalar_event_curve_track(reader, frame_count, key_count, flags, offset, scale)
 
@@ -1685,11 +1379,9 @@ class AnimationTag(Tag):
 
         animation_data = None
         boundaries = {}
+        frame_count = int(expected_frame_count or 0)
 
-        try:
-            source_member = self._get_source_animation_resource_member(tag_animation.resource_group, tag_animation.resource_group_member)
-        except Exception:
-            source_member = None
+        source_member = self._get_source_animation_resource_member(tag_animation.resource_group, tag_animation.resource_group_member)
 
         if source_member is not None:
             animation_data = source_member.animation_data
@@ -1707,22 +1399,15 @@ class AnimationTag(Tag):
         if frame_count <= 0:
             return None
 
-        try:
-            codec_type = AnimationCodecType(curve_data[0])
-        except Exception:
-            return None
-
-        if codec_type == AnimationCodecType.CURVE:
+        codec_type = curve_data[0]
+        if codec_type == int(AnimationCodecType.CURVE):
             codec = CurveCodec(frame_count)
-        elif codec_type == AnimationCodecType.REVISED_CURVE:
+        elif codec_type == int(AnimationCodecType.REVISED_CURVE):
             codec = RevisedCurveCodec(frame_count)
         else:
             return None
 
-        try:
-            codec.read(BinaryReader(curve_data))
-        except Exception:
-            return None
+        codec.read(BinaryReader(curve_data))
 
         if 0 <= data_index < len(codec.scales):
             values = codec.scales[data_index]
@@ -1747,10 +1432,7 @@ class AnimationTag(Tag):
         animation_data = None
         boundaries = {}
 
-        try:
-            source_member = self._get_source_animation_resource_member(tag_animation.resource_group, tag_animation.resource_group_member)
-        except Exception:
-            source_member = None
+        source_member = self._get_source_animation_resource_member(tag_animation.resource_group, tag_animation.resource_group_member)
 
         if source_member is not None:
             animation_data = source_member.animation_data
@@ -1764,14 +1446,11 @@ class AnimationTag(Tag):
             return None
 
         reader = BinaryReader(curve_data)
-        try:
-            version = reader.read_u8()
-            track_count = reader.read_u8()
-            reader.read_u16()
-            metadata_offset = reader.read_u32()
-            record_offsets_offset = reader.read_u32()
-        except Exception:
-            return None
+        version = reader.read_u8()
+        track_count = reader.read_u8()
+        reader.read_u16()
+        metadata_offset = reader.read_u32()
+        record_offsets_offset = reader.read_u32()
 
         if track_count <= 0:
             track_count = version
@@ -1790,14 +1469,11 @@ class AnimationTag(Tag):
 
         frame_counts = []
         record_offsets = []
-        try:
-            for track_index in range(track_count):
-                reader.seek(metadata_offset + (track_index * 2))
-                frame_counts.append(reader.read_u16())
-                reader.seek(record_offsets_offset + (track_index * 4))
-                record_offsets.append(reader.read_u32())
-        except Exception:
-            return None
+        for track_index in range(track_count):
+            reader.seek(metadata_offset + (track_index * 2))
+            frame_counts.append(reader.read_u16())
+            reader.seek(record_offsets_offset + (track_index * 4))
+            record_offsets.append(reader.read_u32())
 
         return {
             "frame_counts": frame_counts,
@@ -1821,17 +1497,14 @@ class AnimationTag(Tag):
 
         reader = BinaryReader(curve_data)
         codec = CurveCodec(frame_count)
-        try:
-            reader.seek(record_offset)
-            reader.read_u16()
-            key_count = reader.read_u16()
-            flags = reader.read_u8()
-            reader.read_u8()
-            reader.read_s16()
-            keyframes = codec._read_curve_keyframe_data(key_count, reader) if (flags & 1) == 0 else []
-            return [value.copy() for value in codec._read_curve_rotations(reader, keyframes, flags)]
-        except Exception:
-            return None
+        reader.seek(record_offset)
+        reader.read_u16()
+        key_count = reader.read_u16()
+        flags = reader.read_u8()
+        reader.read_u8()
+        reader.read_s16()
+        keyframes = codec._read_curve_keyframe_data(key_count, reader) if (flags & 1) == 0 else []
+        return [value.copy() for value in codec._read_curve_rotations(reader, keyframes, flags)]
 
     def _decode_embedded_translation_curve_track(self, curve_data, data_index, expected_frame_count=0, apply_scale_100=True):
         if data_index is None or data_index < 0:
@@ -1849,33 +1522,30 @@ class AnimationTag(Tag):
 
         reader = BinaryReader(curve_data)
         codec = CurveCodec(frame_count)
-        try:
-            reader.seek(record_offset)
-            reader.read_u16()
-            key_count = reader.read_u16()
-            flags = reader.read_u8()
-            reader.read_u8()
-            reader.read_u16()
-            offset_x = reader.read_f32()
-            offset_y = reader.read_f32()
-            offset_z = reader.read_f32()
-            scale = reader.read_f32()
-            keyframes = codec._read_curve_keyframe_data(key_count, reader) if (flags & 1) == 0 else []
-            return [
-                value.copy()
-                for value in codec._read_curve_translations(
-                    reader,
-                    keyframes,
-                    flags,
-                    offset_x,
-                    offset_y,
-                    offset_z,
-                    scale,
-                    apply_scale_100,
-                )
-            ]
-        except Exception:
-            return None
+        reader.seek(record_offset)
+        reader.read_u16()
+        key_count = reader.read_u16()
+        flags = reader.read_u8()
+        reader.read_u8()
+        reader.read_u16()
+        offset_x = reader.read_f32()
+        offset_y = reader.read_f32()
+        offset_z = reader.read_f32()
+        scale = reader.read_f32()
+        keyframes = codec._read_curve_keyframe_data(key_count, reader) if (flags & 1) == 0 else []
+        return [
+            value.copy()
+            for value in codec._read_curve_translations(
+                reader,
+                keyframes,
+                flags,
+                offset_x,
+                offset_y,
+                offset_z,
+                scale,
+                apply_scale_100,
+            )
+        ]
 
     def _decode_embedded_scale_curve_track(self, curve_data, data_index, expected_frame_count=0):
         if data_index is None or data_index < 0:
@@ -1893,19 +1563,16 @@ class AnimationTag(Tag):
 
         reader = BinaryReader(curve_data)
         codec = CurveCodec(frame_count)
-        try:
-            reader.seek(record_offset)
-            reader.read_u16()
-            key_count = reader.read_u16()
-            flags = reader.read_u8()
-            reader.read_u8()
-            reader.read_u16()
-            offset = reader.read_f32()
-            scale = reader.read_f32()
-            keyframes = codec._read_curve_keyframe_data(key_count, reader) if (flags & 1) == 0 else []
-            return [float(value) for value in codec._read_curve_scales(reader, keyframes, flags, offset, scale)]
-        except Exception:
-            return None
+        reader.seek(record_offset)
+        reader.read_u16()
+        key_count = reader.read_u16()
+        flags = reader.read_u8()
+        reader.read_u8()
+        reader.read_u16()
+        offset = reader.read_f32()
+        scale = reader.read_f32()
+        keyframes = codec._read_curve_keyframe_data(key_count, reader) if (flags & 1) == 0 else []
+        return [float(value) for value in codec._read_curve_scales(reader, keyframes, flags, offset, scale)]
 
     def _decode_ik_weight_curve(self, tag_animation, data_index, expected_frame_count=0):
         if data_index is None or data_index < 0:
@@ -2000,10 +1667,7 @@ class AnimationTag(Tag):
             blender_event.ik_pole_vector_bone = pole_bone_name
             return
 
-        try:
-            blender_event["ik_pole_vector_bone"] = pole_bone_name
-        except Exception:
-            pass
+        blender_event["ik_pole_vector_bone"] = pole_bone_name
 
     def _find_ik_chain_definition(self, ik_chain_name: str):
         for chain in self.scene_nwo.ik_chains:
@@ -2180,10 +1844,7 @@ class AnimationTag(Tag):
     def _evaluate_fcurve(self, fcurve, frame: float, default):
         if fcurve is None:
             return default
-        try:
-            return fcurve.evaluate(frame)
-        except Exception:
-            return default
+        return fcurve.evaluate(frame)
 
     def _action_pose_fcurve_map(self, action: bpy.types.Action, slot_identifier: str | None):
         fcurve_map = {}
@@ -2861,6 +2522,7 @@ class AnimationTag(Tag):
         base_name = utils.AnimationName(name)
         if not base_name.valid or base_name.type != utils.AnimationStateType.ACTION:
             return []
+        scope = (base_name.mode, base_name.weapon_class, base_name.weapon_type, base_name.set)
 
         def branch_groups(level: dict, token: str, depth: int):
             nested_keys = [key for key, value in level.items() if isinstance(value, dict)]
@@ -2873,7 +2535,9 @@ class AnimationTag(Tag):
                 groups.append([key])
                 used.add(key)
 
-            if depth == 1:
+            if depth == 0:
+                add(token)
+            elif depth == 1:
                 if token == "any":
                     add("rifle")
                     add("any")
@@ -2915,7 +2579,7 @@ class AnimationTag(Tag):
             return []
 
         for state in self._base_state_candidates(base_name, animation_type):
-            results = walk_tree(graph, (base_name.mode, base_name.weapon_class, base_name.weapon_type, base_name.set), state)
+            results = walk_tree(graph, scope, state)
             if results:
                 return results
 
@@ -2945,83 +2609,179 @@ class AnimationTag(Tag):
 
         return None
 
-    def _field_data_or_value(self, element: TagFieldBlockElement, field_name: str):
-        field = element.SelectField(field_name)
-        if field is None:
-            raise ValueError(f"Field [{field_name}] was not found")
-        try:
-            return field.Data
-        except Exception:
-            return field.Value
+    def _normalized_int16_quaternion_component(self, value) -> float:
+        return max(-1.0, min(1.0, float(int(value)) / INT16_NORMALIZED_MAX))
 
     def _object_space_parent_rotation(self, element: TagFieldBlockElement) -> Quaternion:
-        try:
-            rotation = self._to_quaternion(element.SelectField("default rotation").Data)
-            if rotation.magnitude <= tolerance:
-                return Quaternion((1.0, 0.0, 0.0, 0.0))
-            rotation.normalize()
-            return rotation
-        except Exception:
-            pass
-
-        x = float(self._field_data_or_value(element, "rotation x"))
-        y = float(self._field_data_or_value(element, "rotation y"))
-        z = float(self._field_data_or_value(element, "rotation z"))
-        w = float(self._field_data_or_value(element, "rotation w"))
+        x = self._normalized_int16_quaternion_component(element.SelectField("Struct:parent orientation[0]/rotation x").Data)
+        y = self._normalized_int16_quaternion_component(element.SelectField("Struct:parent orientation[0]/rotation y").Data)
+        z = self._normalized_int16_quaternion_component(element.SelectField("Struct:parent orientation[0]/rotation z").Data)
+        w = self._normalized_int16_quaternion_component(element.SelectField("Struct:parent orientation[0]/rotation w").Data)
         rotation = Quaternion((w, x, y, z))
         if rotation.magnitude <= tolerance:
             return Quaternion((1.0, 0.0, 0.0, 0.0))
         rotation.normalize()
         return rotation
 
-    def _object_space_parent_transform_targets(self, tag_animation: Animation) -> list[tuple[int, Vector, Quaternion | None, float | None]]:
-        targets: list[tuple[int, Vector, Quaternion | None, float | None]] = []
-        try:
-            parent_nodes = tag_animation.shared_element.SelectField("object-space parent nodes")
-        except Exception:
-            return targets
-
+    def _object_space_parent_transform_targets(self, tag_animation: Animation) -> list[tuple[int, Vector, Quaternion, float]]:
+        targets: list[tuple[int, Vector, Quaternion, float]] = []
+        parent_nodes = tag_animation.shared_element.SelectField("object-space parent nodes")
         if parent_nodes is None:
             return targets
 
         for element in parent_nodes.Elements:
-            try:
-                node_index = int(element.Fields[0].Value)
-            except Exception:
-                continue
-            if node_index < 0:
-                continue
-
-            try:
-                translation = self._to_vector(element.SelectField("default translation").Data) * 100.0
-            except Exception:
-                continue
-
-            try:
+            node_index = int(element.Fields[0].Value)
+            if node_index >= 0:
+                translation = self._to_vector(element.SelectField("Struct:parent orientation[0]/default translation").Data) * 100.0
                 rotation = self._object_space_parent_rotation(element)
-            except Exception:
-                rotation = None
-
-            try:
-                scale = float(self._field_data_or_value(element, "default scale"))
-            except Exception:
-                scale = None
-
-            targets.append((node_index, translation, rotation, scale))
+                scale = element.SelectField("Struct:parent orientation[0]/default scale").Data
+                targets.append((node_index, translation, rotation, scale))
 
         return targets
 
-    def _apply_object_space_parent_base_frame(self, tag_animation: Animation, base_frame):
-        for node_index, translation, rotation, scale in self._object_space_parent_transform_targets(tag_animation):
-            if node_index >= len(base_frame.translations):
-                continue
-            base_frame.translations[node_index] = translation.copy()
+    def _quaternion_angle(self, first: Quaternion, second: Quaternion) -> float:
+        first = first.copy()
+        second = second.copy()
+        first.normalize()
+        second.normalize()
+        dot = max(-1.0, min(1.0, abs(sum(first[index] * second[index] for index in range(4)))))
+        return 2.0 * acos(dot)
 
-            if rotation is not None and node_index < len(base_frame.rotations):
-                base_frame.rotations[node_index] = rotation.copy()
+    def _frame_object_space_matrices(
+        self,
+        frame,
+        default_nodes: list[DefaultAnimationNode],
+    ) -> list[Matrix]:
+        matrices: list[Matrix | None] = [None] * len(default_nodes)
+        visiting: set[int] = set()
 
-            if scale is not None and node_index < len(base_frame.scales):
-                base_frame.scales[node_index] = scale
+        def resolve(node_index: int) -> Matrix:
+            matrix = matrices[node_index]
+            if matrix is not None:
+                return matrix
+            if node_index in visiting:
+                raise ValueError(f"Cycle found while resolving object-space matrix for node [{default_nodes[node_index].name}]")
+
+            visiting.add(node_index)
+            local_matrix = Matrix.LocRotScale(
+                frame.translations[node_index],
+                frame.rotations[node_index],
+                Vector.Fill(3, frame.scales[node_index]),
+            )
+            parent_index = default_nodes[node_index].parent_index
+            if 0 <= parent_index < len(default_nodes):
+                matrix = resolve(parent_index) @ local_matrix
+            else:
+                matrix = local_matrix
+            visiting.remove(node_index)
+            matrices[node_index] = matrix
+            return matrix
+
+        for node_index in range(len(default_nodes)):
+            resolve(node_index)
+
+        return [matrix for matrix in matrices if matrix is not None]
+
+    def _object_space_parent_matrix_matches(
+        self,
+        matrix: Matrix,
+        translation: Vector,
+        rotation: Quaternion,
+        scale: float,
+    ) -> bool:
+        matrix_translation, matrix_rotation, matrix_scale = matrix.decompose()
+        matrix_scale_value = (matrix_scale.x + matrix_scale.y + matrix_scale.z) / 3.0
+        if (matrix_translation - translation).length > OBJECT_SPACE_PARENT_TRANSLATION_TOLERANCE:
+            return False
+
+        if self._quaternion_angle(matrix_rotation, rotation) > OBJECT_SPACE_PARENT_ROTATION_TOLERANCE:
+            return False
+
+        if abs(matrix_scale_value - scale) > OBJECT_SPACE_PARENT_SCALE_TOLERANCE:
+            return False
+
+        return True
+
+    def _object_space_parent_target_index(
+        self,
+        node_index: int,
+        default_nodes: list[DefaultAnimationNode],
+    ) -> int:
+        if node_index < 0 or node_index >= len(default_nodes):
+            raise ValueError(f"Object-space parent node index {node_index} is out of range")
+
+        parent_index = default_nodes[node_index].parent_index
+        if parent_index >= len(default_nodes):
+            raise ValueError(f"Object-space parent node [{default_nodes[node_index].name}] has no valid parent frame")
+
+        return node_index if parent_index < 0 else parent_index
+
+    def _object_space_parent_target_depth(
+        self,
+        node_index: int,
+        default_nodes: list[DefaultAnimationNode],
+    ) -> int:
+        target_index = self._object_space_parent_target_index(node_index, default_nodes)
+        depth = 0
+        seen: set[int] = set()
+        while 0 <= target_index < len(default_nodes):
+            if target_index in seen:
+                raise ValueError(f"Cycle found while resolving object-space parent depth for node [{default_nodes[node_index].name}]")
+            seen.add(target_index)
+            depth += 1
+            target_index = default_nodes[target_index].parent_index
+        return depth
+
+    def _object_space_parent_base_matches(
+        self,
+        tag_animation: Animation,
+        base_frame,
+        default_nodes: list[DefaultAnimationNode],
+    ) -> bool:
+        targets = self._object_space_parent_transform_targets(tag_animation)
+        if not targets:
+            return True
+
+        object_space_matrices = self._frame_object_space_matrices(base_frame, default_nodes)
+        for node_index, translation, rotation, scale in targets:
+            target_index = self._object_space_parent_target_index(node_index, default_nodes)
+
+            if not self._object_space_parent_matrix_matches(
+                object_space_matrices[target_index],
+                translation,
+                rotation,
+                scale,
+            ):
+                return False
+
+        return True
+
+    def _apply_object_space_parent_base_correction(
+        self,
+        tag_animation: Animation,
+        base_frame,
+        default_nodes: list[DefaultAnimationNode],
+    ) -> None:
+        targets = sorted(
+            self._object_space_parent_transform_targets(tag_animation),
+            key=lambda target: self._object_space_parent_target_depth(target[0], default_nodes),
+        )
+        for node_index, translation, rotation, scale in targets:
+            target_index = self._object_space_parent_target_index(node_index, default_nodes)
+            target_matrix = Matrix.LocRotScale(translation, rotation, Vector.Fill(3, scale))
+            parent_index = default_nodes[target_index].parent_index
+
+            if 0 <= parent_index < len(default_nodes):
+                object_space_matrices = self._frame_object_space_matrices(base_frame, default_nodes)
+                local_matrix = object_space_matrices[parent_index].inverted_safe() @ target_matrix
+            else:
+                local_matrix = target_matrix
+
+            local_translation, local_rotation, local_scale = local_matrix.decompose()
+            local_rotation.normalize()
+            base_frame.translations[target_index] = local_translation
+            base_frame.rotations[target_index] = local_rotation
+            base_frame.scales[target_index] = (local_scale.x + local_scale.y + local_scale.z) / 3.0
 
     def _seek_best_matching_base_animation(self, animation: Animation, name: utils.AnimationName, all_tag_animations):
         def find_for_mode(mode: str):
@@ -3255,23 +3015,6 @@ class AnimationTag(Tag):
         if tag_animation.animation_type in (AnimationType.NONE, AnimationType.BASE):
             final_frame = None
             ignore_root = False
-            # if index not in final_frame_stack:
-            #     final_frame_stack.add(index)
-            #     try:
-            #         final_frame, ignore_root = self._base_final_frame_pose(
-            #             tag_animation,
-            #             animation_data,
-            #             defaults,
-            #             overlay_defaults,
-            #             graph,
-            #             shared_static_codec,
-            #             resource_cache,
-            #             animation_cache,
-            #             all_tag_animations,
-            #             final_frame_stack,
-            #         )
-            #     finally:
-            #         final_frame_stack.remove(index)
             append_final_frame(animation_data, final_frame, ignore_root)
             if resource_data.movement_data is not None:
                 apply_movement_data(
@@ -3288,12 +3031,35 @@ class AnimationTag(Tag):
                 )
                 base_tag_animation = self._first_resolved_base_candidate(base_candidates, all_tag_animations)
 
-            if base_tag_animation is not None:
+            object_space_parent_targets = self._object_space_parent_transform_targets(tag_animation)
+            rest_base_frame = None
+            if object_space_parent_targets:
+                # Importer rest channels become zero/identity pose-bone keys after _to_armature_action applies bind inverse.
+                rest_base_frame = default_frame_channels(defaults)
+
+            if rest_base_frame is not None and self._object_space_parent_base_matches(tag_animation, rest_base_frame, defaults):
+                if base_tag_animation is not None:
+                    utils.print_warning(
+                        f"Animation {tag_animation.name.data_name} object-space parent pose matches rest pose. "
+                        f"Using rest pose instead of base {base_tag_animation.name.data_name}."
+                    )
+                base_frame = rest_base_frame
+                self._apply_object_space_parent_base_correction(tag_animation, base_frame, defaults)
+            elif base_tag_animation is not None:
                 base_animation = self._build_animation(base_tag_animation, defaults, overlay_defaults, graph, shared_static_codec, resource_cache, animation_cache, all_tag_animations, final_frame_stack)
                 base_frame = base_animation.first_frame()
+                if not self._object_space_parent_base_matches(tag_animation, base_frame, defaults):
+                    utils.print_warning(
+                        f"Animation {tag_animation.name.data_name} base {base_tag_animation.name.data_name} "
+                        "does not match object-space parent pose. Falling back to rest pose."
+                    )
+                    base_frame = default_frame_channels(defaults)
+                self._apply_object_space_parent_base_correction(tag_animation, base_frame, defaults)
+            elif object_space_parent_targets:
+                base_frame = default_frame_channels(defaults)
+                self._apply_object_space_parent_base_correction(tag_animation, base_frame, defaults)
             else:
                 base_frame = default_frame_channels(defaults)
-            # self._apply_object_space_parent_base_frame(tag_animation, base_frame)
 
             if tag_animation.animation_type == 2:
                 animation_data = compose_overlay_animation(animation_data, base_frame)
@@ -3737,24 +3503,15 @@ class AnimationTag(Tag):
                 track = blender_animation.action_tracks.add()
                 track.object = armature
                 track.action = action
-                imported = False
-                try:
-                    transforms = self._animation_transforms(tag_animation, defaults, overlay_defaults, native_nodes, graph, shared_static_codec, native_resource_cache,native_animation_cache, tag_animations)
-                    if transforms:
-                        blender_animation.frame_end = max(blender_animation.frame_end, max(transforms))
-                    self._to_armature_action(transforms, armature, action, native_nodes, {}, set(), blender_animation.pose_overlay)
-                    imported = True
-                except Exception:
-                    utils.print_warning(f"Foundry animation decode failed for {tag_animation.name.data_name}. {traceback.format_exc()}")
-
-                if imported:
-                    actions.append(action)
-                    action.frame_end = blender_animation.frame_end
-                    self._apply_regular_animation_events(tag_animation, blender_animation, armature, actions)
-                    self._infer_wrap_events(tag_animation, blender_animation, armature, native_nodes, transforms, node_usages)
-                    self._add_animation_settings(tag_animation, blender_animation)
-                else:
-                    utils.print_warning(f"Failed to import animation {tag_animation.name.data_name}")
+                transforms = self._animation_transforms(tag_animation, defaults, overlay_defaults, native_nodes, graph, shared_static_codec, native_resource_cache,native_animation_cache, tag_animations)
+                if transforms:
+                    blender_animation.frame_end = max(blender_animation.frame_end, max(transforms))
+                self._to_armature_action(transforms, armature, action, native_nodes, {}, set(), blender_animation.pose_overlay)
+                actions.append(action)
+                action.frame_end = blender_animation.frame_end
+                self._apply_regular_animation_events(tag_animation, blender_animation, armature, actions)
+                self._infer_wrap_events(tag_animation, blender_animation, armature, native_nodes, transforms, node_usages)
+                self._add_animation_settings(tag_animation, blender_animation)
 
         if self.corinth and import_pca:
             pca_groups = []
@@ -4135,22 +3892,13 @@ class AnimationTag(Tag):
                     created_bone.use_deform = False
         finally:
             if self.context.mode != "OBJECT":
-                try:
-                    utils.set_object_mode(self.context)
-                except Exception:
-                    pass
+                utils.set_object_mode(self.context)
 
             if previous_active is not None and previous_active.name in bpy.data.objects:
-                try:
-                    utils.set_active_object(previous_active)
-                except Exception:
-                    previous_active = None
+                utils.set_active_object(previous_active)
 
             if previous_active is not None and previous_mode != "OBJECT":
-                try:
-                    utils.restore_mode(previous_mode)
-                except Exception:
-                    pass
+                utils.restore_mode(previous_mode)
             
     def generate_renames(self, filter=""):
         '''Reads current blender animation names and then parses in the mode n state graph to set up renames in blender'''
