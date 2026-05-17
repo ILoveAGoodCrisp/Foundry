@@ -9,6 +9,7 @@ from ...managed_blam.scenario import ScenarioTag
 from ...managed_blam.render_model import RenderModelTag
 from ...managed_blam.model import ModelTag
 from ...managed_blam.object import ObjectTag
+from ...managed_blam.cinematic_lighting import CinematicLightingTag
 from ...managed_blam import Tag
 from ...icons import get_icon_id
 from ... import utils
@@ -18,6 +19,7 @@ SOUND_CLASSES_TAG = r"sound\sound_classes.sound_classes"
 MIN_CINEMATIC_EVENT_FRAME = 0
 MAX_CINEMATIC_EVENT_FRAME = 2_147_483_647
 MAX_CINEMATIC_EVENT_SCALE = 10_000.0
+MAX_CINEMATIC_LIGHTING_SHOTS = 64
 
 variants = {}
 regions = {}
@@ -35,6 +37,83 @@ def _tag_redraw_areas(context: bpy.types.Context):
 
     for area in screen.areas:
         area.tag_redraw()
+
+def _cinematic_scene_id_for_scene(scene: bpy.types.Scene) -> str:
+    scene_nwo = utils.get_scene_props()
+    for cin_scene in scene_nwo.cinematic_scenes:
+        if cin_scene.scene == scene:
+            return cin_scene.name.strip()
+
+    return ""
+
+def _cinematic_lighting_shot_markers(scene: bpy.types.Scene) -> list[bpy.types.TimelineMarker]:
+    markers = [
+        marker for marker in scene.timeline_markers
+        if marker.camera is not None
+        and marker.frame > scene.frame_start
+        and marker.frame <= scene.frame_end
+    ]
+    markers.sort(key=lambda marker: marker.frame)
+    return markers[:MAX_CINEMATIC_LIGHTING_SHOTS - 1]
+
+def _cinematic_lighting_shot_count(scene: bpy.types.Scene) -> int:
+    return min(len(_cinematic_lighting_shot_markers(scene)) + 1, MAX_CINEMATIC_LIGHTING_SHOTS)
+
+def _current_cinematic_lighting_shot_index(scene: bpy.types.Scene) -> int:
+    markers = _cinematic_lighting_shot_markers(scene)
+    shot_index = 0
+    for marker in markers:
+        if scene.frame_current >= marker.frame:
+            shot_index += 1
+        else:
+            break
+
+    return min(shot_index, _cinematic_lighting_shot_count(scene) - 1)
+
+def _camera_for_cinematic_lighting_shot(context: bpy.types.Context, shot_index: int) -> bpy.types.Object | None:
+    scene = context.scene
+    markers = _cinematic_lighting_shot_markers(scene)
+    shot_frame_end = markers[shot_index].frame - 1 if shot_index < len(markers) else scene.frame_end
+    sample_frame = shot_frame_end - 1
+    current_frame = scene.frame_current
+
+    try:
+        scene.frame_set(sample_frame)
+        camera = scene.camera
+    finally:
+        scene.frame_set(current_frame)
+
+    if camera is not None and camera.type == 'CAMERA':
+        return camera
+
+    for ob in context.view_layer.objects:
+        if ob.type == 'CAMERA':
+            return ob
+
+    return None
+
+def _actor_active_for_cinematic_lighting_shot(context: bpy.types.Context, actor: bpy.types.Object, shot_index: int) -> bool:
+    camera = _camera_for_cinematic_lighting_shot(context, shot_index)
+    if camera is None:
+        return True
+
+    camera_nwo = camera.nwo
+    camera_actors = {item.actor for item in camera_nwo.actors if item.actor is not None}
+    if camera_nwo.actors_type == 'exclude':
+        return not camera_actors or actor not in camera_actors
+
+    return bool(camera_actors and actor in camera_actors)
+
+def _cinematic_lighting_tag_path(context: bpy.types.Context, actor: bpy.types.Object, shot_index: int) -> Path | None:
+    scene_id = _cinematic_scene_id_for_scene(context.scene)
+    if not scene_id:
+        return None
+
+    asset_path, asset_name = utils.get_asset_info()
+    scene_name = f"{asset_name}_{scene_id}"
+    actor_name = utils.clean_text(actor.name, replace_spaces=True)
+    lighting_name = f"{scene_name}_sh{shot_index + 1}_{actor_name}"
+    return Path(asset_path, "lights", lighting_name)
 
 def clear_vis_keyframes(context, do_viewport=True, do_render=True, set_visible=True):
     view_objects = context.view_layer.objects
@@ -756,6 +835,65 @@ class NWO_OT_UpdateActor(bpy.types.Operator):
         new_child_count = len(armature.children_recursive)
         self.report({'INFO'}, f"Updated actor from {tag_path_full.name}: removed {deleted_count}, added {new_child_count}")
         return {'FINISHED'}
+
+class NWO_OT_OpenCinematicLightingTag(bpy.types.Operator):
+    bl_idname = "nwo.open_cinematic_lighting_tag"
+    bl_label = "Open Cinematic Lighting Tag"
+    bl_description = "Creates the current actor's cinematic lighting tag for the matching shot if needed and opens it in Foundation"
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context: bpy.types.Context):
+        ob = context.object
+        return bool(
+            utils.current_project_valid()
+            and utils.get_scene_props().asset_type == 'cinematic'
+            and ob is not None
+            and ob.type == 'ARMATURE'
+            and ob.nwo.cinematic_lighting in {'PERSIST', 'PER_SHOT'}
+        )
+
+    def _lighting_shot_index(self, context: bpy.types.Context, actor: bpy.types.Object) -> int | None:
+        if actor.nwo.cinematic_lighting == 'PERSIST':
+            return 0
+
+        shot_index = _current_cinematic_lighting_shot_index(context.scene)
+        if not _actor_active_for_cinematic_lighting_shot(context, actor, shot_index):
+            self.report({"WARNING"}, f"{actor.name} is not active in shot {shot_index + 1}")
+            return None
+
+        return shot_index
+
+    def execute(self, context: bpy.types.Context):
+        actor = context.object
+        shot_index = self._lighting_shot_index(context, actor)
+        if shot_index is None:
+            return {"CANCELLED"}
+
+        lighting_path = _cinematic_lighting_tag_path(context, actor, shot_index)
+        if lighting_path is None:
+            self.report({"WARNING"}, "Current Blender scene is not linked to a cinematic scene")
+            return {"CANCELLED"}
+
+        full_tag_path = Path(utils.get_tags_path(), lighting_path).with_suffix(".new_cinematic_lighting")
+        full_tag_path.parent.mkdir(parents=True, exist_ok=True)
+        tag_existed = full_tag_path.exists()
+
+        try:
+            with CinematicLightingTag(path=lighting_path) as lighting_tag:
+                relative_tag_path = lighting_tag.tag_path.RelativePathWithExtension
+        except Exception as exc:
+            self.report({"ERROR"}, f"Failed to create cinematic lighting tag: {exc}")
+            return {"CANCELLED"}
+
+        if not full_tag_path.exists():
+            self.report({"WARNING"}, f"Tag was not created: {relative_tag_path}")
+            return {"CANCELLED"}
+
+        utils.run_ek_cmd(["foundation", "/dontloadlastopenedwindows", full_tag_path], True)
+        action = "Opened" if tag_existed else "Created"
+        self.report({"INFO"}, f"{action} {relative_tag_path}")
+        return {"FINISHED"}
 
 class NWO_OT_TransformCinematicEventFrames(bpy.types.Operator):
     bl_idname = "nwo.transform_cinematic_event_frames"

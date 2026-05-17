@@ -1653,6 +1653,10 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         row.prop(nwo, "cinematic_lighting_marker")
         if bpy.ops.nwo.get_model_markers.poll():
             row.operator_menu_enum("nwo.get_model_markers", "marker", icon="DOWNARROW_HLT", text="")
+        row = col.row(align=True)
+        row.enabled = nwo.cinematic_lighting in {'PERSIST', 'PER_SHOT'}
+        row.operator("nwo.open_cinematic_lighting_tag", icon_value=get_icon_id("foundation"), text=f"Open Cinematic Lighting Tag for Shot {self.scene.nwo.current_shot}")
+        col.separator()
         col.prop(nwo, "object_source")
         col.label(text="Flags")
         col.prop(nwo, "effect_object")

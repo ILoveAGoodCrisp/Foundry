@@ -2435,9 +2435,12 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         frame_current = scene.frame_current
         if frame_current < all([m.frame for m in markers]):
             return 1
-        for idx, marker in enumerate(markers):
-            if marker.frame <= frame_current and (len(markers) - 1 == idx or markers[idx + 1].frame > frame_current):
-                return idx + 2
+        
+        if markers:
+            add_index = int(markers[0].frame > scene.frame_start)
+            for idx, marker in enumerate(markers):
+                if marker.frame <= frame_current and (len(markers) - 1 == idx or markers[idx + 1].frame > frame_current):
+                    return idx + 1 + add_index
             
         return 1
     
