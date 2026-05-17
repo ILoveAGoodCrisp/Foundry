@@ -19,6 +19,7 @@ from .animation_resource import (
     BinaryReader,
     CurveCodec,
     DefaultAnimationNode,
+    FrameChannels,
     FrameInfoType,
     RevisedCurveCodec,
     MovementData,
@@ -2675,9 +2676,6 @@ class AnimationTag(Tag):
 
     def _object_space_offset_transform_targets(self, tag_animation: Animation) -> list[tuple[int, Vector, Quaternion, float]]:
         targets: list[tuple[int, Vector, Quaternion, float]] = []
-        if tag_animation.animation_type != AnimationType.REPLACEMENT:
-            return targets
-
         offset_nodes = tag_animation.shared_element.SelectField("object space offset nodes")
         if offset_nodes is None:
             return targets
@@ -2757,40 +2755,128 @@ class AnimationTag(Tag):
             target_index = default_nodes[target_index].parent_index
         return depth
 
-    def _apply_object_space_parent_base_correction(
+    def _object_space_base_correction_targets(
         self,
         tag_animation: Animation,
-        base_frame,
         default_nodes: list[DefaultAnimationNode],
-    ) -> None:
-        targets: list[tuple[int, Vector, Quaternion, float]] = []
+    ) -> list[tuple[int, Matrix]]:
+        targets: list[tuple[int, Matrix]] = []
         for node_index, translation, rotation, scale in self._object_space_parent_transform_targets(tag_animation):
             target_index = self._object_space_parent_target_index(node_index, default_nodes)
-            targets.append((target_index, translation, rotation, scale))
+            target_matrix = Matrix.LocRotScale(translation, rotation, Vector.Fill(3, scale))
+            targets.append((target_index, target_matrix))
 
         for node_index, translation, rotation, scale in self._object_space_offset_transform_targets(tag_animation):
             if node_index < 0 or node_index >= len(default_nodes):
                 raise ValueError(f"Object-space offset node index {node_index} is out of range")
-            targets.append((node_index, translation, rotation, scale))
+            target_matrix = Matrix.LocRotScale(translation, rotation, Vector.Fill(3, scale))
+            targets.append((node_index, target_matrix))
 
-        for target_index, translation, rotation, scale in sorted(
+        return sorted(
             targets,
             key=lambda target: self._object_space_node_depth(target[0], default_nodes),
-        ):
-            target_matrix = Matrix.LocRotScale(translation, rotation, Vector.Fill(3, scale))
-            parent_index = default_nodes[target_index].parent_index
+        )
 
+    def _object_space_descendant_indices(
+        self,
+        target_index: int,
+        default_nodes: list[DefaultAnimationNode],
+    ) -> list[int]:
+        descendants = []
+        for node_index in range(len(default_nodes)):
+            current_index = node_index
+            seen: set[int] = set()
+            while 0 <= current_index < len(default_nodes):
+                if current_index in seen:
+                    raise ValueError(f"Cycle found while resolving object-space descendants for node [{default_nodes[node_index].name}]")
+                seen.add(current_index)
+                if current_index == target_index:
+                    descendants.append(node_index)
+                    break
+                current_index = default_nodes[current_index].parent_index
+
+        return sorted(
+            descendants,
+            key=lambda node_index: self._object_space_node_depth(node_index, default_nodes),
+        )
+
+    def _animation_data_frame_channels(self, animation_data, frame_index: int) -> FrameChannels:
+        return FrameChannels(
+            [animation_data.translations[node_index][frame_index].copy() for node_index in range(animation_data.node_count)],
+            [animation_data.rotations[node_index][frame_index].copy() for node_index in range(animation_data.node_count)],
+            [animation_data.scales[node_index][frame_index] for node_index in range(animation_data.node_count)],
+        )
+
+    def _write_animation_data_frame_channels(
+        self,
+        animation_data,
+        frame_index: int,
+        frame: FrameChannels,
+        node_indices: list[int],
+    ) -> None:
+        for node_index in node_indices:
+            animation_data.translations[node_index][frame_index] = frame.translations[node_index]
+            animation_data.rotations[node_index][frame_index] = frame.rotations[node_index]
+            animation_data.scales[node_index][frame_index] = frame.scales[node_index]
+
+    def _apply_object_space_delta_to_frame(
+        self,
+        frame: FrameChannels,
+        default_nodes: list[DefaultAnimationNode],
+        node_indices: list[int],
+        delta_matrix: Matrix,
+    ) -> None:
+        object_space_matrices = self._frame_object_space_matrices(frame, default_nodes)
+        for node_index in node_indices:
+            object_space_matrices[node_index] = delta_matrix @ object_space_matrices[node_index]
+
+        for node_index in node_indices:
+            parent_index = default_nodes[node_index].parent_index
             if 0 <= parent_index < len(default_nodes):
-                object_space_matrices = self._frame_object_space_matrices(base_frame, default_nodes)
-                local_matrix = object_space_matrices[parent_index].inverted_safe() @ target_matrix
+                local_matrix = object_space_matrices[parent_index].inverted_safe() @ object_space_matrices[node_index]
             else:
-                local_matrix = target_matrix
+                local_matrix = object_space_matrices[node_index]
 
             local_translation, local_rotation, local_scale = local_matrix.decompose()
             local_rotation.normalize()
-            base_frame.translations[target_index] = local_translation
-            base_frame.rotations[target_index] = local_rotation
-            base_frame.scales[target_index] = (local_scale.x + local_scale.y + local_scale.z) / 3.0
+            frame.translations[node_index] = local_translation
+            frame.rotations[node_index] = local_rotation
+            frame.scales[node_index] = (local_scale.x + local_scale.y + local_scale.z) / 3.0
+
+    def _apply_object_space_base_corrections(
+        self,
+        tag_animation: Animation,
+        animation_data,
+        base_frame: FrameChannels,
+        default_nodes: list[DefaultAnimationNode],
+    ) -> None:
+        reference_frame = FrameChannels(
+            [translation.copy() for translation in base_frame.translations],
+            [rotation.copy() for rotation in base_frame.rotations],
+            base_frame.scales[:],
+        )
+
+        for target_index, target_matrix in self._object_space_base_correction_targets(tag_animation, default_nodes):
+            object_space_matrices = self._frame_object_space_matrices(reference_frame, default_nodes)
+            delta_matrix = target_matrix @ object_space_matrices[target_index].inverted_safe()
+            node_indices = self._object_space_descendant_indices(target_index, default_nodes)
+
+            self._apply_object_space_delta_to_frame(
+                reference_frame,
+                default_nodes,
+                node_indices,
+                delta_matrix,
+            )
+
+            for frame_index in range(animation_data.frame_count):
+                frame = self._animation_data_frame_channels(animation_data, frame_index)
+                self._apply_object_space_delta_to_frame(
+                    frame,
+                    default_nodes,
+                    node_indices,
+                    delta_matrix,
+                )
+                self._write_animation_data_frame_channels(animation_data, frame_index, frame, node_indices)
 
     def _seek_best_matching_base_animation(self, animation: Animation, name: utils.AnimationName, all_tag_animations):
         def find_for_mode(mode: str):
@@ -3049,13 +3135,13 @@ class AnimationTag(Tag):
             else:
                 base_frame = default_frame_channels(defaults)
 
-            if object_space_parent_targets or object_space_offset_targets:
-                self._apply_object_space_parent_base_correction(tag_animation, base_frame, defaults)
-
             if tag_animation.animation_type == 2:
                 animation_data = compose_overlay_animation(animation_data, base_frame)
             else:
                 animation_data = compose_replacement_animation(animation_data, base_frame)
+
+            if object_space_parent_targets or object_space_offset_targets:
+                self._apply_object_space_base_corrections(tag_animation, animation_data, base_frame, defaults)
 
         animation_cache[index] = animation_data
         return animation_data
