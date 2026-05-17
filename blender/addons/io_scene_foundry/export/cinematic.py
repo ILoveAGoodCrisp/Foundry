@@ -1015,7 +1015,6 @@ class QUA:
                     first_shot_element = block_data_shots.Elements[0] if self.corinth else block_shots.Elements[0]
                     setup_lighting_element(first_shot_element.SelectField("lighting").AddElement(), first_shot_element.ElementIndex, True)
                 case ActorLighting.PER_SHOT:
-                    first_shot_element = block_data_shots.Elements[actor.shots_active[0]]
                     for shot_i in actor.shots_active:
                         next_shot_element = block_data_shots.Elements[shot_i] if self.corinth else block_shots.Elements[shot_i]
                         setup_lighting_element(next_shot_element.SelectField("lighting").AddElement(), next_shot_element.ElementIndex)
