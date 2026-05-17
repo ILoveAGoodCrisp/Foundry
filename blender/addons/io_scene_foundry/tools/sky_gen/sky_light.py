@@ -12,6 +12,11 @@ NORMALIZATION_FACTOR = 0.0175
 SUN_SOLID_ANGLE = 0.00001 * TWO_PI
 MAX_SUN_AIRMASS_ZENITH_DEGREES = 93.884
 MIN_SPLITABLE_BOX_SIZE = 4
+MIN_SUN_REGION_PIXEL_FRACTION = 0.00001
+MAX_BROAD_SUN_REGION_FRACTION = 0.20
+HDR_SUN_PEAK_LUMINANCE = 1.0
+HDR_SUN_PEAK_RATIO = 4.0
+HDR_SUN_MAX_REGION_FRACTION = 0.03
 LUMINANCE_WEIGHTS = np.array((0.212656, 0.715158, 0.0721856), dtype=np.float32)
 RGB_TO_XYZ = np.array(
     (
@@ -193,6 +198,12 @@ class LightBox:
 
     def is_splitable(self) -> bool:
         return self.w >= MIN_SPLITABLE_BOX_SIZE or self.h >= MIN_SPLITABLE_BOX_SIZE
+
+
+@dataclass(frozen=True)
+class SunRegionCandidate:
+    score: float
+    direction: tuple[float, float, float]
 
 
 def clamp_positive(value: float) -> float:
@@ -578,46 +589,173 @@ _DIRECTIONS_CACHE: dict[tuple[int, int], np.ndarray] = {}
 _WEIGHTS_CACHE: dict[tuple[int, int], np.ndarray] = {}
 
 
-def get_sun_angles_from_image(image: np.ndarray, sample_radius: int = 6) -> tuple[float, float] | None:
-    image = np.asarray(image, dtype=np.float32)
-    if image.ndim < 3 or image.shape[0] <= 0 or image.shape[1] <= 0:
+def _circular_pixel_span(values: np.ndarray, width: int) -> int:
+    values = np.unique(np.asarray(values, dtype=np.int32))
+    if values.size <= 1:
+        return int(values.size)
+
+    gaps = np.diff(values)
+    wrap_gap = values[0] + width - values[-1]
+    largest_gap = max(int(gaps.max(initial=0)), int(wrap_gap))
+    return max(1, width - largest_gap + 1)
+
+
+def _sun_region_thresholds(luminance: np.ndarray, peak_luminance: float) -> list[float]:
+    percentiles = np.percentile(luminance, (99.95, 99.8, 99.5, 99.0))
+    thresholds = [
+        max(peak_luminance * 0.90, float(percentiles[0])),
+        max(peak_luminance * 0.75, float(percentiles[1])),
+        max(peak_luminance * 0.60, float(percentiles[2])),
+        max(peak_luminance * 0.45, float(percentiles[3])),
+    ]
+
+    deduped = []
+    for threshold in thresholds:
+        if threshold > EPSILON and not any(abs(threshold - existing) <= EPSILON for existing in deduped):
+            deduped.append(threshold)
+    return deduped
+
+
+def _has_hdr_sun_peak(luminance: np.ndarray, peak_luminance: float) -> bool:
+    if peak_luminance <= HDR_SUN_PEAK_LUMINANCE:
+        return False
+
+    background_luminance = max(float(np.percentile(luminance, 99.9)), float(np.median(luminance)), EPSILON)
+    return peak_luminance >= background_luminance * HDR_SUN_PEAK_RATIO
+
+
+def _hdr_sun_region_thresholds(luminance: np.ndarray, peak_luminance: float) -> list[float]:
+    del luminance
+    thresholds = [peak_luminance * scale for scale in (0.95, 0.80, 0.60, 0.40, 0.25, 0.12, 0.06)]
+
+    deduped = []
+    for threshold in thresholds:
+        if threshold > EPSILON and not any(abs(threshold - existing) <= EPSILON for existing in deduped):
+            deduped.append(threshold)
+    return deduped
+
+
+def _bright_region_candidate(
+    component_y: list[int],
+    component_x: list[int],
+    luminance: np.ndarray,
+    directions: np.ndarray,
+    threshold: float,
+    peak_luminance: float,
+    image_height: int,
+    max_broad_fraction: float | None = None,
+    visual_center: bool = False,
+) -> SunRegionCandidate | None:
+    ys = np.asarray(component_y, dtype=np.int32)
+    xs = np.asarray(component_x, dtype=np.int32)
+    area = ys.size
+    if area <= 0:
         return None
 
-    height, width = image.shape[:2]
-    search_height = max(1, min(height, int(math.ceil(height * 0.5))))
-    luminance = linear_color_luminance(image[:search_height])
-    if luminance.size == 0:
+    width = luminance.shape[1]
+    search_height = luminance.shape[0]
+    values = luminance[ys, xs]
+    row_weights = np.sin((ys.astype(np.float32) + 0.5) * (math.pi / image_height))
+    angular_values = values * row_weights
+    angular_flux = float(angular_values.sum())
+    if angular_flux <= EPSILON:
         return None
 
-    peak_luminance = float(luminance.max())
-    if peak_luminance <= EPSILON:
+    x_span = _circular_pixel_span(xs, width)
+    y_span = int(ys.max() - ys.min() + 1)
+    bbox_area = max(x_span * y_span, 1)
+    compactness = min(1.0, area / bbox_area)
+    broad_fraction = bbox_area / max(width * search_height, 1)
+    if max_broad_fraction is not None and broad_fraction > max_broad_fraction:
         return None
 
-    peak_index = int(np.argmax(luminance))
-    peak_y, peak_x = np.unravel_index(peak_index, luminance.shape)
-    directions = _DIRECTIONS_CACHE.setdefault((width, height), _pixel_directions(width, height))
+    peak_ratio = float(values.max()) / max(peak_luminance, EPSILON)
 
-    direction_accum = np.zeros(3, dtype=np.float64)
-    weight_sum = 0.0
-    y0 = max(0, peak_y - sample_radius)
-    y1 = min(search_height, peak_y + sample_radius + 1)
-    x_offsets = np.arange(-sample_radius, sample_radius + 1, dtype=np.int32)
+    score = angular_flux * (0.35 + compactness) * peak_ratio / math.sqrt(bbox_area)
+    if broad_fraction > MAX_BROAD_SUN_REGION_FRACTION:
+        score *= MAX_BROAD_SUN_REGION_FRACTION / broad_fraction
 
-    for yy in range(y0, y1):
-        xx = (peak_x + x_offsets) % width
-        weights = np.asarray(luminance[yy, xx], dtype=np.float64)
-        if float(weights.sum()) <= EPSILON:
+    if visual_center:
+        direction_weights = np.sqrt(np.maximum(values, 0.0)) * row_weights
+    else:
+        direction_weights = np.maximum(values - threshold, peak_luminance * 0.02) * row_weights
+
+    direction_weight_sum = float(direction_weights.sum())
+    if direction_weight_sum <= EPSILON:
+        return None
+
+    direction = (directions[ys, xs].astype(np.float64) * direction_weights[:, None]).sum(axis=0)
+    norm = float(np.linalg.norm(direction))
+    if norm <= EPSILON:
+        return None
+
+    direction /= norm
+    return SunRegionCandidate(score, tuple(direction.tolist()))
+
+
+def _find_bright_sun_region(
+    luminance: np.ndarray,
+    directions: np.ndarray,
+    threshold: float,
+    min_region_pixels: int,
+    peak_luminance: float,
+    image_height: int,
+    max_broad_fraction: float | None = None,
+    visual_center: bool = False,
+) -> SunRegionCandidate | None:
+    mask = luminance >= threshold
+    if not bool(mask.any()):
+        return None
+
+    height, width = mask.shape
+    visited = np.zeros(mask.shape, dtype=bool)
+    seed_y, seed_x = np.nonzero(mask)
+    best: SunRegionCandidate | None = None
+
+    for start_y, start_x in zip(seed_y.tolist(), seed_x.tolist()):
+        if visited[start_y, start_x]:
             continue
 
-        neighborhood_directions = np.asarray(directions[yy, xx], dtype=np.float64)
-        direction_accum += (neighborhood_directions * weights[:, None]).sum(axis=0)
-        weight_sum += float(weights.sum())
+        stack = [(start_y, start_x)]
+        visited[start_y, start_x] = True
+        component_y = []
+        component_x = []
 
-    if weight_sum <= EPSILON:
-        direction = np.asarray(directions[peak_y, peak_x], dtype=np.float64)
-    else:
-        direction = direction_accum / weight_sum
+        while stack:
+            y, x = stack.pop()
+            component_y.append(y)
+            component_x.append(x)
 
+            left = (x - 1) % width
+            right = (x + 1) % width
+            for yy, xx in ((y, left), (y, right), (y - 1, x), (y + 1, x)):
+                if yy < 0 or yy >= height or visited[yy, xx] or not mask[yy, xx]:
+                    continue
+                visited[yy, xx] = True
+                stack.append((yy, xx))
+
+        if len(component_y) < min_region_pixels:
+            continue
+
+        candidate = _bright_region_candidate(
+            component_y,
+            component_x,
+            luminance,
+            directions,
+            threshold,
+            peak_luminance,
+            image_height,
+            max_broad_fraction,
+            visual_center,
+        )
+        if candidate is not None and (best is None or candidate.score > best.score):
+            best = candidate
+
+    return best
+
+
+def _direction_to_spherical_angles(direction: tuple[float, float, float] | np.ndarray) -> tuple[float, float] | None:
+    direction = np.asarray(direction, dtype=np.float64)
     norm = float(np.linalg.norm(direction))
     if norm <= EPSILON:
         return None
@@ -629,6 +767,64 @@ def get_sun_angles_from_image(image: np.ndarray, sample_radius: int = 6) -> tupl
         phi += TWO_PI
 
     return theta, phi
+
+
+def get_sun_angles_from_image(image: np.ndarray, sample_radius: int = 6) -> tuple[float, float] | None:
+    del sample_radius
+    image = np.asarray(image, dtype=np.float32)
+    if image.ndim < 3 or image.shape[0] <= 0 or image.shape[1] <= 0:
+        return None
+
+    height, width = image.shape[:2]
+    search_height = max(1, min(height, int(math.ceil(height * 0.5))))
+    luminance = linear_color_luminance(image[:search_height])
+    luminance = np.nan_to_num(luminance, nan=0.0, neginf=0.0)
+    luminance = np.maximum(luminance, 0.0)
+    if luminance.size == 0:
+        return None
+
+    peak_luminance = float(luminance.max())
+    if peak_luminance <= EPSILON:
+        return None
+
+    median_luminance = float(np.median(luminance))
+    if peak_luminance <= median_luminance * 1.05 + EPSILON:
+        return None
+
+    directions = _DIRECTIONS_CACHE.setdefault((width, height), _pixel_directions(width, height))
+    if _has_hdr_sun_peak(luminance, peak_luminance):
+        hdr_candidate = None
+        for threshold in _hdr_sun_region_thresholds(luminance, peak_luminance):
+            candidate = _find_bright_sun_region(
+                luminance,
+                directions[:search_height],
+                threshold,
+                1,
+                peak_luminance,
+                height,
+                HDR_SUN_MAX_REGION_FRACTION,
+                True,
+            )
+            if candidate is not None:
+                hdr_candidate = candidate
+
+        if hdr_candidate is not None:
+            return _direction_to_spherical_angles(hdr_candidate.direction)
+
+    min_region_pixels = max(3, int(math.ceil(width * search_height * MIN_SUN_REGION_PIXEL_FRACTION)))
+    for threshold in _sun_region_thresholds(luminance, peak_luminance):
+        candidate = _find_bright_sun_region(
+            luminance,
+            directions[:search_height],
+            threshold,
+            min_region_pixels,
+            peak_luminance,
+            height,
+        )
+        if candidate is not None:
+            return _direction_to_spherical_angles(candidate.direction)
+
+    return None
 
 
 def generate_sky_lights(colors: np.ndarray, params: SkyAtmosphereParameters, light_count: int, vertical_fov: float) -> list[SkyLightSample]:
