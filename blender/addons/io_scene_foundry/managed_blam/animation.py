@@ -3619,7 +3619,7 @@ class AnimationTag(Tag):
         fcurves = utils.get_fcurves(action, armature.animation_data.last_slot_identifier)
         fcurves.clear()
         
-        key_options = {'FAST'} if pose_overlay else {'FAST', 'NEEDED'}
+        key_options = {'FAST'}
         
         armature_bone_names = {utils.remove_node_prefix(bone.name): bone for bone in armature.pose.bones}
         valid_nodes = []
