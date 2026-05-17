@@ -396,10 +396,11 @@ class CinematicCustomScript:
         obj_text = f'(cinematic_object_get "{actor_name}")' if actor_name else 'None'
         match event.script_type:
             case 'CUSTOM':
-                if event.text is None:
-                    self.script = event.script
+                if event.script_use_text:
+                    if event.text is not None:
+                        self.script = event.text.as_string()
                 else:
-                    self.script = event.text.as_string()
+                    self.script = event.script
             case 'WEAPON_TRIGGER_START' | 'WEAPON_TRIGGER_STOP':
                 if actor_name:
                     weapon_name = object_tag_weapon_names.get(event.actor, "")

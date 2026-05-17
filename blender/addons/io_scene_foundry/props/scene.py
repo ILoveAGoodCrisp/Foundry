@@ -4,6 +4,8 @@ import bpy
 from bpy.types import PropertyGroup
 from mathutils import Matrix
 
+from ..constants import get_named_color
+
 from ..tools.asset_types import asset_type_items
 from ..managed_blam.scenario import ScenarioTag
 
@@ -20,6 +22,30 @@ scene_specific_props = (
     'active_cinematic_event_index',
     'is_main_scene',
 )
+
+script_type_map = {
+    "CUSTOM": "Custom",
+    "WEAPON_TRIGGER_START": "Start Firing Weapon",
+    "WEAPON_TRIGGER_STOP": "Stop Firing Weapon",
+    "OBJECT_PROJECTILE_COLLISION_ON": "Projectiles Collide With Object",
+    "OBJECT_PROJECTILE_COLLISION_OFF": "Projectiles Pass Through Object",
+    "OBJECT_CANNOT_DIE": "Make Object Immortal",
+    "OBJECT_CAN_DIE": "Make Object Mortal",
+    "DAMAGE_OBJECT": "Damage Object",
+    "DESTROY": "Destroy Object",
+    "HIDE": "Hide Object",
+    "UNHIDE": "Unhide Object",
+    "SET_VARIANT": "Set Object Variant",
+    "SET_PERMUTATION": "Set Object Permutation",
+    "SET_REGION_STATE": "Set Region State",
+    "SET_MODEL_STATE_PROPERTY": "Set Model State Property",
+    "FADE_IN": "Fade in",
+    "FADE_OUT": "Fade out",
+    "SET_TITLE": "Set Cinematic Title",
+    "SHOW_HUD": "Show Player HUD",
+    "HIDE_HUD": "Hide Player HUD",
+    "PLAY_SOUND": "Play Sound",
+}
 
 def poll_armature(self, object: bpy.types.Object):
     return object.type == 'ARMATURE'
@@ -1939,34 +1965,49 @@ class NWO_CinematicEvent(PropertyGroup):
                 else:
                     return "NONE"
             case 'SCRIPT':
+                ui_name = script_type_map.get(self.script_type)
+                if ui_name is None:
+                    return "INVALID"
                 if self.script_type == 'CUSTOM':
-                    if self.text is None:
+                    if self.script_use_text:
+                        return f"Using Text File -> {self.text.name}" if self.text else 'NONE'
+                    else:
                         if self.script.strip():
-                            return "CUSTOM"
+                            return self.script
                         else:
                             return "NONE"
-                    else:
-                        return self.text.name
-                else:
-                    if self.script_type in script_object_types:
-                        if not utils.pointer_ob_valid(self.actor):
-                            return f"{self.script_type.lower()} -> NONE"
+                elif self.script_type in script_object_types:
+                    if not utils.pointer_ob_valid(self.actor):
+                        if self.script_type == 'PLAY_SOUND':
+                            return f"{ui_name} -> NONE -> {Path(self.sound_tag).with_suffix('').name}"
                         else:
-                            match self.script_type:
-                                case 'SET_VARIANT':
-                                    return f"{self.script_type.lower()} -> {self.actor.name} -> {self.script_variant}"
-                                case 'SET_PERMUTATION':
-                                    return f"{self.script_type.lower()} -> {self.actor.name} -> {self.script_region} {self.script_permutation}"
-                                case 'SET_REGION_STATE':
-                                    return f"{self.script_type.lower()} -> {self.actor.name} -> {self.script_region} {self.script_state}"
-                                case 'SET_MODEL_STATE_PROPERTY':
-                                    return f"{self.script_type.lower()} -> {self.actor.name} -> {self.script_state_property} {'on' if self.script_bool else 'off'}"
-                                case 'DAMAGE_OBJECT':
-                                    return f"{self.script_type.lower()} -> {self.actor.name} -> {self.script_region} -> {round(self.script_damage, 2)}"
-                                case _:
-                                    return f"{self.script_type.lower()} -> {self.actor.name}"
+                            return f"{ui_name} -> NONE"
                     else:
-                        return self.script_type.lower()
+                        match self.script_type:
+                            case 'SET_VARIANT':
+                                return f"{ui_name} -> {self.actor.name} -> {self.script_variant}"
+                            case 'SET_PERMUTATION':
+                                return f"{ui_name} -> {self.actor.name} -> {self.script_region} {self.script_permutation}"
+                            case 'SET_REGION_STATE':
+                                return f"{ui_name} -> {self.actor.name} -> {self.script_region} {self.script_state}"
+                            case 'SET_MODEL_STATE_PROPERTY':
+                                return f"{ui_name} -> {self.actor.name} -> {self.script_state_property} {'on' if self.script_bool else 'off'}"
+                            case 'DAMAGE_OBJECT':
+                                return f"{ui_name} -> {self.actor.name} -> {self.script_region} -> {round(self.script_damage, 2)}"
+                            case 'PLAY_SOUND':
+                                return f"{ui_name} -> {self.actor.name} -> {Path(self.sound_tag).with_suffix('').name}"
+                            case _:
+                                return f"{ui_name} -> {self.actor.name}"
+                else:
+                    match self.script_type:
+                        case 'SET_TITLE':
+                            return f"{ui_name} -> {self.script_text}"
+                        case 'FADE_IN':
+                            return f"{ui_name} from {get_named_color((self.script_color.r, self.script_color.g, self.script_color.b))} over {round(self.script_seconds, 2)} second{'s' if round(self.script_seconds, 2) != 1.0 else ''}"
+                        case 'FADE_OUT':
+                            return f"{ui_name} to {get_named_color((self.script_color.r, self.script_color.g, self.script_color.b))} over {round(self.script_seconds, 2)} second{'s' if round(self.script_seconds, 2) != 1.0 else ''}"
+                        case _:
+                            return f"{ui_name}"
                     
             case 'MUSIC':
                 return f"{start_stop} {Path(self.music).with_suffix('').name if self.music.strip() else 'NONE'}"
@@ -2119,32 +2160,44 @@ class NWO_CinematicEvent(PropertyGroup):
         description="Use the script located in the referenced blender text file"
     )
     
+    script_use_text: bpy.props.BoolProperty(
+        name="Use Script Text",
+        description="Use a Blender text datablock for the header script instead of inline script text",
+        options=set(),
+    )
+    
     script_type: bpy.props.EnumProperty(
         name="Script Type",
         description="Type of script to execute",
         options=set(),
         items=[
-            ("CUSTOM", "Custom", "If this text matches the name of a text file in the Blender text editor, the contents of that file will be used. Otherwise, the text will be used directly"),
+            ("", "Custom", ""),
+            ("CUSTOM", "Custom", "Custom script to execute"),
+            ('', "Weapon", ""),
             ("WEAPON_TRIGGER_START", "Start Firing Weapon", "Causes a weapon to start shooting"),
             ("WEAPON_TRIGGER_STOP", "Stop Firing Weapon", "Causes a weapon to stop shooting"),
+            ('', "Damage", ""),
+            ('OBJECT_PROJECTILE_COLLISION_ON', "Projectiles Collide With Object", "The object becomes physical and can be damaged by projectiles, this has the knock on effect that the object will dissapear if the character's bounding box is not visible by the cinematic camera."),
+            ('OBJECT_PROJECTILE_COLLISION_OFF', "Projectiles Pass Through Object", "The default state of cinematic objects, where they are non-physical"),
+            ('OBJECT_CANNOT_DIE', "Make Object Immortal", ""),
+            ('OBJECT_CAN_DIE', "Make Object Mortal", ""),
+            ('DAMAGE_OBJECT', "Damage Object", ""),
+            ('DESTROY', "Destroy Object", ""),
+            ('', "Appearance", ""),
+            ('HIDE', "Hide Object", "Hide an object from view"),
+            ('UNHIDE', "Unhide Object", "Unhide an object from view"),
             ("SET_VARIANT", "Set Object Variant", "Sets an object variant to the named variant"),
             ("SET_PERMUTATION", "Set Object Permutation", "Sets an objects permutation(s). Leave the region blank for all regions"),
             ("SET_REGION_STATE", "Set Region State", "Sets a region(s) state. Leave region blank for all regions"),
             ("SET_MODEL_STATE_PROPERTY", "Set Model State Property", ""),
-            ('HIDE', "Hide Object", ""),
-            ('UNHIDE', "Unhide Object", ""),
-            ('DESTROY', "Destroy Object", ""),
-            ('FADE_IN', "Fade in from Color", ""),
-            ('FADE_OUT', "Fade out to Color", ""),
-            ('SET_TITLE', "Set Cinematic Title", ""),
+            ('', "Screen", ""),
+            ('FADE_IN', "Fade in from Color", "Screen starts with the chosen color and then fades into the cinematic over x seconds"),
+            ('FADE_OUT', "Fade out to Color", "Screen starts with the cinematic and then fades into the chosen color over x seconds"),
+            ('SET_TITLE', "Set Cinematic Title", "Set a cinematic title using a string ID. This must be setup in the scenario cutscene titles block and the relevant string to display must be imported if it does not already exist"),
             ('SHOW_HUD', "Show Player HUD", "Non functional in Halo 4"),
             ('HIDE_HUD', "Hide Player HUD", "Non functional in Halo 4"),
-            ('OBJECT_CANNOT_DIE', "Make Object Immortal", ""),
-            ('OBJECT_CAN_DIE', "Make Object Mortal", ""),
-            ('OBJECT_PROJECTILE_COLLISION_ON', "Projectiles Collide With Object", ""),
-            ('OBJECT_PROJECTILE_COLLISION_OFF', "Projectiles Pass Through Object", ""),
-            ('DAMAGE_OBJECT', "Damage Object", ""),
-            ('PLAY_SOUND', "Play Sound", ""),
+            ('', "Sound", ""),
+            ('PLAY_SOUND', "Play Sound", "Plays a sound on the named object or none"),
         ]
     )
     

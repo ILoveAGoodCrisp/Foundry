@@ -34,6 +34,8 @@ BANNED_FUNCTIONS = {
     'heat'
 }
 
+AMMO_FUNCTIONS = "primary_ammunition_ones", "primary_ammunition_tens"
+
 class CinematicScene:
     def __init__(self, asset_path, scene_name, scene):
         nwo = utils.get_scene_props()
@@ -324,14 +326,27 @@ class Actor:
                     obj_object.SelectField("functions").CopyEntireTagBlock()
                     funcs = scenery_object.SelectField("functions")
                     funcs.PasteReplaceEntireBlock()
-                    # The import function "heat" causes a crash so remove it
-                    to_remove = []
+                    # set all import names to zero so functions are script controlled
+                    found_ones = False
+                    found_tens = False
+                    is_weapon = tag_type == '.weapon'
                     for e in funcs.Elements:
-                        if e.SelectField("import name").GetStringData() in BANNED_FUNCTIONS:
-                            to_remove.append(e.ElementIndex)
-                    
-                    for i in reversed(to_remove):
-                        funcs.RemoveElement(i)
+                        e.SelectField("import name").SetStringData("zero")
+                        if is_weapon:
+                            if e.SelectField("export name").GetStringData() == AMMO_FUNCTIONS[0]:
+                                found_ones = True
+                            elif e.SelectField("export name").GetStringData() == AMMO_FUNCTIONS[1]:
+                                found_tens = True
+                                
+                    if is_weapon:
+                        if not found_ones:
+                            e = funcs.AddElement()
+                            e.SelectField("import name").SetStringData("zero")
+                            e.SelectField("export name").SetStringData(AMMO_FUNCTIONS[0])
+                        if not found_tens:
+                            e = funcs.AddElement()
+                            e.SelectField("import name").SetStringData("zero")
+                            e.SelectField("export name").SetStringData(AMMO_FUNCTIONS[1])
                 
                     obj_object.SelectField("attachments").CopyEntireTagBlock()
                     scenery_object.SelectField("attachments").PasteReplaceEntireBlock()

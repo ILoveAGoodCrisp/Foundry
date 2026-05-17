@@ -369,7 +369,7 @@ class NWO_UL_CinematicEvents(bpy.types.UIList):
             case 'EFFECT':
                 layout.label(text=item.name, icon_value=get_icon_id("effects"))
             case 'SCRIPT':
-                layout.label(text=item.name, icon='TEXT')
+                layout.label(text=item.name, icon='TEXT' if item.script_type == 'CUSTOM' else 'GREASEPENCIL')
             case 'MUSIC':
                 layout.label(text=item.name, icon='SOUND')
             case 'FUNCTION':
@@ -1562,37 +1562,65 @@ class NWO_OT_UserInputBoundsFromCamera(bpy.types.Operator):
         )
 
         return {'FINISHED'}
-
-# class NWO_OT_GetCinematicFunctions(bpy.types.Operator):
-#     bl_idname = "nwo.get_cinematic_functions"
-#     bl_label = "Cinematic Variants"
-#     bl_description = "Returns a list of cinematic object variants"
-#     bl_options = {"REGISTER", "UNDO"}
-
-#     @classmethod
-#     def poll(cls, context):
-#         if context.object is None:
-#             return False
-#         if not context.object.nwo.cinematic_object.strip():
-#             return False
-        
-#         if not current_project_valid():
-#             return False
-        
-#         tag_path = Path(get_tags_path(), relative_path(context.object.nwo.cinematic_object))
-#         return tag_path.is_absolute() and tag_path.exists() and tag_path.is_file()
     
-#     def variant_items(self, context):
-#         with ObjectTag(path=context.object.nwo.cinematic_object) as object:
-#             model_tag = object.get_model_tag_path()
-#         if not model_tag or not Path(get_tags_path(), model_tag).exists():
-#             return [("default", "default", "")]
-#         with ModelTag(path=model_tag) as model:
-#             variants = model.get_model_variants()
-#         if not variants:
-#             return [("default", "default", "")]
-#         items = []
-#         for v in variants:
-#             items.append((v, v, ""))
+AMMO_FUNCTIONS = "primary_ammunition_ones", "primary_ammunition_tens"
 
-#         return items
+class NWO_OT_GetCinematicFunctions(bpy.types.Operator):
+    bl_idname = "nwo.get_cinematic_functions"
+    bl_label = "Cinematic Variants"
+    bl_description = "Returns a list of object functions"
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        nwo = utils.get_scene_props()
+        if nwo.asset_type == 'cinematic':
+            tag_path = Path(utils.get_tags_path(), utils.relative_path(nwo.cinematic_scenario))
+            if tag_path.is_absolute() and tag_path.exists() and tag_path.is_file():
+                scene_nwo = context.scene.nwo # scene specific
+                return scene_nwo.cinematic_events and scene_nwo.active_cinematic_event_index > -1 and scene_nwo.active_cinematic_event_index < len(scene_nwo.cinematic_events)
+        
+        return False
+    
+    def function_items(self, context):
+        export_names = []
+        is_weapon = False
+        with ObjectTag(path=context.object.nwo.cinematic_object) as object:
+            is_weapon = object.tag_path.GroupType == 'weap'
+            for element in object.block_functions.Elements:
+                export_names.append(element.SelectField("export name").GetStringData())
+                
+        if not export_names:
+            return [("", "", "")]
+        
+        items = []
+        
+        has_prim_one = False
+        has_prim_tens = False
+
+        for e in export_names:
+            if is_weapon:
+                if e == AMMO_FUNCTIONS[0]:
+                    has_prim_one = True
+                elif e == AMMO_FUNCTIONS[1]:
+                    has_prim_tens = True
+            items.append((e, e, ""))
+            
+        if is_weapon:
+            if not has_prim_one:
+                items.append((AMMO_FUNCTIONS[0], AMMO_FUNCTIONS[0], ""))
+            if not has_prim_tens:
+                items.append((AMMO_FUNCTIONS[1], AMMO_FUNCTIONS[1], ""))
+
+        return items
+    
+    function: bpy.props.EnumProperty(
+        name="Function",
+        items=function_items,
+    )
+    
+    def execute(self, context):
+        nwo = context.scene.nwo # scene specific
+        event = nwo.cinematic_events[nwo.active_cinematic_event_index]
+        event.function_name = self.function
+        return {'FINISHED'}

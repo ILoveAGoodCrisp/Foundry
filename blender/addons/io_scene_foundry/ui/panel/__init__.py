@@ -3320,10 +3320,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                         
                 match event.script_type:
                     case 'CUSTOM':
-                        row = col.row()
-                        row.prop(event, "script")
-                        row.enabled = event.text is None
-                        col.prop(event, "text")
+                        self.draw_script_field(col, event, "script", "text", "script_use_text", "Script")
                     case 'WEAPON_TRIGGER_START' | 'WEAPON_TRIGGER_STOP':
                         col.prop(event, "actor", text="Weapon")
                     case 'SET_VARIANT':
@@ -3380,7 +3377,10 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 col.prop(event, "stop", text="Stop Music / Foley")
             case 'FUNCTION':
                 col.prop(event, "actor")
-                col.prop(event, "function_name")
+                row = col.row(align=True)
+                row.prop(event, "function_name")
+                if bpy.ops.nwo.get_cinematic_functions.poll():
+                    row.operator_menu_enum("nwo.get_cinematic_functions", "function", icon="DOWNARROW_HLT", text="")
                 col.prop(event, "clear_function")
                 row = col.row()
                 row.enabled = (not event.clear_function)

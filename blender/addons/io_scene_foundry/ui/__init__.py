@@ -300,6 +300,7 @@ classes = [
     cinematic.NWO_OT_ClearVisibilityKeyframes,
     cinematic.NWO_GetScenarioCustsceneTitles,
     cinematic.NWO_OT_UserInputBoundsFromCamera,
+    cinematic.NWO_OT_GetCinematicFunctions,
     light.NWO_OT_HaloLightToggle,
 ]
 

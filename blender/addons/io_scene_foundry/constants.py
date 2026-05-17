@@ -463,3 +463,42 @@ css_colors = { # Commented out some very light / dark colors here for better vie
     'yellow': (1.000, 1.000, 0.000),
     'yellowgreen': (0.604, 0.804, 0.196),
 }
+
+from math import sqrt
+
+NAMED_COLORS = {
+    "black":   (0.0, 0.0, 0.0),
+    "white":   (1.0, 1.0, 1.0),
+    "red":     (1.0, 0.0, 0.0),
+    "green":   (0.0, 1.0, 0.0),
+    "blue":    (0.0, 0.0, 1.0),
+    "yellow":  (1.0, 1.0, 0.0),
+    "cyan":    (0.0, 1.0, 1.0),
+    "magenta": (1.0, 0.0, 1.0),
+    "orange":  (1.0, 0.5, 0.0),
+    "purple":  (0.5, 0.0, 0.5),
+    "pink":    (1.0, 0.75, 0.8),
+    "brown":   (0.6, 0.3, 0.1),
+    "gray":    (0.5, 0.5, 0.5),
+}
+
+def color_distance(c1, c2):
+    return sqrt(
+        (c1[0] - c2[0]) ** 2 +
+        (c1[1] - c2[1]) ** 2 +
+        (c1[2] - c2[2]) ** 2
+    )
+
+def get_named_color(rgb):
+
+    closest_name = None
+    closest_distance = float("inf")
+
+    for name, color_rgb in NAMED_COLORS.items():
+        dist = color_distance(rgb, color_rgb)
+
+        if dist < closest_distance:
+            closest_distance = dist
+            closest_name = name
+
+    return closest_name
