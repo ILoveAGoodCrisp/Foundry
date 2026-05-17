@@ -864,7 +864,7 @@ class Sidecar:
             ET.SubElement(network, "InputFile").text = self.relative_blend
             ET.SubElement(network, "IntermediateFile").text = self.relative_blend
             collection = ET.SubElement(scene_content_object, "OutputTagCollection")
-            ET.SubElement(collection, "OutputTag", Type="cinematic_scene").text = str(cin_scene.path_no_ext)
+            # ET.SubElement(collection, "OutputTag", Type="cinematic_scene").text = str(cin_scene.path_no_ext)
         
         # Shots
         shots_content_object = ET.SubElement(content, "ContentObject", Name="", Type="cinematic_shots") # Sequencer="True"

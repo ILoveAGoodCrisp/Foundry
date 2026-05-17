@@ -226,9 +226,12 @@ class SidecarImport:
             scenery = tag_path.with_suffix(".scenery")
             model = tag_path.with_suffix(".model")
             render_model = tag_path.with_suffix(".render_model")
+            cin_scene = tag_path.with_suffix(".cinematic_scene")
             # remove the unused tags
             if scenery.exists():
                 scenery.unlink()
+            if cin_scene.exists():
+                cin_scene.unlink()
                 
             if animation_asset:
                 if model.exists():
