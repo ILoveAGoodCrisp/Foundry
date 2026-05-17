@@ -2475,7 +2475,7 @@ class AnimationTag(Tag):
 
         if animation_type in (AnimationType.OVERLAY, AnimationType.REPLACEMENT):
             state = base_name.state
-            if state.startswith("aim_airborne"):
+            if state.startswith(("aim_airborne", "look_airborne")):
                 add("airborne")
                 return tuple(candidates)
 
@@ -2674,20 +2674,6 @@ class AnimationTag(Tag):
 
         return targets
 
-    def _object_space_offset_transform_targets(self, tag_animation: Animation) -> list[tuple[int, Vector, Quaternion, float]]:
-        targets: list[tuple[int, Vector, Quaternion, float]] = []
-        offset_nodes = tag_animation.shared_element.SelectField("object space offset nodes")
-        if offset_nodes is None:
-            return targets
-
-        for element in offset_nodes.Elements:
-            node_index = int(element.Fields[0].Value)
-            if node_index >= 0:
-                translation, rotation, scale = self._object_space_parent_orientation_transform(element)
-                targets.append((node_index, translation, rotation, scale))
-
-        return targets
-
     def _frame_object_space_matrices(
         self,
         frame,
@@ -2765,12 +2751,6 @@ class AnimationTag(Tag):
             target_index = self._object_space_parent_target_index(node_index, default_nodes)
             target_matrix = Matrix.LocRotScale(translation, rotation, Vector.Fill(3, scale))
             targets.append((target_index, target_matrix))
-
-        for node_index, translation, rotation, scale in self._object_space_offset_transform_targets(tag_animation):
-            if node_index < 0 or node_index >= len(default_nodes):
-                raise ValueError(f"Object-space offset node index {node_index} is out of range")
-            target_matrix = Matrix.LocRotScale(translation, rotation, Vector.Fill(3, scale))
-            targets.append((node_index, target_matrix))
 
         return sorted(
             targets,
@@ -3128,7 +3108,6 @@ class AnimationTag(Tag):
                 base_tag_animations = self._resolved_base_candidates(base_candidates, all_tag_animations)
 
             object_space_parent_targets = self._object_space_parent_transform_targets(tag_animation)
-            object_space_offset_targets = self._object_space_offset_transform_targets(tag_animation)
             if base_tag_animations:
                 base_animation = self._build_animation(base_tag_animations[0], defaults, overlay_defaults, graph, shared_static_codec, resource_cache, animation_cache, all_tag_animations, final_frame_stack)
                 base_frame = base_animation.first_frame()
@@ -3140,7 +3119,7 @@ class AnimationTag(Tag):
             else:
                 animation_data = compose_replacement_animation(animation_data, base_frame)
 
-            if object_space_parent_targets or object_space_offset_targets:
+            if object_space_parent_targets:
                 self._apply_object_space_base_corrections(tag_animation, animation_data, base_frame, defaults)
 
         animation_cache[index] = animation_data
