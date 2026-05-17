@@ -1699,6 +1699,15 @@ class AnimationTag(Tag):
         scale_value = (scale.x + scale.y + scale.z) / 3.0
         return location.copy(), rotation.copy(), float(scale_value)
 
+    def _relative_ik_sample_matrix(self, sample):
+        location, rotation, scale = sample
+        scene_location = location.copy() * import_transform.scale_factor(self.scene_nwo)
+        return self._matrix_from_transform_sample(scene_location, rotation, scale)
+
+    def _object_space_ik_sample_matrix(self, sample):
+        matrix = self._matrix_from_transform_sample(*sample)
+        return import_transform.armature_bone_matrix(matrix, self.scene_nwo, root=True)
+
     def _rotation_angle_delta(self, first: Quaternion, second: Quaternion):
         a = first.copy()
         b = second.copy()
@@ -1835,8 +1844,8 @@ class AnimationTag(Tag):
     def _object_space_samples_to_local_samples(self, armature: bpy.types.Object, samples):
         parent_inverse = armature.matrix_world.inverted_safe()
         local_samples = []
-        for location, rotation, scale in samples:
-            world_matrix = self._matrix_from_transform_sample(location, rotation, scale)
+        for sample in samples:
+            world_matrix = self._object_space_ik_sample_matrix(sample)
             local_matrix = parent_inverse @ world_matrix
             local_samples.append(self._matrix_to_transform_sample(local_matrix))
 
@@ -1975,7 +1984,7 @@ class AnimationTag(Tag):
             )
             effector_world = armature.matrix_world @ effector_pose_matrix
 
-            proxy_space_matrix = self._matrix_from_transform_sample(*sample)
+            proxy_space_matrix = self._relative_ik_sample_matrix(sample)
             proxy_world = effector_world @ proxy_space_matrix.inverted_safe()
             proxy_local = armature_world_inverse @ proxy_world
             reconstructed_samples.append(self._matrix_to_transform_sample(proxy_local))
@@ -2190,7 +2199,10 @@ class AnimationTag(Tag):
             proxy_marker_samples = reconstructed_proxy_marker_samples
             if not proxy_marker_samples:
                 utils.print_warning(f"Falling back to raw IK proxy samples for [{event['name']}]")
-                proxy_marker_samples = effector_samples
+                proxy_marker_samples = [
+                    self._matrix_to_transform_sample(self._relative_ik_sample_matrix(sample))
+                    for sample in effector_samples
+                ]
                 proxy_action_start_frame = imported_start_frame
             matching_sample_start_index = 0
             if (
