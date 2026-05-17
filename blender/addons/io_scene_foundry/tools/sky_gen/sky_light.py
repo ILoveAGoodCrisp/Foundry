@@ -222,6 +222,25 @@ def clamp_color(colors):
     return np.clip(np.asarray(colors, dtype=np.float32), 0.0, 1.0)
 
 
+def _match_luminance(color: np.ndarray, target_luminance: float) -> np.ndarray:
+    color = np.asarray(color, dtype=np.float32)
+    color_luminance = float(linear_color_luminance(color))
+    if color_luminance <= EPSILON:
+        return color
+    return color * (target_luminance / color_luminance)
+
+
+def _apply_sun_color_override(rgb: np.ndarray, params: SkyAtmosphereParameters) -> np.ndarray:
+    rgb = np.asarray(rgb, dtype=np.float32)
+    if not params.custom_sun_color_override:
+        return rgb
+
+    override = np.array(params.sun_color_override, dtype=np.float32)
+    if float(linear_color_luminance(override)) <= EPSILON:
+        return rgb
+    return _match_luminance(override, float(linear_color_luminance(rgb)))
+
+
 def _rgb_to_xyY(rgb: np.ndarray) -> np.ndarray:
     rgb = np.asarray(rgb, dtype=np.float32)
     xyz = RGB_TO_XYZ @ rgb
@@ -409,22 +428,68 @@ def get_sun_light_rgb(params: SkyAtmosphereParameters) -> np.ndarray:
     rgb_weights = np.stack([_wavelength_to_rgb_linear(float(wavelength)) for wavelength in wavelengths], axis=0)
     rgb = (rgb_weights * spectral[:, None]).sum(axis=0)
 
-    if params.custom_sun_color_override:
-        override = np.array(params.sun_color_override, dtype=np.float32)
-        override_luma = float(linear_color_luminance(override))
-        base_luma = float(linear_color_luminance(rgb))
-        if override_luma > EPSILON:
-            rgb = override * (base_luma / override_luma)
+    rgb = _apply_sun_color_override(rgb, params)
 
     return np.maximum(rgb, 0.0) * NORMALIZATION_FACTOR
 
-def get_sun_light(params: SkyAtmosphereParameters) -> SkyLightSample:
+
+def _sky_image_pixel_center(theta: float, phi: float, width: int, height: int) -> tuple[int, int]:
+    phi = phi % TWO_PI
+    theta = float(np.clip(theta, 0.0, math.pi))
+    center_x = int((phi / TWO_PI) * width) % width
+    center_y = int(np.clip((theta / math.pi) * height, 0, height - 1))
+    return center_x, center_y
+
+
+def sample_sky_image_sun_color(theta: float, phi: float, image: np.ndarray, sample_radius: int = 6) -> np.ndarray:
+    image = np.asarray(image, dtype=np.float32)
+    height, width = image.shape[:2]
+    if height <= 0 or width <= 0:
+        return np.zeros(3, dtype=np.float32)
+
+    center_x, center_y = _sky_image_pixel_center(theta, phi, width, height)
+    sample_color = np.zeros(3, dtype=np.float32)
+    sample_weight = 0.0
+    for dy in range(-sample_radius, sample_radius + 1):
+        yy = min(max(center_y + dy, 0), height - 1)
+        for dx in range(-sample_radius, sample_radius + 1):
+            xx = (center_x + dx) % width
+            color = image[yy, xx, :3]
+            luminance = max(float(linear_color_luminance(color)), 0.0)
+            if luminance <= EPSILON:
+                continue
+
+            weight = luminance / (dx * dx + dy * dy + 1.0)
+            sample_color += color * weight
+            sample_weight += weight
+
+    if sample_weight <= EPSILON:
+        return image[center_y, center_x, :3].copy()
+    return sample_color / sample_weight
+
+
+def get_sun_light_rgb_from_image(params: SkyAtmosphereParameters, image: np.ndarray) -> np.ndarray:
+    reference_rgb = get_sun_light_rgb(params)
+    if params.custom_sun_color_override:
+        return reference_rgb
+
+    image_rgb = sample_sky_image_sun_color(params.sun_theta, params.sun_phi, image)
+    reference_luminance = float(linear_color_luminance(reference_rgb))
+    image_luminance = float(linear_color_luminance(image_rgb))
+    if image_luminance <= EPSILON:
+        return reference_rgb
+
+    return np.maximum(_match_luminance(image_rgb, reference_luminance), 0.0)
+
+
+def get_sun_light(params: SkyAtmosphereParameters, image: np.ndarray | None = None) -> SkyLightSample:
     direction = (
         math.sin(params.sun_theta) * math.cos(params.sun_phi),
         math.sin(params.sun_theta) * math.sin(params.sun_phi),
         math.cos(params.sun_theta),
     )
-    color = get_sun_light_rgb(params) * params.sun_intensity
+    sun_rgb = get_sun_light_rgb_from_image(params, image) if image is not None else get_sun_light_rgb(params)
+    color = sun_rgb * params.sun_intensity
     return SkyLightSample(tuple(color.tolist()), direction, SUN_SOLID_ANGLE * max(params.sun_blur, EPSILON))
 
 def _pixel_directions(width: int, height: int) -> np.ndarray:
@@ -706,7 +771,12 @@ def modifier_apply_sky_color(positions: np.ndarray, params: SkyAtmosphereParamet
     return clamp_color(colors) if clamp else colors
 
 
-def modifier_apply_sun_lighting(normals: np.ndarray, params: SkyAtmosphereParameters, clamp: bool = False) -> np.ndarray:
+def modifier_apply_sun_lighting(
+    normals: np.ndarray,
+    params: SkyAtmosphereParameters,
+    clamp: bool = False,
+    sun_rgb: np.ndarray | None = None,
+) -> np.ndarray:
     normals = np.asarray(normals, dtype=np.float32)
     sun_direction = np.array(
         (
@@ -716,7 +786,11 @@ def modifier_apply_sun_lighting(normals: np.ndarray, params: SkyAtmosphereParame
         ),
         dtype=np.float32,
     )
-    sun_rgb = get_sun_light_rgb(params) * params.sun_intensity
+    if sun_rgb is None:
+        sun_rgb = get_sun_light_rgb(params) * params.sun_intensity
+    else:
+        sun_rgb = np.asarray(sun_rgb, dtype=np.float32)
+
     dots = np.maximum(normals @ sun_direction, 0.0)
     colors = dots[:, None] * sun_rgb[None, :] * (params.exposure * SUN_SOLID_ANGLE / math.pi)
     colors = gamma_correct(colors)

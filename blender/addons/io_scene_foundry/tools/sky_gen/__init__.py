@@ -632,7 +632,7 @@ class NWO_OT_SkyGenerate(bpy.types.Operator):
             if need_light_samples
             else []
         )
-        sun_sample = get_sun_light(params)
+        sun_sample = get_sun_light(params, sky_pixels if self.build_sky_from_map != "NONE" else None)
 
         if self.generate_type in {"BOTH", "SKYLIGHT"}:
             self._create_light_objects(collection, params, sky_light_samples, sun_sample)
@@ -641,7 +641,7 @@ class NWO_OT_SkyGenerate(bpy.types.Operator):
         if self.lit_objects_by_sky:
             lighting_samples = list(sky_light_samples)
             lighting_samples.append(sun_sample)
-            lit_mesh_count = self._light_selected_meshes(context, params, lighting_samples)
+            lit_mesh_count = self._light_selected_meshes(context, params, lighting_samples, sun_sample)
             
         is_blender_scale = scene_nwo.scale == 'blender'
         rotation = utils.blender_halo_rotation_diff(scene_nwo.forward_direction)
@@ -794,6 +794,7 @@ class NWO_OT_SkyGenerate(bpy.types.Operator):
         context: bpy.types.Context,
         params: SkyAtmosphereParameters,
         lighting_samples: list[SkyLightSample],
+        sun_sample: SkyLightSample,
     ) -> int:
         lit_object_count = 0
 
@@ -829,7 +830,12 @@ class NWO_OT_SkyGenerate(bpy.types.Operator):
             )
 
             sky_color = modifier_apply_sky_color(positions, params, clamp=True)
-            sun_lighting = modifier_apply_sun_lighting(normals, params, clamp=True)
+            sun_lighting = modifier_apply_sun_lighting(
+                normals,
+                params,
+                clamp=True,
+                sun_rgb=np.asarray(sun_sample.color, dtype=np.float32),
+            )
             sky_lighting = modifier_apply_sky_lighting(normals, params, lighting_samples, clamp=True)
 
             _apply_vertex_colors(_ensure_color_attribute(mesh, "sky_color"), sky_color)
