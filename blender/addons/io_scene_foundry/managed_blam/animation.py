@@ -3,7 +3,7 @@
 from collections import defaultdict
 from contextlib import nullcontext
 from enum import Enum, IntEnum
-from math import acos, degrees
+from math import degrees
 from pathlib import Path
 from typing import cast
 import bpy
@@ -39,9 +39,6 @@ from ..legacy.jma import Node
 from .. import utils
 
 tolerance = 1e-6
-OBJECT_SPACE_PARENT_TRANSLATION_TOLERANCE = 1e-2
-OBJECT_SPACE_PARENT_ROTATION_TOLERANCE = 5e-3
-OBJECT_SPACE_PARENT_SCALE_TOLERANCE = 1e-3
 INT16_NORMALIZED_MAX = 0x7FFF
 
 EVENT_TYPE_FRAME = "_connected_geometry_animation_event_type_frame"
@@ -119,6 +116,10 @@ FINAL_FRAME_LOOPERS = (
     "warn",
     "advance",
 )
+
+POSE_OVERLAY_REST_BASE_STATES = {
+    "aim_spine",
+}
 
 WRINKLE_FACE_REGION_MAP = [
     "upper_brow",
@@ -2461,6 +2462,10 @@ class AnimationTag(Tag):
 
         if animation_type in (AnimationType.OVERLAY, AnimationType.REPLACEMENT):
             state = base_name.state
+            if state.startswith("aim_airborne"):
+                add("airborne")
+                return tuple(candidates)
+
             tokens = state.split("_")
             motion_tokens = {"move", "walk", "run", "jog", "locomote", "turn"}
             direction_tokens = {"front", "right", "left", "back"}
@@ -2569,21 +2574,26 @@ class AnimationTag(Tag):
 
             token = remaining_tokens[0]
             next_tokens = remaining_tokens[1:]
+            matches = []
             for group in branch_groups(level, token, depth):
-                results = []
                 for branch_key in group:
-                    results.extend(walk_tree(level[branch_key], next_tokens, state, depth + 1))
-                if results:
-                    return results
+                    matches.extend(walk_tree(level[branch_key], next_tokens, state, depth + 1))
 
-            return []
+            return matches
 
+        candidates = []
+        used_indices = set()
         for state in self._base_state_candidates(base_name, animation_type):
             results = walk_tree(graph, scope, state)
-            if results:
-                return results
+            for result in results:
+                index = getattr(result, "index", None)
+                key = index if index is not None else id(result)
+                if key in used_indices:
+                    continue
+                used_indices.add(key)
+                candidates.append(result)
 
-        return []
+        return candidates
 
     def _resolve_tag_animation_candidate(self, candidate, all_tag_animations) -> Animation | None:
         index = getattr(candidate, "index", None)
@@ -2601,13 +2611,21 @@ class AnimationTag(Tag):
 
         return candidate if isinstance(candidate, Animation) else None
 
-    def _first_resolved_base_candidate(self, candidates, all_tag_animations) -> Animation | None:
+    def _resolved_base_candidates(self, candidates, all_tag_animations) -> list[Animation]:
+        animations: list[Animation] = []
+        used_indices = set()
         for candidate in candidates:
             animation = self._resolve_tag_animation_candidate(candidate, all_tag_animations)
-            if animation is not None and animation.animation_type in (AnimationType.NONE, AnimationType.BASE):
-                return animation
+            if animation is None or animation.animation_type not in (AnimationType.NONE, AnimationType.BASE):
+                continue
+            index = getattr(animation, "index", None)
+            key = index if index is not None else id(animation)
+            if key in used_indices:
+                continue
+            used_indices.add(key)
+            animations.append(animation)
 
-        return None
+        return animations
 
     def _normalized_int16_quaternion_component(self, value) -> float:
         return max(-1.0, min(1.0, float(int(value)) / INT16_NORMALIZED_MAX))
@@ -2623,6 +2641,12 @@ class AnimationTag(Tag):
         rotation.normalize()
         return rotation
 
+    def _object_space_parent_orientation_transform(self, element: TagFieldBlockElement) -> tuple[Vector, Quaternion, float]:
+        translation = self._to_vector(element.SelectField("Struct:parent orientation[0]/default translation").Data) * 100.0
+        rotation = self._object_space_parent_rotation(element)
+        scale = element.SelectField("Struct:parent orientation[0]/default scale").Data
+        return translation, rotation, scale
+
     def _object_space_parent_transform_targets(self, tag_animation: Animation) -> list[tuple[int, Vector, Quaternion, float]]:
         targets: list[tuple[int, Vector, Quaternion, float]] = []
         parent_nodes = tag_animation.shared_element.SelectField("object-space parent nodes")
@@ -2632,20 +2656,27 @@ class AnimationTag(Tag):
         for element in parent_nodes.Elements:
             node_index = int(element.Fields[0].Value)
             if node_index >= 0:
-                translation = self._to_vector(element.SelectField("Struct:parent orientation[0]/default translation").Data) * 100.0
-                rotation = self._object_space_parent_rotation(element)
-                scale = element.SelectField("Struct:parent orientation[0]/default scale").Data
+                translation, rotation, scale = self._object_space_parent_orientation_transform(element)
                 targets.append((node_index, translation, rotation, scale))
 
         return targets
 
-    def _quaternion_angle(self, first: Quaternion, second: Quaternion) -> float:
-        first = first.copy()
-        second = second.copy()
-        first.normalize()
-        second.normalize()
-        dot = max(-1.0, min(1.0, abs(sum(first[index] * second[index] for index in range(4)))))
-        return 2.0 * acos(dot)
+    def _object_space_offset_transform_targets(self, tag_animation: Animation) -> list[tuple[int, Vector, Quaternion, float]]:
+        targets: list[tuple[int, Vector, Quaternion, float]] = []
+        if tag_animation.animation_type != AnimationType.REPLACEMENT:
+            return targets
+
+        offset_nodes = tag_animation.shared_element.SelectField("object space offset nodes")
+        if offset_nodes is None:
+            return targets
+
+        for element in offset_nodes.Elements:
+            node_index = int(element.Fields[0].Value)
+            if node_index >= 0:
+                translation, rotation, scale = self._object_space_parent_orientation_transform(element)
+                targets.append((node_index, translation, rotation, scale))
+
+        return targets
 
     def _frame_object_space_matrices(
         self,
@@ -2682,26 +2713,6 @@ class AnimationTag(Tag):
 
         return [matrix for matrix in matrices if matrix is not None]
 
-    def _object_space_parent_matrix_matches(
-        self,
-        matrix: Matrix,
-        translation: Vector,
-        rotation: Quaternion,
-        scale: float,
-    ) -> bool:
-        matrix_translation, matrix_rotation, matrix_scale = matrix.decompose()
-        matrix_scale_value = (matrix_scale.x + matrix_scale.y + matrix_scale.z) / 3.0
-        if (matrix_translation - translation).length > OBJECT_SPACE_PARENT_TRANSLATION_TOLERANCE:
-            return False
-
-        if self._quaternion_angle(matrix_rotation, rotation) > OBJECT_SPACE_PARENT_ROTATION_TOLERANCE:
-            return False
-
-        if abs(matrix_scale_value - scale) > OBJECT_SPACE_PARENT_SCALE_TOLERANCE:
-            return False
-
-        return True
-
     def _object_space_parent_target_index(
         self,
         node_index: int,
@@ -2716,45 +2727,23 @@ class AnimationTag(Tag):
 
         return node_index if parent_index < 0 else parent_index
 
-    def _object_space_parent_target_depth(
+    def _object_space_node_depth(
         self,
-        node_index: int,
+        target_index: int,
         default_nodes: list[DefaultAnimationNode],
     ) -> int:
-        target_index = self._object_space_parent_target_index(node_index, default_nodes)
+        if target_index < 0 or target_index >= len(default_nodes):
+            raise ValueError(f"Object-space target node index {target_index} is out of range")
+
         depth = 0
         seen: set[int] = set()
         while 0 <= target_index < len(default_nodes):
             if target_index in seen:
-                raise ValueError(f"Cycle found while resolving object-space parent depth for node [{default_nodes[node_index].name}]")
+                raise ValueError(f"Cycle found while resolving object-space target depth for node [{default_nodes[target_index].name}]")
             seen.add(target_index)
             depth += 1
             target_index = default_nodes[target_index].parent_index
         return depth
-
-    def _object_space_parent_base_matches(
-        self,
-        tag_animation: Animation,
-        base_frame,
-        default_nodes: list[DefaultAnimationNode],
-    ) -> bool:
-        targets = self._object_space_parent_transform_targets(tag_animation)
-        if not targets:
-            return True
-
-        object_space_matrices = self._frame_object_space_matrices(base_frame, default_nodes)
-        for node_index, translation, rotation, scale in targets:
-            target_index = self._object_space_parent_target_index(node_index, default_nodes)
-
-            if not self._object_space_parent_matrix_matches(
-                object_space_matrices[target_index],
-                translation,
-                rotation,
-                scale,
-            ):
-                return False
-
-        return True
 
     def _apply_object_space_parent_base_correction(
         self,
@@ -2762,12 +2751,20 @@ class AnimationTag(Tag):
         base_frame,
         default_nodes: list[DefaultAnimationNode],
     ) -> None:
-        targets = sorted(
-            self._object_space_parent_transform_targets(tag_animation),
-            key=lambda target: self._object_space_parent_target_depth(target[0], default_nodes),
-        )
-        for node_index, translation, rotation, scale in targets:
+        targets: list[tuple[int, Vector, Quaternion, float]] = []
+        for node_index, translation, rotation, scale in self._object_space_parent_transform_targets(tag_animation):
             target_index = self._object_space_parent_target_index(node_index, default_nodes)
+            targets.append((target_index, translation, rotation, scale))
+
+        for node_index, translation, rotation, scale in self._object_space_offset_transform_targets(tag_animation):
+            if node_index < 0 or node_index >= len(default_nodes):
+                raise ValueError(f"Object-space offset node index {node_index} is out of range")
+            targets.append((node_index, translation, rotation, scale))
+
+        for target_index, translation, rotation, scale in sorted(
+            targets,
+            key=lambda target: self._object_space_node_depth(target[0], default_nodes),
+        ):
             target_matrix = Matrix.LocRotScale(translation, rotation, Vector.Fill(3, scale))
             parent_index = default_nodes[target_index].parent_index
 
@@ -3022,44 +3019,26 @@ class AnimationTag(Tag):
                     self._movement_data_from_second_frame(resource_data.movement_data, animation_data.frame_count),
                 )
         if tag_animation.animation_type in (2, 3):
-            base_tag_animation = None
-            if not tag_animation.name.custom:
+            base_tag_animations = []
+            use_rest_base = tag_animation.is_pose_overlay and tag_animation.name.state in POSE_OVERLAY_REST_BASE_STATES
+            if not use_rest_base and not tag_animation.name.custom:
                 base_candidates = self._get_base_animation_candidates(
                     graph,
                     tag_animation.name.tag_name,
                     tag_animation.animation_type,
                 )
-                base_tag_animation = self._first_resolved_base_candidate(base_candidates, all_tag_animations)
+                base_tag_animations = self._resolved_base_candidates(base_candidates, all_tag_animations)
 
             object_space_parent_targets = self._object_space_parent_transform_targets(tag_animation)
-            rest_base_frame = None
-            if object_space_parent_targets:
-                # Importer rest channels become zero/identity pose-bone keys after _to_armature_action applies bind inverse.
-                rest_base_frame = default_frame_channels(defaults)
-
-            if rest_base_frame is not None and self._object_space_parent_base_matches(tag_animation, rest_base_frame, defaults):
-                if base_tag_animation is not None:
-                    utils.print_warning(
-                        f"Animation {tag_animation.name.data_name} object-space parent pose matches rest pose. "
-                        f"Using rest pose instead of base {base_tag_animation.name.data_name}."
-                    )
-                base_frame = rest_base_frame
-                self._apply_object_space_parent_base_correction(tag_animation, base_frame, defaults)
-            elif base_tag_animation is not None:
-                base_animation = self._build_animation(base_tag_animation, defaults, overlay_defaults, graph, shared_static_codec, resource_cache, animation_cache, all_tag_animations, final_frame_stack)
+            object_space_offset_targets = self._object_space_offset_transform_targets(tag_animation)
+            if base_tag_animations:
+                base_animation = self._build_animation(base_tag_animations[0], defaults, overlay_defaults, graph, shared_static_codec, resource_cache, animation_cache, all_tag_animations, final_frame_stack)
                 base_frame = base_animation.first_frame()
-                if not self._object_space_parent_base_matches(tag_animation, base_frame, defaults):
-                    utils.print_warning(
-                        f"Animation {tag_animation.name.data_name} base {base_tag_animation.name.data_name} "
-                        "does not match object-space parent pose. Falling back to rest pose."
-                    )
-                    base_frame = default_frame_channels(defaults)
-                self._apply_object_space_parent_base_correction(tag_animation, base_frame, defaults)
-            elif object_space_parent_targets:
-                base_frame = default_frame_channels(defaults)
-                self._apply_object_space_parent_base_correction(tag_animation, base_frame, defaults)
             else:
                 base_frame = default_frame_channels(defaults)
+
+            if object_space_parent_targets or object_space_offset_targets:
+                self._apply_object_space_parent_base_correction(tag_animation, base_frame, defaults)
 
             if tag_animation.animation_type == 2:
                 animation_data = compose_overlay_animation(animation_data, base_frame)
@@ -3480,15 +3459,18 @@ class AnimationTag(Tag):
                             
                     case AnimationType.REPLACEMENT:
                         blender_animation.animation_type = "replacement"
-                        parent_nodes = tag_animation.shared_element.SelectField("object-space parent nodes")
-                        for node_element in parent_nodes.Elements:
-                            n_index = node_element.Fields[0].Value
-                            if n_index < 0 or n_index >= nodes_count:
-                                continue
-                            a_node = blender_animation.animation_nodes.add()
-                            a_node.name = node_names[n_index]
-                            a_node.node_type = "replacement_correction_node"
-                            blender_animation.active_animation_node_index = len(blender_animation.animation_nodes) - 1
+                        replacement_node_indices = set()
+                        for block_name in ("object-space parent nodes", "object space offset nodes"):
+                            correction_nodes = tag_animation.shared_element.SelectField(block_name)
+                            for node_element in correction_nodes.Elements:
+                                n_index = node_element.Fields[0].Value
+                                if n_index < 0 or n_index >= nodes_count or n_index in replacement_node_indices:
+                                    continue
+                                replacement_node_indices.add(n_index)
+                                a_node = blender_animation.animation_nodes.add()
+                                a_node.name = node_names[n_index]
+                                a_node.node_type = "replacement_correction_node"
+                                blender_animation.active_animation_node_index = len(blender_animation.animation_nodes) - 1
 
                 fik_anchor_nodes = tag_animation.shared_element.SelectField("forward-invert kinetic anchor nodes")
                 for node_element in fik_anchor_nodes.Elements:
