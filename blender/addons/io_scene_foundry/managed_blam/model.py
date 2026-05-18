@@ -1,6 +1,7 @@
 
 
 from enum import Enum
+import random
 from pathlib import Path
 
 from .Tags import TagFieldBlockElement, TagPath
@@ -27,6 +28,12 @@ class ChildObject:
             self.child_marker: str = element.SelectField("child marker").GetStringData()
             self.child_variant_name: str = element.SelectField("child variant name").GetStringData()
             self.child_object: TagPath | None = element.SelectField("child object").Path
+
+def _variant_default_permutation(region: str, region_default_perms: dict[str, str]) -> str:
+    # Preserve "default" as a sentinel when the render model has no real default
+    # permutation for this region. Import filters then select no regioned meshes
+    # or instances for that region instead of falling back to the first perm.
+    return region_default_perms.get(region, "default")
 
 class ModelTag(Tag):
     tag_ext = 'model'
@@ -197,15 +204,13 @@ class ModelTag(Tag):
             
             default_region = "default"
             region_default_perms = {}
-            all_regions = set()
-            all_permutations = set()
+            render_region_permutations = {}
             
             with RenderModelTag(path=render_path.RelativePathWithExtension) as render:
                 region_is_named_default = False
-                perm_is_named_default = False
                 for render_relement in render.block_regions.Elements:
                     region_name = render_relement.Fields[0].GetStringData()
-                    all_regions.add(region_name)
+                    render_region_permutations[region_name] = []
                     if region_name == "default":
                         default_region = "default"
                         region_is_named_default = True
@@ -214,32 +219,31 @@ class ModelTag(Tag):
                         
                     for render_pelement in render_relement.SelectField("Block:permutations").Elements:
                         permutation_name = render_pelement.Fields[0].GetStringData()
-                        all_permutations.add(permutation_name)
+                        render_region_permutations[region_name].append(permutation_name)
                         if permutation_name == "default":
                             region_default_perms[region_name] = "default"
-                            perm_is_named_default = True
-                        elif render_pelement.ElementIndex == 0 and not perm_is_named_default:
-                            region_default_perms[region_name] = permutation_name
             
             variant_regions = set()
+            region_permutation_options = {}
             for relement in element.SelectField("regions").Elements:
                 region = relement.Fields[0].GetStringData()
                 if region == "default":
                     region = default_region
                 variant_regions.add(region)
+                permutation_options = region_permutation_options.setdefault(region, [])
                 permutation_elements = relement.SelectField("permutations").Elements
                 if permutation_elements.Count == 0:
-                    permutation = region_default_perms.get(region, "default")
-                    region_permutations.add(tuple((region, permutation)))
+                    permutation = _variant_default_permutation(region, region_default_perms)
+                    permutation_options.append(permutation)
                 else:
                     for pelement in permutation_elements:
                         permutation = pelement.Fields[0].GetStringData()
                         if not permutation:
                             continue
                         elif permutation == "default":
-                            permutation = region_default_perms.get(region, "default")
+                            permutation = _variant_default_permutation(region, region_default_perms)
                             
-                        region_permutations.add(tuple((region, permutation)))
+                        permutation_options.append(permutation)
                         if state == 0:
                             continue
 
@@ -248,14 +252,18 @@ class ModelTag(Tag):
                             if state == -1 or state == state_enum:
                                 state_name = selement.Fields[0].GetStringData()
                                 if state_name == "default":
-                                    state_name = region_default_perms.get(region, "default")
-                                region_permutations.add(tuple((region, state_name)))
-                        
-            for reg in all_regions:
+                                    state_name = _variant_default_permutation(region, region_default_perms)
+                                permutation_options.append(state_name)
+
+            for reg, permutations in render_region_permutations.items():
                 if reg not in variant_regions:
-                    for perm in all_permutations:
-                        region_permutations.add(tuple((reg, perm)))
-                        
+                    region_permutation_options[reg] = permutations
+
+            for region, permutations in region_permutation_options.items():
+                permutations = [p for p in dict.fromkeys(permutations) if p]
+                if permutations:
+                    region_permutations.add(tuple((region, random.choice(permutations))))
+
             break
                             
         return region_permutations

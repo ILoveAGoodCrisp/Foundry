@@ -2,14 +2,21 @@
 
 '''Handles bpy operators and functions for the Sets Manager panel'''
 
+import json
+import random
+from pathlib import Path
+
 import bpy
 
 from ..constants import VALID_MESHES
 from ..icons import get_icon_id
+from ..managed_blam.model import ModelTag
+from ..managed_blam.object import ObjectTag
+from ..managed_blam.render_model import RenderModelTag
 from ..managed_blam.scenario import ScenarioTag
 from ..tools.collection_manager import get_full_name
 
-from ..utils import create_parent_mapping, get_scene_props, is_corinth, is_frame, is_marker, is_mesh, poll_ui, update_tables_from_objects, valid_nwo_asset
+from ..utils import create_parent_mapping, get_asset_tag, get_asset_tags, get_rig_prioritize_active, get_tags_path, get_scene_props, is_corinth, is_frame, is_marker, is_mesh, poll_ui, update_tables_from_objects, valid_nwo_asset
 
 def has_region_or_perm(ob):
     if is_mesh(ob) and (ob.nwo.mesh_type != '_connected_geometry_mesh_type_object_instance' or ob.nwo.marker_uses_regions):
@@ -20,6 +27,502 @@ def has_region_or_perm(ob):
         return True
     
     return False
+
+MODEL_VARIANT_VIEWER_NONE = "__none__"
+MODEL_VARIANT_VIEWER_CUSTOM = "__custom__"
+MODEL_VARIANT_VIEWER_ALL_PERMUTATIONS = "all"
+MODEL_VARIANT_CHANGE_COLOR_PROPS = ("Primary Color", "Secondary Color", "Tertiary Color", "Quaternary Color")
+MODEL_VARIANT_CHANGE_COLOR_PRIORITY_EXTS = (".biped", ".vehicle", ".crate", ".scenery")
+MODEL_VARIANT_CHANGE_COLOR_OBJECT_TAGS = (
+    (".biped", "output_biped", "template_biped"),
+    (".vehicle", "output_vehicle", "template_vehicle"),
+    (".crate", "output_crate", "template_crate"),
+    (".scenery", "output_scenery", "template_scenery"),
+    (".creature", "output_creature", "template_creature"),
+    (".giant", "output_giant", "template_giant"),
+    (".weapon", "output_weapon", "template_weapon"),
+    (".equipment", "output_equipment", "template_equipment"),
+    (".effect_scenery", "output_effect_scenery", "template_effect_scenery"),
+    (".device_control", "output_device_control", "template_device_control"),
+    (".device_machine", "output_device_machine", "template_device_machine"),
+    (".device_terminal", "output_device_terminal", "template_device_terminal"),
+    (".device_dispenser", "output_device_dispenser", "template_device_dispenser"),
+)
+last_model_variant_viewer_variant = MODEL_VARIANT_VIEWER_NONE
+
+def _dedupe_names(names):
+    deduped = []
+    seen = set()
+    for name in names:
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        deduped.append(name)
+
+    return deduped
+
+def _loads_json_property(value, fallback):
+    if not value:
+        return fallback
+    try:
+        return json.loads(value)
+    except (TypeError, ValueError):
+        return fallback
+
+def _enum_items_from_names(names):
+    items = []
+    for name in _dedupe_names(names):
+        items.append((name, name, ""))
+
+    return items
+
+def _model_variant_region_permutation_items(self, context):
+    permutations = _loads_json_property(getattr(self, "permutations_json", ""), [])
+    items = _enum_items_from_names(permutations)
+    current = getattr(self, "permutation", "")
+    item_ids = {item[0] for item in items}
+    if current and current not in item_ids:
+        items.insert(0, (current, current, ""))
+    if not items:
+        items.append((MODEL_VARIANT_VIEWER_ALL_PERMUTATIONS, MODEL_VARIANT_VIEWER_ALL_PERMUTATIONS, ""))
+
+    return items
+
+class NWO_ModelVariantViewerRegion(bpy.types.PropertyGroup):
+    name: bpy.props.StringProperty(name="Region", options=set())
+    enabled: bpy.props.BoolProperty(name="Enabled", default=True, options=set())
+    permutations_json: bpy.props.StringProperty(options={'HIDDEN'})
+    render_permutations_json: bpy.props.StringProperty(options={'HIDDEN'})
+    permutation: bpy.props.EnumProperty(
+        name="Permutation",
+        items=_model_variant_region_permutation_items,
+        options=set(),
+    )
+
+def _model_variant_items(self, context):
+    variants = _loads_json_property(getattr(self, "variants_json", ""), [])
+    items = [(MODEL_VARIANT_VIEWER_NONE, "none", "Show all regions and permutations")]
+    items.extend(_enum_items_from_names(variants))
+
+    return items
+
+def _permutations_with_all(permutations):
+    return _dedupe_names([MODEL_VARIANT_VIEWER_ALL_PERMUTATIONS] + list(permutations))
+
+def _set_model_variant_viewer_row(row, enabled, permutation):
+    row.enabled = enabled
+    if not permutation:
+        return
+
+    permutations = _loads_json_property(row.permutations_json, [])
+    if permutation not in permutations:
+        permutations.insert(0, permutation)
+        row.permutations_json = json.dumps(_dedupe_names(permutations))
+    row.permutation = permutation
+
+def _apply_model_variant_selection(operator):
+    variant = getattr(operator, "variant", MODEL_VARIANT_VIEWER_NONE)
+    if variant == MODEL_VARIANT_VIEWER_NONE:
+        for row in operator.regions:
+            _set_model_variant_viewer_row(row, True, MODEL_VARIANT_VIEWER_ALL_PERMUTATIONS)
+        return
+
+    if variant == MODEL_VARIANT_VIEWER_CUSTOM:
+        return
+
+    variant_regions = _loads_json_property(operator.variant_regions_json, {})
+    scoped_regions = variant_regions.get(variant, {})
+    for row in operator.regions:
+        scoped_permutations = scoped_regions.get(row.name, [])
+        if scoped_permutations:
+            _set_model_variant_viewer_row(row, True, random.choice(scoped_permutations))
+        else:
+            _set_model_variant_viewer_row(row, False, row.permutation)
+
+def _update_model_variant_selection(self, context):
+    _apply_model_variant_selection(self)
+
+def _get_render_model_region_data(render_model_path):
+    region_permutations = {}
+    with RenderModelTag(path=render_model_path) as render:
+        for region in render.get_regions():
+            permutations = render.get_permutations(region)
+            region_permutations[region] = permutations or ["default"]
+
+    if "default" in region_permutations:
+        default_region = "default"
+    elif region_permutations:
+        default_region = next(iter(region_permutations))
+    else:
+        default_region = "default"
+
+    region_default_permutations = {}
+    for region, permutations in region_permutations.items():
+        if "default" in permutations:
+            region_default_permutations[region] = "default"
+
+    return region_permutations, default_region, region_default_permutations
+
+def _variant_region_permutations(variant_element, region_permutations, default_region, region_default_permutations):
+    scoped_regions = {}
+    variant_regions = set()
+    for region_element in variant_element.SelectField("regions").Elements:
+        region = region_element.Fields[0].GetStringData()
+        if region == "default":
+            region = default_region
+
+        variant_regions.add(region)
+        permutations = []
+        permutation_elements = region_element.SelectField("permutations").Elements
+        if permutation_elements.Count == 0:
+            permutations.append(region_default_permutations.get(region, "default"))
+        else:
+            for permutation_element in permutation_elements:
+                permutation = permutation_element.Fields[0].GetStringData()
+                if not permutation:
+                    continue
+                if permutation == "default":
+                    permutation = region_default_permutations.get(region, "default")
+
+                permutations.append(permutation)
+                for state_element in permutation_element.SelectField("states").Elements:
+                    state_name = state_element.Fields[0].GetStringData()
+                    if state_name == "default":
+                        state_name = region_default_permutations.get(region, "default")
+                    if state_name:
+                        permutations.append(state_name)
+
+        scoped_regions[region] = _dedupe_names(permutations)
+
+    for region, permutations in region_permutations.items():
+        if region not in variant_regions:
+            scoped_regions[region] = list(permutations)
+
+    return scoped_regions
+
+def _model_variant_viewer_data(model_tag_path):
+    variants = []
+    region_permutations = {}
+    variant_regions = {}
+    with ModelTag(path=model_tag_path) as model:
+        variants = model.get_model_variants()
+        render_model_path = model.get_render_model()
+        default_region = "default"
+        region_default_permutations = {}
+        if render_model_path and Path(get_tags_path(), render_model_path).exists():
+            region_permutations, default_region, region_default_permutations = _get_render_model_region_data(render_model_path)
+
+        for variant_element in model.block_variants.Elements:
+            variant_name = variant_element.Fields[0].GetStringData()
+            if not variant_name:
+                continue
+            variant_regions[variant_name] = _variant_region_permutations(
+                variant_element,
+                region_permutations,
+                default_region,
+                region_default_permutations,
+            )
+
+    return variants, region_permutations, variant_regions
+
+def _object_type_visible_for_variant(ob, nwo):
+    if ob.type == 'LIGHT':
+        return nwo.connected_geometry_object_type_light_visible
+    elif is_frame(ob):
+        return nwo.connected_geometry_object_type_frame_visible
+    elif is_marker(ob):
+        return getattr(nwo, f"{ob.nwo.marker_type[1:]}_visible", True)
+    elif is_mesh(ob):
+        mesh_type = getattr(ob.data.nwo, "mesh_type", ob.nwo.mesh_type)
+        return getattr(nwo, f"{mesh_type[1:]}_visible", True)
+
+    return True
+
+def _is_object_instance(ob):
+    return is_mesh(ob) and ob.nwo.mesh_type == '_connected_geometry_mesh_type_object_instance'
+
+def _marker_permutation_matches(nwo, permutation):
+    marker_permutations = {item.name for item in nwo.marker_permutations if item.name}
+    if not marker_permutations:
+        return True
+
+    if nwo.marker_permutation_type == "include":
+        return permutation in marker_permutations
+    elif nwo.marker_permutation_type == "exclude":
+        return permutation not in marker_permutations
+
+    return True
+
+def _marker_matches_any_permutation(nwo, permutations):
+    marker_permutations = {item.name for item in nwo.marker_permutations if item.name}
+    if not marker_permutations:
+        return True
+
+    permutations = {permutation for permutation in permutations if permutation and permutation != MODEL_VARIANT_VIEWER_ALL_PERMUTATIONS}
+    if not permutations:
+        return False
+
+    if nwo.marker_permutation_type == "include":
+        return bool(marker_permutations & permutations)
+    elif nwo.marker_permutation_type == "exclude":
+        return bool(permutations - marker_permutations)
+
+    return True
+
+def _is_default_permutation_sentinel(region, permutation, render_region_permutations):
+    if permutation != "default":
+        return False
+
+    return "default" not in render_region_permutations.get(region, set())
+
+def _variant_viewer_object_matches(ob, region, permutation, render_region_permutations, collection_map):
+    if _is_object_instance(ob):
+        if not ob.nwo.marker_uses_regions:
+            return True
+
+        if not true_table_entry(ob, "region_name", region, collection_map):
+            return False
+
+        if permutation == MODEL_VARIANT_VIEWER_ALL_PERMUTATIONS:
+            return _marker_matches_any_permutation(ob.nwo, render_region_permutations.get(region, set()))
+
+        if _is_default_permutation_sentinel(region, permutation, render_region_permutations):
+            return False
+
+        return _marker_permutation_matches(ob.nwo, permutation)
+
+    if is_marker(ob) and ob.nwo.marker_uses_regions:
+        if not true_table_entry(ob, "region_name", region, collection_map):
+            return False
+
+        if permutation == MODEL_VARIANT_VIEWER_ALL_PERMUTATIONS:
+            return _marker_matches_any_permutation(ob.nwo, render_region_permutations.get(region, set()))
+
+        if _is_default_permutation_sentinel(region, permutation, render_region_permutations):
+            return False
+
+        return _marker_permutation_matches(ob.nwo, permutation)
+
+    if not true_table_entry(ob, "region_name", region, collection_map):
+        return False
+
+    if permutation == MODEL_VARIANT_VIEWER_ALL_PERMUTATIONS:
+        permutations = render_region_permutations.get(region, set())
+        if not permutations:
+            return True
+
+        return any(true_table_entry(ob, "permutation_name", perm, collection_map) for perm in permutations)
+
+    if _is_default_permutation_sentinel(region, permutation, render_region_permutations):
+        return False
+
+    return true_table_entry(ob, "permutation_name", permutation, collection_map)
+
+def _tag_path_exists(tag_path):
+    if not tag_path:
+        return False
+
+    path = Path(str(tag_path).strip('"'))
+    if path.is_absolute():
+        return path.exists()
+
+    return Path(get_tags_path(), path).exists()
+
+def _append_change_color_candidate(candidates, tag_path):
+    if not tag_path:
+        return
+
+    tag_path = str(tag_path).strip('"')
+    if not tag_path or tag_path in candidates:
+        return
+
+    if _tag_path_exists(tag_path):
+        candidates.append(tag_path)
+
+def _append_scene_object_tag_candidates(candidates, scene_nwo, extensions, require_enabled):
+    by_extension = {extension: (output_prop, template_prop) for extension, output_prop, template_prop in MODEL_VARIANT_CHANGE_COLOR_OBJECT_TAGS}
+    for extension in extensions:
+        output_prop, template_prop = by_extension[extension]
+        if require_enabled and not getattr(scene_nwo, output_prop, False):
+            continue
+
+        _append_change_color_candidate(candidates, get_asset_tag(extension))
+        _append_change_color_candidate(candidates, getattr(scene_nwo, template_prop, ""))
+        for tag_path in get_asset_tags(extension):
+            _append_change_color_candidate(candidates, tag_path)
+
+def _model_variant_change_color_candidates(context):
+    candidates = []
+    armature = get_rig_prioritize_active(context)
+    if armature:
+        _append_change_color_candidate(candidates, armature.nwo.cinematic_object)
+
+    scene_nwo = get_scene_props()
+    priority_extensions = MODEL_VARIANT_CHANGE_COLOR_PRIORITY_EXTS
+    other_extensions = tuple(extension for extension, _, _ in MODEL_VARIANT_CHANGE_COLOR_OBJECT_TAGS if extension not in priority_extensions)
+    _append_scene_object_tag_candidates(candidates, scene_nwo, priority_extensions, True)
+    _append_scene_object_tag_candidates(candidates, scene_nwo, priority_extensions, False)
+    _append_scene_object_tag_candidates(candidates, scene_nwo, other_extensions, True)
+    _append_scene_object_tag_candidates(candidates, scene_nwo, other_extensions, False)
+
+    return armature, candidates
+
+def _set_color_id_property(ob, name, value):
+    ob[name] = value
+    ob.id_properties_ui(name).update(subtype="COLOR", min=0, max=1)
+    ob.update_tag(refresh={'DATA'})
+
+def _apply_model_variant_change_colors(context, variant):
+    armature, candidates = _model_variant_change_color_candidates(context)
+    if not armature or not candidates:
+        return ""
+
+    if variant in {MODEL_VARIANT_VIEWER_NONE, MODEL_VARIANT_VIEWER_CUSTOM}:
+        variant = ""
+
+    for tag_path in candidates:
+        with ObjectTag(path=tag_path) as object_tag:
+            change_colors = object_tag.get_change_colors(variant)
+
+        if change_colors is None:
+            continue
+
+        for name, value in zip(MODEL_VARIANT_CHANGE_COLOR_PROPS, change_colors):
+            _set_color_id_property(armature, name, value)
+
+        return tag_path
+
+    return ""
+
+class NWO_OT_ModelVariantViewer(bpy.types.Operator):
+    bl_idname = "nwo.model_variant_viewer"
+    bl_label = "Model Variant Viewer"
+    bl_description = "Preview a model variant by hiding objects outside the selected region/permutation choices"
+    bl_options = {"UNDO"}
+
+    variants_json: bpy.props.StringProperty(options={'HIDDEN'})
+    variant_regions_json: bpy.props.StringProperty(options={'HIDDEN'})
+    variant: bpy.props.EnumProperty(
+        name="Variant",
+        items=_model_variant_items,
+        update=_update_model_variant_selection,
+        options=set(),
+    )
+    regions: bpy.props.CollectionProperty(type=NWO_ModelVariantViewerRegion, options=set())
+
+    @classmethod
+    def poll(cls, context):
+        nwo = get_scene_props()
+        return poll_ui(('model', 'sky')) and nwo.regions_table and nwo.permutations_table
+
+    def _populate(self, context):
+        global last_model_variant_viewer_variant
+
+        scene_nwo = get_scene_props()
+        model_tag_path = get_asset_tag(".model")
+        if not model_tag_path:
+            model_tag_path = scene_nwo.template_model
+            if not model_tag_path:
+                arm = get_rig_prioritize_active(context)
+                if arm:
+                    render_model = arm.nwo.node_order_source
+                    if render_model:
+                        model_tag_path = str(Path(render_model).with_suffix(".model"))
+
+                if not model_tag_path:
+                    self.report({'WARNING'}, "No model tag found. Export the asset before opening the variant viewer")
+                    return False
+
+        try:
+            variants, region_permutations, variant_regions = _model_variant_viewer_data(model_tag_path)
+        except Exception as error:
+            self.report({'WARNING'}, f"Failed to read model variants: {error}")
+            return False
+
+        scene_nwo = get_scene_props()
+        scene_regions = [item.name for item in scene_nwo.regions_table]
+        scene_permutations = [item.name for item in scene_nwo.permutations_table] or ["default"]
+        region_names = _dedupe_names(scene_regions + list(region_permutations))
+
+        self.variants_json = json.dumps(variants)
+        self.variant_regions_json = json.dumps(variant_regions)
+        self.regions.clear()
+        for region in region_names:
+            row = self.regions.add()
+            row.name = region
+            render_permutations = _dedupe_names(region_permutations.get(region) or scene_permutations)
+            row.permutations_json = json.dumps(_permutations_with_all(render_permutations))
+            row.render_permutations_json = json.dumps(render_permutations)
+            row.permutation = MODEL_VARIANT_VIEWER_ALL_PERMUTATIONS
+            row.enabled = True
+
+        self.variant = last_model_variant_viewer_variant if last_model_variant_viewer_variant in variants else MODEL_VARIANT_VIEWER_NONE
+        _apply_model_variant_selection(self)
+        return True
+
+    def invoke(self, context, event):
+        if not self._populate(context):
+            return {'CANCELLED'}
+
+        return context.window_manager.invoke_props_dialog(self, width=460)
+
+    def draw(self, context):
+        layout = self.layout
+        row = layout.row(align=True)
+        row.label(text="Variant")
+        row.prop(self, "variant", text="")
+        layout.separator()
+
+        for item in self.regions:
+            row = layout.row(align=True)
+            row.prop(item, "enabled", text=item.name)
+            perm_row = row.row(align=True)
+            perm_row.enabled = item.enabled
+            perm_row.prop(item, "permutation", text="")
+
+    def execute(self, context):
+        global last_model_variant_viewer_variant
+
+        selected_regions = {item.name: item.permutation for item in self.regions if item.enabled and item.permutation}
+        if not selected_regions:
+            self.report({'WARNING'}, "No regions selected")
+            return {'CANCELLED'}
+
+        render_region_permutations = {
+            item.name: set(_loads_json_property(item.render_permutations_json, []))
+            for item in self.regions
+        }
+        change_color_source = _apply_model_variant_change_colors(context, self.variant)
+        collection_map = create_parent_mapping(context)
+        scene_nwo = get_scene_props()
+        visible_count = 0
+        hidden_count = 0
+        for ob in context.view_layer.objects:
+            if not has_region_or_perm(ob) and not _is_object_instance(ob):
+                continue
+
+            visible = False
+            for region, permutation in selected_regions.items():
+                if _variant_viewer_object_matches(ob, region, permutation, render_region_permutations, collection_map):
+                    visible = _object_type_visible_for_variant(ob, scene_nwo)
+                    break
+
+            ob.hide_set(not visible)
+            ob.hide_render = (not visible)
+            if visible:
+                visible_count += 1
+            else:
+                hidden_count += 1
+
+        if hasattr(context.area, 'tag_redraw'):
+            context.area.tag_redraw()
+
+        message = f"Showing {visible_count} objects. Hid {hidden_count}"
+        if change_color_source:
+            message += f". Applied change colors from {Path(change_color_source).name}"
+        self.report({'INFO'}, message)
+        last_model_variant_viewer_variant = self.variant
+        return {'FINISHED'}
 
 class NWO_UpdateSets(bpy.types.Operator):
     bl_idname = "nwo.update_sets"

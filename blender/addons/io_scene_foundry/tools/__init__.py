@@ -41,7 +41,7 @@ from .export_bitmaps import NWO_ExportBitmapsSingle, NWO_OT_ReloadImages
 from .importer import NWO_FH_Import, NWO_FH_ImportBitmapAsImage, NWO_FH_ImportBitmapAsNode, NWO_FH_ImportShaderAsMaterial, NWO_Import, NWO_ImportGameInstanceTag, NWO_OT_ConvertScene, NWO_OT_ImportBitmap, NWO_OT_ImportFromDrop, NWO_OT_ImportShader, NWO_OT_InstancerToInstance
 from .mesh_to_marker import NWO_MeshToMarker
 from .set_sky_permutation_index import NWO_NewSky, NWO_SetDefaultSky, NWO_SetSky
-from .sets_manager import NWO_BSPContextMenu, NWO_BSPInfo, NWO_BSPSetLightmapRes, NWO_FaceRegionAdd, NWO_FaceRegionAssignSingle, NWO_MaterialRegionAssignSingle, NWO_OT_HideObjectType, NWO_PermutationAdd, NWO_PermutationAssign, NWO_PermutationAssignSingle, NWO_PermutationHide, NWO_PermutationHideSelect, NWO_PermutationMove, NWO_PermutationRemove, NWO_PermutationRename, NWO_PermutationSelect, NWO_RegionAdd, NWO_RegionAssign, NWO_RegionAssignSingle, NWO_RegionHide, NWO_RegionHideSelect, NWO_RegionMove, NWO_RegionRemove, NWO_RegionRename, NWO_RegionSelect, NWO_SeamAssignSingle, NWO_UpdateSets
+from .sets_manager import NWO_BSPContextMenu, NWO_BSPInfo, NWO_BSPSetLightmapRes, NWO_FaceRegionAdd, NWO_FaceRegionAssignSingle, NWO_MaterialRegionAssignSingle, NWO_ModelVariantViewerRegion, NWO_OT_HideObjectType, NWO_OT_ModelVariantViewer, NWO_PermutationAdd, NWO_PermutationAssign, NWO_PermutationAssignSingle, NWO_PermutationHide, NWO_PermutationHideSelect, NWO_PermutationMove, NWO_PermutationRemove, NWO_PermutationRename, NWO_PermutationSelect, NWO_RegionAdd, NWO_RegionAssign, NWO_RegionAssignSingle, NWO_RegionHide, NWO_RegionHideSelect, NWO_RegionMove, NWO_RegionRemove, NWO_RegionRename, NWO_RegionSelect, NWO_SeamAssignSingle, NWO_UpdateSets
 from .shader_farm import NWO_FarmShaders
 from .shader_finder import NWO_ShaderFinder_Find, NWO_ShaderFinder_FindSingle
 from .shader_reader import NWO_OT_BuildShaderTemplates, NWO_OT_ShaderToNodesBulk, NWO_ShaderToNodes
@@ -79,6 +79,7 @@ from .halo_join import NWO_JoinHalo
 
 classes = (
     NWO_HaloLauncherPropertiesGroup,
+    NWO_ModelVariantViewerRegion,
     NWO_RegionAdd,
     NWO_FaceRegionAdd,
     NWO_RegionRemove,
@@ -100,6 +101,7 @@ classes = (
     NWO_PermutationRename,
     NWO_PermutationHide,
     NWO_PermutationHideSelect,
+    NWO_OT_ModelVariantViewer,
     NWO_OT_HideObjectType,
     NWO_SeamAssignSingle,
     NWO_MaterialGirl,

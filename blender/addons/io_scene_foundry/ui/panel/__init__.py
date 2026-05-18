@@ -1413,17 +1413,23 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 self.draw_expandable_box(box.box(), nwo, 'ik_chains', panel_display_name='IK Chains')
 
     def draw_sets_manager(self):
-        self.box.operator('nwo.update_sets', icon='FILE_REFRESH')
+        row = self.box.row(align=True)
+        row.operator('nwo.update_sets', icon='FILE_REFRESH')
         box = self.box
         nwo = self.scene_nwo
         if not nwo.regions_table:
             return
+
+        if self.asset_type in {'model', 'sky'}:
+            box.operator('nwo.model_variant_viewer', icon='COMMUNITY')
+
         is_scenario = nwo.asset_type == 'scenario'
         self.draw_object_visibility(box.box(), nwo)
         if self.asset_type in {'model', 'sky', 'scenario', 'prefab', 'resource'}:
             self.draw_expandable_box(box.box(), nwo, "regions_table", "BSPs" if is_scenario else "Regions")
             self.draw_expandable_box(box.box(), nwo, "permutations_table", "Layers" if is_scenario else "Permutations")
-        
+
+
     def draw_object_visibility(self, box: bpy.types.UILayout, nwo):
         asset_type = nwo.asset_type
         # box.label(text="Mesh")

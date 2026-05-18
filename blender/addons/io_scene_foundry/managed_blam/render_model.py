@@ -289,6 +289,11 @@ class RenderModelTag(Tag):
                 if self.corinth and allowed_region_permutations and permutation.mesh_index > -1:
                     for i in range(permutation.mesh_count):
                         region_perm_raw_mesh[(region.name, permutation.name, i)] = permutation.mesh_index
+
+        if valid_instance_indexes is not None:
+            for element in instance_placements_block.Elements:
+                if element.ElementIndex not in instance_region_permutations:
+                    valid_instance_indexes.add(element.ElementIndex)
         
         for region in self.regions:
             for permutation in region.permutations:
@@ -391,8 +396,7 @@ class RenderModelTag(Tag):
 
                 region_permutations = instance_region_permutations.get(instance.index)
                 if not region_permutations:
-                    ob.nwo.marker_uses_regions = True
-                    ob.nwo.marker_permutation_type = "include"
+                    ob.nwo.marker_uses_regions = False
                     continue
 
                 region_names = list(region_permutations)

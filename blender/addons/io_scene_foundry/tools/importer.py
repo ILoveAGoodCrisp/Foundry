@@ -217,6 +217,59 @@ def add_decorator_cloud_instancer(cloud: bpy.types.Object, game_object_collectio
     source = _decorator_instance_source_empty(cloud, game_object_collection)
     return _add_decorator_cloud_instance_nodes(cloud, source)
 
+def _armature_pose_bones_in_node_order(armature: bpy.types.Object, node_count: int) -> list[bpy.types.PoseBone]:
+    pose_bones = armature.pose.bones
+    return [
+        pose_bones[bone.name]
+        for bone in armature.data.bones[:node_count]
+        if bone.name in pose_bones
+    ]
+
+def _pose_bone_rest_local_matrix(bone: bpy.types.PoseBone) -> Matrix:
+    matrix = bone.bone.matrix_local.copy()
+    if bone.parent is not None:
+        return bone.parent.bone.matrix_local.inverted_safe() @ matrix
+
+    return matrix
+
+def _apply_scenario_node_orientations(armature: bpy.types.Object, node_mask: list[bool], orientations) -> int:
+    if armature is None or armature.type != 'ARMATURE' or not node_mask or not orientations:
+        return 0
+
+    orientation_iter = iter(orientations)
+    pose_bones = _armature_pose_bones_in_node_order(armature, len(node_mask))
+    applied_count = 0
+
+    for idx, bone in enumerate(pose_bones):
+        if not node_mask[idx]:
+            continue
+
+        try:
+            orientation = next(orientation_iter)
+        except StopIteration:
+            break
+
+        orientation = orientation.copy() if isinstance(orientation, Quaternion) else Quaternion(orientation)
+        if orientation.magnitude <= 1e-6:
+            orientation = Quaternion((1.0, 0.0, 0.0, 0.0))
+        else:
+            orientation.normalize()
+
+        base_matrix = _pose_bone_rest_local_matrix(bone)
+
+        translation, _, scale = base_matrix.decompose()
+        if bone.parent is None:
+            orientation = import_transform.quaternion(orientation)
+
+        target_matrix = Matrix.LocRotScale(translation, orientation, scale)
+        pose_matrix = base_matrix.inverted_safe() @ target_matrix
+
+        bone.rotation_mode = 'QUATERNION'
+        bone.matrix_basis = pose_matrix
+        applied_count += 1
+
+    return applied_count
+
 variant_items = []
 last_used_variant = ""
 
@@ -2592,6 +2645,7 @@ class NWOImporter:
         ob[name] = value
         ob.id_properties_ui(name).update(subtype="COLOR", min=0, max=1)
 
+
     def _apply_change_color_properties(self, ob: bpy.types.Object, change_colors):
         if change_colors is None:
             return
@@ -2936,9 +2990,8 @@ class NWOImporter:
                                     print(f"--- Posing {obj.tag_path.ShortName}")
                                     self.context.view_layer.update()
                                     node_mask, orientations = pose
-                                    for idx, bone in enumerate(armature.pose.bones):
-                                        if node_mask[idx]:
-                                            bone.rotation_quaternion = bone.rotation_quaternion @ Quaternion(next(orientations))
+                                    _apply_scenario_node_orientations(armature, node_mask, orientations)
+                                    self.context.view_layer.update()
                                 
                                 if self.tag_import_attachments:
                                     attachments = obj.attachments_to_blender(armature, [m for m in render_objects if m.type == 'EMPTY'], model_collection)

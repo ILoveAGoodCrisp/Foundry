@@ -27,6 +27,8 @@ DECORATOR_ATTR_NORMAL = "normal"
 DECORATOR_ATTR_INFO = "decorator_info"
 DECORATOR_ATTR_SCALE = "decorator_scale"
 DECORATOR_ATTR_TINT = "decorator_tint"
+INT16_NORMALIZED_MAX = 0x7FFF
+QUATERNION_COMPONENT_COUNT = 4
 
 def _serialized_block_data(block):
     count = block.Elements.Count
@@ -102,6 +104,46 @@ def _read_serialized_decorator_placements(placements, corinth: bool):
         "tint": rows["tint"],
         "count": count,
     }
+
+def _decode_scenario_node_orientation_component(value) -> float:
+    return max(-1.0, min(1.0, float(int(value)) / INT16_NORMALIZED_MAX))
+
+def _decode_scenario_node_orientation(values) -> Quaternion:
+    rotation = Quaternion((
+        _decode_scenario_node_orientation_component(values[3]),
+        _decode_scenario_node_orientation_component(values[0]),
+        _decode_scenario_node_orientation_component(values[1]),
+        _decode_scenario_node_orientation_component(values[2]),
+    ))
+    if rotation.magnitude <= 1e-6:
+        return Quaternion((1.0, 0.0, 0.0, 0.0))
+    rotation.normalize()
+    return rotation
+
+def _decode_scenario_node_orientation_mask(signed_bytes, node_count: int) -> list[bool]:
+    result = [False] * max(0, int(node_count))
+    for idx in range(len(result)):
+        byte_index = idx // 8
+        if byte_index >= len(signed_bytes):
+            break
+        result[idx] = bool((int(signed_bytes[byte_index]) & 0xFF) & (1 << (idx % 8)))
+
+    return result
+
+def _limit_scenario_node_orientation_mask(node_mask: list[bool], orientation_count: int) -> list[bool]:
+    if sum(node_mask) <= orientation_count:
+        return node_mask
+
+    result = node_mask[:]
+    seen = 0
+    for idx, enabled in enumerate(result):
+        if not enabled:
+            continue
+        seen += 1
+        if seen > orientation_count:
+            result[idx] = False
+
+    return result
 
 class ScenarioObjectReference:
     def __init__(self, element: TagFieldBlockElement, for_decal=False, corinth=False):
@@ -186,41 +228,38 @@ class ScenarioObject:
                         if flag.IsSet:
                             self.bsps.add(idx)
                         
-        def decode_node_bitvector(signed_bytes, node_count):
-            result = [False] * node_count
-            idx = 0
-
-            for b in signed_bytes:
-                u = b & 0xFF
-
-                for bit in range(8):
-                    if idx >= node_count:
-                        return result
-
-                    result[idx] = bool((u >> bit) & 1)
-                    idx += 1
-
-            return result
-        
-        def decode_orientation(v):
-            if v == -32768:
-                return -1.0
-            else:
-                return v / 32767.0
-        
         self.orientations = []
         self.node_mask = []
-        return # NOTE skipping this until it is implemented correctly
         node_orientations = element.SelectField("object data[0]/node orientations")
-        if node_orientations.Elements.Count > 0:
-            noe = node_orientations.Elements[0]
-            n_count = noe.SelectField("node count").Data
-            bit_vectors = [e.Fields[0].Data for e in noe.SelectField("bit vector").Elements]
-            orientations = [e.Fields[0].Data for e in noe.SelectField("orientations").Elements]
-            o = orientations[:len(orientations) - (len(orientations) % 4)]
-            self.orientations = ((decode_orientation(o[i+3]), decode_orientation(o[i]), decode_orientation(o[i+1]), decode_orientation(o[i+2])) for i in range(0, len(o), 4))
-            
-            self.node_mask = decode_node_bitvector(bit_vectors, n_count)
+        return # NOTE until orientations work
+        if node_orientations is None or node_orientations.Elements.Count == 0:
+            return
+
+        noe = node_orientations.Elements[0]
+        node_count = int(noe.SelectField("node count").Data)
+        bit_vector_block = noe.SelectField("bit vector")
+        orientation_block = noe.SelectField("orientations")
+        if node_count <= 0 or bit_vector_block is None or orientation_block is None:
+            return
+
+        bit_vectors = [e.Fields[0].Data for e in bit_vector_block.Elements]
+        orientation_values = [e.Fields[0].Data for e in orientation_block.Elements]
+        orientation_value_count = len(orientation_values) - (len(orientation_values) % QUATERNION_COMPONENT_COUNT)
+
+        self.node_mask = _decode_scenario_node_orientation_mask(bit_vectors, node_count)
+        self.orientations = [
+            _decode_scenario_node_orientation(orientation_values[i:i + QUATERNION_COMPONENT_COUNT])
+            for i in range(0, orientation_value_count, QUATERNION_COMPONENT_COUNT)
+        ]
+
+        orientation_count = min(sum(self.node_mask), len(self.orientations))
+        if orientation_count == 0:
+            self.node_mask = []
+            self.orientations = []
+            return
+
+        self.node_mask = _limit_scenario_node_orientation_mask(self.node_mask, orientation_count)
+        self.orientations = self.orientations[:orientation_count]
             
     def to_object(self):
         if self.reference is None or self.reference.definition is None:
