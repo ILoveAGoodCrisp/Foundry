@@ -367,7 +367,7 @@ class FrameEventListTag(Tag):
                     b_animation.animation_events.remove(i)
                 
                 gr2_path = utils.relative_path(b_animation.gr2_path)
-                json_path = Path(self.tags_dir, gr2_path).with_suffix(".json")
+                json_path = Path(self.data_dir, gr2_path).with_suffix(".json")
                 if json_path.exists():
                     import_frame_animation_events(b_animation.animation_events, json_path)
                 
