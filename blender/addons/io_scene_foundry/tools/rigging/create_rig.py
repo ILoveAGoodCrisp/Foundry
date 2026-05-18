@@ -298,9 +298,9 @@ class NWO_OT_BakeIKControl(bpy.types.Operator):
 
                     settings_bone[self.prop_name] = 1.0
                     context.view_layer.update()
-                    keyframe_pose_bone_transform(ikb, frame)
-                    keyframe_pose_bone_transform(ptb, frame)
-                    keyframe_settings_prop(settings_bone, self.prop_name, frame)
+                    # keyframe_pose_bone_transform(ikb, frame)
+                    # keyframe_pose_bone_transform(ptb, frame)
+                    # keyframe_settings_prop(settings_bone, self.prop_name, frame)
 
                 set_settings_prop_key_interpolation(arm, self.prop_name, frames)
                 self.report({'INFO'}, f"Baked FK to IK for {fkb.name}")
@@ -318,9 +318,9 @@ class NWO_OT_BakeIKControl(bpy.types.Operator):
                         pbone.matrix = visual_matrices[pbone.name]
                     context.view_layer.update()
 
-                    for pbone in chain:
-                        keyframe_pose_bone_transform(pbone, frame)
-                    keyframe_settings_prop(settings_bone, self.prop_name, frame)
+                    # for pbone in chain:
+                    #     keyframe_pose_bone_transform(pbone, frame)
+                    # keyframe_settings_prop(settings_bone, self.prop_name, frame)
 
                 set_settings_prop_key_interpolation(arm, self.prop_name, frames)
                 self.report({'INFO'}, f"Baked IK to FK for {fkb.name}")
