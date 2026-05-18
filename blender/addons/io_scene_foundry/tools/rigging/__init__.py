@@ -1178,7 +1178,7 @@ class HaloRig:
             ikb.custom_shape = ik_shape
             ikb.custom_shape_scale_xyz *= self.scale / 0.03048 * 1.2
             ikb.use_custom_shape_bone_size = True
-            ikb.custom_shape_translation = Vector((0.0, ikb.length, 0.0))
+            # ikb.custom_shape_translation = Vector((0.0, ikb.length, 0.0))
             source_deform_name = fk_to_deform_mapping.get(fkb_name)
             source_deform = self.rig_pose.bones.get(source_deform_name) if source_deform_name is not None else None
             ikb.custom_shape_rotation_euler = ik_shape_rotation_for_source(ikb, source_deform or fkb)
@@ -1186,7 +1186,7 @@ class HaloRig:
             ptb.custom_shape = pole_shape
             ptb.custom_shape_scale_xyz *= self.scale / 0.03048
             # ptb.use_custom_shape_bone_size = True
-            ptb.custom_shape_translation = Vector((0.0, 0.0, 0.0))
+            # ptb.custom_shape_translation = Vector((0.0, 0.0, 0.0))
             ptb.custom_shape_rotation_euler = Vector((0.0, 0.0, 0.0))
 
             if settings_pb is not None and root_control is not None:
@@ -1655,7 +1655,7 @@ def apply_fk_control_shapes(rig_pose: bpy.types.Pose, fk_bone_names: list[str], 
         source_name = name[3:] if name.startswith("FK_") else name
         shape_scale = 2.2 if bone_name_matches_suffix(source_name, "hand") else 1.0
         pbone.custom_shape_scale_xyz = Vector.Fill(3, shape_scale)
-        pbone.custom_shape_translation = Vector((0.0, pbone.length * 0.5, 0.0))
+        # pbone.custom_shape_translation = Vector((0.0, pbone.length * 0.5, 0.0))
         pbone.custom_shape_rotation_euler = Vector((0.0, 0.0, 0.0))
         pbone.use_custom_shape_bone_size = True
 
@@ -1695,7 +1695,7 @@ def apply_control_shape(pbone: bpy.types.PoseBone, shape: bpy.types.Object, scal
     pbone.color.palette = palette
     pbone.custom_shape = shape
     pbone.custom_shape_scale_xyz = Vector.Fill(3, scale)
-    pbone.custom_shape_translation = translation
+    # pbone.custom_shape_translation = translation
     pbone.custom_shape_rotation_euler = rotation
     pbone.use_custom_shape_bone_size = use_bone_size
 
