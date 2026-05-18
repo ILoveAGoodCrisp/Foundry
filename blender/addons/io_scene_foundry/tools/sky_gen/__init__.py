@@ -30,6 +30,17 @@ SKY_GEN_COLOR_ATTRIBUTE = "Color"
 ANALYTIC_SKY_WIDTH = 512
 ANALYTIC_SKY_HEIGHT = 256
 SUPPORTED_SKY_IMAGE_FILTER = "*.jpg;*.jpeg;*.png;*.webp;*.exr;*.hdr;*.tif;*.tiff;*.bmp;*.tga;*.cin;*.dpx;*.sgi;*.rgb;*.bw;*.jp2;*.j2c;*.avif"
+LDR_LATLONG_IMAGE_EXTENSIONS = {
+    ".avif",
+    ".bmp",
+    ".j2c",
+    ".jp2",
+    ".jpeg",
+    ".jpg",
+    ".png",
+    ".tga",
+    ".webp",
+}
 
 SKY_TYPE_MAP = {
     "PREETHAM": 0,
@@ -234,6 +245,15 @@ def _load_sky_image_pixels(filepath: str) -> np.ndarray:
     return _load_sky_image_from_image(image, str(resolved_path))
 
 
+def _image_needs_ldr_latlong_half_turn(image: bpy.types.Image, source_name: str) -> bool:
+    if getattr(image, "is_float", False):
+        return False
+
+    filepath = getattr(image, "filepath", "") or source_name
+    suffix = Path(bpy.path.abspath(filepath)).suffix.lower()
+    return suffix in LDR_LATLONG_IMAGE_EXTENSIONS
+
+
 def _load_sky_image_from_image(image: bpy.types.Image, source_name: str) -> np.ndarray:
     width, height = image.size
     if width <= 0 or height <= 0:
@@ -246,7 +266,12 @@ def _load_sky_image_from_image(image: bpy.types.Image, source_name: str) -> np.n
         raise RuntimeError(f"Sky map pixel data is incomplete: {source_name}")
 
     pixels = pixels[:pixel_count].reshape(height, width, channels)
-    return np.flipud(pixels[..., :3]).copy()
+    pixels = np.flipud(pixels[..., :3]).copy()
+
+    if _image_needs_ldr_latlong_half_turn(image, source_name):
+        pixels = np.roll(pixels, width // 2, axis=1)
+
+    return pixels
 
 
 def _find_sky_image_in_node_tree(
