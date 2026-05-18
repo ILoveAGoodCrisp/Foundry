@@ -71,6 +71,37 @@ def orthonormalize(forward: Vector, up: Vector) -> tuple[Vector, Vector]:
     return forward, up
 
 
+def current_cinematic_anchor(context: bpy.types.Context) -> bpy.types.Object | None:
+    scene_nwo = context.scene.nwo
+    main_nwo = utils.get_scene_props()
+    if scene_nwo.asset_type != 'cinematic' and main_nwo.asset_type != 'cinematic':
+        return None
+
+    anchor = scene_nwo.cinematic_anchor
+    if anchor is None or not anchor.name:
+        return None
+    if context.scene.objects.get(anchor.name) is None:
+        return None
+
+    return anchor
+
+
+def remove_cinematic_anchor_offset(context: bpy.types.Context, matrix: Matrix) -> Matrix:
+    anchor = current_cinematic_anchor(context)
+    if anchor is None:
+        return matrix
+
+    return anchor.matrix_world.inverted_safe() @ matrix
+
+
+def apply_cinematic_anchor_offset(context: bpy.types.Context, matrix: Matrix) -> Matrix:
+    anchor = current_cinematic_anchor(context)
+    if anchor is None:
+        return matrix
+
+    return anchor.matrix_world @ matrix
+
+
 def state_from_blender_matrix(matrix: Matrix, fov: float) -> CameraState:
     halo_matrix = utils.halo_transform_matrix(matrix)
     rotation = halo_matrix.to_3x3().normalized()
@@ -163,7 +194,7 @@ def set_viewport_fov(context: bpy.types.Context, fov: float):
 
 def write_viewport_camera(context: bpy.types.Context) -> Path:
     region_3d = viewport_region_3d(context)
-    matrix = region_3d.view_matrix.inverted_safe()
+    matrix = remove_cinematic_anchor_offset(context, region_3d.view_matrix.inverted_safe())
     return write_camera_state(state_from_blender_matrix(matrix, viewport_fov(context)))
 
 
@@ -172,13 +203,14 @@ def write_scene_camera(context: bpy.types.Context) -> Path:
     if not camera:
         raise CameraSyncError("Scene has no active camera")
 
-    return write_camera_state(state_from_blender_matrix(camera.matrix_world, camera.data.angle))
+    matrix = remove_cinematic_anchor_offset(context, camera.matrix_world)
+    return write_camera_state(state_from_blender_matrix(matrix, camera.data.angle))
 
 
 def read_to_viewport(context: bpy.types.Context):
     region_3d = viewport_region_3d(context)
     state = read_camera_state()
-    matrix = blender_matrix_from_state(state)
+    matrix = apply_cinematic_anchor_offset(context, blender_matrix_from_state(state))
 
     region_3d.view_perspective = 'PERSP'
     try:
@@ -200,9 +232,10 @@ def read_to_scene_camera(context: bpy.types.Context):
         camera_data = bpy.data.cameras.new(name)
         camera = bpy.data.objects.new(name, camera_data)
         context.scene.collection.objects.link(camera)
+        context.scene.camera = camera
 
     state = read_camera_state()
-    camera.matrix_world = blender_matrix_from_state(state)
+    camera.matrix_world = apply_cinematic_anchor_offset(context, blender_matrix_from_state(state))
     camera.data.angle = state.fov
 
 
