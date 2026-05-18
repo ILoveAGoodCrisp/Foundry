@@ -810,6 +810,8 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
         
         scene_objects = dict(context.scene.objects)
         all_actions = dict(bpy.data.actions)
+
+        rel_fp = utils.relative_path(self.filepath)
         
         with bpy.data.libraries.load(self.filepath, link=False) as (data_from, data_to):
             data_to.scenes = data_from.scenes
@@ -846,6 +848,7 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
                         if expected_gr2_path.exists():
                             new_anim.external = True
                             new_anim.gr2_path = utils.relative_path(expected_gr2_path)
+                            new_anim.blend_path = rel_fp
                             
                     keep_events = (not new_anim.external) and self.import_events
                     keep_tracks = (not new_anim.external) or self.linked_gr2_keep_actions
