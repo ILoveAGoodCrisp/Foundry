@@ -20,6 +20,15 @@ class GlobalsTag(Tag):
         
     def get_global_materials(self):
         return [e.SelectField('name').GetStringData() for e in self.block_materials.Elements]
+
+    def get_camera_fov(self):
+        camera_block = self.tag.SelectField("Block:camera")
+
+        if camera_block.Elements.Count == 0:
+            return
+
+        camera = camera_block.Elements[0]
+        return camera.SelectField("field of view").Data
     
     def get_fp_arms_path(self, character_type: FPARMS):
         allowed_fp_region_perms = "default"

@@ -2393,6 +2393,47 @@ class NWOImporter:
         if armature is not None and actions:
             self.control_rig_action_batches.append((armature, list(actions)))
 
+    def _create_fp_game_camera(self, collection: bpy.types.Collection, armature: bpy.types.Object, camera_control_bone: bpy.types.PoseBone, fov: float = None):
+        if fov is None:
+            fov = 78.0
+
+        camera_name = "FP Game Camera"
+        camera_data = bpy.data.cameras.new(camera_name)
+        camera_data.lens_unit = 'FOV'
+        camera_data.sensor_fit = 'HORIZONTAL'
+        camera_data.angle = radians(fov)
+        camera_data.display_size = 50 * import_transform.scale_factor(self.scene_nwo)
+        camera_data.clip_end = 1000
+
+        camera = bpy.data.objects.new(camera_name, camera_data)
+        camera.nwo.export_this = False
+        collection.objects.link(camera)
+
+        right = Vector((0.0, -1.0, 0.0))
+        up = Vector((0.0, 0.0, 1.0))
+        back = Vector((-1.0, 0.0, 0.0))
+        matrix = Matrix((
+            (right.x, up.x, back.x, 0.0),
+            (right.y, up.y, back.y, 0.0),
+            (right.z, up.z, back.z, 0.0),
+            (0.0, 0.0, 0.0, 1.0),
+        ))
+        camera.matrix_world = import_transform.object_matrix(matrix, self.scene_nwo)
+        
+        if armature and camera_control_bone:
+            con = camera.constraints.new('COPY_LOCATION')
+            con.target = armature
+            con.subtarget = camera_control_bone.name
+            
+            con = camera.constraints.new('COPY_ROTATION')
+            con.target = armature
+            con.subtarget = camera_control_bone.name
+            con.target_space = 'LOCAL_OWNER_ORIENT'
+            con.owner_space = 'LOCAL'
+
+        self.context.scene.camera = camera
+        return camera
+
     def bake_imported_control_rig_actions(self):
         baked_count = 0
         for armature, actions in self.control_rig_action_batches:
@@ -2910,6 +2951,7 @@ class NWOImporter:
                                     globals_path = self.tags_path / "globals" / "globals.globals"
                                     if globals_path.exists():
                                         with GlobalsTag(path=globals_path) as globals:
+                                            fp_camera_fov = globals.get_camera_fov()
                                             result = globals.get_fp_arms_path(self.import_fp_arms)
                                             if result is None:
                                                 print("Failed to get FP arms reference")
@@ -2987,6 +3029,7 @@ class NWOImporter:
                                                             setattr(armature.nwo, k, v)
 
                                                         self.build_imported_control_rig(armature)
+                                                        self._create_fp_game_camera(fp_collection, armature, utils.get_pose_bone(armature, "camera_control"), fp_camera_fov)
                                     else:
                                         print(f"Couldn't find globals tag [{globals_path}], cannot import fp arms")
                                     
