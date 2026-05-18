@@ -1177,16 +1177,22 @@ class NWO_OT_AnimationsMoveToAssetBlends(bpy.types.Operator):
         if self.split_type == 'CHILD_ANIMATION':
             return [(Path(asset_path, "animations", f"{asset_path.name}_animations").with_suffix(".blend"), animations)]
 
+        part_count = {
+            'MODE': 1,
+            'WEAPON_CLASS': 2,
+            'WEAPON_TYPE': 3,
+        }[self.split_type]
         groups = defaultdict(list)
         for animation in animations:
             animation_name = utils.AnimationName(animation.name)
             mode = _safe_blend_path_part(animation_name.mode if animation_name.valid else "any", "any")
             weapon_class = _safe_blend_path_part(animation_name.weapon_class if animation_name.valid else "any", "any")
-            groups[(mode, weapon_class)].append(animation)
+            weapon_type = _safe_blend_path_part(animation_name.weapon_type if animation_name.valid else "any", "any")
+            groups[(mode, weapon_class, weapon_type)[:part_count]].append(animation)
 
         return [
-            (Path(asset_path, "animations", mode, weapon_class).with_suffix(".blend"), group)
-            for (mode, weapon_class), group in groups.items()
+            (Path(asset_path, "animations", *parts).with_suffix(".blend"), group)
+            for parts, group in groups.items()
         ]
 
     def execute(self, context):
