@@ -2555,6 +2555,8 @@ class AnimationTag(Tag):
 
             if depth == 0:
                 add(token)
+                if token != "any" and token not in level:
+                    add("any")
             elif depth == 1:
                 if token == "any":
                     add("rifle")
